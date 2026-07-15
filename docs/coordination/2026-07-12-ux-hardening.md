@@ -2258,3 +2258,8 @@ resume from this note before taking any merge-sensitive action.
 - Task 9 `pnpm verify:foundation` is green with exit `0`. Gate fixes are committed at `ffeb251e`
   and `13e6352c`; R5 is pushing and opening the draft PR. Live UAT, posted Opus adversarial QA,
   and Ben's explicit sign-off are still pending; no merge is authorized.
+- Draft PR #1065 is open at head `13e6352c`; all CI checks are green. Live UAT is GREEN with proof
+  commit `9126ddc9` on `uat/1065-host-truth` and PR comment `issuecomment-4979749886`.
+- Mandatory Opus adversarial QA is running in exact session
+  `afb93a18-1230-494c-9c30-c495cb32983b`. Ben's explicit sign-off remains pending; no merge is
+  authorized.
