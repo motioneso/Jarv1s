@@ -1,0 +1,180 @@
+step 0 grounding: PR #1065 head SHA 9976ab6b; api PATH scrubbed of real herdr; prefix bin reset to not-installed before run
+step 1 action: navigate to fresh app, create owner account via real signup UI
+screenshot: screenshots/final_execution_1_signup_form.png
+screenshot: screenshots/final_execution_2_onboarding_wizard.png
+step 2 action: skip onboarding wizard via Skip setup -> Skip anyway
+screenshot: screenshots/final_execution_3_skip_confirm_dialog.png
+screenshot: screenshots/final_execution_4_app_home.png
+step 3 action: open user menu, navigate to Settings & permissions
+screenshot: screenshots/final_execution_5_settings_page.png
+step 4 action: switch Settings mode to Admin, open Advanced host setup
+screenshot: screenshots/final_execution_6_host_pane_before_install.png
+host pane text before install: 'Jarvis\nToday\n\nPLAN\n\nTasks\nCalendar\n\nYOU\n\nNews\nSports\nWellness\nU\nUAT Owner Run3\nuat1065.run3.owner@example.com\nSettings & permissions\nPersonal\nAdmin / Setup\nACCESS\nPeople & access\nAI & EXTENSIONS\nAssistant & AI\nInstance modules\nOPERATIONS\nConnector oversight\nAudit & operations\nAdvanced host setup\nYou have owner access\nAdvanced host setup\n\nLow-level operational controls. Some changes here take effec'
+step 5 action: click Install Herdr, capture in-progress state
+screenshot: screenshots/final_execution_7_install_in_progress.png
+install response status: 200
+install response body (network, full, for secret-leak check): {"state":"installed","herdrInstalled":true}
+screenshot: screenshots/final_execution_8_host_pane_after_install.png
+host pane text after install (full): Jarvis
+Today
+
+PLAN
+
+Tasks
+Calendar
+
+YOU
+
+News
+Sports
+Wellness
+U
+UAT Owner Run3
+uat1065.run3.owner@example.com
+Settings & permissions
+Personal
+Admin / Setup
+ACCESS
+People & access
+AI & EXTENSIONS
+Assistant & AI
+Instance modules
+OPERATIONS
+Connector oversight
+Audit & operations
+Advanced host setup
+You have owner access
+Advanced host setup
+
+Low-level operational controls. Some changes here take effect only after a server restart.
+
+Runtime
+Session multiplexer
+The backend that hosts your chat sessions.
+Auto
+tmux
+herdr
+tmux available
+Whether tmux is usable on this host.
+Yes
+herdr available
+Herdr is usable on this host.
+Yes
+
+Prefer the terminal? Chat sessions run in Herdr on this host. List panes with herdr pane list, attach with herdr pane attach <pane-id>, or read output non-interactively with herdr pane read <pane-id>.
+
+Check system health
+A safe, read-only health check of this host. No secrets, env values, or paths.
+Check system health
+Not run yet
+Check system health to check this host.
+
+v3.0.2
+
+Output Detail
+Standard
+React Components
+Hide Until Restart
+Marker Color
+Clear on copy/send
+Block page interactions
+Manage MCP & Webhooks
+Manage MCP & Webhooks
+MCP Connection
+
+MCP connection allows agents to receive and act on annotations. Learn more
+
+Webhooks
+Auto-Send
+
+The webhook URL will receive live annotation changes and annotation data.
+step 6 action: run Check system health for final host-health summary
+diagnostics response status: 200
+diagnostics response body (network, full, for secret-leak check): {"uptimeSeconds":24085,"environment":"unknown","version":null,"commit":null,"host":"0.0.0.0","port":3010,"logLevel":"info","deployMode":"unknown","restartCommand":null,"moduleCount":22,"routeCount":285,"multiplexer":"auto","available":{"tmux":true,"herdr":true},"checks":[{"id":"database","label":"Database connectivity","status":"pass","detail":"Connected"},{"id":"pgboss","label":"Job queue (pg-boss)","status":"pass","detail":"Installed and reachable"},{"id":"multiplexer","label":"Session multiplexer","status":"pass","detail":"A multiplexer is available"}],"latestAvailableVersion":null,"releaseNotes":null}
+screenshot: screenshots/final_execution_9_health_summary.png
+health summary text (full): Jarvis
+Today
+
+PLAN
+
+Tasks
+Calendar
+
+YOU
+
+News
+Sports
+Wellness
+U
+UAT Owner Run3
+uat1065.run3.owner@example.com
+Settings & permissions
+Personal
+Admin / Setup
+ACCESS
+People & access
+AI & EXTENSIONS
+Assistant & AI
+Instance modules
+OPERATIONS
+Connector oversight
+Audit & operations
+Advanced host setup
+You have owner access
+Advanced host setup
+
+Low-level operational controls. Some changes here take effect only after a server restart.
+
+Runtime
+Session multiplexer
+The backend that hosts your chat sessions.
+Auto
+tmux
+herdr
+tmux available
+Whether tmux is usable on this host.
+Yes
+herdr available
+Herdr is usable on this host.
+Yes
+
+Prefer the terminal? Chat sessions run in Herdr on this host. List panes with herdr pane list, attach with herdr pane attach <pane-id>, or read output non-interactively with herdr pane read <pane-id>.
+
+Check system health
+A safe, read-only health check of this host. No secrets, env values, or paths.
+Check system health
+Status
+Healthy
+Database connectivity
+Connected
+Pass
+Job queue (pg-boss)
+Installed and reachable
+Pass
+Session multiplexer
+A multiplexer is available
+Pass
+Technical details
+
+v3.0.2
+
+Output Detail
+Standard
+React Components
+Hide Until Restart
+Marker Color
+Clear on copy/send
+Block page interactions
+Manage MCP & Webhooks
+Manage MCP & Webhooks
+MCP Connection
+
+MCP connection allows agents to receive and act on annotations. Learn more
+
+Webhooks
+Auto-Send
+
+The webhook URL will receive live annotation changes and annotation data.
+step 7 action: scan all network response bodies + DOM text for secrets/raw errors
+SECRET_SCAN: PASS (no path/stdout/secret markers found in any response body or DOM text)
+FINAL_DATUM: {"install_response_status": 200, "install_response_body": "{\"state\":\"installed\",\"herdrInstalled\":true}", "diagnostics_response_status": 200, "diagnostics_response_body": "{\"uptimeSeconds\":24085,\"environment\":\"unknown\",\"version\":null,\"commit\":null,\"host\":\"0.0.0.0\",\"port\":3010,\"logLevel\":\"info\",\"deployMode\":\"unknown\",\"restartCommand\":null,\"moduleCount\":22,\"routeCount\":285,\"multiplexer\":\"auto\",\"available\":{\"tmux\":true,\"herdr\":true},\"checks\":[{\"id\":\"database\",\"label\":\"Database connectivity\",\"status\":\"pass\",\"detail\":\"Connected\"},{\"id\":\"pgboss\",\"label\":\"Job queue (pg-boss)\",\"status\":\"pass\",\"detail\":\"Installed and reachable\"},{\"id\":\"multiplexer\",\"label\":\"Session multiplexer\",\"status\":\"pass\",\"detail\":\"A multiplexer is available\"}],\"latestAvailableVersion\":null,\"releaseNotes\":null}", "secret_scan_leaks": []}
