@@ -25,7 +25,9 @@ export function generateUatRunId(): UatRunId {
 // #1024/#1000: dev/prod default is 10.251.0.0/24 (infra/docker-compose.prod.yml), smoke reserves
 // 10.253.0.0/24 (scripts/smoke-compose.ts:117) — UAT reserves its own /24 so a concurrent
 // dev+smoke+UAT run never IP-collides on the Docker bridge (spec §3.4).
-export const UAT_DOCKER_SUBNET = "10.254.0.0/24";
+// #1059: env override lets a run pick a free /24 when the default is squatted by a leaked
+// stack (harness contract is `down -v`, but a crashed run can leave 10.254.0.0/24 held).
+export const UAT_DOCKER_SUBNET = process.env.UAT_DOCKER_SUBNET ?? "10.254.0.0/24";
 
 // #1024/#1000: prod's fixed host port is 1533 (JARVIS_WEB_PORT default). Rather than editing the
 // prod-shaped compose file to support a Docker-assigned ephemeral port (spec §3.4 option 2), Phase
