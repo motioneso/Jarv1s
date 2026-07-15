@@ -15,9 +15,18 @@ RUN corepack enable && corepack prepare pnpm@10.6.2 --activate
 # Copy manifests first for layer caching, then the workspace, then install.
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY . .
-# onlyBuiltDependencies (onnxruntime-node, sharp) in pnpm-workspace.yaml ensures
-# the embedding native binaries are fetched (the worker needs them, §3).
-RUN pnpm install --frozen-lockfile
+# onlyBuiltDependencies (onnxruntime-node, sharp, node-pty) in pnpm-workspace.yaml
+# ensures the embedding native binaries are fetched (the worker needs them, §3) and
+# node-pty is allowed to run its install script.
+# node-pty (#1059, packages/cli-runner) has no linux prebuild → it compiles from source via
+# node-gyp during `pnpm install`. bookworm-slim lacks the toolchain, so install python3/make/g++
+# for the compile, then purge in the SAME layer so the runtime image (FROM build ← FROM deps)
+# doesn't carry the ~200MB toolchain — the built pty.node is all runtime needs.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ \
+  && pnpm install --frozen-lockfile \
+  && apt-get purge -y --auto-remove python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 
 # ---- build: compile resident entrypoints to dist/ -------------------------
 FROM deps AS build
