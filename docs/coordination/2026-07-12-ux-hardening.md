@@ -2377,3 +2377,8 @@ resume from this note before taking any merge-sensitive action.
   `11bdd2efea7885a35e81625107bab5957651e0c9`, including published image. `UX 991 Repair R1` is
   running fresh authenticated desktop+narrow live UAT; independent sensitive-tier QA is active in
   parallel. Merge remains blocked until both durable verdicts are green.
+- #991 live UAT initially blocked before provisioning because PR CI intentionally builds with
+  registry push disabled; tags `live-1050-11bdd2ef` and `pr-29439577353` therefore returned
+  `manifest unknown`. No stale image or evidence was used. The owner is building the exact clean
+  head locally with tag `ghcr.io/motioneso/jarv1s:live-1050-11bdd2ef`, verifying SHA/digest, and
+  will run isolated Compose with pull disabled.
