@@ -2208,3 +2208,25 @@ resume from this note before taking any merge-sensitive action.
 - `UX 993 Host Build R4` exact Sonnet session `2460157b-3cc0-4a64-b48f-6467d8af65c3` now owns the
   same branch/worktree. It must verify and commit Task 1, then continue Tasks 2–5 under the approved
   plan. `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-15 coordinator compaction relay
+
+- The coordinator compaction tripwire fired while `UX 993 Host Build R4` remained active; no merge,
+  QA, feature-code inspection, or orchestration action followed the trigger. The host-map verdict is
+  accepted and remains the controlling collision/security guidance recorded above.
+- Delegated-lane authority is still `UX Coordinator` Codex session
+  `019f6479-18a8-7782-ab34-a2e1d9c59c82` until the successor atomically adopts it. The successor must
+  set its temporary exact label to `UX Coordinator Relay New`, update the delegated-lane-owner
+  authority block to its own immutable Codex `agent_session.value`, reset `merges_since_relay` to
+  `0`, commit and push, confirm it is driving, then fresh-resolve and close only exact old label
+  `UX Coordinator Relay Old` plus session `019f6479-18a8-7782-ab34-a2e1d9c59c82`; after closure it
+  renames itself `UX Coordinator`.
+- Fresh fleet snapshot: `UX 993 Host Build R4` exact Sonnet session
+  `2460157b-3cc0-4a64-b48f-6467d8af65c3` is working in
+  `~/Jarv1s/.claude/worktrees/ux-993-host-truth` on branch `ux/993-host-truth` in the Agents tab.
+  Re-adopt that exact label plus session and continue supervision from Task 1 verification/commit.
+- Never touch the separate primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`. Preserve unrelated coordinator-worktree changes
+  `.claude/context-meter.log`, `artifacts/`, and `webwright-proof-987-v3/`.
+- `merges_since_relay` remains `0`; #993 Host Slice 1 remains security-tier and cannot merge without
+  live UAT, a posted Opus adversarial QA verdict, and Ben's explicit sign-off.
