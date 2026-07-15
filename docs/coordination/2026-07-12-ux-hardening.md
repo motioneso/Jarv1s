@@ -2000,3 +2000,18 @@ resume from this note before taking any merge-sensitive action.
   bypass permissions, shared agents tab, and isolated worktree. Its immediate task remains a minimal
   plan pointer; no product code before coordinator approval. The primary `Coordinator` is untouched.
   `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-14 #995 plan approved; GitHub promise tracked
+
+- `UX 995 Build Low` produced plan pointer
+  `docs/superpowers/plans/2026-07-14-ux-995-connected-accounts-cleanup.md` from exact `main`
+  `2c841e54` with no spec drift. The six-task TDD plan is approved with one required correction.
+- The plan proposed removing GitHub because no owning issue existed. That conflicted with Ben's
+  decision that legitimate `Coming soon` promises must become tracked commitments, not disappear.
+  Independent GitHub search confirmed no existing owner, so created #1061
+  `https://github.com/motioneso/Jarv1s/issues/1061` (Open/Backlog, `needs-spec`, milestone 16) and
+  recorded it on #1002. #995 must retain GitHub as truthful tracked `Coming soon`; remove only Apple
+  and `Other (OAuth)`.
+- The conditional correction was sent to exact session `6796dfa2-32c4-4a5d-b2fc-71e257c25e6d` with
+  permission to begin TDD without another plan round. No backend/schema/contract widening is approved.
+  `merges_since_relay` remains `1`.
