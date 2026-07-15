@@ -2199,3 +2199,12 @@ resume from this note before taking any merge-sensitive action.
   guarded installer/audit → health summary → UI/live UAT. This is implementation approval for Host
   Slice 1 only; every security ban and QA/sign-off gate remains active.
 - `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-15 #993 host implementation relay
+
+- R3 completed Task 1's TDD edits for the shared Root-workspace predicate, then hit the context
+  threshold before committing. It committed relay state `2f11ab46`, left only its Task 1 edits plus
+  the shared context-meter log uncommitted, and was closed after its successor was verified.
+- `UX 993 Host Build R4` exact Sonnet session `2460157b-3cc0-4a64-b48f-6467d8af65c3` now owns the
+  same branch/worktree. It must verify and commit Task 1, then continue Tasks 2–5 under the approved
+  plan. `merges_since_relay` remains `0`.
