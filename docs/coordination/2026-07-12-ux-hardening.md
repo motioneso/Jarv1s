@@ -2124,3 +2124,19 @@ resume from this note before taking any merge-sensitive action.
   closed; its detached worktree was removed. R6 remains available for remediation. Merge is blocked
   only on Ben's explicit security-tier sign-off. Primary `Coordinator` remains untouched.
   `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-15 #995 merged; mandatory security relay
+
+- Ben explicitly approved the security-tier merge. After re-confirming delegated coordinator
+  authority, exact HEAD `f0a9872fd0f852aa33a68feada79aa3d77b317dc`, and all four CI checks,
+  PR #1063 merged by squash as `2f4f553d78f9d90fa9af382075b34f893cedde76`.
+- Issue #995 is Closed / Completed and its item on project 2 (`Issue and Roadmap Work`) is Done.
+  Parent #983 remains In progress. The next post-#995 queue item is #993; do not start it until the
+  successor has re-adopted the fleet and refreshed GitHub source of truth.
+- Exact R6 session `f694c32e-4029-4a9c-bf08-4bd0f71a459c` was fresh-resolved and closed. Its merged
+  worktree was intentionally preserved because it contains untracked relay note
+  `docs/superpowers/handoffs/2026-07-14-ux-995-connected-accounts-cleanup-relay-2.md`; do not delete
+  or force-remove it without resolving that file.
+- `merges_since_relay` increments to `2`. Because #995 was security-tier, relay is mandatory now.
+  Primary `Coordinator` session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains separate and must
+  not be touched.
