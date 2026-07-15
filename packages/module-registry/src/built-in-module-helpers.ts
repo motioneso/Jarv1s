@@ -76,7 +76,7 @@ export function createDefaultPersonaPreview(
     dataContext.withDataContext(
       { actorUserId: input.actorUserId, requestId: "settings:persona-preview" },
       async (scopedDb) => {
-        const model = await aiRepository.selectModelForCapability(scopedDb, "chat");
+        const model = await aiRepository.selectChatModelForUser(scopedDb);
         if (!model) {
           throw new HttpError(503, "No active chat-capable model is configured");
         }
