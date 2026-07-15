@@ -2429,7 +2429,7 @@ resume from this note before taking any merge-sensitive action.
 ## Continuation note — 2026-07-15 authorized #1050 cycle 3 and coordinator relay
 
 - Current delegated authority is exact label `UX Coordinator`, immutable Codex session
-  `019f66e1-aefb-7df2-b339-c4168d3266c1`; `merges_since_relay` is `1`. The context-meter relay
+  `019f677a-ccef-78f0-bc91-5be4cc725c16`; `merges_since_relay` is `0`. The context-meter relay
   trigger fired. Primary `Coordinator` session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains
   untouched.
 - #1050 remains draft/open and unmerged. Final pre-cycle-3 PR head is
