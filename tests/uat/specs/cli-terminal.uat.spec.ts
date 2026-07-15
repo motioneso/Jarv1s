@@ -3,7 +3,8 @@ import { UAT_ADMIN_EMAIL, UAT_ADMIN_PASSWORD } from "../seed/admin.js";
 
 // #1059: the terminal is owner/admin-gated and needs no seeded module data — no chat provider,
 // no job-search/news/etc chunk. `solo-admin` (admin user only, no data chunks) is the minimal
-// level that lands on the authenticated shell with admin nav available.
+// level that gives us an owner. A freshly-seeded owner still has first-run onboarding pending,
+// so login lands on the onboarding wizard, not the app shell — the test skips it below.
 export const uatLevel = { level: "solo-admin", without: [] } as const;
 
 // #1059/#1000: happy-path proof that the owner-gated CLI-provider terminal streams a real PTY
@@ -27,6 +28,15 @@ test("owner opens the CLI terminal, runs a command, sees output, closes clean", 
   // Scoped to the form: the auth-mode segmented control has its own "Sign in" tab button
   // with the same accessible name as the submit button (apps/web/src/auth/auth-screen.tsx).
   await page.locator("form.auth-form").getByRole("button", { name: "Sign in" }).click();
+
+  // A freshly-seeded owner has first-run onboarding pending, so login lands on the onboarding
+  // wizard (apps/web onboarding flow), not the app shell. Skip it to open the app — the terminal
+  // is reached through Settings, which onboarding gates. This exercises the real skip path a
+  // returning owner would take.
+  await page.getByRole("button", { name: "Skip setup" }).click();
+  // Skipping without a connected provider raises a confirmation dialog ("Skip setup without
+  // connecting a provider?" — chat won't work until one is connected). Confirm to open the app.
+  await page.getByRole("button", { name: "Skip anyway" }).click();
 
   // Proves login landed on the authenticated shell — RailUserMenu only renders once logged in.
   await expect(page.locator(".jds-usermenu__trigger")).toBeVisible();
@@ -62,8 +72,12 @@ test("owner opens the CLI terminal, runs a command, sees output, closes clean", 
   await dialog.getByRole("button", { name: "Set password" }).click();
 
   // Password-set transitions straight to the locked phase (nextTerminalModalPhase) — unlock with
-  // the same password to request a WS ticket and mount the xterm surface.
-  await dialog.getByLabel("Terminal password").fill("uat-terminal-pw-1059");
+  // the same password to request a WS ticket and mount the xterm surface. `exact` is required:
+  // getByLabel does case-insensitive SUBSTRING matching, so a bare "Terminal password" also
+  // matches the set-phase "New terminal password"/"Confirm terminal password" fields while the
+  // two phases briefly co-exist during the transition — a strict-mode violation. The unlock
+  // field's aria-label is exactly "Terminal password", so exact match waits for just it.
+  await dialog.getByLabel("Terminal password", { exact: true }).fill("uat-terminal-pw-1059");
   await dialog.getByRole("button", { name: "Unlock" }).click();
 
   const termHost = dialog.locator(".term-modal__host");
