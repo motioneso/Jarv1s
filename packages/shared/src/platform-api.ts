@@ -702,6 +702,34 @@ export const getHostDiagnosticsRouteSchema = {
   }
 } as const;
 
+// ── Herdr install (admin-only, fixed-script, single-flight) — #993 ──────────
+
+export type HerdrInstallState = "installed" | "failed" | "timeout";
+
+export interface HerdrInstallResultDto {
+  readonly state: HerdrInstallState;
+  readonly herdrInstalled: boolean;
+}
+
+const herdrInstallResultSchema = {
+  type: "object",
+  required: ["state", "herdrInstalled"],
+  additionalProperties: false,
+  properties: {
+    state: { type: "string", enum: ["installed", "failed", "timeout"] },
+    herdrInstalled: { type: "boolean" }
+  }
+} as const;
+
+export const postHerdrInstallRouteSchema = {
+  response: {
+    200: herdrInstallResultSchema,
+    401: errorResponseSchema,
+    403: errorResponseSchema,
+    503: errorResponseSchema
+  }
+} as const;
+
 // #917/#918 module admin + credential contracts moved to platform-api-modules.ts
 // (file-size gate). Re-exported so @jarv1s/shared consumers see no change.
 export * from "./platform-api-modules.js";
