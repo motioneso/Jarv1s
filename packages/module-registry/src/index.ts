@@ -1892,12 +1892,6 @@ export function registerBuiltInApiRoutes(
   // used (the probes only dereference it at call time, which is strictly post-boot).
   const cliPresent = makeCliPresentProbe(getRpcConnection);
 
-  const structuredChatEngineFactory = createStructuredChatEngineFactory({
-    socketConfigured,
-    getRpcConnection,
-    fallback: chatEngineFactory
-  });
-
   // The factory is resolved asynchronously in onReady (a settings read) on the in-process path, but
   // routes register synchronously. Bridge with a late-bound wrapper: it is only ever invoked when a
   // chat session launches, which is strictly after onReady. Tests/embedders that pass an explicit
@@ -1911,6 +1905,12 @@ export function registerBuiltInApiRoutes(
       }
       return resolvedChatFactory(provider, key);
     });
+
+  const structuredChatEngineFactory = createStructuredChatEngineFactory({
+    socketConfigured,
+    getRpcConnection,
+    fallback: chatEngineFactory
+  });
 
   const onboardingProbes = {
     cliPresent,
