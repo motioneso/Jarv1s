@@ -2271,3 +2271,31 @@ resume from this note before taking any merge-sensitive action.
 - Ben gave explicit security-tier merge sign-off. Before merge, `origin/main` advanced to
   `e88a4148`; exact R5 is rebasing PR #1065 and will push a new head. CI, live UAT, and integrated
   Opus QA must be fresh on that rebased head; no merge is authorized until all three refresh green.
+
+## Continuation note — 2026-07-15 delegated UX compaction relay
+
+- Current delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f64f4-aff5-7270-8ae7-1625d935203a`; `merges_since_relay` remains `0`. A compaction summary
+  fired the mandatory relay trigger before any merge. The separate primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` must never be touched.
+- GitHub source of truth for epic #983 is 9/13 complete (69%). Closed: #984, #985, #986, #987,
+  #989, #990, #992, #994, #995. Open: #991 (`needs-spec`, major), #993 (security lane below),
+  #988 (manual acceptance, cosmetic), #1002 (`needs-spec`, minor). Epic #983 remains open.
+- PR #1065 remains OPEN and draft on remote head `13e6352c`; `origin/main` is `e88a4148`, so the
+  required owner rebase has not reached GitHub. Old-head CI, live UAT, Opus QA, and Ben sign-off
+  were green/complete, but after rebase fresh CI, fresh live UAT, and fresh integrated Opus QA are
+  mandatory before merge. Ben's explicit security-tier merge sign-off is already recorded.
+- Exact build owner `UX 993 Host Build R5`, immutable Claude session
+  `4cab9e73-55a0-447e-a12f-c5bf8ffd9722`, is live in `~/Jarv1s/.claude/worktrees/ux-993-host-truth`
+  on branch `ux/993-host-truth`. It was asked to report exact rebase state/new local head/blocker
+  and relay immediately because its pane showed 2% until auto-compaction. Do not merge from the
+  predecessor's old-head evidence.
+- Successor must adopt delegated authority by replacing only this delegated-lane-owner session
+  with its own immutable Codex session id, keep `merges_since_relay: 0`, commit and push, confirm
+  it is driving, then fresh-resolve and close only exact old label+session above and rename itself
+  `UX Coordinator`. Preserve `.claude/context-meter.log`, `artifacts/`, and
+  `webwright-proof-987-v3/` as unrelated worktree changes.
+- Mid-doing: answer Ben's all-UX status request from the 9-closed/4-open rollup, then supervise the
+  R5 relay/rebase. When a rebased PR head is pushed: prove it contains current `origin/main`, await
+  fresh CI green, run fresh live UAT, obtain a fresh posted Opus adversarial QA verdict, re-confirm
+  delegated authority, then merge #1065. A security merge immediately triggers another relay.
