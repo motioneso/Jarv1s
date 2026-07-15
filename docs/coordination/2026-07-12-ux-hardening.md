@@ -2015,3 +2015,18 @@ resume from this note before taking any merge-sensitive action.
 - The conditional correction was sent to exact session `6796dfa2-32c4-4a5d-b2fc-71e257c25e6d` with
   permission to begin TDD without another plan round. No backend/schema/contract widening is approved.
   `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-14 #995 test convention corrected; Task 1 relayed
+
+- Approved repository-native test correction: structural component coverage uses existing
+  `tests/unit/*.test.tsx` SSR `renderToString`/pure assertions; click interactions use Playwright e2e;
+  no Vitest/RTL/jsdom or new frontend harness/dependency. The initial claim that no component convention
+  existed was superseded after the agent found the actual root test pattern.
+- `UX 995 Build Low` completed and committed Task 1 as `c51bb2a9` (export canonical IMAP provider list
+  for reuse). At 1% before compaction it was stopped; worktree was clean except context-meter output.
+  When its self-relay stalled, the exact session `6796dfa2-32c4-4a5d-b2fc-71e257c25e6d` was reaped.
+- Spawned exact successor `UX 995 Build R2`, immutable Claude session
+  `2e31b1b1-5b82-44c5-bb5e-6e5bcaaae4e3`, same isolated worktree/shared agents tab, confirmed Sonnet 5
+  at low effort with bypass permissions. It resumes at Task 2 under the approved plan corrections.
+  No duplicate session shares the worktree; primary `Coordinator` remains untouched.
+  `merges_since_relay` remains `1`.
