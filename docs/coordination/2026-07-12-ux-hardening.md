@@ -1942,3 +1942,18 @@ resume from this note before taking any merge-sensitive action.
 - Post-merge `main` CI run `29386816789` is in progress at merge commit
   `2c841e5444dbc15c97e466f10eafaa9dba7072ba`; it must be fully green including image tail before
   release. No #995 build agent has spawned. `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-14 #995 brief/spec approved; awaiting main green
+
+- Ben approved the six-question feature brief. The grounded durable spec is
+  `docs/superpowers/specs/2026-07-14-connected-accounts-cleanup.md` at coordinator commit
+  `b3dbff77`; GitHub pointer: `https://github.com/motioneso/Jarv1s/issues/995#issuecomment-4976681549`.
+  The `needs-spec` label was removed.
+- Locked scope: clean the existing Connected Accounts surface; reuse the existing generic IMAP
+  APIs/presets and shared health classifier; remove Apple-specific and unplanned `Other (OAuth)`
+  options; preserve tracked `Coming soon` commitments; no new connector backend, schema, credential
+  mechanism, or settings framework. Classified `security` because the existing UI accepts connector
+  credentials; final QA requires Opus adversarial review and Ben's explicit merge sign-off.
+- Post-merge `main` CI run `29386816789` remains in progress with both compose smoke jobs green and
+  foundation/app verification running. Do not create or spawn the #995 build lane until the full run,
+  including image tail, is green. `merges_since_relay` remains `1`.
