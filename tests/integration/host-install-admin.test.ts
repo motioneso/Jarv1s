@@ -10,6 +10,8 @@ import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database
 describe("POST /api/admin/host/install (HTTP route)", () => {
   let appDb: Kysely<JarvisDatabase>;
   let server: ReturnType<typeof createApiServer>;
+  let appWithFailingInstaller: ReturnType<typeof createApiServer>;
+  let appWithTimingOutInstaller: ReturnType<typeof createApiServer>;
   let adminCookie: string;
   let memberCookie: string;
 
@@ -23,6 +25,20 @@ describe("POST /api/admin/host/install (HTTP route)", () => {
     });
     await server.ready();
 
+    appWithFailingInstaller = createApiServer({
+      appDb,
+      logger: false,
+      installHerdr: async () => ({ ok: false, timedOut: false })
+    });
+    await appWithFailingInstaller.ready();
+
+    appWithTimingOutInstaller = createApiServer({
+      appDb,
+      logger: false,
+      installHerdr: async () => ({ ok: false, timedOut: true })
+    });
+    await appWithTimingOutInstaller.ready();
+
     const owner = await signUp(server, "owner@host-install.test", "Owner");
     adminCookie = owner.cookie;
     const member = await signUp(server, "member@host-install.test", "Member");
@@ -30,7 +46,12 @@ describe("POST /api/admin/host/install (HTTP route)", () => {
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([
+      server?.close(),
+      appWithFailingInstaller?.close(),
+      appWithTimingOutInstaller?.close(),
+      appDb?.destroy()
+    ]);
   });
 
   it("denies a non-admin POST with 403", async () => {
@@ -78,6 +99,30 @@ describe("POST /api/admin/host/install (HTTP route)", () => {
       .json<{ auditEvents: Array<{ action: string }> }>()
       .auditEvents.filter((e) => e.action === "host.herdr_install");
     expect(installEvents).toHaveLength(2);
+  });
+
+  it("writes a failure audit event and returns a structured (non-raw) error when the installer fails", async () => {
+    const res = await appWithFailingInstaller.inject({
+      method: "POST",
+      url: "/api/admin/host/install",
+      headers: { cookie: adminCookie }
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<HerdrInstallResultDto>();
+    expect(body.state).toBe("failed");
+    expect(JSON.stringify(body)).not.toMatch(/stdout|stderr|Error:/i);
+  });
+
+  it("returns state=timeout when the installer times out", async () => {
+    const res = await appWithTimingOutInstaller.inject({
+      method: "POST",
+      url: "/api/admin/host/install",
+      headers: { cookie: adminCookie }
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<HerdrInstallResultDto>();
+    expect(body.state).toBe("timeout");
+    expect(JSON.stringify(body)).not.toMatch(/stdout|stderr|Error:/i);
   });
 });
 
