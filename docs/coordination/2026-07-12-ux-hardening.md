@@ -2366,3 +2366,7 @@ resume from this note before taking any merge-sensitive action.
   `packages/settings-ui/src/index.tsx`, missing per-slice mechanical risk tiers, and the spent
   coordinator handoff included in the deliverable. The coordinator removed its handoff artifact
   in head `98c9a442`; `UX 1002 Plan R1` is fixing only the spec/plan before re-review.
+- #1002 PR #1066 re-review is GREEN / APPROVED at exact head
+  `16c0e9db4b9e71f1601858036f92265a198eedf4`, with no blockers. Durable approval is PR comment
+  `issuecomment-4984058639`. The PR now contains only the spec and plan; exact-head CI and
+  independent docs QA remain before merge. No #1002 implementation lane has spawned.
