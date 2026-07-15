@@ -157,10 +157,7 @@ async function handleGoogleCompleteRoute(
   return fulfillJson(route, 201, { account: googleAccount });
 }
 
-async function handleImapConnectRoute(
-  route: Route,
-  state: MockConnectorsApiState
-): Promise<void> {
+async function handleImapConnectRoute(route: Route, state: MockConnectorsApiState): Promise<void> {
   const imapAccount = createMockConnectorAccount("imap-account-1", {
     providerId: "imap-fastmail",
     providerType: "imap" as ConnectorProviderType,

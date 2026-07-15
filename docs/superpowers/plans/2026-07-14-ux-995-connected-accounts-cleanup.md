@@ -6,10 +6,10 @@ Branch: `ux/995-connected-accounts-cleanup` (verified current at `2c841e54`, no 
 ## Scope verification (done)
 
 - `settings-personal-data-panes.tsx`: `CONNECT_SERVICES` still lists Google/GitHub/Apple/`Other
-  (OAuth)`; only Google is wired (`s.go`). Apple/GitHub/Other fall through to a toast claiming
+(OAuth)`; only Google is wired (`s.go`). Apple/GitHub/Other fall through to a toast claiming
   "same OAuth flow — coming soon". Confirmed stale/broken exactly as spec describes.
 - `settings-connector-sync.ts`: labels `Partial`, `Needs attention` (used for both `lastSyncStatus
-  === "failed"` and `account.status === "error"`), `message cap reached` all present, vague as
+=== "failed"` and `account.status === "error"`), `message cap reached` all present, vague as
   spec describes. `canReconnect` is Google-only today (IMAP accounts never offer reconnect even on
   auth failure) — spec requires reconnect only when it can actually repair, so this needs an IMAP
   auth-failure case added, not merely relabeling.
@@ -19,12 +19,13 @@ Branch: `ux/995-connected-accounts-cleanup` (verified current at `2c841e54`, no 
   reimplements onboarding's flow UI, reusing the same API-layer hook" (`GoogleConnect` wraps
   `useGoogleConnectFlow`) — same pattern applies for IMAP.
 - No shared API/contract gap found: `testImapConnection`/`connectImapConnection` (in `../api/
-  client`) already return sanitized `result` enums (`ok`/`auth_failed`/`tls_failed`/other), no raw
+client`) already return sanitized `result` enums (`ok`/`auth_failed`/`tls_failed`/other), no raw
   provider errors. No coordinator escalation needed for scope.
 
 ## Task 1 — Export reusable IMAP provider list
 
 Files: `apps/web/src/onboarding/google-connector-step.tsx`
+
 - Export `IMAP_PROVIDERS` and `ImapProvider` type (currently module-local). No behavior change.
 - No test needed (pure export, covered transitively by existing onboarding tests still passing).
 

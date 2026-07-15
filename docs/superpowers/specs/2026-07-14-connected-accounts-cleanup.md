@@ -50,7 +50,7 @@ All users managing integrations through **Settings → Connected accounts**.
 ### Account health
 
 - Replace vague standalone states such as `Partial`, `message cap reached`, and `Connection needs
-  attention` with concise copy that names:
+attention` with concise copy that names:
   1. the affected capability or sync,
   2. the known cause or limit owner (Jarv1s, provider, or deployment),
   3. freshness/last-success impact when safe metadata supports it, and
