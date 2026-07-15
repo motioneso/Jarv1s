@@ -1,8 +1,22 @@
 // #1059 — a real PTY (node-pty) running a login shell for the owner terminal.
 // Deliberately NOT tmux: a genuine PTY emits the raw escape-sequence byte stream
 // xterm.js expects, sidestepping the pane-scraping that broke under claude 2.1.183.
-import * as pty from "node-pty";
+// #1059: node-pty is loaded LAZILY (via createRequire), not as a top-level import.
+// The api/worker bundles reach this module through the @jarv1s/cli-runner barrel
+// (for PROVIDER_CATALOG/LOGIN_ADAPTERS) but never construct a TerminalSession, so
+// esbuild should tree-shake this class out entirely. But node-pty lives nested
+// under packages/cli-runner/node_modules (pnpm layout) and is in esbuild's EXTERNAL
+// list — a top-level `import * as pty from "node-pty"` survives as a side-effect
+// import in dist/server.js and dist/worker.js regardless of tree-shaking, and throws
+// ERR_MODULE_NOT_FOUND at container boot since that path isn't resolvable from /app.
+// A type-only import has zero runtime footprint, so it's tree-shaken cleanly, and the
+// real module is only require()'d inside the constructor when a PTY is actually spawned
+// (cli-runner itself still runs as tsx source, unbundled, so this works there too).
+import { createRequire } from "node:module";
+import type { IPty } from "node-pty";
 import { buildSanitizedCliEnv } from "./sanitized-env.js";
+
+const require = createRequire(import.meta.url);
 
 export interface TerminalSessionOptions {
   readonly id: string;
@@ -14,10 +28,12 @@ export interface TerminalSessionOptions {
 
 export class TerminalSession {
   readonly id: string;
-  private readonly term: pty.IPty;
+  private readonly term: IPty;
 
   constructor(opts: TerminalSessionOptions) {
     this.id = opts.id;
+    // #1059: lazy require, not a top-level import — see the comment above the imports.
+    const pty = require("node-pty") as typeof import("node-pty");
     this.term = pty.spawn("/bin/bash", ["-l"], {
       name: "xterm-256color",
       cols: opts.cols,
