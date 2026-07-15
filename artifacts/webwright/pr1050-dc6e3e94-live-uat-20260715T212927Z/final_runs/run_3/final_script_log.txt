@@ -1,0 +1,7 @@
+step 1 action: real owner/admin login reached authenticated Settings on exact head dc6e3e949c861848d7800f0b45a976546001c2ad
+step 2 action: blank-label Save showed validation and emitted zero priority-model PATCH requests
+step 3 action: one valid UI Save PATCH persisted the priority and preserved hidden source wellness
+step 4 action: Discard restored the saved snapshot without another priority-model PATCH
+step 5 action: personal YOLO is on while instance policy is off; effective copy truthfully remains inactive
+step 6 action: 390px narrow Priorities had no horizontal overflow and exposed working Save/Discard actions
+RESULT: exact-head authenticated desktop+narrow UAT passed; one priority PATCH, blank Save blocked, persistence/discard/hidden-source/YOLO copy verified
