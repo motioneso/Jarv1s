@@ -2165,3 +2165,17 @@ resume from this note before taking any merge-sensitive action.
   Connection; OAuth/OIDC-only email remains provider-managed.
 - Refresh GitHub and main CI before spawning. No #993 implementation agent has been started yet;
   `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-15 #993 host lane planning
+
+- GitHub #993 is In progress without `needs-spec`. Main CI run 29394273119 is green on
+  `2f4f553d78f9d90fa9af382075b34f893cedde76`.
+- Required one-shot Opus collision/security map completed, grounded on that main SHA. It identified
+  the duplicated Root-workspace predicate as the collision epicenter and confirmed no migration or
+  product blocker. The new spec supersedes the old installer no-API comment; use one injected
+  executor function and a process-local single-flight lock with the documented `ponytail:` ceiling.
+- `UX 993 Host Build` exact Sonnet session `548668d3-c947-44a0-9cb7-05749a2af7dd` is planning on
+  branch `ux/993-host-truth` in `~/Jarv1s/.claude/worktrees/ux-993-host-truth`. Risk tier `security`;
+  scope is Delivery Slice 1 only. Next action: consume its compact plan pointer, approve only if it
+  follows the collision order, then supervise build → PR → live UAT → Opus QA → Ben sign-off.
+- `merges_since_relay` remains `0`.
