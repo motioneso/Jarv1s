@@ -1860,3 +1860,19 @@ resume from this note before taking any merge-sensitive action.
   a durable compact PR verdict. Neither lane may reuse prior-head evidence or edit feature code.
 - The build owner remains frozen. Do not merge until both fresh lanes return GREEN and the PR head
   is re-confirmed unchanged. `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-14 PR #1058 sensitive QA RED; remediation reopened
+
+- Fresh independent sensitive QA at exact head
+  `adeeff6267f467ed8605d16a549e2e533a6a0ba2` returned RED with one blocker and two non-blocking
+  findings; `MERGE-READY: NO`. Durable verdict:
+  `https://github.com/motioneso/Jarv1s/pull/1058#issuecomment-4976204613`.
+- Because this head must change, the in-progress fresh UAT lane was stopped before completing;
+  any evidence from it would have become stale. The new cycle is recorded on stop-line issue #1060
+  at `https://github.com/motioneso/Jarv1s/issues/1060#issuecomment-4976208782`.
+- Under Ben's standing instruction to “just keep chipping away at it,” a fresh Herdr pane list
+  re-resolved exact owner `UX 987 Fix Sol High`, immutable session
+  `019f6248-1c51-79d3-b50b-8a741573db1f`, and reopened it with the durable verdict pointer. The
+  owner is actively remediating the blocker at root cause with the smallest regression. The
+  separate primary `Coordinator` remains untouched. After a new head, repeat full CI including
+  image tail, fresh live UAT, and fresh independent sensitive QA. `merges_since_relay` remains `0`.
