@@ -1915,3 +1915,17 @@ resume from this note before taking any merge-sensitive action.
 - This does not change the current merge order: finish #1058, then #995, #993, #1002, and #988.
   PR #1050 remains parked and #1003 remains future scope. PR #1058's fresh UAT and sensitive-QA
   lanes continue against exact head `77aafb8e375fc8d6e8904d7fb43c84e28bf90336`.
+
+## Continuation note — 2026-07-14 PR #1058 merged; release #995 after main green
+
+- PR #1058 merged from exact head `77aafb8e375fc8d6e8904d7fb43c84e28bf90336` as squash commit
+  `2c841e5444dbc15c97e466f10eafaa9dba7072ba`. Exact-head CI run `29384838614` was fully GREEN,
+  fresh independent sensitive QA was GREEN with zero blockers at
+  `https://github.com/motioneso/Jarv1s/pull/1058#issuecomment-4976544220`, and fresh live Webwright
+  UAT was GREEN at `https://github.com/motioneso/Jarv1s/pull/1058#issuecomment-4976585224`.
+- Issue #987 and stop-line issue #1060 are CLOSED and their project items are Done. The spent exact
+  build owner `UX 987 Fix Sol High` session `019f6248-1c51-79d3-b50b-8a741573db1f` was fresh-resolved
+  and closed; its clean worktree was removed. The separate primary `Coordinator` remains untouched.
+- `merges_since_relay` is now `1`. This sensitive merge does not yet fire the two-merge relay
+  threshold. Next queue item is #995, but release it only after GitHub source-of-truth/spec checks
+  and the post-merge `main` CI run is fully green. Remaining order: #995, #993, #1002, #988.
