@@ -2253,3 +2253,5 @@ resume from this note before taking any merge-sensitive action.
 - R5 completed Task 5 in commit `c920d460`; Tasks 6-9 remain in progress.
 - R5 completed Tasks 6-7 in commits `33c75642` and `444655be`; typecheck, ESLint, and Prettier are
   green. Task 8 failure/timeout audit integration coverage is in progress.
+- R5 completed Task 8 in commit `74f2906f`; its five integration tests pass, including failure,
+  timeout, and installer-output leak checks. Task 9 `pnpm verify:foundation` is running.
