@@ -2249,3 +2249,4 @@ resume from this note before taking any merge-sensitive action.
 - The 8-task TDD plan at `docs/superpowers/plans/2026-07-15-993-host-truth.md` is approved for Tasks
   2-9. The three-state install result (`installed|failed|timeout`) is accepted; installer output is
   not parsed and no speculative already-installed state is added. R5 is implementing sequentially.
+- R5 completed Tasks 2-4 in commits `3b8f256b`, `8fe4e4f3`, and `32853ac7`; Task 5 is next.
