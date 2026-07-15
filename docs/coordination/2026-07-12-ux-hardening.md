@@ -1957,3 +1957,19 @@ resume from this note before taking any merge-sensitive action.
 - Post-merge `main` CI run `29386816789` remains in progress with both compose smoke jobs green and
   foundation/app verification running. Do not create or spawn the #995 build lane until the full run,
   including image tail, is green. `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-14 #995 build lane released
+
+- Post-merge `main` CI run `29386816789` is fully GREEN at
+  `2c841e5444dbc15c97e466f10eafaa9dba7072ba`, including both compose smoke jobs, foundation/app, and
+  image build/publish. The release gate cleared.
+- Created isolated worktree `~/Jarv1s/.claude/worktrees/ux-995-connected-accounts-cleanup` on branch
+  `ux/995-connected-accounts-cleanup` from that exact `origin/main`. The branch contains the approved
+  spec commit `76d6b439` and committed handoff `973a14d2`; no product code existed at spawn.
+- Spawned exact label `UX 995 Build`, immutable Claude session
+  `93f9bd82-dcac-4cfc-bbe0-2a1532c40fb5`, in the shared agents tab on confirmed Sonnet 5 with bypass
+  permissions. It must use `coordinated-build`, send a plan pointer for approval, and write no product
+  code before approval. #995 project status is In progress.
+- Security tier remains locked: reuse existing IMAP/credential machinery, no secrets or backend/schema
+  expansion; final Opus adversarial QA and Ben's explicit merge sign-off are mandatory.
+  `merges_since_relay` remains `1`.
