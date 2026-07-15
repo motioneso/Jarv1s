@@ -2373,3 +2373,7 @@ resume from this note before taking any merge-sensitive action.
   still running. The lane is stop-the-line while its owner diagnoses the raw failure; one proven
   transient may be rerun once, while a second failure requires an issue/escalation. Independent
   docs QA also remains before merge. No #1002 implementation lane has spawned.
+- #991 corrected-head CI run `29439577353` completed all four jobs green at exact head
+  `11bdd2efea7885a35e81625107bab5957651e0c9`, including published image. `UX 991 Repair R1` is
+  running fresh authenticated desktop+narrow live UAT; independent sensitive-tier QA is active in
+  parallel. Merge remains blocked until both durable verdicts are green.
