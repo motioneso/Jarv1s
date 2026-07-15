@@ -2251,3 +2251,5 @@ resume from this note before taking any merge-sensitive action.
   not parsed and no speculative already-installed state is added. R5 is implementing sequentially.
 - R5 completed Tasks 2-4 in commits `3b8f256b`, `8fe4e4f3`, and `32853ac7`; Task 5 is next.
 - R5 completed Task 5 in commit `c920d460`; Tasks 6-9 remain in progress.
+- R5 completed Tasks 6-7 in commits `33c75642` and `444655be`; typecheck, ESLint, and Prettier are
+  green. Task 8 failure/timeout audit integration coverage is in progress.
