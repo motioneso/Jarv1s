@@ -45,7 +45,7 @@ import { LoginBadRequestError } from "./login-service.js";
 import { isHandshakeFrame, stepHelloServer, type HelloServerState } from "./hello.js";
 // #1059 — owner terminal dispatch: TerminalHost owns the single active PTY; TerminalSink
 // is the shape the host calls back through to push async PTY output over THIS connection.
-import { TerminalHost, type TerminalSink } from "./terminal-host.js";
+import type { TerminalHost, TerminalSink } from "./terminal-host.js";
 
 /** A duplex byte sink/source — `net.Socket` satisfies this; tests inject a fake. */
 export interface ByteChannel {
