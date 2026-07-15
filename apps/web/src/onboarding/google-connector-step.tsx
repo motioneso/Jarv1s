@@ -31,7 +31,7 @@ import {
 import { importCredentialsJson } from "../connectors/google-credentials";
 import { FootNote, StepHeader } from "./onboarding-ui";
 
-const IMAP_PROVIDERS = [
+export const IMAP_PROVIDERS = [
   {
     id: "imap-yahoo",
     name: "Yahoo Mail",
@@ -65,7 +65,7 @@ const SOON_PROVIDERS = [
   { id: "m365", name: "Microsoft 365", tile: "M" }
 ] as const;
 
-type ImapProvider = (typeof IMAP_PROVIDERS)[number];
+export type ImapProvider = (typeof IMAP_PROVIDERS)[number];
 
 export function GoogleConnectorStep(props: {
   readonly eyebrow: string;
