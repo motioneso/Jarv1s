@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-12
 **Merge-authority lock (#983):** label `UX Coordinator`, Codex session
-`019f6226-78b2-7c31-9a84-f01d3c85eb0c`.
+`019f6479-18a8-7782-ab34-a2e1d9c59c82`.
 **Peer coordinator boundary:** label `Coordinator`, Claude session
 `58a78927-385c-4b1d-8fa0-94db20255d6f`, owns its separate #1000/UAT and other recorded lanes.
 **Merge policy:** the locked `UX Coordinator` owns specs, builders, QA, and merges for #983.
