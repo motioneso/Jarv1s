@@ -99,19 +99,24 @@ export class TerminalRpcClient {
   /** Write raw input bytes to the PTY. Fire-and-forget — the caller does not await the ack. */
   write(terminalId: string, bytes: Buffer): void {
     const params: RpcWriteTerminalParams = { terminalId, dataB64: bytes.toString("base64") };
-    void this.request("writeTerminal", params);
+    // #1059 [T5] — `.catch(() => {})`: the caller intentionally ignores this promise's result
+    // (fire-and-forget by design, see class doc), but a rejection arriving AFTER close()/
+    // dropConnection with no handler is an unhandled rejection under Node's default policy. The
+    // error path is already surfaced via the socket-close/reject flow, so swallowing it here
+    // loses nothing.
+    void this.request("writeTerminal", params).catch(() => {});
   }
 
   /** Resize the PTY on a client viewport change. Fire-and-forget. */
   resize(terminalId: string, cols: number, rows: number): void {
     const params: RpcResizeTerminalParams = { terminalId, cols, rows };
-    void this.request("resizeTerminal", params);
+    void this.request("resizeTerminal", params).catch(() => {});
   }
 
   /** Terminate the PTY + its process tree. Fire-and-forget. */
   kill(terminalId: string): void {
     const params: RpcKillTerminalParams = { terminalId };
-    void this.request("killTerminal", params);
+    void this.request("killTerminal", params).catch(() => {});
   }
 
   /** Register the callback invoked for every `terminalData` push (decoded from base64). */

@@ -100,7 +100,13 @@ export function registerTerminalRoutes(
   });
 
   server.post("/api/ai/terminal/password", async (request, reply) => {
-    const body = request.body as { password?: unknown };
+    // #1059 [N1] — `currentPassword` is optional on the wire: read it here (before the admin
+    // gate, same as `password`) but only ENFORCE it below once we know a password already
+    // exists. First-set stays frictionless (nothing to prove yet); OVERWRITE requires proving
+    // the CURRENT password first, or an attacker at an already-unlocked admin session could
+    // silently replace the terminal password and unlock — defeating the step-up's promise that
+    // it survives a shoulder-surfed open session (spec 2026-07-14-cli-provider-terminal-design.md:57-60).
+    const body = request.body as { password?: unknown; currentPassword?: unknown };
     if (typeof body.password !== "string" || body.password.length < 8) {
       return reply.code(400).send({ message: "Password must be at least 8 characters." });
     }
@@ -110,6 +116,23 @@ export function registerTerminalRoutes(
       const accessContext = await dependencies.resolveAccessContext(request);
       return await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
         await assertInstanceAdmin(dependencies.repository, scopedDb, accessContext.actorUserId);
+
+        // #1059 [N1] — OVERWRITE re-auth gate. First-set (alreadySet === false) skips this
+        // entirely: there is no current secret to prove possession of, and the UI's set-password
+        // form never renders once passwordSet is true, so this path only fires against a direct
+        // POST. Never log/echo either the attempted or stored password/hash (Hard Invariant:
+        // secrets never escape) — mirrors the ticket route's verify comment above.
+        const alreadySet = await hasTerminalPassword(scopedDb);
+        if (alreadySet) {
+          const currentPassword = body.currentPassword;
+          const verified =
+            typeof currentPassword === "string" &&
+            (await verifyTerminalPassword(scopedDb, currentPassword));
+          if (!verified) {
+            return reply.code(401).send({ message: "Current terminal password is incorrect." });
+          }
+        }
+
         await setTerminalPassword(scopedDb, password);
         return { ok: true };
       });

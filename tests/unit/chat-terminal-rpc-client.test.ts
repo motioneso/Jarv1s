@@ -130,4 +130,43 @@ describe("TerminalRpcClient (#1059)", () => {
     expect(received[0]?.terminalId).toBe("t");
     expect(received[0]?.bytes).toEqual(Buffer.from("xyz"));
   });
+
+  // #1059 [T5] — write/resize/kill are fire-and-forget: the caller never awaits their promise
+  // (see the class doc). Before this fix, a promise rejecting AFTER close()/dropConnection (every
+  // pending request rejects there, see `dropConnection`) had no handler attached, which is an
+  // unhandled rejection under Node's default policy. Proves the `.catch(() => {})` added to all
+  // three actually swallows a post-close rejection rather than leaving it unhandled.
+  it("write/resize/kill after close() reject internally without raising an unhandledRejection", async () => {
+    const secret = "test-secret";
+    const socketPath = tmpSocket();
+    const server = await startFakeTerminalServer(socketPath, secret);
+    servers.push(server);
+
+    const client = await TerminalRpcClient.connect({ socketPath, secret });
+    // Deliberately NOT pushed to `clients` — this test closes it manually before the shared
+    // afterEach hook runs, so afterEach's `c.close()` isn't exercised twice on the same client.
+
+    const unhandled: unknown[] = [];
+    const onUnhandledRejection = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", onUnhandledRejection);
+
+    try {
+      client.close(); // rejects every pending/future request via dropConnection
+
+      // Fire-and-forget calls AFTER close() — each internally rejects immediately ("terminal rpc
+      // client is closed"). Pre-fix, these three void-returned promises had no rejection handler.
+      client.write("t", Buffer.from("x"));
+      client.resize("t", 80, 24);
+      client.kill("t");
+
+      // Let any unhandled rejection surface on the microtask/event-loop queue before asserting.
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandledRejection);
+    }
+  });
 });

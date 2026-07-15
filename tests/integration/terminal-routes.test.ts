@@ -130,6 +130,76 @@ describe("terminal routes (#1059)", () => {
     expect(ticket).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  // #1059 [N1] — OVERWRITE re-auth gate. The prior test already proved first-SET stays
+  // frictionless (no currentPassword sent, 200/ok); this test proves overwriting an
+  // ALREADY-SET password (left at "correct-terminal-pw-1059" by the prior test) now requires
+  // proving possession of that current password first, or a shoulder-surfed/already-unlocked
+  // admin session could silently swap the terminal password and unlock (spec
+  // 2026-07-14-cli-provider-terminal-design.md:57-60).
+  it("overwriting an existing terminal password requires the correct currentPassword", async () => {
+    const missingCurrent = await server.inject({
+      method: "POST",
+      url: "/api/ai/terminal/password",
+      headers: { cookie: adminCookie, "content-type": "application/json" },
+      payload: { password: "new-terminal-pw-1059" }
+    });
+    expect(missingCurrent.statusCode).toBe(401);
+
+    const wrongCurrent = await server.inject({
+      method: "POST",
+      url: "/api/ai/terminal/password",
+      headers: { cookie: adminCookie, "content-type": "application/json" },
+      payload: { password: "new-terminal-pw-1059", currentPassword: "not-the-current-one" }
+    });
+    expect(wrongCurrent.statusCode).toBe(401);
+
+    // Old password must still be untouched by the rejected attempts above.
+    const oldStillWorks = await server.inject({
+      method: "POST",
+      url: "/api/ai/terminal/ticket",
+      headers: { cookie: adminCookie, "content-type": "application/json" },
+      payload: { password: "correct-terminal-pw-1059" }
+    });
+    expect(oldStillWorks.statusCode).toBe(200);
+
+    const correctCurrent = await server.inject({
+      method: "POST",
+      url: "/api/ai/terminal/password",
+      headers: { cookie: adminCookie, "content-type": "application/json" },
+      payload: { password: "new-terminal-pw-1059", currentPassword: "correct-terminal-pw-1059" }
+    });
+    expect(correctCurrent.statusCode).toBe(200);
+    expect(correctCurrent.json<{ ok: boolean }>().ok).toBe(true);
+
+    // The password actually changed: old value no longer mints a ticket, new value does.
+    const oldNowFails = await server.inject({
+      method: "POST",
+      url: "/api/ai/terminal/ticket",
+      headers: { cookie: adminCookie, "content-type": "application/json" },
+      payload: { password: "correct-terminal-pw-1059" }
+    });
+    expect(oldNowFails.statusCode).toBe(401);
+
+    const newWorks = await server.inject({
+      method: "POST",
+      url: "/api/ai/terminal/ticket",
+      headers: { cookie: adminCookie, "content-type": "application/json" },
+      payload: { password: "new-terminal-pw-1059" }
+    });
+    expect(newWorks.statusCode).toBe(200);
+
+    // Restore "correct-terminal-pw-1059" so every later `it` in this describe block (which all
+    // mint tickets against that literal) keeps passing — this suite shares one server/DB across
+    // its without a reset between tests, so this overwrite must be undone before returning.
+    const restore = await server.inject({
+      method: "POST",
+      url: "/api/ai/terminal/password",
+      headers: { cookie: adminCookie, "content-type": "application/json" },
+      payload: { password: "correct-terminal-pw-1059", currentPassword: "new-terminal-pw-1059" }
+    });
+    expect(restore.statusCode).toBe(200);
+  });
+
   it("non-admin gets 403 on ticket mint even with no password required yet", async () => {
     const res = await server.inject({
       method: "POST",
