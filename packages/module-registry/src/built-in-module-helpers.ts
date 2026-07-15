@@ -3,7 +3,8 @@ import {
   HttpApiAdapter,
   createAiSecretCipher,
   parseAiApiKeyCredential,
-  type ProviderKind
+  type ProviderKind,
+  type StructuredProviderAdapter
 } from "@jarv1s/ai";
 import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
 import {
@@ -63,7 +64,10 @@ const PERSONA_PREVIEW_SAMPLE_TURN =
 const PERSONA_PREVIEW_MAX_OUTPUT_TOKENS = 180;
 
 export function createDefaultPersonaPreview(
-  dataContext: DataContextRunner
+  dataContext: DataContextRunner,
+  deps: {
+    readonly createCliStructuredAdapter?: (kind: ProviderKind) => StructuredProviderAdapter;
+  } = {}
 ): (input: PersonaPreviewInput) => Promise<string> {
   const aiRepository = new AiRepository();
   const cipher = createAiSecretCipher();
@@ -72,7 +76,7 @@ export function createDefaultPersonaPreview(
     dataContext.withDataContext(
       { actorUserId: input.actorUserId, requestId: "settings:persona-preview" },
       async (scopedDb) => {
-        const model = await aiRepository.selectModelForCapability(scopedDb, "chat");
+        const model = await aiRepository.selectChatModelForUser(scopedDb);
         if (!model) {
           throw new HttpError(503, "No active chat-capable model is configured");
         }
@@ -81,45 +85,110 @@ export function createDefaultPersonaPreview(
           scopedDb,
           model.provider_config_id
         );
-        if (!provider?.encrypted_credential) {
-          throw new HttpError(503, "Chat model credential is not configured");
+        if (!provider) {
+          throw new HttpError(503, "The selected chat model provider is unavailable");
         }
-
-        let apiKey: string;
-        try {
-          const credential = parseAiApiKeyCredential(
-            cipher.decryptJson(provider.encrypted_credential)
-          );
-          if (!credential) {
-            throw new Error("missing api key");
-          }
-          apiKey = credential.apiKey;
-        } catch {
-          throw new HttpError(503, "Chat model credential is not configured");
-        }
-
         const personaBlock = renderPersonaText({
           assistantName: input.assistantName,
           personaText: input.personaText,
           userName: input.userName
         });
-        const adapter = new HttpApiAdapter(model.provider_kind as ProviderKind, apiKey, {
+        const messages = [
+          {
+            role: "user" as const,
+            content: `${personaBlock}\n\n${PERSONA_PREVIEW_SAMPLE_TURN}`
+          }
+        ];
+        const modelInput = {
+          provider_kind: model.provider_kind as ProviderKind,
+          provider_model_id: model.provider_model_id
+        };
+        const schema = {
+          type: "object",
+          properties: { text: { type: "string" } },
+          required: ["text"],
+          additionalProperties: false
+        };
+
+        if (provider.auth_method === "cli") {
+          const createAdapter = deps.createCliStructuredAdapter;
+          if (!createAdapter) {
+            throw new HttpError(
+              503,
+              "CLI preview transport is unavailable; start the CLI runner or multiplexer"
+            );
+          }
+          try {
+            return readPersonaPreviewResult(
+              await createAdapter(modelInput.provider_kind).generateStructured({
+                model: modelInput,
+                messages,
+                schema,
+                maxOutputTokens: PERSONA_PREVIEW_MAX_OUTPUT_TOKENS
+              })
+            );
+          } catch (error) {
+            if (error instanceof HttpError) throw error;
+            throw new HttpError(
+              503,
+              "CLI preview failed; check the selected CLI login and transport"
+            );
+          }
+        }
+
+        if (!provider.encrypted_credential) {
+          throw new HttpError(503, "The selected chat model requires its API credential");
+        }
+        let apiKey: string;
+        try {
+          const credential = parseAiApiKeyCredential(
+            cipher.decryptJson(provider.encrypted_credential)
+          );
+          if (!credential) throw new Error("missing api key");
+          apiKey = credential.apiKey;
+        } catch {
+          throw new HttpError(503, "The selected chat model requires its API credential");
+        }
+        const adapter = new HttpApiAdapter(modelInput.provider_kind, apiKey, {
           baseUrl: provider.base_url ?? undefined
         });
-        const { text } = await adapter.generateChat({
-          model: {
-            provider_kind: model.provider_kind,
-            provider_model_id: model.provider_model_id
-          },
-          messages: [
-            {
-              role: "user",
-              content: `${personaBlock}\n\n${PERSONA_PREVIEW_SAMPLE_TURN}`
-            }
-          ],
-          maxOutputTokens: PERSONA_PREVIEW_MAX_OUTPUT_TOKENS
-        });
-        return text;
+        try {
+          return (
+            await adapter.generateChat({
+              model: modelInput,
+              messages,
+              maxOutputTokens: PERSONA_PREVIEW_MAX_OUTPUT_TOKENS
+            })
+          ).text;
+        } catch {
+          throw new HttpError(
+            503,
+            "The selected chat provider could not generate a preview response"
+          );
+        }
       }
     );
+}
+
+export function readPersonaPreviewResult(result: {
+  readonly rawObject?: unknown;
+  readonly rawText?: string;
+}): string {
+  const value =
+    result.rawObject ??
+    (() => {
+      try {
+        return JSON.parse(result.rawText ?? "");
+      } catch {
+        return null;
+      }
+    })();
+  if (
+    value &&
+    typeof value === "object" &&
+    typeof (value as { text?: unknown }).text === "string"
+  ) {
+    return (value as { text: string }).text;
+  }
+  throw new Error("Preview transport returned no text");
 }

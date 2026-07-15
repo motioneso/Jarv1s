@@ -79,6 +79,7 @@ import {
 } from "@jarv1s/calendar";
 import {
   CHAT_QUEUE_DEFINITIONS,
+  ChatEngineRpcClient,
   chatModuleManifest,
   chatModuleSqlMigrationDirectory,
   CliChatUnavailableError,
@@ -429,6 +430,7 @@ export interface BuiltInRouteDependencies {
   /** Host diagnostics runtime-facts provider (#255), built by the API composition root. */
   readonly hostDiagnostics?: HostDiagnosticsProvider;
   readonly personaPreview?: (input: PersonaPreviewInput) => Promise<string>;
+  readonly createCliStructuredAdapter?: ReturnType<typeof createCliStructuredAdapterFactory>;
   /**
    * Bounded, live onboarding probes (Phase 2). Built inside registerBuiltInApiRoutes (sync,
    * no boot-time probing) and forwarded to the settings module so it keeps no @jarv1s/ai /
@@ -482,6 +484,21 @@ export interface BuiltInWorkerDependencies {
    * no `console.*` lands in production worker logs (observability spec #413).
    */
   readonly logger?: FastifyBaseLogger;
+}
+
+export function createStructuredChatEngineFactory(options: {
+  readonly socketConfigured: boolean;
+  readonly getRpcConnection: () => RpcConnection | undefined;
+  readonly fallback: ChatEngineFactory;
+}): ChatEngineFactory {
+  return (provider, sessionKey, engineOptions) => {
+    if (!options.socketConfigured) return options.fallback(provider, sessionKey, engineOptions);
+    const connection = options.getRpcConnection();
+    if (!connection) {
+      throw new CliChatUnavailableError("cli-runner RPC connection is not ready");
+    }
+    return new ChatEngineRpcClient(provider, sessionKey, connection, engineOptions?.executionMode);
+  };
 }
 
 export interface BuiltInModuleRegistration {
@@ -932,7 +949,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         externalModules: deps.externalModules, // #917: thread the boot snapshot to settings routes
         moduleDistribution: deps.moduleDistribution,
         reconcileExternalModuleJobs: deps.reconcileExternalModuleJobs,
-        personaPreview: deps.personaPreview ?? createDefaultPersonaPreview(deps.dataContext),
+        personaPreview:
+          deps.personaPreview ??
+          createDefaultPersonaPreview(deps.dataContext, {
+            createCliStructuredAdapter: deps.createCliStructuredAdapter
+          }),
         preferencesRepository: new PreferencesRepository(),
         notificationUnreadPort: new NotificationsRepository(),
         boss: deps.boss,
@@ -1885,6 +1906,12 @@ export function registerBuiltInApiRoutes(
       return resolvedChatFactory(provider, key);
     });
 
+  const structuredChatEngineFactory = createStructuredChatEngineFactory({
+    socketConfigured,
+    getRpcConnection,
+    fallback: chatEngineFactory
+  });
+
   const onboardingProbes = {
     cliPresent,
     testProviderConnection: makeProviderConnectionCheckProbe({
@@ -1932,6 +1959,7 @@ export function registerBuiltInApiRoutes(
   const deps: BuiltInRouteDependencies = {
     ...dependencies,
     chatEngineFactory,
+    createCliStructuredAdapter: createCliStructuredAdapterFactory(structuredChatEngineFactory),
     // #342 (§3.5 boot-time fork): on the socket path hand the chat runtime an `engineSelection` so it
     // selects the RPC client itself (fail-fast on a missing §6.6 secret), wires the §5.3 reconciliation
     // hook, and starts the §5.5 idle reaper. The {method,id,sessionKey,bytes}-only debug logger (§6.4)
