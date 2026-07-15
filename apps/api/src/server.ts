@@ -60,6 +60,8 @@ import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
 
 import { createModuleAiBridge } from "./external-module-ai-bridge.js";
 import { createModuleDistributionPort } from "./module-distribution-port.js";
+import { createHerdrInstallPort } from "./herdr-install-port.js";
+import type { HerdrInstallDependencies } from "@jarv1s/settings";
 import { registerStaticWeb } from "./static-web.js";
 import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
 import { registerExternalModuleWebAssetRoute } from "./external-module-web-route.js";
@@ -111,6 +113,8 @@ export interface CreateApiServerOptions {
   };
   /** TEST-ONLY. Injected fetch for weather HTTP calls. */
   readonly fetchFn?: typeof fetch;
+  /** TEST-ONLY. Overrides the real Herdr install executor (avoids real network/exec in tests). */
+  readonly installHerdr?: HerdrInstallDependencies["install"];
 }
 
 export interface ApiServerConfig {
@@ -464,6 +468,12 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     // #964/#9.5: factored to module-distribution-port.ts to restore the file-size cap.
     const moduleDistribution = createModuleDistributionPort(server, apiServerConfig, options);
 
+    // #993: options.installHerdr lets tests inject a fake install() so the suite never
+    // triggers a real network download / filesystem write via scripts/install-herdr.sh.
+    const herdrInstall: HerdrInstallDependencies = options.installHerdr
+      ? { install: options.installHerdr }
+      : createHerdrInstallPort(server);
+
     // #917: externalModuleSnapshot is computed above (before registerPlatformRoutes),
     // because the /api/modules provider closes over it. registerBuiltInApiRoutes reuses
     // the same const for the settings module's external-module deps below.
@@ -515,6 +525,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       googleApiClient,
       connectorsRepository,
       hostDiagnostics,
+      herdrInstall,
       externalModules: {
         // #996/#860: always-on since the JARVIS_ENABLE_EXTERNAL_MODULES flag removal —
         // packages/settings routes-module-registry.ts / routes-modules.ts gate on this

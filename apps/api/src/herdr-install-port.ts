@@ -5,15 +5,13 @@ import { fileURLToPath } from "node:url";
 
 import type { FastifyInstance } from "fastify";
 
+import type { HerdrInstallDependencies } from "@jarv1s/settings";
+
 const execFileAsync = promisify(execFile);
 
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const INSTALL_SCRIPT_PATH = join(REPO_ROOT, "scripts", "install-herdr.sh");
 const INSTALL_TIMEOUT_MS = 60_000;
-
-export interface HerdrInstallDependencies {
-  readonly install: () => Promise<{ ok: boolean; timedOut: boolean }>;
-}
 
 /**
  * #993 — fixed, non-shell, argument-free Herdr install executor. Runs ONLY

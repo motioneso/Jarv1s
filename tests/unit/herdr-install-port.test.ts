@@ -14,7 +14,7 @@ describe("createHerdrInstallPort", () => {
     const log = { error: vi.fn(), warn: vi.fn() };
     const port = createHerdrInstallPort({ log } as never);
     await port.install();
-    const call = (execFile as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    const call = (execFile as unknown as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(call[0]).toBe("bash");
     expect(call[1]).toHaveLength(1);
     expect(call[1][0]).toMatch(/scripts\/install-herdr\.sh$/);
