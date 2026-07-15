@@ -1876,3 +1876,19 @@ resume from this note before taking any merge-sensitive action.
   owner is actively remediating the blocker at root cause with the smallest regression. The
   separate primary `Coordinator` remains untouched. After a new head, repeat full CI including
   image tail, fresh live UAT, and fresh independent sensitive QA. `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-14 PR #1058 GET/PUT classifier remediation delivered
+
+- `UX 987 Fix Sol High` delivered exact local/origin/GitHub head
+  `77aafb8e375fc8d6e8904d7fb43c84e28bf90336`. The People directory GET/PUT classifier now contains
+  `VaultPathError`, fixed known errnos, and path-bearing Node filesystem errors including `ELOOP`,
+  while preserving unrelated programming errors.
+- The smallest regression drives a realistic path-bearing `ELOOP` through both GET and PUT catches
+  and proves fixed safe 400 responses with no vault-path disclosure. Focused People routes/service
+  tests are 17/17 green. `VF_EXIT=0` with 3,326 unit and 1,648 integration tests passed, 155
+  migrations current; `AUDIT_EXIT=0`; pre-push format/lint/typecheck green; fresh `origin/main`
+  rebase current. The two non-adjacent UI findings remain untouched.
+- GitHub independently confirms the exact PR head and CI run `29384838614` is in progress; both
+  compose smoke jobs are green and foundation/app verification is running. The build lane is frozen.
+  Require full CI including image tail, then fresh live UAT and fresh independent sensitive QA.
+  Previous-head evidence is stale. `merges_since_relay` remains `0`.
