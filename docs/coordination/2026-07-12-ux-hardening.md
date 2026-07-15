@@ -2361,3 +2361,8 @@ resume from this note before taking any merge-sensitive action.
   `plan/ux-1002-coming-soon`, exact label `UX 1002 Plan R1`, immutable Codex session
   `019f66fc-934d-74b3-958c-cb85044eedc5`, Sol/high. It may inventory promises, map live GitHub
   trackers, and write a spec/plan; it may not implement product code or mutate GitHub issues.
+- #1002 opened draft docs-only PR #1066. Independent plan review on head `cd29de42` returned RED:
+  trailing whitespace, missing live collision with PR #1050 on
+  `packages/settings-ui/src/index.tsx`, missing per-slice mechanical risk tiers, and the spent
+  coordinator handoff included in the deliverable. The coordinator removed its handoff artifact
+  in head `98c9a442`; `UX 1002 Plan R1` is fixing only the spec/plan before re-review.
