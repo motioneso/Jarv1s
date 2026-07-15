@@ -2406,3 +2406,9 @@ resume from this note before taking any merge-sensitive action.
   verified #1061 unchanged, and linked all four as native #1002 sub-issues. `UX 1002 Plan R1` was
   reaped; its worktree and local/remote branch are removed. Approved plan hard-gates all
   implementation spawns until #1050 resolves; G2 is first afterward.
+- #991 R2 repaired effective per-user preview routing and focused contracts in code head
+  `50460c284d435f8b2898c7f3a53b5fe5f2d96548`; full local foundation is green (3,323 unit and
+  1,646 integration tests passed, 155 migrations current). The coordinator removed the spent
+  handoff without product changes. Final PR #1050 head is
+  `da66a101a46e8d9349b7277ec5778eb3ecf57b29`; no `docs/coordination/` file remains and fresh CI
+  run `29443722846` is in progress. Fresh sensitive QA and live proof must target this head.
