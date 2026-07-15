@@ -2140,3 +2140,16 @@ resume from this note before taking any merge-sensitive action.
 - `merges_since_relay` increments to `2`. Because #995 was security-tier, relay is mandatory now.
   Primary `Coordinator` session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains separate and must
   not be touched.
+
+## Continuation note — 2026-07-15 UX relay adopted; #993 brief started
+
+- `UX Coordinator` Codex session `019f6479-18a8-7782-ab34-a2e1d9c59c82` adopted delegated-lane
+  authority in commit `3783e3fd`, pushed it, and reset `merges_since_relay` to `0`. It then
+  fresh-resolved and closed only `UX Coordinator Relay Old` session
+  `019f6226-78b2-7c31-9a84-f01d3c85eb0c`. Primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains untouched.
+- GitHub source of truth: #995 is Closed/Completed; PR #1063 merged to main as
+  `2f4f553d78f9d90fa9af382075b34f893cedde76`; parent #983 remains In progress; #993 is open in
+  Backlog with `needs-spec`. Main CI run 29394273119 for the merge SHA is still in progress.
+- #993 is now in the required pre-development brief. Do not spawn implementation until Ben
+  answers the six brief questions one at a time, approves the resulting spec, and main CI is green.
