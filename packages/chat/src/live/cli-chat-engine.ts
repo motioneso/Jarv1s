@@ -13,11 +13,13 @@
  *
  * The Claude launch flags below are SECURITY-CRITICAL and were empirically
  * verified in the Phase 1 spike (docs/superpowers/spikes/2026-06-08-cli-capability-matrix.md):
- *   --permission-mode bypassPermissions — skip claude 2.1.x's interactive folder-trust wizard,
- *                                     which --permission-mode default gates on and the #342
- *                                     .claude.json seeding no longer suppresses (#1067). Native-tool
- *                                     safety comes from --tools "" / the PreToolUse allowlist hook,
- *                                     NOT this flag (see buildClaudeCommand + claude-permission-hook).
+ *   --permission-mode default       — #1071 (revert of #1068): the seeding (provider-first-run.ts)
+ *                                     + correct HOME=/data/cli-auth already suppress claude 2.1.x's
+ *                                     folder-trust wizard under `default`; `bypassPermissions` instead
+ *                                     triggers a BLOCKING bypass-mode accept warning that the REPL
+ *                                     can't answer → verified-submit fails → 503. Native-tool safety
+ *                                     comes from --tools "" / the PreToolUse allowlist hook, NOT this
+ *                                     flag (see buildClaudeCommand + claude-permission-hook).
  *   --tools ""                      — empty allowlist disables ALL native tools (F1: a
  *                                     denylist was bypassed via the Monitor tool)
  *   --append-system-prompt-file P   — inject persona (survives /clear; append, not replace)
@@ -756,16 +758,13 @@ export class CliChatEngineImpl implements CliChatEngine {
       this.credentialFile && existsSync(this.credentialFile)
         ? `CLAUDE_CODE_OAUTH_TOKEN="$(cat ${shellQuote(this.credentialFile)})" claude`
         : "claude";
-    // #1067: bypassPermissions skips claude 2.1.x's interactive folder-trust wizard, which
-    // --permission-mode default gates on and the #342 .claude.json seeding no longer suppresses;
-    // the engine can't answer it, so the REPL blocks → launch() throws → runner "unavailable" → 503.
-    // Safe: native tools stay disabled by --tools "" (non-MCP) / the PreToolUse allowlist hook fires
-    // regardless of mode (MCP). Deliberately reverses redundant spike-F2 defense-in-depth — see header.
-    const parts = [
-      `cd ${shellQuote(opts.neutralDir)} &&`,
-      claudeCmd,
-      "--permission-mode bypassPermissions"
-    ];
+    // #1071: REVERT of #1068 (see header for the full root-cause narrative). `default` is correct;
+    // #1068's `bypassPermissions` was the prod-chat 503 regression — in claude 2.1.183 it triggers a
+    // BLOCKING bypass-mode accept-warning that bypassPermissionsModeAccepted:true does NOT suppress →
+    // REPL never ready → VerifiedSubmitError → 503. Confirmed by live prod-container test: the FULL
+    // flag set below under `default` reaches a clean ready REPL and answers a turn (seeding +
+    // HOME=/data/cli-auth already suppress the folder-trust wizard). Restores spike-F2 DiD.
+    const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, claudeCmd, "--permission-mode default"];
 
     if (opts.mcpToken && opts.mcpServerUrl) {
       const mcpConfigPath = await this.writeClaudeMcpConfig(opts);

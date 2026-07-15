@@ -197,9 +197,10 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     expect(launchLine).not.toContain("jst_abc");
     expect(launchLine).not.toContain("Bearer");
     expect(launchLine).not.toContain("Authorization");
-    // #1067: bypassPermissions to skip claude 2.1.x's trust wizard. Tool safety here comes from
-    // --allowedTools + the PreToolUse hook (below), which are independent of --permission-mode.
-    expect(launchLine).toContain("--permission-mode bypassPermissions");
+    // #1071 (revert of #1068): default mode. Seeding + correct HOME suppress the trust wizard;
+    // bypassPermissions triggers a blocking accept-warning that wedges the REPL → 503. Tool safety
+    // here comes from --allowedTools + the PreToolUse hook (below), independent of --permission-mode.
+    expect(launchLine).toContain("--permission-mode default");
     expect(launchLine).toContain("--strict-mcp-config");
     expect(launchLine).not.toContain("web_search");
     expect(launchLine).not.toContain("browser");
@@ -380,9 +381,10 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     const launchLine = (sendKeysCall![1] as string[])[3];
     expect(launchLine).toContain('--tools ""');
     expect(launchLine).not.toContain("--allowedTools");
-    // #1067: bypassPermissions to skip claude 2.1.x's trust wizard. On this branch native tools
-    // are fully disabled by --tools "" above, independent of --permission-mode.
-    expect(launchLine).toContain("--permission-mode bypassPermissions");
+    // #1071 (revert of #1068): default mode. Seeding + correct HOME suppress the trust wizard;
+    // bypassPermissions triggers a blocking accept-warning that wedges the REPL → 503. On this branch
+    // native tools are fully disabled by --tools "" above, independent of --permission-mode.
+    expect(launchLine).toContain("--permission-mode default");
     expect(launchLine).toContain("--strict-mcp-config");
     expect(launchLine).not.toContain("web_search");
     expect(launchLine).not.toContain("browser");
