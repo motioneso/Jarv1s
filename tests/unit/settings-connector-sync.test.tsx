@@ -37,10 +37,10 @@ describe("connector sync account health", () => {
     expect(health).toMatchObject({
       indicator: "error",
       badgeTone: "amber",
-      label: "Needs attention",
+      label: "Sign-in expired",
       canReconnect: true
     });
-    expect(health.alert).toContain("Google access needs to be refreshed");
+    expect(health.alert).toContain("Google access needs to be reconnected");
   });
 
   it("keeps partial syncs visible without sending users through reconnect", () => {
@@ -54,7 +54,7 @@ describe("connector sync account health", () => {
     expect(health).toMatchObject({
       indicator: "error",
       badgeTone: "amber",
-      label: "Partial",
+      label: "Partial sync",
       canReconnect: false
     });
     expect(health.alert).toContain("Some email messages could not be saved");
@@ -73,7 +73,7 @@ describe("connector sync account health", () => {
     expect(health).toMatchObject({
       indicator: "error",
       badgeTone: "amber",
-      label: "Partial"
+      label: "Message cap reached"
     });
     expect(health.alert).toContain("Last sync reached its message cap");
     expect(health.alert).toContain("message cap reached");
