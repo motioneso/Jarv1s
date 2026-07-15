@@ -2179,3 +2179,13 @@ resume from this note before taking any merge-sensitive action.
   scope is Delivery Slice 1 only. Next action: consume its compact plan pointer, approve only if it
   follows the collision order, then supervise build → PR → live UAT → Opus QA → Ben sign-off.
 - `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-15 #993 host planning relay
+
+- `UX 993 Host Build` session `548668d3-c947-44a0-9cb7-05749a2af7dd` hit the mandatory context
+  threshold while verifying premises, before plan approval or implementation. It relayed the same
+  worktree and was fresh-resolved and closed only after the successor was confirmed driving.
+- `UX 993 Host Build R2` exact Sonnet session `1d81f179-c0c2-4d35-9e63-fc5782e4eb71` now owns
+  branch/worktree `ux/993-host-truth`. Next action remains plan-pointer review and approval; do not
+  infer implementation approval from the relay.
+- `merges_since_relay` remains `0`.
