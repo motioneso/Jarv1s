@@ -2250,3 +2250,4 @@ resume from this note before taking any merge-sensitive action.
   2-9. The three-state install result (`installed|failed|timeout`) is accepted; installer output is
   not parsed and no speculative already-installed state is added. R5 is implementing sequentially.
 - R5 completed Tasks 2-4 in commits `3b8f256b`, `8fe4e4f3`, and `32853ac7`; Task 5 is next.
+- R5 completed Task 5 in commit `c920d460`; Tasks 6-9 remain in progress.
