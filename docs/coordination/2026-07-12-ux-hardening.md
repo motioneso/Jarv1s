@@ -2230,3 +2230,16 @@ resume from this note before taking any merge-sensitive action.
   `.claude/context-meter.log`, `artifacts/`, and `webwright-proof-987-v3/`.
 - `merges_since_relay` remains `0`; #993 Host Slice 1 remains security-tier and cannot merge without
   live UAT, a posted Opus adversarial QA verdict, and Ben's explicit sign-off.
+
+## Continuation note — 2026-07-15 delegated UX takeover
+
+- `UX Coordinator` Codex session `019f64f4-aff5-7270-8ae7-1625d935203a` adopted delegated-lane
+  authority in pushed commit `4d494a4c`; `merges_since_relay` is `0`. The exact predecessor session
+  `019f6479-18a8-7782-ab34-a2e1d9c59c82` was closed, and the separate primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` was not touched.
+- `UX 993 Host Build R4` exact Sonnet session `2460157b-3cc0-4a64-b48f-6467d8af65c3` remains adopted.
+  Task 1 is complete in commit `ea9c2d77`; the 2026-07-15 host-account-truth spec now controls, and
+  the agent is preparing `docs/superpowers/plans/2026-07-15-993-host-truth.md` for approval before
+  further implementation.
+- #993 Host Slice 1 remains security-tier: live UAT, a posted Opus adversarial QA verdict, and Ben's
+  explicit merge sign-off remain mandatory.
