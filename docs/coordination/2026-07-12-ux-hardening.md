@@ -2420,3 +2420,8 @@ resume from this note before taking any merge-sensitive action.
   and no evidence was claimed. Two failed QA cycles exhaust the lane failure budget; `UX 991
   Repair R2` is closed, the worktree is clean at head `da66a101`, and the lane is stopped pending
   Ben's direction. #1002 G2 and #988 remain hard-gated behind #1050.
+- Ben explicitly authorized a third #1050 repair cycle. Fresh exact label `UX 991 Repair R3`,
+  immutable Codex session `019f6777-ff1f-7f31-b480-3d1350f649b1`, Luna/medium, is active in the
+  existing isolated worktree. Local handoff commit `61c1a50b` is intentionally unpushed to avoid a
+  handoff-only CI run; the coordinator will remove it before final review. R3 must plan before
+  editing and is limited to truthful YOLO copy plus focused interactive Priority UI contracts.
