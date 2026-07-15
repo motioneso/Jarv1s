@@ -416,9 +416,11 @@ function YoloMode() {
       <Row
         name="Auto-approve actions"
         desc={
-          state.instanceEnabled
+          state.instanceEnabled && state.self.enabled
             ? "Effective state: enabled for interactive chat. Background work still uses its own policy."
-            : "Effective state: inactive because the instance owner has disabled YOLO. Your preference remains saved."
+            : state.instanceEnabled
+              ? "Effective state: inactive because your preference is off."
+              : "Effective state: inactive because the instance owner has disabled YOLO. Your preference remains saved."
         }
         control={
           <Switch
