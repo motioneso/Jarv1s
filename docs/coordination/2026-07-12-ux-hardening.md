@@ -2153,3 +2153,15 @@ resume from this note before taking any merge-sensitive action.
   Backlog with `needs-spec`. Main CI run 29394273119 for the merge SHA is still in progress.
 - #993 is now in the required pre-development brief. Do not spawn implementation until Ben
   answers the six brief questions one at a time, approves the resulting spec, and main CI is green.
+
+## Continuation note — 2026-07-15 #993 decisions approved
+
+- Ben replaced the generic brief with a docs-grounded grill and approved the resulting decisions in
+  `docs/superpowers/specs/2026-07-15-settings-host-account-truth.md`.
+- Deliver #993 as two serialized security-tier PRs: host truth first, then account truth. The host
+  slice includes fixed-command one-click Herdr install, truthful Root workspace detection, useful
+  system-health results, and removal of the inert Log level row. The account slice includes the
+  compact profile hierarchy and local-password email change verified through a healthy send-capable
+  Connection; OAuth/OIDC-only email remains provider-managed.
+- Refresh GitHub and main CI before spawning. No #993 implementation agent has been started yet;
+  `merges_since_relay` remains `0`.
