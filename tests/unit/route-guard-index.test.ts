@@ -63,6 +63,9 @@ describe("route→module index", () => {
     expect(PLATFORM_UNGUARDED_ROUTES.has("GET /api/auth/*")).toBe(true);
     // connector-owned routes must NOT be allowlisted (guarded by connectors module)
     expect(PLATFORM_UNGUARDED_ROUTES.has("GET /api/admin/connectors/accounts")).toBe(false);
+    // host diagnostics + install: admin-gated platform routes owned by no module (#255, #993)
+    expect(PLATFORM_UNGUARDED_ROUTES.has("GET /api/admin/host/diagnostics")).toBe(true);
+    expect(PLATFORM_UNGUARDED_ROUTES.has("POST /api/admin/host/install")).toBe(true);
   });
 });
 
