@@ -2084,3 +2084,17 @@ resume from this note before taking any merge-sensitive action.
   explicit merge sign-off remain required.
 - Spent exact R5 session `d155294f-7360-407c-845e-d48be30b8a07` was fresh-resolved by label plus
   session id and closed. Primary `Coordinator` remains untouched. `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-15 #995 PR #1063 in security verification
+
+- Build lane reports complete at exact local/origin/GitHub HEAD
+  `e5d18ad060cb46020058e05e1ac20b5866da74d5`; PR #1063 is open, non-draft, and mergeable. Local
+  `verify:foundation` and release-hardening audit were green, and real-dev UAT passed. Exact-head CI
+  is currently running, so no CI-green claim exists yet.
+- R6 remains available for remediation and was asked to post durable PR-linked live-path evidence
+  with the UAT run and screenshots. Security-tier QA is active in an isolated detached worktree:
+  label `UX 995 QA Opus`, immutable Claude session
+  `96aafea7-1690-4cdb-8dc3-5d8f24390d48`, model Opus 4.8.
+- Merge remains blocked on exact-head CI green, durable live-path evidence, the Opus adversarial QA
+  comment/verdict, and Ben's explicit security-tier sign-off. Primary `Coordinator` remains
+  untouched. `merges_since_relay` remains `1`.
