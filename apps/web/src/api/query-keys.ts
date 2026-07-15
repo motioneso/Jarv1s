@@ -54,6 +54,11 @@ export const queryKeys = {
     voiceEndpoint: ["ai", "voice-endpoint"] as const,
     capabilities: ["ai", "capability"] as const,
     capability: (capability: string) => ["ai", "capability", capability] as const,
+    // #1059 — owner-gated CLI-provider terminal. Routed through useQuery (not a bare
+    // useEffect+useState) so TerminalModal's initial no-password/locked branch resolves
+    // synchronously in tests via queryClient.setQueryData, same trick as every other
+    // primed-cache renderToString suite in this file family.
+    terminalStatus: (providerId: string) => ["ai", "terminal-status", providerId] as const,
     assistantTools: ["ai", "assistant-tools"] as const,
     webSearchKey: ["ai", "web-search-key"] as const,
     runtimeConfig: (key: string) => ["ai", "runtime-config", key] as const,

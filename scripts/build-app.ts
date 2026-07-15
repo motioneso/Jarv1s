@@ -8,9 +8,9 @@
  * because module SQL dirs are resolved via `import.meta.url` and bundling would
  * collapse every module's URL to the bundle's, breaking SQL resolution.
  *
- * Native deps that load .node binaries (onnxruntime-node, sharp) and the
- * transformers wrapper are kept EXTERNAL — they must be required from the pruned
- * production node_modules at runtime, never inlined (Open Risk #3/#6).
+ * Native deps that load .node binaries (onnxruntime-node, sharp, node-pty) and
+ * the transformers wrapper are kept EXTERNAL — they must be required from the
+ * pruned production node_modules at runtime, never inlined (Open Risk #3/#6).
  */
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -29,7 +29,24 @@ const ENTRYPOINTS: Record<Target, { entry: string; outfile: string }> = {
 
 // Packages that must NOT be bundled: they load native binaries or read files
 // relative to their own package dir at runtime. Resolved from node_modules instead.
-const EXTERNAL = ["@huggingface/transformers", "onnxruntime-node", "sharp", "pg-native"];
+// #1059: node-pty MUST be external. The api/worker entrypoints reach the
+// @jarv1s/cli-runner barrel (module-registry onboarding imports PROVIDER_CATALOG/
+// LOGIN_ADAPTERS), and the barrel re-exports `main` → TerminalHost → TerminalSession
+// → `import "node-pty"`. node-pty is a native module: its loader resolves pty.node
+// via prebuilds/ paths relative to its own dir, which esbuild COLLAPSES when inlined,
+// so a bundled `node dist/server.js` throws at boot loading the binding. The prod
+// image keeps the full node_modules (Dockerfile runtime = FROM build) with the
+// compiled pty.node, so an external `require("node-pty")` resolves correctly — same
+// treatment as onnxruntime-node/sharp. Without this the cli-runner sidecar boots
+// (tsx source path, non-prod smoke) but the bundled api crashes, failing ONLY the
+// prod compose smoke. [[bundled-path-resolution-trap]]
+const EXTERNAL = [
+  "@huggingface/transformers",
+  "onnxruntime-node",
+  "sharp",
+  "pg-native",
+  "node-pty"
+];
 
 /**
  * better-auth's kysely-adapter ships bun/d1/node-sqlite dialect chunks that it

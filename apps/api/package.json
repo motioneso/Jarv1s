@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fastify/websocket": "^11.3.0",
     "@jarv1s/ai": "workspace:*",
     "@jarv1s/auth": "workspace:*",
     "@jarv1s/connectors": "workspace:*",

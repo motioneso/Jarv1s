@@ -12,6 +12,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CliRunnerServer } from "../../packages/cli-runner/src/server.js";
 import type { CliChatEngineHost } from "../../packages/cli-runner/src/engine-host.js";
+import { TerminalHost } from "../../packages/cli-runner/src/terminal-host.js";
+
+// #1059 — CliRunnerServerDeps now requires terminalHost; this suite never touches the
+// terminal RPC path, so one shared never-opened instance satisfies the type everywhere below.
+const terminalHost = new TerminalHost({ homeBase: "/tmp", toolsBinDir: "/usr/bin" });
 
 let socketDir: string;
 
@@ -40,6 +45,7 @@ describe("CliRunnerServer max-age login reaper interval (v0.1.3)", () => {
       socketPath: path.join(socketDir, "cli-runner.sock"),
       socketDir,
       secret: "s",
+      terminalHost,
       loginReaperIntervalMs: 50
     });
 
@@ -64,6 +70,7 @@ describe("CliRunnerServer max-age login reaper interval (v0.1.3)", () => {
       socketPath: path.join(socketDir, "cli-runner.sock"),
       socketDir,
       secret: "s",
+      terminalHost,
       loginReaperIntervalMs: 0
     });
     await server.start();
@@ -94,6 +101,7 @@ describe("CliRunnerServer max-age login reaper interval (v0.1.3)", () => {
       socketPath: path.join(socketDir, "cli-runner.sock"),
       socketDir,
       secret: "s",
+      terminalHost,
       loginReaperIntervalMs: 50
     });
 
@@ -122,6 +130,7 @@ describe("CliRunnerServer max-age login reaper interval (v0.1.3)", () => {
       socketPath: path.join(socketDir, "cli-runner.sock"),
       socketDir,
       secret: "s",
+      terminalHost,
       loginReaperIntervalMs: 50
     });
 

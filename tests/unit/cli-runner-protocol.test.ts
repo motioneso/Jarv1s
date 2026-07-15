@@ -27,6 +27,7 @@ import {
   type ConnectionDeps
 } from "../../packages/cli-runner/src/connection.js";
 import { CliChatEngineHost } from "../../packages/cli-runner/src/engine-host.js";
+import { TerminalHost } from "../../packages/cli-runner/src/terminal-host.js";
 import { VerifiedSubmitError } from "../../packages/chat/src/live/cli-chat-engine.js";
 
 const SECRET = "test-rpc-secret";
@@ -138,6 +139,13 @@ class FakeChannel implements ByteChannel {
   feed(buf: Buffer): void {
     this.dataListener?.(buf);
   }
+  // #1059 [N2] — simulate the underlying socket firing "close" (e.g. the peer disconnected),
+  // as distinct from `end()` which is the SERVER voluntarily ending the channel. serveConnection
+  // registers the same `close` handler for both the socket's "close" and "error" events, so
+  // invoking it here exercises exactly the connection-drop path the regression test needs.
+  triggerClose(): void {
+    this.closeListener?.();
+  }
   /** Decode every complete frame the server has written so far. */
   decodeAll(): unknown[] {
     let buf = Buffer.concat(this.written);
@@ -182,7 +190,15 @@ function authenticate(channel: FakeChannel): void {
 
 describe("serveConnection (§3.4/§3.7)", () => {
   function deps(host = fakeHost()): ConnectionDeps {
-    return { host, bootId: BOOT, secret: SECRET };
+    // #1059 — ConnectionDeps now requires terminalHost; this suite is scoped to the
+    // pre-existing chat protocol methods, so a plain never-opened instance satisfies
+    // the type without adding terminal-RPC behavior to these tests.
+    return {
+      host,
+      bootId: BOOT,
+      secret: SECRET,
+      terminalHost: new TerminalHost({ homeBase: "/tmp", toolsBinDir: "/usr/bin" })
+    };
   }
 
   it("listLiveSessions round-trips after a successful handshake", async () => {
@@ -352,5 +368,113 @@ describe("serveConnection (§3.4/§3.7)", () => {
     header.writeUInt32BE(body.length, 0);
     channel.feed(Buffer.concat([header, body]));
     expect(channel.closed).toBe(true);
+  });
+});
+
+// ─── #1059 [N2] — connection-scoped terminal kill on close ────────────────────────
+//
+// TerminalHost is a process-wide singleton shared across every connection (constructed once
+// in main.ts/server.ts). Before this fix, connection.ts's close() called `terminalHost.killAll()`
+// unconditionally, so ANY connection dropping — a stale socket, a close-and-reopen race, a
+// second admin's tab closing — tore down whichever terminal happened to be live, even if it
+// belonged to a completely different connection. This suite drives two `serveConnection`
+// instances against ONE shared (fake-session, no real PTY) TerminalHost to prove close() now
+// scopes its kill to only the terminal THIS connection opened.
+function fakeSession(id: string) {
+  const listeners: Array<(b: Buffer) => void> = [];
+  return {
+    id,
+    killed: false,
+    onData: (cb: (b: Buffer) => void) => listeners.push(cb),
+    onExit: (_: (c: number) => void) => {},
+    write: vi.fn(),
+    resize: vi.fn(),
+    kill: vi.fn(function (this: { killed: boolean }) {
+      this.killed = true;
+    }),
+    _emit: (s: string) => listeners.forEach((l) => l(Buffer.from(s)))
+  };
+}
+
+describe("connection-scoped terminal kill on close (#1059 [N2])", () => {
+  it("closing connection A kills only A's terminal; B's live terminal survives until B closes", async () => {
+    const made: ReturnType<typeof fakeSession>[] = [];
+    const terminalHost = new TerminalHost({
+      homeBase: "/tmp",
+      toolsBinDir: "/usr/bin",
+      makeSession: (o) => {
+        const s = fakeSession(o.id);
+        made.push(s);
+        return s as never;
+      }
+    });
+    const killSpy = vi.spyOn(terminalHost, "kill");
+    const killAllSpy = vi.spyOn(terminalHost, "killAll");
+
+    const channelA = new FakeChannel();
+    const channelB = new FakeChannel();
+    const depsFor = (): ConnectionDeps => ({
+      host: fakeHost(),
+      bootId: BOOT,
+      secret: SECRET,
+      terminalHost
+    });
+    serveConnection(channelA, depsFor());
+    serveConnection(channelB, depsFor());
+    authenticate(channelA);
+    authenticate(channelB);
+
+    channelA.feed(
+      encodeFrame({ t: "req", id: 1, method: "openTerminal", params: { cols: 80, rows: 24 } })
+    );
+    await new Promise((r) => setTimeout(r, 5));
+    const openA = channelA.decodeAll().find((f) => (f as RpcOk).id === 1) as RpcOk;
+    const terminalIdA = (openA.result as { terminalId: string }).terminalId;
+
+    // B's open EVICTS A via TerminalHost.open's own internal killAll — that eviction-on-open
+    // behavior is unchanged by this fix (only close-time teardown becomes per-connection).
+    channelB.feed(
+      encodeFrame({ t: "req", id: 1, method: "openTerminal", params: { cols: 80, rows: 24 } })
+    );
+    await new Promise((r) => setTimeout(r, 5));
+    const openB = channelB.decodeAll().find((f) => (f as RpcOk).id === 1) as RpcOk;
+    const terminalIdB = (openB.result as { terminalId: string }).terminalId;
+
+    const sessionA = made[0];
+    const sessionB = made[1];
+    if (!sessionA || !sessionB) throw new Error("expected two fake sessions to have been made");
+
+    expect(sessionA.killed).toBe(true); // A's session, evicted by B's open (unchanged behavior)
+    expect(sessionB.killed).toBe(false); // B's session — the current live one
+
+    const killAllCallsBeforeCloses = killAllSpy.mock.calls.length;
+
+    // A's connection drops (e.g. socket close/error). Its close() must scope its kill to A's
+    // OWN terminalId — which is already evicted/stale, so this is a safe no-op — and must NOT
+    // call killAll() (which would tear down B's live session).
+    channelA.triggerClose();
+    expect(killSpy).toHaveBeenCalledWith({ terminalId: terminalIdA });
+    expect(killAllSpy.mock.calls.length).toBe(killAllCallsBeforeCloses); // no new killAll call
+    expect(sessionB.killed).toBe(false); // B's live session survives A's close
+
+    // B's connection now drops — its close() kills ITS OWN (still-live) terminal.
+    channelB.triggerClose();
+    expect(killSpy).toHaveBeenCalledWith({ terminalId: terminalIdB });
+    expect(killAllSpy.mock.calls.length).toBe(killAllCallsBeforeCloses); // still no killAll call
+    expect(sessionB.killed).toBe(true);
+  });
+
+  it("a connection that never opened a terminal calls neither kill() nor killAll() on close", () => {
+    const terminalHost = new TerminalHost({ homeBase: "/tmp", toolsBinDir: "/usr/bin" });
+    const killSpy = vi.spyOn(terminalHost, "kill");
+    const killAllSpy = vi.spyOn(terminalHost, "killAll");
+    const channel = new FakeChannel();
+    serveConnection(channel, { host: fakeHost(), bootId: BOOT, secret: SECRET, terminalHost });
+    authenticate(channel);
+
+    channel.triggerClose();
+
+    expect(killSpy).not.toHaveBeenCalled();
+    expect(killAllSpy).not.toHaveBeenCalled();
   });
 });

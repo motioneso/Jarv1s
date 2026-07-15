@@ -35,6 +35,7 @@ import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
 import { Badge, Field, Group, Note, PaneHead, Row, Segmented, Select, Switch } from "./settings-ui";
 import { EditModelForm } from "./settings-ai-edit-model-form";
+import { TerminalModal } from "./terminal-modal";
 import { ChatLockGroup } from "./settings-ai-chat-lock-group";
 import { YoloAdminGroup } from "./settings-yolo-admin-group";
 import { WebSearchKeyGroup } from "./settings-web-search-key-group";
@@ -171,6 +172,9 @@ function ProviderCard(props: {
   const [editingModelId, setEditingModelId] = useState<string | null>(null);
   const [baseUrl, setBaseUrl] = useState(provider.baseUrl ?? "");
   const [apiKey, setApiKey] = useState("");
+  // #1059 — a CLI-auth provider has no API key to credential-test; its Test action opens
+  // a live owner-gated terminal onto the CLI instead of calling testMutation.
+  const [terminalOpen, setTerminalOpen] = useState(false);
   const testMutation = useMutation({
     mutationFn: () => testAiProvider(provider.id),
     onSuccess: ({ result }) =>
@@ -222,13 +226,19 @@ function ProviderCard(props: {
           <button
             type="button"
             className="jds-btn jds-btn--quiet jds-btn--sm"
-            disabled={testMutation.isPending}
-            onClick={() => testMutation.mutate()}
+            disabled={provider.authMethod === "cli" ? false : testMutation.isPending}
+            onClick={() =>
+              provider.authMethod === "cli" ? setTerminalOpen(true) : testMutation.mutate()
+            }
           >
             <span className="jds-btn__icon">
-              <Activity size={14} />
+              {provider.authMethod === "cli" ? <Terminal size={14} /> : <Activity size={14} />}
             </span>
-            {testMutation.isPending ? "Testing" : "Test"}
+            {provider.authMethod === "cli"
+              ? "Terminal"
+              : testMutation.isPending
+                ? "Testing"
+                : "Test"}
           </button>
           <button
             type="button"
@@ -372,6 +382,11 @@ function ProviderCard(props: {
           </div>
         ) : null}
       </div>
+      {/* #1059 — rendered outside .prov__edit so opening the terminal never depends on the
+          card's edit-mode toggle; ProviderCard already destructures `provider` at the top. */}
+      {terminalOpen ? (
+        <TerminalModal provider={provider} onClose={() => setTerminalOpen(false)} />
+      ) : null}
     </div>
   );
 }

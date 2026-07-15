@@ -90,6 +90,11 @@ import { discoverAndPersistModels } from "./discover-and-persist-models.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { registerAiProviderValidationRoutes } from "./provider-validation-routes.js";
 import {
+  registerTerminalRoutes,
+  type TerminalRpcConnectOptions,
+  type TerminalRpcHandle
+} from "./terminal-routes.js";
+import {
   AiRepository,
   NotAGenericProviderError,
   type AiAssistantActionRequestSafeRow,
@@ -113,6 +118,12 @@ export interface AiRoutesDependencies {
   };
   /** Passed to read-tool execute on the REST invoke path; gates email/calendar reads to granted accounts. */
   readonly readToolServices?: ToolServices;
+  // #1059 — injected by the composition root (packages/module-registry) so packages/ai never
+  // needs a direct @jarv1s/chat dependency (that edge was tried and reverted: it creates real
+  // cycles, see terminal-routes.ts's file-header comment). Absent in tests/deployments that
+  // don't wire a cli-runner — the WS handler degrades gracefully (close code 1011) rather than
+  // crashing when this is undefined.
+  readonly connectTerminalRpc?: (options: TerminalRpcConnectOptions) => Promise<TerminalRpcHandle>;
 }
 
 type IdParams = { readonly id: string };
@@ -327,6 +338,16 @@ export function registerAiRoutes(
     repository,
     secretCipher,
     modelDiscovery
+  });
+
+  // #1059 — the LOCAL `repository` const (line ~144, above), not `dependencies.repository`
+  // (usually undefined at this call site — every other registerXRoutes call in this function
+  // uses the same local const for the same reason).
+  registerTerminalRoutes(server, {
+    resolveAccessContext: dependencies.resolveAccessContext,
+    dataContext: dependencies.dataContext,
+    repository,
+    connectTerminalRpc: dependencies.connectTerminalRpc
   });
 
   server.post(

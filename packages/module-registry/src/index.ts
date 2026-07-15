@@ -34,7 +34,9 @@ import {
   generateStructured,
   ModelDiscoveryService,
   registerAiMaintenanceWorkers,
-  registerAiRoutes
+  registerAiRoutes,
+  type TerminalRpcConnectOptions,
+  type TerminalRpcHandle
 } from "@jarv1s/ai";
 import {
   GraphMemoryRecallService,
@@ -92,6 +94,14 @@ import {
   type ChatRoutesDependencies,
   type RpcConnection
 } from "@jarv1s/chat";
+// #1059 — terminal-rpc-client lives under chat's "./live" subpath (public.ts), not the package
+// root. This is the composition-root injection point for TerminalRpcClient into @jarv1s/ai's
+// terminal-routes.ts: packages/ai deliberately does NOT depend on @jarv1s/chat (that edge was
+// tried and reverted — it creates real dependency cycles caught by check-package-deps.ts, since
+// @jarv1s/chat itself depends on @jarv1s/ai). module-registry already depends on BOTH @jarv1s/ai
+// and @jarv1s/chat with no cycle (same fan-in pattern already used for ChatEngineFactory below),
+// so it's the correct place to bridge the two.
+import { TerminalRpcClient } from "@jarv1s/chat/live";
 import {
   ConnectorsRepository,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
@@ -297,6 +307,7 @@ declare module "fastify" {
 }
 
 export type { ChatEngineFactory } from "@jarv1s/chat";
+export type { TerminalRpcConnectOptions, TerminalRpcHandle } from "@jarv1s/ai";
 export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 export { aggregateFocusSignals } from "@jarv1s/module-sdk";
 
@@ -357,6 +368,12 @@ export interface BuiltInRouteDependencies {
   readonly mcpServerUrl: string;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
   readonly chatEngineFactory?: ChatEngineFactory;
+  /**
+   * #1059 TEST-ONLY override for the owner-terminal WS relay's cli-runner dial (tests inject a
+   * fake handle to exercise the connect-ok/open-fail cleanup path without a real cli-runner
+   * process); defaults to the real TerminalRpcClient.connect below when absent.
+   */
+  readonly connectTerminalRpc?: (options: TerminalRpcConnectOptions) => Promise<TerminalRpcHandle>;
   /**
    * #342 (§3.5 boot-time fork) — built by `registerBuiltInApiRoutes` only on the socket path
    * (JARVIS_CLI_RUNNER_SOCKET set) and forwarded to `registerChatRoutes`, where the chat runtime uses
@@ -1125,7 +1142,14 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
               }),
               sourceContext: buildRuntimeSourceContextService()
             }
-          : undefined
+          : undefined,
+        // #1059 — the actual @jarv1s/chat dependency for the owner-terminal WS relay lives HERE,
+        // not in packages/ai (see the import comment above for why). TerminalRpcClient.connect
+        // opens the Unix-domain-socket RPC connection to the cli-runner's terminal host.
+        // deps.connectTerminalRpc is the TEST-ONLY override (see BuiltInRouteDependencies) —
+        // absent in production, where the real TerminalRpcClient.connect is always used.
+        connectTerminalRpc:
+          deps.connectTerminalRpc ?? ((options) => TerminalRpcClient.connect(options))
       });
     },
     registerWorkers: (boss, deps) => registerAiMaintenanceWorkers(boss, deps.rootDb)

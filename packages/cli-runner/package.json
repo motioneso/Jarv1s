@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@jarv1s/ai": "workspace:*",
-    "@jarv1s/chat": "workspace:*"
+    "@jarv1s/chat": "workspace:*",
+    "node-pty": "^1.1.0"
   }
 }
