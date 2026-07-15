@@ -1813,3 +1813,21 @@ resume from this note before taking any merge-sensitive action.
   `UX 987 Fix Sol High` is frozen and issue #1060 records the escalation at
   `https://github.com/motioneso/Jarv1s/issues/1060#issuecomment-4975058125`. No further fix/QA cycle,
   merge, issue-closure, or #995 release without Ben direction.
+
+## Continuation note — 2026-07-14 PR #1058 reopened after stop-line
+
+- Ben explicitly authorized continued remediation: “reopen, just keep chipping away at it.” The
+  authorization is durable on issue #1060 at
+  `https://github.com/motioneso/Jarv1s/issues/1060#issuecomment-4975784144`.
+- A fresh Herdr pane list re-confirmed coordinator authority as exact label `UX Coordinator`,
+  immutable Codex session `019f6226-78b2-7c31-9a84-f01d3c85eb0c`. The separate primary
+  `Coordinator` session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains out of scope and untouched.
+- The exact build owner `UX 987 Fix Sol High`, immutable Codex session
+  `019f6248-1c51-79d3-b50b-8a741573db1f`, was reopened in
+  `~/Jarv1s/.claude/worktrees/ux-987-notes-people-implementation`. It is actively reading the
+  durable sensitive-QA verdict `https://github.com/motioneso/Jarv1s/pull/1058#issuecomment-4975051910`
+  and remediating the single blocker at root cause with the smallest regression test.
+- PR #1058 remains OPEN at exact head `2425d382b6c7c664aa119cfc7fb35f22bfbc9d4d` while the fix is
+  in progress. After the agent pushes a new exact head, require full CI including the image-build
+  tail, fresh exact-head live Webwright UAT with durable PR evidence, and fresh independent
+  sensitive QA. Do not merge until all three gates are green. `merges_since_relay` remains `0`.
