@@ -2070,3 +2070,17 @@ resume from this note before taking any merge-sensitive action.
   then coordinated wrap-up, push, PR, and exact-HEAD report. Post-PR security/live-path gates remain.
 - Spent exact R4 session `6b88263f-bad6-4b3b-8460-6b2620309485` was fresh-resolved by label plus
   session id and closed. Primary `Coordinator` remains untouched. `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-15 #995 code/gates done; R6 driving UAT rerun
+
+- R5 completed and committed code, tests, and the local gate at feature HEAD `e5d18ad0`. It fixed
+  the UAT script's Settings `?section=` navigation and documented resolved approval credentials and
+  reconnect-path decisions in
+  `docs/superpowers/handoffs/2026-07-15-ux-995-connected-accounts-cleanup-relay-4.md`.
+- Exact successor `UX 995 Build R6`, immutable Claude session
+  `f694c32e-4029-4a9c-bf08-4bd0f71a459c`, is confirmed driving on Sonnet 5 in the same worktree and
+  branch. Remaining: rerun and verify the fixed UAT flow, coordinated wrap-up, push, PR, and exact
+  HEAD report. Post-PR exact-head CI, live-path evidence, Opus adversarial security QA, and Ben's
+  explicit merge sign-off remain required.
+- Spent exact R5 session `d155294f-7360-407c-845e-d48be30b8a07` was fresh-resolved by label plus
+  session id and closed. Primary `Coordinator` remains untouched. `merges_since_relay` remains `1`.
