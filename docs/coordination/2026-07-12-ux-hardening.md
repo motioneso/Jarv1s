@@ -1905,3 +1905,13 @@ resume from this note before taking any merge-sensitive action.
   code. The build owner remains frozen.
 - Do not merge until both gates return GREEN and the exact PR head is re-confirmed unchanged.
   `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-14 #1002 product clarification
+
+- Ben clarified that in-product “Coming soon” promises must not be removed as cleanup. #1002 must
+  inventory every promised feature and ensure each has a concrete GitHub issue with enough scope to
+  enter the future build queue; promises remain commitments and none may be left orphaned/untracked.
+  Durable clarification: `https://github.com/motioneso/Jarv1s/issues/1002#issuecomment-4976539702`.
+- This does not change the current merge order: finish #1058, then #995, #993, #1002, and #988.
+  PR #1050 remains parked and #1003 remains future scope. PR #1058's fresh UAT and sensitive-QA
+  lanes continue against exact head `77aafb8e375fc8d6e8904d7fb43c84e28bf90336`.
