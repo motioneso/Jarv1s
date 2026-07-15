@@ -2356,3 +2356,8 @@ resume from this note before taking any merge-sensitive action.
   initialization; the full local foundation gate is green (3,318 unit and 1,646 integration tests
   passed). Fresh CI run `29439577353` is in progress; fresh exact-head UAT remains required.
   GitHub's stale `needs-spec` label was removed from #991 because spec/plan PR #1046 is merged.
+- Latest `main` CI run `29437600439` completed green. #1002 docs-only planning is active in
+  isolated worktree `~/Jarv1s/.claude/worktrees/plan-1002-coming-soon`, branch
+  `plan/ux-1002-coming-soon`, exact label `UX 1002 Plan R1`, immutable Codex session
+  `019f66fc-934d-74b3-958c-cb85044eedc5`, Sol/high. It may inventory promises, map live GitHub
+  trackers, and write a spec/plan; it may not implement product code or mutate GitHub issues.
