@@ -1848,3 +1848,15 @@ resume from this note before taking any merge-sensitive action.
   this head. Previous CI, UAT, and sensitive-QA evidence is stale and must not be reused. Require
   full CI including image-build tail, fresh exact-head live Webwright UAT with durable PR evidence,
   and fresh independent sensitive QA before merge. `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-14 PR #1058 exact-head CI green; final gates running
+
+- Exact-head CI run `29382151403` is fully GREEN at
+  `adeeff6267f467ed8605d16a549e2e533a6a0ba2`: compose deployment smoke, production compose smoke,
+  foundation/app verification, and the image-build/publish tail all completed successfully.
+- Fresh parallel post-CI gates are running against this exact head. `uat_1058_live_v6` owns a new
+  live Webwright pass through the real UI with new screenshots/action log and a durable PR comment.
+  `qa_1058_eloop_final` owns fresh independent sensitive QA from a detached exact-head checkout with
+  a durable compact PR verdict. Neither lane may reuse prior-head evidence or edit feature code.
+- The build owner remains frozen. Do not merge until both fresh lanes return GREEN and the PR head
+  is re-confirmed unchanged. `merges_since_relay` remains `0`.
