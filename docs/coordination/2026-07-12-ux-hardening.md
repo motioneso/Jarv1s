@@ -2255,3 +2255,6 @@ resume from this note before taking any merge-sensitive action.
   green. Task 8 failure/timeout audit integration coverage is in progress.
 - R5 completed Task 8 in commit `74f2906f`; its five integration tests pass, including failure,
   timeout, and installer-output leak checks. Task 9 `pnpm verify:foundation` is running.
+- Task 9 `pnpm verify:foundation` is green with exit `0`. Gate fixes are committed at `ffeb251e`
+  and `13e6352c`; R5 is pushing and opening the draft PR. Live UAT, posted Opus adversarial QA,
+  and Ben's explicit sign-off are still pending; no merge is authorized.
