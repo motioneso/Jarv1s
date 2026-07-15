@@ -1,8 +1,8 @@
 # Plan — #1002 Coming-soon Commitment Inventory
 
-Spec: `docs/superpowers/specs/2026-07-15-1002-coming-soon-inventory.md`  
-Status: Proposed; no GitHub or product mutation before UX Coordinator approval  
-Grounded on: `origin/main` `514e9b78`
+- Spec: `docs/superpowers/specs/2026-07-15-1002-coming-soon-inventory.md`
+- Status: Proposed; no GitHub or product mutation before UX Coordinator approval
+- Grounded on: `origin/main` `514e9b78`
 
 ## Scope and sequencing
 
@@ -11,7 +11,42 @@ The coordinator owns GitHub mutations. Tasks 2–5 share one contract test and t
 in one isolated build-agent worktree; do not parallelize them. Stage only the files named by each
 task.
 
-## Task 1 — Establish concrete tracker ownership (coordinator, no code)
+### Mechanical risk tiers
+
+These tiers describe execution mechanics, not the future capabilities' product/security risk:
+
+| Tier | Mechanical meaning                                                             | Required control                                                                         |
+| ---- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| M1   | Read-only verification or isolated presentation change with no shared contract | Focused check; stage named paths only                                                    |
+| M2   | Multi-surface UI, destructive-flow copy, or reversible GitHub mutation         | Serial task ownership, focused tests, and live surface verification                      |
+| M3   | Shared exported UI contract or hot-file collision                              | Hard collision gate, fresh rebase/regrounding, full typecheck, then full repository gate |
+
+| Task | Tier | Why                                                                                   |
+| ---- | ---- | ------------------------------------------------------------------------------------- |
+| 1    | M2   | Creates/reopens live trackers and establishes numbers consumed by code                |
+| 2    | M3   | Changes exported `Row`/`ComingSoon` contracts in a file also touched by open PR #1050 |
+| 3    | M2   | Updates two settings surfaces and depends on Task 1's live issue numbers              |
+| 4    | M2   | Changes onboarding provider choices and their browser coverage                        |
+| 5    | M2   | Changes safety copy inside the destructive account-deletion flow                      |
+| 6    | M1   | Read-only integration and automated verification                                      |
+| 7    | M2   | Live export/delete-flow verification; deletion must be cancelled                      |
+| 8    | M2   | Mutates the live #1002 inventory after evidence is green                              |
+
+### Live collision gate: PR #1050
+
+PR #1050 (`ux/991-assistant-priorities-build`) is open and edits
+`packages/settings-ui/src/index.tsx`, the shared hot file in Task 2. Do not start Task 2 or resolve
+that overlap by hand while #1050 is active. The coordinator must choose one of these gates:
+
+1. Wait for #1050 to merge, then create/rebase the #1002 build branch on the new `origin/main`,
+   re-read the merged `Row`/`ComingSoon` source, and rerun the Task 2 failing test before editing.
+2. If #1050 closes unmerged, fetch current `origin/main`, confirm the file no longer has an active
+   owner, and reground Task 2 before editing.
+
+Tasks 2–5 remain serial after this gate. Do not cherry-pick, overwrite, or independently reconcile
+#1050's settings-ui change.
+
+## Task 1 — Establish concrete tracker ownership (M2, coordinator, no code)
 
 GitHub changes after plan approval:
 
@@ -35,7 +70,7 @@ gh issue view 1061 --json state,title,body,url
 Gate: all four issues are open and have concrete scope plus acceptance criteria before UI code is
 committed. Do not move board items or close issues.
 
-## Task 2 — Make shared settings promises require a tracker (TDD)
+## Task 2 — Make shared settings promises require a tracker (M3, TDD)
 
 Files:
 
@@ -61,7 +96,7 @@ pnpm typecheck
 Expected: green. Commit only these three paths with a user-facing note that future labels now name
 their delivery issue.
 
-## Task 3 — Map Audit and Push promises (TDD, after Task 2)
+## Task 3 — Map Audit and Push promises (M2, TDD, after Task 2)
 
 Files:
 
@@ -79,7 +114,7 @@ Steps:
    sentence from its description.
 4. Run the focused test and `pnpm typecheck`; commit only these files.
 
-## Task 4 — Remove only explicitly unplanned onboarding promises (TDD, after Task 3)
+## Task 4 — Remove only explicitly unplanned onboarding promises (M2, TDD, after Task 3)
 
 Files:
 
@@ -107,7 +142,7 @@ pnpm typecheck
 Expected: green. Commit only these three paths with a user-facing note that onboarding now lists
 services that can actually connect.
 
-## Task 5 — Point deletion at the shipped export flow (TDD, after Task 4)
+## Task 5 — Point deletion at the shipped export flow (M2, TDD, after Task 4)
 
 Files:
 
@@ -130,7 +165,7 @@ pnpm typecheck
 Expected: green. Commit only these two paths with a user-facing note that people are directed to
 the existing export before deletion.
 
-## Task 6 — Integrate and verify all current promise surfaces
+## Task 6 — Integrate and verify all current promise surfaces (M1)
 
 After Tasks 2–5 are integrated, verify the unchanged GitHub promise in
 `apps/web/src/settings/settings-personal-data-panes.tsx` still renders `Coming soon · #1061` and is
@@ -147,7 +182,7 @@ pnpm audit:release-hardening
 
 All commands must exit 0.
 
-## Task 7 — Required live UI verification
+## Task 7 — Required live UI verification (M2)
 
 Use a provisioned UAT instance with an admin user. Verify at both desktop (at least 1280 px) and
 narrow (390 px) widths, using keyboard navigation as well as pointer input:
@@ -165,7 +200,7 @@ narrow (390 px) widths, using keyboard navigation as well as pointer input:
 Record pass/fail and viewport for all five surfaces. Screenshots must contain no credentials,
 tokens, export contents, or typed destructive-confirmation values.
 
-## Task 8 — Update the live #1002 inventory (coordinator)
+## Task 8 — Update the live #1002 inventory (M2, coordinator)
 
 After automated and live UI verification are green:
 

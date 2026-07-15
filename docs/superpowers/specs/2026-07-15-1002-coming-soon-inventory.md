@@ -1,9 +1,9 @@
 # Coming-soon Commitment Inventory
 
-**Issue:** #1002  
-**Status:** Draft for UX Coordinator approval  
-**Base:** `origin/main` at `514e9b78`  
-**Tier:** Mixed UX and security planning; this issue does not deliver the promised capabilities
+- **Issue:** #1002
+- **Status:** Draft for UX Coordinator approval
+- **Base:** `origin/main` at `514e9b78`
+- **Tier:** Mixed UX and security planning; this issue does not deliver the promised capabilities
 
 ## Problem
 
