@@ -106,10 +106,11 @@ describe("CliChatEngineImpl — launch", () => {
     const all = flat(io);
     // The CLI binary is launched.
     expect(all).toContain("claude");
-    // #1067: bypassPermissions to skip claude 2.1.x's interactive folder-trust wizard (which
-    // --permission-mode default gates on and the #342 seeding no longer suppresses). Tool safety
-    // is unchanged — it comes from --tools "" / the allowlist hook, not from --permission-mode.
-    expect(all).toContain("--permission-mode bypassPermissions");
+    // #1071 (revert of #1068): default mode. The seeding + correct HOME suppress the folder-trust
+    // wizard under `default`; bypassPermissions instead triggers a blocking accept-warning that
+    // wedges the REPL → 503. Tool safety is unchanged — it comes from --tools "" / the allowlist
+    // hook, not from --permission-mode.
+    expect(all).toContain("--permission-mode default");
     // Native built-in tools disabled via empty allowlist (NOT a denylist).
     expect(all).toContain('--tools ""');
     expect(all).not.toContain("--disallowedTools");
