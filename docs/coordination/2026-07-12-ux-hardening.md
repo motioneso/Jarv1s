@@ -2057,3 +2057,16 @@ resume from this note before taking any merge-sensitive action.
   and Ben's explicit merge sign-off.
 - Spent exact R3 session `208f2ffc-cdeb-4900-896d-2ddf4150035f` was fresh-resolved by label plus
   session id and closed. Primary `Coordinator` remains untouched. `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-14 #995 real-dev fixes; R5 driving UAT
+
+- R4 committed relay state at feature HEAD `b5dd2e1a` with handoff
+  `docs/superpowers/handoffs/2026-07-14-ux-995-connected-accounts-cleanup-relay-3.md`.
+  During real-dev setup it fixed Vite proxy Origin-header rewriting that broke trusted-origin auth
+  and the shared-dev registration-approval path that blocked fresh signup.
+- Exact successor `UX 995 Build R5`, immutable Claude session
+  `d155294f-7360-407c-845e-d48be30b8a07`, is confirmed driving on Sonnet 5 in the same worktree and
+  branch. Remaining: finish the approval path and UAT checklist, decide reconnect-path coverage,
+  then coordinated wrap-up, push, PR, and exact-HEAD report. Post-PR security/live-path gates remain.
+- Spent exact R4 session `6b88263f-bad6-4b3b-8460-6b2620309485` was fresh-resolved by label plus
+  session id and closed. Primary `Coordinator` remains untouched. `merges_since_relay` remains `1`.
