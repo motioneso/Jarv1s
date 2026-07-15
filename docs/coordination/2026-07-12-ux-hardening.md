@@ -2349,6 +2349,7 @@ resume from this note before taking any merge-sensitive action.
   `2277005da0e0e076687f99c1f0c7abb4bf9a376b`: socket chat selected `ChatEngineRpcClient`, while
   persona preview used an unresolved host fallback whose error became HTTP 503. The two-file fix
   routes socket preview through the adopted RPC connection and adds one transport-selection
-  regression assertion. Agent checks are green; CI run `29438363551` is in progress and fresh
-  exact-head live proof is still required. GitHub's stale `needs-spec` label was removed from #991
-  because spec/plan PR #1046 is already merged.
+  regression assertion. A late full-gate result invalidated the agent's initial green report:
+  TypeScript found `chatEngineFactory` used before assignment. Head `2277005d` is not releasable;
+  the lane is fixing it and must push a new head before fresh CI or live proof. GitHub's stale
+  `needs-spec` label was removed from #991 because spec/plan PR #1046 is already merged.
