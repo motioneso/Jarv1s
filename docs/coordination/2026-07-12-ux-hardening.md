@@ -2877,3 +2877,16 @@ resume from this note before taking any merge-sensitive action.
   on `gpt-5.6-sol` high. It must return only root cause plus a focused fix plan before any edit.
   Review lanes E/F/G and unrelated working-tree changes remain untouched;
   `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-16 #1111 CI root cause confirmed
+
+- Exact-head `Verify foundation and app` fails only at `pnpm format:check`: repo-pinned Prettier
+  rejects `docs/superpowers/plans/2026-07-16-988-closing-acceptance.md`. This is deterministic and
+  PR-local, not a flaky service or test failure.
+- Focused fix awaiting explicit approval: run the repo-pinned Prettier writer on only that plan
+  file, review the one-file formatting-only diff, run the focused Prettier check and relevant
+  foundation gate if available, commit/push only that file, then confirm fresh exact-head CI.
+- Diagnostic lane `UX 988 Plan CI`, Codex session
+  `019f6c7b-67d1-7ae1-9c36-f8c18db171a7`, is done and parked. No implementation lane may dispatch
+  and PR #1111 may not merge before approval plus fresh green gates. Review lanes E/F/G and
+  unrelated changes remain untouched; `merges_since_relay` remains `0`.
