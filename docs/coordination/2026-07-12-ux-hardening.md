@@ -2647,3 +2647,20 @@ resume from this note before taking any merge-sensitive action.
   again against the new head and fresh verdict. On merge, increment `merges_since_relay`, flush,
   and relay immediately. Then repeat #1002 exact-head real-export UAT before #1075; #988 strictly
   last. Preserve `.claude/context-meter.log`, existing artifacts, and `webwright-proof-987-v3/`.
+
+## Continuation note — 2026-07-16 #1077 integrated Opus QA R2
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f68a1-899f-7cc1-bba5-2159ae14aaed`; `merges_since_relay` remains `0`. Never touch primary
+  `Coordinator` session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+- PR #1092 exact rebased head `a523e67c` is current-main integrated and MERGEABLE. All four fresh
+  CI checks are GREEN: Verify foundation and app (20m06s), Build and publish image (13m59s),
+  Compose deployment smoke (3m31s), and Prod compose deployment smoke (2m00s). This confirms the
+  owning agent's local UAT-seed failures were shared persistent-dev-DB pollution, not branch drift.
+- Fresh isolated Opus security QA exact label `UX QA 1077 PR1092 R2`, immutable session
+  `a53ed509-d247-42ca-bf63-310f9fe74c90`, is reviewing exact head `a523e67c` in
+  `/tmp/jarv1s-qa-1092-r2`. It must post a new durable PR verdict. After GREEN, ask Ben for explicit
+  security-tier sign-off again; do not merge on his approval of stale head `41110856`.
+- On approved merge: re-confirm the delegated lock, merge #1092, increment `merges_since_relay`,
+  flush this manifest, and relay immediately. Successor repeats #1002 exact-head real-export UAT
+  before #1075; #988 remains strictly last. Preserve unrelated worktree changes and artifacts.
