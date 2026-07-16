@@ -3199,6 +3199,17 @@ resume from this note before taking any merge-sensitive action.
   Final UAT, final QA, and merge remain stopped; parked review lanes E/F/G and unrelated changes
   remain untouched. `merges_since_relay` is `0`.
 
+## Continuation note — 2026-07-16 #1117 CI format repair pushed
+
+- One-file format repair commit `3b331b3f6dbb7c610ad05c89a8e9c57cc8357c9b` is pushed to
+  `ux/988-closing-acceptance`; its focused Prettier check passed. Issue #1119 is updated. No manual
+  CI/job rerun or broad local gate occurred.
+- Automatic exact-head run `29543062063` is in progress. Wait for it to complete green before
+  restarting exact-head live UAT. Exact diagnosis session
+  `019f6d53-b02e-7550-82b5-3a34304b78ba` and its empty tab were reaped; the owner worktree is clean.
+- Final UAT, final QA, and merge remain stopped. Parked review lanes E/F/G and unrelated changes
+  remain untouched; `merges_since_relay` is `0`.
+
 ## Continuation note — 2026-07-16 #1117 live-UAT repair plan approved
 
 - Exact session `019f6d42-caa7-72a0-ad37-390487dd05c1` grounded exact head `44206635` and UAT
