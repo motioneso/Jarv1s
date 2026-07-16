@@ -112,10 +112,10 @@ export function Badge(props: {
   );
 }
 
-export function ComingSoon() {
+export function ComingSoon(props: { readonly issue: number }) {
   return (
     <Badge tone="steel" dot>
-      Coming soon
+      Coming soon · #{props.issue}
     </Badge>
   );
 }
@@ -197,7 +197,7 @@ export function Row(props: {
   readonly name: ReactNode;
   readonly desc?: ReactNode;
   readonly control?: ReactNode;
-  readonly coming?: boolean;
+  readonly comingIssue?: number;
 }) {
   return (
     <div className="set-row">
@@ -205,7 +205,13 @@ export function Row(props: {
         <div className="set-row__name">{props.name}</div>
         {props.desc ? <div className="set-row__desc">{props.desc}</div> : null}
       </div>
-      <div className="set-row__control">{props.coming ? <ComingSoon /> : props.control}</div>
+      <div className="set-row__control">
+        {props.comingIssue !== undefined ? (
+          <ComingSoon issue={props.comingIssue} />
+        ) : (
+          props.control
+        )}
+      </div>
     </div>
   );
 }
