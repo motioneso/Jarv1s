@@ -100,14 +100,19 @@ export class CodexExecSession {
       "codex exec --json"
     ];
 
+    // #1083 F1: shell_tool/apply_patch_tool must be denied on EVERY codex launch, not just when
+    // an MCP gateway is configured. Without an mcpToken/mcpServerUrl the block below used to skip
+    // entirely, leaving codex's native shell/apply-patch tools at their (enabled) default — a
+    // direct-execution path that bypasses the gateway. Hoisted out of the conditional so all tool
+    // use is forced through the gateway, mirroring the anthropic engine's unconditional `--tools ""`.
+    parts.push(`-c 'features.shell_tool=false'`, `-c 'features.apply_patch_tool=false'`);
+
     if (this.launchOpts.mcpToken && this.launchOpts.mcpServerUrl) {
       parts.push(
         `-c 'mcp_servers.jarvis.url="${this.launchOpts.mcpServerUrl}"'`,
         `-c 'mcp_servers.jarvis.bearer_token_env_var="JARVIS_MCP_TOKEN"'`,
         `-c 'mcp_servers.jarvis.tool_timeout_sec=180'`,
         `-c 'mcp_servers.jarvis.default_tools_approval_mode="approve"'`,
-        `-c 'features.shell_tool=false'`,
-        `-c 'features.apply_patch_tool=false'`,
         `-c 'features.tool_call_mcp_elicitation=false'`
       );
     }

@@ -799,14 +799,16 @@ export class CliChatEngineImpl implements CliChatEngine {
     const codexCommand = this.executionMode === "non_interactive" ? "codex exec --json" : "codex";
     const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, sourceEnv, codexCommand];
 
+    // #1083 F1: deny shell_tool/apply_patch_tool on EVERY launch (was gated behind the MCP check
+    // below, so no-gateway launches kept native shell/patch tools); mirrors anthropic's `--tools ""`.
+    parts.push(`-c 'features.shell_tool=false'`, `-c 'features.apply_patch_tool=false'`);
+
     if (opts.mcpToken && opts.mcpServerUrl) {
       parts.push(
         `-c 'mcp_servers.jarvis.url="${opts.mcpServerUrl}"'`,
         `-c 'mcp_servers.jarvis.bearer_token_env_var="${tokenEnvVar}"'`,
         `-c 'mcp_servers.jarvis.tool_timeout_sec=180'`,
         `-c 'mcp_servers.jarvis.default_tools_approval_mode="approve"'`,
-        `-c 'features.shell_tool=false'`,
-        `-c 'features.apply_patch_tool=false'`,
         `-c 'features.tool_call_mcp_elicitation=false'`
       );
     }
