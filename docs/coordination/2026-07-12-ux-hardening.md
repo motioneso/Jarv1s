@@ -3157,3 +3157,14 @@ resume from this note before taking any merge-sensitive action.
   credential-bearing scripts, and empty tab were reaped. Reopen only the #1117 owner lane for a
   grounded repair plan; do not start final QA or merge. Parked review lanes E/F/G and unrelated
   changes remain untouched; `merges_since_relay` is `0`.
+
+## Continuation note — 2026-07-16 #1117 live-UAT repair planning
+
+- Exact label `UX 1117 UAT Repair`, Codex session
+  `019f6d42-caa7-72a0-ad37-390487dd05c1`, is planning in the clean
+  `~/Jarv1s/.claude/worktrees/ux-988-closing-acceptance` owner worktree on Luna/medium.
+- The agent must trace the three direct UAT blockers to shared roots, classify each unproven path,
+  and await exact `UX Coordinator` plan approval before implementation. No manual CI/job rerun or
+  broad local gate is allowed; its temporary handoff must not be staged.
+- Final QA and merge remain stopped. Parked review lanes E/F/G and unrelated changes remain
+  untouched; `merges_since_relay` is `0`.
