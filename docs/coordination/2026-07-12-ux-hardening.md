@@ -2819,3 +2819,24 @@ resume from this note before taking any merge-sensitive action.
 - #988 implementation remains paused pending Ben's approval of the overall candidate spec. Review
   lanes E/F/G remain parked. Preserve unrelated `.claude/context-meter.log`, existing `artifacts/`,
   and `webwright-proof-987-v3/`.
+
+## Continuation note — 2026-07-16 #988 approved; mandatory coordinator relay before dispatch
+
+- Delegated authority is exact label `UX Coordinator`, immutable Codex session
+  `019f6c1d-6044-7d51-8473-3e469192b324`. Primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains protected and untouched.
+  `merges_since_relay` remains `1`.
+- Ben explicitly approved the overall #988 candidate spec and plan with “yep kick it.” D1 and D2
+  remain locked as recorded at draft PR #1111 exact head
+  `3b8dedad1e75e7a5d7b7728cf042668633820cf1`: remove only the proactive priority-band pill; keep
+  timezone-correct Today short dates; implement independent built-in accent and light/dark mode;
+  keep existing custom themes fixed-palette for this slice.
+- The current coordinator then invoked `coordinate` and hit its non-negotiable compaction tripwire.
+  It must merge nothing and spawn no builder before relaying. This note is the durable approval;
+  unrelated coordinator changes remain preserved.
+- Successor first actions: adopt delegated authority and reap only old exact label `UX Coordinator`
+  plus session `019f6c1d-6044-7d51-8473-3e469192b324`; publish the overall approval durably on PR
+  #1111; confirm exact-head CI/review/mergeability; land the planning-only PR when green; update
+  `origin/main`; then create one isolated routine implementation lane for approved Tasks 1–2 plus
+  the existing acceptance Tasks 3–6. Preserve review lanes E/F/G and never touch primary
+  `Coordinator` session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
