@@ -56,9 +56,7 @@ describe("coming-soon tracker contract", () => {
     expect(auditPaneSource).toMatch(
       /name="Export instance data"[\s\S]{0,120}comingIssue=\{?1069\}?/
     );
-    expect(auditPaneSource).toMatch(
-      /name="Backup & restore"[\s\S]{0,120}comingIssue=\{?1070\}?/
-    );
+    expect(auditPaneSource).toMatch(/name="Backup & restore"[\s\S]{0,120}comingIssue=\{?1070\}?/);
     expect(auditPaneSource).not.toMatch(/\bcoming\b(?!Issue)/);
   });
 

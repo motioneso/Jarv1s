@@ -206,11 +206,7 @@ export function Row(props: {
         {props.desc ? <div className="set-row__desc">{props.desc}</div> : null}
       </div>
       <div className="set-row__control">
-        {props.comingIssue !== undefined ? (
-          <ComingSoon issue={props.comingIssue} />
-        ) : (
-          props.control
-        )}
+        {props.comingIssue !== undefined ? <ComingSoon issue={props.comingIssue} /> : props.control}
       </div>
     </div>
   );
