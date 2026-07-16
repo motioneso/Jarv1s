@@ -1,0 +1,11 @@
+step 1 action: authenticate seeded owner on desktop
+screenshot: screenshots/final_execution_01_today-desktop.png
+result desktop Today content_retained=True priority_band_pill=False
+step 4 action: open Appearance and change built-in accent, then toggle dark and light independently
+screenshot: screenshots/final_execution_02_appearance-desktop-light.png
+result built_in_accent=Forest color_mode_dark=True color_mode_light=True independent=True
+step 7 action: verify Today narrow and Appearance narrow without horizontal overflow
+screenshot: screenshots/final_execution_03_today-narrow.png
+screenshot: screenshots/final_execution_04_appearance-narrow.png
+result narrow_today_overflow=False narrow_appearance_overflow=False
+final datum: authenticated desktop+narrow UI proof PASS
