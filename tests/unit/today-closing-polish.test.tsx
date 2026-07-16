@@ -32,11 +32,7 @@ describe("Today closing polish", () => {
     });
 
     const html = renderToString(
-      createElement(
-        QueryClientProvider,
-        { client: queryClient },
-        createElement(ProactiveCards)
-      )
+      createElement(QueryClientProvider, { client: queryClient }, createElement(ProactiveCards))
     );
 
     expect(html).toContain("Renew passport");
