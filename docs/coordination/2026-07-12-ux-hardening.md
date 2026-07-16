@@ -3056,3 +3056,19 @@ resume from this note before taking any merge-sensitive action.
   successor is driving, then fresh-resolve and reap only the old exact `UX Coordinator` label plus
   session `019f6c76-593d-7fd2-b33d-78bd72045265`; finally rename the successor `UX Coordinator`.
   Preserve parked review lanes E/F/G and all unrelated working-tree changes.
+
+## Continuation note — 2026-07-16 successor adopted; #1117 routine QA running
+
+- Codex session `019f6cf0-dc6f-7351-9978-d2b1e6605a96` adopted the delegated `UX Coordinator`
+  lock in pushed commit `8c7f3d0d`; `merges_since_relay` reset to `0`. The exact retired
+  predecessor session `019f6c76-593d-7fd2-b33d-78bd72045265` was fresh-resolved and closed. The
+  protected primary Coordinator session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains untouched.
+- Existing CI run `29535049018` attempt 2 completed green at exact PR #1117 head
+  `adf41915da50762de15860c82d1ca128ae08b525`. No job, CI retry, or broad local gate was started.
+- Fresh detached routine QA is running as exact label `UX 1117 QA`, Codex session
+  `019f6cfb-fe5e-7aa0-a082-2c63df48e2e7`, in `~/Jarv1s/.claude/worktrees/qa-1117-routine`.
+  QA must inspect existing CI only, post its compact verdict to PR #1117, and report it to exact
+  `UX Coordinator` session `019f6cf0-dc6f-7351-9978-d2b1e6605a96`.
+- On verdict, fresh-resolve and reap only that QA label plus session. GREEN proceeds through the
+  normal ready/current/session-lock/merge sequence; RED stops the lane. Preserve parked review
+  lanes E/F/G and every unrelated working-tree change.
