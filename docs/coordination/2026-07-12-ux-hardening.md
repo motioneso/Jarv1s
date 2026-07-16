@@ -2538,7 +2538,8 @@ resume from this note before taking any merge-sensitive action.
   format/type residue and clean rebase are at pushed head `4bc49def`. Full verify then found three
   stale security expectations: AI/Notifications hard-coded no worker SELECT, plus the new
   notification-read policy lacked its defense-in-depth comment. The three approved residue edits
-  are present; R11 is validating once, committing, repeating full gates, and opening the PR. Defer failure-handler
+  passed focused AI/Notifications verification (47/47) and are pushed at `ef2989a8`; R11 is
+  repeating full gates and opening the PR. Defer failure-handler
   hardening and the unrelated `task_activity` RLS gap.
 - Merge order: #1077 security QA + Ben sign-off + merge; repeat #1002 live export UAT; reconcile
   Task 8; merge #1075; clean up; start #988 strictly last.
