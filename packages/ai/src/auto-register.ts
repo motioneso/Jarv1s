@@ -149,8 +149,8 @@ export class AiAutoRegisterService implements AiAutoRegisterPort {
       });
     }
 
-    // #982/#869 D2/D6: login-ready is the founder's real connect path. Replace CLI concrete rows
-    // with current active statics every time; discovery failure never invalidates login readiness.
+    // #982/#869/#1083 F2: login-ready is the founder's real connect path. Reconcile CLI concrete
+    // rows with current statics while preserving unchanged ids; failure never invalidates readiness.
     try {
       await discoverAndPersistModels(
         scopedDb,
