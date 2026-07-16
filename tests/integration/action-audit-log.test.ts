@@ -4,7 +4,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 import pg from "pg";
 
-import { AiRepository, registerAiRoutes } from "@jarv1s/ai";
+import { AiRepository, registerAiRoutes, summarizeAssistantToolInput } from "@jarv1s/ai";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import type { ActionAuditInputSummary, ActionAuditLogEntryDto } from "@jarv1s/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -86,8 +86,14 @@ describe("action audit log", () => {
     });
   });
 
-  it("serializes inputSummary through app.inject and strips undeclared properties", async () => {
+  it("bounds inputSummary to key names and strips undeclared properties", async () => {
     const id = randomUUID();
+    const secret = "never-persist-this-audit-value";
+    const input = Object.fromEntries([
+      ["x".repeat(80), secret],
+      ...Array.from({ length: 40 }, (_, index) => [`key-${String(index).padStart(2, "0")}`, secret])
+    ]);
+    const boundedSummary = summarizeAssistantToolInput(input);
     await dataContext.withDataContext(
       { actorUserId: ids.userA, requestId: "req-schema" },
       async (scopedDb) => {
@@ -105,9 +111,7 @@ describe("action audit log", () => {
           chatSessionId: null,
           sourceSurface: "chat",
           inputSummary: {
-            inputKeys: ["content", "file_path"],
-            inputKeyCount: 2,
-            truncated: false,
+            ...boundedSummary,
             undeclared: "strip-me"
           } as ActionAuditInputSummary & { undeclared: string }
         });
@@ -122,11 +126,13 @@ describe("action audit log", () => {
     const entry = response
       .json<{ entries: ActionAuditLogEntryDto[] }>()
       .entries.find((candidate) => candidate.id === id);
-    expect(entry?.inputSummary).toEqual({
-      inputKeys: ["content", "file_path"],
-      inputKeyCount: 2,
-      truncated: false
-    });
+    // #1085 F5: migration 0164 intentionally permits this column, so this is the privacy tripwire:
+    // only bounded key metadata survives; values and unknown summary fields never cross the API.
+    expect(entry?.inputSummary?.inputKeys).toHaveLength(32);
+    expect(entry?.inputSummary?.inputKeys.every((key) => key.length <= 64)).toBe(true);
+    expect(entry?.inputSummary?.inputKeyCount).toBe(41);
+    expect(entry?.inputSummary?.truncated).toBe(true);
+    expect(response.body).not.toContain(secret);
     expect(response.body).not.toContain("undeclared");
     expect(response.body).not.toContain("strip-me");
   });

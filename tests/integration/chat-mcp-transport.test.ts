@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
@@ -18,10 +22,46 @@ import {
   registerMcpTransportRoute,
   registerNativePermissionRoute
 } from "../../packages/chat/src/mcp-transport.js";
+import { CLAUDE_PERMISSION_HOOK_SOURCE } from "../../packages/chat/src/live/claude-permission-hook.js";
 import { resolveYoloMode } from "../../packages/chat/src/routes.js";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import { exampleToolCalls, exampleToolModule } from "./fixtures/example-tool-module.js";
+
+async function runClaudePermissionHook(
+  input: unknown,
+  permissionUrl: string,
+  token: string
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  const dir = await mkdtemp(join(tmpdir(), "jarvis-integration-hook-"));
+  const hookPath = join(dir, "hook.mjs");
+  const tokenPath = join(dir, "token");
+  await writeFile(hookPath, CLAUDE_PERMISSION_HOOK_SOURCE);
+  await writeFile(tokenPath, `${token}\n`);
+  try {
+    const child = spawn(process.execPath, [hookPath], {
+      env: {
+        ...process.env,
+        JARVIS_PERM_URL: permissionUrl,
+        JARVIS_PERM_TOKEN_FILE: tokenPath
+      },
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+    child.stdin.end(JSON.stringify(input));
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
+    return { code, stdout, stderr };
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
 
 /** Register a minimal resolve route that mirrors what registerChatRoutes does. */
 function registerResolveRoute(
@@ -541,7 +581,9 @@ describe("native permission YOLO", () => {
 
   it("auto-grants allowlisted Write only when effective persisted YOLO state is active", async () => {
     const app = await buildApp("effective");
+    const workingDirectory = await mkdtemp(join(tmpdir(), "jarvis-native-yolo-"));
     try {
+      const origin = await app.listen({ host: "127.0.0.1", port: 0 });
       await setEffectiveYoloState({ master: true, allowed: true, enabled: true });
       const chatSessionId = randomUUID();
       const rawSecret = "never-persist-this-native-input-value";
@@ -550,18 +592,20 @@ describe("native permission YOLO", () => {
         chatSessionId,
         allowedToolNames: null
       });
-      const res = await app.inject({
-        method: "POST",
-        url: "/internal/permission",
-        headers: { authorization: `Bearer ${token}` },
-        body: {
+      // #1085 F1: execute the generated production hook and let it forward the real event cwd;
+      // injecting cwd directly into Fastify is the synthetic coverage gap that shipped F1 dead.
+      const hookResult = await runClaudePermissionHook(
+        {
           tool_name: "Write",
           tool_input: { file_path: "src/safe.ts", content: rawSecret },
-          cwd: "/workspace"
-        }
-      });
-      expect(res.statusCode).toBe(200);
-      expect(res.json()).toEqual({ decision: "allow", reason: "Allowed by YOLO." });
+          cwd: workingDirectory
+        },
+        new URL("/internal/permission", origin).toString(),
+        token
+      );
+      expect(hookResult.code).toBe(0);
+      expect(hookResult.stderr).toBe("");
+      expect(JSON.parse(hookResult.stdout).hookSpecificOutput.permissionDecision).toBe("allow");
       expect(emitted).toEqual([
         {
           chatSessionId,
@@ -573,29 +617,39 @@ describe("native permission YOLO", () => {
         }
       ]);
 
-      let persistedAudit:
-        | Awaited<ReturnType<AiRepository["listActionAuditLog"]>>[number]
-        | undefined;
-      await vi.waitFor(async () => {
-        const rows = await runner.withDataContext(
-          { actorUserId: ids.userA, requestId: `audit-check-${randomUUID()}` },
-          (scopedDb) =>
-            repository.listActionAuditLog(scopedDb, {
-              since: new Date(Date.now() - 60_000),
-              limit: 500
-            })
-        );
-        persistedAudit = rows.find((row) => row.chat_session_id === chatSessionId);
-        expect(persistedAudit).toBeDefined();
-      });
-      expect(persistedAudit!.input_summary).toEqual({
+      const allowedRecord = emitted[0]?.record;
+      if (!allowedRecord || allowedRecord.kind !== "action_result") {
+        throw new Error("expected allowed action result");
+      }
+      const persistedActions = await runner.withDataContext(
+        { actorUserId: ids.userA, requestId: `grant-check-${randomUUID()}` },
+        (scopedDb) => repository.listAssistantActions(scopedDb)
+      );
+      const persistedGrant = persistedActions.find(
+        (row) => row.id === allowedRecord.actionRequestId
+      );
+      expect(persistedGrant?.status).toBe("confirmed");
+      expect(persistedGrant?.input_summary).toEqual({
         inputKeys: ["content", "file_path"],
         inputKeyCount: 2,
         truncated: false
       });
-      expect(JSON.stringify(persistedAudit!.input_summary)).not.toContain(rawSecret);
+      expect(JSON.stringify(persistedGrant?.input_summary)).not.toContain(rawSecret);
+
+      // #1085 F4: a native grant is durable before the response, but no audit row may claim the
+      // unobserved Write completed successfully.
+      const audits = await runner.withDataContext(
+        { actorUserId: ids.userA, requestId: `audit-check-${randomUUID()}` },
+        (scopedDb) =>
+          repository.listActionAuditLog(scopedDb, {
+            since: new Date(Date.now() - 60_000),
+            limit: 500
+          })
+      );
+      expect(audits.find((row) => row.request_id === persistedGrant?.request_id)).toBeUndefined();
     } finally {
       await app.close();
+      await rm(workingDirectory, { recursive: true, force: true });
     }
   });
 

@@ -223,7 +223,9 @@ async function main() {
 
   let response;
   try {
-    response = await postPermission({ tool_name: tool, tool_input: input }, token);
+    // #1085 F1: Claude supplies cwd on the real PreToolUse event. Forward it so the gateway can
+    // enforce the F2/F3 workspace and config guards before native YOLO becomes reachable.
+    response = await postPermission({ tool_name: tool, tool_input: input, cwd: event?.cwd }, token);
   } catch (error) {
     decide("deny", "gateway unreachable/timeout: " + error.constructor.name);
   }

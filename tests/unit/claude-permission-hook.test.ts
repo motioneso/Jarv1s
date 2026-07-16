@@ -134,17 +134,26 @@ describe("Claude PreToolUse permission hook", () => {
     const tokenFile = join(dir, "token");
     await writeFile(tokenFile, "jst_ok\n");
     const seenHeaders: string[] = [];
+    const seenBodies: unknown[] = [];
     const server = createServer((req, res) => {
       seenHeaders.push(String(req.headers.authorization ?? ""));
-      res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify({ decision: "allow", reason: "approved" }));
+      let body = "";
+      req.setEncoding("utf8");
+      req.on("data", (chunk) => {
+        body += chunk;
+      });
+      req.on("end", () => {
+        seenBodies.push(JSON.parse(body));
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ decision: "allow", reason: "approved" }));
+      });
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("missing server address");
     try {
       const result = await runHook(
-        { tool_name: "Bash", tool_input: { command: "echo hi" } },
+        { tool_name: "Bash", tool_input: { command: "echo hi" }, cwd: "/real/workspace" },
         {
           JARVIS_PERM_URL: `http://127.0.0.1:${address.port}/internal/permission`,
           JARVIS_PERM_TOKEN_FILE: tokenFile
@@ -154,6 +163,11 @@ describe("Claude PreToolUse permission hook", () => {
       expect(result.code).toBe(0);
       expect(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision).toBe("allow");
       expect(seenHeaders).toEqual(["Bearer jst_ok"]);
+      // #1085 F1: assert the generated hook forwards Claude's actual event cwd, not a test-only
+      // gateway request field that can drift from production again.
+      expect(seenBodies).toEqual([
+        { tool_name: "Bash", tool_input: { command: "echo hi" }, cwd: "/real/workspace" }
+      ]);
     } finally {
       server.close();
       await rm(dir, { recursive: true, force: true });
