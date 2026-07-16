@@ -86,8 +86,8 @@ services:
     # host-published port, so this cannot run as a host-side script).
     # profiles: ["ops"] keeps this INERT on a normal `up` — it never runs
     # unless the ops profile is explicitly selected (Coordinator ruling,
-    # binding). JARVIS_UAT_SEED_CONFIRM is the second, entrypoint-side guard
-    # (tests/uat/seed/cli.ts) that refuses to run unless composeSeedHook set it.
+    # binding). #1082: tests/uat/seed/guard.ts is the authoritative target-DB
+    # gate; JARVIS_UAT_SEED_CONFIRM remains a necessary second intent check.
     command: ["node_modules/.bin/tsx", "tests/uat/seed/cli.ts"]
     environment:
       JARVIS_UAT_SEED_LEVEL: "${JARVIS_UAT_SEED_LEVEL:-bare}"
