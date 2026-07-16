@@ -155,36 +155,51 @@ describe("export-worker-grants (#1077) — jarvis_worker_runtime SELECT on the 4
   });
 
   it("worker role gets permission denied writing to each gap table (SELECT-only grant)", async () => {
+    // Each write runs in its own withDataContext transaction: once a statement fails with
+    // "permission denied", Postgres aborts that transaction and every later statement in it
+    // reports "current transaction is aborted" instead of its own real error, masking the
+    // per-table assertion — so writes must not share a transaction.
     await workerDataContext.withDataContext(
-      { actorUserId: ownerUserId, requestId: "req:worker-write-denied" },
-      async (scopedDb) => {
-        await expect(
+      { actorUserId: ownerUserId, requestId: "req:worker-write-denied-notification-reads" },
+      (scopedDb) =>
+        expect(
           scopedDb.db
             .insertInto("app.notification_reads")
             .values({ notification_id: notificationId, user_id: ownerUserId })
             .execute()
-        ).rejects.toThrow(/permission denied/i);
+        ).rejects.toThrow(/permission denied/i)
+    );
 
-        await expect(
+    await workerDataContext.withDataContext(
+      { actorUserId: ownerUserId, requestId: "req:worker-write-denied-entities" },
+      (scopedDb) =>
+        expect(
           scopedDb.db
             .updateTable("app.entities")
             .set({ name: "worker-should-not-write" })
             .where("id", "=", entityId)
             .execute()
-        ).rejects.toThrow(/permission denied/i);
+        ).rejects.toThrow(/permission denied/i)
+    );
 
-        await expect(
+    await workerDataContext.withDataContext(
+      { actorUserId: ownerUserId, requestId: "req:worker-write-denied-action-requests" },
+      (scopedDb) =>
+        expect(
           scopedDb.db
             .updateTable("app.ai_assistant_action_requests")
-            .set({ status: "auto_approved" })
+            .set({ status: "confirmed" })
             .where("id", "=", actionRequestId)
             .execute()
-        ).rejects.toThrow(/permission denied/i);
+        ).rejects.toThrow(/permission denied/i)
+    );
 
-        await expect(
+    await workerDataContext.withDataContext(
+      { actorUserId: ownerUserId, requestId: "req:worker-write-denied-audit-log" },
+      (scopedDb) =>
+        expect(
           scopedDb.db.deleteFrom("app.jarvis_action_audit_log").where("id", "=", auditLogId).execute()
-        ).rejects.toThrow(/permission denied/i);
-      }
+        ).rejects.toThrow(/permission denied/i)
     );
   });
 
