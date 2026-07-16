@@ -2467,3 +2467,17 @@ resume from this note before taking any merge-sensitive action.
   and cleanup. Then run #988 strictly last.
 - Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
   `webwright-proof-987-v3/`.
+
+## Continuation note — 2026-07-15 #1002 build agent spawned
+
+- Delegated authority: exact label `UX Coordinator`, immutable Codex session
+  `019f68a1-899f-7cc1-bba5-2159ae14aaed`; `merges_since_relay` is `0`. Primary `Coordinator`
+  session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains out of scope and untouched.
+- #1002 is `building`: exact label `UX 1002 Coming Soon`, immutable Claude session
+  `7557824a-9796-4ec4-b03f-002b92ee9d70`, branch `ux/1002-coming-soon-build`, worktree
+  `~/Jarv1s/.claude/worktrees/ux-1002-coming-soon-build`, committed handoff authority refresh
+  `91b00b16`. Sonnet and bypass permissions verified.
+- Next: approve only Tasks 2–5, then exact-head CI, sensitive QA, authenticated desktop+narrow
+  live UAT, Task 8 inventory reconciliation, merge, and cleanup. #988 stays strictly serialized.
+- Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
+  `webwright-proof-987-v3/`.
