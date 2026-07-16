@@ -2863,3 +2863,17 @@ resume from this note before taking any merge-sensitive action.
   untouched. `merges_since_relay` remains `0`.
 - Execute approved #988 first actions from the preceding continuation; review lanes E/F/G remain
   parked and unrelated working-tree changes remain preserved.
+
+## Continuation note — 2026-07-16 #1111 approval published; exact-head CI blocked
+
+- Published Ben's overall #988 approval on planning PR #1111 at exact head
+  `3b8dedad1e75e7a5d7b7728cf042668633820cf1` (comment `4995958511`). D1/D2 remain locked exactly
+  as approved. PR metadata is mergeable but still draft/unstable with no review decision.
+- Exact-head CI has green compose and production-compose deployment smokes but failed
+  `Verify foundation and app`. Per stop-the-line policy, do not merge or dispatch implementation
+  until fixed and freshly green.
+- Read-only diagnostic lane `UX 988 Plan CI`, Codex session
+  `019f6c7b-67d1-7ae1-9c36-f8c18db171a7`, is working in the existing isolated planning worktree
+  on `gpt-5.6-sol` high. It must return only root cause plus a focused fix plan before any edit.
+  Review lanes E/F/G and unrelated working-tree changes remain untouched;
+  `merges_since_relay` remains `0`.
