@@ -3036,3 +3036,23 @@ resume from this note before taking any merge-sensitive action.
   contains commit-pinned GitHub links. The UAT successor was exact-resolved and reaped.
 - PR #1117 remains draft pending the retry and independent routine QA. Review lanes E/F/G remain
   untouched; `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-16 coordinator relay before #1117 disposition
+
+- The compaction tripwire fired for UX Coordinator session
+  `019f6c76-593d-7fd2-b33d-78bd72045265`; merge nothing before a fresh successor adopts the
+  coordinator lock. The protected primary Coordinator session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` must remain untouched.
+- The user explicitly limited the current CI action to diagnosis/reporting and directed that the
+  failed job not be rerun. Do not start any additional retry or broad local gate. After adoption,
+  inspect the existing run `29535049018` only; its already-started single retry is the lane's final
+  allowed attempt.
+- PR #1117 is at exact head `adf41915da50762de15860c82d1ca128ae08b525`, with live UAT proof and
+  commit-pinned artifacts already posted. If the existing run is fully green, start fresh detached
+  routine `coordinated-qa`; QA must post its verdict to PR #1117. If QA is green, follow the normal
+  ready/current/session-lock/merge sequence. A second CI failure stops the lane.
+- On adoption, replace the manifest coordinator lock with the successor's immutable Codex session
+  id, reset `merges_since_relay` from `1` to `0`, commit and push only this manifest, confirm the
+  successor is driving, then fresh-resolve and reap only the old exact `UX Coordinator` label plus
+  session `019f6c76-593d-7fd2-b33d-78bd72045265`; finally rename the successor `UX Coordinator`.
+  Preserve parked review lanes E/F/G and all unrelated working-tree changes.
