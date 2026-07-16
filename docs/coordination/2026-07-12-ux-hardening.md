@@ -2468,6 +2468,23 @@ resume from this note before taking any merge-sensitive action.
 - Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
   `webwright-proof-987-v3/`.
 
+## Continuation note — 2026-07-15 #1002 sensitive QA running
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f68a1-899f-7cc1-bba5-2159ae14aaed`; `merges_since_relay` is `0`. Primary `Coordinator`
+  session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains out of scope and untouched.
+- PR #1075 exact head `6cbb4955` has all CI checks green: compose smoke, prod compose smoke,
+  foundation/app, and image publication.
+- Sensitive QA is `reviewing` in fresh detached worktree `~/Jarv1s/.claude/worktrees/qa-1075-1002`:
+  exact label `QA UX 1002 PR1075`, immutable Claude session
+  `02cdfc92-94dc-4c02-a52f-cd5d3b7262c7`; Sonnet and bypass permissions verified.
+- Build owner remains exact label `UX 1002 Coming Soon R2`, immutable Claude session
+  `9ddb3be3-7ba8-4fd5-80bd-308226cd7046`, retained for any QA fixes.
+- Next: consume compact QA verdict only. If green, complete authenticated desktop+narrow live UAT,
+  Task 8 inventory reconciliation, merge/close/cleanup, then and only then begin #988.
+- Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
+  `webwright-proof-987-v3/`.
+
 ## Continuation note — 2026-07-15 #1002 PR open; exact-head CI pending
 
 - Delegated authority remains exact label `UX Coordinator`, immutable Codex session
