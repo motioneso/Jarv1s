@@ -3185,6 +3185,17 @@ resume from this note before taking any merge-sensitive action.
 - Final UAT, final QA, and merge remain stopped. Parked review lanes E/F/G and unrelated changes
   remain untouched; `merges_since_relay` is `0`.
 
+## Continuation note — 2026-07-16 #1117 follow-up CI still RED
+
+- Automatic run `29543062063` failed `Verify foundation and app` at exact head
+  `3b331b3f6dbb7c610ad05c89a8e9c57cc8357c9b`; both deployment smokes passed and image publishing
+  skipped. Do not retry or run a broad local gate. Stop-line issue #1119 remains open.
+- Follow-up existing-log diagnosis is running as label `UX 1117 CI Diagnose 2`, Codex session
+  `019f6d59-87c8-74a1-a24b-56392b782ba6`, in the clean owner worktree on Luna/medium. It must reuse
+  the existing format-repair plan and create no new planning doc.
+- Final UAT, final QA, and merge remain stopped. Parked review lanes E/F/G and unrelated changes
+  remain untouched; `merges_since_relay` is `0`.
+
 ## Continuation note — 2026-07-16 #1117 CI root cause; repair approved
 
 - Existing-log diagnosis found deterministic branch cause in run `29542691419`: `pnpm
