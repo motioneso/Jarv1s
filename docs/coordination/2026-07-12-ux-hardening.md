@@ -2451,7 +2451,7 @@ resume from this note before taking any merge-sensitive action.
 ## Continuation note — 2026-07-15 #1002 G2 ready; compaction relay required
 
 - Current delegated authority remains exact label `UX Coordinator`, immutable Codex session
-  `019f677a-ccef-78f0-bc91-5be4cc725c16`; `merges_since_relay` is `1`. Primary `Coordinator`
+  `019f68a1-899f-7cc1-bba5-2159ae14aaed`; `merges_since_relay` is `0`. Primary `Coordinator`
   session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` is out of scope and must remain untouched.
 - The coordinate compaction tripwire fired before #1002 was spawned. Merge nothing in this
   session; relay delegated UX authority to a fresh full-access Codex coordinator in the same
