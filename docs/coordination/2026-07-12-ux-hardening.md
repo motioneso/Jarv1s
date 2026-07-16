@@ -2509,6 +2509,27 @@ resume from this note before taking any merge-sensitive action.
   `/tmp/jarv1s-qa-1092`. It must post a durable PR verdict. GREEN still requires Ben's explicit
   security-tier merge sign-off; do not merge before that approval.
 
+## Continuation note — 2026-07-16 #1077 awaiting security merge sign-off
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f68a1-899f-7cc1-bba5-2159ae14aaed`; `merges_since_relay` remains `0`. Never touch primary
+  `Coordinator` session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+- PR #1092 is code-complete at reviewed head `41110856`. Local author gates were GREEN:
+  `verify:foundation=0` (3376 unit tests, 1669 integration tests) and
+  `audit:release-hardening=0`. All four GitHub checks are GREEN: Verify foundation and app, Build
+  and publish image, Compose deployment smoke, and Prod compose deployment smoke.
+- Independent Opus security QA is GREEN with zero blocking findings. It confirmed SELECT-only
+  worker grants, no writes or BYPASSRLS, byte-identical owner predicates, unchanged app-runtime
+  behavior, append-only migration handling, and met exit criteria. Durable verdict:
+  `https://github.com/motioneso/Jarv1s/pull/1092#issuecomment-4989571684`. Three non-blocking notes
+  concern wording/direct negative coverage only. QA pane/session was reaped and its isolated
+  `/tmp/jarv1s-qa-1092` worktree removed.
+- STOP: #1092 is security-tier and now awaits Ben's explicit merge sign-off. Do not merge on the
+  green evidence alone. After explicit approval, re-confirm the delegated coordinator session-id
+  lock, merge #1092, increment `merges_since_relay`, flush the manifest, and relay immediately
+  because every security-tier merge triggers mandatory coordinator relay. The successor then
+  repeats #1002 exact-head real-export UAT before any #1075 merge; #988 remains strictly last.
+
 ## Continuation note — 2026-07-15 #1002 sensitive QA running
 
 - Delegated authority remains exact label `UX Coordinator`, immutable Codex session
