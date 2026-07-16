@@ -2711,3 +2711,25 @@ resume from this note before taking any merge-sensitive action.
   primary Coordinator session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
 - Preserve unrelated coordinator worktree changes: `.claude/context-meter.log`, existing
   `artifacts/`, and `webwright-proof-987-v3/`.
+
+## Continuation note — 2026-07-16 #1002/#1075 complete; #988 strictly last
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f6c1d-6044-7d51-8473-3e469192b324`. Primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains untouched. `merges_since_relay` is now `1`
+  after the sensitive #1075 merge; the next routine/sensitive merge fires the two-merge relay.
+- #1077 cleanup is complete: exact builder session `780ff9e1-45a2-4f80-b75e-69093fdb8289`
+  was reaped, its worktree removed/pruned, its context-meter change preserved in a named stash,
+  issue #1077 closed completed, and its project item moved to Done.
+- PR #1075 exact head `6cbb49559d9fa8138fa8badbb043db708eb2c78d` passed the repeated real
+  personal-export UAT after landed #1092 migrations: real owner signup/sign-in, visible Ready and
+  Download, `export.build=completed`, and no permission-denied/25P02 runtime-log match. Durable
+  GREEN proof is PR comment `#issuecomment-4995257466`; the isolated stack was fully torn down.
+- #1002 Task 8 was reconciled from live GitHub. PR #1075 merged at `2026-07-16T18:28:39Z` as
+  squash commit `a0887ead0395936b6bab1bf8759f9497612185a5`; issue #1002 is closed completed and its
+  project item is Done. The merged builder worktree was removed/pruned and its context-meter
+  change preserved in a named stash. Keep the detached UAT evidence worktree intact because the
+  durable PR comment points to its proof.
+- NEXT and strictly last product lane: start #988. Review lanes E/F/G remain parked outside this
+  run. Preserve unrelated coordinator changes: `.claude/context-meter.log`, existing `artifacts/`,
+  and `webwright-proof-987-v3/`.
