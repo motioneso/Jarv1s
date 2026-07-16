@@ -6,8 +6,29 @@
  */
 export type UatSeedLevel = "bare" | "solo-admin" | "admin+data" | "multi-user";
 
+// #1087 finding 5: canonical enum values, single source of truth for
+// tests/uat/seed/level-validation.ts's fail-closed parsers — kept next to the
+// type union itself so the two can never drift apart.
+export const UAT_SEED_LEVELS: readonly UatSeedLevel[] = [
+  "bare",
+  "solo-admin",
+  "admin+data",
+  "multi-user"
+];
+
 /** #1025 spec §4.4: per-feature chunk list seeded at admin+data and above. */
 export type UatSeedChunk = "news" | "sports" | "tasks" | "calendar" | "notes" | "job-search";
+
+// #1087 finding 5: canonical chunk names accepted in excludeChunks — see
+// UAT_SEED_LEVELS above for why this lives beside the type.
+export const UAT_SEED_CHUNKS: readonly UatSeedChunk[] = [
+  "news",
+  "sports",
+  "tasks",
+  "calendar",
+  "notes",
+  "job-search"
+];
 
 export interface SeedOptions {
   readonly level: UatSeedLevel;

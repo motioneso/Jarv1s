@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deriveTrustedOrigins } from "../../scripts/setup-prod-origins.js";
+import { parseUatSeedLevel } from "./seed/level-validation.js";
 
 export interface UatRunId {
   readonly projectName: string;
@@ -498,7 +499,11 @@ export async function provisionForUat(
 
 async function main(): Promise<void> {
   const overallStart = Date.now();
-  const level = (process.env.JARVIS_UAT_SEED_LEVEL ?? "bare") as UatSeedLevel;
+  // #1087 finding 5: same fail-closed parse as tests/uat/seed/cli.ts — this
+  // standalone entrypoint had its own identical unvalidated `as UatSeedLevel`
+  // cast on the same env var, so a typo here silently defaulted this direct
+  // path into provisioning against an unintended level too.
+  const level = parseUatSeedLevel(process.env.JARVIS_UAT_SEED_LEVEL ?? "bare") as UatSeedLevel;
   const { teardown } = await provisionForUat(level);
   await teardown();
   console.log(`[uat] provision+teardown wall-clock: ${Date.now() - overallStart}ms`);

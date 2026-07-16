@@ -8,13 +8,21 @@ import { seedSportsChunk } from "./chunks/sports.js";
 import { seedTasksChunk } from "./chunks/tasks.js";
 import { seedCalendarChunk } from "./chunks/calendar.js";
 import { seedNotesChunk } from "./chunks/notes.js";
-import { seedJobSearchChunk } from "./chunks/job-search.js";
 import { UAT_SEED_BASE_TIMESTAMP } from "./timestamps.js";
 import type { SeedOptions, UatSeedChunk } from "./types.js";
 
 // #1025 spec §4.3: the level ladder is additive — this is the single source of
-// truth for "which chunks exist at admin+data", so excludeChunks (job-search
-// toggle) subtracts from this list rather than needing a fifth hardcoded level.
+// truth for "which chunks exist at admin+data".
+//
+// #1087 finding 3: job-search is deliberately NOT in this default set. Per spec
+// §4.4, "not installed" is the admin+data DEFAULT (it proves #1026's
+// absent-module UI path) — job-search.ts's own doc comment already said this,
+// but this list used to include it and force callers to remember to pass
+// `excludeChunks: ["job-search"]` on every admin+data/multi-user seed, which
+// fails OPEN (silently installs) the moment any caller forgets. seedJobSearchChunk
+// (chunks/job-search.ts) is still exported for direct use — a future level
+// composition can call it explicitly if a spec ever needs job-search
+// pre-installed — it's just no longer wired into the always-on ladder.
 const ADMIN_DATA_CHUNKS: ReadonlyArray<{
   key: UatSeedChunk;
   run: (runner: ReturnType<typeof createAppRuntimeRunner>, actorUserId: string) => Promise<void>;
@@ -23,8 +31,7 @@ const ADMIN_DATA_CHUNKS: ReadonlyArray<{
   { key: "sports", run: (runner, actorUserId) => seedSportsChunk(runner, actorUserId) },
   { key: "tasks", run: (runner, actorUserId) => seedTasksChunk(runner, actorUserId) },
   { key: "calendar", run: (runner, actorUserId) => seedCalendarChunk(runner, actorUserId) },
-  { key: "notes", run: (runner, actorUserId) => seedNotesChunk(runner, actorUserId) },
-  { key: "job-search", run: (runner, actorUserId) => seedJobSearchChunk(runner, actorUserId) }
+  { key: "notes", run: (runner, actorUserId) => seedNotesChunk(runner, actorUserId) }
 ];
 
 async function seedDataChunks(
@@ -77,10 +84,10 @@ export async function seedLevel(options: SeedOptions): Promise<void> {
         throw new Error("seedLevel: multi-user owner bootstrap did not return an id");
       }
 
-      // job-search is instance-level admin configuration, not per-owner data.
-      const secondOwnerExclude = new Set(exclude);
-      secondOwnerExclude.add("job-search");
-      await seedDataChunks(runner, secondOwnerUserId, secondOwnerExclude);
+      // #1087 finding 3: job-search is no longer in ADMIN_DATA_CHUNKS at all (see
+      // above), so there is nothing instance-level to re-exclude here for the
+      // second owner — `exclude` alone is already correct for seedDataChunks.
+      await seedDataChunks(runner, secondOwnerUserId, exclude);
 
       // SECURITY: grant under the resource owner's own context. The shares INSERT
       // policy rejects forged owner_user_id values; owner2 receives only this task.
