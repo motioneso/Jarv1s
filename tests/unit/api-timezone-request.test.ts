@@ -72,7 +72,7 @@ describe("web API timezone header", () => {
   it("bounds action audit requests", async () => {
     vi.useFakeTimers();
     try {
-      let requestSignal: AbortSignal | undefined;
+      let requestSignal: AbortSignal | null | undefined;
       const fetchMock = vi.fn<typeof fetch>((_input, init) => {
         requestSignal = init?.signal;
         return new Promise<Response>((_resolve, reject) => {
