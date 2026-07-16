@@ -3185,6 +3185,20 @@ resume from this note before taking any merge-sensitive action.
 - Final UAT, final QA, and merge remain stopped. Parked review lanes E/F/G and unrelated changes
   remain untouched; `merges_since_relay` is `0`.
 
+## Continuation note — 2026-07-16 #1117 CI root cause; repair approved
+
+- Existing-log diagnosis found deterministic branch cause in run `29542691419`: `pnpm
+  format:check` failed only on branch-added
+  `docs/superpowers/plans/2026-07-16-pr-1117-live-uat-red-repair.md`, which is absent on
+  `origin/main`. This is not infrastructure/main parity and receives no waiver. Issue #1119 is
+  updated with the diagnosis.
+- Minimal pointer plan `docs/superpowers/plans/2026-07-16-pr-1117-ci-format-repair.md` is approved:
+  format the one offending file, run a focused Prettier check for that file, commit only that
+  repair, and push. Do not manually rerun CI/jobs or a broad gate; inspect the new automatic run.
+- Exact diagnosis session `019f6d53-b02e-7550-82b5-3a34304b78ba` is executing the approved repair.
+  Final UAT, final QA, and merge remain stopped; parked review lanes E/F/G and unrelated changes
+  remain untouched. `merges_since_relay` is `0`.
+
 ## Continuation note — 2026-07-16 #1117 live-UAT repair plan approved
 
 - Exact session `019f6d42-caa7-72a0-ad37-390487dd05c1` grounded exact head `44206635` and UAT
