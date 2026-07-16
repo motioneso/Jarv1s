@@ -3197,6 +3197,17 @@ resume from this note before taking any merge-sensitive action.
   remain stopped; parked review lanes E/F/G and unrelated changes remain untouched.
   `merges_since_relay` is `0`.
 
+## Continuation note — 2026-07-16 #1117 type repair pushed
+
+- Exact one-line type repair `f05d977c186b82b31b42b0d6cff3b98bb1d91b47` is pushed. Targeted
+  unit test passed `10/10`; file-level Prettier passed. No project-wide `tsc`, broad gate, or manual
+  CI/job rerun occurred.
+- Automatic run `29543345062` is in progress at the exact head. Exact diagnosis session
+  `019f6d59-87c8-74a1-a24b-56392b782ba6` and its empty tab were reaped; the owner worktree is clean.
+  Wait for green before restarting exact-head UAT.
+- Final UAT, final QA, and merge remain stopped. Parked review lanes E/F/G and unrelated changes
+  remain untouched; `merges_since_relay` is `0`.
+
 ## Continuation note — 2026-07-16 #1117 follow-up CI still RED
 
 - Automatic run `29543062063` failed `Verify foundation and app` at exact head
