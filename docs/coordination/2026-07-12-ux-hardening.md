@@ -3112,3 +3112,18 @@ resume from this note before taking any merge-sensitive action.
 - Implementation is running with focused tests only. No manual CI/job rerun or broad local gate is
   allowed. Evidence gaps must be reported truthfully; absent live proof remains code-complete,
   unproven. Parked review lanes E/F/G and unrelated changes remain untouched.
+
+## Continuation note — 2026-07-16 #1117 repair pushed; acceptance unproven
+
+- Repair commit `44206635` is pushed to `ux/988-closing-acceptance`; PR #1117 now has shared
+  `data-color-mode` reads for Today/Wellness, the legacy dark fallback, and one stored
+  `themes.active` GET read. Focused tests passed `14/14`; `git diff --check` was clean. Broad local
+  gates and manual CI/job reruns were intentionally not run.
+- Automatic exact-head CI run `29539532807` is in progress at
+  `4420663551afa52ad6da05e9f5696fe0e8d3ab60`. Inspect it only; do not manually rerun it or any job.
+- Exact-head UAT remains incomplete: onboarding, deeper News, microphone, full desktop/narrow
+  walkthrough, #988 ledger, and the #983 37-finding matrix/narrated summary/release note are
+  unproven. Do not start final QA or merge until the live-path/acceptance gate is complete.
+- Exact repair session `019f6d05-4fc4-7831-9ed4-9e0f00b0d622` and its empty dedicated tab were
+  reaped; the clean owner worktree remains parked. Parked review lanes E/F/G and unrelated changes
+  remain untouched. `merges_since_relay` remains `0`.
