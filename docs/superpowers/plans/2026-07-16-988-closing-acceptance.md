@@ -171,22 +171,22 @@ Run E — microphone:
 Complete this ledger in the #983 evidence comment. A row cannot be marked complete without its
 proof/deferral link.
 
-| #988 checkbox | Required disposition |
-| --- | --- |
-| Today redundant ranking/due labels | Task 1 commit + desktop/narrow proof, or Ben-directed deferral |
-| News/Sports imagery | Task 3 focused tests + live best-art/no-art proof |
-| Appearance independence | Task 2 commit + 5×2 contrast/interaction matrix, or Ben-directed deferral |
-| Shared visual fixes | Combined Run B desktop/narrow proof |
-| Your data, deletion, grants, models, News feedback, skill upload, Activity | Runs B/C/D result per item |
-| Microphone vs #900/#901 | Run E evidence + explicit issue links |
-| First-time onboarding | Run A desktop+narrow evidence |
-| Deeper News | Run D evidence |
-| Complete desktop+narrow walkthrough | Run B action log and narrated summary |
-| Readable independent modes | Task 2 matrix |
-| Appropriate safe images | Task 3 source/proxy/live proof |
-| No unresolved P0/P1 | Fresh live issue query + zero unowned blockers |
-| Every #983 finding disposed | 37-row parent matrix: proof, deferral, or disproved |
-| Narrated pass and release note | Final #983 comment/attachment |
+| #988 checkbox                                                              | Required disposition                                                      |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Today redundant ranking/due labels                                         | Task 1 commit + desktop/narrow proof, or Ben-directed deferral            |
+| News/Sports imagery                                                        | Task 3 focused tests + live best-art/no-art proof                         |
+| Appearance independence                                                    | Task 2 commit + 5×2 contrast/interaction matrix, or Ben-directed deferral |
+| Shared visual fixes                                                        | Combined Run B desktop/narrow proof                                       |
+| Your data, deletion, grants, models, News feedback, skill upload, Activity | Runs B/C/D result per item                                                |
+| Microphone vs #900/#901                                                    | Run E evidence + explicit issue links                                     |
+| First-time onboarding                                                      | Run A desktop+narrow evidence                                             |
+| Deeper News                                                                | Run D evidence                                                            |
+| Complete desktop+narrow walkthrough                                        | Run B action log and narrated summary                                     |
+| Readable independent modes                                                 | Task 2 matrix                                                             |
+| Appropriate safe images                                                    | Task 3 source/proxy/live proof                                            |
+| No unresolved P0/P1                                                        | Fresh live issue query + zero unowned blockers                            |
+| Every #983 finding disposed                                                | 37-row parent matrix: proof, deferral, or disproved                       |
+| Narrated pass and release note                                             | Final #983 comment/attachment                                             |
 
 For the parent matrix, cite the merged/UAT evidence for closed #984–#995/#1002 where it still proves
 the current behavior, then add fresh Run B evidence for combined regressions. #1003 is an explicit
