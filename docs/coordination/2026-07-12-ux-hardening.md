@@ -2853,3 +2853,13 @@ resume from this note before taking any merge-sensitive action.
   CI/review/mergeability, merge the planning-only PR when green, update `origin/main`, then create
   one isolated routine implementation lane for approved Tasks 1–2 plus acceptance Tasks 3–6.
   Review lanes E/F/G remain parked and unrelated changes remain preserved.
+
+## Continuation note — 2026-07-16 delegated takeover complete
+
+- Pushed adoption commit `9d712235`, then fresh-resolved and closed only outgoing exact label
+  `UX Coordinator` plus session `019f6c1d-6044-7d51-8473-3e469192b324`. Successor Codex session
+  `019f6c76-593d-7fd2-b33d-78bd72045265` is the sole exact `UX Coordinator` and is driving.
+  Primary `Coordinator` session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains live and
+  untouched. `merges_since_relay` remains `0`.
+- Execute approved #988 first actions from the preceding continuation; review lanes E/F/G remain
+  parked and unrelated working-tree changes remain preserved.
