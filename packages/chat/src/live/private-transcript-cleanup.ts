@@ -149,17 +149,28 @@ export async function purgeCodexTranscript(
 ): Promise<boolean> {
   if (!capturedUuid || !CODEX_UUID_PATTERN.test(capturedUuid)) return false;
   const uuid = capturedUuid.toLowerCase();
-  const path = codexTranscriptPath(uuid, homeBase);
-  const exists = await io.run("test", ["-e", path]);
-  if (exists.code !== 0) return true;
-  const jsonl = await io.readFile(path);
-  if (!codexTranscriptMatchesIdentity(jsonl, uuid, neutralDir)) return false;
-  const removed = await io.run("rm", ["-f", path]);
-  return removed.code === 0;
+  // #1086 — UUIDv7 time-derived paths drift with local-time reconstruction. Find the real
+  // rollout by its UUID, then trust only the session_meta identity before deleting anything.
+  const found = await io.run("find", [
+    codexSessionsRoot(homeBase),
+    "-type",
+    "f",
+    "-name",
+    `*-${uuid}.jsonl`
+  ]);
+  if (found.code !== 0) return false;
+  for (const path of found.stdout.split("\n").filter(Boolean)) {
+    const jsonl = await io.readFile(path);
+    if (!codexTranscriptMatchesIdentity(jsonl, uuid, neutralDir)) continue;
+    const removed = await io.run("rm", ["-f", path]);
+    return removed.code === 0;
+  }
+  // #1086 — not-found is not proof of absence: retain the marker/row for a later sweep.
+  return false;
 }
 
 export async function purgePrivateTranscripts(
-  io: Pick<TmuxIo, "run" | "readFile">,
+  io: Pick<TmuxIo, "run" | "readFile" | "writeFile">,
   neutralBase: string,
   sessionKey: string,
   homeBase?: string
@@ -175,7 +186,11 @@ export async function purgePrivateTranscripts(
     await removeChecked(io, ["-f", join(neutralDir, CODEX_IDENTITY_FILENAME)]);
   }
 
-  const agyUuid = await readAgyConversationIdentity(io, neutralDir);
+  // #1086 — a crash before readNew can leave only the agy on-disk log. Inspect it before the
+  // boot sweep is allowed to clear the neutral directory that contains the only retry pointer.
+  const agyUuid =
+    (await readAgyConversationIdentity(io, neutralDir)) ??
+    (await captureAgyConversationIdentity(io, neutralDir));
   if (agyUuid !== null) {
     if (!(await purgeAgyBrainDir(io, agyUuid, homeBase))) {
       throw new Error("Could not purge AGY conversation transcript");
@@ -185,7 +200,7 @@ export async function purgePrivateTranscripts(
 }
 
 export async function purgePrivateTranscriptMarkers(
-  io: Pick<TmuxIo, "run" | "readFile">,
+  io: Pick<TmuxIo, "run" | "readFile" | "writeFile">,
   neutralBase: string,
   homeBase?: string
 ): Promise<boolean> {

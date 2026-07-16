@@ -74,6 +74,8 @@ export class AgyPrintChatEngine implements CliChatEngine {
         `agy --dangerously-skip-permissions ${conversationFlag}--print ` +
         `--log-file ${shellQuote(logPath)} "$(cat ${shellQuote(promptPath)})"`
     });
+    // #1086 — capture at spawn, not first readNew: teardown can race before the reader polls.
+    this.conversationUuid ??= await captureAgyConversationIdentity(this.io, this.neutralDir);
   }
 
   async readNew(

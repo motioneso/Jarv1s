@@ -169,11 +169,7 @@ function makeBootSweepIo(opts: { codexMismatch?: boolean } = {}): {
       if (args[1] === neutralBase) return { code: 0, stdout: "stale-user\n", stderr: "" };
       return { code: 1, stdout: "", stderr: "" };
     }
-    if (cmd === "test") {
-      return args[1] === codexPath
-        ? { code: 0, stdout: "", stderr: "" }
-        : { code: 1, stdout: "", stderr: "" };
-    }
+    if (cmd === "find") return { code: 0, stdout: `${codexPath}\n`, stderr: "" };
     if (cmd === "rm") return { code: 0, stdout: "", stderr: "" };
     return { code: 0, stdout: "", stderr: "" };
   });

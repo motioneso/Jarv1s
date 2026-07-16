@@ -299,7 +299,11 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
       personaPath: "/tmp/persona.txt"
     });
 
-    io.run.mockResolvedValue({ code: 0, stdout: "", stderr: "" });
+    io.run.mockImplementation(async (cmd: string) => ({
+      code: 0,
+      stdout: cmd === "find" ? `${transcriptPath}\n` : "",
+      stderr: ""
+    }));
     io.readFile.mockImplementation(async (path: string) => {
       if (path.endsWith(CODEX_IDENTITY_FILENAME)) return `${uuid}\n`;
       return JSON.stringify({

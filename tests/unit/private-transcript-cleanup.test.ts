@@ -42,13 +42,23 @@ describe("purgePrivateTranscripts", () => {
     return { io: createRealTmuxIo(), neutralBase, neutralDir, homeBase };
   }
 
-  it("deletes only the exact marker-named Codex rollout", async () => {
+  it("finds an offset Codex rollout by identity and deletes only that rollout", async () => {
     const { io, neutralBase, neutralDir, homeBase } = await fixture();
     const mine = "019f5af9-3c61-7f72-af47-09514db9892c";
     const sibling = "019f5af9-3c61-7f72-af47-09514db9892d";
-    const minePath = codexTranscriptPath(mine, homeBase);
+    // #1086 — deliberately disagree with the UUIDv7-derived local-time path.
+    const minePath = join(
+      homeBase,
+      ".codex",
+      "sessions",
+      "2099",
+      "12",
+      "31",
+      `rollout-offset-${mine}.jsonl`
+    );
     const siblingPath = codexTranscriptPath(sibling, homeBase);
     await mkdir(dirname(minePath), { recursive: true });
+    await mkdir(dirname(siblingPath), { recursive: true });
     await writeFile(
       minePath,
       `${JSON.stringify({ type: "session_meta", payload: { id: mine, cwd: neutralDir } })}\n`
@@ -64,6 +74,20 @@ describe("purgePrivateTranscripts", () => {
     await expect(access(minePath)).rejects.toThrow();
     await expect(readFile(siblingPath, "utf8")).resolves.toContain(sibling);
     await expect(stat(join(neutralDir, CODEX_IDENTITY_FILENAME))).rejects.toThrow();
+  });
+
+  it("retains the Codex retry pointer when no rollout is found", async () => {
+    const { io, neutralBase, neutralDir, homeBase } = await fixture();
+    const uuid = "019f5af9-3c61-7f72-af47-09514db9892c";
+    await persistCodexSessionIdentity(io, neutralDir, uuid);
+
+    await expect(purgePrivateTranscripts(io, neutralBase, "user-1", homeBase)).rejects.toThrow(
+      "identity mismatch"
+    );
+
+    await expect(readFile(join(neutralDir, CODEX_IDENTITY_FILENAME), "utf8")).resolves.toBe(
+      `${uuid}\n`
+    );
   });
 
   it.each(["missing", "corrupt"])("retains every Codex rollout with a %s marker", async (kind) => {
@@ -124,6 +148,23 @@ describe("purgePrivateTranscripts", () => {
 
     await expect(access(join(brain, mine))).rejects.toThrow();
     await expect(readFile(join(brain, sibling, "private"), "utf8")).resolves.toBe("sibling");
+  });
+
+  it("purges AGY from the on-disk log when a crash happens before marker capture", async () => {
+    const { io, neutralBase, neutralDir, homeBase } = await fixture();
+    const uuid = "e099f770-a55c-432f-a9be-8cf254fd2d54";
+    const brain = join(homeBase, ".gemini", "antigravity-cli", "brain", uuid);
+    await mkdir(brain, { recursive: true });
+    await writeFile(join(brain, "private"), "mine");
+    await writeFile(
+      join(neutralDir, AGY_SESSION_LOG_FILENAME),
+      `Created conversation ${uuid}\nSending user message\n`
+    );
+
+    await purgePrivateTranscripts(io, neutralBase, "user-1", homeBase);
+
+    await expect(access(brain)).rejects.toThrow();
+    await expect(access(join(neutralDir, AGY_IDENTITY_FILENAME))).rejects.toThrow();
   });
 });
 

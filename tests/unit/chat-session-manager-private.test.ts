@@ -59,7 +59,7 @@ function privateDeps(engine: FakeEngine, incognito: boolean, now = () => 0) {
 }
 
 describe("ChatSessionManager private cleanup", () => {
-  it("endPrivateSession kills engine, purges transcripts, deletes bookkeeping, and revokes token", async () => {
+  it("endPrivateSession best-effort purges, kills, and retains bookkeeping for the sweep", async () => {
     const engine = new FakeEngine();
     const revoke = vi.fn();
     const deps = privateDeps(engine, true);
@@ -71,9 +71,39 @@ describe("ChatSessionManager private cleanup", () => {
     expect(engine.killed).toBe(true);
     expect(engine.purged).toBe(true);
     expect(engine.events).toEqual(["purge", "kill"]);
-    expect(engine.preserveNeutralDir).toBe(false);
-    expect(deps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private");
+    expect(engine.preserveNeutralDir).toBe(true);
+    expect(deps.persistence.deleteThread).not.toHaveBeenCalled();
     expect(revoke).toHaveBeenCalledWith("u1");
+  });
+
+  it("retains a row across a live recreate race, then clears it after the post-exit sweep", async () => {
+    let transcriptExists = true;
+    const engine = new FakeEngine();
+    engine.purgeTranscripts = vi.fn(async () => {
+      engine.events.push("purge");
+      transcriptExists = false;
+      transcriptExists = true; // #1086 — the still-live CLI recreates after rm.
+    });
+    const deps = privateDeps(engine, true);
+    deps.persistence.listIncognitoThreadStates.mockResolvedValue([
+      { actorUserId: "u1", threadId: "thread-private" }
+    ]);
+    const purgePrivateTranscripts = vi.fn(async () => {
+      transcriptExists = false;
+    });
+    const manager = new ChatSessionManager({ ...deps, purgePrivateTranscripts });
+    await manager.ensureSession("u1", "Ben");
+
+    await manager.endPrivateSession("u1");
+
+    expect(transcriptExists).toBe(true);
+    expect(deps.persistence.deleteThread).not.toHaveBeenCalled();
+
+    await manager.reconcileLiveSessions(new Set());
+
+    expect(purgePrivateTranscripts).toHaveBeenCalledWith("u1");
+    expect(transcriptExists).toBe(false);
+    expect(deps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private");
   });
 
   // #744 — the bookkeeping-row delete is GATED on purge success. If purge fails (throws) or
@@ -156,9 +186,9 @@ describe("ChatSessionManager private cleanup", () => {
 
     await manager.reconcileLiveSessions(new Set());
 
-    expect(killSession).toHaveBeenCalledWith("u1");
+    expect(killSession).toHaveBeenCalledWith("u1", { preserveNeutralDir: true });
     expect(engine.purged).toBe(true);
-    expect(deps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private");
+    expect(deps.persistence.deleteThread).not.toHaveBeenCalled();
     expect(revoke).toHaveBeenCalledWith("u1");
   });
 
@@ -178,7 +208,7 @@ describe("ChatSessionManager private cleanup", () => {
     expect(deps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private");
   });
 
-  it("clear deletes an outgoing private bookkeeping thread before opening the next chat", async () => {
+  it("clear retains outgoing private bookkeeping until a later sweep", async () => {
     const engine = new FakeEngine();
     const deps = privateDeps(engine, true);
     const manager = new ChatSessionManager(deps);
@@ -188,7 +218,7 @@ describe("ChatSessionManager private cleanup", () => {
 
     expect(engine.killed).toBe(true);
     expect(engine.purged).toBe(true);
-    expect(deps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private");
+    expect(deps.persistence.deleteThread).not.toHaveBeenCalled();
     expect(deps.persistence.openNewConversation).toHaveBeenCalledWith("u1", undefined);
   });
 
@@ -213,7 +243,7 @@ describe("ChatSessionManager private cleanup", () => {
 
     expect(reaped.killed).toBe(true);
     expect(reaped.purged).toBe(true);
-    expect(reapedDeps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private");
+    expect(reapedDeps.persistence.deleteThread).not.toHaveBeenCalled();
   });
 
   it("ends a private session after last subscriber detaches, unless a subscriber returns first", async () => {
