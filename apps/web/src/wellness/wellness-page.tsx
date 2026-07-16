@@ -28,9 +28,10 @@ import { CheckinModal, type CheckinFormValue } from "./checkin-modal";
 import { ManageMedsModal } from "./manage-meds-modal";
 import { WellnessExportModal } from "./export-modal";
 import { computeStreak } from "./wellness-date-utils";
+import { readColorMode } from "../theme/color-mode";
 
 function useTheme(): "light" | "dark" {
-  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  return readColorMode();
 }
 
 function FlameIcon({ size = 15 }: { size?: number }) {

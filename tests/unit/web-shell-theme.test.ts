@@ -36,6 +36,13 @@ describe("shell theme storage", () => {
     expect(storage.getItem(SHELL_COLOR_MODE_STORAGE_KEY)).toBe("dark");
     expect(loadShellColorMode(storage)).toBe("dark");
   });
+
+  it("derives dark mode from legacy Dark when new mode key is absent", () => {
+    const storage = memoryStorage();
+    storage.setItem(SHELL_THEME_STORAGE_KEY, "dark");
+
+    expect(loadShellColorMode(storage)).toBe("dark");
+  });
 });
 
 function memoryStorage(): Pick<Storage, "getItem" | "setItem"> {

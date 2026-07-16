@@ -53,14 +53,11 @@ export function registerThemeRoutes(
         const custom = normalizeCustomThemes(
           await dependencies.preferencesRepository.get(scopedDb, CUSTOM_THEMES_KEY)
         );
-        const activeId = normalizeActiveThemeId(
-          await dependencies.preferencesRepository.get(scopedDb, ACTIVE_THEME_KEY),
-          custom
-        );
         const storedActiveId = await dependencies.preferencesRepository.get(
           scopedDb,
           ACTIVE_THEME_KEY
         );
+        const activeId = normalizeActiveThemeId(storedActiveId, custom);
         return {
           builtIn: BUILT_IN_THEMES,
           custom,

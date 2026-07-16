@@ -24,7 +24,10 @@ export function saveShellTheme(theme: ShellTheme, storage: ThemeStorage = localS
 
 export function loadShellColorMode(storage: ThemeStorage = localStorage): ShellColorMode {
   try {
-    return storage.getItem(SHELL_COLOR_MODE_STORAGE_KEY) === "dark" ? "dark" : "light";
+    const storedMode = storage.getItem(SHELL_COLOR_MODE_STORAGE_KEY);
+    if (storedMode === "dark") return "dark";
+    if (storedMode === null && storage.getItem(SHELL_THEME_STORAGE_KEY) === "dark") return "dark";
+    return "light";
   } catch {
     return "light";
   }

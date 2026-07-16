@@ -88,11 +88,14 @@ describe("theme settings routes", () => {
 
   it("normalizes legacy Dark to Forest plus dark mode", async () => {
     const prefs = new Map<string, unknown>([["themes.active", "dark"]]);
+    let activeReads = 0;
     const server = Fastify({ logger: false });
     registerThemeRoutes(server, {
       dataContext: fakeDataContext(),
       resolveAccessContext: async () => ({ actorUserId: "user-a", requestId: "req-a" }),
-      preferencesRepository: mapPreferences(prefs)
+      preferencesRepository: mapPreferences(prefs, (key) => {
+        if (key === "themes.active") activeReads += 1;
+      })
     });
     await server.ready();
 
@@ -101,6 +104,7 @@ describe("theme settings routes", () => {
     expect(list.json<ListThemesResponse>().builtIn.some((theme) => theme.id === "dark")).toBe(
       false
     );
+    expect(activeReads).toBe(1);
 
     await server.close();
   });
@@ -136,9 +140,12 @@ function fakeDataContext(): DataContextRunner {
   } as DataContextRunner;
 }
 
-function mapPreferences(values: Map<string, unknown>) {
+function mapPreferences(values: Map<string, unknown>, onGet?: (key: string) => void) {
   return {
-    get: async (_scopedDb: DataContextDb, key: string) => values.get(key) ?? null,
+    get: async (_scopedDb: DataContextDb, key: string) => {
+      onGet?.(key);
+      return values.get(key) ?? null;
+    },
     getWithMetadata: async () => null,
     upsert: async (_scopedDb: DataContextDb, key: string, value: unknown) => {
       values.set(key, value);
