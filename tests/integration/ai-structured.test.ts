@@ -207,7 +207,7 @@ describe("resolveModelForService precedence", () => {
     expect(other.model?.id).toBe(modelReasoningJsonId);
   });
 
-  it("a stale model binding is needs-config — never a silent fallthrough", async () => {
+  it("an unresolved model binding falls through to the provider default (#1083 F2)", async () => {
     const disable = await server.inject({
       method: "PATCH",
       url: `/api/ai/models/${modelChatJsonId}`,
@@ -217,8 +217,10 @@ describe("resolveModelForService precedence", () => {
     expect(disable.statusCode).toBe(200);
 
     const route = await resolve("module.job-search");
-    expect(route.model).toBeNull();
-    expect(route.reason).toBe("needs-config");
+    // #1083 F2: service bindings are UUIDs in a blob with no FK. Disabled/deleted rows must degrade
+    // to the configured provider's capable default instead of breaking structured module work.
+    expect(route.reason).toBe("matched-active-model");
+    expect(route.model?.id).toBe(modelEconomyJsonId);
 
     const enable = await server.inject({
       method: "PATCH",

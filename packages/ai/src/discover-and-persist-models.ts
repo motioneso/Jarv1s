@@ -15,9 +15,9 @@ export interface DiscoverAndPersistModelsInput {
 
 /**
  * #982/#869 D2/D6: one discovery path for create, update, login-ready, and list self-heal.
- * CLI providers backed by curated data are intentionally replaced, not merged: Ben requested a
- * clean slate that deletes stale/manual rows while preserving the #367 sentinel. API-key providers
- * keep insert-only behavior because their live `/models` response must not erase admin choices.
+ * CLI providers backed by curated data are reconciled by natural key: stale/manual rows are removed,
+ * unchanged rows keep their ids, and the #367 sentinel survives. API-key providers keep insert-only
+ * behavior because their live `/models` response must not erase admin choices.
  */
 export async function discoverAndPersistModels(
   scopedDb: DataContextDb,
@@ -34,15 +34,16 @@ export async function discoverAndPersistModels(
     }
   );
   const replaceCliModels = input.authMethod === "cli" && hasCliStaticModels(input.providerKind);
+  const models = discovered.models.map((model) => ({ ...model, status: "active" as const }));
 
   if (replaceCliModels) {
-    await deps.repository.deleteModelsForProviderExceptSentinel(scopedDb, input.providerId);
+    await deps.repository.deleteModelsForProviderExceptSentinel(
+      scopedDb,
+      input.providerId,
+      models.map((model) => model.providerModelId)
+    );
   }
   if (!replaceCliModels && discovered.fromFallback) return;
 
-  await deps.repository.upsertDiscoveredModels(
-    scopedDb,
-    input.providerId,
-    discovered.models.map((model) => ({ ...model, status: "active" as const }))
-  );
+  await deps.repository.upsertDiscoveredModels(scopedDb, input.providerId, models);
 }

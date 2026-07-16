@@ -5,6 +5,8 @@ import pg from "pg";
 import {
   AiAutoRegisterService,
   AiRepository,
+  CLI_STATIC_MODELS,
+  ModelDiscoveryService,
   createAiSecretCipher,
   type AiSecretCipher
 } from "@jarv1s/ai";
@@ -16,6 +18,7 @@ import {
 } from "@jarv1s/db";
 import { SettingsRepository } from "@jarv1s/settings";
 
+import { discoverAndPersistModels } from "../../packages/ai/src/discover-and-persist-models.js";
 import { buildOnboardingLogin } from "../../packages/module-registry/src/onboarding-login.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -132,6 +135,107 @@ describe("AI auto-register default chat model on login (#367)", () => {
 
     expect(providers).toHaveLength(1);
     expect(models.filter((m) => m.provider_model_id === "default")).toHaveLength(1);
+  });
+
+  it("preserves a bound concrete model row across re-login reconcile (#1083 F2)", async () => {
+    await dataContext.withDataContext(adminCtx(), async (db) => {
+      await service.ensureDefaultChatModel(db, "anthropic");
+      const boundBefore = (await repository.listModels(db)).find(
+        (model) => model.provider_model_id === "claude-haiku-4-5-20251001"
+      )!;
+      await repository.setServiceBinding(
+        db,
+        "module.news",
+        { kind: "model", modelId: boundBefore.id },
+        ids.userA
+      );
+
+      // #1083 F2: token expiry followed by re-login repeats this exact login-ready reconcile. The
+      // natural-key row must keep its UUID, not merely its name/count, because the service binding
+      // stores that UUID and would otherwise dangle even though the discovered catalog is unchanged.
+      await service.ensureDefaultChatModel(db, "anthropic");
+
+      const boundAfter = (await repository.listModels(db)).find(
+        (model) => model.provider_model_id === boundBefore.provider_model_id
+      );
+      const route = await repository.resolveModelForService(db, "module.news", {
+        capability: "json"
+      });
+      expect(boundAfter?.id).toBe(boundBefore.id);
+      expect(await repository.getModuleServiceBinding(db, "module.news")).toEqual({
+        kind: "model",
+        modelId: boundBefore.id
+      });
+      expect(route).toMatchObject({ reason: "manual-route", model: { id: boundBefore.id } });
+    });
+  });
+
+  it("falls back inside the default provider when changed discovery removes the bound model (#1083 F2)", async () => {
+    await dataContext.withDataContext(adminCtx(), async (db) => {
+      await service.ensureDefaultChatModel(db, "anthropic");
+      const defaultCliProvider = (await repository.listProviders(db)).find(
+        (provider) => provider.provider_kind === "anthropic"
+      )!;
+      const bound = (await repository.listModels(db)).find(
+        (model) => model.provider_model_id === "claude-opus-4-8"
+      )!;
+      await repository.setServiceBinding(
+        db,
+        "module.news",
+        { kind: "model", modelId: bound.id },
+        ids.userA
+      );
+
+      // Make cross-provider automatic routing observably wrong: this newer economy model must not
+      // outrank the configured default provider when #1083 F2's residual dangling UUID is handled.
+      const secondaryProvider = await repository.createProvider(db, {
+        providerKind: "custom",
+        displayName: "Secondary provider",
+        encryptedCredential: cipher.encryptJson({ apiKey: "secondary-test-key" })
+      });
+      await repository.createModel(db, {
+        providerConfigId: secondaryProvider.id,
+        providerModelId: "secondary-json",
+        displayName: "Secondary JSON",
+        capabilities: ["json"],
+        tier: "economy"
+      });
+
+      const changedDiscovery = new ModelDiscoveryService();
+      changedDiscovery.discoverModels = async () => ({
+        models: CLI_STATIC_MODELS.anthropic!.filter(
+          (model) => model.providerModelId !== bound.provider_model_id
+        ),
+        fromCache: false,
+        fromFallback: true,
+        cacheExpiresAt: null
+      });
+      await discoverAndPersistModels(
+        db,
+        {
+          actorUserId: defaultCliProvider.owner_user_id,
+          providerId: defaultCliProvider.id,
+          providerKind: defaultCliProvider.provider_kind,
+          authMethod: defaultCliProvider.auth_method,
+          baseUrl: defaultCliProvider.base_url,
+          credential: { cli: true }
+        },
+        { repository, modelDiscovery: changedDiscovery }
+      );
+
+      // A real catalog removal legitimately deletes the row while leaving today's blob binding
+      // dangling. #1083 F2 degrades within the instance default until the deferred FK redesign.
+      expect((await repository.listModels(db)).some((model) => model.id === bound.id)).toBe(false);
+      expect(await repository.getModuleServiceBinding(db, "module.news")).toEqual({
+        kind: "model",
+        modelId: bound.id
+      });
+      const route = await repository.resolveModelForService(db, "module.news", {
+        capability: "json"
+      });
+      expect(route.reason).toBe("matched-active-model");
+      expect(route.model?.provider_config_id).toBe(defaultCliProvider.id);
+    });
   });
 
   it("clean-slate reconcile removes stale/manual concrete rows but preserves sentinel", async () => {

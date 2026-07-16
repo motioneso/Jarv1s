@@ -577,20 +577,24 @@ export class AiRepository {
   }
 
   /**
-   * #982/#869 D6: CLI reconciliation is a deliberate hard replace. Preserve only the `default`
-   * sentinel so unpinned chat keeps riding the account model; every stale or hand-added concrete
-   * row is removed before current curated statics are inserted active.
+   * #982/#869/#1083 F2: CLI reconciliation removes stale/manual concrete rows but preserves the
+   * `default` sentinel and discovered natural keys. Keeping unchanged rows preserves their UUIDs,
+   * custom state, and UUID-backed service bindings without a migration.
    */
   async deleteModelsForProviderExceptSentinel(
     scopedDb: DataContextDb,
-    providerConfigId: string
+    providerConfigId: string,
+    providerModelIdsToPreserve: readonly string[] = []
   ): Promise<void> {
     assertDataContextDb(scopedDb);
-    await scopedDb.db
+    let query = scopedDb.db
       .deleteFrom("app.ai_configured_models")
       .where("provider_config_id", "=", providerConfigId)
-      .where("provider_model_id", "!=", "default")
-      .execute();
+      .where("provider_model_id", "!=", "default");
+    if (providerModelIdsToPreserve.length > 0) {
+      query = query.where("provider_model_id", "not in", [...providerModelIdsToPreserve]);
+    }
+    await query.execute();
   }
 
   async updateModel(
@@ -1198,6 +1202,20 @@ export class AiRepository {
           .where(sql<boolean>`${capability} = any(${sql.ref("models.capabilities")})`)
           .executeTakeFirst();
         if (model) return { model, reason: "manual-route" };
+
+        // #1083 F2: service bindings store row UUIDs without an FK. A legitimate catalog removal
+        // can leave one dangling, so degrade inside the configured default provider instead of
+        // breaking structured module work or silently jumping to another provider.
+        const defaultProviderId = await this.resolveDefaultProviderId(scopedDb);
+        if (defaultProviderId) {
+          const fallback = await this.selectModelInProviderForCapability(
+            scopedDb,
+            defaultProviderId,
+            capability,
+            tierHint
+          );
+          if (fallback) return { model: fallback, reason: "matched-active-model" };
+        }
         await this.logNeedsConfig(scopedDb, capability);
         return { model: null, reason: "needs-config" };
       }
