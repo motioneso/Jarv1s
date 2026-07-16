@@ -3100,3 +3100,15 @@ resume from this note before taking any merge-sensitive action.
 - The binding CI correction remains in force: do not manually rerun CI, any job, or broad local
   gates. Preserve parked review lanes E/F/G and every unrelated working-tree change.
   `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-16 #1117 repair plan approved
+
+- Exact repair session `019f6d05-4fc4-7831-9ed4-9e0f00b0d622` grounded the PR head and QA verdict.
+  Its pointer plan at
+  `~/Jarv1s/.claude/worktrees/ux-988-closing-acceptance/docs/superpowers/plans/2026-07-16-pr-1117-qa-red-repair.md`
+  was approved: move Today/Wellness dark-mode consumers to `data-color-mode`, preserve legacy dark
+  fallback when the new key is absent, reuse the stored `themes.active` GET read, and leave focused
+  regression coverage.
+- Implementation is running with focused tests only. No manual CI/job rerun or broad local gate is
+  allowed. Evidence gaps must be reported truthfully; absent live proof remains code-complete,
+  unproven. Parked review lanes E/F/G and unrelated changes remain untouched.
