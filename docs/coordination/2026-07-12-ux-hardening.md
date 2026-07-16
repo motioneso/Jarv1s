@@ -2684,3 +2684,30 @@ resume from this note before taking any merge-sensitive action.
   Successor repeats #1002 exact-head real-export UAT before #1075; #988 remains strictly last.
 - QA R2 pane/session was reaped and isolated `/tmp/jarv1s-qa-1092-r2` removed. Preserve unrelated
   `.claude/context-meter.log`, existing artifacts, and `webwright-proof-987-v3/`.
+
+## Continuation note — 2026-07-16 #1077 merged; mandatory security relay
+
+- Delegated authority at merge was exact label `UX Coordinator`, immutable Codex session
+  `019f68a1-899f-7cc1-bba5-2159ae14aaed`. Primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains untouched. `merges_since_relay` incremented from
+  `0` to `1`, firing the unconditional security-merge relay trigger.
+- Ben explicitly approved rebased exact head `a523e67c`; fresh Opus QA R2 was GREEN/MERGE-READY
+  with zero blockers and all four required CI checks were GREEN. PR #1092 merged at
+  `2026-07-16T18:07:05Z` as squash commit `0ef20ff7bf68c0f27ed5a710613563c66bfb4663`.
+- `gh pr merge --delete-branch` reported only that the local branch could not be deleted because
+  worktree `~/Jarv1s/.claude/worktrees/ux-1077-export-grants` still uses it; the PR itself is
+  confirmed MERGED. Owning build agent exact label `UX 1077 Export Grants R12`, session
+  `780ff9e1-45a2-4f80-b75e-69093fdb8289`, is idle there. Successor must fresh-resolve and reap that
+  exact agent, remove the worktree, prune, then reconcile #1077 issue/board bookkeeping from live
+  GitHub state. Preserve its unrelated `.claude/context-meter.log`.
+- IMMEDIATE next product action after successor adoption: repeat #1002 real personal-export UAT on
+  PR #1075 exact head `6cbb4955`, proving the export completes with the landed grants. Then
+  reconcile #1002 Task 8 and merge #1075 only if all live-path gates are GREEN. Start #988 strictly
+  last. Review lanes E/F/G remain parked outside this run.
+- Successor adoption protocol: from a fresh Herdr pane list, replace only the delegated UX lock
+  session with the successor's immutable session id, reset `merges_since_relay` to `0`, commit and
+  push, confirm driving, then fresh-resolve and close only old exact label `UX Coordinator` plus
+  session `019f68a1-899f-7cc1-bba5-2159ae14aaed`, and rename itself `UX Coordinator`. Never touch
+  primary Coordinator session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+- Preserve unrelated coordinator worktree changes: `.claude/context-meter.log`, existing
+  `artifacts/`, and `webwright-proof-987-v3/`.
