@@ -2468,6 +2468,22 @@ resume from this note before taking any merge-sensitive action.
 - Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
   `webwright-proof-987-v3/`.
 
+## Continuation note — 2026-07-15 #1002 build relay R2 driving
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f68a1-899f-7cc1-bba5-2159ae14aaed`; `merges_since_relay` is `0`. Primary `Coordinator`
+  session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains out of scope and untouched.
+- #1002 is `building`: exact label `UX 1002 Coming Soon R2`, immutable Claude session
+  `9ddb3be3-7ba8-4fd5-80bd-308226cd7046`, branch `ux/1002-coming-soon-build`, same isolated
+  worktree. Sonnet and bypass permissions verified; original build session was reaped.
+- Task 2 landed on the lane at `2f7f2bd4`; Task 3 is in flight from two red TDD assertions;
+  Tasks 4–5 remain. Relay continuation is
+  `docs/superpowers/handoffs/2026-07-15-1002-coming-soon-relay.md` at `d2348afb`.
+- Next: finish Tasks 3–5, exact-head CI, sensitive QA, authenticated desktop+narrow live UAT,
+  Task 8 inventory reconciliation, merge, and cleanup. #988 stays strictly serialized.
+- Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
+  `webwright-proof-987-v3/`.
+
 ## Continuation note — 2026-07-15 #1002 build agent spawned
 
 - Delegated authority: exact label `UX Coordinator`, immutable Codex session
