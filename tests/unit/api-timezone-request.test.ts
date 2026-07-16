@@ -5,6 +5,7 @@ import { registerRequestTimeZoneHook } from "../../apps/api/src/server.js";
 import {
   beaconEndPrivateChat,
   endPrivateChat,
+  listActionAuditLog,
   requestJson
 } from "../../apps/web/src/api/client.js";
 import { resolveRequestTimeZoneForRoute } from "../../packages/module-registry/src/index.js";
@@ -66,6 +67,35 @@ describe("web API timezone header", () => {
     beaconEndPrivateChat();
 
     expect(sendBeacon).toHaveBeenCalledWith("/api/chat/private/end", "");
+  });
+
+  it("bounds action audit requests", async () => {
+    vi.useFakeTimers();
+    try {
+      let requestSignal: AbortSignal | undefined;
+      const fetchMock = vi.fn<typeof fetch>((_input, init) => {
+        requestSignal = init?.signal;
+        return new Promise<Response>((_resolve, reject) => {
+          requestSignal?.addEventListener("abort", () => {
+            reject(new DOMException("The operation was aborted.", "AbortError"));
+          });
+        });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const request = listActionAuditLog();
+      const outcome = request.then(
+        () => null,
+        (error: unknown) => error
+      );
+      await Promise.resolve();
+      expect(requestSignal).toBeInstanceOf(AbortSignal);
+
+      await vi.advanceTimersByTimeAsync(3001);
+      await expect(outcome).resolves.toMatchObject({ name: "AbortError" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

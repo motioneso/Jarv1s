@@ -75,7 +75,7 @@ export function ActivityPane(_props: PaneProps) {
 
   const since = sinceForRange(range);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.ai.actionAuditLog({ since }),
     queryFn: () => listActionAuditLog({ since, limit: 200 })
   });
@@ -126,19 +126,32 @@ export function ActivityPane(_props: PaneProps) {
         )}
       </div>
 
-      {isLoading && (
+      {isError && (
+        <div className="aud__empty" aria-live="polite">
+          <p>Activity unavailable.</p>
+          <button
+            className="jds-btn jds-btn--quiet jds-btn--sm"
+            type="button"
+            onClick={() => void refetch()}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
+      {!isError && isLoading && (
         <div className="aud__empty" aria-live="polite">
           Loading…
         </div>
       )}
 
-      {!isLoading && filtered.length === 0 && (
+      {!isError && !isLoading && filtered.length === 0 && (
         <div className="aud__empty">
           <p>No Jarvis actions in this period.</p>
         </div>
       )}
 
-      {!isLoading && filtered.length > 0 && (
+      {!isError && !isLoading && filtered.length > 0 && (
         <div className="aud">
           {filtered.map((entry) => (
             <div key={entry.id} className="aud__row">

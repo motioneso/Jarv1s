@@ -1117,12 +1117,21 @@ export async function listActionAuditLog(params?: {
   family?: string;
   limit?: number;
 }): Promise<ListActionAuditLogResponse> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
   const search = new URLSearchParams();
   if (params?.since) search.set("since", params.since);
   if (params?.family) search.set("family", params.family);
   if (params?.limit !== undefined) search.set("limit", String(params.limit));
   const qs = search.toString();
-  return requestJson<ListActionAuditLogResponse>(`/api/ai/action-audit${qs ? `?${qs}` : ""}`);
+  try {
+    return await requestJson<ListActionAuditLogResponse>(
+      `/api/ai/action-audit${qs ? `?${qs}` : ""}`,
+      { signal: controller.signal }
+    );
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function getWebSearchKey(): Promise<GetWebSearchKeyResponse> {
