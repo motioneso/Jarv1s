@@ -7,7 +7,16 @@ export function isComposerEmpty(provider: ProviderKind, pane: string): boolean {
   const current = currentComposer(provider, pane);
   if (current === null) return false;
   if (current.text.length === 0) return true;
-  return provider === "openai-compatible" && current.rawFirstLine.includes("\u001b[2m");
+  // #1073: claude 2.1.183 renders its EMPTY composer as a DIM (SGR 2) placeholder
+  // (`❯ Try "…"`), same as codex's openai-compatible REPL. A live 2.1.183 probe
+  // confirmed real TYPED user text is never dim, so "dim first composer line ⇒ empty"
+  // cannot misread a real prompt as empty. Without this the anthropic ready-gate never
+  // fires and prod live chat 503s (CliChatUnavailableError). openai-compatible behavior
+  // is unchanged.
+  return (
+    (provider === "openai-compatible" || provider === "anthropic") &&
+    current.rawFirstLine.includes("\u001b[2m")
+  );
 }
 
 export function composerHasExactEcho(

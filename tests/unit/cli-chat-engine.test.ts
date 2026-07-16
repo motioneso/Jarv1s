@@ -69,8 +69,29 @@ describe("observed composer evidence", () => {
   const dim = "\u001b[2m";
   const reset = "\u001b[0m";
 
+  // #1073: real claude 2.1.183 panes captured live via `tmux capture-pane -e` (uid 1000).
+  // IDLE = empty composer: dim (SGR 2) placeholder. Placeholder copy rotates between runs,
+  // so detection must key on the dim SGR, not the exact string.
+  const ANTHROPIC_2_1_183_EMPTY_PANE = [
+    "[38;5;245mClaude Code v2.1.183 · Sonnet 4.6[39m",
+    "",
+    '[39m❯ [2mTry "fix typecheck errors"[39m',
+    "? for shortcuts · ← for agents"
+  ].join("\n");
+
+  // TYPED = a real user prompt in the composer. NOT dim (no [2m before the text).
+  const ANTHROPIC_2_1_183_TYPED_PROMPT = "ZZPROBEZZ sample typed text";
+  const ANTHROPIC_2_1_183_TYPED_PANE = [
+    "[38;5;245mClaude Code v2.1.183 · Sonnet 4.6[39m",
+    "",
+    "[39m❯ ZZPROBEZZ sample typed text",
+    "? for shortcuts · ← for agents"
+  ].join("\n");
+
   it("positively recognizes calibrated empty composer signatures", () => {
     expect(isComposerEmpty("anthropic", `${bold}❯${reset}\u00a0\n`)).toBe(true);
+    expect(isComposerEmpty("anthropic", ANTHROPIC_2_1_183_EMPTY_PANE)).toBe(true);
+    expect(isComposerEmpty("anthropic", ANTHROPIC_2_1_183_TYPED_PANE)).toBe(false);
     expect(
       isComposerEmpty("openai-compatible", `${bold}›${reset} ${dim}Use /skills${reset}\n`)
     ).toBe(true);
@@ -97,6 +118,13 @@ describe("observed composer evidence", () => {
         "openai-compatible",
         `${oldHistory}${bold}›${reset} fixed payload across\ncolumns\n`,
         payload
+      )
+    ).toBe(true);
+    expect(
+      composerHasExactEcho(
+        "anthropic",
+        ANTHROPIC_2_1_183_TYPED_PANE,
+        ANTHROPIC_2_1_183_TYPED_PROMPT
       )
     ).toBe(true);
     expect(composerHasExactEcho("anthropic", `❯ prefix ${payload} suffix\n`, payload)).toBe(false);
