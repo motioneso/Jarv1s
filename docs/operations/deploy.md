@@ -67,6 +67,22 @@ docker compose up -d
 
 The default image channel should be `ghcr.io/motioneso/jarv1s:stable`. Version tags remain useful for rollback and debugging, but users should not have to edit a tag for routine upgrades.
 
+### CLI tool version drift (#1081)
+
+Bumping a bundled CLI provider's version (claude/codex) only rebakes the recipe **catalog**
+into the image — the installed binary itself lives in the persistent `jarv1s-cli-tools`
+named volume, which survives `docker compose pull && up -d` untouched. As of #1081, the
+cli-runner sidecar reconciles every already-installed provider against the fresh catalog
+during its own boot sequence (before it accepts a request), so a routine upgrade now
+self-heals: a version-matched provider is a cheap no-op, a drifted one is reinstalled
+automatically, and any live chat session on that provider is dropped and relaunched (against
+the fresh binary) the next time it's used.
+
+If a session ever behaves as if it's still on the old provider version after an upgrade
+(the historical #1079 symptom), the manual fallback is still available — POST
+`/api/onboarding/provider-install` for the affected provider, then `POST /api/chat/clear` to
+drop any session that predates the reinstall.
+
 ## Downloaded Modules
 
 Jarvis has one module model with two delivery paths: **bundled modules** ship in the app image,

@@ -9,7 +9,10 @@ import {
   CliChatUnavailableError
 } from "../../packages/chat/src/live/errors.js";
 
-function makeMinimalDeps(
+// #1081: exported (not just local) so tests/unit/chat-session-manager-provider-drop.test.ts
+// (split out of this file — see check:file-size, 1000-line cap) can reuse the same fixture
+// instead of drifting a second copy.
+export function makeMinimalDeps(
   overrides: Partial<ConstructorParameters<typeof ChatSessionManager>[0]> = {}
 ) {
   return {
@@ -724,6 +727,10 @@ describe("ChatSessionManager maintenance mutex (#342 §5.4)", () => {
     }
   });
 });
+
+// #1081 H2: dropSessionsForProvider coverage moved to
+// tests/unit/chat-session-manager-provider-drop.test.ts — this file was at the
+// check:file-size 1000-line cap, and that block pushed it over.
 
 describe("ChatSessionManager.runTurn idle watchdog (#456 Task A)", () => {
   /** A fake engine whose readNew returns a queued script of results. Used to model a

@@ -52,6 +52,14 @@ export interface ProviderInstallOutcome {
   readonly message?: string;
   /** True when the pinned version was already installed + re-verified — a no-op (§A.3.6). */
   readonly alreadyInstalled?: boolean;
+  /**
+   * #1081 H2: true ONLY when this install call replaced the live binary on disk (a real
+   * reinstall), false on an idempotent no-op. The composition root (module-registry) uses
+   * this to decide whether to drop+relaunch that provider's live chat sessions — settings
+   * itself never touches chat/cli-runner state directly (module isolation), it only
+   * surfaces the field on the response for observability.
+   */
+  readonly binaryChanged?: boolean;
 }
 
 /** Catalog installability verdict for a provider (install-contract §A.1/§A.2.3). */
@@ -181,6 +189,8 @@ export interface OnboardingProviderInstallResponse {
   readonly version?: string;
   readonly message?: string;
   readonly alreadyInstalled?: boolean;
+  /** #1081 H2: true only on a real reinstall that replaced the binary; see ProviderInstallOutcome. */
+  readonly binaryChanged?: boolean;
 }
 
 const onboardingProviderInstallRequestSchema = {
@@ -204,7 +214,10 @@ const onboardingProviderInstallResponseSchema = {
     },
     version: { type: "string" },
     message: { type: "string" },
-    alreadyInstalled: { type: "boolean" }
+    alreadyInstalled: { type: "boolean" },
+    // #1081 fast-json-stringify trap: additionalProperties:false SILENTLY DROPS any field
+    // not declared here — binaryChanged (H2) must be listed or it never reaches the client.
+    binaryChanged: { type: "boolean" }
   }
 } as const;
 
@@ -945,13 +958,19 @@ function buildLoginResponse(
 function terminalExtras(outcome: ProviderInstallOutcome): {
   message?: string;
   alreadyInstalled?: boolean;
+  binaryChanged?: boolean;
 } {
-  const extras: { message?: string; alreadyInstalled?: boolean } = {};
+  const extras: { message?: string; alreadyInstalled?: boolean; binaryChanged?: boolean } = {};
   if (outcome.message !== undefined) {
     extras.message = outcome.message;
   }
   if (outcome.alreadyInstalled !== undefined) {
     extras.alreadyInstalled = outcome.alreadyInstalled;
+  }
+  // #1081 H2: surface binaryChanged so the response (and the composition root that
+  // reads THIS outcome, not the response) can act on a real reinstall.
+  if (outcome.binaryChanged !== undefined) {
+    extras.binaryChanged = outcome.binaryChanged;
   }
   return extras;
 }

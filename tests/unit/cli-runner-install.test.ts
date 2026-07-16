@@ -27,7 +27,7 @@
 import { lstat, mkdtemp, mkdir, readlink, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 
 import type { TmuxIo } from "../../packages/ai/src/index.js";
 import {
@@ -206,6 +206,8 @@ describe("InstallService — npm install happy path (§A.3.3/§A.3.4/§A.3.5)", 
     const result = await svc.installProvider("anthropic");
     expect(result.state).toBe("installed");
     expect(result.version).toBe(PINNED);
+    // #1081 H2: a REAL install (not an idempotent no-op) replaced the binary on disk.
+    expect(result.binaryChanged).toBe(true);
 
     // §A.3.3: the npm invocation carries `ci` AND `--ignore-scripts` (no lifecycle scripts).
     const ci = runs.find((r) => r.cmd === "npm" && r.args[0] === "ci");
@@ -397,16 +399,110 @@ describe("InstallService — idempotent re-install (§A.3.6)", () => {
     const first = await svc.installProvider("anthropic");
     expect(first.state).toBe("installed");
     expect(first.alreadyInstalled).toBeUndefined();
+    // #1081 H2: the real install path replaced the binary on disk.
+    expect(first.binaryChanged).toBe(true);
 
     const ciCountAfterFirst = runs.filter((r) => r.cmd === "npm" && r.args[0] === "ci").length;
 
     const second = await svc.installProvider("anthropic");
     expect(second.state).toBe("installed");
     expect(second.alreadyInstalled).toBe(true);
+    // #1081 H2: the idempotent no-op touched nothing on disk — binaryChanged must be
+    // explicitly false (not merely falsy/omitted), so callers can safely branch on it.
+    expect(second.binaryChanged).toBe(false);
 
     // No second `npm ci` ran — the no-op did not re-stage/re-promote.
     const ciCountAfterSecond = runs.filter((r) => r.cmd === "npm" && r.args[0] === "ci").length;
     expect(ciCountAfterSecond).toBe(ciCountAfterFirst);
+  });
+});
+
+describe("InstallService — boot-time reconcile of installed providers (#1081 H1)", () => {
+  it("reinstalls a provider whose live binary has DRIFTED from the current catalog pin", async () => {
+    // Stage 1: install anthropic at the original PINNED version — this is the
+    // "already installed" baseline that later drifts (e.g. a redeploy rebaked the
+    // recipe catalog to a newer version, but the named tools volume kept the old binary).
+    const stage1 = makeFakeIo({ installedVersion: PINNED });
+    const svc1 = new InstallService({
+      io: stage1.io,
+      catalog: PROVIDER_CATALOG,
+      toolsPrefix,
+      homeBase,
+      hostArch: "x64"
+    });
+    await svc1.installProvider("anthropic");
+
+    // Stage 2: a fresh InstallService bound to the SAME toolsPrefix/homeBase (simulating
+    // the same persistent volume across a redeploy), but with the catalog's anthropic
+    // recipe pinned to a DIFFERENT version — the rebaked-image scenario. The fake IO's
+    // `installedVersion` here is what a real reinstall would produce.
+    const drifted = "9.9.9-drifted";
+    const baseAnthropicRecipe = PROVIDER_CATALOG.anthropic.recipe;
+    if (!baseAnthropicRecipe) throw new Error("test fixture: anthropic recipe missing");
+    const driftedCatalog = {
+      ...PROVIDER_CATALOG,
+      anthropic: {
+        ...PROVIDER_CATALOG.anthropic,
+        recipe: { ...baseAnthropicRecipe, version: drifted }
+      }
+    } as typeof PROVIDER_CATALOG;
+    const stage2 = makeFakeIo({ installedVersion: drifted });
+    const svc2 = new InstallService({
+      io: stage2.io,
+      catalog: driftedCatalog,
+      toolsPrefix,
+      homeBase,
+      hostArch: "x64"
+    });
+    const installSpy = vi.spyOn(svc2, "installProvider");
+
+    await svc2.reconcileInstalledProviders();
+
+    // #1081 H1: the already-installed, now-drifted provider was reconciled via the normal
+    // installProvider path (real reinstall — tryIdempotentNoop's version/hash check failed).
+    expect(installSpy).toHaveBeenCalledWith("anthropic");
+    expect(installSpy).toHaveBeenCalledTimes(1);
+    const ciRuns = stage2.runs.filter((r) => r.cmd === "npm" && r.args[0] === "ci");
+    expect(ciRuns.length).toBeGreaterThan(0);
+  });
+
+  it("is a no-op (no re-promote) when the installed version already matches the catalog", async () => {
+    const { io, runs } = makeFakeIo({ installedVersion: PINNED });
+    const svc = new InstallService({
+      io,
+      catalog: PROVIDER_CATALOG,
+      toolsPrefix,
+      homeBase,
+      hostArch: "x64"
+    });
+    await svc.installProvider("anthropic");
+    const ciCountBeforeReconcile = runs.filter((r) => r.cmd === "npm" && r.args[0] === "ci").length;
+
+    await svc.reconcileInstalledProviders();
+
+    // #1081 H1: version+hash already match the catalog ⇒ installProvider's internal
+    // tryIdempotentNoop short-circuits — no additional `npm ci` ran.
+    const ciCountAfterReconcile = runs.filter((r) => r.cmd === "npm" && r.args[0] === "ci").length;
+    expect(ciCountAfterReconcile).toBe(ciCountBeforeReconcile);
+  });
+
+  it("leaves a NEVER-installed provider completely untouched (not a fresh install)", async () => {
+    // Fresh toolsPrefix/homeBase — nothing installed for ANY provider yet.
+    const { io } = makeFakeIo({ installedVersion: PINNED });
+    const svc = new InstallService({
+      io,
+      catalog: PROVIDER_CATALOG,
+      toolsPrefix,
+      homeBase,
+      hostArch: "x64"
+    });
+    const installSpy = vi.spyOn(svc, "installProvider");
+
+    await svc.reconcileInstalledProviders();
+
+    // #1081 H1: drift reconcile is NOT a fresh-install trigger — §A.2.3's admin-gated
+    // route stays the sole path for a provider with no existing release.
+    expect(installSpy).not.toHaveBeenCalled();
   });
 });
 

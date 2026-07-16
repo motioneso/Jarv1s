@@ -62,6 +62,14 @@ export function buildOnboardingInstall(deps: {
   readonly repository: SettingsRepository;
   readonly catalog?: ProviderCatalog;
   readonly logger?: { warn: (obj: unknown, msg: string) => void };
+  /**
+   * #1081 H2: drop+relaunch every live chat session bound to `provider` after this route's
+   * install call REPLACED the binary (`binaryChanged:true`). Best-effort — a failure here
+   * must never fail the install response, since the install itself already succeeded.
+   * Absent on a build with no chat session manager wired (e.g. a future headless install
+   * consumer); the seam then just skips the drop.
+   */
+  readonly dropSessionsForProvider?: (provider: OnboardingProviderKind) => Promise<void>;
 }): OnboardingInstallDependencies | undefined {
   if (!deps.enabled) return undefined;
   const catalog = deps.catalog ?? PROVIDER_CATALOG;
@@ -88,13 +96,31 @@ export function buildOnboardingInstall(deps: {
       throw new Error("cli-runner connection unavailable for install");
     }
     const result = await conn.installProvider({ provider });
+
+    // #1081 H2: a real reinstall REPLACED the live binary — any running engine process for
+    // this provider still has the STALE binary in its exec image. Drop those sessions
+    // best-effort (kill+drop, conversation preserved — see ChatSessionManager's
+    // dropSessionsForProvider) BEFORE returning the outcome; a drop failure must not turn
+    // an otherwise-successful install into an error response.
+    if (result.binaryChanged === true) {
+      try {
+        await deps.dropSessionsForProvider?.(provider);
+      } catch (err) {
+        deps.logger?.warn(
+          { err: err instanceof Error ? err.message : String(err), provider },
+          "#1081 H2: dropSessionsForProvider failed after a binary-changing reinstall"
+        );
+      }
+    }
+
     return {
       state: result.state,
       ...(result.version !== undefined ? { version: result.version } : {}),
       ...(result.message !== undefined ? { message: result.message } : {}),
       ...(result.alreadyInstalled !== undefined
         ? { alreadyInstalled: result.alreadyInstalled }
-        : {})
+        : {}),
+      ...(result.binaryChanged !== undefined ? { binaryChanged: result.binaryChanged } : {})
     };
   };
 

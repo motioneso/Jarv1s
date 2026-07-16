@@ -726,6 +726,35 @@ export class ChatSessionManager {
   }
 
   /**
+   * #1081 H2: drop every LIVE session bound to `provider` after an admin-triggered
+   * reinstall REPLACED that provider's binary (`RpcInstallProviderResult.binaryChanged`) —
+   * a running engine process still holds the STALE binary in its exec image. Unlike
+   * `clear()`, this does NOT reset the conversation: the transcript persists, and the next
+   * `submitTurn`'s lazy relaunch (`ensureSession`) replays prior turns into a FRESH engine
+   * process that execs the just-installed binary — same reasoning as `switchProvider`
+   * above (provider changed under the session, keep the conversation). The boot-time
+   * reconcile path (`InstallService.reconcileInstalledProviders`, #1081 H1) never needs
+   * this: `startupSweep` runs before any session exists.
+   *
+   * Runs under the shared §5.4 maintenance mutex (same as reapIdle/reconcileLiveSessions)
+   * since it mutates `sessions` + revokes tokens.
+   */
+  async dropSessionsForProvider(provider: ProviderKind): Promise<void> {
+    await this.withMaintenanceLock(async () => {
+      for (const [actorUserId, session] of this.sessions) {
+        if (session.provider !== provider) continue;
+        try {
+          await session.engine.kill();
+        } catch {
+          // best-effort: a hung/failed kill must not strand the session — drop it below regardless.
+        }
+        this.sessions.delete(actorUserId);
+        this.deps.revokeMcpToken?.(actorUserId);
+      }
+    });
+  }
+
+  /**
    * Register a subscriber for the user's transcript records. Returns an
    * unsubscribe handle. Multiple subscribers (multi-tab) all receive records.
    */
