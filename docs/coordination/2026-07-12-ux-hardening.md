@@ -2607,3 +2607,26 @@ resume from this note before taking any merge-sensitive action.
   Task 8; merge #1075; clean up; start #988 strictly last.
 - Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
   `webwright-proof-987-v3/`.
+
+## Continuation note — 2026-07-16 #1077 approval received; current-main rebase required
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f68a1-899f-7cc1-bba5-2159ae14aaed`; `merges_since_relay` remains `0`. Never touch primary
+  `Coordinator` session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+- Ben explicitly approved merging security-tier PR #1092. Pre-merge authority and CI checks were
+  valid, but the merge stopped before mutation because fresh `origin/main` is no longer an ancestor
+  of reviewed head `41110856`. Do not merge the stale reviewed head.
+- PR #1092 previously passed all four CI checks and Opus security QA with zero blockers; durable
+  verdict: `https://github.com/motioneso/Jarv1s/pull/1092#issuecomment-4989571684`. Local author
+  gates also passed (`verify:foundation=0`, `audit:release-hardening=0`). The approval must be
+  re-presented against the new integrated head after rebase, fresh CI, and fresh Opus security QA.
+- Owning Sonnet agent exact label `UX 1077 Export Grants R12`, immutable session
+  `780ff9e1-45a2-4f80-b75e-69093fdb8289`, is rebasing branch `ux/1077-export-grants` in
+  `~/Jarv1s/.claude/worktrees/ux-1077-export-grants` onto current `origin/main`, then force-pushing
+  with lease and reporting the exact new head/conflict status. Preserve unrelated
+  `.claude/context-meter.log`; no scope broadening.
+- After rebase: wait for all required CI checks, run fresh isolated Opus security QA on the new
+  head, and request Ben's explicit merge sign-off again. Once merged, increment
+  `merges_since_relay`, flush this manifest, and relay immediately because a security merge is a
+  mandatory relay trigger. The successor repeats #1002 exact-head real-export UAT before merging
+  #1075; #988 remains strictly last. Review lanes E/F/G stay parked outside this run.
