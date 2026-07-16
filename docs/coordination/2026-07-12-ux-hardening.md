@@ -2532,7 +2532,8 @@ resume from this note before taking any merge-sensitive action.
 - PR #1075 is code-complete at exact head `6cbb4955`; all four CI checks are green. Independent
   sensitive QA is GREEN / merge-ready with zero findings and a durable PR verdict comment.
   Exact-head authenticated desktop+390px live UAT relayed before compaction and is in progress in
-  successor label `UX UAT 1002 PR1075 R3`, session
-  `5ffda2ac-22c0-4142-9cdc-500e5249d92e`; Task 8 and merge remain gated on its result.
+  successor label `UX UAT 1002 PR1075 R4`, session
+  `a86f355c-7562-4ba4-8141-75596c627555`; signup, onboarding, and Audit evidence are complete;
+  Task 8 and merge remain gated on the remaining live UAT surfaces.
 - Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
   `webwright-proof-987-v3/`.
