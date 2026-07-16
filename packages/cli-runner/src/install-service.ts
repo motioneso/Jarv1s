@@ -328,7 +328,9 @@ export class InstallService {
       // GC the SUPERSEDED prior release (never the just-promoted one, §A.3.2).
       await this.gcOldReleases(provider, release.dir);
 
-      return { state: "installed", version: recipe.version };
+      // #1081 H2: this branch only runs when tryIdempotentNoop returned null (a real
+      // reinstall) — binaryChanged:true tells callers the on-disk binary was replaced.
+      return { state: "installed", version: recipe.version, binaryChanged: true };
     } catch (err) {
       return { state: "error", message: redactInstallMessage(err) };
     } finally {
@@ -536,7 +538,8 @@ export class InstallService {
         return { state: "error", message: "post-promote integrity check failed" };
       }
       this.pinnedHash.set(provider, recipe.sha512);
-      return { state: "installed", version: recipe.version };
+      // #1081 H2: reached only on a real reinstall (tryIdempotentNoop returned null).
+      return { state: "installed", version: recipe.version, binaryChanged: true };
     } catch (err) {
       return { state: "error", message: redactInstallMessage(err) };
     } finally {
@@ -593,7 +596,13 @@ export class InstallService {
       recipe.kind === "artifact" ? await sha512OfFile(liveBin) : await sha512OfResolved(liveBin);
     if (!hashEq(got, expected)) return null; // drifted/tampered ⇒ reinstall
 
-    return { state: "installed", version: recipe.version, alreadyInstalled: true };
+    // #1081 H2: binaryChanged:false is explicit (not omitted) — nothing on disk changed.
+    return {
+      state: "installed",
+      version: recipe.version,
+      alreadyInstalled: true,
+      binaryChanged: false
+    };
   }
 
   // ─── §A.3.7 kind:"config" self-update-disable (file write at install) ────────
@@ -640,6 +649,41 @@ export class InstallService {
       const dir = path.join(releasesDir, name);
       if (dir === live) continue; // keep the one `current` points at
       await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+
+  // ─── #1081 H1: boot-time drift reconcile (deploy-drift fix) ─────────────────
+
+  /**
+   * #1081 H1: bumping a bundled CLI-tool's version only rebakes the recipe CATALOG into
+   * the image — the binary itself lives in the named `jarv1s-cli-tools` volume, which
+   * SURVIVES `docker compose pull && up -d` untouched. Before this fix, neither boot nor
+   * engine-launch re-verified the live binary against the fresh recipe, so an instance
+   * silently kept running a stale binary until an admin manually POSTed
+   * `/api/onboarding/provider-install` (#1079's root cause).
+   *
+   * Reconciles every ALREADY-installed provider (a `bin/<binary>` symlink already resolves
+   * executable — the same is-installed probe `tryIdempotentNoop` uses) against the CURRENT
+   * catalog via the normal `installProvider` path: version+hash match ⇒ cheap no-op
+   * (`tryIdempotentNoop`); drifted ⇒ a real reinstall. A provider with NO existing release
+   * is left completely untouched — this is drift reconcile, not a fresh install; §A.2.3
+   * (the admin-gated route) stays the SOLE trigger for a never-installed provider.
+   *
+   * Called from `CliChatEngineHost.startupSweep()` AFTER the `.staging`/orphan-release GC
+   * above and BEFORE the server accepts its first request, so a drifted binary can never
+   * serve a live session. Per-provider errors are swallowed (best-effort) so one
+   * provider's reconcile fault never blocks another's, nor crashes boot.
+   */
+  async reconcileInstalledProviders(): Promise<void> {
+    for (const provider of Object.keys(this.deps.catalog) as RpcProviderKind[]) {
+      let recipe: InstallRecipe;
+      try {
+        recipe = this.resolveRecipe(provider);
+      } catch {
+        continue; // blocked / not in catalog — never a reconcile target.
+      }
+      if (!(await isExecutable(this.binPath(recipe.binary)))) continue; // never installed — leave to explicit admin action.
+      await this.installProvider(provider).catch(() => undefined);
     }
   }
 

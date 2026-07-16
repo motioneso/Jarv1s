@@ -66,6 +66,17 @@ export interface RpcInstallProviderResult {
    * (idempotent, §A.3.6).
    */
   readonly alreadyInstalled?: boolean;
+  /**
+   * #1081 H2: true ONLY when this call performed a REAL reinstall that replaced the live
+   * binary on disk (the `installNpm`/`installArtifact` success path) — false on the
+   * `tryIdempotentNoop` `alreadyInstalled` no-op path, where nothing on disk changed. A
+   * running instance's `/api/onboarding/provider-install` handler uses this to decide
+   * whether to drop+relaunch that provider's live chat sessions (an old engine process
+   * still holds the STALE binary in its exec image); the boot-time reconcile
+   * (`InstallService.reconcileInstalledProviders`, #1081 H1) sets no sessions to drop —
+   * it runs before any session exists — so it ignores this field entirely.
+   */
+  readonly binaryChanged?: boolean;
 }
 
 // ---------------------------------------------------------------------------

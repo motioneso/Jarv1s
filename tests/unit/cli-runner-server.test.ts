@@ -24,6 +24,7 @@ import {
   type ConnectionDeps
 } from "../../packages/cli-runner/src/connection.js";
 import { TerminalHost } from "../../packages/cli-runner/src/terminal-host.js";
+import type { InstallService } from "../../packages/cli-runner/src/install-service.js";
 import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
 import {
   AGY_IDENTITY_FILENAME,
@@ -459,6 +460,45 @@ describe("§6.5 startup CLEAN-SLATE sweep", () => {
     // (b) EVERY persisted dir under the base was removed unconditionally (§6.5).
     expect(removedDirs).toContain(`${NEUTRAL_BASE}/stale`);
     expect(removedDirs).toContain(`${NEUTRAL_BASE}/other-user`);
+  });
+
+  it("#1081 H1: calls installService.reconcileInstalledProviders() during startupSweep, after the GC sweep and before the login-service sweep", async () => {
+    const { io } = makeFakeIo();
+    const callOrder: string[] = [];
+    // A minimal fake InstallService — the REAL reconcile behavior (drift/no-op/untouched)
+    // is already covered by tests/unit/cli-runner-install.test.ts; this test only proves
+    // CliChatEngineHost.startupSweep() actually WIRES the call, in the right order relative
+    // to the other boot sweeps (#1081 H1 requires it run before the server ever serves a
+    // request, so a stale binary can never back a live session).
+    const installService = {
+      startupSweep: vi.fn().mockImplementation(async () => {
+        callOrder.push("install.startupSweep");
+      }),
+      reconcileInstalledProviders: vi.fn().mockImplementation(async () => {
+        callOrder.push("install.reconcile");
+      })
+    } as unknown as InstallService;
+    const loginService = {
+      startupSweep: vi.fn().mockImplementation(async () => {
+        callOrder.push("login.startupSweep");
+      })
+    } as unknown as ConstructorParameters<typeof CliChatEngineHost>[0]["loginService"];
+
+    const host = new CliChatEngineHost({
+      io,
+      neutralBase: NEUTRAL_BASE,
+      singleUser: true,
+      cliPresent: async () => true,
+      launchTimeoutMs: 2_000,
+      installService,
+      loginService
+    });
+
+    await host.startupSweep();
+
+    expect(installService.reconcileInstalledProviders).toHaveBeenCalledTimes(1);
+    // Ordering: GC-ish install.startupSweep → drift reconcile (H1) → login-service sweep.
+    expect(callOrder).toEqual(["install.startupSweep", "install.reconcile", "login.startupSweep"]);
   });
 
   it("purges private transcript markers before clearing the neutral base, and leaves the base intact on purge failure", async () => {

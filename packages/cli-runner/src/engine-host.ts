@@ -604,6 +604,12 @@ export class CliChatEngineHost {
     // Ordered here so it completes BEFORE the server accepts the first installProvider
     // (the server runs startupSweep before listen, server.ts:41).
     await this.deps.installService?.startupSweep().catch(() => undefined);
+    // (d.1) #1081 H1: boot-time drift reconcile — re-verify every ALREADY-installed
+    // provider's live binary against the current catalog (a rebaked recipe whose binary
+    // is stuck stale in the persistent tools volume gets reinstalled here; an
+    // already-current or never-installed provider is untouched). Runs after the GC sweep
+    // above and before the server accepts its first request.
+    await this.deps.installService?.reconcileInstalledProviders().catch(() => undefined);
     // (e) §L.3.4 login-session sweep: kill every `jarv1s-login-*` mux session (a fast in-place
     // restart can leave one while the in-memory login flow is gone). DISTINCT from (a), which
     // only enumerates `jarv1s-live-*` chat sessions.

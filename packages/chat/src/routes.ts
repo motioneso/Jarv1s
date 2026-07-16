@@ -38,6 +38,7 @@ import {
   type ActiveModulesResolver,
   type AssistantToolGatewayDependencies,
   type GatewaySessionRecord,
+  type ProviderKind,
   type SessionNotifier
 } from "@jarv1s/ai";
 import { CalendarRepository, sendCalendarCacheEvictJob } from "@jarv1s/calendar";
@@ -138,6 +139,18 @@ export interface ChatRoutesDependencies {
    * the in-process path (the runtime exposes no connection).
    */
   readonly adoptChatRpcConnection?: (connection: RpcConnection) => void;
+  /**
+   * #1081 H2 — same late-bound "adopt" seam as {@link adoptChatRpcConnection}, but for the
+   * chat session manager itself (built inside this function, AFTER the composition root
+   * assembles the onboarding-install seam). Publishes `ChatSessionManager.dropSessionsForProvider`
+   * back to `registerBuiltInApiRoutes`, which forwards a lazy-dereferencing wrapper into
+   * `buildOnboardingInstall`'s `dropSessionsForProvider` dependency — so a binary-changing
+   * reinstall (`/api/onboarding/provider-install`) can drop that provider's live sessions.
+   * Unconditional (unlike the RPC connection, `runtime.manager` always exists).
+   */
+  readonly adoptDropSessionsForProvider?: (
+    dropSessionsForProvider: (provider: ProviderKind) => Promise<void>
+  ) => void;
   readonly resolveEveningInterviewSeed?: (
     actorUserId: string,
     briefingRunId?: string
@@ -262,6 +275,13 @@ export function registerChatRoutes(
   if (runtime.connection) {
     dependencies.adoptChatRpcConnection?.(runtime.connection);
   }
+
+  // #1081 H2: publish the session manager's drop-by-provider method back to the composition
+  // root (same "adopt" seam as above), unconditionally — unlike the RPC connection,
+  // `runtime.manager` always exists on every runtime path.
+  dependencies.adoptDropSessionsForProvider?.((provider) =>
+    runtime.manager.dropSessionsForProvider(provider)
+  );
 
   // Wire real notifier now that manager is available.
   realNotifier = new ChatGatewayNotifier(runtime.manager);

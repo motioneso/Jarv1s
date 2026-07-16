@@ -35,6 +35,7 @@ import {
   ModelDiscoveryService,
   registerAiMaintenanceWorkers,
   registerAiRoutes,
+  type ProviderKind,
   type TerminalRpcConnectOptions,
   type TerminalRpcHandle
 } from "@jarv1s/ai";
@@ -403,6 +404,16 @@ export interface BuiltInRouteDependencies {
    * in-process path.
    */
   readonly adoptChatRpcConnection?: (connection: RpcConnection) => void;
+  /**
+   * #1081 H2 — set by `registerBuiltInApiRoutes` and consumed inside `registerChatRoutes`:
+   * the same late-bound "adopt" seam as {@link adoptChatRpcConnection}, but publishing the
+   * chat session manager's `dropSessionsForProvider` (built inside `registerChatRoutes`,
+   * after this composition root wires the onboarding-install seam). Forwarded into
+   * `buildOnboardingInstall`'s `dropSessionsForProvider` dependency via a lazy-dereferencing
+   * wrapper, so `/api/onboarding/provider-install` can drop a provider's live sessions after
+   * a binary-changing reinstall.
+   */
+  readonly adoptDropSessionsForProvider?: ChatRoutesDependencies["adoptDropSessionsForProvider"];
   readonly resolveEveningInterviewSeed?: ChatRoutesDependencies["resolveEveningInterviewSeed"];
   readonly revokeUserSessions?: (userId: string) => Promise<number>;
   /** Auth-owned current-user session list/revoke service (#237). */
@@ -1196,6 +1207,9 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         chatEngineFactory: deps.chatEngineSelection ? undefined : deps.chatEngineFactory,
         engineSelection: deps.chatEngineSelection,
         adoptChatRpcConnection: deps.adoptChatRpcConnection,
+        // #1081 H2: same late-bound "adopt" seam as adoptChatRpcConnection above, publishing
+        // the manager's dropSessionsForProvider back to the composition root.
+        adoptDropSessionsForProvider: deps.adoptDropSessionsForProvider,
         resolveActiveModules: deps.resolveActiveModules,
         mcpServerUrl: deps.mcpServerUrl,
         boss: deps.boss,
@@ -1885,6 +1899,16 @@ export function registerBuiltInApiRoutes(
   let rpcConnection: RpcConnection | undefined = dependencies.chatRpcConnection;
   const getRpcConnection = (): RpcConnection | undefined => rpcConnection;
 
+  // #1081 H2: the chat session manager's dropSessionsForProvider is built INSIDE
+  // registerChatRoutes (below, via the chat module's registerRoutes call), strictly AFTER
+  // this function assembles the onboarding-install seam — so it is adopted via the SAME
+  // late-bound ref pattern as rpcConnection/getRpcConnection above. Absent (undefined) until
+  // the chat module registers (always happens on this same synchronous pass, before any
+  // request is served).
+  let dropSessionsForProvider: ((provider: ProviderKind) => Promise<void>) | undefined;
+  const getDropSessionsForProvider = (): ((provider: ProviderKind) => Promise<void>) | undefined =>
+    dropSessionsForProvider;
+
   // Onboarding probes: built synchronously (no boot-time probing) and forwarded to the settings
   // module. Each function probes lazily, per request, bounded by a short timeout. On the RPC path they
   // route through the cli-runner over the socket (§4.8) instead of spawning CLIs in-process; the
@@ -1934,7 +1958,16 @@ export function registerBuiltInApiRoutes(
     enabled: socketConfigured,
     getConnection: getRpcConnection,
     repository: new SettingsRepository(),
-    logger: { warn: (obj, msg) => server.log.warn(obj, msg) }
+    logger: { warn: (obj, msg) => server.log.warn(obj, msg) },
+    // #1081 H2: lazy-dereferencing wrapper over the late-bound chat session manager method —
+    // `dropSessionsForProvider` (this closure var above) is still undefined at THIS line (the
+    // chat module registers routes further below), so every call must re-read it at call time,
+    // never capture it now. OnboardingProviderKind and ProviderKind are the identical literal
+    // union ("anthropic" | "openai-compatible" | "google"); no runtime mapping needed.
+    dropSessionsForProvider: async (provider) => {
+      const fn = getDropSessionsForProvider();
+      if (fn) await fn(provider as ProviderKind);
+    }
   });
 
   // #342 §L.5: the admin-gated login seam, built ONLY on the socket path (the login CLIs live in the
@@ -1982,6 +2015,12 @@ export function registerBuiltInApiRoutes(
     // probes through it and to ensureConnected()/close() it at the composition-root boundary.
     adoptChatRpcConnection: (connection: RpcConnection) => {
       rpcConnection = connection;
+    },
+    // #1081 H2: mirrors adoptChatRpcConnection immediately above — publishes the chat session
+    // manager's dropSessionsForProvider so the onboarding-install seam (built earlier in this
+    // function, over getDropSessionsForProvider) can reach it once it exists.
+    adoptDropSessionsForProvider: (fn: (provider: ProviderKind) => Promise<void>) => {
+      dropSessionsForProvider = fn;
     },
     resolveEveningInterviewSeed: async (actorUserId: string, briefingRunId?: string) => {
       const repository = new BriefingsRepository();
