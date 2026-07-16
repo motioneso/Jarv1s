@@ -2468,6 +2468,27 @@ resume from this note before taking any merge-sensitive action.
 - Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
   `webwright-proof-987-v3/`.
 
+## Continuation note — 2026-07-15 #1077 Task 4 hash correction
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f68a1-899f-7cc1-bba5-2159ae14aaed`; `merges_since_relay` remains `0`. Never touch primary
+  `Coordinator` session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+- Merge order remains #1077 security QA + Ben sign-off + merge; repeat #1002 exact-head live export
+  UAT; reconcile Task 8; merge #1075; clean up; start #988 strictly last. Newly offered review lanes
+  E/F/G are deferred so they do not disrupt this locked order.
+- #1077 branch `ux/1077-export-grants` reached pushed head `ef2989a8`. Unit verification was GREEN
+  (3376 tests), but `verify:foundation` stopped in `db:migrate`: migration
+  `0166_worker_notification_reads_grant.sql` changed after application because `ef2989a8` added a
+  policy comment to that already-applied file. No PR exists yet; `audit:release-hardening` has not
+  run.
+- R11 was reaped after its read-only diagnosis. Fresh low-effort Sonnet successor exact label
+  `UX 1077 Export Grants R12`, immutable session `780ff9e1-45a2-4f80-b75e-69093fdb8289`, is driving
+  in the same worktree `~/Jarv1s/.claude/worktrees/ux-1077-export-grants`. It is restoring 0166
+  byte-for-byte, moving the required comment into a newly numbered append-only migration, updating
+  inventory/tests as needed, then running full `verify:foundation`, `audit:release-hardening`, and
+  coordinated wrap-up if green. Preserve unrelated `.claude/context-meter.log`; task_activity and
+  failure-handler findings remain deferred.
+
 ## Continuation note — 2026-07-15 #1002 sensitive QA running
 
 - Delegated authority remains exact label `UX Coordinator`, immutable Codex session
