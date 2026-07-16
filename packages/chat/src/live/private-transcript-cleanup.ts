@@ -7,8 +7,10 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 const CODEX_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CREATED_CONVERSATION_PATTERN =
   /\bCreated conversation ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?=\s|$)/gi;
+// Codex v0.141.0 surrounds the /status UUID with ANSI SGR resets; #1076 keeps parsing the raw pane because composer evidence also needs its ANSI bytes.
 const CODEX_STATUS_SESSION_PATTERN =
-  /\bSession:\s+([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?=\s|$|│)/gi;
+  // eslint-disable-next-line no-control-regex -- terminal panes contain ANSI SGR escapes by design.
+  /\bSession:\s+(?:\x1b\[[0-9;]*m)*([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:\x1b\[[0-9;]*m)*(?=\s|$|│)/gi;
 
 export const AGY_SESSION_LOG_FILENAME = ".jarvis-agy-session.log";
 export const AGY_IDENTITY_FILENAME = ".jarvis-agy-conversation-id";

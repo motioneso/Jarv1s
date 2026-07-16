@@ -138,6 +138,14 @@ describe("Codex session identity", () => {
     ).toBeNull();
   });
 
+  it("accepts the ANSI SGR sequence emitted by codex v0.141.0 /status", () => {
+    expect(
+      parseCodexSessionUuid(
+        "│  Session:                            \x1b[0m\x1b[39m\x1b[49m019f68f4-3ee4-75b2-8318-ac97fd9717f0\x1b[2m                      │"
+      )
+    ).toBe("019f68f4-3ee4-75b2-8318-ac97fd9717f0");
+  });
+
   it("atomically persists and validates a 0600 marker", async () => {
     const io = makeIo();
     const neutralDir = "/data/cli-auth/chat/user-1";
