@@ -91,7 +91,13 @@ const NATIVE_CONFIG_FILE_NAMES = new Set([
   "settings.local.json",
   "CLAUDE.md",
   ".mcp.json",
-  "keybindings.json"
+  "keybindings.json",
+  // #1085 F2: these cwd-root files enforce the native permission boundary; auto-allowing a
+  // rewrite would let later Bash/Task hooks bypass the gateway and every audit row.
+  ".jarvis-claude-permission-hook.mjs",
+  ".jarvis-claude-settings.json",
+  ".jarvis-claude-permission-token",
+  ".claude.json"
 ]);
 
 /**

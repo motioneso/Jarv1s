@@ -358,7 +358,13 @@ describe("native Claude tool permission bridge", () => {
     "nested/../CLAUDE.md",
     ".mcp.json",
     "settings.local.json",
-    "keybindings.json"
+    "keybindings.json",
+    // #1085 F2: these files are the permission hook/config/token boundary even without a
+    // .claude path segment, so each basename must remain behind confirmation.
+    ".jarvis-claude-permission-hook.mjs",
+    ".jarvis-claude-settings.json",
+    ".jarvis-claude-permission-token",
+    ".claude.json"
   ])("keeps config target %s behind confirmation under YOLO", async (filePath) => {
     const tokens = new SessionTokenRegistry();
     const confirmations = new ConfirmationRegistry();
