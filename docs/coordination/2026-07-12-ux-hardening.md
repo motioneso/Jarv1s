@@ -3185,6 +3185,18 @@ resume from this note before taking any merge-sensitive action.
 - Final UAT, final QA, and merge remain stopped. Parked review lanes E/F/G and unrelated changes
   remain untouched; `merges_since_relay` is `0`.
 
+## Continuation note — 2026-07-16 #1117 follow-up CI root cause; repair approved
+
+- Existing log shows format and lint passed; `pnpm verify:foundation` failed at TypeScript only:
+  `tests/unit/api-timezone-request.test.ts:77` assigns `RequestInit.signal` (`AbortSignal | null |
+  undefined`) to a narrower `AbortSignal | undefined` local.
+- Approved repair widens only that test-local type to include `null`. Validation is the targeted
+  unit test and file-level Prettier only; the proposed project-wide `tsc --noEmit` is explicitly
+  disallowed as a broad gate. No new plan doc is created. Automatic CI supplies the typecheck.
+- Exact session `019f6d59-87c8-74a1-a24b-56392b782ba6` is executing. Final UAT, final QA, and merge
+  remain stopped; parked review lanes E/F/G and unrelated changes remain untouched.
+  `merges_since_relay` is `0`.
+
 ## Continuation note — 2026-07-16 #1117 follow-up CI still RED
 
 - Automatic run `29543062063` failed `Verify foundation and app` at exact head
