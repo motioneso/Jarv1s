@@ -3181,3 +3181,20 @@ resume from this note before taking any merge-sensitive action.
   focused checks only; no manual CI/job rerun or broad local gate.
 - Final QA and merge remain stopped pending a new automatic CI run and fresh exact-head live UAT.
   Parked review lanes E/F/G and unrelated changes remain untouched; `merges_since_relay` is `0`.
+
+## Continuation note — 2026-07-16 #1117 post-repair CI/UAT running
+
+- Owner pushed exact head `61ae42ed351343e078531b0dd390405b45a219df`: onboarding Settings
+  destination, Activity 3-second abort plus truthful error/retry, and narrow Today masthead stack.
+  Focused evidence: onboarding Playwright `7/7`, unit checks `12/12`, design-token check and
+  `git diff --check` clean. Sports truncation remains explicitly deferred; other gaps remain
+  classified as environment prerequisites or missing evidence without closure.
+- Automatic CI run `29542691419` is in progress at the exact head. Inspect only; do not manually
+  rerun it or a job. Exact owner session `019f6d42-caa7-72a0-ad37-390487dd05c1` and its empty tab
+  were reaped; the clean owner worktree remains parked.
+- Fresh detached exact-head UAT is running as label `UX 1117 UAT Final`, Codex session
+  `019f6d4e-e5ad-7731-8c14-2809d0a70773`, in
+  `~/Jarv1s/.claude/worktrees/uat-1117-final-61ae42ed` on Sol/high. It must post sanitized durable
+  evidence before final QA can start.
+- Final QA and merge remain stopped. Parked review lanes E/F/G and unrelated changes remain
+  untouched; `merges_since_relay` is `0`.
