@@ -2664,3 +2664,23 @@ resume from this note before taking any merge-sensitive action.
 - On approved merge: re-confirm the delegated lock, merge #1092, increment `merges_since_relay`,
   flush this manifest, and relay immediately. Successor repeats #1002 exact-head real-export UAT
   before #1075; #988 remains strictly last. Preserve unrelated worktree changes and artifacts.
+
+## Continuation note — 2026-07-16 #1077 rebased head awaiting renewed sign-off
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f68a1-899f-7cc1-bba5-2159ae14aaed`; `merges_since_relay` remains `0`. Never touch primary
+  `Coordinator` session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+- Security-tier PR #1092 is MERGEABLE at current-main-integrated exact head `a523e67c`. All four
+  fresh required CI checks are GREEN. Fresh Opus security QA R2 is GREEN and MERGE-READY with zero
+  blockers; durable verdict:
+  `https://github.com/motioneso/Jarv1s/pull/1092#issuecomment-4994868149`.
+- QA reconfirmed byte-exact owner predicates for all four worker SELECT policies, SELECT-only
+  grants, untouched write policies, exhaustive 38-table coverage, no secret leak, runtime
+  write-denial/policy-exactness tests, and append-only migrations 0166-0170. Its sole non-blocking
+  note is that real 38-table export completion remains the already-planned live UAT after #1077.
+- STOP: Ben's prior approval covered stale head `41110856`. Await renewed explicit security-tier
+  merge sign-off for exact head `a523e67c`; do not merge before it. After approval, re-confirm the
+  delegated lock, merge #1092, increment `merges_since_relay`, flush, and relay immediately.
+  Successor repeats #1002 exact-head real-export UAT before #1075; #988 remains strictly last.
+- QA R2 pane/session was reaped and isolated `/tmp/jarv1s-qa-1092-r2` removed. Preserve unrelated
+  `.claude/context-meter.log`, existing artifacts, and `webwright-proof-987-v3/`.
