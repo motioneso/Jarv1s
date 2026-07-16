@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 
-import type { ExternalModuleDto } from "@jarv1s/shared";
+import type { ExternalModuleDto, ModuleRegistryRowDto } from "@jarv1s/shared";
 
 import {
   getModuleRegistry,
@@ -25,6 +25,20 @@ export function filterUndeclaredExternalModules(
   registryIds: ReadonlySet<string>
 ): readonly ExternalModuleDto[] {
   return externalModules.filter((module) => !registryIds.has(module.id));
+}
+
+// #1084: `GET /api/admin/module-registry` rows are a UNION of registry-index entries,
+// boot discoveries, rejected loads, admin states, on-disk ids, and JARVIS_MODULES_ENSURE
+// ids (deriveModuleRegistryRows, packages/settings/src/module-registry-rows.ts:55-62) —
+// most rows are NOT in the registry index. `latestVersion` is set only from the index
+// entry's version and is null for every local-only row (module-registry-rows.ts:107-111),
+// so it's the one field that correctly tests index membership. Using every row's id
+// (the previous behavior) made the "known to the registry" set a superset of every
+// discovered external module's id, so filterUndeclaredExternalModules always dropped
+// them — the External-modules group (trust warning + #918 admin credentials section)
+// was permanently empty for any module actually on disk.
+export function registryIndexIds(rows: readonly ModuleRegistryRowDto[]): ReadonlySet<string> {
+  return new Set(rows.filter((row) => row.latestVersion != null).map((row) => row.id));
 }
 
 export function InstanceModulesPane() {
@@ -62,7 +76,7 @@ export function InstanceModulesPane() {
     queryFn: () => getModuleRegistry(false),
     retry: false
   });
-  const registryIds = new Set((registryQuery.data?.modules ?? []).map((row) => row.id));
+  const registryIds = registryIndexIds(registryQuery.data?.modules ?? []);
   const setExternalEnabled = useMutation({
     mutationFn: (input: { id: string; enabled: boolean }) =>
       setExternalModuleEnabled(input.id, input.enabled),
