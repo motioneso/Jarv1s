@@ -2787,3 +2787,18 @@ resume from this note before taking any merge-sensitive action.
   Ben resolves D1 and approves the overall spec.
 - Review lanes E/F/G remain parked. Preserve unrelated coordinator changes:
   `.claude/context-meter.log`, existing `artifacts/`, and `webwright-proof-987-v3/`.
+
+## Continuation note — 2026-07-16 #988 Today pill removal approved
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f6c1d-6044-7d51-8473-3e469192b324`. Primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains untouched. `merges_since_relay` remains `1`.
+- Ben approved D1a: remove the proactive-card `critical` / `high` / `normal` / `low` pill as
+  duplicate clutter. Preserve ordering, priority stripe, source, summary/detail, and dismiss
+  behavior. This does not authorize removing Today task-row short dates.
+- Draft PR #1111 records the split decision at exact head
+  `c7e08f6f1083db1c298ba2bdb6da7956e0e3c479`; durable decision comment:
+  `https://github.com/motioneso/Jarv1s/pull/1111#issuecomment-4995890717`.
+- #988 implementation remains paused pending D1b (task-row short-date choice) and overall spec
+  approval. Review lanes E/F/G remain parked. Preserve unrelated `.claude/context-meter.log`,
+  existing `artifacts/`, and `webwright-proof-987-v3/`.
