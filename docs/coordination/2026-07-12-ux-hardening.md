@@ -3072,3 +3072,19 @@ resume from this note before taking any merge-sensitive action.
 - On verdict, fresh-resolve and reap only that QA label plus session. GREEN proceeds through the
   normal ready/current/session-lock/merge sequence; RED stops the lane. Preserve parked review
   lanes E/F/G and every unrelated working-tree change.
+
+## Continuation note — 2026-07-16 #1117 routine QA RED; lane stopped
+
+- Fresh routine QA posted its durable RED verdict at
+  `https://github.com/motioneso/Jarv1s/pull/1117#issuecomment-4997119318`: CI is green, but
+  `apps/web/src/shell/app-shell.tsx:154` stopped exposing dark mode through `data-theme` while
+  Today and Wellness still branch on `data-theme === "dark"`. Exit criteria are also unmet because
+  the exact-head proof covers only Today/Appearance and omits the recorded onboarding, News,
+  microphone, desktop/narrow walkthrough, #988 ledger, and #983 acceptance artifacts.
+- PR #1117 remains draft, open, and unmerged at exact head
+  `adf41915da50762de15860c82d1ca128ae08b525`. This is failed QA cycle `1/2`; the merge lane is
+  stopped pending an owner fix and completed acceptance evidence. Do not manually rerun CI, its
+  image job, or broad local gates.
+- Exact QA session `019f6cfb-fe5e-7aa0-a082-2c63df48e2e7`, its detached worktree, transient branch,
+  and dedicated empty tab were reaped. Reopen only the #1117 owner lane; preserve parked review
+  lanes E/F/G and every unrelated working-tree change. `merges_since_relay` remains `0`.
