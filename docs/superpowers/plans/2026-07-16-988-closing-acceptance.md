@@ -1,7 +1,7 @@
 # Plan — #988 Closing UX Acceptance
 
 - **Spec:** `docs/superpowers/specs/2026-07-16-988-closing-acceptance.md`
-- **Status:** Proposed; stop after planning PR until Ben approves
+- **Status:** Proposed; D2 approved, D1 pending; stop after planning PR until Ben approves
 - **Grounded on:** `origin/main` `a0887ead` and live #988/#983 on 2026-07-16
 
 ## Scope and gates
@@ -23,12 +23,14 @@ If preflight is red or a previously closed #983 child has reopened, stop and reg
 
 ## Approval gate — Ben, no code
 
-Resolve both questions in writing:
+Record both questions in writing:
 
-1. **Today:** approve removing proactive priority-band badges and task-row raw due dates on Today
-   while retaining order/stripe/drift/source/detail?
-2. **Appearance:** approve independent light/dark mode for the five built-in accent themes, legacy
-   Dark → Forest+dark normalization, and fixed-mode custom themes for this slice?
+1. **Today — pending:** approve removing (a) the proactive-card pill that literally prints
+   `critical`, `high`, `normal`, or `low`, and (b) task-row short dates such as `Jul 18`, while
+   retaining order, priority stripe, drift state, source, and task detail?
+2. **Appearance — approved by Ben 2026-07-16:** independent light/dark mode for the five built-in
+   accent themes, legacy Dark → Forest+dark normalization, and fixed-mode custom themes for this
+   slice. Theme/accent selection and mode selection remain independent.
 
 If either answer changes the proposed behavior, update the spec and this plan before implementation.
 
@@ -57,7 +59,7 @@ pnpm typecheck
 4. Capture desktop+narrow Today proof with ordinary, high-priority, due-soon, and overdue fixtures.
    The order and drift state must remain understandable without the removed labels.
 
-## Task 2 — Independent built-in color mode (conditional on D2)
+## Task 2 — Independent built-in color mode (D2 approved; overall implementation gate remains)
 
 Expected files:
 
@@ -211,4 +213,3 @@ All commands must exit 0. Sanitize the Webwright log/screens before attachment. 
 
 Then report evidence to the UX Coordinator. The Coordinator/Ben owns merge, issue closure, parent
 checkbox updates, and board state.
-

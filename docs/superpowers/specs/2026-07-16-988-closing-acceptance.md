@@ -1,7 +1,7 @@
 # #988 Closing UX Acceptance
 
 - **Issue:** #988, parent #983
-- **Status:** Candidate for Ben approval; no implementation is authorized
+- **Status:** Candidate for Ben approval; D2 approved, D1 pending; no implementation is authorized
 - **Grounded on:** `origin/main` at `a0887ead` and live GitHub on 2026-07-16
 - **Tier:** Routine visual polish plus manual acceptance
 
@@ -58,18 +58,24 @@ The remaining polish is not yet locked:
   Sage, Canyon, Teal, Dusk, and custom full-palette themes; there is no independent color-mode
   setting.
 
-## Proposed product decisions — Ben approval required
+## Product decisions
 
-### D1 — Today redundancy
+### D1 — Today redundancy (Ben decision pending)
 
 Recommended: on Today only, remove the proactive-card priority-band badge and the raw due date from
 task rows. Preserve priority ordering/stripe, `Overdue`/`At risk`, source, title, and the task-detail
 route. Tasks and other surfaces keep their due dates.
 
+The priority-band badge is the small colored text pill rendered only on proactive cards. It prints
+the internal band word `critical`, `high`, `normal`, or `low` before the card's source and summary.
+It is not the priority stripe and does not control ordering. The separate task-row label proposed
+for removal is the short date (for example, `Jul 18`); due dates remain in task details and continue
+to drive ordering and `Overdue`/`At risk` state.
+
 This is the smallest interpretation that removes the duplicated ranking/due signals while retaining
 the actionable state. Ben must confirm that these are the two labels identified at 00:31–00:42.
 
-### D2 — Appearance independence
+### D2 — Appearance independence (approved by Ben 2026-07-16)
 
 Recommended minimum:
 
@@ -82,9 +88,10 @@ Recommended minimum:
   that its authored paper/ink colors define its mode; the light/dark control is unavailable until a
   future dual-palette custom-theme design is approved.
 
-Ben must approve the custom-theme boundary. Automatically deriving dark custom palettes risks
-unreadable or surprising colors; expanding every custom theme to two editable palettes is a larger
-product change than #988 requires.
+Ben approved this model: the built-in theme is the independently selectable accent/color choice,
+and light/dark is a separate mode toggle. The current Dark choice is Forest with dark mode enabled.
+The proposed fixed-palette boundary for existing custom themes is also approved for this slice;
+automatically deriving dark custom palettes or adding two editable palettes remains out of scope.
 
 ## Acceptance architecture
 
@@ -135,4 +142,3 @@ The fresh run covers:
 - No unresolved #983 P0/P1 remains.
 - Desktop, narrow, first-time onboarding, deeper News, and microphone checks are complete.
 - #983 has the sanitized proof matrix, final narrated summary, and user-facing release note.
-
