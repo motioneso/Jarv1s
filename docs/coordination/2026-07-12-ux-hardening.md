@@ -2966,3 +2966,16 @@ resume from this note before taking any merge-sensitive action.
 - No bypass or evidence waiver is permitted. PR #1117 remains draft/unmergeable-by-policy until
   live proof and independent routine QA are green. Review lanes E/F/G and unrelated changes remain
   untouched; `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-16 #1117 readiness root cause; owner fix running
+
+- Exact-head CI run `29534214899` and a fresh detached recovery both reproduced the branch
+  regression: `PUT /api/me/themes/mode` is registered in
+  `packages/settings/src/themes-routes.ts` but missing from `packages/settings/src/manifest.ts`.
+  Route-coverage therefore crashes the API before `/health/ready`; both Compose smokes are red.
+- Recovery also found the earlier UAT smoke hit transient host ENOSPC. Disk is now healthy at
+  49 GB free, so no Docker prune or active-container mutation was needed.
+- Owner fixer `UX 1117 Fix`, Codex session `019f6cc1-8d33-73d1-b785-6bd78867f5ad`, is applying the
+  single existing-pattern manifest entry, focused route-guard verification, commit, and push under
+  standing approval. After the new exact head, resume the detached UAT lane for real desktop+narrow
+  proof and fresh CI. Review lanes E/F/G remain untouched; `merges_since_relay` remains `1`.
