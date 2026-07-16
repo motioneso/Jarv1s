@@ -91,6 +91,10 @@ test("opens the live chat drawer from the nav and renders the streamed records o
   await expect(drawer.getByText("Hi there")).toHaveCount(0);
 });
 
+// #1089: guards the exact fire-and-forget race a since-reverted PR (#1035) reintroduced —
+// `setPrivateMode(true)` firing before `clearChat({incognito:true})` resolved. The current
+// `startPrivateChat` awaits the clear first (PR #1036, Part of #984) and gates `sendMessage`
+// on `activatingPrivate` in the meantime; this test is the regression lock for that ordering.
 test("private activation blocks send until the server confirms, then allows it", async ({
   page
 }) => {
@@ -349,6 +353,66 @@ test("selecting a History row both opens and activates it — no separate resume
   await composer.press("Enter");
   await expect(drawer.getByText("Earlier context")).toBeVisible();
   await expect(drawer.getByText("Continue here")).toBeVisible();
+});
+
+// #1090: resuming a persisted (necessarily non-incognito — ChatRepository.listThreads
+// filters `incognito = false`) History thread while a private session is active must
+// invalidate the stale client-side `privateMode` flag. Before the fix, resumeMutation's
+// onSuccess never touched `privateMode`/`privateEnded`, so once the user sent a message in
+// the resumed thread (flipping `reviewing` back to false) the "not saved" private banner and
+// the shield toggle's pressed state kept lying about a thread that IS being saved.
+test("resuming a History thread while private clears the stale privateMode flag", async ({
+  page
+}) => {
+  const thread = createMockChatThread("thread-old", "Old chat");
+  const storedMessage = createMockChatMessage("message-old", thread.id, "Earlier context");
+
+  await mockApi(page, {
+    authenticated: true,
+    chatThreads: [thread],
+    chatMessages: { [thread.id]: [storedMessage] },
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    // Server truth on mount: a private session is already active (mirrors reload-while-private).
+    incognito: true
+  });
+  await page.route("**/api/chat/threads/thread-old/resume", (route) =>
+    route.fulfill({ status: 204, body: "" })
+  );
+  await page.route("**/api/chat/turn", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ reply: "Continued" })
+    })
+  );
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  const privateToggle = drawer.getByRole("button", { name: "Start private chat" });
+
+  // Sanity: private mode really is active before the resume (server-truth restore, #1036).
+  await expect(privateToggle).toHaveAttribute("aria-pressed", "true");
+
+  await drawer.getByRole("button", { name: "Show chat history" }).click();
+  await drawer.getByText("Old chat").click();
+  await expect(drawer.getByText("Earlier context")).toBeVisible();
+
+  // The stale privateMode flag from before the resume must already be gone — the resumed
+  // thread is persisted (non-incognito), so the shield toggle must not show pressed.
+  await expect(privateToggle).toHaveAttribute("aria-pressed", "false");
+
+  const composer = drawer.getByLabel("Message Jarvis");
+  await composer.fill("Continue here");
+  await composer.press("Enter");
+  await expect(drawer.getByText("Continued")).toBeVisible();
+
+  // `reviewing` flips false once a message is sent in the resumed thread — this is exactly
+  // where the stale flag used to surface the "not saved" banner on a now-persisted thread.
+  await expect(drawer.locator(".chatd-private").filter({ hasText: "not saved" })).toHaveCount(0);
 });
 
 test("resume failure clears selection and reopens History", async ({ page }) => {

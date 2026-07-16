@@ -96,8 +96,7 @@ export function ChatDrawer(props: {
     setPrivateMode(privacyStateQuery.data.incognito);
   }, [privacyStateQuery.isSuccess, privacyStateQuery.data]);
 
-  // #633: autoscroll to the newest message by default; pause it the moment the user scrolls
-  // away from the bottom, and resume (jumping straight to the latest record) on demand.
+  // #633: autoscroll by default; pause on manual scroll-away, resume (jump to latest) on demand.
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
   const AUTOSCROLL_THRESHOLD_PX = 48;
@@ -124,7 +123,12 @@ export function ChatDrawer(props: {
     onSuccess: () => {
       props.clearRecords();
       setShowHistory(false);
+      // #1090: resumed threads are always non-incognito (ChatRepository.listThreads filters
+      // `incognito = false`) — clear the stale privateMode/privateEnded flags to match server truth.
+      setPrivateMode(false);
+      setPrivateEnded(false);
       void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.chat.privacy });
     },
     onError: () => {
       setReviewThreadId(null);
@@ -147,9 +151,8 @@ export function ChatDrawer(props: {
     return () => window.removeEventListener("beforeunload", endPrivate);
   }, [privateMode]);
 
-  // #399: clear the optimistic record once the SSE stream delivers the matching user record.
-  // Text-based check handles the case where SSE events pre-arrive before send (count stays equal).
-  // Safe to double-fire in StrictMode dev — setPendingUserText(null) is idempotent.
+  // #399: clear the optimistic record once the SSE stream delivers the matching user record (text
+  // check handles SSE pre-arriving before send). Safe to double-fire in StrictMode — idempotent.
   useEffect(() => {
     if (
       pendingUserText !== null &&
@@ -170,8 +173,7 @@ export function ChatDrawer(props: {
     );
   }, [props.records]);
 
-  // #369: derive chat availability from the SAME onboarding status #365 added. When no provider is
-  // connected, the empty state shows the connect-a-provider explainer instead of the seed prompts.
+  // #369: derive chat availability from the SAME onboarding status #365 added.
   const onboardingStatusQuery = useQuery({
     queryKey: queryKeys.onboarding.status,
     queryFn: getOnboardingStatus,
@@ -276,10 +278,9 @@ export function ChatDrawer(props: {
     (fallback) => !displayRecords.some((record) => sameTranscriptRecord(record, fallback))
   );
 
-  // Merge the optimistic user record into the live feed (#399). Only applied in live mode —
-  // history review uses the fetched messages directly. The optimistic pending record is the
-  // NEWEST item, so it is appended AFTER the (older) fallback records — splicing it before
-  // them made a just-sent message render above prior turns until SSE settled (#664).
+  // Merge the optimistic user record into the live feed (#399, live mode only — history review
+  // uses fetched messages directly). Appended AFTER the older fallback records since it's the
+  // newest item; splicing it before them rendered a just-sent message above prior turns (#664).
   const effectiveRecords: readonly TranscriptRecord[] = reviewing
     ? displayRecords
     : [
@@ -308,7 +309,6 @@ export function ChatDrawer(props: {
   // #633: switching what's displayed (new chat, opening a history row, toggling the history
   // list, or the drawer itself (re)opening — #638) always re-pins to the bottom of the
   // newly-shown content.
-  // a subsequent render.
   useEffect(() => {
     setStickToBottom(true);
     if (props.open) {
