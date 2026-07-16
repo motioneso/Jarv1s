@@ -2901,3 +2901,17 @@ resume from this note before taking any merge-sensitive action.
   `docs/superpowers/plans/2026-07-16-988-closing-acceptance.md`, verify, commit/push only that file,
   and report the new exact head plus CI state. Review lanes E/F/G and unrelated changes remain
   untouched; `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-16 #1111 exact-head CI green; independent QA running
+
+- Focused formatting commit `89f392f5dc521a4184f1e7e08d4482d2388b4da4` changed only
+  `docs/superpowers/plans/2026-07-16-988-closing-acceptance.md`; its planning worktree is clean.
+  Exact-head CI run `29530451255` is fully green: foundation/app, both compose smokes, Playwright
+  smoke, and image build. The spent fixer session was exact-resolved and reaped.
+- Fresh detached routine QA lane `QA 1111 Routine`, Codex session
+  `019f6c9b-0808-7681-b759-ea276a7dba6d`, is reviewing the planning diff at exact head on
+  `gpt-5.6-luna` medium. It must post a compact verdict to PR #1111 and report to `UX Coordinator`;
+  no edits or merge authority.
+- PR #1111 remains unmerged pending independent QA and final exact-head mergeability/session-lock
+  checks. Review lanes E/F/G and unrelated changes remain untouched; `merges_since_relay` remains
+  `0`.
