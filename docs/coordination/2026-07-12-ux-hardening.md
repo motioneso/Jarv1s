@@ -2733,3 +2733,20 @@ resume from this note before taking any merge-sensitive action.
 - NEXT and strictly last product lane: start #988. Review lanes E/F/G remain parked outside this
   run. Preserve unrelated coordinator changes: `.claude/context-meter.log`, existing `artifacts/`,
   and `webwright-proof-987-v3/`.
+
+## Continuation note — 2026-07-16 #988 final lane started in planning
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f6c1d-6044-7d51-8473-3e469192b324`. Primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains untouched. `merges_since_relay` remains `1`.
+- #988 is strictly last and is now In progress on the live project board. It has no approved spec
+  and is labeled `manual-acceptance`, so no builder was spawned. After main CI run `29524092201`
+  completed GREEN, a planning-only Codex agent started in the isolated agents tab: exact label
+  `UX 988 Closing Plan`, immutable session `019f6c50-8682-7ab1-908c-3ade542a8449`, branch
+  `plan/988-closing-acceptance`, worktree `~/Jarv1s/.claude/worktrees/plan-988-closing-acceptance`.
+- The agent runs `gpt-5.6-sol` at high reasoning. Its committed handoff forbids feature code,
+  merges, issue/project mutations, and coordination-manifest edits; it must draft the #988 spec
+  candidate plus executable acceptance plan, push a draft PR, and return explicit approval
+  questions. No #988 implementation may start until Ben approves that spec.
+- Review lanes E/F/G remain parked. Preserve unrelated coordinator changes:
+  `.claude/context-meter.log`, existing `artifacts/`, and `webwright-proof-987-v3/`.
