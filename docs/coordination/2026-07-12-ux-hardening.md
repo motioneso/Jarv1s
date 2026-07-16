@@ -2630,3 +2630,20 @@ resume from this note before taking any merge-sensitive action.
   `merges_since_relay`, flush this manifest, and relay immediately because a security merge is a
   mandatory relay trigger. The successor repeats #1002 exact-head real-export UAT before merging
   #1075; #988 remains strictly last. Review lanes E/F/G stay parked outside this run.
+
+## Continuation note — 2026-07-16 #1077 rebased; fresh CI pending
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f68a1-899f-7cc1-bba5-2159ae14aaed`; `merges_since_relay` remains `0`. Never touch primary
+  `Coordinator` session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+- PR #1092 cleanly rebased onto `origin/main` `95b61381` with zero conflicts and no product edits;
+  new exact head is `a523e67c`. Branch is force-pushed with lease and GitHub reports MERGEABLE.
+- The owning agent's new local `test:uat-seed` step hit three shared dev-DB pollution failures
+  matching the known #1087 persistent-database trap; it did not destroy the shared DB. Branch-owned
+  lint/format/typecheck/unit/migration checks remain green. Fresh GitHub CI on an isolated database
+  is the authoritative integrated gate and is currently pending.
+- After all required CI is GREEN, spawn a fresh isolated Opus security QA on exact head `a523e67c`.
+  Ben's earlier approval covered stale head `41110856`; request explicit security-tier sign-off
+  again against the new head and fresh verdict. On merge, increment `merges_since_relay`, flush,
+  and relay immediately. Then repeat #1002 exact-head real-export UAT before #1075; #988 strictly
+  last. Preserve `.claude/context-meter.log`, existing artifacts, and `webwright-proof-987-v3/`.
