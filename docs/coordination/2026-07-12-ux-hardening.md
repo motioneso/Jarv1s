@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-12
 **Merge-authority lock (#983):** label `UX Coordinator`, Codex session
-`019f66e1-aefb-7df2-b339-c4168d3266c1`.
+`019f6c76-593d-7fd2-b33d-78bd72045265`.
 **Peer coordinator boundary:** label `Coordinator`, Claude session
 `58a78927-385c-4b1d-8fa0-94db20255d6f`, owns its separate #1000/UAT and other recorded lanes.
 **Merge policy:** the locked `UX Coordinator` owns specs, builders, QA, and merges for #983.
@@ -15,7 +15,7 @@ implementation agents use Luna (`gpt-5.6-luna`) at medium reasoning. QA remains 
 risk-tiered. This user directive overrides the `coordinate` skill's Claude/Sonnet spawn examples.
 **Grounded on:** `origin/main` `3ca138eb` after #1004 and #1005 merged; post-merge deployment
 smokes green, foundation/app CI still running at first-wave worktree creation.
-**merges_since_relay:** 1
+**merges_since_relay:** 0
 
 This is a delegated, collision-partitioned lane under the single merge-authority lock. GitHub #983
 and its native sub-issues are the product source of truth; this file tracks only operational state.
@@ -2840,3 +2840,16 @@ resume from this note before taking any merge-sensitive action.
   `origin/main`; then create one isolated routine implementation lane for approved Tasks 1–2 plus
   the existing acceptance Tasks 3–6. Preserve review lanes E/F/G and never touch primary
   `Coordinator` session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+
+## Continuation note — 2026-07-16 delegated UX Coordinator adoption
+
+- Codex session `019f6c76-593d-7fd2-b33d-78bd72045265` adopted delegated-lane authority under
+  temporary label `UX Coordinator successor`; `merges_since_relay` reset to `0`. A fresh Herdr
+  pane list matched outgoing exact label `UX Coordinator` plus session
+  `019f6c1d-6044-7d51-8473-3e469192b324` and protected primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`. Commit/push and driving confirmation precede exact
+  outgoing-session closure and successor rename.
+- Approved #988 first actions remain: publish approval on PR #1111, verify exact-head
+  CI/review/mergeability, merge the planning-only PR when green, update `origin/main`, then create
+  one isolated routine implementation lane for approved Tasks 1–2 plus acceptance Tasks 3–6.
+  Review lanes E/F/G remain parked and unrelated changes remain preserved.
