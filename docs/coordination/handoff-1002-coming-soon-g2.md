@@ -8,7 +8,7 @@
 **Branch:** `ux/1002-coming-soon-build` from `origin/main` `bcdebe01`
 **Build skill path:** `~/Jarv1s/.claude/skills/coordinated-build/SKILL.md`
 **Coordinator label:** `UX Coordinator` — resolve fresh by exact label and session before messaging.
-**Coordinator session id:** `019f677a-ccef-78f0-bc91-5be4cc725c16`
+**Coordinator session id:** `019f68a1-899f-7cc1-bba5-2159ae14aaed`
 **Relay trigger:** context-meter 70% warning or any compaction summary → message the coordinator,
 then invoke `relay` immediately.
 
