@@ -1,3 +1,5 @@
+import { createMigrationOwnerDb } from "./connections.js";
+import { assertTargetIsEphemeral } from "./guard.js";
 import { seedLevel } from "./levels.js";
 import type { UatSeedChunk, UatSeedLevel } from "./types.js";
 
@@ -18,6 +20,16 @@ async function main(): Promise<void> {
       "[uat-seed] refusing to run: JARVIS_UAT_SEED_CONFIRM=1 not set — this entrypoint only runs " +
         "inside the ephemeral UAT compose stack (see tests/uat/provisioner.ts composeSeedHook)"
     );
+  }
+
+  // #1082: the env token is necessary-not-sufficient. Inspect the target itself
+  // before any fixture write so an exported token cannot turn this CLI into a
+  // production bootstrap-owner backdoor.
+  const db = createMigrationOwnerDb();
+  try {
+    await assertTargetIsEphemeral(db);
+  } finally {
+    await db.destroy();
   }
 
   const level = (process.env.JARVIS_UAT_SEED_LEVEL ?? "bare") as UatSeedLevel;

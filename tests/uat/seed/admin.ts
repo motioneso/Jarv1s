@@ -10,8 +10,8 @@ export const UAT_ADMIN_PASSWORD = "uat-admin-password-1025";
 export const UAT_SECOND_OWNER_EMAIL = "uat-owner2@jarv1s.local";
 export const UAT_SECOND_OWNER_PASSWORD = "uat-owner2-password-1030";
 
-const UAT_ADMIN_ID = "00000000-0000-4000-8000-000000000001";
-const UAT_SECOND_OWNER_ID = "00000000-0000-4000-8000-000000000002";
+export const UAT_ADMIN_ID = "00000000-0000-4000-8000-000000000001";
+export const UAT_SECOND_OWNER_ID = "00000000-0000-4000-8000-000000000002";
 
 interface SeedLoginableUserInput {
   readonly userId: string;
