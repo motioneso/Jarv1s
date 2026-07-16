@@ -283,7 +283,13 @@ describe("MVP foundation schema catalog", () => {
         // #985 — bounded key-name metadata for native-YOLO audit rows.
         { version: "0164", name: "0164_action_audit_input_summary.sql" },
         // #1059 — owner-terminal step-up password (scrypt hash only), admin-only FORCE RLS.
-        { version: "0165", name: "0165_ai_terminal_password.sql" }
+        { version: "0165", name: "0165_ai_terminal_password.sql" },
+        // #1077 export worker grants — 4 confirmed export-gap tables get worker_runtime
+        // SELECT-only + exact-mirror worker SELECT policy (no narrowing/widening, no writes).
+        { version: "0166", name: "0166_worker_notification_reads_grant.sql" },
+        { version: "0167", name: "0167_worker_entities_grant.sql" },
+        { version: "0168", name: "0168_worker_action_requests_grant.sql" },
+        { version: "0169", name: "0169_worker_audit_log_grant.sql" }
       ]);
     } finally {
       await client.end();
