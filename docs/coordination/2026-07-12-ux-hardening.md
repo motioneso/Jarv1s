@@ -2468,6 +2468,23 @@ resume from this note before taking any merge-sensitive action.
 - Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
   `webwright-proof-987-v3/`.
 
+## Continuation note — 2026-07-15 #1002 PR open; exact-head CI pending
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f68a1-899f-7cc1-bba5-2159ae14aaed`; `merges_since_relay` is `0`. Primary `Coordinator`
+  session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains out of scope and untouched.
+- #1002 Tasks 2–5 are code-complete at exact head `6cbb4955` on PR #1075
+  (`ux/1002-coming-soon-build`). Builder-reported unmasked `VF_EXIT=0`, `AUDIT_EXIT=0`, focused
+  unit/E2E green, and clean rebase on `origin/main` `bcdebe01`.
+- Exact-head CI is pending. Sensitive independent QA has not started; authenticated desktop+narrow
+  live UAT and Task 8 inventory reconciliation remain coordinator-owned hard gates.
+- Build owner remains exact label `UX 1002 Coming Soon R2`, immutable Claude session
+  `9ddb3be3-7ba8-4fd5-80bd-308226cd7046`, retained for any QA fixes.
+- Next: wait for PR #1075 CI green, run fresh sensitive QA, record authenticated desktop+narrow
+  live proof on the PR, reconcile Task 8, merge/close/cleanup, then and only then begin #988.
+- Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
+  `webwright-proof-987-v3/`.
+
 ## Continuation note — 2026-07-15 #1002 build relay R2 driving
 
 - Delegated authority remains exact label `UX Coordinator`, immutable Codex session
