@@ -1,8 +1,7 @@
 # #988 Closing UX Acceptance
 
 - **Issue:** #988, parent #983
-- **Status:** Candidate for Ben approval; D1a/D2 approved, D1b pending; no implementation is
-  authorized
+- **Status:** Candidate for Ben approval; D1/D2 resolved; no implementation is authorized
 - **Grounded on:** `origin/main` at `a0887ead` and live GitHub on 2026-07-16
 - **Tier:** Routine visual polish plus manual acceptance
 
@@ -51,31 +50,30 @@ Current code already provides relevant image behavior:
 
 Those behaviors need live visual proof and graceful-failure proof, not another image pipeline.
 
-The remaining polish is not yet locked:
+The closing polish was grounded as follows:
 
-- Today still renders a proactive-card priority-band badge and task due-date text in addition to
-  existing order, priority stripe, and drift status.
+- Today renders a proactive-card priority-band badge and task due-date text in addition to existing
+  order, priority stripe, and drift status.
 - Appearance stores one `themes.active` value. `dark` is currently a full theme peer to Forest,
   Sage, Canyon, Teal, Dusk, and custom full-palette themes; there is no independent color-mode
   setting.
 
 ## Product decisions
 
-### D1 — Today redundancy (partially approved)
+### D1 — Today redundancy (approved by Ben 2026-07-16)
 
-Recommended: on Today only, remove the proactive-card priority-band badge and the raw due date from
-task rows. Preserve priority ordering/stripe, `Overdue`/`At risk`, source, title, and the task-detail
-route. Tasks and other surfaces keep their due dates.
+On Today only, remove the proactive-card priority-band badge. Keep task-row short dates, rendered in
+the user's persisted timezone. Preserve priority ordering/stripe, `Overdue`/`At risk`, source,
+title, and the task-detail route.
 
 The priority-band badge is the small colored text pill rendered only on proactive cards. It prints
 the internal band word `critical`, `high`, `normal`, or `low` before the card's source and summary.
-It is not the priority stripe and does not control ordering. The separate task-row label proposed
-for removal is the short date (for example, `Jul 18`); due dates remain in task details and continue
-to drive ordering and `Overdue`/`At risk` state.
+It is not the priority stripe and does not control ordering. Task-row short dates such as `Jul 18`
+remain visible.
 
-Ben approved removing the proactive-card pill as duplicate clutter on 2026-07-16. Removing the
-task-row short date remains a separate pending decision. No implementation starts until that choice
-and the overall spec are approved.
+The existing path already uses `useUserLocale()` and `formatDate(..., locale)`, which delegates to
+the shared zoned formatter with `locale.timezone`. Implementation must preserve that path and add a
+focused timezone-boundary regression check rather than introduce another formatter.
 
 ### D2 — Appearance independence (approved by Ben 2026-07-16)
 

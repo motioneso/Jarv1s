@@ -1,7 +1,7 @@
 # Plan — #988 Closing UX Acceptance
 
 - **Spec:** `docs/superpowers/specs/2026-07-16-988-closing-acceptance.md`
-- **Status:** Proposed; D1a/D2 approved, D1b pending; stop after planning PR until Ben approves
+- **Status:** Proposed; D1/D2 resolved; stop after planning PR until Ben approves the overall spec
 - **Grounded on:** `origin/main` `a0887ead` and live #988/#983 on 2026-07-16
 
 ## Scope and gates
@@ -25,31 +25,31 @@ If preflight is red or a previously closed #983 child has reopened, stop and reg
 
 Record each decision in writing:
 
-1. **Today pill — approved by Ben 2026-07-16:** remove the proactive-card pill that literally prints
-   `critical`, `high`, `normal`, or `low`; retain order, priority stripe, source, and card detail.
-2. **Today due date — pending:** remove task-row short dates such as `Jul 18` while retaining due-date
-   ordering, `Overdue`/`At risk`, source, and task detail?
-3. **Appearance — approved by Ben 2026-07-16:** independent light/dark mode for the five built-in
+1. **Today — approved by Ben 2026-07-16:** remove the proactive-card pill that literally prints
+   `critical`, `high`, `normal`, or `low`; keep task-row short dates rendered in the user's persisted
+   timezone; retain order, priority stripe, drift state, source, and detail.
+2. **Appearance — approved by Ben 2026-07-16:** independent light/dark mode for the five built-in
    accent themes, legacy Dark → Forest+dark normalization, and fixed-mode custom themes for this
    slice. Theme/accent selection and mode selection remain independent.
 
 If either answer changes the proposed behavior, update the spec and this plan before implementation.
 
-## Task 1 — Today signal cleanup (conditional on D1)
+## Task 1 — Today duplicate-pill cleanup (D1 approved; overall implementation gate remains)
 
 Files:
 
 - Modify `apps/web/src/today/proactive-cards.tsx`
-- Modify `apps/web/src/today/today-page.tsx`
 - Create `tests/unit/today-closing-polish.test.tsx`
 
 Steps:
 
 1. Add one focused failing render assertion: proactive cards do not expose the raw priority-band
-   text; task rows do not expose the raw due date; title/source and `Overdue`/`At risk` remain.
-2. Delete only those two rendered labels. Do not change ranking, task DTOs, task details, or other
-   pages.
-3. Run:
+   text; title, source, summary, and dismiss behavior remain.
+2. Add a timezone-boundary assertion that the existing `shortDate(..., locale)` path renders the
+   task-row date in the persisted user timezone, not the browser or UTC timezone.
+3. Delete only the proactive-card pill. Do not change ranking, task DTOs, task dates/details, the
+   shared zoned formatter, or other pages.
+4. Run:
 
 ```bash
 pnpm vitest run tests/unit/today-closing-polish.test.tsx
@@ -57,8 +57,9 @@ pnpm check:design-tokens
 pnpm typecheck
 ```
 
-4. Capture desktop+narrow Today proof with ordinary, high-priority, due-soon, and overdue fixtures.
-   The order and drift state must remain understandable without the removed labels.
+5. Capture desktop+narrow Today proof with ordinary, high-priority, due-soon, and overdue fixtures.
+   The short date must match the persisted user timezone; order and drift remain understandable
+   without the removed pill.
 
 ## Task 2 — Independent built-in color mode (D2 approved; overall implementation gate remains)
 
