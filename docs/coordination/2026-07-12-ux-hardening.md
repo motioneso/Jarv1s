@@ -2992,3 +2992,17 @@ resume from this note before taking any merge-sensitive action.
 - Detached recovery session `019f6cba-8cb2-78f1-a369-431149a1303a` resumed on the new exact head
   for readiness plus authenticated desktop+narrow Webwright proof and durable PR evidence.
   No bypass is allowed; review lanes E/F/G remain untouched; `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-16 #1117 UAT recovery relayed
+
+- Fixed head `adf41915` boots `/health/ready` successfully and passed the real provisioner smoke
+  with clean teardown. The first UAT recovery session reached its context threshold after several
+  selector-hardening runs and flushed `/tmp/uat-1117-recovery-relay.md`; feature code stayed
+  untouched and final screenshots were not yet accepted.
+- Its first successor incorrectly booted as Claude, violating this run's Codex-only runtime policy,
+  and was closed before continuing. Verified Codex/Luna successor `UAT 1117 Recovery Successor`,
+  session `019f6cd0-49bb-7e13-81b2-0416cc7502c8`, is driving the same detached worktree at exact
+  head. The spent original session was exact-resolved and reaped.
+- Successor must finish one clean Webwright run, visually verify all four screenshots, and post
+  durable exact-head evidence to PR #1117. Review lanes E/F/G remain untouched;
+  `merges_since_relay` remains `1`.
