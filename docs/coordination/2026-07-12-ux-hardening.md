@@ -3020,3 +3020,19 @@ resume from this note before taking any merge-sensitive action.
   the failed Actions log to classify PR-local versus infrastructure/main cause.
 - No waiver or merge until the foundation failure is resolved under the CI protocol. Review lanes
   E/F/G remain untouched; `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-16 #1117 durable live artifacts; one CI retry
+
+- Foundation failure was isolated to timing/order flakes in
+  `tests/integration/skill-gateway-boundary.test.ts` (155/156 integration files and 1,672/1,676
+  tests passed). PR #1117 touches no gateway/chat/AI/skill-boundary files; immediately preceding
+  main/base run was green. No code change was made.
+- Per known-flake protocol, the coordinator started the single allowed failed-run retry for
+  `29535049018`; new job `87749446006` is in progress, and its fresh Compose/prod-Compose jobs are
+  green. A second foundation failure stops the lane; there will be no additional retry or waiver.
+- Sanitized live proof is durable at coordinator commit
+  `aad0cccb33c9af6559295148275784db1fd28137`: checked plan, run log, and four current-run
+  screenshots only, with no executable scripts or seeded credentials. PR comment `4996847990`
+  contains commit-pinned GitHub links. The UAT successor was exact-resolved and reaped.
+- PR #1117 remains draft pending the retry and independent routine QA. Review lanes E/F/G remain
+  untouched; `merges_since_relay` remains `1`.
