@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -262,19 +266,23 @@ describe("native Claude tool permission bridge", () => {
     ["Write", { file_path: "src/a.ts", content: "hello" }],
     ["NotebookEdit", { notebook_path: "notes/a.ipynb", new_source: "hello" }]
   ])("auto-grants allowlisted %s when yoloMode is true", async (toolName, toolInput) => {
+    const workingDirectory = await mkdtemp(join(tmpdir(), "jarvis-native-yolo-"));
     const tokens = new SessionTokenRegistry();
     const emitted: unknown[] = [];
-    const audits: unknown[] = [];
+    const created: unknown[] = [];
+    const resolved: unknown[] = [];
     let createPendingCalled = false;
     const gateway = new AssistantToolGateway({
       resolveActiveModules: async () => [],
       repository: {
-        createPendingAssistantAction: async () => {
+        createPendingAssistantAction: async (_db: unknown, input: unknown) => {
           createPendingCalled = true;
-          return { id: "pending_1" };
+          created.push(input);
+          return { id: "native-yolo-1" };
         },
-        insertActionAuditLog: async (_db: unknown, input: unknown) => {
-          audits.push(input);
+        resolveAssistantAction: async (_db: unknown, id: string, input: unknown) => {
+          resolved.push({ id, input });
+          return { id };
         }
       } as never,
       runner: {
@@ -292,23 +300,30 @@ describe("native Claude tool permission bridge", () => {
     const result = await gateway.requestNativeToolPermission(token, {
       toolName,
       toolInput,
-      workingDirectory: "/workspace"
+      workingDirectory
     });
 
     expect(result).toEqual({ decision: "allow", reason: "Allowed by YOLO." });
-    expect(createPendingCalled).toBe(false);
+    expect(createPendingCalled).toBe(true);
     expect(emitted).toEqual([
-      expect.objectContaining({ kind: "action_result", toolName, outcome: "allowed" })
+      expect.objectContaining({
+        kind: "action_result",
+        actionRequestId: "native-yolo-1",
+        toolName,
+        outcome: "allowed"
+      })
     ]);
-    await vi.waitFor(() => expect(audits).toHaveLength(1));
-    expect(audits[0]).toMatchObject({
-      approvalMode: "yolo",
+    // #1085 F4: the awaited confirmed action records the grant without claiming the native tool
+    // completed successfully; returning before these writes would recreate the audit gap.
+    expect(created[0]).toMatchObject({
       inputSummary: {
         inputKeys: Object.keys(toolInput).sort(),
         inputKeyCount: Object.keys(toolInput).length,
         truncated: false
       }
     });
+    expect(resolved).toEqual([{ id: "native-yolo-1", input: { status: "confirmed" } }]);
+    await rm(workingDirectory, { recursive: true, force: true });
   });
 
   it.each(["Bash", "Task", "Read", "Grep", "Glob", "FutureTool", "", "   "])(
@@ -366,6 +381,7 @@ describe("native Claude tool permission bridge", () => {
     ".jarvis-claude-permission-token",
     ".claude.json"
   ])("keeps config target %s behind confirmation under YOLO", async (filePath) => {
+    const workingDirectory = await mkdtemp(join(tmpdir(), "jarvis-native-yolo-"));
     const tokens = new SessionTokenRegistry();
     const confirmations = new ConfirmationRegistry();
     const emitted: unknown[] = [];
@@ -390,13 +406,61 @@ describe("native Claude tool permission bridge", () => {
     const pending = gateway.requestNativeToolPermission(token, {
       toolName: "Write",
       toolInput: { file_path: filePath, content: "unsafe" },
-      workingDirectory: "/workspace"
+      workingDirectory
     });
     await vi.waitFor(() =>
       expect(emitted).toContainEqual(expect.objectContaining({ kind: "action_request" }))
     );
     confirmations.resolve("pending_config", "rejected");
     await expect(pending).resolves.toMatchObject({ decision: "deny" });
+    await rm(workingDirectory, { recursive: true, force: true });
+  });
+
+  it("keeps outside-cwd and symlinked .claude writes behind confirmation under YOLO", async () => {
+    const workingDirectory = await mkdtemp(join(tmpdir(), "jarvis-native-yolo-"));
+    await mkdir(join(workingDirectory, ".claude"));
+    await symlink(join(workingDirectory, ".claude"), join(workingDirectory, "safe-looking"));
+
+    const tokens = new SessionTokenRegistry();
+    const confirmations = new ConfirmationRegistry();
+    const emitted: Array<{ kind: string; actionRequestId?: string }> = [];
+    let actionNumber = 0;
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [],
+      repository: {
+        createPendingAssistantAction: async () => ({ id: `pending_path_${++actionNumber}` }),
+        insertActionAuditLog: async () => {}
+      } as never,
+      runner: {
+        withDataContext: async (_access: unknown, work: (db: unknown) => Promise<unknown>) =>
+          work({})
+      } as never,
+      tokens,
+      confirmations,
+      notifier: { emit: (_chatSessionId, record) => emitted.push(record) },
+      confirmTimeoutMs: 50,
+      yoloMode: async () => true
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "c1", allowedToolNames: null });
+
+    const expectGated = async (filePath: string) => {
+      const pending = gateway.requestNativeToolPermission(token, {
+        toolName: "Write",
+        toolInput: { file_path: filePath, content: "unsafe" },
+        workingDirectory
+      });
+      await vi.waitFor(() => expect(emitted.at(-1)).toMatchObject({ kind: "action_request" }));
+      const actionRequestId = emitted.at(-1)?.actionRequestId;
+      if (!actionRequestId) throw new Error("expected action request id");
+      confirmations.resolve(actionRequestId, "rejected");
+      await expect(pending).resolves.toMatchObject({ decision: "deny" });
+    };
+
+    // #1085 F3: both lexical workspace escape and realpath-resolved .claude escape must remain
+    // gated; either route can turn a nominal Write into deferred command execution.
+    await expectGated(join(dirname(workingDirectory), ".bashrc"));
+    await expectGated("safe-looking/innocent.ts");
+    await rm(workingDirectory, { recursive: true, force: true });
   });
 
   it.each([

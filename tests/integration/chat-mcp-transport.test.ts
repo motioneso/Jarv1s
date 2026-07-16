@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
@@ -541,6 +544,7 @@ describe("native permission YOLO", () => {
 
   it("auto-grants allowlisted Write only when effective persisted YOLO state is active", async () => {
     const app = await buildApp("effective");
+    const workingDirectory = await mkdtemp(join(tmpdir(), "jarvis-native-yolo-"));
     try {
       await setEffectiveYoloState({ master: true, allowed: true, enabled: true });
       const chatSessionId = randomUUID();
@@ -557,7 +561,7 @@ describe("native permission YOLO", () => {
         body: {
           tool_name: "Write",
           tool_input: { file_path: "src/safe.ts", content: rawSecret },
-          cwd: "/workspace"
+          cwd: workingDirectory
         }
       });
       expect(res.statusCode).toBe(200);
@@ -573,29 +577,39 @@ describe("native permission YOLO", () => {
         }
       ]);
 
-      let persistedAudit:
-        | Awaited<ReturnType<AiRepository["listActionAuditLog"]>>[number]
-        | undefined;
-      await vi.waitFor(async () => {
-        const rows = await runner.withDataContext(
-          { actorUserId: ids.userA, requestId: `audit-check-${randomUUID()}` },
-          (scopedDb) =>
-            repository.listActionAuditLog(scopedDb, {
-              since: new Date(Date.now() - 60_000),
-              limit: 500
-            })
-        );
-        persistedAudit = rows.find((row) => row.chat_session_id === chatSessionId);
-        expect(persistedAudit).toBeDefined();
-      });
-      expect(persistedAudit!.input_summary).toEqual({
+      const allowedRecord = emitted[0]?.record;
+      if (!allowedRecord || allowedRecord.kind !== "action_result") {
+        throw new Error("expected allowed action result");
+      }
+      const persistedActions = await runner.withDataContext(
+        { actorUserId: ids.userA, requestId: `grant-check-${randomUUID()}` },
+        (scopedDb) => repository.listAssistantActions(scopedDb)
+      );
+      const persistedGrant = persistedActions.find(
+        (row) => row.id === allowedRecord.actionRequestId
+      );
+      expect(persistedGrant?.status).toBe("confirmed");
+      expect(persistedGrant?.input_summary).toEqual({
         inputKeys: ["content", "file_path"],
         inputKeyCount: 2,
         truncated: false
       });
-      expect(JSON.stringify(persistedAudit!.input_summary)).not.toContain(rawSecret);
+      expect(JSON.stringify(persistedGrant?.input_summary)).not.toContain(rawSecret);
+
+      // #1085 F4: a native grant is durable before the response, but no audit row may claim the
+      // unobserved Write completed successfully.
+      const audits = await runner.withDataContext(
+        { actorUserId: ids.userA, requestId: `audit-check-${randomUUID()}` },
+        (scopedDb) =>
+          repository.listActionAuditLog(scopedDb, {
+            since: new Date(Date.now() - 60_000),
+            limit: 500
+          })
+      );
+      expect(audits.find((row) => row.request_id === persistedGrant?.request_id)).toBeUndefined();
     } finally {
       await app.close();
+      await rm(workingDirectory, { recursive: true, force: true });
     }
   });
 

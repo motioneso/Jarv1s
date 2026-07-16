@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { basename, resolve, sep } from "node:path";
+import { lstat, realpath } from "node:fs/promises";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
 import type {
@@ -198,7 +199,7 @@ export class AssistantToolGateway {
     };
 
     const yoloGranted =
-      nativeYoloCanAutoAllow(toolName, input, request.workingDirectory) &&
+      (await nativeYoloCanAutoAllow(toolName, input, request.workingDirectory)) &&
       (await (async () => {
         try {
           return (await this.deps.yoloMode?.(ctx)) === true;
@@ -208,28 +209,37 @@ export class AssistantToolGateway {
       })());
 
     if (yoloGranted) {
+      // #1085 F4: Jarvis observes the permission grant, not the native tool's completion. Persist
+      // that grant before allowing it instead of fire-and-forget auditing a fictional "success".
+      const action = await this.deps.runner.withDataContext(
+        access,
+        async (scopedDb: DataContextDb) => {
+          const pending = await this.deps.repository.createPendingAssistantAction(scopedDb, {
+            toolModuleId: NATIVE_TOOL_MODULE_ID,
+            toolModuleName: NATIVE_TOOL_MODULE_NAME,
+            toolName,
+            permissionId: `${NATIVE_TOOL_MODULE_ID}.${toolName}`,
+            risk: nativeToolRisk(toolName),
+            inputSummary: summarizeAssistantToolInput(input),
+            requestId
+          });
+          const confirmed = await this.deps.repository.resolveAssistantAction(
+            scopedDb,
+            pending.id,
+            {
+              status: "confirmed"
+            }
+          );
+          if (!confirmed) throw new Error("Could not persist native YOLO permission grant");
+          return confirmed;
+        }
+      );
       this.deps.notifier.emit(chatSessionId, {
         kind: "action_result",
-        actionRequestId: requestId,
+        actionRequestId: action.id,
         toolName,
         outcome: "allowed"
       });
-      void this.recordAuditRaw(
-        access,
-        {
-          toolModuleId: NATIVE_TOOL_MODULE_ID,
-          toolName,
-          actionFamilyId: null,
-          actionKind: nativeToolRisk(toolName)
-        },
-        {
-          approvalMode: "yolo",
-          outcome: "success",
-          chatSessionId,
-          // Only bounded key metadata may persist. Live tool/card summaries can contain raw values.
-          inputSummary: summarizeAssistantToolInput(input)
-        }
-      );
       return { decision: "allow", reason: "Allowed by YOLO." };
     }
 
@@ -655,24 +665,74 @@ function safeNativeToolName(toolName: string): string {
   return trimmed.slice(0, 120);
 }
 
-function nativeYoloCanAutoAllow(
+async function nativeYoloCanAutoAllow(
   toolName: string,
   input: Record<string, unknown>,
   workingDirectory: string | undefined
-): boolean {
+): Promise<boolean> {
   if (!NATIVE_YOLO_AUTO_ALLOW.has(toolName)) return false;
   const target = input[toolName === "NotebookEdit" ? "notebook_path" : "file_path"];
   if (typeof workingDirectory !== "string" || workingDirectory.trim() === "") return false;
   if (typeof target !== "string" || target.trim() === "") return false;
 
   try {
-    const canonicalTarget = resolve(workingDirectory, target);
+    const lexicalRoot = resolve(workingDirectory);
+    const lexicalTarget = resolve(lexicalRoot, target);
+    const lexicalRelative = relative(lexicalRoot, lexicalTarget);
+    // #1085 F3: native YOLO is workspace-scoped. Absolute paths and traversal that escape cwd
+    // stay gated even when they name ordinary-looking files such as ~/.bashrc or .git hooks.
+    if (
+      lexicalRelative === ".." ||
+      lexicalRelative.startsWith(`..${sep}`) ||
+      isAbsolute(lexicalRelative)
+    ) {
+      return false;
+    }
+
+    const canonicalRoot = await realpath(lexicalRoot);
+    const canonicalTarget = await realpathWriteTarget(lexicalTarget);
+    if (canonicalTarget === undefined) return false;
+    const canonicalRelative = relative(canonicalRoot, canonicalTarget);
+    if (
+      canonicalRelative === ".." ||
+      canonicalRelative.startsWith(`..${sep}`) ||
+      isAbsolute(canonicalRelative)
+    ) {
+      return false;
+    }
+
     return (
       !canonicalTarget.split(sep).includes(".claude") &&
       !NATIVE_CONFIG_FILE_NAMES.has(basename(canonicalTarget))
     );
   } catch {
     return false;
+  }
+}
+
+async function realpathWriteTarget(target: string): Promise<string | undefined> {
+  const unresolved: string[] = [];
+  let existing = target;
+
+  for (;;) {
+    try {
+      return resolve(await realpath(existing), ...unresolved);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") return undefined;
+    }
+
+    // #1085 F3: a dangling symlink can still redirect a subsequent Write outside cwd. Detect it
+    // while walking to the deepest existing ancestor; unreadable/ambiguous paths fail closed.
+    try {
+      if ((await lstat(existing)).isSymbolicLink()) return undefined;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") return undefined;
+    }
+
+    const parent = dirname(existing);
+    if (parent === existing) return undefined;
+    unresolved.unshift(basename(existing));
+    existing = parent;
   }
 }
 
