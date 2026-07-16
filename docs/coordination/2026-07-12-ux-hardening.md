@@ -2939,3 +2939,17 @@ resume from this note before taking any merge-sensitive action.
   persisted-timezone `shortDate` boundary.
 - `UX 988 Build` session `019f6ca0-5f4f-7401-8d2c-21237850acb5` continues Tasks 1–2. Review lanes
   E/F/G and unrelated changes remain untouched; `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-16 #988 code complete; live proof recovery required
+
+- Build session `019f6ca0-5f4f-7401-8d2c-21237850acb5` completed Tasks 1–2 at exact head
+  `d34f65e6`; worktree is clean. Focused coverage and 417 unit files are green: 3,446 passed,
+  2 skipped. Local foundation stopped only at `test:uat-seed` because the shared target database
+  already contains real/bootstrap users; migrations and all preceding gates passed.
+- Existing live-UAT harness was attempted twice. Both disposable stacks were removed; the clean
+  retry failed because `/health/ready` never became healthy within the 240-second Compose start
+  window. No screenshots exist, so the lane is code-complete but unproven and may not merge.
+- Agent resumed coordinated wrap-up to push/open a draft PR with both blockers recorded. After the
+  PR exists, dispatch a fresh exact-head recovery lane to distinguish infrastructure failure from
+  branch regression and obtain required desktop+narrow live proof. Review lanes E/F/G and
+  unrelated changes remain untouched; `merges_since_relay` remains `1`.
