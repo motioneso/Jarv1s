@@ -3088,3 +3088,15 @@ resume from this note before taking any merge-sensitive action.
 - Exact QA session `019f6cfb-fe5e-7aa0-a082-2c63df48e2e7`, its detached worktree, transient branch,
   and dedicated empty tab were reaped. Reopen only the #1117 owner lane; preserve parked review
   lanes E/F/G and every unrelated working-tree change. `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-16 #1117 owner repair lane reopened
+
+- Exact label `UX 1117 Repair`, Codex session `019f6d05-4fc4-7831-9ed4-9e0f00b0d622`, is working
+  in `~/Jarv1s/.claude/worktrees/ux-988-closing-acceptance` on branch
+  `ux/988-closing-acceptance`, using the recorded Luna/medium implementation runtime.
+- The agent must ground the QA RED finding, produce a minimal repair/evidence plan, and await exact
+  `UX Coordinator` approval before implementation. Its temporary untracked handoff must never be
+  staged and must be removed before any product-code push.
+- The binding CI correction remains in force: do not manually rerun CI, any job, or broad local
+  gates. Preserve parked review lanes E/F/G and every unrelated working-tree change.
+  `merges_since_relay` remains `0`.
