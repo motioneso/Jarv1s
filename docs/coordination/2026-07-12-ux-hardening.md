@@ -3139,3 +3139,21 @@ resume from this note before taking any merge-sensitive action.
 - Automatic CI run `29539532807` remains the only exact-head CI action. Inspect it only; never
   manually rerun it or a job. Final routine QA waits for both green CI and complete live evidence.
   Parked review lanes E/F/G and unrelated changes remain untouched; `merges_since_relay` is `0`.
+
+## Continuation note — 2026-07-16 #1117 CI GREEN; live UAT RED/BLOCKED
+
+- Automatic CI run `29539532807` completed green at exact head
+  `4420663551afa52ad6da05e9f5696fe0e8d3ab60`; no retry or broad local gate was started.
+- Final live UAT posted RED/BLOCKED at
+  `https://github.com/motioneso/Jarv1s/pull/1117#issuecomment-4997441312`, with sanitized evidence
+  commit `b42f6b4afe0abb09a4dba730675f8b80f17b9dd0` and 41 inspected screenshots. Direct blockers:
+  onboarding `Go to settings` lands on `/today`; Activity remains `Loading…` after 3.1 seconds;
+  narrow Today wraps lead copy one word per line. Sports title truncation is a lower residual.
+- Still unproven: microphone transcription, News freeform/feedback/graceful image failure,
+  destructive export/delete, and end-to-end grants/model/skill consequences. The source-preserving
+  #983 matrix cannot honestly reconstruct the original 37 identities from 40 exposed timestamp
+  bullets without the missing retained transcript/video.
+- Exact UAT session `019f6d0c-7e2c-74d3-a84c-a5d31acc9ef1`, its disposable worktree, excluded
+  credential-bearing scripts, and empty tab were reaped. Reopen only the #1117 owner lane for a
+  grounded repair plan; do not start final QA or merge. Parked review lanes E/F/G and unrelated
+  changes remain untouched; `merges_since_relay` is `0`.
