@@ -1,7 +1,6 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Flag, LogIn, Minus, Play } from "lucide-react";
-import { useNavigate } from "react-router";
 
 import type { OnboardingStatusResponse, OnboardingStepsDto } from "@jarv1s/shared";
 
@@ -68,7 +67,6 @@ export function OnboardingWizard(props: {
   readonly initialStatus: OnboardingStatusResponse;
 }) {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const statusQuery = useQuery({
     queryKey: queryKeys.onboarding.status,
     queryFn: getOnboardingStatus,
@@ -108,8 +106,10 @@ export function OnboardingWizard(props: {
     },
     onSettled: (_data, _error, destination) => {
       if (_error || destination === undefined) return;
-      navigate(destination === "settings" ? "/settings" : "/today", { replace: true });
-      props.onDone();
+      // This wizard mounts its own BrowserRouter while App is in its early-return branch. A
+      // document navigation carries the requested destination into the shell's fresh router;
+      // an in-place router update is lost when the early-return branch unmounts.
+      window.location.replace(destination === "settings" ? "/settings" : "/today");
     }
   });
   const skip = useMutation({

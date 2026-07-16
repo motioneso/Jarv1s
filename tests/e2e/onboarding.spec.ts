@@ -48,6 +48,31 @@ test("bootstrap owner with incomplete onboarding sees the wizard, then the app s
   ).not.toBeVisible();
 });
 
+test("onboarding finish settings destination reaches Settings", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    isInstanceAdmin: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    onboardingStatus: defaultOnboardingStatus()
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /Start setup/ }).click();
+  const continueButton = page.getByRole("button", { name: /Continue/ });
+  while (await continueButton.isVisible()) {
+    await continueButton.click();
+  }
+
+  await page.getByRole("button", { name: "Go to settings" }).click();
+
+  await expect(page).toHaveURL(/\/settings(?:\?|$)/);
+  await expect(page.getByRole("navigation", { name: "Settings categories" })).toBeVisible();
+});
+
 test("Skip setup on the first step reaches the app shell", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
