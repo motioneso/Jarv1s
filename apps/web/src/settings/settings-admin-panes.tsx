@@ -58,7 +58,11 @@ import {
   Switch,
   type BadgeTone
 } from "./settings-ui";
-import { healthSummary, orderChecksBySeverity } from "./host-health-summary";
+import {
+  describeHerdrInstallOutcome,
+  healthSummary,
+  orderChecksBySeverity
+} from "./host-health-summary";
 import type {
   ChatMultiplexerChoice,
   HostDiagnosticStatus,
@@ -633,8 +637,14 @@ export function HostPane() {
   });
   const installMutation = useMutation({
     mutationFn: () => installHerdr(),
-    onSuccess: () => {
+    onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.settings.chatMultiplexer });
+      // #1088 F3: the route resolves 200 even when the install itself failed or timed
+      // out (state is installed|failed|timeout — see host-install-routes.ts), so
+      // onSuccess firing here is NOT proof the install worked. Surface the real
+      // outcome instead of silently going quiet on a failed/timed-out install.
+      const outcome = describeHerdrInstallOutcome(data);
+      toast(outcome.message, { tone: outcome.tone });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });
