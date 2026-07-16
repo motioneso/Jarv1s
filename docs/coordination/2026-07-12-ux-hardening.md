@@ -2929,3 +2929,13 @@ resume from this note before taking any merge-sensitive action.
 - Scope is approved Tasks 1–2 plus acceptance Tasks 3–6, including required live desktop+narrow
   proof before wrap-up. Review lanes E/F/G, primary `Coordinator` session
   `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`, and unrelated changes remain untouched.
+
+## Continuation note — 2026-07-16 #988 Task 1 plan approved
+
+- Approved the grounded Task 1 plan under standing delegated authority: change only
+  `apps/web/src/today/proactive-cards.tsx` to remove the raw priority-band pill while preserving
+  stripe/order/source/title/summary/dismiss, plus focused coverage in
+  `tests/unit/today-closing-polish.test.tsx` for absent raw priority text and the existing
+  persisted-timezone `shortDate` boundary.
+- `UX 988 Build` session `019f6ca0-5f4f-7401-8d2c-21237850acb5` continues Tasks 1–2. Review lanes
+  E/F/G and unrelated changes remain untouched; `merges_since_relay` remains `1`.
