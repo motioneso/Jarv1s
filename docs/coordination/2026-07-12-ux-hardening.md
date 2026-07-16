@@ -2802,3 +2802,20 @@ resume from this note before taking any merge-sensitive action.
 - #988 implementation remains paused pending D1b (task-row short-date choice) and overall spec
   approval. Review lanes E/F/G remain parked. Preserve unrelated `.claude/context-meter.log`,
   existing `artifacts/`, and `webwright-proof-987-v3/`.
+
+## Continuation note — 2026-07-16 #988 D1/D2 resolved; overall spec approval pending
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f6c1d-6044-7d51-8473-3e469192b324`. Primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains untouched. `merges_since_relay` remains `1`.
+- Ben resolved D1: remove only the proactive-card `critical` / `high` / `normal` / `low` pill as
+  duplicate clutter; keep Today task-row short dates and require them to render in the user's
+  persisted timezone. Existing code already uses `useUserLocale()` → `shortDate(..., locale)` →
+  shared `formatInZone(..., locale.timezone)`, so the plan preserves that path and adds only a
+  timezone-boundary regression check.
+- Draft PR #1111 records resolved D1 and D2 at exact head
+  `3b8dedad1e75e7a5d7b7728cf042668633820cf1`; durable decision comment:
+  `https://github.com/motioneso/Jarv1s/pull/1111#issuecomment-4995914596`.
+- #988 implementation remains paused pending Ben's approval of the overall candidate spec. Review
+  lanes E/F/G remain parked. Preserve unrelated `.claude/context-meter.log`, existing `artifacts/`,
+  and `webwright-proof-987-v3/`.
