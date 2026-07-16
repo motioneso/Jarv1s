@@ -2523,23 +2523,16 @@ resume from this note before taking any merge-sensitive action.
 - Delegated authority: exact label `UX Coordinator`, immutable Codex session
   `019f68a1-899f-7cc1-bba5-2159ae14aaed`; `merges_since_relay` is `0`. Primary `Coordinator`
   session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains out of scope and untouched.
-- #1002 is `building`: exact label `UX 1002 Coming Soon`, immutable Claude session
-  `7557824a-9796-4ec4-b03f-002b92ee9d70`, branch `ux/1002-coming-soon-build`, worktree
-  `~/Jarv1s/.claude/worktrees/ux-1002-coming-soon-build`, committed handoff authority refresh
-  `91b00b16`. Sonnet and bypass permissions verified.
-- Next: approve only Tasks 2–5, then exact-head CI, sensitive QA, authenticated desktop+narrow
-  live UAT, Task 8 inventory reconciliation, merge, and cleanup. #988 stays strictly serialized.
-- PR #1075 is code-complete at exact head `6cbb4955`; all four CI checks are green. Independent
-  sensitive QA is GREEN / merge-ready with zero findings and a durable PR verdict comment.
-  Exact-head authenticated desktop+390px live UAT relayed before compaction and is in progress in
-  Exact-head live UAT is RED: 14/15 checkpoints pass; real personal export fails because the
-  `export.build` worker lacks a grant on `app.notification_reads`. Evidence and verdict are posted
-  on PR #1075; pre-existing blocker #1077 is open. The UAT stack is torn down and evidence is
-  retained. Opus security triage confirmed a GRANT-level denial and recommends an audit-all
-  export-table remediation: additive SELECT-only worker grants plus owner-scoped policies and
-  positive export/negative write integration coverage. #1077 is not yet an approved spec; the
-  audit-all scope requires Ben's lock before a security-tier build lane may spawn. Defer the
-  aborted-transaction failure-handler hardening to a separate follow-up. Do not merge #1075 or
-  start #988.
+- PR #1075 is code-complete at exact head `6cbb4955`; CI and independent sensitive QA are GREEN.
+  Exact-head live UAT is RED only on the real personal export checkpoint. Evidence and verdict are
+  posted on PR #1075; do not merge it until blocker #1077 lands and the export UAT repeats green.
+- Ben approved #1077's audit-all scope. Security build lane label `UX 1077 Export Grants`, session
+  `d7db6d2c-59f6-4543-bee5-18b11b60028d`, branch `ux/1077-export-grants`, worktree
+  `~/Jarv1s/.claude/worktrees/ux-1077-export-grants`, committed approved spec/handoff `fc646690`.
+  Sonnet 5 and bypass permissions verified. Scope: confirmed missing SELECT-only worker grants,
+  exact owner-scoped policies, populated-all-tables export test, negative write test; defer
+  failure-handler hardening.
+- Merge order: #1077 security QA + Ben sign-off + merge; repeat #1002 live export UAT; reconcile
+  Task 8; merge #1075; clean up; start #988 strictly last.
 - Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
   `webwright-proof-987-v3/`.
