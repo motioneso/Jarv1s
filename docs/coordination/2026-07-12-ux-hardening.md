@@ -2750,3 +2750,22 @@ resume from this note before taking any merge-sensitive action.
   questions. No #988 implementation may start until Ben approves that spec.
 - Review lanes E/F/G remain parked. Preserve unrelated coordinator changes:
   `.claude/context-meter.log`, existing `artifacts/`, and `webwright-proof-987-v3/`.
+
+## Continuation note — 2026-07-16 #988 planning complete; awaiting Ben decisions
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f6c1d-6044-7d51-8473-3e469192b324`. Primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains untouched. `merges_since_relay` remains `1`.
+- Planning-only draft PR #1111 is open at exact head
+  `b312aba5403b0f881f824f8d9606d2840ccf0acf`. It adds the #988 spec candidate and executable
+  acceptance plan, separates conditional Today/Appearance polish from already-landed verification,
+  and reuses the existing prod-shaped UAT provisioner plus Webwright evidence contract. No feature
+  code, issue movement, or merge is included. The completed planning session
+  `019f6c50-8682-7ab1-908c-3ade542a8449` was reaped; retain its clean worktree/branch for review.
+- #988 implementation is PAUSED pending two explicit Ben approvals: (1) Today removes proactive
+  priority-band badges and task-row raw due dates while retaining ordering, priority stripe, drift
+  state, source, and task detail; (2) built-in Forest/Sage/Canyon/Teal/Dusk themes gain independent
+  light/dark mode, legacy Dark normalizes to Forest+dark, and custom themes remain fixed-palette in
+  this slice. Do not spawn implementation before both decisions and spec approval.
+- Review lanes E/F/G remain parked. Preserve unrelated coordinator changes:
+  `.claude/context-meter.log`, existing `artifacts/`, and `webwright-proof-987-v3/`.
