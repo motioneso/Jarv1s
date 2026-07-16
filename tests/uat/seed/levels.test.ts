@@ -45,6 +45,25 @@ describe("seedLevel", () => {
     }
   });
 
+  // #1087 finding 3: admin+data must leave job-search NOT installed by default
+  // (spec §4.4's absent-module UI path for #1026) even when the caller passes
+  // no excludeChunks at all — the old code only excluded job-search when a
+  // caller remembered to say so, so it silently installed by default.
+  it("admin+data does not install job-search when no excludeChunks is passed", async () => {
+    await seedLevel({ level: "admin+data" });
+    const db = createMigrationOwnerDb();
+    try {
+      const row = await db
+        .selectFrom("app.external_modules")
+        .select(["id", "status"])
+        .where("id", "=", "job-search")
+        .executeTakeFirst();
+      expect(row).toBeUndefined();
+    } finally {
+      await db.destroy();
+    }
+  });
+
   it("seeds idempotent private data plus one explicit cross-user share", async () => {
     await seedLevel({ level: "multi-user", excludeChunks: ["job-search"] });
     await seedLevel({ level: "multi-user", excludeChunks: ["job-search"] });

@@ -1,7 +1,7 @@
 import { createMigrationOwnerDb } from "./connections.js";
 import { assertTargetIsEphemeral } from "./guard.js";
+import { parseUatExcludeChunks, parseUatSeedLevel } from "./level-validation.js";
 import { seedLevel } from "./levels.js";
-import type { UatSeedChunk, UatSeedLevel } from "./types.js";
 
 /**
  * #1025: entrypoint for the new `seed` ops-profile compose service (see
@@ -32,11 +32,14 @@ async function main(): Promise<void> {
     await db.destroy();
   }
 
-  const level = (process.env.JARVIS_UAT_SEED_LEVEL ?? "bare") as UatSeedLevel;
-  const excludeChunks = (process.env.JARVIS_UAT_SEED_EXCLUDE_CHUNKS ?? "")
-    .split(",")
-    .map((chunk) => chunk.trim())
-    .filter((chunk): chunk is UatSeedChunk => chunk.length > 0);
+  // #1087 finding 5: fail closed on an unrecognized level/chunk name rather than
+  // silently falling through — a typo like "solo_admin" used to cast clean and
+  // seed FULL admin+data (max data, exit 0). Runs after the #1082 ephemeral-target
+  // guard above (never reorder/remove that guard); wasting its DB round-trip on a
+  // request we're about to reject anyway is an acceptable cost for keeping the
+  // guard first.
+  const level = parseUatSeedLevel(process.env.JARVIS_UAT_SEED_LEVEL ?? "bare");
+  const excludeChunks = parseUatExcludeChunks(process.env.JARVIS_UAT_SEED_EXCLUDE_CHUNKS ?? "");
 
   await seedLevel({ level, excludeChunks });
   console.log(
