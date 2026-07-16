@@ -1,7 +1,8 @@
 # #988 Closing UX Acceptance
 
 - **Issue:** #988, parent #983
-- **Status:** Candidate for Ben approval; D2 approved, D1 pending; no implementation is authorized
+- **Status:** Candidate for Ben approval; D1a/D2 approved, D1b pending; no implementation is
+  authorized
 - **Grounded on:** `origin/main` at `a0887ead` and live GitHub on 2026-07-16
 - **Tier:** Routine visual polish plus manual acceptance
 
@@ -60,7 +61,7 @@ The remaining polish is not yet locked:
 
 ## Product decisions
 
-### D1 — Today redundancy (Ben decision pending)
+### D1 — Today redundancy (partially approved)
 
 Recommended: on Today only, remove the proactive-card priority-band badge and the raw due date from
 task rows. Preserve priority ordering/stripe, `Overdue`/`At risk`, source, title, and the task-detail
@@ -72,8 +73,9 @@ It is not the priority stripe and does not control ordering. The separate task-r
 for removal is the short date (for example, `Jul 18`); due dates remain in task details and continue
 to drive ordering and `Overdue`/`At risk` state.
 
-This is the smallest interpretation that removes the duplicated ranking/due signals while retaining
-the actionable state. Ben must confirm that these are the two labels identified at 00:31–00:42.
+Ben approved removing the proactive-card pill as duplicate clutter on 2026-07-16. Removing the
+task-row short date remains a separate pending decision. No implementation starts until that choice
+and the overall spec are approved.
 
 ### D2 — Appearance independence (approved by Ben 2026-07-16)
 

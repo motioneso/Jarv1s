@@ -1,7 +1,7 @@
 # Plan — #988 Closing UX Acceptance
 
 - **Spec:** `docs/superpowers/specs/2026-07-16-988-closing-acceptance.md`
-- **Status:** Proposed; D2 approved, D1 pending; stop after planning PR until Ben approves
+- **Status:** Proposed; D1a/D2 approved, D1b pending; stop after planning PR until Ben approves
 - **Grounded on:** `origin/main` `a0887ead` and live #988/#983 on 2026-07-16
 
 ## Scope and gates
@@ -23,12 +23,13 @@ If preflight is red or a previously closed #983 child has reopened, stop and reg
 
 ## Approval gate — Ben, no code
 
-Record both questions in writing:
+Record each decision in writing:
 
-1. **Today — pending:** approve removing (a) the proactive-card pill that literally prints
-   `critical`, `high`, `normal`, or `low`, and (b) task-row short dates such as `Jul 18`, while
-   retaining order, priority stripe, drift state, source, and task detail?
-2. **Appearance — approved by Ben 2026-07-16:** independent light/dark mode for the five built-in
+1. **Today pill — approved by Ben 2026-07-16:** remove the proactive-card pill that literally prints
+   `critical`, `high`, `normal`, or `low`; retain order, priority stripe, source, and card detail.
+2. **Today due date — pending:** remove task-row short dates such as `Jul 18` while retaining due-date
+   ordering, `Overdue`/`At risk`, source, and task detail?
+3. **Appearance — approved by Ben 2026-07-16:** independent light/dark mode for the five built-in
    accent themes, legacy Dark → Forest+dark normalization, and fixed-mode custom themes for this
    slice. Theme/accent selection and mode selection remain independent.
 
