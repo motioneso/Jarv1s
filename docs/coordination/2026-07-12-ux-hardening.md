@@ -3006,3 +3006,17 @@ resume from this note before taking any merge-sensitive action.
 - Successor must finish one clean Webwright run, visually verify all four screenshots, and post
   durable exact-head evidence to PR #1117. Review lanes E/F/G remain untouched;
   `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-16 #1117 live proof green; foundation CI red
+
+- Codex recovery successor completed authenticated UAT at exact head `adf41915`: clean command
+  `JARVIS_UAT_BUILD=0 pnpm exec tsx final_runs/run_1/run_uat.ts` exited `0` after
+  provision/migrate/seed `admin+data` and clean teardown. Four desktop/narrow screenshots were
+  visually inspected and all critical points are green. Durable PR evidence is comment
+  `4996795366`; feature code remained untouched.
+- Fresh exact-head Compose and prod-Compose smokes are green, but `Verify foundation and app` job
+  `87744270635` in run `29535049018` is red, so merge remains stopped and independent QA has not
+  started. Recovery successor session `019f6cd0-49bb-7e13-81b2-0416cc7502c8` is inspecting only
+  the failed Actions log to classify PR-local versus infrastructure/main cause.
+- No waiver or merge until the foundation failure is resolved under the CI protocol. Review lanes
+  E/F/G remain untouched; `merges_since_relay` remains `1`.
