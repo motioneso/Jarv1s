@@ -134,15 +134,17 @@ describe("AI provider foundation", () => {
       // The chat-execution worker (jarvis_worker_runtime) resolves the active chat
       // model and reads the provider config (with encrypted credential) to make the
       // AI call, so it has SELECT on ai_configured_models + ai_provider_configs
-      // (granted in 0037_ai_worker_read_grants.sql, owner-only RLS). It never touches
-      // ai_assistant_action_requests, which stays worker-inaccessible.
+      // (granted in 0037_ai_worker_read_grants.sql, owner-only RLS). The export worker
+      // also needs SELECT on ai_assistant_action_requests to include it in a user's
+      // data export (granted in 0168_worker_action_requests_grant.sql, owner-only RLS,
+      // SELECT only — no worker write access).
       expect(tables.rows).toEqual([
         {
           relname: "ai_assistant_action_requests",
           relrowsecurity: true,
           relforcerowsecurity: true,
           owner: "jarvis_migration_owner",
-          worker_has_access: false
+          worker_has_access: true
         },
         {
           relname: "ai_configured_models",

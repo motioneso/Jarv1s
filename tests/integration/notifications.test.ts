@@ -122,9 +122,11 @@ describe("Notifications module M5", () => {
 
       // 0071 (real-briefings) added a worker-role SELECT/INSERT grant + policies on
       // app.notifications ONLY (so the briefings worker can deliver the "morning briefing
-      // ready" notification). notification_reads is untouched; the worker can never
-      // UPDATE/DELETE notifications. 0101 adds the metadata size CHECK; 0102 adds the
-      // defense-in-depth SQL comments on the notifications / notification_reads tables.
+      // ready" notification); the worker can never UPDATE/DELETE notifications. 0101 adds
+      // the metadata size CHECK; 0102 adds the defense-in-depth SQL comments on the
+      // notifications / notification_reads tables. 0166 (export gap) adds a worker-role
+      // SELECT-only grant + policy on notification_reads so export.build can read a user's
+      // notification read-state; the worker still can never INSERT/UPDATE/DELETE it.
       expect(migrations.rows).toEqual([
         { version: "0008", name: "0008_notifications_module.sql" },
         { version: "0071", name: "0071_notifications_worker_insert_grant.sql" },
@@ -151,7 +153,7 @@ describe("Notifications module M5", () => {
           relrowsecurity: true,
           relforcerowsecurity: true,
           owner: "jarvis_migration_owner",
-          worker_can_select: false,
+          worker_can_select: true,
           worker_can_insert: false,
           worker_can_update: false,
           worker_can_delete: false
