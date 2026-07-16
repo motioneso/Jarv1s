@@ -148,7 +148,7 @@ git commit -m "fix(today): stack masthead on narrow screens"
 ## Exit and handoff
 
 - [ ] Remove the intentionally untracked handoff file before any product-code push:
-  `docs/superpowers/handoffs/2026-07-16-pr-1117-live-uat-red-repair.md`.
+      `docs/superpowers/handoffs/2026-07-16-pr-1117-live-uat-red-repair.md`.
 - [ ] Run only focused checks requested by the handoff; do not manually rerun GitHub CI/jobs or broad local gates.
 - [ ] Re-capture live UAT evidence for onboarding Settings, Activity after 3.1 seconds, and Today at `390×844`.
 - [ ] Report Sports truncation as deferred separate residual unless the coordinator explicitly expands scope.
