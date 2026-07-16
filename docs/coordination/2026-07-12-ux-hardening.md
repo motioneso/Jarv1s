@@ -2687,10 +2687,10 @@ resume from this note before taking any merge-sensitive action.
 
 ## Continuation note — 2026-07-16 #1077 merged; mandatory security relay
 
-- Delegated authority at merge was exact label `UX Coordinator`, immutable Codex session
-  `019f68a1-899f-7cc1-bba5-2159ae14aaed`. Primary `Coordinator` session
-  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains untouched. `merges_since_relay` incremented from
-  `0` to `1`, firing the unconditional security-merge relay trigger.
+- Delegated authority is exact label `UX Coordinator`, immutable Codex session
+  `019f6c1d-6044-7d51-8473-3e469192b324`. Primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains untouched. `merges_since_relay` is `0` after
+  successor adoption.
 - Ben explicitly approved rebased exact head `a523e67c`; fresh Opus QA R2 was GREEN/MERGE-READY
   with zero blockers and all four required CI checks were GREEN. PR #1092 merged at
   `2026-07-16T18:07:05Z` as squash commit `0ef20ff7bf68c0f27ed5a710613563c66bfb4663`.
