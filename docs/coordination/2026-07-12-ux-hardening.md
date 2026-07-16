@@ -2529,5 +2529,9 @@ resume from this note before taking any merge-sensitive action.
   `91b00b16`. Sonnet and bypass permissions verified.
 - Next: approve only Tasks 2–5, then exact-head CI, sensitive QA, authenticated desktop+narrow
   live UAT, Task 8 inventory reconciliation, merge, and cleanup. #988 stays strictly serialized.
+- PR #1075 is code-complete at exact head `6cbb4955`; all four CI checks are green. Independent
+  sensitive QA is GREEN / merge-ready with zero findings and a durable PR verdict comment.
+  Exact-head authenticated desktop+390px live UAT is in progress in ephemeral session
+  `d2fc47ed-e5e0-4169-8015-c9c8980373b0`; Task 8 and merge remain gated on its result.
 - Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
   `webwright-proof-987-v3/`.
