@@ -15,7 +15,7 @@ implementation agents use Luna (`gpt-5.6-luna`) at medium reasoning. QA remains 
 risk-tiered. This user directive overrides the `coordinate` skill's Claude/Sonnet spawn examples.
 **Grounded on:** `origin/main` `3ca138eb` after #1004 and #1005 merged; post-merge deployment
 smokes green, foundation/app CI still running at first-wave worktree creation.
-**merges_since_relay:** 0
+**merges_since_relay:** 1
 
 This is a delegated, collision-partitioned lane under the single merge-authority lock. GitHub #983
 and its native sub-issues are the product source of truth; this file tracks only operational state.
@@ -2915,3 +2915,17 @@ resume from this note before taking any merge-sensitive action.
 - PR #1111 remains unmerged pending independent QA and final exact-head mergeability/session-lock
   checks. Review lanes E/F/G and unrelated changes remain untouched; `merges_since_relay` remains
   `0`.
+
+## Continuation note — 2026-07-16 #1111 merged; #988 implementation dispatched
+
+- Routine QA verdict for PR #1111 was GREEN/merge-ready with zero findings and is durable at PR
+  comment `4996266744`. After fresh lock, exact-head, current-main, CI, and mergeability checks,
+  planning-only PR #1111 merged as `1ca37063c5d966fd2a90c70575ebcaf5d1e788fe`.
+- QA and planning worktrees/panes were clean and reaped. `origin/main` now includes #1111.
+  `merges_since_relay` is `1`; no relay trigger fires until the next routine/sensitive merge.
+- Created isolated routine lane `ux/988-closing-acceptance` from current `origin/main`, committed
+  implementation handoff `5c9612f1`, and pushed the branch. Build agent `UX 988 Build`, Codex
+  session `019f6ca0-5f4f-7401-8d2c-21237850acb5`, is working on `gpt-5.6-luna` medium.
+- Scope is approved Tasks 1–2 plus acceptance Tasks 3–6, including required live desktop+narrow
+  proof before wrap-up. Review lanes E/F/G, primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`, and unrelated changes remain untouched.
