@@ -166,6 +166,12 @@ describe("CliChatEngineImpl — launch", () => {
     expect(all).toContain("codex exec --json");
     expect(all).toContain("--sandbox read-only");
     expect(all).toContain("-a never");
+    // #1083 F1: shell_tool/apply_patch_tool must be denied on every codex exec launch, even
+    // here where no mcpToken/mcpServerUrl is configured (this launch() call passes neither) —
+    // all tool use must route through the gateway, never codex's native shell/apply-patch tools.
+    expect(all).toContain("features.shell_tool=false");
+    expect(all).toContain("features.apply_patch_tool=false");
+    expect(all).not.toContain("mcp_servers.jarvis.url");
 
     const promptWrite = io.writeCalls.find((call) => call.path.endsWith("codex-exec-prompt.txt"));
     expect(promptWrite?.content).toContain("You are Jarvis.");

@@ -634,6 +634,23 @@ describe("CliChatEngineImpl — Codex launch", () => {
     // §6.5: kill removes the ENTIRE per-session neutral dir (not just the token file).
     expect(io.run).toHaveBeenCalledWith("rm", ["-rf", "/tmp/neutral"]);
   });
+
+  it("#1083 F1: denies shell_tool/apply_patch_tool even with no mcpToken/mcpServerUrl (no gateway configured)", async () => {
+    const io = makeCodexIo();
+    const engine = new CliChatEngineImpl("openai-compatible", "codex-no-mcp-session", io);
+    await engine.launch({ neutralDir: "/tmp/neutral", personaPath: "/tmp/persona.txt" });
+
+    const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+    );
+    const launchLine = (sendKeysCall![1] as string[])[3];
+    // Previously these flags were only pushed inside the `mcpToken && mcpServerUrl` branch, so a
+    // codex launch with no gateway configured got codex's native (enabled) shell/apply-patch
+    // tools by default. They must be unconditional — every codex launch denies them.
+    expect(launchLine).toContain("shell_tool=false");
+    expect(launchLine).toContain("apply_patch_tool=false");
+    expect(launchLine).not.toContain("mcp_servers.jarvis.url");
+  });
 });
 
 describe("CliChatEngineImpl — Gemini launch", () => {
