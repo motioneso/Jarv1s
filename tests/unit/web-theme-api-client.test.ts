@@ -4,7 +4,8 @@ import {
   deleteCustomTheme,
   listThemes,
   putCustomTheme,
-  setActiveTheme
+  setActiveTheme,
+  setColorMode
 } from "../../apps/web/src/api/client.js";
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 
@@ -23,6 +24,7 @@ describe("theme API client", () => {
 
     await listThemes();
     await setActiveTheme({ id: "my-blue" });
+    await setColorMode({ mode: "dark" });
     await putCustomTheme("my blue", { name: "My Blue" });
     await deleteCustomTheme("my blue");
 
@@ -38,11 +40,16 @@ describe("theme API client", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
+      "/api/me/themes/mode",
+      expect.objectContaining({ method: "PUT", body: JSON.stringify({ mode: "dark" }) })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
       "/api/me/themes/my%20blue",
       expect.objectContaining({ method: "PUT", body: JSON.stringify({ name: "My Blue" }) })
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
-      4,
+      5,
       "/api/me/themes/my%20blue",
       expect.objectContaining({ method: "DELETE" })
     );

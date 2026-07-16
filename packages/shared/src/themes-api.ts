@@ -23,6 +23,7 @@ export type AestheticThemeTokens = Record<AestheticThemeTokenKey, string> & {
   gold?: string;
 };
 export type BuiltInThemeId = "light" | "sage" | "canyon" | "teal" | "dusk" | "dark";
+export type ColorMode = "light" | "dark";
 
 export interface BuiltInThemeDto {
   readonly id: BuiltInThemeId;
@@ -41,10 +42,15 @@ export interface ListThemesResponse {
   readonly builtIn: readonly BuiltInThemeDto[];
   readonly custom: readonly CustomThemeDto[];
   readonly activeId: string;
+  readonly mode: ColorMode;
 }
 
 export interface PutActiveThemeRequest {
   readonly id: string;
+}
+
+export interface PutColorModeRequest {
+  readonly mode: ColorMode;
 }
 
 export interface PutCustomThemeRequest {
@@ -117,15 +123,26 @@ export const listThemesRouteSchema = {
     200: {
       type: "object",
       additionalProperties: false,
-      required: ["builtIn", "custom", "activeId"],
+      required: ["builtIn", "custom", "activeId", "mode"],
       properties: {
         builtIn: { type: "array", items: builtInThemeSchema },
         custom: { type: "array", items: customThemeSchema },
-        activeId: { type: "string" }
+        activeId: { type: "string" },
+        mode: { type: "string", enum: ["light", "dark"] }
       }
     },
     401: errorResponseSchema
   }
+} as const;
+
+export const putColorModeRouteSchema = {
+  body: {
+    type: "object",
+    additionalProperties: false,
+    required: ["mode"],
+    properties: { mode: { type: "string", enum: ["light", "dark"] } }
+  },
+  response: listThemesRouteSchema.response
 } as const;
 
 export const putActiveThemeRouteSchema = {

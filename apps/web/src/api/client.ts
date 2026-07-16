@@ -147,6 +147,7 @@ import type {
   CreateTherapyNoteResponse,
   DeleteTherapyNoteResponse,
   DeleteCustomThemeResponse,
+  PutColorModeRequest,
   ListThemesResponse,
   PatchMeProfileRequest,
   PutActiveThemeRequest,
@@ -289,6 +290,13 @@ export async function listThemes(): Promise<ListThemesResponse> {
 
 export async function setActiveTheme(body: PutActiveThemeRequest): Promise<ListThemesResponse> {
   return requestJson<ListThemesResponse>("/api/me/themes/active", {
+    method: "PUT",
+    body
+  });
+}
+
+export async function setColorMode(body: PutColorModeRequest): Promise<ListThemesResponse> {
+  return requestJson<ListThemesResponse>("/api/me/themes/mode", {
     method: "PUT",
     body
   });

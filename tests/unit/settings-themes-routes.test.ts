@@ -85,6 +85,46 @@ describe("theme settings routes", () => {
 
     await server.close();
   });
+
+  it("normalizes legacy Dark to Forest plus dark mode", async () => {
+    const prefs = new Map<string, unknown>([["themes.active", "dark"]]);
+    const server = Fastify({ logger: false });
+    registerThemeRoutes(server, {
+      dataContext: fakeDataContext(),
+      resolveAccessContext: async () => ({ actorUserId: "user-a", requestId: "req-a" }),
+      preferencesRepository: mapPreferences(prefs)
+    });
+    await server.ready();
+
+    const list = await server.inject({ method: "GET", url: "/api/me/themes" });
+    expect(list.json<ListThemesResponse>()).toMatchObject({ activeId: "light", mode: "dark" });
+    expect(list.json<ListThemesResponse>().builtIn.some((theme) => theme.id === "dark")).toBe(
+      false
+    );
+
+    await server.close();
+  });
+
+  it("persists color mode independently of the active built-in accent", async () => {
+    const prefs = new Map<string, unknown>();
+    const server = Fastify({ logger: false });
+    registerThemeRoutes(server, {
+      dataContext: fakeDataContext(),
+      resolveAccessContext: async () => ({ actorUserId: "user-a", requestId: "req-a" }),
+      preferencesRepository: mapPreferences(prefs)
+    });
+    await server.ready();
+
+    const response = await server.inject({
+      method: "PUT",
+      url: "/api/me/themes/mode",
+      payload: { mode: "dark" }
+    });
+    expect(response.json<ListThemesResponse>()).toMatchObject({ activeId: "light", mode: "dark" });
+    expect(prefs.get("themes.color-mode")).toBe("dark");
+
+    await server.close();
+  });
 });
 
 function fakeDataContext(): DataContextRunner {
