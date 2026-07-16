@@ -2527,15 +2527,15 @@ resume from this note before taking any merge-sensitive action.
   Exact-head live UAT is RED only on the real personal export checkpoint. Evidence and verdict are
   posted on PR #1075; do not merge it until blocker #1077 lands and the export UAT repeats green.
 - Ben approved #1077's audit-all scope. Full audit found exactly four gaps and 34 covered tables.
-  Security build lane relayed to low-effort Sonnet label `UX 1077 Export Grants R7`, session
-  `e3152806-7b37-4d53-bae1-982556611989`, branch `ux/1077-export-grants`, worktree
+  Security build lane relayed to low-effort Sonnet label `UX 1077 Export Grants R8`, session
+  `3f68f9fe-7336-4796-95fe-4479674485d0`, branch `ux/1077-export-grants`, worktree
   `~/Jarv1s/.claude/worktrees/ux-1077-export-grants`, committed audit handoff `5fa0443c`. Sonnet 5
   and bypass permissions verified. Minimal four-task TDD plan approved and committed at
   `7c93e676`: red populated-all-tables export + negative write/policy tests; module-local
   SELECT-only migrations for four confirmed gaps; migration inventory; focused/full gates and
-  wrap-up. Task 1 RED test is committed/pushed at `fc93ab4a` with the expected permission denial;
-  R7 is implementing Task 2 migrations and focused GREEN. Defer failure-handler hardening and the
-  unrelated `task_activity` RLS gap.
+  wrap-up. Task 1 RED is `fc93ab4a`; Task 2 migrations + focused GREEN are `82d5372b` (3/3 pass,
+  SELECT-only, no BYPASSRLS). R8 is updating migration inventory and focused gates. Defer
+  failure-handler hardening and the unrelated `task_activity` RLS gap.
 - Merge order: #1077 security QA + Ben sign-off + merge; repeat #1002 live export UAT; reconcile
   Task 8; merge #1075; clean up; start #988 strictly last.
 - Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
