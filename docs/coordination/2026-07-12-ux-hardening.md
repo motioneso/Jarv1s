@@ -3168,3 +3168,16 @@ resume from this note before taking any merge-sensitive action.
   broad local gate is allowed; its temporary handoff must not be staged.
 - Final QA and merge remain stopped. Parked review lanes E/F/G and unrelated changes remain
   untouched; `merges_since_relay` is `0`.
+
+## Continuation note — 2026-07-16 #1117 live-UAT repair plan approved
+
+- Exact session `019f6d42-caa7-72a0-ad37-390487dd05c1` grounded exact head `44206635` and UAT
+  comment `4997441312`. Its pointer plan at
+  `~/Jarv1s/.claude/worktrees/ux-988-closing-acceptance/docs/superpowers/plans/2026-07-16-pr-1117-live-uat-red-repair.md`
+  was approved: preserve onboarding Settings destination; bound Activity audit loading with
+  truthful error/retry; stack the Today masthead at narrow width.
+- Sports title truncation is deferred as a separate lower-severity CSS path. Remaining UAT gaps
+  must be classified as code/environment/evidence without fabricated closure. Implementation uses
+  focused checks only; no manual CI/job rerun or broad local gate.
+- Final QA and merge remain stopped pending a new automatic CI run and fresh exact-head live UAT.
+  Parked review lanes E/F/G and unrelated changes remain untouched; `merges_since_relay` is `0`.
