@@ -2527,8 +2527,8 @@ resume from this note before taking any merge-sensitive action.
   Exact-head live UAT is RED only on the real personal export checkpoint. Evidence and verdict are
   posted on PR #1075; do not merge it until blocker #1077 lands and the export UAT repeats green.
 - Ben approved #1077's audit-all scope. Full audit found exactly four gaps and 34 covered tables.
-  Security build lane relayed to low-effort Sonnet label `UX 1077 Export Grants R10`, session
-  `ad93dac7-b32a-4ffa-b37c-b655320fe020`, branch `ux/1077-export-grants`, worktree
+  Security build lane relayed to low-effort Sonnet label `UX 1077 Export Grants R11`, session
+  `f7d3daa9-333d-472e-9386-845a57bec574`, branch `ux/1077-export-grants`, worktree
   `~/Jarv1s/.claude/worktrees/ux-1077-export-grants`, committed audit handoff `5fa0443c`. Sonnet 5
   and bypass permissions verified. Minimal four-task TDD plan approved and committed at
   `7c93e676`: red populated-all-tables export + negative write/policy tests; module-local
@@ -2537,8 +2537,8 @@ resume from this note before taking any merge-sensitive action.
   SELECT-only, no BYPASSRLS). Task 3 migration inventory is `5d5e69b5`; R9 is fixing focused
   format/type residue and clean rebase are at pushed head `4bc49def`. Full verify then found three
   stale security expectations: AI/Notifications hard-coded no worker SELECT, plus the new
-  notification-read policy lacked its defense-in-depth comment. R10 is updating only those
-  assertions/comment, then repeating full gates and opening the PR. Defer failure-handler
+  notification-read policy lacked its defense-in-depth comment. The three approved residue edits
+  are present; R11 is validating once, committing, repeating full gates, and opening the PR. Defer failure-handler
   hardening and the unrelated `task_activity` RLS gap.
 - Merge order: #1077 security QA + Ben sign-off + merge; repeat #1002 live export UAT; reconcile
   Task 8; merge #1075; clean up; start #988 strictly last.
