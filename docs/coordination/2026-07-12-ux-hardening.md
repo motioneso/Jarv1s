@@ -2532,9 +2532,10 @@ resume from this note before taking any merge-sensitive action.
 - PR #1075 is code-complete at exact head `6cbb4955`; all four CI checks are green. Independent
   sensitive QA is GREEN / merge-ready with zero findings and a durable PR verdict comment.
   Exact-head authenticated desktop+390px live UAT relayed before compaction and is in progress in
-  successor label `UX UAT 1002 PR1075 R5`, session
-  `b935d8a4-2416-4619-9e08-57122692bc1b`; signup, onboarding, and Audit evidence are complete.
-  The remaining run surfaced a PostgreSQL aborted-transaction error under diagnosis as product vs
-  harness/setup; Task 8 and merge remain gated on a definitive live UAT verdict.
+  Exact-head live UAT is RED: 14/15 checkpoints pass; real personal export fails because the
+  `export.build` worker lacks a grant on `app.notification_reads`. Evidence and verdict are posted
+  on PR #1075; pre-existing blocker #1077 is open. The UAT stack is torn down and evidence is
+  retained. Opus security triage session `7568b5e2-f0ea-4e8e-ae08-ebb7bad43f43` is assessing the
+  minimum safe grant migration and spec readiness. Do not merge #1075 or start #988.
 - Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
   `webwright-proof-987-v3/`.
