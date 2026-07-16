@@ -3127,3 +3127,15 @@ resume from this note before taking any merge-sensitive action.
 - Exact repair session `019f6d05-4fc4-7831-9ed4-9e0f00b0d622` and its empty dedicated tab were
   reaped; the clean owner worktree remains parked. Parked review lanes E/F/G and unrelated changes
   remain untouched. `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-16 #1117 exact-head live UAT running
+
+- Fresh detached exact-head UAT is running as label `UX 1117 UAT`, Codex session
+  `019f6d0c-7e2c-74d3-a84c-a5d31acc9ef1`, in
+  `~/Jarv1s/.claude/worktrees/uat-1117-final-44206635` using Sol/high and `webwright:webwright`.
+- UAT must prove or explicitly block every missing live acceptance point, self-verify screenshots,
+  and post durable evidence to PR #1117. It may push only evidence branch
+  `evidence/pr-1117-44206635-live-uat`; it must never edit/push the PR head or product code.
+- Automatic CI run `29539532807` remains the only exact-head CI action. Inspect it only; never
+  manually rerun it or a job. Final routine QA waits for both green CI and complete live evidence.
+  Parked review lanes E/F/G and unrelated changes remain untouched; `merges_since_relay` is `0`.
