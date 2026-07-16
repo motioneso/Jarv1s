@@ -3169,6 +3169,22 @@ resume from this note before taking any merge-sensitive action.
 - Final QA and merge remain stopped. Parked review lanes E/F/G and unrelated changes remain
   untouched; `merges_since_relay` is `0`.
 
+## Continuation note — 2026-07-16 #1117 second CI failure; stop line
+
+- Automatic exact-head run `29542691419` failed `Verify foundation and app` at
+  `61ae42ed351343e078531b0dd390405b45a219df`; both deployment smokes passed and image publishing
+  skipped. This is the lane's second foundation-check failure, so stop-line issue
+  `https://github.com/motioneso/Jarv1s/issues/1119` is open. Do not rerun the workflow/job or a
+  broad local gate.
+- Post-repair exact-head UAT aborted before browser execution, posted no PR verdict, and pushed no
+  evidence branch. Exact UAT session `019f6d4e-e5ad-7731-8c14-2809d0a70773`, its disposable tree,
+  and empty tab were reaped.
+- Existing-log diagnosis is running as label `UX 1117 CI Diagnose`, Codex session
+  `019f6d53-b02e-7550-82b5-3a34304b78ba`, in the clean owner worktree on Luna/medium. It may inspect
+  failed logs and source only; no reproduction, retry, or code before an approved plan.
+- Final UAT, final QA, and merge remain stopped. Parked review lanes E/F/G and unrelated changes
+  remain untouched; `merges_since_relay` is `0`.
+
 ## Continuation note — 2026-07-16 #1117 live-UAT repair plan approved
 
 - Exact session `019f6d42-caa7-72a0-ad37-390487dd05c1` grounded exact head `44206635` and UAT
