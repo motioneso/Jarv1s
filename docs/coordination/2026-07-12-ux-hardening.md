@@ -2953,3 +2953,16 @@ resume from this note before taking any merge-sensitive action.
   PR exists, dispatch a fresh exact-head recovery lane to distinguish infrastructure failure from
   branch regression and obtain required desktop+narrow live proof. Review lanes E/F/G and
   unrelated changes remain untouched; `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-16 PR #1117 open; live recovery dispatched
+
+- Draft PR #1117 is open at exact head `d34f65e6c36f133577ab3fe76502ce0a68082e91`, cleanly
+  mergeable but explicitly code-complete/unproven. Pre-push format/lint/typecheck passed; no merge
+  or issue/board mutation occurred. The spent build agent was exact-resolved and reaped.
+- Fresh detached recovery lane `UAT 1117 Recovery`, Codex session
+  `019f6cba-8cb2-78f1-a369-431149a1303a`, is running on `gpt-5.6-luna` medium. It must diagnose the
+  repeated `/health/ready` failure without editing feature code, then obtain and visually verify
+  real authenticated desktop+narrow Webwright evidence at exact head and post it to PR #1117.
+- No bypass or evidence waiver is permitted. PR #1117 remains draft/unmergeable-by-policy until
+  live proof and independent routine QA are green. Review lanes E/F/G and unrelated changes remain
+  untouched; `merges_since_relay` remains `1`.
