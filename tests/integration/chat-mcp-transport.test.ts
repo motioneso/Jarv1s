@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,10 +22,46 @@ import {
   registerMcpTransportRoute,
   registerNativePermissionRoute
 } from "../../packages/chat/src/mcp-transport.js";
+import { CLAUDE_PERMISSION_HOOK_SOURCE } from "../../packages/chat/src/live/claude-permission-hook.js";
 import { resolveYoloMode } from "../../packages/chat/src/routes.js";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import { exampleToolCalls, exampleToolModule } from "./fixtures/example-tool-module.js";
+
+async function runClaudePermissionHook(
+  input: unknown,
+  permissionUrl: string,
+  token: string
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  const dir = await mkdtemp(join(tmpdir(), "jarvis-integration-hook-"));
+  const hookPath = join(dir, "hook.mjs");
+  const tokenPath = join(dir, "token");
+  await writeFile(hookPath, CLAUDE_PERMISSION_HOOK_SOURCE);
+  await writeFile(tokenPath, `${token}\n`);
+  try {
+    const child = spawn(process.execPath, [hookPath], {
+      env: {
+        ...process.env,
+        JARVIS_PERM_URL: permissionUrl,
+        JARVIS_PERM_TOKEN_FILE: tokenPath
+      },
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+    child.stdin.end(JSON.stringify(input));
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
+    return { code, stdout, stderr };
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
 
 /** Register a minimal resolve route that mirrors what registerChatRoutes does. */
 function registerResolveRoute(
@@ -546,6 +583,7 @@ describe("native permission YOLO", () => {
     const app = await buildApp("effective");
     const workingDirectory = await mkdtemp(join(tmpdir(), "jarvis-native-yolo-"));
     try {
+      const origin = await app.listen({ host: "127.0.0.1", port: 0 });
       await setEffectiveYoloState({ master: true, allowed: true, enabled: true });
       const chatSessionId = randomUUID();
       const rawSecret = "never-persist-this-native-input-value";
@@ -554,18 +592,20 @@ describe("native permission YOLO", () => {
         chatSessionId,
         allowedToolNames: null
       });
-      const res = await app.inject({
-        method: "POST",
-        url: "/internal/permission",
-        headers: { authorization: `Bearer ${token}` },
-        body: {
+      // #1085 F1: execute the generated production hook and let it forward the real event cwd;
+      // injecting cwd directly into Fastify is the synthetic coverage gap that shipped F1 dead.
+      const hookResult = await runClaudePermissionHook(
+        {
           tool_name: "Write",
           tool_input: { file_path: "src/safe.ts", content: rawSecret },
           cwd: workingDirectory
-        }
-      });
-      expect(res.statusCode).toBe(200);
-      expect(res.json()).toEqual({ decision: "allow", reason: "Allowed by YOLO." });
+        },
+        new URL("/internal/permission", origin).toString(),
+        token
+      );
+      expect(hookResult.code).toBe(0);
+      expect(hookResult.stderr).toBe("");
+      expect(JSON.parse(hookResult.stdout).hookSpecificOutput.permissionDecision).toBe("allow");
       expect(emitted).toEqual([
         {
           chatSessionId,
