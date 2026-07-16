@@ -2535,7 +2535,11 @@ resume from this note before taking any merge-sensitive action.
   Exact-head live UAT is RED: 14/15 checkpoints pass; real personal export fails because the
   `export.build` worker lacks a grant on `app.notification_reads`. Evidence and verdict are posted
   on PR #1075; pre-existing blocker #1077 is open. The UAT stack is torn down and evidence is
-  retained. Opus security triage session `7568b5e2-f0ea-4e8e-ae08-ebb7bad43f43` is assessing the
-  minimum safe grant migration and spec readiness. Do not merge #1075 or start #988.
+  retained. Opus security triage confirmed a GRANT-level denial and recommends an audit-all
+  export-table remediation: additive SELECT-only worker grants plus owner-scoped policies and
+  positive export/negative write integration coverage. #1077 is not yet an approved spec; the
+  audit-all scope requires Ben's lock before a security-tier build lane may spawn. Defer the
+  aborted-transaction failure-handler hardening to a separate follow-up. Do not merge #1075 or
+  start #988.
 - Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
   `webwright-proof-987-v3/`.
