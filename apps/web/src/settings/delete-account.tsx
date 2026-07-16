@@ -189,7 +189,7 @@ export function DeleteAccount({ me }: { readonly me: MeResponse }) {
             </div>
 
             <Note icon={<TriangleAlert size={13} />}>
-              Data export isn't available yet — download anything you want to keep first.
+              Export your data above before deleting your account.
             </Note>
 
             <div className="jds-dialog__foot">
