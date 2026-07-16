@@ -2890,3 +2890,14 @@ resume from this note before taking any merge-sensitive action.
   `019f6c7b-67d1-7ae1-9c36-f8c18db171a7`, is done and parked. No implementation lane may dispatch
   and PR #1111 may not merge before approval plus fresh green gates. Review lanes E/F/G and
   unrelated changes remain untouched; `merges_since_relay` remains `0`.
+
+## Continuation note — 2026-07-16 standing coordinator approval delegated
+
+- Ben approved the focused one-file #1111 formatting fix and clarified that routine in-scope
+  fixes and implementation decisions do not require separate approval. Coordinators may approve
+  them; escalate only a fundamental product-direction change that would turn Jarvis into a
+  different app, while continuing to honor existing hard gates.
+- `UX 988 Plan CI`, Codex session `019f6c7b-67d1-7ae1-9c36-f8c18db171a7`, resumed to format only
+  `docs/superpowers/plans/2026-07-16-988-closing-acceptance.md`, verify, commit/push only that file,
+  and report the new exact head plus CI state. Review lanes E/F/G and unrelated changes remain
+  untouched; `merges_since_relay` remains `0`.
