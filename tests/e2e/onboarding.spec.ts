@@ -147,7 +147,7 @@ test("a status-endpoint error falls through to the app shell", async ({ page }) 
   ).not.toBeVisible();
 });
 
-test("onboarding offers IMAP providers while Microsoft remains soon", async ({ page }) => {
+test("onboarding offers IMAP providers and makes no Microsoft promises", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
     isInstanceAdmin: true,
@@ -179,8 +179,8 @@ test("onboarding offers IMAP providers while Microsoft remains soon", async ({ p
     ).toBeVisible();
   }
 
-  await expect(page.getByText("Outlook").locator("..").getByText("Soon")).toBeVisible();
-  await expect(page.getByText("Microsoft 365").locator("..").getByText("Soon")).toBeVisible();
+  await expect(page.getByText("Outlook")).toHaveCount(0);
+  await expect(page.getByText("Microsoft 365")).toHaveCount(0);
 
   await page.getByRole("button", { name: /Connect Proton Mail/i }).click();
   await expect(
