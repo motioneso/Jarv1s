@@ -2979,3 +2979,16 @@ resume from this note before taking any merge-sensitive action.
   single existing-pattern manifest entry, focused route-guard verification, commit, and push under
   standing approval. After the new exact head, resume the detached UAT lane for real desktop+narrow
   proof and fresh CI. Review lanes E/F/G remain untouched; `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-16 #1117 readiness fix pushed; fresh gates running
+
+- Owner fix `adf41915da50762de15860c82d1ca128ae08b525` changed only
+  `packages/settings/src/manifest.ts`, adding the existing-pattern
+  `PUT /api/me/themes/mode` entry with `settings.write`. Focused route guard is 7/7 green;
+  Settings typecheck, manifest Prettier, full format/lint/typecheck are green. The spent fixer was
+  exact-resolved and reaped.
+- PR #1117 now points to exact head `adf41915`; fresh CI run `29535049018` has foundation/app and
+  both Compose smokes in progress. Prior red checks belong to superseded head `d34f65e6`.
+- Detached recovery session `019f6cba-8cb2-78f1-a369-431149a1303a` resumed on the new exact head
+  for readiness plus authenticated desktop+narrow Webwright proof and durable PR evidence.
+  No bypass is allowed; review lanes E/F/G remain untouched; `merges_since_relay` remains `1`.
