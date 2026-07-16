@@ -2769,3 +2769,21 @@ resume from this note before taking any merge-sensitive action.
   this slice. Do not spawn implementation before both decisions and spec approval.
 - Review lanes E/F/G remain parked. Preserve unrelated coordinator changes:
   `.claude/context-meter.log`, existing `artifacts/`, and `webwright-proof-987-v3/`.
+
+## Continuation note — 2026-07-16 #988 Appearance approved; Today decision pending
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f6c1d-6044-7d51-8473-3e469192b324`. Primary `Coordinator` session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` remains untouched. `merges_since_relay` remains `1`.
+- Ben approved D2: Forest, Sage, Canyon, Teal, and Dusk remain independently selectable accent/color
+  themes while light/dark becomes a separate per-account mode toggle. Legacy Dark normalizes to
+  Forest + dark. Existing custom themes remain fixed-palette for this slice as proposed.
+- Draft PR #1111 now records that decision and the concrete D1 explanation at exact head
+  `d440f5b8efb1db8d7c13799ac078b3cd5e3d4306`; durable decision comment:
+  `https://github.com/motioneso/Jarv1s/pull/1111#issuecomment-4995710106`.
+- D1 remains unresolved. The “priority-band badge” is the proactive-card pill that literally shows
+  `critical`, `high`, `normal`, or `low`; it is not the priority stripe or ordering. The bundled
+  task-row removal is the short due date such as `Jul 18`. No #988 implementation may start until
+  Ben resolves D1 and approves the overall spec.
+- Review lanes E/F/G remain parked. Preserve unrelated coordinator changes:
+  `.claude/context-meter.log`, existing `artifacts/`, and `webwright-proof-987-v3/`.
