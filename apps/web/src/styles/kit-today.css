@@ -522,6 +522,12 @@
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--gold-ink);
+  /* Zero the UA <p> default top margin so the greeting sits flush at the row top,
+     on the same baseline as the right-hand .cmd-dateline (a flush <div>). Both share
+     identical 13px/700/0.18em/uppercase type, so they read as one line across the
+     masthead — greeting left, date right (Ben 2026-07-16: "date and greeting on the
+     same line", #1112). align-items:stretch on __row already top-aligns the two columns. */
+  margin: 0;
 }
 .cmd-lede {
   font-family: var(--font-sans);
