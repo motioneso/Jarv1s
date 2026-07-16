@@ -15,10 +15,3 @@ CREATE POLICY notification_reads_select ON app.notification_reads
       WHERE visible_notification.id = notification_reads.notification_id
     )
   );
-
--- Re-state the 0102 defense-in-depth comment: DROP POLICY clears any COMMENT ON POLICY
--- attached to the old object, so recreating the policy here must restate it verbatim.
-COMMENT ON POLICY notification_reads_select ON app.notification_reads IS
-  'Exists-with-visible-parent guard: user_id owns the row AND the parent notification is '
-  'currently visible to the actor (both jarvis_app_runtime and jarvis_worker_runtime, '
-  'SELECT only). The parent check is defense-in-depth, not redundant.';

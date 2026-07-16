@@ -289,7 +289,10 @@ describe("MVP foundation schema catalog", () => {
         { version: "0166", name: "0166_worker_notification_reads_grant.sql" },
         { version: "0167", name: "0167_worker_entities_grant.sql" },
         { version: "0168", name: "0168_worker_action_requests_grant.sql" },
-        { version: "0169", name: "0169_worker_audit_log_grant.sql" }
+        { version: "0169", name: "0169_worker_audit_log_grant.sql" },
+        // #1077 follow-up — 0166 must never be edited post-apply, so the COMMENT ON POLICY
+        // it dropped (via DROP POLICY/CREATE POLICY) is restated in its own migration.
+        { version: "0170", name: "0170_notification_reads_worker_policy_comment.sql" }
       ]);
     } finally {
       await client.end();
