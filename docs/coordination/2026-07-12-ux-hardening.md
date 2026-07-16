@@ -2447,3 +2447,23 @@ resume from this note before taking any merge-sensitive action.
   `019f677a-ccef-78f0-bc91-5be4cc725c16`; old session `019f66e1-aefb-7df2-b339-c4168d3266c1`
   is closed. Preserve `.claude/context-meter.log`, unrelated `artifacts/`, and
   `webwright-proof-987-v3/`.
+
+## Continuation note — 2026-07-15 #1002 G2 ready; compaction relay required
+
+- Current delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f677a-ccef-78f0-bc91-5be4cc725c16`; `merges_since_relay` is `1`. Primary `Coordinator`
+  session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1` is out of scope and must remain untouched.
+- The coordinate compaction tripwire fired before #1002 was spawned. Merge nothing in this
+  session; relay delegated UX authority to a fresh full-access Codex coordinator in the same
+  coordinator tab, replace only this delegated UX lock with its immutable session id, reset
+  `merges_since_relay` to `0`, commit/push, confirm driving, then close this exact old session.
+- #1002 approved G2 lane is ready at `~/Jarv1s/.claude/worktrees/ux-1002-coming-soon-build`,
+  branch `ux/1002-coming-soon-build`, base `bcdebe01`. The committed and pushed handoff is
+  `docs/coordination/handoff-1002-coming-soon-g2.md` at `a65a1c9a`; no build agent has been
+  spawned yet.
+- Next: spawn exact label `UX 1002 Coming Soon` in agents tab `w1:t26` with Sonnet, require
+  `coordinated-build`, approve only Tasks 2–5, and supervise through exact-head CI, sensitive QA,
+  authenticated desktop+narrow live UAT, coordinator Task 8 inventory reconciliation, merge,
+  and cleanup. Then run #988 strictly last.
+- Preserve unrelated `.claude/context-meter.log`, prior `artifacts/`, and
+  `webwright-proof-987-v3/`.
