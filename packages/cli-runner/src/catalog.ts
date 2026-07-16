@@ -121,8 +121,8 @@ const RAW_CATALOG: Record<RpcProviderKind, CatalogEntry> = {
     recipe: {
       kind: "npm",
       pkg: "@openai/codex",
-      // PINNED 2026-06-20: current stable published EXACT version (`npm view`).
-      version: "0.141.0",
+      // PINNED 2026-07-15: current stable published EXACT version (`npm view`); re-pinned #1079: gpt-5.6-luna needs codex >=0.144.0.
+      version: "0.144.5",
       lockfile: "packages/cli-runner/recipes/openai-compatible/npm-shrinkwrap.json",
       binary: "codex",
       // codex ships per-arch native binaries via aliased optionalDependencies; the JS
@@ -135,7 +135,7 @@ const RAW_CATALOG: Record<RpcProviderKind, CatalogEntry> = {
         "linux-arm64": "@openai/codex-linux-arm64"
       },
       // RESOLVED self-update-disable (kind:"config" — preferred, sidesteps the R6 env
-      // source): codex 0.141.0 is npm-managed (CODEX_MANAGED_BY_NPM) so it NEVER
+      // source): codex 0.144.5 is npm-managed (CODEX_MANAGED_BY_NPM) so it NEVER
       // self-replaces its binary in place (the pin + lockfile + npm ci fully control the
       // bytes); the only residual is a startup update CHECK/notice, disabled by the
       // honored top-level config.toml bool `check_for_update_on_startup`. HOME is
