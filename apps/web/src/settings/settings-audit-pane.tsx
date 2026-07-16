@@ -195,9 +195,13 @@ export function AuditPane() {
         <Row
           name="Export instance data"
           desc="A full export of all data held on this instance."
-          coming
+          comingIssue={1069}
         />
-        <Row name="Backup & restore" desc="Scheduled backups and point-in-time restore." coming />
+        <Row
+          name="Backup & restore"
+          desc="Scheduled backups and point-in-time restore."
+          comingIssue={1070}
+        />
       </Group>
       <Note>
         Category tags are derived from each action's namespace; export reflects the current filter.

@@ -4,7 +4,6 @@ import {
   ArrowRight,
   CalendarDays,
   Check,
-  Clock,
   ExternalLink,
   Fingerprint,
   KeyRound,
@@ -58,11 +57,6 @@ export const IMAP_PROVIDERS = [
     tile: "F",
     prerequisite: "Generate an app password in Fastmail Settings > Privacy & Security."
   }
-] as const;
-
-const SOON_PROVIDERS = [
-  { id: "outlook", name: "Outlook", tile: "O" },
-  { id: "m365", name: "Microsoft 365", tile: "M" }
 ] as const;
 
 export type ImapProvider = (typeof IMAP_PROVIDERS)[number];
@@ -518,9 +512,7 @@ export function GoogleConnectorStep(props: {
             </span>
             <span className="onb-addmore__main">
               <span className="onb-addmore__t">Connect another account</span>
-              <span className="onb-addmore__s">
-                Connect another account or preview upcoming services.
-              </span>
+              <span className="onb-addmore__s">Connect another account.</span>
             </span>
           </button>
         </div>
@@ -599,17 +591,6 @@ export function GoogleConnectorStep(props: {
                 </span>
               </span>
             </button>
-          ))}
-          {SOON_PROVIDERS.map((provider) => (
-            <div className="onb-provmini" key={provider.id} aria-disabled="true">
-              <span className="onb-provmini__tile">{provider.tile}</span>
-              <span className="onb-provmini__main">
-                <span className="onb-provmini__name">{provider.name}</span>
-                <span className="onb-provmini__soon">
-                  <Clock size={10} aria-hidden="true" /> Soon
-                </span>
-              </span>
-            </div>
           ))}
         </div>
       </div>

@@ -28,6 +28,16 @@ describe("ProfilePane merged Account & preferences", () => {
     expect(html).toContain("Quiet hours");
     expect(html).not.toContain("Auth provider configuration");
   });
+
+  it("renders Data export before Danger zone and does not claim export is unavailable", async () => {
+    const html = await renderProfilePane();
+    const exportIndex = html.indexOf("Your data");
+    const dangerIndex = html.indexOf("Danger zone");
+    expect(exportIndex).toBeGreaterThan(-1);
+    expect(dangerIndex).toBeGreaterThan(-1);
+    expect(exportIndex).toBeLessThan(dangerIndex);
+    expect(html).not.toContain("Data export isn't available yet");
+  });
 });
 
 async function renderProfilePane(): Promise<string> {

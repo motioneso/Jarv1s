@@ -466,7 +466,7 @@ export function NotificationSettings(props: {
           desc="The notification center inside Jarvis."
           control={<Badge tone="pine">Enabled</Badge>}
         />
-        <Row name="Push" desc="System notifications on this device. Tracked in #743." coming />
+        <Row name="Push" desc="System notifications on this device." comingIssue={743} />
         <Row
           name="Email digest"
           desc={
