@@ -2489,6 +2489,26 @@ resume from this note before taking any merge-sensitive action.
   coordinated wrap-up if green. Preserve unrelated `.claude/context-meter.log`; task_activity and
   failure-handler findings remain deferred.
 
+## Continuation note — 2026-07-16 #1077 PR 1092 security QA
+
+- Delegated authority remains exact label `UX Coordinator`, immutable Codex session
+  `019f68a1-899f-7cc1-bba5-2159ae14aaed`; `merges_since_relay` remains `0`. Never touch primary
+  `Coordinator` session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+- Merge order remains #1077 security QA + Ben sign-off + merge; repeat #1002 exact-head live export
+  UAT; reconcile Task 8; merge #1075; clean up; start #988 strictly last. Review lanes E/F/G remain
+  parked by the primary coordinator pending Ben; they do not overlap this run.
+- #1077 is code-complete at pushed head `41110856`; PR #1092 is open. R12 restored migration 0166
+  byte-for-byte and moved the policy comment into append-only migration 0170 with the inventory
+  updated. `verify:foundation` exited 0 (410 unit files/3376 tests; 156 integration files/1669 tests)
+  and `audit:release-hardening` exited 0. Branch is up to date with `origin/main`. Deferred findings
+  remain the pre-existing `task_activity` cross-user read gap and failure-handler hardening.
+- Build agent exact label `UX 1077 Export Grants R12`, session
+  `780ff9e1-45a2-4f80-b75e-69093fdb8289`, is done in
+  `~/Jarv1s/.claude/worktrees/ux-1077-export-grants`. Isolated Opus security QA exact label
+  `UX QA 1077 PR1092`, session `457c9b71-b292-42ff-bd99-c13a2321cf73`, is reviewing PR #1092 in
+  `/tmp/jarv1s-qa-1092`. It must post a durable PR verdict. GREEN still requires Ben's explicit
+  security-tier merge sign-off; do not merge before that approval.
+
 ## Continuation note — 2026-07-15 #1002 sensitive QA running
 
 - Delegated authority remains exact label `UX Coordinator`, immutable Codex session
