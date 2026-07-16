@@ -79,6 +79,7 @@ beforeAll(async () => {
         .insertInto("app.ai_assistant_action_requests")
         .values({
           id: actionRequestId,
+          status: "pending",
           owner_user_id: ownerUserId,
           tool_module_id: "tasks",
           tool_module_name: "Tasks",
@@ -198,7 +199,10 @@ describe("export-worker-grants (#1077) — jarvis_worker_runtime SELECT on the 4
       { actorUserId: ownerUserId, requestId: "req:worker-write-denied-audit-log" },
       (scopedDb) =>
         expect(
-          scopedDb.db.deleteFrom("app.jarvis_action_audit_log").where("id", "=", auditLogId).execute()
+          scopedDb.db
+            .deleteFrom("app.jarvis_action_audit_log")
+            .where("id", "=", auditLogId)
+            .execute()
         ).rejects.toThrow(/permission denied/i)
     );
   });
@@ -207,11 +211,19 @@ describe("export-worker-grants (#1077) — jarvis_worker_runtime SELECT on the 4
     for (const table of gapTables) {
       const appRows = await appDataContext.withDataContext(
         { actorUserId: ownerUserId, requestId: `req:policy-exactness-app-${table}` },
-        (scopedDb) => scopedDb.db.selectFrom(`app.${table}` as "app.entities").selectAll().execute()
+        (scopedDb) =>
+          scopedDb.db
+            .selectFrom(`app.${table}` as "app.entities")
+            .selectAll()
+            .execute()
       );
       const workerRows = await workerDataContext.withDataContext(
         { actorUserId: ownerUserId, requestId: `req:policy-exactness-worker-${table}` },
-        (scopedDb) => scopedDb.db.selectFrom(`app.${table}` as "app.entities").selectAll().execute()
+        (scopedDb) =>
+          scopedDb.db
+            .selectFrom(`app.${table}` as "app.entities")
+            .selectAll()
+            .execute()
       );
       expect(workerRows).toEqual(appRows);
     }
