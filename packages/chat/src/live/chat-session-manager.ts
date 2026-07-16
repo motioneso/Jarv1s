@@ -898,28 +898,27 @@ export class ChatSessionManager {
     threadId: string | undefined,
     session: UserSession | undefined
   ): Promise<void> {
-    // #744 — the incognito row is the boot sweep's ONLY reclaim handle, so `deleteThread` waits
-    // for a CONFIRMED purge. Missing/failed purge = FAILURE (no silent-no-op-then-delete strand).
+    // #744/#1086 — the incognito row is the boot sweep's ONLY reclaim handle. A live CLI can
+    // recreate its transcript after rm, so only the engine-less post-exit sweep may clear it.
     let purged = false;
     if (session) {
       try {
         if (session.engine.purgeTranscripts) {
           await session.engine.purgeTranscripts();
-          purged = true;
         }
       } catch {
-        /* best-effort purge; purged stays false so we keep the row for the sweep */
+        /* best-effort live purge; the row is retained regardless for the post-exit sweep */
       }
       try {
-        const killArgs: [EngineKillOpts?] = purged ? [] : [{ preserveNeutralDir: true }];
+        const killArgs: [EngineKillOpts?] = [{ preserveNeutralDir: true }];
         await (this.deps.killSession
           ? this.deps.killSession(actorUserId, ...killArgs)
           : session.engine.kill(...killArgs));
       } catch {
         /* best-effort private kill */
       }
-      // Process teardown is unconditional. Neutral-dir removal and row deletion require a
-      // confirmed purge; failed purge leaves the exact marker for the boot sweep.
+      // Process teardown is unconditional. The marker and row survive until a later sweep can
+      // prove the process is gone and purge without a recreate race (#1086).
       this.sessions.delete(actorUserId);
       this.clearPrivateDetachTimer(actorUserId);
       this.deps.revokeMcpToken?.(actorUserId);

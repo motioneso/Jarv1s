@@ -105,7 +105,7 @@ describe("AgyPrintChatEngine", () => {
     expect(io.runs.some((run) => run.startsWith("find "))).toBe(false);
   });
 
-  it("continues only the captured conversation UUID", async () => {
+  it("captures at spawn and continues without waiting for readNew", async () => {
     const uuid = "e099f770-a55c-432f-a9be-8cf254fd2d54";
     const path = `/home/test/.gemini/antigravity-cli/brain/${uuid}/.system_generated/logs/transcript_full.jsonl`;
     const io = fakeIo({
@@ -120,7 +120,6 @@ describe("AgyPrintChatEngine", () => {
     });
 
     await engine.submit("first");
-    await engine.readNew(0);
     await engine.submit("second");
 
     expect(mux.opened[1]).toContain(`--conversation ${uuid}`);
