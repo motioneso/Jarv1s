@@ -2526,11 +2526,12 @@ resume from this note before taking any merge-sensitive action.
 - PR #1075 is code-complete at exact head `6cbb4955`; CI and independent sensitive QA are GREEN.
   Exact-head live UAT is RED only on the real personal export checkpoint. Evidence and verdict are
   posted on PR #1075; do not merge it until blocker #1077 lands and the export UAT repeats green.
-- Ben approved #1077's audit-all scope. Security build lane label `UX 1077 Export Grants`, session
-  `d7db6d2c-59f6-4543-bee5-18b11b60028d`, branch `ux/1077-export-grants`, worktree
-  `~/Jarv1s/.claude/worktrees/ux-1077-export-grants`, committed approved spec/handoff `fc646690`.
-  Sonnet 5 and bypass permissions verified. Scope: confirmed missing SELECT-only worker grants,
-  exact owner-scoped policies, populated-all-tables export test, negative write test; defer
+- Ben approved #1077's audit-all scope. Security build lane relayed before edits to label
+  `UX 1077 Export Grants R2`, session `81144cd0-1c3a-4192-936d-f61f15e7cf6f`, branch
+  `ux/1077-export-grants`, worktree `~/Jarv1s/.claude/worktrees/ux-1077-export-grants`, committed
+  audit handoff `083e3092`. Sonnet 5 and bypass permissions verified. Four missing grants/policies
+  are confirmed; successor must finish the per-table audit before changing only confirmed gaps.
+  Required verification remains populated-all-tables export plus negative write coverage; defer
   failure-handler hardening.
 - Merge order: #1077 security QA + Ben sign-off + merge; repeat #1002 live export UAT; reconcile
   Task 8; merge #1075; clean up; start #988 strictly last.
