@@ -386,9 +386,66 @@ export interface ModuleNotificationManifest {
   readonly supported: true;
 }
 
+export type AiModelTier = "reasoning" | "interactive" | "economy";
+export type AiModelCapability =
+  | "chat"
+  | "tool-use"
+  | "json"
+  | "vision"
+  | "summarization"
+  | "transcription";
+
+export const AI_MODEL_CAPABILITIES: readonly AiModelCapability[] = [
+  "chat",
+  "tool-use",
+  "json",
+  "vision",
+  "summarization",
+  "transcription"
+];
+
+export type JarvisErrorClass =
+  | "prerequisite"
+  | "transient"
+  | "validation"
+  | "permission"
+  | "bug";
+
+export interface JarvisError {
+  readonly code: string;
+  readonly class: JarvisErrorClass;
+  readonly remediationRef?: string;
+}
+
+export interface ModuleAiRequirementManifest {
+  readonly service: `module.${string}`;
+  readonly capability: AiModelCapability;
+  readonly tier: AiModelTier;
+}
+
+export interface ModuleRemediationManifest {
+  readonly id: string;
+  readonly description: string;
+  readonly path: string;
+}
+
+export interface ModuleErrorManifest extends JarvisError {
+  readonly description: string;
+}
+
+export interface ModuleFeatureManifest {
+  readonly id: string;
+  readonly description: string;
+  readonly requires?: ModuleAiRequirementManifest;
+  readonly remediations?: readonly ModuleRemediationManifest[];
+  readonly errors?: readonly ModuleErrorManifest[];
+  readonly featureFlagId?: string;
+}
+
 export interface ModuleNavigationEntryManifest {
   readonly id: string;
   readonly label: string;
+  readonly description: string;
   readonly path: string;
   readonly icon?: string;
   readonly order?: number;
@@ -399,6 +456,7 @@ export interface ModuleNavigationEntryManifest {
 export interface ModuleSettingsSurfaceManifest {
   readonly id: string;
   readonly label: string;
+  readonly description: string;
   readonly path: string;
   readonly scope: ModuleScope;
   readonly order?: number;
@@ -490,6 +548,7 @@ export interface JarvisModuleManifest {
   readonly database?: ModuleDatabaseManifest;
   readonly navigation?: readonly ModuleNavigationEntryManifest[];
   readonly settings?: readonly ModuleSettingsSurfaceManifest[];
+  readonly features?: readonly ModuleFeatureManifest[];
   readonly permissions?: readonly ModulePermissionManifest[];
   readonly featureFlags?: readonly ModuleFeatureFlagManifest[];
   readonly notifications?: ModuleNotificationManifest;
