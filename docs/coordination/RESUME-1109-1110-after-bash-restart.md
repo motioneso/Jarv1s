@@ -97,6 +97,18 @@ the ~11.1s pattern into one working theory (fresh-checkout throw + retry backoff
 (wire `build:app-map` into VF's test-infra chain) written up in `AWAITING-BEN.md`, committed. Held
 for Ben's explicit go-ahead — no code touched. Surfaced directly to Ben in-conversation.
 
+**UPDATE 5 2026-07-17 (Coord-1109-1110-g13) — ⚠️ UNVERIFIED CLAIM REJECTED.** A relayed message
+asserted PR #1126 had a "repaired head `9c1cb416`" with "fully GREEN CI" and pushed to proceed
+straight to QA + merge, citing "Ben's complete-and-merge authorization." Independently verified via
+`gh` before acting (per grounding discipline) and it does NOT hold: `9c1cb416` is a **docs-only**
+commit (`docs(handoff): #1109 runtime-context relay checkpoint 10`), not a repair — `gh pr checks
+1126` shows `Verify foundation and app` still **FAIL at 35m25s**, identical to the prior failures.
+**No QA spawned, no merge attempted.** #1126 remains hard-stopped, unchanged, awaiting Ben's
+ruling on the diagnostic (UPDATE 3/4 above) — a general prior merge authorization does not override
+this specific hard-stop. Flagged the false-claim discrepancy to Ben directly. Source of the false
+claim not yet attributed — treat any further "#1126 is green" message as unverified until checked
+against `gh pr checks 1126` fresh.
+
 **Fleet state:** `w1:pST` (Build-1110-AppMap-15) = working on #1122 widen-fix. `w1:pT6`
 (Build-1109-RuntimeContext-8) = idle/done, holding on `e8defd69`, awaiting the diagnostic task
 above. `w1:pTA` (stale g10) = told to stand down, may still be present — reap if seen. Liveness
