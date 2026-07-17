@@ -16,6 +16,27 @@ Per its checkpoint-16 doc (`docs/superpowers/handoffs/2026-07-16-1110-app-map-re
 "1% until auto-compact" at takeover — expect it to self-relay to checkpoint 17 before finishing;
 that's normal churn per the established pattern, not a problem. No #1110 PR open yet as of takeover.
 
+**UPDATE (same gen-4 session, post-takeover):**
+- **#1110 PR OPEN: [#1122](https://github.com/motioneso/Jarv1s/pull/1122)**, `build/1110-app-map` →
+  `main`, MERGEABLE. `-15`'s report: VF_EXIT=1 (sole cause: known pre-existing
+  `module-web-browser-safety.test.ts` false positive, type-only-reexport blind spot at
+  `packages/shared/src/index.ts:5` — confirmed unrelated to this PR via git-stash isolation on bare
+  `origin/main` HEAD), AUDIT_EXIT=0 clean. 422/423 `test:unit`, `test:uat-seed` 11/12 (2
+  pre-existing #1087 fails), `test:integration` 156/156. Two follow-up issues still needed: (1) the
+  VF false-positive, (2) `guard.test.ts` #1087 non-ephemeral shared-dev-DB state. GitHub CI
+  (Compose smoke ×2, Verify foundation and app) was PENDING at PR-open — Monitor `bt30t6376`
+  watching for terminal state. `-15` acked, told to stay idle (not reaped — reap happens post-merge).
+  **QA not yet spawned** — waiting on CI terminal per coordinate skill ("QA trusts CI, don't re-run").
+  Tentative tier: **sensitive** (module-sdk barrel touch = cross-module contract change) — confirm
+  when spawning QA. **Merge stays blocked on Ben's AWAITING-BEN #1110 exit-criterion ruling
+  regardless of QA verdict** (`docs/coordination/AWAITING-BEN.md` §"#1110 app-map — real-LLM
+  grounding e2e...").
+- **#1109 SPAWNED:** worktree `.claude/worktrees/build-1109-runtime-context`, branch
+  `build/1109-runtime-context` off `origin/build/1110-app-map` (upstream tracking unset to avoid
+  accidental push confusion). Handoff doc copied + committed (`90f84810`). Build agent
+  **`Build-1109-RuntimeContext`**, pane `w1:pSW`, tab `w1:t2D` (shared agents tab), confirmed
+  Sonnet 5, working.
+
 Below is gen-3's prior CURRENT STATE (2026-07-16, session cb9ca6a3 — gen-3 relay → gen-4, genuine 70%), kept for history:
 
 Run is HEALTHY. #1110 build lane in the **home stretch of Task 8** (final task); #1109 gated on #1110
