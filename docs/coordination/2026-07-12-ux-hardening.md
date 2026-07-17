@@ -3434,3 +3434,7 @@ resume from this note before taking any merge-sensitive action.
   `artifacts/webwright/pr-1117-6ca14fca-final/UAT_HANDOFF.md` and was reaped cleanly. Resume only
   after label `Build-1110-AppMap-11`, session `80422bad-c77e-4f44-aaeb-5c4f43f3602e`, confirms
   its stack is torn down and the subnet is clear.
+- `Build-1110-AppMap-11` confirmed the subnet fully clear. UAT resumed from the prepared handoff
+  as label `UX 1117 UAT 6ca14fca-2`, Claude session
+  `1d64f426-0873-470c-968b-6a30d232acd6`, Sonnet/high, with exclusive use of the exact-head
+  worktree and no product-code authority.
