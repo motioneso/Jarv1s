@@ -37,6 +37,7 @@ import {
   type AccessContext,
   type JarvisDatabase
 } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import type { ExternalModuleAiResult } from "@jarv1s/module-registry/node";
 
 import { createApiServer } from "../../apps/api/src/server.js";
@@ -81,6 +82,7 @@ type SeenRequest = {
 };
 
 let appDb: Kysely<JarvisDatabase>;
+let boss: PgBoss;
 let dataContext: DataContextRunner;
 let repository: AiRepository;
 let apiServer: Awaited<ReturnType<typeof createApiServer>>;
@@ -243,7 +245,13 @@ beforeAll(async () => {
   appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
   dataContext = new DataContextRunner(appDb);
   repository = new AiRepository();
-  apiServer = createApiServer({ appDb, logger: false });
+  // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+  // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+  // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+  // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+  // Test-only — production callers of createApiServer() are unaffected.
+  boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+  apiServer = createApiServer({ appDb, boss, logger: false });
   await apiServer.ready();
 
   ({ server: wireFake, baseUrl } = await startWireFake());
@@ -253,6 +261,7 @@ afterAll(async () => {
   await Promise.allSettled([
     apiServer?.close(),
     appDb?.destroy(),
+    boss?.stop({ graceful: false }),
     new Promise((resolve) => wireFake?.close(resolve))
   ]);
   if (previousSecretKey === undefined) delete process.env.JARVIS_AI_SECRET_KEY;

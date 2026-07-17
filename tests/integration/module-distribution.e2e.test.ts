@@ -16,6 +16,7 @@ import type { Kysely } from "kysely";
 import { Client } from "pg";
 
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { packModuleArtifact } from "../../scripts/publish-module-registry.js";
@@ -29,6 +30,7 @@ let registryUrl: string;
 let latestVersion: "0.2.0" | "0.3.0" = "0.2.0";
 let refs: Record<"0.2.0" | "0.3.0", { artifact: string; sha256: string; sizeBytes: number }>;
 let appDb: Kysely<JarvisDatabase>;
+let boss: PgBoss;
 let server: ReturnType<typeof createApiServer>;
 let adminCookie: string;
 let memberCookie: string;
@@ -47,8 +49,15 @@ const MANIFEST = {
 };
 
 function buildServer(): ReturnType<typeof createApiServer> {
+  // #1124: reuse the one module-level boss (constructed in beforeAll) across the mid-suite
+  // restartServer() rebuilds — createApiServer()'s default boss falls back to pg-boss's own 10s
+  // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can exceed
+  // even when the connection ultimately succeeds. The explicit, longer-but-still-under-hookTimeout
+  // override keeps a slow-but-healthy CI connection from being killed prematurely.
+  // Test-only — production callers of createApiServer() are unaffected.
   return createApiServer({
     appDb,
+    boss,
     logger: false,
     apiServerConfig: {
       host: "0.0.0.0",
@@ -170,6 +179,7 @@ beforeAll(async () => {
   process.env.JARVIS_MODULE_REGISTRY_URL = `${registryUrl}/index.json`;
 
   appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+  boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
   server = buildServer();
   await server.ready();
 
@@ -181,7 +191,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   delete process.env.JARVIS_MODULE_REGISTRY_URL;
-  await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   await new Promise((resolve) => registry?.close(resolve));
   rmSync(root, { recursive: true, force: true });
 });

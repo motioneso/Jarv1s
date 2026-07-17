@@ -4,6 +4,7 @@ import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import { registerRouteEnablementGuard } from "@jarv1s/module-registry";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 import {
@@ -20,6 +21,7 @@ function cookieHeader(headers: Record<string, unknown>): string {
 
 describe("module enablement endpoints", () => {
   let appDb: Kysely<JarvisDatabase>;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let ownerCookie: string;
 
@@ -27,7 +29,13 @@ describe("module enablement endpoints", () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     await setInstanceSetting("registration.requires_approval", { value: false });
-    server = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
 
     const signUp = await server.inject({
@@ -44,7 +52,7 @@ describe("module enablement endpoints", () => {
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   });
 
   it("GET /api/admin/modules lists every built-in with required + instanceDisabled flags", async () => {
@@ -185,8 +193,14 @@ describe("module enablement endpoints", () => {
         connectionString: connectionStrings.app,
         maxConnections: 1
       });
+      // #1124: give this one-off probe server its own explicit boss with a longer
+      // connectionTimeoutMillis, same rationale as the shared server above (test-only).
+      const probeBoss = createPgBossClient(connectionStrings.app, {
+        connectionTimeoutMillis: 25_000
+      });
       const probeServer = createApiServer({
         appDb: probeDb,
+        boss: probeBoss,
         logger: false,
         __testExtraGuardedRoutes: {
           manifests: [
@@ -216,6 +230,7 @@ describe("module enablement endpoints", () => {
       expect(res.statusCode).toBe(404);
       await probeServer.close();
       await probeDb.destroy();
+      await probeBoss.stop({ graceful: false });
     });
   });
 });

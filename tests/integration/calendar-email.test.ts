@@ -31,6 +31,7 @@ import {
   getBuiltInSqlMigrationDirectories
 } from "@jarv1s/module-registry";
 import { ConnectorsRepository } from "@jarv1s/connectors";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 
 import {
   buildTestSourceContextService,
@@ -102,6 +103,7 @@ describe("Calendar and Email connector-backed read modules", () => {
   let calendarRepository: CalendarRepository;
   let emailRepository: EmailRepository;
   let sharesRepository: SharesRepository;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
 
   beforeAll(async () => {
@@ -117,15 +119,17 @@ describe("Calendar and Email connector-backed read modules", () => {
     calendarRepository = new CalendarRepository();
     emailRepository = new EmailRepository();
     sharesRepository = new SharesRepository();
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 }); // #1124: CI PG connect can exceed pg-boss's 10s default even on success (test-only)
     server = createApiServer({
       appDb,
+      boss,
       logger: false
     });
     await server.ready();
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   });
 
   it("applies Calendar and Email migrations with forced RLS and scoped worker grants", async () => {

@@ -9,6 +9,7 @@ import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { ChatRepository } from "@jarv1s/chat";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import type { ChatEngineFactory } from "@jarv1s/module-registry";
 import {
   DataContextRunner,
@@ -66,6 +67,7 @@ describe("chat provenance routes", () => {
   let appDb: Kysely<JarvisDatabase>;
   let dataContext: DataContextRunner;
   let repository: ChatRepository;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
 
   function userAContext(): AccessContext {
@@ -80,8 +82,19 @@ describe("chat provenance routes", () => {
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     dataContext = new DataContextRunner(appDb);
     repository = new ChatRepository();
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    // createApiServer() only auto-starts a boss it owns; an explicit boss must be started by
+    // its caller. This suite's turn route enqueues post-turn jobs via boss, so it must be
+    // started before use (unstarted pg-boss throws on send/publish).
+    await boss.start();
     server = createApiServer({
       appDb,
+      boss,
       logger: false,
       chatEngineFactory: fakeEngineFactory
     });
@@ -109,7 +122,7 @@ describe("chat provenance routes", () => {
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   });
 
   // ── GET /api/chat/messages/:messageId/provenance ───────────────────────────

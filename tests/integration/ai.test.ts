@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import {
   AiRepository,
   aiModuleManifest,
@@ -33,6 +34,7 @@ describe("AI provider foundation", () => {
   let dataContext: DataContextRunner;
   let repository: AiRepository;
   let server: ReturnType<typeof createApiServer>;
+  let boss: PgBoss;
   let originalSecretKey: string | undefined;
 
   beforeAll(async () => {
@@ -48,15 +50,17 @@ describe("AI provider foundation", () => {
     });
     dataContext = new DataContextRunner(appDb);
     repository = new AiRepository();
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 }); // #1124: CI PG connect can exceed pg-boss's 10s default even on success (test-only)
     server = createApiServer({
       appDb,
+      boss,
       logger: false
     });
     await server.ready();
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
     if (originalSecretKey === undefined) {
       delete process.env.JARVIS_AI_SECRET_KEY;
     } else {
@@ -800,6 +804,7 @@ describe("AI capability tier routing", () => {
   let dataContext: DataContextRunner;
   let repository: AiRepository;
   let server: ReturnType<typeof createApiServer>;
+  let boss: PgBoss;
   let sharedProviderId: string;
 
   beforeAll(async () => {
@@ -808,7 +813,8 @@ describe("AI capability tier routing", () => {
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     dataContext = new DataContextRunner(appDb);
     repository = new AiRepository();
-    server = createApiServer({ appDb, logger: false });
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 }); // #1124: CI PG connect can exceed pg-boss's 10s default even on success (test-only)
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
 
     const providerRes = await server.inject({
@@ -825,7 +831,7 @@ describe("AI capability tier routing", () => {
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   });
 
   // Uses "json" capability — isolated from other tests by capability name

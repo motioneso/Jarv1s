@@ -14,6 +14,7 @@ import {
   createMemoryFactSignature
 } from "@jarv1s/memory";
 import { ChatRepository, ChatUserMemorySettingsRepository } from "@jarv1s/chat";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import { createApiServer } from "../../apps/api/src/server.js";
 import {
   connectionStrings,
@@ -655,6 +656,7 @@ describe("worker_runtime RLS policies on memory tables (#98)", () => {
 
 describe("Memory controls REST API", () => {
   let appDb: Kysely<JarvisDatabase>;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   const factsRepo = new ChatMemoryFactsRepository();
   let dataContext: DataContextRunner;
@@ -663,12 +665,18 @@ describe("Memory controls REST API", () => {
     await resetFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     dataContext = new DataContextRunner(appDb);
-    server = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   });
 
   it("GET /api/chat/memory/settings returns defaults for a new user", async () => {
