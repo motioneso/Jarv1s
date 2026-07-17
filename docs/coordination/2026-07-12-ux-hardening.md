@@ -3452,3 +3452,7 @@ resume from this note before taking any merge-sensitive action.
   invariants are intact and exit criteria met. Durable verdict:
   https://github.com/motioneso/Jarv1s/pull/1117#issuecomment-4998916253. PR #1117 is CLEAN against
   `main` and merge-ready at exact head `6ca14fcad8bec023c98e699000a2384657232843`.
+- PR #1117 merged first at `65b8a7f8864647cb8c73baa648b6cde05eab1ccc`; issue #988 auto-closed.
+  Sensitive merge digest: CI run `29552827799` green, exact-head UAT CP1-CP8 green, independent
+  QA green with 0 findings. `merges_since_relay` is now `1`; no relay trigger has fired. PR #1118
+  must now integrate this new `main` before any UAT/final-QA evidence can count.
