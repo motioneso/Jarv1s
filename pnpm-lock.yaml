@@ -406,6 +406,9 @@ importers:
       '@jarv1s/priority':
         specifier: workspace:*
         version: link:../priority
+      '@jarv1s/settings':
+        specifier: workspace:*
+        version: link:../settings
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../shared
@@ -990,6 +993,9 @@ importers:
 
   packages/shared:
     dependencies:
+      '@jarv1s/module-sdk':
+        specifier: workspace:*
+        version: link:../module-sdk
       '@jarv1s/priority':
         specifier: workspace:*
         version: link:../priority
