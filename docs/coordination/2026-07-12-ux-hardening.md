@@ -3638,3 +3638,13 @@ resume from this note before taking any merge-sensitive action.
   `https://motioneso.github.io/Jarv1s/`. Manual `main` dispatch run `29619987276` is in progress at
   the merge commit. Wait for the workflow and Pages deployment to succeed, then verify the report and
   the in-app target before finalizing.
+
+## Continuation note — 2026-07-17 PR #1129 deployment remediation
+
+- Delegated authority remains immutable Codex session `019f71fc-e3b7-77b0-914b-5518538943ef`;
+  `merges_since_relay` remains `1`.
+- Manual weekly dispatch run `29619987276` failed in `generate`; `deploy` was skipped. Pages remains
+  enabled with workflow build, but the endpoint is not deployed and the lane is not complete.
+- A fresh read-only Codex diagnosis agent is inspecting only the failing job/log and workflow source.
+  Do not edit or rerun until it returns the exact root cause and smallest focused fix. Any code fix must
+  use a new PR with fresh CI/QA before merge, then redispatch and verify Pages plus the in-app target.
