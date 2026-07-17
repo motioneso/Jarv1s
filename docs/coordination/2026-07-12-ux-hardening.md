@@ -3185,6 +3185,18 @@ resume from this note before taking any merge-sensitive action.
 - Final UAT, final QA, and merge remain stopped. Parked review lanes E/F/G and unrelated changes
   remain untouched; `merges_since_relay` is `0`.
 
+## Continuation note — 2026-07-17 #1117 CI GREEN; final UAT running
+
+- Automatic run `29543345062` completed fully green at exact head
+  `f05d977c186b82b31b42b0d6cff3b98bb1d91b47`: foundation/app, both deployment smokes, and image
+  publishing passed. No manual retry or broad local gate occurred.
+- Fresh detached exact-head UAT is running as label `UX 1117 UAT GreenHead`, Codex session
+  `019f6d7d-2ac3-7381-8e6e-284d721616f7`, in
+  `~/Jarv1s/.claude/worktrees/uat-1117-final-f05d977c` on Sol/high with Webwright. It must post a
+  sanitized exact-head verdict before final QA can start.
+- Final QA and merge remain stopped. Parked review lanes E/F/G and unrelated changes remain
+  untouched; `merges_since_relay` is `0`.
+
 ## Continuation note — 2026-07-16 #1117 follow-up CI root cause; repair approved
 
 - Existing log shows format and lint passed; `pnpm verify:foundation` failed at TypeScript only:
