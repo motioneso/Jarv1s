@@ -59,6 +59,20 @@ if any time has passed.
 
 ---
 
+## UPDATE 2026-07-17 (Coord-1109-1110-g14, adopted from g13)
+
+Adopted fleet cleanly: pane `w1:pTG` (label `Coord-1109-1110-g14`, session `b0884f17-4591-4228-a277-c6de13f82b32`), confirmed unique. g13 messaged safe-to-reap, self-reaping. Re-armed persistent liveness Monitor on `w1:pST`/`w1:pTE`/`w1:pTD`.
+
+**UX handoff received (from UX Coordinator, `w1:pSS`):** PR #1118 merged (`12877ff5`) — UX Coordinator's own lane, not ours. Ben authorized completing/merging all three (#1118/#1122/#1126); **g14 retains sole authority for #1122/#1126**, same scope as before. #1126 status unchanged: head `9c1cb416`, VF cancelled at 35m25s, Fable ruling attempt from handoff `65549ed9` failed (`Usage credits are required for this model` — no ruling exists), still hard-stopped pending **direct Ben ruling**. No action taken on #1126 beyond holding.
+
+**#1122 progress:** `Build-1110-AppMap-15` (`w1:pST`) completed the widened pg-boss fix exactly per g13's dispatched plan — PR **#1128** ("Part of #1124"), branch `fix/1124-pgboss-timeout-widen`, rebased on `origin/main` (`04130cf`). 45 files boss-overridden; also root-caused+fixed a real bug (`chat-provenance-routes.test.ts` needed explicit `boss.start()` since `createApiServer` only auto-starts a boss it owns — other 44 files don't exercise job-enqueue paths so don't need it). Self-reported: full `test:integration` 156/156 files, 1674 passed+2 skipped/1676, 0 failed; format/lint/typecheck/file-size all exit 0; `test:uat-seed` 11/12 = pre-existing #1087 flake only. Agent holding per standing instruction.
+
+**Dispatched:** `coordinated-qa` (routine tier, worktree-isolated) on PR #1128 to independently verify the above before merge. Next steps once QA is green, per g13's original plan (unchanged): (1) merge #1128 to main, (2) merge main into `build/1110-app-map` (never rerun stale head `552308d7`), (3) fresh VF, (4) if the pg-boss timeout signature recurs even after the widened fix — real hard-stop, escalate to Ben directly; if clean — still re-verify the separate #1110 live-path UAT-evidence exit-criterion (`AWAITING-BEN.md` `## #1110 app-map`) is actually cleared before merging #1122 itself.
+
+Report merge SHAs/blockers to UX Coordinator (`w1:pSS`) per handoff instruction — only for genuinely new blockers or final merge SHAs, not routine progress.
+
+---
+
 ## ✅ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g13`, relay at 70% ctx, driving #1122+#1126 to merge per Ben)
 
 **g13 is the incoming successor — spawn confirms it, this note is g12's flush.** Read ONLY this
