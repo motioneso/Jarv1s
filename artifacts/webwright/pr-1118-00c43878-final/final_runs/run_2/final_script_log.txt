@@ -1,0 +1,11 @@
+step 0 params: base_url=http://127.0.0.1:20001 email=uat-1118-1784263006@example.test
+step 1 action: navigated to bare instance root; CP1 evidence — form.auth-form visible with 'Create account' submit (needsBootstrap sign-up default)
+step 2 action: submitted sanitized owner signup (UAT Tester / uat-1118-1784263006@example.test)
+step 3 action: onboarding wizard appeared; clicked 'Skip setup'
+step 4 action: confirmation dialog appeared; clicked 'Skip anyway'
+step 5 action: reached AppShell — CP2 evidence — .jds-usermenu__trigger visible after onboarding skip
+step 6 action: CP3 evidence — Today masthead/.cmd-eyebrow/.cmd-dateline all visible at desktop 1280x1800
+step 7 action: CP4 evidence — greeting.y=122.00 dateline.y=122.00 |dy|=0.00 (tolerance<=2) -> PASS
+step 8 action: CP5 evidence — narrow 390x844 flex-direction=column scrollWidth=390 clientWidth=390 no_overflow=True stacked(dateline below greeting)=True -> PASS
+step 9 action: CP6 evidence — final desktop 1280x1800 resanity: greeting.y=122.00 dateline.y=122.00 |dy|=0.00 scrollWidth=1280 no_overflow=True -> PASS
+RESULT: all critical points (CP1-CP6) PASSED
