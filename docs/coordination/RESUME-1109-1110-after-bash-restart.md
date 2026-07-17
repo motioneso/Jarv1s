@@ -1371,3 +1371,58 @@ re-run the placeholder scan on both files, write them back, report DONE. Do NOT 
 - **A2 / #1087** (branch `fix/1087-seed-harness-quality`): code-complete, needs full gate +
   commit + push + PR. Help A2 finish.
 - **PR #1118 / #1112** (Today masthead one-line CSS): already OPEN; just confirm CI.
+
+---
+
+## g17 finding: #1122/#1126 CI timeout ROOT CAUSE CONFIRMED (2026-07-17)
+
+**Context:** Fable and Sol ran independent investigations into the recurring ~11.1s-multiple CI
+failures in `auth-settings.test.ts`/`auth-bootstrap-recovery.test.ts` on both #1122 and #1126,
+despite #1128's pg-boss timeout fix being present on both branches. Their findings **conflicted**:
+Sol claimed failure during server construction (missing `dist/app-map.json` → ENOENT in
+`registerBuiltInApiRoutes`/`loadAppMap`, after DB reset succeeds). Fable claimed failure during
+the DB reset itself (`migratePgBoss()` hitting pg-boss's un-overridden default ~10s
+`connectionTimeoutMillis`, before the server is ever constructed). Neither had a literal stack
+trace (CI log was truncated by the run's time cap) — both were inferring mechanism from timing
+arithmetic on the same number. I (coordinator) verified directly in the shared worktree
+(`build/1109-runtime-context @ 3b43080b`) rather than trust either theory:
+
+- `tests/integration/test-database.ts:81` — `resetEmptyFoundationDatabase()` calls
+  `await migratePgBoss(connectionStrings.migration, getAllQueueDefinitions())` — **only 2 args**.
+  `migratePgBoss`'s third param `overrides: Partial<ConstructorOptions> = {}`
+  (`packages/jobs/src/pg-boss.ts:204-213`) defaults empty, so its internal
+  `createPgBossClient` gets zero timeout override.
+- `resolvePgBossConstructorOptions` (`pg-boss.ts:169-182`) sets schema/schedule/supervise/
+  migrate/createSchema but **never sets `connectionTimeoutMillis`** — whatever isn't overridden
+  falls through to pg-boss's own native default.
+- The `auth-settings.test.ts:56-59` comment (from #1124) **explicitly documents this exact
+  mechanism** — but for a *different* boss instance: `createApiServer()`'s **app-level** boss
+  (explicitly constructed in each test file's `beforeAll` and passed in), which #1124/#1128
+  patched with `{ connectionTimeoutMillis: 25_000 }`. The **migration-level** boss inside
+  `migratePgBoss()`/`resetEmptyFoundationDatabase()` — which EVERY integration test suite hits on
+  every DB reset — was never touched by that fix.
+
+**Verdict:** Fable's mechanism is confirmed by code, not just arithmetic; Sol's ENOENT theory is
+not supported by this evidence (may still be real as a secondary/unrelated issue, unconfirmed).
+This is a second, unpatched instance of the exact bug class #1124 already fixed once, at a
+different call site. It explains why the fix "didn't take" on both #1122 and #1126: #1128 only
+widened the app-boss, never the migration-boss.
+
+**Proposed fix (tight, not another blind widen):** pass an explicit override as the third arg to
+the `migratePgBoss()` call in `resetEmptyFoundationDatabase()`
+(`tests/integration/test-database.ts:81`), e.g.
+`migratePgBoss(connectionStrings.migration, getAllQueueDefinitions(), { connectionTimeoutMillis: 25_000 })`
+— mirroring the exact override value/rationale already established by #1124. Test-only path;
+production `migratePgBoss` callers (real migrations) are unaffected by this default.
+
+**Status:** NOT YET APPLIED. Investigation-only per g17's task guardrails (no merge/push
+authority). Next coordinator: dispatch this as a small, tightly-scoped fix (either amend #1122 or
+#1126, whichever is the active lane, or a standalone infra PR if both need it) — get it QA'd and
+merged through normal channels. Do not re-run the Sol/Fable investigation again; this is settled.
+
+## g17 relay — context checkpoint fired
+
+Hit the 70% context-meter warning combined with an already-present compaction summary (hard
+backstop, no deferral). Relaying now per coordinate skill protocol. No merges pending action in
+this note beyond the finding above. Successor: pick up from "g17 finding" section just above,
+dispatch the pg-boss migration-boss fix, do not repeat the investigation.
