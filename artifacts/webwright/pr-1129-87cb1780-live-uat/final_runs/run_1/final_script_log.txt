@@ -1,0 +1,6 @@
+step 1 action: exact PR head 87cb178004d1324c0dc8de21e33b24129dc4ba25 live bare UAT stack ready as uat-4128165_7f130121 at http://127.0.0.1:20000
+step 2 action: created the first owner through the real signup UI and reached onboarding
+step 3 action: skipped optional setup through the UI and navigated through the user menu to /settings
+step 4 action: opened command palette on /settings; Weekly releases link is visible with href https://motioneso.github.io/Jarv1s/
+step 5 action: clicked Weekly releases and opened https://motioneso.github.io/Jarv1s/
+final datum: exact-head live path GREEN; Weekly releases opens https://motioneso.github.io/Jarv1s/
