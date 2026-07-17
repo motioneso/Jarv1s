@@ -3169,6 +3169,36 @@ resume from this note before taking any merge-sensitive action.
 - Final QA and merge remain stopped. Parked review lanes E/F/G and unrelated changes remain
   untouched; `merges_since_relay` is `0`.
 
+## Continuation note — 2026-07-16 #1117 Activity repair awaiting automatic CI
+
+- Delegated authority is held by exact label `UX Coordinator` and immutable Codex session
+  `019f6cf0-dc6f-7351-9978-d2b1e6605a96`. Never touch primary Coordinator session
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`. `merges_since_relay` remains `0`.
+- PR #1117 remains draft/open/unmerged at exact head
+  `4d2d17ba418b9140a7ea307398fe9e447bd06446` on `ux/988-closing-acceptance`. The Activity repair
+  adds `retry: false` to the React Query call so the existing 3-second abort can reach the truthful
+  `Activity unavailable` / `Try again` UI. Focused Activity test passed (`1/1`) and file-level
+  Prettier passed. No CI/job or broad local gate was manually rerun.
+- Existing automatic CI run `29547586161` is in progress for that exact head. Inspect existing CI
+  only. If any required check is red, stop the lane and diagnose existing logs only; never rerun a
+  job, CI, or broad gate. If fully green, start a fresh detached Activity-focused live UAT: verify
+  normal Activity settles, a controlled delay beyond 3 seconds shows the truthful error and retry,
+  and retry recovers after delay removal. Reuse prior exact-head proof for unaffected surfaces.
+- Prior full UAT verdict/evidence remains at PR comment `4998074616` and evidence commit
+  `714fd48a6048131594ecc524902a9ce6b7a20f93`. Previously proven paths include onboarding to
+  `/settings`, desktop/narrow Today, Light/Dark plus Teal, Calendar grants, model actions, skill
+  creation, and nonzero-byte export. Accepted limitations remain microphone/provider prerequisites
+  and unavailable News/email/deletion paths; Sports hero truncation remains deferred.
+- Final QA and merge remain stopped until exact-head CI and Activity live UAT are green. Preserve
+  parked review lanes E/F/G, the parked clean owner worktree, and all unrelated worktree changes.
+  The owner repair pane is no longer live.
+- Mid-doing relay: a compaction summary fired the mandatory coordinator relay before CI inspection.
+  The successor must read only this latest continuation, invoke `coordinate`, adopt authority with
+  its own immutable session id, reset `merges_since_relay` to `0`, commit and push only this
+  manifest, confirm driving, then fresh-resolve and close exact label `UX Coordinator` plus session
+  `019f6cf0-dc6f-7351-9978-d2b1e6605a96` and rename itself `UX Coordinator`. It should then inspect
+  automatic CI run `29547586161` and follow the branch above without rerunning anything.
+
 ## Continuation note — 2026-07-17 #1117 Activity repair plan approved
 
 - Graph trace: `ActivityPane` → `listActionAuditLog` → `requestJson` → `GET
