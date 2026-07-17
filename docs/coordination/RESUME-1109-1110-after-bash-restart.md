@@ -2,6 +2,13 @@
 
 ## ⏭️ IMMEDIATE NEXT ACTION for g14 (read this block first, then skim CURRENT STATE below)
 
+**PRIORITY AS OF LAST USER MESSAGE: #1126 is now Ben's direct decision, off this coordinator's
+plate — user said "I will surface the direct Ben decision blocker while you continue #1122."
+Your primary active work is supervising `Build-1110-AppMap-15` (`w1:pST`) on #1122, NOT chasing
+#1126 further.** The #1126 detail below is for situational awareness / answering follow-ups, not
+a task queue — do not re-spawn Fable, do not post diagnostics unprompted; just hold #1126 exactly
+as-is (no rerun/waiver/merge) unless Ben or a verified relay says otherwise.
+
 **g13 relayed at 70% context (2026-07-17).** Before relaying, g13 discovered two things that
 change the picture from what UX Coordinator's request assumed — **check these FIRST, they may
 already answer "is the diagnostic durable" without you doing any posting:**
@@ -14,11 +21,13 @@ already answer "is the diagnostic durable" without you doing any posting:**
    `2026-07-17T16:40:09Z`, which is the **original** ruling (the one that authorized the 25→35min
    bump) — it predates the second timeout entirely and is NOT a new ruling. Its worktree's last
    commit (`65549ed9`, "docs: hand off 1126 timeout ruling to Fable") is a **handoff doc written
-   TO Fable**, not a ruling FROM it — nothing committed after that. **First action: `herdr pane
-   read w1:pTF --source recent --lines 30` and re-verify `gh issue view 1127 --json comments`
-   fresh — this session may be stalled/idle needing a nudge, or may have relayed itself without
-   updating status.** If it's genuinely stalled, that's probably a bigger unblock than posting the
-   diagnostic yourself.
+   TO Fable**, not a ruling FROM it — nothing committed after that. **CONFIRMED by direct user message (2026-07-17, after g13's own check above):
+"#1126 Fable escalation attempted from committed handoff 65549ed9, but model execution is
+unavailable: 'Usage credits are required for this model.' No ruling exists."** So `w1:pTF` is dead
+weight — no ruling ever ran, not stalled-and-recoverable. User states they will "surface the direct
+Ben decision blocker" themselves and told g13/g14 to "continue #1122" — **do NOT re-spawn another
+Fable attempt for #1126; that channel is confirmed unavailable, it's now Ben's direct call, out of
+this coordinator's hands.** Reap `w1:pTF`/worktree once confirmed idle.
 2. **A QA verdict already landed on PR #1126 independent of the VF-timeout question**: comment
    from `motioneso` @ `2026-07-17T12:11:39Z` (`gh pr view 1126 --json comments`) — **RED**, sensitive-tier,
    with a **BLOCKING, reproducible (not flaky) defect**: `apps/api/package.json`'s `start` script
