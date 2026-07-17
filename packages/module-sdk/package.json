@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./ai-capabilities": "./src/ai-capabilities.ts",
     "./core-version": "./src/core-version.ts",
     "./worker": "./src/worker.ts"
   },

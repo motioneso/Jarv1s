@@ -386,23 +386,16 @@ export interface ModuleNotificationManifest {
   readonly supported: true;
 }
 
-export type AiModelTier = "reasoning" | "interactive" | "economy";
-export type AiModelCapability =
-  | "chat"
-  | "tool-use"
-  | "json"
-  | "vision"
-  | "summarization"
-  | "transcription";
-
-export const AI_MODEL_CAPABILITIES: readonly AiModelCapability[] = [
-  "chat",
-  "tool-use",
-  "json",
-  "vision",
-  "summarization",
-  "transcription"
-];
+// #1110 regression fix: moved to ./ai-capabilities.ts (a node-clean leaf) so @jarv1s/shared can
+// import the AI_MODEL_CAPABILITIES value via the ./ai-capabilities subpath instead of this barrel,
+// which eagerly re-exports rate-limit-key.js (node:crypto) below and would leak it into the
+// apps/web browser bundle. Re-exported here so existing barrel consumers are unaffected.
+export {
+  AI_MODEL_CAPABILITIES,
+  type AiModelTier,
+  type AiModelCapability
+} from "./ai-capabilities.js";
+import type { AiModelCapability, AiModelTier } from "./ai-capabilities.js";
 
 export type JarvisErrorClass =
   | "prerequisite"

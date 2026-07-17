@@ -11,12 +11,16 @@ export type AiModelStatus = "active" | "disabled";
 
 // #1110: tier/capability are canonical on @jarv1s/module-sdk (module manifests need them for
 // AI requirement declarations); re-exported here so existing @jarv1s/shared consumers don't churn.
+// Regression fix (#1110, tracked cleanup #1120): import from the ./ai-capabilities subpath, not the
+// bare @jarv1s/module-sdk barrel — the barrel eagerly re-exports rate-limit-key.ts (node:crypto),
+// and AI_MODEL_CAPABILITIES is a runtime const (can't be type-only), so importing it from the
+// barrel dragged node:crypto into the apps/web browser bundle.
 export {
   AI_MODEL_CAPABILITIES,
   type AiModelCapability,
   type AiModelTier
-} from "@jarv1s/module-sdk";
-import type { AiModelCapability, AiModelTier } from "@jarv1s/module-sdk";
+} from "@jarv1s/module-sdk/ai-capabilities";
+import type { AiModelCapability, AiModelTier } from "@jarv1s/module-sdk/ai-capabilities";
 
 export type AiCapabilityRouteReason =
   | "admin-pin"
