@@ -1,6 +1,28 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g8`, relay from g7 at 71% meter)
+## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g8`, takeover confirmed)
+
+**g8 is driving.** Pane `w1:pT8`, session `417b42df-b34d-4bbe-a56f-ebf1e566a1df`, label
+`Coord-1109-1110-g8` (only pane with that label — uniqueness confirmed via `herdr pane list`).
+Reaped g7 (`w1:pT5`, session `a6112658…`) after it self-reported standing down; closed cleanly.
+
+**Takeover checklist — all done, nothing new to act on yet:**
+- Fleet re-adopted: `Build-1109-RuntimeContext-8` (`w1:pT6`, session `2c4c1e48…`) `working` on
+  Task 7 (final, adapted deterministic plan). `Build-1110-AppMap-15` (`w1:pST`, session
+  `f8124cd9…`) `working` — running the authorized local CI repro for PR #1122/issue #1123.
+  **Waiting on its ping — not polling.**
+- Liveness monitor re-armed as `bdunrnvoc` (persistent, diffs `herdr pane list` for both build
+  panes' `agent_status`, emits only on change). g7's monitor died with its session as expected.
+- `AWAITING-BEN.md` — checked: g7 had **already** committed the #1110 and #1122 RESOLVED-by-Fable
+  entries in `bc54687b` before relaying (its own "still open" note was stale/inaccurate). Verified
+  `git status` clean on that file — no further edit needed.
+- No new Fable escalations needed yet. If -15's CI repro verdict lands or Build-1109 finishes
+  Task 7/opens a PR, handle per normal coordinate-skill Phase 2/3 — still routing any judgment
+  call to a Fable one-shot subagent overnight, not waiting on Ben.
+
+Below is g7's now-superseded takeover note (kept for history — skim, don't deep-read).
+
+## ⏩ PRIOR STATE (updated 2026-07-17 by `Coord-1109-1110-g7`, relay from g7 at 71% meter)
 
 **YOU ARE gen-8 (or later). Ben went to bed and delegated open questions to Fable overnight — no
 blockers on him; do NOT wait for him, route further judgment calls to a Fable one-shot subagent
