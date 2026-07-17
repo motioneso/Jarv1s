@@ -3448,3 +3448,7 @@ resume from this note before taking any merge-sensitive action.
   native subagent `qa_1117_final` in fresh detached worktree
   `~/Jarv1s/.claude/worktrees/qa-1117-final-6ca14fca`; it trusts CI and must post its compact
   verdict to PR #1117 without rerunning gates.
+- Independent sensitive-tier final QA is GREEN with 0 blocking and 0 non-blocking findings;
+  invariants are intact and exit criteria met. Durable verdict:
+  https://github.com/motioneso/Jarv1s/pull/1117#issuecomment-4998916253. PR #1117 is CLEAN against
+  `main` and merge-ready at exact head `6ca14fcad8bec023c98e699000a2384657232843`.
