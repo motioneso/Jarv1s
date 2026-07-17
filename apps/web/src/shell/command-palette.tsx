@@ -367,6 +367,9 @@ export function CommandPalette(props: {
               <kbd>Esc</kbd>
               Close
             </span>
+            <a href="https://motioneso.github.io/Jarv1s/" target="_blank" rel="noopener noreferrer">
+              Weekly releases ↗
+            </a>
           </div>
         </div>
       </div>

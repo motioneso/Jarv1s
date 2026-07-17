@@ -22,5 +22,9 @@ docs/audits/
 docs/coordination/
 docs/superpowers/handoffs/
 
+# Machine-generated weekly release pages; format the generator and shared CSS instead
+docs/releases/index.html
+docs/releases/*-weekly/index.html
+
 # Subagent-driven-development scratch — git-ignored briefs/reports/ledger/diffs
 .superpowers/sdd/
