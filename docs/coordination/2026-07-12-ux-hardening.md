@@ -3479,3 +3479,8 @@ resume from this note before taking any merge-sensitive action.
 - Automatic CI run `29554612636` is RED on `Verify foundation and app` job `87804059657`; both
   compose smoke jobs passed and image publishing was skipped. Stop-the-line: owner lane must
   diagnose the existing failure without rerunning CI; final QA and merge remain stopped.
+- Owner diagnosis found two failures in `tests/integration/tasks-agency-tools.test.ts` caused by a
+  pre-existing `AssistantToolGateway` action-request race; PR #1118's diff has no overlapping
+  code. No fix or push was made. This is not yet a waiver: native subagent `qa_1118_ci_red` is
+  running only that focused test file on exact `origin/main` SHA
+  `65b8a7f8864647cb8c73baa648b6cde05eab1ccc` to establish or reject main-branch proof.
