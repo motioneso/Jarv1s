@@ -397,13 +397,11 @@ export {
 } from "./ai-capabilities.js";
 import type { AiModelCapability, AiModelTier } from "./ai-capabilities.js";
 
-export type JarvisErrorClass = "prerequisite" | "transient" | "validation" | "permission" | "bug";
-
-export interface JarvisError {
-  readonly code: string;
-  readonly class: JarvisErrorClass;
-  readonly remediationRef?: string;
-}
+// #1110 regression fix: moved to ./errors.ts (a node-clean leaf) for the same reason as
+// ai-capabilities.ts above — see that leaf's docstring. Re-exported here so existing barrel
+// consumers are unaffected.
+export type { JarvisError, JarvisErrorClass } from "./errors.js";
+import type { JarvisError } from "./errors.js";
 
 export interface ModuleAiRequirementManifest {
   readonly service: `module.${string}`;

@@ -1,5 +1,5 @@
 // packages/shared/src/news-api.ts — BROWSER-SAFE. No node:* imports.
-import type { JarvisError } from "@jarv1s/module-sdk";
+import type { JarvisError } from "@jarv1s/module-sdk/errors";
 
 import { errorResponseSchema } from "./schema-fragments.js";
 

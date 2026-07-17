@@ -162,6 +162,12 @@ export default defineConfig({
         )
       },
       {
+        // Subpath export (#1110 VF regression fix); must precede the bare "@jarv1s/module-sdk"
+        // alias below, same pairing requirement as core-version/ai-capabilities above.
+        find: "@jarv1s/module-sdk/errors",
+        replacement: fileURLToPath(new URL("./packages/module-sdk/src/errors.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/module-sdk",
         replacement: fileURLToPath(new URL("./packages/module-sdk/src/index.ts", import.meta.url))
       },

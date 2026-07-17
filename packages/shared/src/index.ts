@@ -2,7 +2,7 @@ export type Brand<TValue, TBrand extends string> = TValue & {
   readonly __brand: TBrand;
 };
 
-export type { JarvisError, JarvisErrorClass } from "@jarv1s/module-sdk";
+export type { JarvisError, JarvisErrorClass } from "@jarv1s/module-sdk/errors";
 
 export * from "./app-map-core.js";
 export * from "./schema-fragments.js";
