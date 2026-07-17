@@ -90,6 +90,13 @@ hard-stop's own escalation clause — surfaced to him directly in-conversation, 
 (reruns/ci.yml/code) until he rules.** Did not relay routine status to UX Coordinator (`w1:pSS`)
 — no new blocker or merge SHA on our lanes, per Ben's standing instruction to only report those.
 
+**UPDATE 4 2026-07-17 (Coord-1109-1110-g13):** `w1:pST` confirmed the `loadAppMap` lead is real
+(not a false alarm): unguarded throw on missing `dist/app-map.json`, producer never wired into
+`verify:foundation`'s chain, local VF only green off a stale gitignored artifact. Converges with
+the ~11.1s pattern into one working theory (fresh-checkout throw + retry backoff). Proposed fix
+(wire `build:app-map` into VF's test-infra chain) written up in `AWAITING-BEN.md`, committed. Held
+for Ben's explicit go-ahead — no code touched. Surfaced directly to Ben in-conversation.
+
 **Fleet state:** `w1:pST` (Build-1110-AppMap-15) = working on #1122 widen-fix. `w1:pT6`
 (Build-1109-RuntimeContext-8) = idle/done, holding on `e8defd69`, awaiting the diagnostic task
 above. `w1:pTA` (stale g10) = told to stand down, may still be present — reap if seen. Liveness
