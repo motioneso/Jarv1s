@@ -3178,6 +3178,9 @@ resume from this note before taking any merge-sensitive action.
 - Final QA and merge remain stopped pending the recorded CI branch. Preserve unrelated changes,
   parked lanes E/F/G, and the primary Coordinator session
   `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+- Green branch recorded: automatic CI run `29547586161` completed `success` at exact PR #1117
+  head `4d2d17ba418b9140a7ea307398fe9e447bd06446`; all four jobs succeeded. No CI job or
+  broad gate was rerun. Final QA and merge remain stopped under the prior continuation gates.
 
 ## Continuation note — 2026-07-16 #1117 Activity repair awaiting automatic CI
 
