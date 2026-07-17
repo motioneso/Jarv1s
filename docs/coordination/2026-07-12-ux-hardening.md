@@ -3462,3 +3462,9 @@ resume from this note before taking any merge-sensitive action.
   `f97e5fca-68d9-4062-a5cc-11e10776c393`, Sonnet/high. It must rebase old head
   `0ca557c82e068f2bacded1781dafd6b22e12821e` onto #1117 merge
   `65b8a7f8864647cb8c73baa648b6cde05eab1ccc` and update the PR only by force-with-lease.
+- PR #1118 rebased cleanly with 0 conflicts and force-with-lease updated its exact head to
+  `00c43878c6ffada902f3955962f3f9101dc6e14b`; only `kit-today.css` and the existing UAT spec are
+  in its diff. Automatic CI run `29554612636` is in progress and must only be inspected.
+- Exact-head UAT is running in fresh worktree `~/Jarv1s/.claude/worktrees/uat-1118-final-00c43878`,
+  label `UX 1118 UAT 00c43878`, Claude session `9fc16680-781e-4bd2-a4c8-e0125708e3cd`,
+  Sonnet/high. It may push only evidence branch `uat/1118-final-00c43878`.
