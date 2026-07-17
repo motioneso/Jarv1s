@@ -3484,3 +3484,21 @@ resume from this note before taking any merge-sensitive action.
   code. No fix or push was made. This is not yet a waiver: native subagent `qa_1118_ci_red` is
   running only that focused test file on exact `origin/main` SHA
   `65b8a7f8864647cb8c73baa648b6cde05eab1ccc` to establish or reject main-branch proof.
+- Main-branch waiver proof is NOT established: on pinned `origin/main`
+  `65b8a7f8864647cb8c73baa648b6cde05eab1ccc`, focused command
+  `pnpm exec tsx scripts/test-integration.ts tests/integration/tasks-agency-tools.test.ts` exited 0
+  with 7/7 tests passing, so the two PR-run failures did not reproduce. No waiver is recorded.
+  PR #1118 remains stopped on RED CI pending Ben's explicit authorization for one failed-job rerun;
+  current no-rerun instruction forbids coordinator action. `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-16 PR #1118 CI blocker relay
+
+- Compaction tripwire fired. Flush this manifest and relay immediately; merge nothing first.
+- PR #1118 exact head `00c43878c6ffada902f3955962f3f9101dc6e14b` has GREEN CP1-CP6 UAT but
+  RED automatic CI run `29554612636`, failed job `87804059657`. The focused integration test
+  passed 7/7 on pinned `origin/main`, so no waiver is established or recorded.
+- Ben must explicitly authorize one rerun of failed job `87804059657`; otherwise leave #1118
+  stopped. If that rerun fails, stop the lane and escalate without a fix or further rerun.
+- `merges_since_relay` remains `1`. Preserve unrelated changes and parked lanes. Successor must
+  adopt delegated `UX Coordinator` authority with its own immutable session id and must never
+  touch primary Coordinator `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
