@@ -1,6 +1,41 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏭️ IMMEDIATE NEXT ACTION for g18 (2026-07-17, own arrival — read this first, everything below is historical)
+## ⏭️ IMMEDIATE NEXT ACTION for g19 (2026-07-17, read this first — relay fired at 72% ctx, everything below is historical)
+
+**g18 relayed on the hard context-meter trigger (72%, no deferral).** Lock not yet re-claimed by
+successor — do Phase 0a first: `herdr pane rename` yourself `Coordinator`... actually this run
+uses per-generation labels `Coord-1109-1110-gN`; follow that convention, verify sole active
+instance via `herdr pane list`, message `Coord-1109-1110-g18` (pane `w1:pTW`, session
+`58712e78-...`) to stand down once you're confirmed driving.
+
+**State at handoff:**
+- **PR #1122 (build/1110-app-map): MERGED** `2026-07-17T22:13:48Z`, squash+delete-branch. QA
+  verdict GREEN posted at github.com/motioneso/Jarv1s/pull/1122#issuecomment-5007968531. Build
+  agent `Build-1110-AppMap-16` reaped (pane closed, worktree removed, branch deleted local+remote,
+  dangling nested worktree pruned). Issue #1110 (parent epic) intentionally left OPEN — #1122 was
+  task-scoped, not epic-closing (verified via PR body, no "Fixes #1110"). `merges_since_relay: 1`
+  at that point.
+- **PR #1131 (fix/1130-pgboss-migration-timeout, the pg-boss migration-boss fix): CI IS GREEN** —
+  all 4 checks passed (Build and publish images, Compose deployment smoke, Prod compose deployment
+  smoke, Verify foundation and app — 20m13s) as of this handoff. **NOT YET QA'd or merged.**
+  **Your first action: dispatch `coordinated-qa` (tier: routine) on PR #1131**, then
+  `gh pr merge 1131 --squash --delete-branch`, then close issue #1130, then reap the
+  `fix-1130-pgboss-migration-timeout` worktree. That merge will make `merges_since_relay: 2` →
+  triggers ANOTHER relay per the coordinate skill (2 routine/sensitive merges) — flush again
+  immediately after, don't defer.
+- **After #1131 merges:** get PR #1126 (branch `build/1109-runtime-context`, agent
+  `Build-1109-RuntimeContext-9` at pane `w1:pTE`, currently idle/holding) to merge/rebase `main`
+  so its next CI run picks up the pg-boss fix, re-run its "Verify foundation and app" check, then
+  resume normal QA/merge flow for #1126 per g13's original manifest plan (see "CURRENT STATE"
+  section further below — read only that section).
+- **Fleet snapshot:** `Build-1109-RuntimeContext-9` (`w1:pTE`) idle, holding. `Sol-` and
+  `Fable-TimeoutRootCause-v1` panes already reaped (previous gen). `Fable-1126-Timeout-Ruling-v2`
+  (`w1:pTH`) was last seen mid-turn near auto-compact (72% ctx) — re-check on this pass; its
+  investigation is likely now redundant given #1130/#1131's confirmed root cause — tell it to
+  stand down once it surfaces, unless it found something new.
+- Do **not** re-open the Sol/Fable timeout investigation — root cause is settled and shipped.
+
+## ⏭️ IMMEDIATE NEXT ACTION for g18 (2026-07-17, historical — superseded above)
 
 **Lock:** I am `Coord-1109-1110-g18`, pane `w1:pTW`, session `58712e78-e07d-4061-9215-b63109629afb`.
 Confirmed sole active coordinator via `herdr pane list`; messaged `Coord-1109-1110-g17` (`w1:pTP`,
