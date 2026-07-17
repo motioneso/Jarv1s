@@ -384,3 +384,31 @@ the hard stop above.**
 out mechanically). It looks like a shared timeout constant firing repeatedly across the suite.
 No reruns/`ci.yml` edits/code changes taken — holding for your ruling on next steps (continue
 digging into the ~11.1s constant vs. another path).
+
+**📋 CROSS-CHECK RESULT (2026-07-17, `Coord-1109-1110-g13`) — the adjacent lead is CONFIRMED real,
+and it plausibly unifies with the ~11.1s pattern above.** `Build-1110-AppMap-15` (#1122's lane)
+verified: `loadAppMap` (`packages/settings/src/app-map.ts:27-33`) has no try/catch — `readFileSync`
++ `JSON.parse` throws on ENOENT/shape-mismatch — called unguarded at
+`module-registry/src/index.ts:2090` on every `createApiServer()` boot. Its producer,
+`pnpm build:app-map` (`package.json:39`), is wired only into `apps/api`'s dev/start scripts and
+the prod build pipeline (`scripts/build-app.ts:79`) — **`verify:foundation`'s chain
+(`test:unit`/`db:migrate`/`test:uat-seed`/`test:integration`) never runs it, no pretest hook.**
+Local VF only stays green because `dist/app-map.json` (gitignored) is a **stale leftover artifact**
+from a prior manual build in that worktree (mtime 2026-07-16 23:03:55) — a genuine fresh CI
+checkout would not have it, and `createApiServer()` would throw synchronously on every boot.
+
+**Working theory this converges to:** a fresh CI checkout has no `dist/app-map.json` →
+`createApiServer()` throws in every integration test file's `beforeAll` → if the test runner
+retries a failed setup hook with some backoff before giving up, a ~11.1s-per-retry backoff would
+produce exactly the "clean multiples of ~11.1s across ~46 unrelated files" pattern from the VF
+diagnostic above. Unverified (nobody's confirmed vitest's actual retry/backoff behavior on a
+`beforeAll` throw yet), but it's the first theory that explains **both** findings at once instead
+of needing two unrelated root causes.
+
+**Proposed fix (not yet touched, awaiting your go-ahead):** wire `build:app-map` into
+`verify:foundation`'s chain (or a global `pretest`/`globalSetup` hook) so a fresh checkout produces
+the artifact before any `createApiServer()` boot — test-infra-only, not a `ci.yml` edit, and not
+a "just bump the budget" stopgap. Alternative: guard `loadAppMap` with a safe fallback if a missing
+app-map should be non-fatal at runtime (separate question — may be worth doing regardless, but
+doesn't itself fix VF timing without also producing the file in test setup). Holding — no action
+without your explicit authorization per the hard stop.
