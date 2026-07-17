@@ -78,7 +78,12 @@ export async function resetEmptyFoundationDatabase(): Promise<void> {
       migrationsDirectory: moduleMigrationsDirectory
     });
   }
-  await migratePgBoss(connectionStrings.migration, getAllQueueDefinitions());
+  // Migration-level boss (distinct from the app-level boss #1124/#1128 patched) hits pg-boss's
+  // native ~10s connectionTimeoutMillis default on every integration test's DB reset. Second
+  // instance of the same bug class — see #1130.
+  await migratePgBoss(connectionStrings.migration, getAllQueueDefinitions(), {
+    connectionTimeoutMillis: 25_000
+  });
   await runSqlFiles(connectionStrings.migration, join(root, "infra/postgres/grants"));
 }
 
