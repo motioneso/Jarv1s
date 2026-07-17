@@ -3169,6 +3169,18 @@ resume from this note before taking any merge-sensitive action.
 - Final QA and merge remain stopped. Parked review lanes E/F/G and unrelated changes remain
   untouched; `merges_since_relay` is `0`.
 
+## Continuation note — 2026-07-17 #1117 UAT reporting relay
+
+- Exact-head browser run `run_1` completed, but UAT session
+  `019f6d7d-2ac3-7381-8e6e-284d721616f7` suffered repeated WebSocket transport failures during
+  screenshot self-verification and was reaped after a fresh successor confirmed control.
+- Exact label `UX 1117 UAT Finish`, Codex session
+  `019f6d9f-b160-7aa3-ba26-62a91707d377`, is driving the same detached worktree on Sol/high. It must
+  not rerun the browser flow; scope is remaining visual verification, CP report, secret scan,
+  sanitized evidence push, PR verdict, and coordinator report only.
+- Final QA and merge remain stopped. Parked review lanes E/F/G and unrelated changes remain
+  untouched; `merges_since_relay` is `0`.
+
 ## Continuation note — 2026-07-16 #1117 second CI failure; stop line
 
 - Automatic exact-head run `29542691419` failed `Verify foundation and app` at
