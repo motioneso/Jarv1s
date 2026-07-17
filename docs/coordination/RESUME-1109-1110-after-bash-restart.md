@@ -1,6 +1,30 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## 🛑 CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g8`, relaying at 70% meter — #1122 FULLY HALTED, ESCALATED)
+## ✅ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g9`, takeover confirmed)
+
+**g9 is driving.** Pane `w1:pT9`, session `64b04945-8e2a-4f1e-acf8-fa733106eddd`, label
+`Coord-1109-1110-g9` (only pane with that label — confirmed via `herdr pane list`). g8 (`w1:pT8`)
+acknowledged the handoff and self-reaped cleanly — its pane is gone from `herdr pane list`.
+
+**Takeover checklist — all done:**
+- Read RESUME doc CURRENT STATE (g8's) + `AWAITING-BEN.md` #1122 section — no ruling from Ben
+  posted yet, #1122 remains fully halted per g8's escalation (4th VF failure, hard-stop condition
+  3). No action taken on that lane beyond monitoring, per instruction.
+- Fleet re-adopted: `Build-1110-AppMap-15` (`w1:pST`) idle, holding on `build/1110-app-map` as
+  instructed — no pushes, no re-runs. `Build-1109-RuntimeContext-8` (`w1:pT6`) confirmed
+  **working** — running `verify:foundation` for Task 7 (final task) against a recreated
+  `jarv1s_b1109` DB, under its own 30-min monitor (`brld5gm9g`). Unaffected by #1122, normal
+  Phase 2/3 flow once it reports.
+- Liveness monitor re-armed as `b9mrtd55o` (persistent, diffs `herdr pane list` `agent_status` for
+  `w1:pST`/`w1:pT6`, emits only on change). g8's monitor died with its relay as expected.
+
+**Next up:** wait for -8's `verify:foundation` result → wrap up Task 7 → PR. Keep watching
+`AWAITING-BEN.md` for Ben's #1122 ruling — resume per his chosen option (a/b/c/d) once posted, do
+not re-derive.
+
+Below is g8's now-superseded takeover note (kept for history — skim, don't deep-read).
+
+## 🛑 PRIOR STATE (updated 2026-07-17 by `Coord-1109-1110-g8`, relaying at 70% meter — #1122 FULLY HALTED, ESCALATED)
 
 **YOU ARE gen-9 (or later).** g8 finished the hard-stop investigation and escalation before
 relaying — nothing left to investigate on this thread, your job is to hold the line, not re-open it.
