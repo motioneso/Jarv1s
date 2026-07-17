@@ -254,3 +254,16 @@ describe("page-context.ts never reads raw form-control values (#679 structural g
     expect(withoutBacktickedRefs).not.toMatch(/\.value\b/);
   });
 });
+
+describe("page-context.ts stays Tier-1 only (#1109 privacy boundary)", () => {
+  it("contains no field-value, raw-HTML, or src reads", () => {
+    const path = fileURLToPath(new URL("../../apps/web/src/chat/page-context.ts", import.meta.url));
+    const source = readFileSync(path, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "")
+      .replace(/`[^`]*`/g, "");
+    expect(source).not.toMatch(/\.value\b/);
+    expect(source).not.toMatch(/\.innerHTML\b/);
+    expect(source).not.toMatch(/\.src\b/);
+  });
+});

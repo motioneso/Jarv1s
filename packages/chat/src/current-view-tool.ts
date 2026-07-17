@@ -13,6 +13,9 @@ const errorSchema = {
   }
 } as const;
 
+// #1109 v1 intentionally ships Tier 1 only. The DOM tier from design §6 is deferred to an
+// approved follow-up and must reuse projection/redaction with a 16KB cap; screenshots require
+// separate per-capture consent UX. Do not add model-controlled capture escalation here.
 export const chatGetCurrentViewOutputSchema = {
   type: "object",
   additionalProperties: false,

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { expect, it, vi } from "vitest";
 import { sanitizeAssistantToolResult } from "@jarv1s/ai";
 import {
@@ -64,4 +66,19 @@ it("runs through the read service and recursively strips undeclared fields", asy
   const sanitized = sanitizeAssistantToolResult(chatGetCurrentViewOutputSchema, result);
   expect(get).toHaveBeenCalledWith(expect.anything(), "u1");
   expect(JSON.stringify(sanitized)).not.toContain("modelName");
+});
+
+it("ships no screenshot or heavy-DOM request surface", () => {
+  const schema = JSON.stringify(chatGetCurrentViewOutputSchema).toLowerCase();
+  expect(schema).not.toContain("screenshot");
+  expect(schema).not.toContain("innerhtml");
+  expect(schema).not.toContain("src");
+  expect(schema).not.toContain("value");
+});
+
+it("records the approved Tier-1-only deviation at the tool schema", () => {
+  const path = fileURLToPath(
+    new URL("../../packages/chat/src/current-view-tool.ts", import.meta.url)
+  );
+  expect(readFileSync(path, "utf8")).toContain("#1109 v1 intentionally ships Tier 1 only");
 });
