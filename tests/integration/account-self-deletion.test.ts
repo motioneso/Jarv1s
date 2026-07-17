@@ -8,6 +8,7 @@ import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import type { MeResponse } from "@jarv1s/shared";
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import {
   connectionStrings,
   resetEmptyFoundationDatabase,
@@ -23,6 +24,7 @@ import {
 describe("#239 account self-service deletion", () => {
   let appDb: Kysely<JarvisDatabase>;
   let authRuntime: JarvisAuthRuntime;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
 
   async function signUp(opts: { name: string; email: string; password: string }) {
@@ -39,12 +41,20 @@ describe("#239 account self-service deletion", () => {
     await setInstanceSetting("registration.requires_approval", { value: false });
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
-    server = createApiServer({ appDb, authRuntime, logger: false });
+    // #1124: see multi-user-isolation.test.ts for rationale — override pg-boss's default
+    // 10s connectionTimeoutMillis so a slow-but-healthy CI connection isn't killed early.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, authRuntime, boss, logger: false });
     await server.ready();
   });
 
   afterEach(async () => {
-    await Promise.allSettled([server?.close(), authRuntime?.close(), appDb?.destroy()]);
+    await Promise.allSettled([
+      server?.close(),
+      authRuntime?.close(),
+      appDb?.destroy(),
+      boss?.stop({ graceful: false })
+    ]);
   });
 
   afterAll(async () => {
