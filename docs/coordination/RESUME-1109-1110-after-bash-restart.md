@@ -2,23 +2,47 @@
 
 ## ⏭️ IMMEDIATE NEXT ACTION for g14 (read this block first, then skim CURRENT STATE below)
 
-**g13 relayed at 70% context (2026-07-17).** In-flight, not yet done: UX Coordinator (`w1:pSS`,
-codex session `019f6e67-577e-78f0-9b4a-822c0c95c396`, legitimate/confirmed — see UPDATE 7) is
-spawning **Fable** to deliver Ben's ruling on #1126, and asked g13 to (1) confirm the #1126
-diagnostic is durable on the PR/issue or in `AWAITING-BEN.md`, (2) send a pointer. **g13 had NOT
-yet done either when the relay trigger fired.** Do this first:
+**g13 relayed at 70% context (2026-07-17).** Before relaying, g13 discovered two things that
+change the picture from what UX Coordinator's request assumed — **check these FIRST, they may
+already answer "is the diagnostic durable" without you doing any posting:**
 
-1. The diagnostic + cross-check + unified theory are fully written up in this repo's
-   `docs/coordination/AWAITING-BEN.md` → `## #1126 CI` section (DIAGNOSTIC RESULT + CROSS-CHECK
-   RESULT blocks) — committed on branch `coord/settings-host-cleanup`, **but that branch is
-   LOCAL-ONLY (53 commits ahead of `origin/coord/settings-host-cleanup`, unpushed)** — a freshly
-   spawned Fable session will NOT see it unless it happens to check out this exact worktree/branch.
-   **Safer: post the diagnostic + cross-check + unified theory as a `gh pr comment 1126` (or `gh
-   issue comment 1127` — that's the CI-timeout issue this hard-stop grew out of) so it's durable
-   independent of any local branch state.** Keep it compact — summarize, don't paste the whole
-   AWAITING-BEN section.
-2. Then send `w1:pSS` (UX Coordinator) the pointer (PR/issue comment URL) so Fable can read it.
-3. **No rerun, no merge, no code changes** — still hard-stopped, Ben/Fable rules next, not you.
+1. **A NEW Fable ruling session already exists**, spawned by someone (not g13) specifically for
+   the second (post-bump) #1126 timeout: pane `w1:pTF`, label `Fable 1126 Timeout Ruling`,
+   worktree `/home/ben/Jarv1s/.claude/worktrees/fable-1126-timeout`, branch
+   `fable/1126-timeout-ruling`. **Its `agent_status` shows `done`, but it has posted NOTHING new**
+   — `gh issue view 1127 --json comments` still shows only **1** comment, timestamped
+   `2026-07-17T16:40:09Z`, which is the **original** ruling (the one that authorized the 25→35min
+   bump) — it predates the second timeout entirely and is NOT a new ruling. Its worktree's last
+   commit (`65549ed9`, "docs: hand off 1126 timeout ruling to Fable") is a **handoff doc written
+   TO Fable**, not a ruling FROM it — nothing committed after that. **First action: `herdr pane
+   read w1:pTF --source recent --lines 30` and re-verify `gh issue view 1127 --json comments`
+   fresh — this session may be stalled/idle needing a nudge, or may have relayed itself without
+   updating status.** If it's genuinely stalled, that's probably a bigger unblock than posting the
+   diagnostic yourself.
+2. **A QA verdict already landed on PR #1126 independent of the VF-timeout question**: comment
+   from `motioneso` @ `2026-07-17T12:11:39Z` (`gh pr view 1126 --json comments`) — **RED**, sensitive-tier,
+   with a **BLOCKING, reproducible (not flaky) defect**: `apps/api/package.json`'s `start` script
+   (used by `infra/docker-compose.yml`'s dev-compose boot) is missing the `build:app-map` step that
+   `dev` has, so `packages/module-registry/src/index.ts`'s unconditional `loadAppMap()` throws on
+   dev-compose boot every time — this is **the exact same root cause g13's diagnostic independently
+   found** (see CURRENT STATE below / `AWAITING-BEN.md`), now cross-confirmed by an independent QA
+   pass, with a concrete fix already spelled out (add `build:app-map` to the `start` script, or
+   make `loadAppMap` tolerant of a missing file). **This defect blocks merge regardless of how the
+   VF-timeout ruling lands** — it may be worth fixing this narrow, well-scoped bug on
+   `build/1109-runtime-context` even before/independent of Fable's timeout ruling, since it's a
+   real, root-caused, one-line-ish fix, not another timeout gamble. Still: **no code changes
+   without checking who owns that lane** (`Build-1109-RuntimeContext-9`, `w1:pTE`) — assign it
+   there, don't hand-edit yourself.
+
+**Only if the above doesn't resolve it**, fall back to what UX Coordinator originally asked: the
+diagnostic + cross-check + unified theory are written up in this repo's `docs/coordination/AWAITING-BEN.md`
+→ `## #1126 CI` section, but that's on **local-only branch `coord/settings-host-cleanup`, 53
+commits ahead of origin, unpushed** — not visible to a fresh session unless pushed or posted via
+`gh pr comment 1126` / `gh issue comment 1127` directly. Send whichever pointer ends up being the
+real one to `w1:pSS` (UX Coordinator).
+
+**No rerun, no merge, no ci.yml edits** — still hard-stopped per Fable's own clause, until a
+genuine new ruling lands (not the stale 16:40:09Z one).
 
 Verified fresh as of the relay: `gh pr checks 1126` → `Verify foundation and app` = **FAIL,
 35m25s**, head `9c1cb416` (docs-only commit, not a repair) — re-verify again before trusting this
