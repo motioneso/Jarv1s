@@ -3169,6 +3169,23 @@ resume from this note before taking any merge-sensitive action.
 - Final QA and merge remain stopped. Parked review lanes E/F/G and unrelated changes remain
   untouched; `merges_since_relay` is `0`.
 
+## Continuation note — 2026-07-17 #1117 final UAT RED; Activity blocker
+
+- Final exact-head UAT posted RED at
+  `https://github.com/motioneso/Jarv1s/pull/1117#issuecomment-4998074616`, with sanitized evidence
+  commit `714fd48a6048131594ecc524902a9ce6b7a20f93`. Release blocker: Activity remains loading on the
+  normal path after 4 seconds; a controlled audit delay beyond 3 seconds shows neither the truthful
+  error nor `Try again`, and removal/retry does not recover.
+- Proven passing: onboarding Finish reaches `/settings`; desktop and `390x844` Today; independent
+  Light/Dark plus Teal; Calendar grant remove/restore; model actions; skill creation; nonzero-byte
+  export. Keep these out of the next repair scope.
+- Explicit gaps remain honestly blocked by prerequisites/UI availability; Sports truncation stays
+  deferred lower severity. Exact UAT sessions `019f6d7d-2ac3-7381-8e6e-284d721616f7` and
+  `019f6d9f-b160-7aa3-ba26-62a91707d377`, their disposable tree, and credential-bearing scripts were
+  reaped; sanitized evidence remains pushed.
+- Reopen only an Activity owner repair plan. Final QA and merge remain stopped; parked review lanes
+  E/F/G and unrelated changes remain untouched. `merges_since_relay` is `0`.
+
 ## Continuation note — 2026-07-17 #1117 UAT reporting relay
 
 - Exact-head browser run `run_1` completed, but UAT session
