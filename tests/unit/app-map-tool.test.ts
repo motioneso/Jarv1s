@@ -88,4 +88,17 @@ describe("AppMapReadService", () => {
     });
     expect(sanitized.data).not.toHaveProperty("secret");
   });
+
+  it("logs an undeclared query as a coverage gap", async () => {
+    const logGap = vi.fn();
+    const service = createAppMapReadService({
+      artifact,
+      resolveActiveModules: vi.fn().mockResolvedValue([{ id: "news" }]),
+      resolveFeatureFlagState: vi.fn().mockReturnValue(true),
+      getUser: vi.fn().mockResolvedValue({ is_instance_admin: false }),
+      logGap
+    });
+    await service.query({} as never, "u1", { query: "quantum sandwich settings" });
+    expect(logGap).toHaveBeenCalledWith({ kind: "query", value: "quantum sandwich settings" });
+  });
 });
