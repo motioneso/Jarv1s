@@ -1,6 +1,49 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏩ CURRENT STATE (updated 2026-07-16 by `Coord-1109-1110-g4`, session 5622ee69-917d-425c-a6d3-acdb93d1e8c7)
+## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g4`, session 5622ee69 — relay → gen-5, genuine 70%)
+
+**YOU ARE gen-5. Do these FIRST:**
+1. `herdr pane list` — find your own pane/session, confirm it (relay spawns you in the SAME tab
+   as g4's pane, NOT the agents tab).
+2. Re-arm a Monitor on PR #1122 CI (`gh pr checks 1122`) — the prior one (`bt30t6376`) hit its
+   terminal-state break condition and ended; it does NOT auto-continue after a new push. Also
+   confirm the PR/lane-death monitor (`bvvuha20x`) is either still running (session-only, may have
+   died with g4) or re-arm it too: watches `gh pr list --head build/1110-app-map` (already open,
+   so this leg is moot now) + lane death (no `Build-1110-AppMap*` pane).
+3. **Reap g4** (label `Coord-1109-1110-g4`, session `5622ee69-917d-425c-a6d3-acdb93d1e8c7`,
+   currently pane `w1:pSV`) — resolve fresh by label+session, confirm distinct successor first.
+
+**IMMEDIATE WORK — PR #1122 CI is RED, uninvestigated on the VF side:**
+- **`Compose deployment smoke`: FAIL.** `infra-api-1` never became healthy (job run
+  `29558438821`/job `87815542417`), no app logs captured (job has no diagnostic-dump step).
+  Confirmed NOT pre-existing (green on `main` at base SHA `65b8a7f8`; `Prod compose deployment
+  smoke` passed on this same branch) — real regression, not CI-waivable. **Already reopened
+  `Build-1110-AppMap-15`'s lane** (pane `w1:pST`, session `f8124cd9`, same worktree/branch
+  `build/1110-app-map`) with repro instructions; it had started investigating (thinking) as of
+  last check — **check its pane for progress/findings before re-messaging it.**
+- **`Verify foundation and app`: FAIL** (job `87815542433`) — **NOT YET INVESTIGATED.** Could be
+  the same known-pre-existing false positive `-15` already flagged locally (VF_EXIT=1,
+  `module-web-browser-safety.test.ts` type-only-reexport blind spot,
+  `packages/shared/src/index.ts:5`) reproducing in CI too (in which case it's a documented,
+  expected gap — not new), OR something newly broken. **Check the job log first**
+  (`gh api repos/motioneso/Jarv1s/actions/jobs/87815542433/logs`) before doing anything else —
+  don't assume either way.
+- `Build and publish images`: skipping (dependent on the failed jobs, expected).
+- **QA is blocked** until both red checks are resolved (fixed-and-green, or the VF one confirmed
+  as the already-documented pre-existing gap with nothing new). Tentative tier for whenever QA
+  spawns: **sensitive** (module-sdk barrel touch = cross-module contract change).
+- **Merge stays blocked regardless** on Ben's AWAITING-BEN #1110 exit-criterion ruling
+  (`docs/coordination/AWAITING-BEN.md` §"#1110 app-map — real-LLM grounding e2e...") — CI going
+  green does NOT unblock merge on its own.
+
+**#1109 in parallel (unaffected by the above, keep supervising independently):** spawned, worktree
+`.claude/worktrees/build-1109-runtime-context`, branch `build/1109-runtime-context` off
+`origin/build/1110-app-map` (upstream tracking unset). Build agent **`Build-1109-RuntimeContext`**,
+pane `w1:pSW`, tab `w1:t2D`, confirmed Sonnet 5, was working as of last check — no report yet,
+nothing to action unless it escalates.
+
+Below is g4's own prior takeover note + the full gen-3 history, kept for reference (skim, don't
+deep-read):
 
 **gen-4 is driving.** Took over from gen-3 (cb9ca6a3, reaped clean — it had already stopped
 taking coordinator actions before I closed its pane w1:pS5). Persistent PR/lane-death Monitor
