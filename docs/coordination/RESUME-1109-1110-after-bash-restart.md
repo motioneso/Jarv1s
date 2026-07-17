@@ -1,36 +1,57 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏩ CURRENT STATE (updated 2026-07-16 by `Coord-1109-1110-g3`, session cb9ca6a3 — gen-3, resumed clean)
+## ⏩ CURRENT STATE (updated 2026-07-16 by `Coord-1109-1110-g3`, session cb9ca6a3 — gen-3 relay → gen-4)
 
-Run is HEALTHY and mid-build. Plans committed, #1110 build lane live, #1109 gated on #1110 PR.
-**Do NOT redo:** plan revision, plan commit, #1110 spawn, step-½ verification, Tasks 1–4.
+Run is HEALTHY and mid-build. #1110 build lane in its final task (Task 8 UAT gate); #1109 gated on
+#1110 PR. **Do NOT redo:** plans, #1110 spawn, step-½, Tasks 1–7.
 
-**gen-3 resume actions DONE (do not repeat):**
-- `echo OK` clean (Bash healthy; no snapshot wedge).
-- Persistent PR Monitor RE-ARMED (fires on `build/1110-app-map` PR open OR Build-1110-AppMap lane
-  death). Re-arm again if YOUR session restarts — monitors die with the session.
-- Notified live build agent `Build-1110-AppMap-5` (pane re-resolve; was w1:pS4) that the coordinator
-  label is now `Coord-1109-1110-g3` — escalations route here, not to the dead gen-2 label.
-- **#1109 handoff PRE-WRITTEN:** `docs/superpowers/handoffs/2026-07-16-1109-runtime-context-build.md`
-  (on coord branch). At #1109 spawn: create branch `build/1109-runtime-context` off
-  `build/1110-app-map`, copy this handoff onto it, commit, spawn Sonnet 5. It already folds in the
-  grounding rule + canonical DI seam. #1109 plan = 7 tasks (not 8).
+**YOU ARE gen-4 — do these FIRST (gen-3's session died with these live-only bits):**
+1. **RE-ARM the PR Monitor** (monitors are session-only, died with gen-3). Persistent Monitor that
+   fires on (a) `build/1110-app-map` PR open — poll
+   `gh pr list --head build/1110-app-map --json number --jq '.[0].number // empty'` — AND (b) lane
+   death (no pane whose label starts `Build-1110-AppMap` in `herdr agent list`).
+2. **Resolve the live build pane FRESH** by label from `herdr agent list` (pane numbers reflow).
+   Last driver was **`Build-1110-AppMap-12`**, session `17b54d76…`, pane was `w1:pSK`. Confirm
+   exactly one pane holds a `Build-1110-AppMap*` label before addressing/reaping.
 
-**#1110 app-map build lane (LIVE):**
-- Worktree `~/Jarv1s/.claude/worktrees/build-1110-app-map`, branch `build/1110-app-map` (off
-  `origin/main`; specs+plans+handoff committed there). Handoff:
-  `docs/superpowers/handoffs/2026-07-16-1110-app-map-build.md`. Plan is 8 tasks.
-- **Live builder:** relay chain now at **`Build-1110-AppMap-5`**, pane `w1:pS4`, session
-  `02aeb0b1-a3ec-442b-b720-9e88bb8a38c4` (Sonnet 5, bypass on). Self-relays at 70% in same worktree —
-  successors read the newest RELAY doc, not coordinator herdr messages. Re-resolve live pane/label
-  from `herdr agent list` before addressing/reaping (pane numbers reflow).
-- **Committed:** Task 1 `2ffadbf1`, Task 2 `432fe68e`, Task 3 `25e44f86` (+ relay checkpoints).
-- **Task 4 = APPROVED option (a):** plan's `settings-page.tsx` ADMIN_SECTIONS 'identity' section is
-  PHANTOM (no IdentityPane exists). DROP 'identity', ground the map to REAL sections/labels/panes,
-  do NOT build new UI (out of #1110 scope). `-5` is executing this now.
-- **GROUNDING RULE (carry into #1109 too):** the app-map MUST mirror actual code — real section ids,
-  labels, panes. Never invent surfaces. This is spec §3/§4 anti-hallucination; fold it into the
-  #1109 handoff verbatim.
+**#1110 app-map build lane (branch `build/1110-app-map`, worktree
+`~/Jarv1s/.claude/worktrees/build-1110-app-map`):**
+- **Committed:** Tasks 1–7 (T5 `5fc87016`, T6 `a274d98d`, T7 `08e6a716`; earlier T1 `2ffadbf1`,
+  T2 `432fe68e`, T3 `25e44f86`). Relay checkpoint HEAD ~`b75aa94a`.
+- **Task 8 = FINAL task, mid-flight:** #1000 UAT grounding spec. Plan text for T8 is STALE — the
+  authoritative T8 guide is `docs/superpowers/handoffs/2026-07-16-1110-app-map-relay-8.md` (per-spec
+  `uatLevel` export, NOT `run-uat.ts` selector; SKIP `seed/member.ts` — id collides with
+  `UAT_SECOND_OWNER_ID`; thread `withoutNewsJsonBinding` additively).
+- **BLOCKER I ADJUDICATED (done, -12 building the fix):** T8 UAT surfaced a browser-bundle break —
+  `packages/shared` re-exports the runtime `const AI_MODEL_CAPABILITIES` from the `@jarv1s/module-sdk`
+  barrel, which transitively pulls `rate-limit-key.ts`'s `node:crypto` → vite `createHash` error in
+  `apps/web`. **Directed NARROW fix** (NOT moving rate-limit-key = 6-file server blast radius):
+  extract `AI_MODEL_CAPABILITIES` + `AiModelCapability`/`AiModelTier` into node-clean leaf
+  `packages/module-sdk/src/ai-capabilities.ts`; barrel re-exports from it; add subpath export
+  `"./ai-capabilities"` to module-sdk `package.json`; `packages/shared/src/ai-types.ts` imports the
+  leaf subpath, not the barrel. Filed follow-up **issue #1120** (proper barrel browser-safe split via
+  `./server` subpath) — -12 cites #1120 in the regression-fix commit. **If -12 escalates the fix is
+  bigger than scoped, hold and reassess — do not let it balloon T8.**
+- **After T8 green:** `verify:foundation` → pre-push trio → rebase origin/main → `coordinated-wrap-up`
+  (build agent opens PR + reports to `Coord-1109-1110-g3`; coordinator NEVER merges/boards/closes).
+
+**⚠ CROSS-SESSION HOLD YOU OWE A RELEASE:** pane label **`UX 1117 UAT 6ca14fca`**, session
+`61c9ee5d…` (was pane `w1:pSH`) is HOLDING all docker UAT for us to avoid a 10.254.0.0/24 subnet
+collision (no overlap guard — memory `uat-docker-subnet-map`). **Ping it "clear — build UAT done,
+docker free"** via `herdr-pane-message` the moment -12's UAT run finishes (or when #1110 PR opens).
+Do not leave it blocked.
+
+**#1109 (spawn AFTER #1110 PR opens):** handoff PRE-WRITTEN at
+`docs/superpowers/handoffs/2026-07-16-1109-runtime-context-build.md` (coord branch). On PR open:
+create branch `build/1109-runtime-context` off `build/1110-app-map`, copy handoff onto it, commit,
+spawn build agent (Sonnet 5). Handoff already folds in grounding rule + canonical DI seam
+(`dependencies.appMapService` / `getBuildInfo()`). #1109 plan = 7 tasks.
+
+**GROUNDING RULE (both issues):** app-map + current-view MUST mirror actual code/runtime — real
+section ids, labels, panes, build facts. Never invent surfaces. Spec anti-hallucination.
+
+**Reap protocol:** before `herdr pane close`, re-resolve by label + confirm `agent_session.value`
+matches the predecessor you mean to kill; confirm successor is driving. gen-3 cleanly reaped -5..-11.
 
 **⚠ SUCCESSOR MUST RE-ARM THE MONITOR.** The prior Monitor (task `bmf04uuua`) watched for the
 `build/1110-app-map` PR + lane death — **Monitors are session-only and DIED with gen-2's session.**
