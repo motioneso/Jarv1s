@@ -1,6 +1,54 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏭️ IMMEDIATE NEXT ACTION for g15 (read this block first — g14's block below is now historical)
+## ⏭️ IMMEDIATE NEXT ACTION for g16 (read this block first — g15's block below is now historical)
+
+**g15 relaying at 70% context (2026-07-17 ~20:50). Ben answered both open items directly in
+chat — no more "hold and wait," both lanes are now active with real work dispatched. Nothing new
+needed from you except supervising these two agents to completion:**
+
+1. **#1122 — Ben authorized a real fix (not a rerun).** Confirmed with Ben: this is test/CI-infra
+   only, zero production-runtime impact. Dispatched to `Build-1110-AppMap-15` (`w1:pST`, currently
+   `working`): (a) find why PR #1128's widened pg-boss `connectionTimeoutMillis` override still
+   doesn't cover `auth-settings.test.ts`/`auth-bootstrap-recovery.test.ts` on `build/1110-app-map`
+   @ `fe032169`, (b) evaluate/apply g13's unauthorized-until-now theory in `AWAITING-BEN.md`
+   ("Working theory this converges to" — missing `dist/app-map.json` on fresh CI checkout →
+   `createApiServer()` throws in every integration `beforeAll` → possible ~11.1s retry-backoff
+   explaining the broader 46-file slowdown). Told explicitly: real fix + fresh VF + report back,
+   no `ci.yml` timeout edits, no blind reruns. **Not yet reported.** Also queued behind this: once
+   CI is green, #1122's merge still needs a manual live-path walk (3 app-map grounding scenarios,
+   transcripts/screenshots on the PR) — already pre-approved by Ben via Fable 2026-07-17, see
+   `AWAITING-BEN.md` line ~114-120, just not done yet.
+
+2. **#1126 — Ben confirmed Fable is his legitimate delegate; the "suspected bypass" was a false
+   alarm** (the earlier no-ruling was a genuine credits outage, not fraud). The ruling at
+   [issuecomment-5006648397](https://github.com/motioneso/Jarv1s/pull/1126#issuecomment-5006648397)
+   stands as legitimate. Spawned sensitive-tier QA on PR #1126 @ head `9c1cb416` — verdict posted
+   [issuecomment-5007374804](https://github.com/motioneso/Jarv1s/pull/1126#issuecomment-5007374804):
+   **RED, but both of Ben's required checks PASS** (build:app-map fix effective; deterministic-half
+   UAT green, real-LLM half correctly deferred to #1121). RED is purely because this branch predates
+   `origin/main`'s merge of PR #1128 — a stale-branch problem, not a new defect; no waiver needed,
+   just needs the merge. Dispatched to `Build-1109-RuntimeContext-9` (`w1:pTE`, currently `working`):
+   merge `origin/main` in, run fresh VF, report. **Explicitly told NOT to duplicate the #1122
+   root-cause dive** if the same pg-boss signature recurs post-merge — that's `Build-1110-AppMap-15`'s
+   job on the sibling lane (same shared test files, same bug); hold and wait for that fix to land on
+   `main` instead. **Not yet reported.**
+
+**Fleet as of relay:** `Build-1110-AppMap-15` (`w1:pST`) working on #1122 root-cause+fix.
+`Build-1109-RuntimeContext-9` (`w1:pTE`) working on merge-main+VF for #1126, told to hold on deep
+dive. `w1:pTH` (Fable pane, `fable-1126-timeout-v2`) — no longer disputed (Ben confirmed legit),
+left un-reaped but not urgent, reap whenever convenient. `UX Coordinator` (`w1:pSS`) — separate
+lane, not ours, shows `done`. Liveness Monitor task `bmk2td1nq` (watching `w1:pST`/`w1:pTE`) was
+running in g15's session — **re-arm it fresh in yours** (g15's Monitor dies with the session).
+
+**No new Ben decisions pending right now.** `AWAITING-BEN.md`'s only open items belong to a
+*different* coordinator run (job-search-overnight, session `eb173f3a…` — cross-coordinator UAT
+decline + #1050) — not ours, leave them. Your job: watch `w1:pST`/`w1:pTE` for their next report,
+QA whichever PR moves first, keep driving toward merge. `#1122`'s branch is `build/1110-app-map`;
+`#1126`'s PR is on branch `build/1109-runtime-context`.
+
+---
+
+## ⏭️ IMMEDIATE NEXT ACTION for g15 (historical — g15's own arrival block, superseded above)
 
 **g14 relayed at 71% context (2026-07-17 ~19:20).** Two open escalations to Ben, BOTH awaiting his
 reply — do not act on either until he answers, do not re-attempt fixes yourself:
