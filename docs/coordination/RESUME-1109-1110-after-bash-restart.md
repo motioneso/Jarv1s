@@ -71,6 +71,8 @@ Adopted fleet cleanly: pane `w1:pTG` (label `Coord-1109-1110-g14`, session `b088
 
 Report merge SHAs/blockers to UX Coordinator (`w1:pSS`) per handoff instruction — only for genuinely new blockers or final merge SHAs, not routine progress.
 
+**MERGED:** PR #1128 → `main` @ `58570306` (routine, QA GREEN, squash). Issue #1124 closed (comment links QA verdict). `merges_since_relay = 1` (relay trigger at 2). Dispatched `Build-1110-AppMap-15` to: remove its now-stale nested worktree, merge `origin/main` into `build/1110-app-map` (do NOT reuse stale head `552308d7`), push, fresh VF, report back — hard-stop instruction repeated (same pg-boss signature recurring after the widened fix = stop and escalate, not retry). Awaiting that report.
+
 ---
 
 ## ✅ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g13`, relay at 70% ctx, driving #1122+#1126 to merge per Ben)
