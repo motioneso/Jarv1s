@@ -832,20 +832,20 @@ export async function importChatSkill(file: File): Promise<ChatSkillResponse> {
   return response.json() as Promise<ChatSkillResponse>;
 }
 
-/**
- * #679 — `pageContext` is a bounded, redacted snapshot of what the user currently sees
- * (see apps/web/src/chat/page-context.ts), attached ONLY when the caller decides the
- * message is asking about the current page. Optional and best-effort: the server
- * silently drops a malformed/oversized value rather than rejecting the turn.
- */
-export async function sendChatTurn(
-  text: string,
-  pageContext?: PageContextSnapshotDto
-): Promise<SendChatTurnResponse> {
+export async function sendChatTurn(text: string): Promise<SendChatTurnResponse> {
   return requestJson<SendChatTurnResponse>("/api/chat/turn", {
     method: "POST",
-    body: pageContext ? { text, pageContext } : { text }
+    body: { text }
   });
+}
+
+/**
+ * #1109 — pushes the client's current-view snapshot to the server so `chat.getCurrentView` can
+ * pull it on demand. Called by {@link usePageContextSync}, debounced off route/DOM/focus/selection
+ * changes — not on the chat-turn path (see apps/web/src/chat/use-page-context-sync.ts).
+ */
+export async function updatePageContext(snapshot: PageContextSnapshotDto): Promise<void> {
+  await requestJson<void>("/api/chat/page-context", { method: "PUT", body: { snapshot } });
 }
 
 export async function startEveningInterview(input: { readonly briefingRunId?: string } = {}) {

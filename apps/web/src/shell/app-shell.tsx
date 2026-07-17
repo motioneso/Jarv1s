@@ -35,6 +35,7 @@ import { useUserLocale } from "../locale/locale-format";
 import { queryKeys } from "../api/query-keys";
 import { ChatDrawer } from "../chat/chat-drawer";
 import { useChatStream } from "../chat/use-chat-stream";
+import { usePageContextSync } from "../chat/use-page-context-sync";
 import { BrandMark } from "./brand-mark";
 import { ChatControlsProvider } from "./chat-controls-context";
 import { ASK_JARVIS_STARTER, consumeAskJarvis } from "../onboarding/ask-jarvis-handoff";
@@ -74,6 +75,7 @@ const iconMap: Record<string, ComponentType<{ readonly size?: number }>> = {
 };
 
 export function AppShell(props: AppShellProps) {
+  usePageContextSync();
   const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();

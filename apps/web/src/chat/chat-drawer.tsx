@@ -17,7 +17,6 @@ import { type UIEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { BrandMark } from "../shell/brand-mark";
 
-import { maybeCapturePageContext } from "./page-context";
 import {
   cancelChatTurn,
   beaconEndPrivateChat,
@@ -222,7 +221,7 @@ export function ChatDrawer(props: {
       setPendingUserText(trimmed);
       void (async () => {
         try {
-          const result = await sendChatTurn(trimmed, maybeCapturePageContext(trimmed)); // #679
+          const result = await sendChatTurn(trimmed);
           setPendingUserText(null);
           const postResponseRecords: readonly TranscriptRecord[] = [
             { kind: "user", text: trimmed, messageId: result.userMessageId },
