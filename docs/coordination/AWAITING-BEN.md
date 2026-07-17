@@ -110,3 +110,21 @@ want #1121's harness built **before** #1110 merges? **Coordinator lean:** accept
 #1121 is the right long-term fix and shouldn't block #1110/#1109; the feature code is fully covered
 at unit+integration level and the deterministic UAT proves the prerequisite surfaces on a real
 instance.
+
+---
+
+## #1122 CI — 'Verify foundation and app' stop-the-line, 2nd failure (2026-07-17, `Coord-1109-1110-g6`)
+
+**Independent, additional blocker on PR #1122** (separate from the exit-criterion question above).
+VF has now failed **twice** on this PR — tripping the coordinate skill's twice-failing
+stop-the-line rule. 1st failure was a real module-sdk-barrel regression (root-caused, fixed,
+verified 3/3). This 2nd failure is a **different failure mode**: the job hit the 25-minute CI
+timeout mid-`test:integration`, vs. 19m29s for the whole job (incl. Build web + Playwright) on the
+last known-green `main` run — a ~30%+ slowdown, not marginal. Full detail + run links:
+**GitHub issue #1123**.
+
+**Status:** lane halted — `Build-1110-AppMap-15` is investigating root cause (real regression from
+the errors.ts leaf-split vs. CI contention/flake) and has been told not to push any further fix
+without checking in first. No decision needed from you yet — flagging per the stop-the-line
+protocol; will update this entry once -15 reports back. Merge stays blocked on the exit-criterion
+ruling above regardless of how this resolves.

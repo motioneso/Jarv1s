@@ -1,6 +1,57 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g5`, session 435f7c1a — relay → gen-6, genuine 70%)
+## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g6`, session 08b39789)
+
+**gen-6 is driving.** Pane `w1:pT3`, tab `w1:t2E` (same tab as g5, not agents tab). Reaped g5
+(session `435f7c1a`, pane `w1:pSX` closed, confirmed distinct successor first) and confirmed
+`Build-1109-RuntimeContext-6` still driving (pane `w1:pT2`, session `c865baf7…`, `working`).
+`Build-1109-RuntimeContext-5` was already gone from the pane list at handoff — no action needed.
+
+**PR #1122 CI: VF's 2nd failure CONFIRMED STOP-THE-LINE, filed as GitHub issue #1123.**
+Read the job log myself (`gh run view 29560460812 --job 87821595425`) per g5's late-breaking
+instruction — this is a **different failure mode** than the pre-fix regression: the job hit the
+**25-minute CI timeout** mid-`test:integration` (last test seen: `route-guard.test.ts`, canceled
+7s later). Compose-smoke + prod-compose-smoke both PASS on this run. Compared against the last
+known-green `main` run (`29554454835`, whole VF job incl. Build web + Playwright = **19m29s**) —
+this run burned the **full 25m budget on just the `Verify foundation` step alone**. Real ~30%+
+slowdown, not marginal/noise.
+
+**Actions taken:**
+- Filed **GitHub issue #1123** documenting both VF failures, run links, and the timing comparison.
+- Added an entry to `docs/coordination/AWAITING-BEN.md` (new section, below the existing #1110
+  exit-criterion entry) — informational only, no decision needed from Ben yet, just flagging per
+  the stop-the-line protocol.
+- **Relayed to -15** (`herdr pane run w1:pST`, confirmed delivered — it was already independently
+  checking CI when the message landed): investigate whether this is a genuine regression from the
+  errors.ts leaf-split (Task: does moving `JarvisError`/`ModuleErrorManifest` plausibly add real
+  import-graph/typecheck overhead) or CI runner contention/flake — check if `test:integration`
+  timing is meaningfully slower locally too. **Explicitly told it NOT to push anything without
+  checking in with the coordinator first** (lane is halted per stop-the-line, no more blind
+  fixes). -15 was at 61% context when messaged, flipped to `working` immediately after.
+
+**Re-armed monitor:** persistent Monitor (`b28z85fu6`) diffing `herdr pane list` for
+`Build-1109-RuntimeContext-6` + `Build-1110-AppMap-15` status changes / pane death — only emits on
+change, so silence = both still running. The prior CI-terminal-state monitor (`b52frv1qd`) already
+fired and is not being re-armed on the same run (it's terminal, already read) — a **fresh** one is
+needed only once -15 pushes a new commit and a new CI run starts; don't arm one against a
+non-existent future run.
+
+**Next action for whoever reads this next:** wait for -15's investigation verdict (via monitor
+status flip to idle/done, or a direct escalation if it hits something). On verdict:
+- **Genuine regression, fixed + verified locally:** OK -15 to push, arm a fresh CI monitor on the
+  new run, update issue #1123 with the fix.
+- **Flake/contention, no code change:** OK a single CI re-run (no push needed —
+  `gh run rerun 29560460812 --failed` or similar), arm a monitor on that. If VF fails a **3rd**
+  time, this is now definitively not noise — escalate harder (don't just re-run again).
+- **Either way:** update issue #1123 and the AWAITING-BEN.md entry with the resolution before
+  considering this blocker cleared. Merge is STILL separately blocked on the #1110 exit-criterion
+  ruling above (unrelated, unresolved as of this update) — clearing CI does not unblock merge.
+
+Below is g5's own final relay note (partially superseded by the above — the "IMMEDIATE WORK" CI
+state it describes is now stale, already investigated and superseded) + full history, kept for
+reference (skim, don't deep-read):
+
+## ⏩ PRIOR STATE (updated 2026-07-17 by `Coord-1109-1110-g5`, session 435f7c1a — relay → gen-6, genuine 70%)
 
 **🚨 LATE-BREAKING (added after the section below was written, before g5's final reap): monitor
 `b52frv1qd` fired post-relay-spawn — PR #1122 run `29560460812` (head `874759ec`, the run AFTER
