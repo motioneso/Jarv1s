@@ -16,9 +16,28 @@ Reaped g7 (`w1:pT5`, session `a6112658…`) after it self-reported standing down
 - `AWAITING-BEN.md` — checked: g7 had **already** committed the #1110 and #1122 RESOLVED-by-Fable
   entries in `bc54687b` before relaying (its own "still open" note was stale/inaccurate). Verified
   `git status` clean on that file — no further edit needed.
-- No new Fable escalations needed yet. If -15's CI repro verdict lands or Build-1109 finishes
-  Task 7/opens a PR, handle per normal coordinate-skill Phase 2/3 — still routing any judgment
-  call to a Fable one-shot subagent overnight, not waiting on Ben.
+**Progress since takeover (this session, still `g8`):**
+- -15's CI repro landed: verdict = CI-infra fragility (pg-boss hardcoded `connectionTimeoutMillis`
+  10000ms default), zero #1122 code cause, proven clean-repro on both branch head and
+  `origin/main` locally. Issue **#1124** filed. Full detail + comment link in
+  `AWAITING-BEN.md` (#1122 section).
+- Routed next-step decision to a fresh Fable one-shot → **ruling: path (c)**, tiny test-scoped fix
+  first (issue #1123 comment `5000769797`). Full ruling + conditions recorded in
+  `AWAITING-BEN.md`.
+- -15 built the fix in an isolated worktree (`fix/1124-pgboss-test-timeout`, off `main`, separate
+  from its own `build/1110-app-map` #1122 branch) → **PR #1125**, scoped to exactly the 3
+  trio test files, zero prod-runtime touch. CI green (VF/Compose smoke/prod-compose smoke/
+  build-publish all pass). Routine-tier QA green (0 blocking findings, verdict posted PR #1125
+  comment `5001404324`). **Merged** `2026-07-17T09:24:39Z`, branch deleted, issue #1124 correctly
+  left open (durable fix still tracked there).
+- Tasked -15 (step 5 of the ruling): merge `main` into `build/1110-app-map` (its #1122 branch,
+  do NOT rerun stale head) and trigger a fresh VF. **Waiting on its ping — not polling.** Hard
+  stop condition still applies: same ~10.9s trio signature recurring after the fix lands in
+  #1122's head → full halt, escalate to Ben, no further attempts.
+- `Build-1109-RuntimeContext-8` still waiting on its own `verify:foundation` closeout run before
+  opening its PR (Task 7, final task) — unaffected by the above, watching in parallel.
+- No new Fable escalations pending right now. Still routing any judgment call to a Fable one-shot
+  subagent overnight, not waiting on Ben.
 
 Below is g7's now-superseded takeover note (kept for history — skim, don't deep-read).
 
