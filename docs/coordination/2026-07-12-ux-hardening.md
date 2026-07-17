@@ -3405,3 +3405,7 @@ resume from this note before taking any merge-sensitive action.
   resources before a verdict. Successor label `UX 1117 UAT 4d2d17ba-3`, Claude session
   `609e1e93-a120-4a45-bd47-57f1678820e2`, resumed on Sonnet/high to rerun the corrected script
   and finish CP1-CP8 evidence.
+- Ben requested PRs #1117 and #1118 land. Both are CI-green and currently mergeable, but both
+  modify `apps/web/src/styles/kit-today.css` with different blobs. Serialize merge order as #1117
+  first; after it lands, integrate #1118 onto the new `main`, then require fresh exact-head live
+  UAT and final QA before merging #1118. Do not validate #1118 against its pre-integration head.
