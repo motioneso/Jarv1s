@@ -1,5 +1,45 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
+## ⏩ PRIOR STATE (updated 2026-07-17 by `Coord-1109-1110-g10`, relaying at 70% meter — mid PR #1126 CI wait)
+
+**Relay reason:** context-meter PostToolUse hook warned 70% (hard trigger, no deferral). Nothing
+else changed since the CURRENT STATE block below except PR #1126 CI status — see the delta note
+right here, then read CURRENT STATE for full context (g9→g10 takeover already done, don't redo).
+
+**PR #1126 delta since last write:** `-8`'s bounded investigation (I instructed: confirm slowdown
+proportional to added test volume, no hang/leak — if so bump `ci.yml` timeout + follow-up issue;
+if a real regression, stop and report) concluded WITHOUT touching `.github/workflows/ci.yml`
+(verified: no new commits to that file in the branch worktree, `git log -3 -- ci.yml` unchanged).
+`-8`'s own pane said "Rerun is queued/running — still pending, no action needed" for `Verify
+foundation and app` — i.e. it triggered a rerun of the existing job (likely concluded the slowdown
+was within normal variance / a rerun would clear the timeout window) rather than bumping the
+config. **Current `gh pr checks 1126 --json name,state`: `Verify foundation and app` =
+IN_PROGRESS, both compose smoke checks = SUCCESS.** No new commit hash captured before relay —
+successor should re-check `gh pr view 1126 --json commits` for the latest headline to see if `-8`
+pushed anything additional, and re-run `gh pr checks 1126 --json name,state` fresh (don't trust
+this snapshot as current).
+
+**Next action for successor:** re-arm a monitor/poll on `gh pr checks 1126` for `Verify foundation
+and app` to leave IN_PROGRESS (use `--json name,state`, NOT the tab-separated `gh pr checks`
+output — the tab-separated form breaks naive `awk`/space-splitting since check names are
+multi-word; g10 burned one bad monitor cycle on this, see below). On green: spawn `coordinated-qa`
+(sensitive tier, Sonnet, `isolation: worktree`) to re-verify PR #1126 against the manifest's
+sensitive-tier bar (DataContextDb/VaultContext/module-isolation invariant walk), consume only the
+compact verdict. On QA green: this is #1109's final task (Task 7/7) — merge (squash, delete
+branch), then close #1109, check epic exit-criteria, move board item to Done. This is `sensitive`
+tier per the manifest — auto-merge + digest to Ben, no sign-off gate required (only `security` tier
+needs that). #1122 stays untouched (fully halted, escalated to Ben, no ruling yet) — monitor only,
+per standing instruction; do not re-derive this, it hasn't changed.
+
+**Lesson learned this cycle (for successor, don't repeat):** `gh pr checks <PR>` plain-text output
+tab-separates `name / status / duration / url` but check names contain spaces, so naive
+`awk '{print $1"|"$2}'` grabs words from the NAME, not the actual status column, and silently
+misparses "pending" as absent → false-positive "done". Use `gh pr checks <PR> --json name,state`
+instead (confirmed working, clean JSON) for any CI-polling script.
+
+**Reap note:** g10's pane/session (below, in the takeover block) should be reaped by whoever
+confirms driving next, same as every prior generation — resolve fresh by label + session id.
+
 ## ✅ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g10`, takeover confirmed)
 
 **g10 is driving.** Pane `w1:pTA`, session `97112e95-e2a8-4705-aa7a-69ac3e55af07`, label
