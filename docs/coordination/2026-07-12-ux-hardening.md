@@ -3598,3 +3598,19 @@ resume from this note before taking any merge-sensitive action.
 - Fresh CI run `29616576458` is active. The remediation touched no command-palette or other UI file,
   so the durable live-path proof remains applicable. Wait for fresh CI green and a fresh independent
   routine-tier QA verdict at `ba745cc7` before merging.
+
+## Continuation note — 2026-07-17 PR #1129 integration rebase
+
+- Delegated authority remains immutable Codex session `019f71fc-e3b7-77b0-914b-5518538943ef`;
+  `merges_since_relay` remains `0`. Merge nothing until the rebased head has fresh CI, integrated QA,
+  and live-path proof as required by the touched upstream UI surface.
+- PR head `ba745cc7` reached 4/4 CI green and fresh routine-tier QA GREEN with zero findings, but QA
+  correctly reported that `origin/main` advanced by two commits during the run. That verdict is now
+  integration-stale and is not merge authority.
+- Current `origin/main` is `3334d693` after #1122 and #1131. The upstream collision scan touches
+  `app-route-metadata.ts`, `settings-page.tsx`, app-map/runtime packages, and tests, but not #1129's
+  workflow, generator, archive, or command-palette files. The owning Codex agent is rebasing only;
+  any non-trivial conflict must stop and return to the coordinator.
+- After a clean rebase, require fresh CI and fresh integrated routine-tier QA. Because upstream changed
+  the Settings route used by the live walk, rerun exact-head owner-signup → Settings → command-palette
+  proof before merging.
