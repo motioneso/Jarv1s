@@ -3648,3 +3648,16 @@ resume from this note before taking any merge-sensitive action.
 - A fresh read-only Codex diagnosis agent is inspecting only the failing job/log and workflow source.
   Do not edit or rerun until it returns the exact root cause and smallest focused fix. Any code fix must
   use a new PR with fresh CI/QA before merge, then redispatch and verify Pages plus the in-app target.
+
+## Continuation note — 2026-07-17 weekly deployment fix lane
+
+- Run `29619987276` failed before the generator: `actions/setup-node@v5` attempted pnpm cache
+  discovery and could not locate pnpm. Generator code/data and Pages permissions were not reached.
+- Approved minimal fix: set `package-manager-cache: false` on the existing setup-node step; the job
+  runs a dependency-free Node script, so no pnpm setup/install is required.
+- Fresh isolated branch/worktree `fix/weekly-release-pnpm-cache` at merged `main` `19e5b3ad` is owned
+  by a Codex build agent. It may change only `.github/workflows/weekly-release.yml`, verify, commit,
+  push, and open a focused PR. Require fresh CI and independent routine QA before merge, then rerun
+  `weekly-release.yml` and verify Pages plus the in-app target.
+- Delegated authority remains immutable session `019f71fc-e3b7-77b0-914b-5518538943ef`;
+  `merges_since_relay` remains `1`.
