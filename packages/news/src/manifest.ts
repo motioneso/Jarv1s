@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { JarvisModuleManifest, ModuleAiRequirementManifest } from "@jarv1s/module-sdk";
 import {
   confirmNewsSourceSchema,
   createNewsPrefRequestSchema,
@@ -46,6 +46,12 @@ export { NEWS_MODULE_ID } from "./module-id.js";
 const FEED_TTL_MS = 10 * 60 * 1000;
 
 export const newsModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
+
+export const newsAddSourceRequirement = {
+  service: "module.news",
+  capability: "json",
+  tier: "economy"
+} as const satisfies ModuleAiRequirementManifest;
 
 export const newsModuleManifest = {
   // Inline literal, not the imported NEWS_MODULE_ID: the settings-ui scanner reads this
@@ -365,6 +371,33 @@ export const newsModuleManifest = {
       },
       summarize: summarizeNewsAddExclusion,
       execute: newsAddExclusionExecute
+    }
+  ],
+  features: [
+    {
+      id: "news.add_source",
+      description: "Find a publisher by URL or name and add it to personalized News.",
+      requires: newsAddSourceRequirement,
+      remediations: [
+        {
+          id: "news.add_source.configure_json_model",
+          description: "Bind a JSON-capable economy model for News in Assistant & AI settings.",
+          path: "/settings?section=assistant"
+        }
+      ],
+      errors: [
+        {
+          code: "news.add_source.no_json_model",
+          class: "prerequisite",
+          remediationRef: "news.add_source.configure_json_model",
+          description: "News has no JSON-capable economy model binding."
+        },
+        {
+          code: "news.add_source.discovery_unavailable",
+          class: "transient",
+          description: "Source discovery is temporarily unavailable; retry or contact an administrator."
+        }
+      ]
     }
   ],
   dataLifecycle: {

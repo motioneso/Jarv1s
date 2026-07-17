@@ -8,6 +8,7 @@ import type {
 } from "@jarv1s/module-sdk";
 import type { AiModelCapability, AiModelTier } from "@jarv1s/shared";
 import { assertModuleRegistryConsistency, type BuiltInModuleRegistration } from "@jarv1s/module-registry";
+import { newsAddSourceRequirement, newsModuleManifest } from "@jarv1s/news";
 
 function registration(manifest: JarvisModuleManifest): BuiltInModuleRegistration {
   return { manifest, sqlMigrationDirectories: [], queueDefinitions: [] };
@@ -109,5 +110,15 @@ describe("app-map manifest contracts", () => {
 
   it("accepts every built-in surface", () => {
     expect(() => assertModuleRegistryConsistency()).not.toThrow();
+  });
+
+  it("uses one object for the News add-source model requirement", () => {
+    const feature = newsModuleManifest.features?.find((item) => item.id === "news.add_source");
+    expect(feature?.requires).toBe(newsAddSourceRequirement);
+    expect(newsAddSourceRequirement).toEqual({
+      service: "module.news",
+      capability: "json",
+      tier: "economy"
+    });
   });
 });

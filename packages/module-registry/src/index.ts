@@ -242,6 +242,7 @@ import {
   configureNewsBriefingService,
   createRssDatasetAdapter,
   NEWS_QUEUE_DEFINITIONS,
+  newsAddSourceRequirement,
   newsModuleManifest,
   newsModuleSqlMigrationDirectory,
   registerNewsJobWorkers,
@@ -1473,10 +1474,14 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         availability: {
           hasJsonModel: async (scopedDb) =>
             (
-              await new AiRepository().resolveModelForService(scopedDb, "module.news", {
-                capability: "json",
-                tierHint: "economy"
-              })
+              await new AiRepository().resolveModelForService(
+                scopedDb,
+                newsAddSourceRequirement.service,
+                {
+                  capability: newsAddSourceRequirement.capability,
+                  tierHint: newsAddSourceRequirement.tier
+                }
+              )
             ).model !== null,
           hasWebSearch: async (scopedDb) => (await getWebSearchKeyConfig(scopedDb)).configured
         }
