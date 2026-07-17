@@ -3568,3 +3568,19 @@ resume from this note before taking any merge-sensitive action.
 - Pages is not yet enabled, so the target currently shows the expected pre-deployment 404. After
   merge, enable Pages with workflow build, dispatch `weekly-release.yml` on `main`, and verify the
   deployed report plus the in-app link.
+
+## Continuation note — 2026-07-17 PR #1129 QA remediation
+
+- Delegated lock remains immutable Codex session `019f71fc-e3b7-77b0-914b-5518538943ef`;
+  `merges_since_relay` remains `0`. Merge nothing until remediation, fresh CI, and fresh independent
+  routine-tier QA are green at the same head.
+- Independent QA returned RED at `87cb1780` with three blockers: the weekly workflow lacks
+  `pull-requests: read`; the generated archive covers 141.44 rather than 168 hours and reports 65
+  rather than 79 source PRs; and the summary omits Docs/Test/Revert/Other category totals.
+- A fresh Codex remediation agent owns only `~/Jarv1s/.claude/worktrees/weekly-release-report` on
+  `feat/weekly-release-report`. It may implement and verify those exact blockers, commit, and push;
+  it may not touch this manifest, evidence lanes, parked review lanes E/F/G, `settings-page.tsx`, or
+  `app-shell.tsx`.
+- Exact-head live-path evidence remains valid only for `87cb1780`; any user-facing command-palette
+  change would require a fresh live run. After the fix, wait for fresh CI and obtain fresh independent
+  QA before any merge decision.
