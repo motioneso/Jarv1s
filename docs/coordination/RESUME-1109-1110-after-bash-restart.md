@@ -32,6 +32,11 @@ CONFIRMED") and acted on it — do not re-run the Sol/Fable investigation, it is
   reap once #1131 merges (their investigation is fully superseded by the confirmed finding, keep
   panes until fix is proven green in case a re-open is needed).
 
+**Reap update (same session, Ben-requested):** `Sol-TimeoutRootCause-v1` (`w1:pTV`) and
+`Fable-TimeoutRootCause-v1` (`w1:pTT`) closed + worktrees removed — their investigation output is
+fully consumed by the confirmed finding and PR #1131 acting on it. `Fable-1126-Timeout-Ruling-v2`
+(`w1:pTH`) left running (still mid-turn, 72% ctx, not clearly finished) — re-check next pass.
+
 ## ⏭️ IMMEDIATE NEXT ACTION for g18-arrival (historical — g18's own arrival block, superseded above)
 
 **g17 relaying at 70% context (2026-07-17, self-paced).** Fleet healthy, no Ben-facing blockers
