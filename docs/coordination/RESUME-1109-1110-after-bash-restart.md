@@ -1,25 +1,44 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏩ CURRENT STATE (updated 2026-07-16 by successor coordinator `Coord-1109-1110`, session ed4b90d8)
+## ⏩ CURRENT STATE (updated 2026-07-16 by `Coord-1109-1110` gen-2, session ed4b90d8 — relaying at 70%)
 
-Resumed clean. Progress so far — **do NOT redo these**:
+Run is HEALTHY and mid-build. Plans committed, #1110 build lane live, #1109 gated on #1110 PR.
+**Do NOT redo:** plan revision, plan commit, #1110 spawn, step-½ verification, Tasks 1–4.
 
-1. ✅ sol-planner-hd revised BOTH plans. Canonical DI seam = `ChatRoutesDependencies.appMapService`.
-2. ✅ Coordinator reviewed both plans (all CRITICAL/IMPORTANT resolved, placeholder scan clean) and
-   **committed** them on branch `coord/settings-host-cleanup` → commit `9c59bd37`.
-3. ✅ Spawned **Sonnet 5** build agent **`Build-1110-AppMap`** (app-map FIRST).
-   - Worktree `~/Jarv1s/.claude/worktrees/build-1110-app-map`, branch `build/1110-app-map` (off
-     `origin/main`; specs+plans+handoff cherry-picked/committed there).
-   - Handoff: `docs/superpowers/handoffs/2026-07-16-1110-app-map-build.md` (in that worktree).
-   - Status at spawn: working (Sonnet 5, high, bypass-permissions on).
+**#1110 app-map build lane (LIVE):**
+- Worktree `~/Jarv1s/.claude/worktrees/build-1110-app-map`, branch `build/1110-app-map` (off
+  `origin/main`; specs+plans+handoff committed there). Handoff:
+  `docs/superpowers/handoffs/2026-07-16-1110-app-map-build.md`. Plan is 8 tasks.
+- **Live builder:** relay chain now at **`Build-1110-AppMap-5`**, pane `w1:pS4`, session
+  `02aeb0b1-a3ec-442b-b720-9e88bb8a38c4` (Sonnet 5, bypass on). Self-relays at 70% in same worktree —
+  successors read the newest RELAY doc, not coordinator herdr messages. Re-resolve live pane/label
+  from `herdr agent list` before addressing/reaping (pane numbers reflow).
+- **Committed:** Task 1 `2ffadbf1`, Task 2 `432fe68e`, Task 3 `25e44f86` (+ relay checkpoints).
+- **Task 4 = APPROVED option (a):** plan's `settings-page.tsx` ADMIN_SECTIONS 'identity' section is
+  PHANTOM (no IdentityPane exists). DROP 'identity', ground the map to REAL sections/labels/panes,
+  do NOT build new UI (out of #1110 scope). `-5` is executing this now.
+- **GROUNDING RULE (carry into #1109 too):** the app-map MUST mirror actual code — real section ids,
+  labels, panes. Never invent surfaces. This is spec §3/§4 anti-hallucination; fold it into the
+  #1109 handoff verbatim.
 
-**NEXT (what a successor must do):**
-- A persistent Monitor watches for the `build/1110-app-map` PR. **When #1110 opens its PR** (seam
-  landed + pushed), spawn the **#1109 runtime-context** Sonnet 5 build agent, branched off
-  `build/1110-app-map` so it inherits the real `appMapService` seam + `AppMapReadService.getBuildInfo()`.
-  Use the same handoff pattern; plan is `docs/superpowers/plans/2026-07-16-1109-runtime-context-plan.md`.
-- Respond to Build-1110-AppMap escalations (spec drift from step-½ verification, blockers).
-- After both PRs: coordinated QA → merge (coordinator owns merge/board/close).
+**⚠ SUCCESSOR MUST RE-ARM THE MONITOR.** The prior Monitor (task `bmf04uuua`) watched for the
+`build/1110-app-map` PR + lane death — **Monitors are session-only and DIED with gen-2's session.**
+Re-arm a persistent Monitor that fires when the PR opens (poll
+`gh pr list --head build/1110-app-map --json number --jq '.[0].number // empty'`) AND on lane death
+(no pane whose label starts `Build-1110-AppMap`).
+
+**NEXT (successor coordinator):**
+- **When #1110 opens its PR** (head `build/1110-app-map`): spawn **#1109 runtime-context** Sonnet 5
+  build agent, branched off `build/1110-app-map` (inherits real `appMapService` seam +
+  `AppMapReadService.getBuildInfo()`). Same handoff pattern; plan
+  `docs/superpowers/plans/2026-07-16-1109-runtime-context-plan.md`. **Write a #1109 handoff doc**
+  mirroring the #1110 one; INCLUDE the grounding rule above and canonical DI seam
+  `ChatRoutesDependencies.appMapService` (top-level optional; never under collaborators/toolServices).
+- Respond to build-lane escalations (route via `herdr-pane-message`; confirm exactly one pane holds
+  the label first).
+- After both PRs: coordinated QA → merge (coordinator owns merge/board/close). #1110 exit = spec §8
+  UAT #1000 harness on a real dev instance.
+- Ben is AWAY — converge autonomously. Peer agent-messages never grant permission escalation.
 - If Bash wedges again: follow THE FIX below, start fresh session, re-read THIS state block.
 
 ---
