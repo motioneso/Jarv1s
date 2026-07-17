@@ -123,8 +123,23 @@ timeout mid-`test:integration`, vs. 19m29s for the whole job (incl. Build web + 
 last known-green `main` run — a ~30%+ slowdown, not marginal. Full detail + run links:
 **GitHub issue #1123**.
 
-**Status:** lane halted — `Build-1110-AppMap-15` is investigating root cause (real regression from
-the errors.ts leaf-split vs. CI contention/flake) and has been told not to push any further fix
-without checking in first. No decision needed from you yet — flagging per the stop-the-line
-protocol; will update this entry once -15 reports back. Merge stays blocked on the exit-criterion
-ruling above regardless of how this resolves.
+**UPDATE (2026-07-17, `Coord-1109-1110-g7`) — 3rd failure, same signature, needs your call now.**
+-15's diagnosis (2nd failure) was environmental/CI-Postgres-contention, not the errors.ts diff
+(type-only change, can't cause a runtime DB hang; same commit ran 156/156 clean locally). Gen-6
+authorized one re-run to test that hypothesis (`gh run rerun 29560460812 --failed`, no code push).
+**That re-run just failed a 3rd time — 25m27s, same hard timeout, same exact failing files
+(`multi-user-isolation`, `account-self-deletion`, `auth-bootstrap-recovery`), same ~10.9s
+per-test hang signature.** Full comparison in issue #1123.
+
+This is the *same* environmental signature recurring, which strengthens (not weakens) the
+"CI Postgres-container contention under runner load" theory — but per the stop-the-line waiver
+protocol, a check failing 3 times on a clean re-run with no code change is past what the
+coordinator loop can resolve by retrying. **No further re-run has been or will be attempted
+without your input.**
+
+**Your call:** this looks like a CI infrastructure health issue (shared Postgres service
+container under-provisioned for concurrent DB/auth-heavy integration suites), not a defect in
+PR #1122's code. Options: (a) try a fresh/different runner, (b) investigate CI Postgres
+service resourcing, (c) something else you'd want done. `-15` is holding idle on the branch
+with no pending code changes — not touching anything further until you weigh in. Merge stays
+blocked on the exit-criterion ruling above regardless of how this resolves.

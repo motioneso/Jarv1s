@@ -14,17 +14,26 @@
 - `bnaa8c3du` — persistent fleet liveness diff on `Build-1109-RuntimeContext-7` (`w1:pT4`) +
   `Build-1110-AppMap-15` (`w1:pST`); both present at re-arm, `-7` was `working`.
 
-**Next action for whoever reads this (me, later, or a further successor):** wait for `bra9ox5lm`
-terminal-state event. On result:
-- **VF green:** flake theory confirmed (2nd time — strengthens it). Comment + close issue #1123
-  as resolved (environmental, no code change). Spawn QA (`coordinated-qa`, tier **sensitive**).
-  Merge still separately blocked on Ben's pending #1110 exit-criterion ruling in
-  `AWAITING-BEN.md` — confirm it's still unresolved before assuming merge is clear.
-- **VF fails again (3rd overall):** stop-the-line, do NOT re-run again. Read the job log directly
-  (`gh run view <id> --job <id>`), compare failure signature against the 2nd failure (same DB/auth
-  file pattern = strengthens flake diagnosis but still needs Ben/CI-infra escalation; different
-  pattern = new problem). Update issue #1123 either way. -15 is idle holding on the branch —
-  message it only if a real fix is needed, not for another blind re-run.
+**PR #1122 CI: 3rd VF failure, same signature — escalated to Ben, lane fully halted, NO further
+re-runs.** Monitor `bra9ox5lm` fired terminal state: VF failed again, 25m27s, same hard timeout.
+Read the job log myself (`gh run view 29560460812 --job 87826877201` + `--log`) — confirmed
+**identical failure signature** to the 2nd failure: same 3 files (`multi-user-isolation.test.ts`
+14/15 failed, `account-self-deletion.test.ts` 8/8 failed, `auth-bootstrap-recovery.test.ts` 5/5
+failed), same ~10.9s per-test hang pattern (consistent with stuck/contended DB connection, not
+app logic). Compose + prod-compose smoke both still pass. This strengthens the "CI
+Postgres-container contention" diagnosis but a 3rd failure on a clean re-run (no code change) is
+past what a coordinator-level retry can resolve.
+
+**Actions taken:** posted full signature comparison to issue #1123
+(`issuecomment-5000219819`). Added an escalation entry to `AWAITING-BEN.md` (below the existing
+#1122 stop-the-line entry) laying out options (fresh runner / CI Postgres resourcing / other) and
+explicitly asking for Ben's call — **no further `gh run rerun` will happen without his input.**
+-15 remains idle holding on the branch, not touched.
+
+**Next action for whoever reads this:** this is now genuinely blocked on Ben, not on more
+investigation. Do NOT re-run CI again unprompted. Check `AWAITING-BEN.md` for his response; when
+he weighs in, act on it (retry on fresh runner / escalate CI infra / etc. per his direction).
+#1109/#1110 build lanes continue unaffected in parallel — only the #1122 CI gate is blocked.
 
 **#1109 update (same gen-7 session):** `Build-1109-RuntimeContext-7` finished Task 6 (tier-one
 privacy boundary tests, `09af162c`) and investigated Task 7 (final task) — UAT harness has no
