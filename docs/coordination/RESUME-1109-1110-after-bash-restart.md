@@ -26,8 +26,17 @@ terminal-state event. On result:
   pattern = new problem). Update issue #1123 either way. -15 is idle holding on the branch —
   message it only if a real fix is needed, not for another blind re-run.
 
-**#1109 in parallel:** `Build-1109-RuntimeContext-7` (`w1:pT4`) still `working` on Task 6 at
-re-arm, no relay yet — normal, healthy cadence (-1→-7 all clean so far). Passive supervision only.
+**#1109 update (same gen-7 session):** `Build-1109-RuntimeContext-7` finished Task 6 (tier-one
+privacy boundary tests, `09af162c`) and investigated Task 7 (final task) — UAT harness has no
+chat-capable AI model seeded at any level (tracked gap, issue #1121, same limitation already
+handled via `test.fixme` in sibling specs `app-map-grounding.uat.spec.ts` and
+`1089-1090-chat-drawer-private.uat.spec.ts`). Wrote an adapted Task 7 plan staying within
+deterministic assertions, deferring LLM-dependent portions to #1121. Relayed to
+`Build-1109-RuntimeContext-8` (pane `w1:pT6`, session `2c4c1e48…`). Verified tab placement
+(`w1:t2D`, correct shared agents tab) and Sonnet + `working` before reaping `-7` (pane `w1:pT4`
+closed). Handoff doc: `docs/superpowers/handoffs/2026-07-17-1109-runtime-context-relay-7.md`.
+`-8` now on Task 7 (final task, adapted plan). Healthy relay cadence continues (-1→-8, all clean).
+Passive supervision only unless it escalates.
 
 Below is g6's own takeover note (already executed, now superseded by the above) + full history,
 kept for reference (skim, don't deep-read):
