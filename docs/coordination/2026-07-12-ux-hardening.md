@@ -3472,3 +3472,10 @@ resume from this note before taking any merge-sensitive action.
   healthy live instance at `127.0.0.1:20001`, then relayed before browser execution. Successor
   label `UX 1118 UAT 00c43878-2`, Claude session `f6db5ae7-8d10-4f6b-bcbd-82532cc2d97a`,
   Sonnet/high, resumed the same worktree to execute and publish the final verdict.
+- Exact-head UAT is GREEN at `00c43878c6ffada902f3955962f3f9101dc6e14b`: CP1-CP6 passed,
+  evidence branch `uat/1118-final-00c43878` is at
+  `a4ee3c0ed9936b0c7c46dd8c4eb3d355ca0297af`, durable proof:
+  https://github.com/motioneso/Jarv1s/pull/1118#issuecomment-4999028297.
+- Automatic CI run `29554612636` is RED on `Verify foundation and app` job `87804059657`; both
+  compose smoke jobs passed and image publishing was skipped. Stop-the-line: owner lane must
+  diagnose the existing failure without rerunning CI; final QA and merge remain stopped.
