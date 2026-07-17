@@ -350,3 +350,37 @@ stop: **no further reruns, no further timeout edits, not routing to another Fabl
 your call now on the actual mechanism (real hang vs. much larger perf regression than measured).
 `Build-1109-RuntimeContext-8` is holding on `build/1109-runtime-context` @ `e8defd69`, no further
 pushes. #1122 (separate lane, see above) is unaffected and proceeding independently.
+
+**📋 DIAGNOSTIC RESULT (2026-07-17, `Coord-1109-1110-g13`) — the read-only diagnostic you asked
+for, on run `29597220968` / job `87940451041`. Report only, no action taken; this is your call per
+the hard stop above.**
+
+- **Not one hung suite — broad-based slowdown.** ~46 unrelated integration test files (RLS/
+  notifications, briefings, rate-limit, quiet-hours, host-install-admin, AI-provider files, etc.)
+  each lose a clean multiple of **~11,100ms** (1x/2x/3x/4x, two outliers ~14x = 154s) before
+  reporting skipped/failed. Starts early (16:47:53Z, ~5min in) and continues to the 35m25s
+  cancellation. Spans unrelated domains — rules out a single looping suite.
+- **The app-map-before-start hypothesis (commit `80ebb905`) is mechanically REFUTED.**
+  `tests/integration`'s `beforeAll` boots the API in-process via `createApiServer()` imported
+  directly from `apps/api/src/server.js` — never through `apps/api`'s `start`/`dev` npm scripts.
+  `build:app-map` is wired only into those two scripts (`apps/api/package.json:7-8`), is not
+  referenced anywhere under `apps/api/src`, and `verify:foundation`'s own script chain never calls
+  `build:app-map` either. That per-boot cost cannot be what's multiplying.
+- **Adjacent lead, unconfirmed — flagging, not asserting:** `registerBuiltInApiRoutes`
+  (`packages/module-registry/src/index.ts:2089-90`) unconditionally calls
+  `loadAppMap(dist/app-map.json)` with no try/catch on every `createApiServer()` boot, and that
+  artifact is never produced anywhere in `verify:foundation`'s chain. But zero `ENOENT`/`Invalid
+  app-map artifact` strings appear anywhere in the 2200-line log, so this path doesn't look like
+  it's actually firing. Worth cross-checking against `Build-1110-AppMap-15` (#1122's lane, same
+  branch base, app-map is literally its scope) — coordinator has pinged it.
+- **Open — exact source of the ~11.1s constant not pinned within the session's context budget.**
+  Ruled out `vitest`'s `hookTimeout`/`testTimeout` (both `30_000ms` in `vitest.config.ts`) — so
+  it's an app-level timeout somewhere shared across otherwise-unrelated test files. Leading next
+  step: grep for a ~10-11s fetch/connect timeout constant used broadly (e.g. an AI provider
+  client's default timeout).
+
+**Net effect on the hard stop: still unresolved, but reframed.** This is not "needs more budget"
+(ruled out — 46 unrelated files, not proportional growth) and not the app-map hypothesis (ruled
+out mechanically). It looks like a shared timeout constant firing repeatedly across the suite.
+No reruns/`ci.yml` edits/code changes taken — holding for your ruling on next steps (continue
+digging into the ~11.1s constant vs. another path).
