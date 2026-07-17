@@ -111,6 +111,14 @@ want #1121's harness built **before** #1110 merges? **Coordinator lean:** accept
 at unit+integration level and the deterministic UAT proves the prerequisite surfaces on a real
 instance.
 
+**✅ RESOLVED 2026-07-17 (Fable, delegated per Ben's "escalate to fable, no blockers on me")** —
+[issue #1110 comment 5000410700](https://github.com/motioneso/Jarv1s/issues/1110#issuecomment-5000410700).
+Deferral **approved**, single-use, does not extend to #1109. **Added condition:** merge also needs a
+manual live-path walk on a dev instance (all 3 spec §8 scenarios) with transcripts/screenshots
+posted to PR #1122 before merge — not yet done, queued after the #1122 CI blocker below clears.
+Backlink posted to #1121 (`issuecomment-5000430204`) listing the 3 deferred grounded-phrase
+assertions.
+
 ---
 
 ## #1122 CI — 'Verify foundation and app' stop-the-line, 2nd failure (2026-07-17, `Coord-1109-1110-g6`)
@@ -143,3 +151,15 @@ PR #1122's code. Options: (a) try a fresh/different runner, (b) investigate CI P
 service resourcing, (c) something else you'd want done. `-15` is holding idle on the branch
 with no pending code changes — not touching anything further until you weigh in. Merge stays
 blocked on the exit-criterion ruling above regardless of how this resolves.
+
+**✅ RESOLVED 2026-07-17 (Fable, delegated per Ben's "escalate to fable, no blockers on me")** —
+[issue #1123 comment 5000410449](https://github.com/motioneso/Jarv1s/issues/1123#issuecomment-5000410449),
+independently corroborated by a second Fable pass (agent `afe4e45afd7a0cf85`). **No waiver**
+(main is green — the failure isn't reproducible as a pre-existing condition), **no more blind
+reruns**, **no CI-Postgres re-provisioning yet** (unconfirmed theory, and counter-evidence: it's a
+per-job container, and `fix/1112` ran the identical job green the same morning). **Authorized ONE
+action**, already relayed to `-15`: local CI-conditioned repro under ~2vCPU + fresh CI-default
+pgvector Postgres, run on branch head `874759ec` AND `origin/main`, `pg_stat_activity`-instrumented,
+naming the exact resource the constant ~10.9s per-test hang maps to. Branch-only repro → real
+defect, `-15` fixes+pushes once. Repros on `main` too → separate CI-infra task, no #1122 code
+touch. Awaiting `-15`'s verdict (posts to #1123, pings coordinator label).

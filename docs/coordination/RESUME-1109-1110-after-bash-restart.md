@@ -1,6 +1,50 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g7`, session a6112658, pane `w1:pT5`)
+## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g8`, relay from g7 at 71% meter)
+
+**YOU ARE gen-8 (or later). Ben went to bed and delegated open questions to Fable overnight — no
+blockers on him; do NOT wait for him, route further judgment calls to a Fable one-shot subagent
+(`Agent(model: "fable", ...)`, pointer-style prompt) the same way g7 did. See both real rulings
+already posted:**
+- **PR #1122 CI (issue #1123, comment `5000410449`):** No waiver (main is green), no more
+  `gh run rerun` of any kind, no CI-Postgres re-provisioning yet (unconfirmed theory + real
+  counter-evidence: per-job Postgres container, `fix/1112` ran the identical job green same
+  morning). **Authorized ONE action, already relayed to `-15`** (`Build-1110-AppMap-15`, pane
+  resolve fresh by label — was `w1:pST`): local CI-conditioned repro — `test:integration` under
+  ~2vCPU + fresh CI-default pgvector Postgres on branch head `874759ec` AND `origin/main`,
+  instrumented with `pg_stat_activity`, naming the exact limit the constant ~10.9s timeout maps
+  to. Branch-only repro → real defect, -15 fixes+pushes once. Repros on main too → separate
+  CI-infra task, no #1122 code touch. **-15 was told to ping the coordinator label when done —
+  watch for that push, don't poll.** No monitor currently armed on this (nothing to poll — it's
+  agent-work, not a CI check); re-arm the `gh pr checks 1122` terminal-state monitor only once
+  -15 reports a fix pushed.
+- **#1110 exit criterion (issue #1110, comment `5000410700`):** Deferral **approved** — deterministic
+  UAT + unit grounding is the automated gate, #1121 does NOT need to land first. **But NOT a full
+  waiver:** merge additionally requires a **manual live-path walk** on a dev instance running PR
+  head, all 3 spec §8 scenarios (grounded fix / adversarial pair / transient-error honesty),
+  transcripts+screenshots as `gh pr comment` on #1122, before merge. Deferral is single-use, does
+  NOT extend to #1109. Backlink posted to #1121 (`issuecomment-5000430204`) listing the 3 deferred
+  assertions. **Not started yet** — told -15 to focus on the CI repro first, live-path walk is a
+  follow-up once CI clears.
+
+**Still open / not yet done by g7 (pick up here):**
+1. `AWAITING-BEN.md` still shows the *questions* as open, not marked resolved-by-Fable-ruling —
+   update both entries (#1110 section ~line 90, #1122 section ~line 116) to record the rulings
+   landed, so Ben wakes up to a decision trail, not stale questions. Keep it short — link the
+   GitHub comments, don't re-paste them.
+2. Commit that + this doc.
+3. Resume passive supervision: liveness monitor `b81t5s4em` (persistent, watches
+   `Build-1109-RuntimeContext-8` + `Build-1110-AppMap-15` by label/status) should still be running
+   — verify with `herdr pane list`, it dies with the relaying session same as any monitor.
+   `Build-1109-RuntimeContext-8` was `working` on Task 7 (final task, adapted deterministic plan,
+   deferring LLM assertions to #1121) at last check, healthy, no PR yet.
+4. Watch for -15's ping (CI repro verdict) and Build-1109's next relay/PR-done push — normal
+   coordinate-skill Phase 2/3 flow from there.
+
+Below is g7's own takeover note (already executed) + full history, kept for reference (skim, don't
+deep-read):
+
+## ⏩ PRIOR STATE (updated 2026-07-17 by `Coord-1109-1110-g7`, session a6112658, pane `w1:pT5`)
 
 **gen-7 is driving.** Reaped g6 (session `08b39789…`, pane `w1:pT3`, was idle at prompt post-relay,
 51% meter — closed cleanly). Confirmed distinct successor session id before reaping.
