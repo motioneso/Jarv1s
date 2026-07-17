@@ -3400,3 +3400,8 @@ resume from this note before taking any merge-sensitive action.
   was reaped with no live resources. Successor label `UX 1117 UAT 4d2d17ba-2`, Claude session
   `da1a8e4d-48da-4055-9c9a-dd75ede7caaf`, resumed the same worktree on Sonnet/high to complete
   the eight Webwright critical points and durable exact-head evidence.
+- UAT session `da1a8e4d-48da-4055-9c9a-dd75ede7caaf` passed CP1, corrected a CP2 script-selector
+  error without touching product code, updated `UAT_HANDOFF.md`, and was reaped with no live
+  resources before a verdict. Successor label `UX 1117 UAT 4d2d17ba-3`, Claude session
+  `609e1e93-a120-4a45-bd47-57f1678820e2`, resumed on Sonnet/high to rerun the corrected script
+  and finish CP1-CP8 evidence.
