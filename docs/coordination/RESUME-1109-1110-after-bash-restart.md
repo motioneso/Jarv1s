@@ -1,9 +1,20 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏩ CURRENT STATE (updated 2026-07-16 by `Coord-1109-1110` gen-2, session ed4b90d8 — relaying at 70%)
+## ⏩ CURRENT STATE (updated 2026-07-16 by `Coord-1109-1110-g3`, session cb9ca6a3 — gen-3, resumed clean)
 
 Run is HEALTHY and mid-build. Plans committed, #1110 build lane live, #1109 gated on #1110 PR.
 **Do NOT redo:** plan revision, plan commit, #1110 spawn, step-½ verification, Tasks 1–4.
+
+**gen-3 resume actions DONE (do not repeat):**
+- `echo OK` clean (Bash healthy; no snapshot wedge).
+- Persistent PR Monitor RE-ARMED (fires on `build/1110-app-map` PR open OR Build-1110-AppMap lane
+  death). Re-arm again if YOUR session restarts — monitors die with the session.
+- Notified live build agent `Build-1110-AppMap-5` (pane re-resolve; was w1:pS4) that the coordinator
+  label is now `Coord-1109-1110-g3` — escalations route here, not to the dead gen-2 label.
+- **#1109 handoff PRE-WRITTEN:** `docs/superpowers/handoffs/2026-07-16-1109-runtime-context-build.md`
+  (on coord branch). At #1109 spawn: create branch `build/1109-runtime-context` off
+  `build/1110-app-map`, copy this handoff onto it, commit, spawn Sonnet 5. It already folds in the
+  grounding rule + canonical DI seam. #1109 plan = 7 tasks (not 8).
 
 **#1110 app-map build lane (LIVE):**
 - Worktree `~/Jarv1s/.claude/worktrees/build-1110-app-map`, branch `build/1110-app-map` (off
