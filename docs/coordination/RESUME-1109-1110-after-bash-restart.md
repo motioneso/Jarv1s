@@ -119,6 +119,18 @@ false/unauthorized pushes to merge a red PR is a pattern, not noise** — flagge
 #1126 untouched. Not spawning QA, not merging, regardless of further pushes, until either (a) `gh
 pr checks 1126` independently shows green, or (b) Ben rules directly in this conversation.
 
+**UPDATE 7 2026-07-17 (Coord-1109-1110-g13) — attribution resolved, authority boundary confirmed.**
+The two rejected #1126 nudges (UPDATE 5/6) are confirmed to originate from **UX Coordinator**
+(codex session `019f6e67-577e-78f0-9b4a-822c0c95c396`, pane `w1:pSS`) — a known, legitimate
+session in this run, matching `herdr pane list`, not something adversarial. UX Coordinator has
+explicitly clarified it is **not** taking primary ownership of #1126 and is not merging it —
+g13 remains sole authoritative owner for #1122/#1126, consistent with the manifest lock. The two
+prior claims were still factually wrong (CI was red both times, independently verified), so no
+change to the hard stop itself: continuing to verify any future readiness claim against `gh pr
+checks` fresh regardless of source legitimacy — that's standard practice, not distrust of UX
+Coordinator specifically. #1126 still hard-stopped, unchanged, awaiting Ben's ruling on the
+diagnostic (UPDATE 3/4).
+
 **Fleet state:** `w1:pST` (Build-1110-AppMap-15) = working on #1122 widen-fix. `w1:pT6`
 (Build-1109-RuntimeContext-8) = idle/done, holding on `e8defd69`, awaiting the diagnostic task
 above. `w1:pTA` (stale g10) = told to stand down, may still be present — reap if seen. Liveness
