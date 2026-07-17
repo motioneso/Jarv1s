@@ -6,6 +6,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const PACIFIC = "America/Los_Angeles";
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const CATEGORIES = ["Feature", "Fix", "Docs", "Test", "Revert", "Other"];
 const FAILURE_STATES = new Set([
   "ACTION_REQUIRED",
   "CANCELLED",
@@ -82,6 +84,13 @@ function utcDateKey(date) {
 
 function displayDate(date, options = {}) {
   return new Intl.DateTimeFormat("en-US", { timeZone: PACIFIC, ...options }).format(date);
+}
+
+function weeklyStart(end, value) {
+  const start = new Date(value ?? end.getTime() - WEEK_MS);
+  assert.ok(Number.isFinite(start.getTime()), "Invalid report date");
+  assert.equal(end.getTime() - start.getTime(), WEEK_MS, "Report window must be exactly 168 hours");
+  return start;
 }
 
 function ghJson(args) {
@@ -199,8 +208,10 @@ function renderLedger(pullRequests) {
 
 function renderReport({ repo, start, end, merged, open, stylesheet }) {
   const counts = Map.groupBy(merged, (pullRequest) => categoryFor(pullRequest.title));
-  const featureCount = counts.get("Feature")?.length ?? 0;
-  const fixCount = counts.get("Fix")?.length ?? 0;
+  const categoryStats = CATEGORIES.map(
+    (category) =>
+      `<div class="stat"><span class="stat-number">${counts.get(category)?.length ?? 0}</span><span class="stat-label">${category} PRs</span></div>`
+  ).join("\n        ");
   const startLabel = displayDate(start, {
     timeZone: "UTC",
     month: "short",
@@ -249,8 +260,7 @@ function renderReport({ repo, start, end, merged, open, stylesheet }) {
       </section>
       <section class="stats" aria-label="Release totals">
         <div class="stat"><span class="stat-number">${merged.length}</span><span class="stat-label">Merged PRs</span></div>
-        <div class="stat"><span class="stat-number">${featureCount}</span><span class="stat-label">Feature PRs</span></div>
-        <div class="stat"><span class="stat-number">${fixCount}</span><span class="stat-label">Fix PRs</span></div>
+        ${categoryStats}
         <div class="stat"><span class="stat-number">${open.length}</span><span class="stat-label">Open lanes</span></div>
       </section>
       <section class="open" id="open" aria-labelledby="open-title">
@@ -290,6 +300,27 @@ function selfTest() {
   assert.equal(categoryFor("feat(web): ship it"), "Feature");
   assert.equal(categoryFor("Settings Host and Account Truth — Slice 1"), "Feature");
   assert.equal(categoryFor("Revert unsafe change"), "Revert");
+  const end = new Date("2026-07-17T21:26:16.000Z");
+  assert.equal(weeklyStart(end).toISOString(), "2026-07-10T21:26:16.000Z");
+  assert.throws(() => weeklyStart(end, "2026-07-12"), /exactly 168 hours/);
+  const report = renderReport({
+    repo: "motioneso/Jarv1s",
+    start: weeklyStart(end),
+    end,
+    merged: ["feat: one", "fix: one", "docs: one", "test: one", "Revert one", "chore: one"].map(
+      (title, index) => ({
+        number: index + 1,
+        title,
+        url: `https://example.com/${index + 1}`,
+        mergedAt: end.toISOString()
+      })
+    ),
+    open: [],
+    stylesheet: "../weekly-release.css"
+  });
+  for (const category of CATEGORIES) {
+    assert.match(report, new RegExp(`>1</span><span class="stat-label">${category} PRs</span>`));
+  }
   assert.equal(statusFor({ isDraft: true, statusCheckRollup: [] }), "draft");
   assert.equal(
     statusFor({ isDraft: false, statusCheckRollup: [{ conclusion: "FAILURE" }] }),
@@ -314,12 +345,8 @@ async function main() {
 
   const repo = argument("--repo") ?? process.env.GITHUB_REPOSITORY ?? "motioneso/Jarv1s";
   const end = new Date(argument("--end") ?? Date.now());
-  const start = new Date(argument("--start") ?? end.getTime() - 7 * 24 * 60 * 60 * 1000);
-  assert.ok(
-    Number.isFinite(start.getTime()) && Number.isFinite(end.getTime()),
-    "Invalid report date"
-  );
-  assert.ok(start < end, "Report start must precede report end");
+  assert.ok(Number.isFinite(end.getTime()), "Invalid report date");
+  const start = weeklyStart(end, argument("--start"));
 
   const outputRoot = path.resolve(argument("--output") ?? "docs/releases");
   const reportDate = argument("--report-date") ?? pacificDateKey(end);

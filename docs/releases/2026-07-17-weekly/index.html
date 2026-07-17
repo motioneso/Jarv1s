@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Jarv1s weekly release record: 65 merged pull requests and 2 open lanes." />
+    <meta name="description" content="Jarv1s weekly release record: 79 merged pull requests and 3 open lanes." />
     <title>Jarv1s Weekly · Jul 17, 2026</title>
     <link rel="stylesheet" href="../weekly-release.css" />
   </head>
   <body>
     <header class="masthead">
-      <p class="issue">Release record · UTC window Jul 12, 2026 to Jul 17, 2026</p>
+      <p class="issue">Release record · UTC window Jul 10, 2026 to Jul 17, 2026</p>
       <p class="wordmark">JARV1S WEEKLY</p>
       <nav class="nav" aria-label="Release sections">
         <a href="#open">Open lanes</a><a href="#ledger">Full ledger</a><a href="https://github.com/motioneso/Jarv1s">Source</a>
@@ -25,10 +25,14 @@
         <p class="snapshot">This is a generated delivery snapshot. “Merged” means present on main. Open, validating, ready, and blocked work is excluded from the shipped count.</p>
       </section>
       <section class="stats" aria-label="Release totals">
-        <div class="stat"><span class="stat-number">65</span><span class="stat-label">Merged PRs</span></div>
-        <div class="stat"><span class="stat-number">22</span><span class="stat-label">Feature PRs</span></div>
+        <div class="stat"><span class="stat-number">79</span><span class="stat-label">Merged PRs</span></div>
+        <div class="stat"><span class="stat-number">35</span><span class="stat-label">Feature PRs</span></div>
         <div class="stat"><span class="stat-number">29</span><span class="stat-label">Fix PRs</span></div>
-        <div class="stat"><span class="stat-number">2</span><span class="stat-label">Open lanes</span></div>
+        <div class="stat"><span class="stat-number">7</span><span class="stat-label">Docs PRs</span></div>
+        <div class="stat"><span class="stat-number">5</span><span class="stat-label">Test PRs</span></div>
+        <div class="stat"><span class="stat-number">1</span><span class="stat-label">Revert PRs</span></div>
+        <div class="stat"><span class="stat-number">2</span><span class="stat-label">Other PRs</span></div>
+        <div class="stat"><span class="stat-number">3</span><span class="stat-label">Open lanes</span></div>
       </section>
       <section class="open" id="open" aria-labelledby="open-title">
         <p class="kicker">Not in the shipped count</p>
@@ -40,22 +44,106 @@
           <span class="status status--validating">validating</span>
           <h3 class="open-title"><a href="https://github.com/motioneso/Jarv1s/pull/1122">fix(uat): #1110 app-map grounding seed correctness</a></h3>
         </div>
-        <p class="open-note"><strong>Head 6d474950.</strong> Running checks: Verify foundation and app.</p>
+        <p class="open-note"><strong>Head 9080699b.</strong> Running checks: Build and publish images.</p>
       </article>
 <article class="open-row">
         <div class="open-id">#1126</div>
         <div>
-          <span class="status status--validating">validating</span>
+          <span class="status status--blocked">blocked</span>
           <h3 class="open-title"><a href="https://github.com/motioneso/Jarv1s/pull/1126">feat(context): expose runtime app context to Jarvis (#1109)</a></h3>
         </div>
-        <p class="open-note"><strong>Head 3b43080b.</strong> Running checks: Verify foundation and app.</p>
+        <p class="open-note"><strong>Head 3b43080b.</strong> Blocking checks: Verify foundation and app.</p>
+      </article>
+<article class="open-row">
+        <div class="open-id">#1129</div>
+        <div>
+          <span class="status status--validating">validating</span>
+          <h3 class="open-title"><a href="https://github.com/motioneso/Jarv1s/pull/1129">feat(releases): publish a scheduled weekly delivery report</a></h3>
+        </div>
+        <p class="open-note"><strong>Head 87cb1780.</strong> Running checks: Build and publish images.</p>
       </article>
       </section>
       <section class="ledger" id="ledger" aria-labelledby="ledger-title">
         <p class="kicker">Source of record</p>
         <h2 class="section-title" id="ledger-title">Every merged pull request.</h2>
         <p class="section-intro">Ordered by merge time and grouped by UTC date. Titles link directly to GitHub.</p>
-        <section class="day" data-date="2026-07-12">
+        <section class="day" data-date="2026-07-10">
+        <h3>Fri, Jul 10</h3>
+        <ol class="entries"><li class="entry">
+            <span class="meta">PR 940</span>
+            <span class="entry-title"><a href="https://github.com/motioneso/Jarv1s/pull/940">skills(coordinate): stop instructing build agents to read specs/plans IN FULL</a></span>
+            <span class="kind">Other</span>
+          </li></ol>
+      </section>
+<section class="day" data-date="2026-07-11">
+        <h3>Sat, Jul 11</h3>
+        <ol class="entries"><li class="entry">
+            <span class="meta">PR 941</span>
+            <span class="entry-title"><a href="https://github.com/motioneso/Jarv1s/pull/941">feat(db): module data plane — roles, RLS, storage RPC, install/deletion lifecycle (#914)</a></span>
+            <span class="kind">Feature</span>
+          </li>
+<li class="entry">
+            <span class="meta">PR 939</span>
+            <span class="entry-title"><a href="https://github.com/motioneso/Jarv1s/pull/939">feat(modules): execute external module assistant tools (#919)</a></span>
+            <span class="kind">Feature</span>
+          </li>
+<li class="entry">
+            <span class="meta">PR 945</span>
+            <span class="entry-title"><a href="https://github.com/motioneso/Jarv1s/pull/945">feat(modules): add external worker capabilities (#915)</a></span>
+            <span class="kind">Feature</span>
+          </li>
+<li class="entry">
+            <span class="meta">PR 947</span>
+            <span class="entry-title"><a href="https://github.com/motioneso/Jarv1s/pull/947">feat(modules): host starter-action open-assistant-with-draft (#916)</a></span>
+            <span class="kind">Feature</span>
+          </li>
+<li class="entry">
+            <span class="meta">PR 949</span>
+            <span class="entry-title"><a href="https://github.com/motioneso/Jarv1s/pull/949">feat(job-search): external package contract + fail-closed fixtures (#930)</a></span>
+            <span class="kind">Feature</span>
+          </li>
+<li class="entry">
+            <span class="meta">PR 952</span>
+            <span class="entry-title"><a href="https://github.com/motioneso/Jarv1s/pull/952">feat(job-search): owner-scoped KV domain layer (#931)</a></span>
+            <span class="kind">Feature</span>
+          </li>
+<li class="entry">
+            <span class="meta">PR 956</span>
+            <span class="entry-title"><a href="https://github.com/motioneso/Jarv1s/pull/956">feat(job-search): onboarding flow + resume truth guard (#932)</a></span>
+            <span class="kind">Feature</span>
+          </li>
+<li class="entry">
+            <span class="meta">PR 955</span>
+            <span class="entry-title"><a href="https://github.com/motioneso/Jarv1s/pull/955">feat(news): personalized news Slice 1 — sources, topics, exclusions (#953)</a></span>
+            <span class="kind">Feature</span>
+          </li>
+<li class="entry">
+            <span class="meta">PR 959</span>
+            <span class="entry-title"><a href="https://github.com/motioneso/Jarv1s/pull/959">feat(job-search): source adapters — greenhouse, lever, ashby (#933)</a></span>
+            <span class="kind">Feature</span>
+          </li>
+<li class="entry">
+            <span class="meta">PR 961</span>
+            <span class="entry-title"><a href="https://github.com/motioneso/Jarv1s/pull/961">feat(job-search): scheduled monitoring + run-now (#934)</a></span>
+            <span class="kind">Feature</span>
+          </li>
+<li class="entry">
+            <span class="meta">PR 966</span>
+            <span class="entry-title"><a href="https://github.com/motioneso/Jarv1s/pull/966">feat(sports): live score in the followed-card footer strip (#963)</a></span>
+            <span class="kind">Feature</span>
+          </li>
+<li class="entry">
+            <span class="meta">PR 967</span>
+            <span class="entry-title"><a href="https://github.com/motioneso/Jarv1s/pull/967">feat(news): safe discovery and personalized compilation (#958)</a></span>
+            <span class="kind">Feature</span>
+          </li>
+<li class="entry">
+            <span class="meta">PR 968</span>
+            <span class="entry-title"><a href="https://github.com/motioneso/Jarv1s/pull/968">feat(job-search): module web surface — overview, onboarding, profile, monitors, opportunities (#935)</a></span>
+            <span class="kind">Feature</span>
+          </li></ol>
+      </section>
+<section class="day" data-date="2026-07-12">
         <h3>Sun, Jul 12</h3>
         <ol class="entries"><li class="entry">
             <span class="meta">PR 970</span>
@@ -400,6 +488,6 @@
       </section>
       </section>
     </main>
-    <footer class="colophon"><p>JARV1S WEEKLY · WINDOW 2026-07-12T00:00:00.000Z TO 2026-07-17T21:26:16.000Z · GENERATED July 17, 2026 at 2:26 PM PDT · SOURCE <a href="https://github.com/motioneso/Jarv1s/pulls">GITHUB PULL REQUESTS</a></p></footer>
+    <footer class="colophon"><p>JARV1S WEEKLY · WINDOW 2026-07-10T21:26:16.000Z TO 2026-07-17T21:26:16.000Z · GENERATED July 17, 2026 at 2:26 PM PDT · SOURCE <a href="https://github.com/motioneso/Jarv1s/pulls">GITHUB PULL REQUESTS</a></p></footer>
   </body>
 </html>
