@@ -3169,6 +3169,19 @@ resume from this note before taking any merge-sensitive action.
 - Final QA and merge remain stopped. Parked review lanes E/F/G and unrelated changes remain
   untouched; `merges_since_relay` is `0`.
 
+## Continuation note — 2026-07-17 #1117 Activity repair plan approved
+
+- Graph trace: `ActivityPane` → `listActionAuditLog` → `requestJson` → `GET
+  /api/ai/action-audit` → RLS-scoped repository. The prior 3-second abort/error UI is masked by
+  React Query's default retry/backoff, leaving `isLoading` true during UAT.
+- Temporary plan `docs/superpowers/plans/2026-07-16-pr-1117-activity-uat-repair.md` is approved:
+  add `retry: false` only to the Activity query, because the visible `Try again` refetch owns retry;
+  add one focused assertion and run focused test/file formatter only. Temporary plan/handoff must be
+  removed before push.
+- Exact session `019f6daf-1877-7f62-8eca-d0356d6b2c16` is implementing. Final QA and merge remain
+  stopped; parked review lanes E/F/G and unrelated changes remain untouched.
+  `merges_since_relay` is `0`.
+
 ## Continuation note — 2026-07-17 #1117 final UAT RED; Activity blocker
 
 - Final exact-head UAT posted RED at
