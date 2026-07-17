@@ -3468,3 +3468,7 @@ resume from this note before taking any merge-sensitive action.
 - Exact-head UAT is running in fresh worktree `~/Jarv1s/.claude/worktrees/uat-1118-final-00c43878`,
   label `UX 1118 UAT 00c43878`, Claude session `9fc16680-781e-4bd2-a4c8-e0125708e3cd`,
   Sonnet/high. It may push only evidence branch `uat/1118-final-00c43878`.
+- UAT session `9fc16680-781e-4bd2-a4c8-e0125708e3cd` prepared the six-CP plan/script and held a
+  healthy live instance at `127.0.0.1:20001`, then relayed before browser execution. Successor
+  label `UX 1118 UAT 00c43878-2`, Claude session `f6db5ae7-8d10-4f6b-bcbd-82532cc2d97a`,
+  Sonnet/high, resumed the same worktree to execute and publish the final verdict.
