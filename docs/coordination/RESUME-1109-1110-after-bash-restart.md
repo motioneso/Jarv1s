@@ -1,6 +1,22 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏩ CURRENT STATE (updated 2026-07-16 by `Coord-1109-1110-g3`, session cb9ca6a3 — gen-3 relay → gen-4, genuine 70%)
+## ⏩ CURRENT STATE (updated 2026-07-16 by `Coord-1109-1110-g4`, session 5622ee69-917d-425c-a6d3-acdb93d1e8c7)
+
+**gen-4 is driving.** Took over from gen-3 (cb9ca6a3, reaped clean — it had already stopped
+taking coordinator actions before I closed its pane w1:pS5). Persistent PR/lane-death Monitor
+**re-armed** (task `bvvuha20x`, polls every 30s: `gh pr list --head build/1110-app-map` +
+`herdr agent list` for a `Build-1110-AppMap*` pane).
+
+**Fleet snapshot at takeover:** exactly one `Build-1110-AppMap*` pane — **`-15`**, session
+`f8124cd9-d875-4190-b6c8-9fcad2bc412b`, pane `w1:pST`. Mid-`coordinated-wrap-up`: code is DONE,
+committed, rebased clean onto `origin/main` (HEAD `30284c28`, 29 commits ahead, not yet pushed).
+Per its checkpoint-16 doc (`docs/superpowers/handoffs/2026-07-16-1110-app-map-relay-16.md` in the
+`build-1110-app-map` worktree), remaining steps are mechanical: `pnpm verify:foundation` →
+`pnpm audit:release-hardening` → push → `gh pr create` → report to coordinator. Pane was showing
+"1% until auto-compact" at takeover — expect it to self-relay to checkpoint 17 before finishing;
+that's normal churn per the established pattern, not a problem. No #1110 PR open yet as of takeover.
+
+Below is gen-3's prior CURRENT STATE (2026-07-16, session cb9ca6a3 — gen-3 relay → gen-4, genuine 70%), kept for history:
 
 Run is HEALTHY. #1110 build lane in the **home stretch of Task 8** (final task); #1109 gated on #1110
 PR. **Do NOT redo:** plans, #1110 spawn, step-½, Tasks 1–7, the module-sdk blocker fix, the UAT
