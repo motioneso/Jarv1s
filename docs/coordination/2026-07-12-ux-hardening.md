@@ -3456,3 +3456,9 @@ resume from this note before taking any merge-sensitive action.
   Sensitive merge digest: CI run `29552827799` green, exact-head UAT CP1-CP8 green, independent
   QA green with 0 findings. `merges_since_relay` is now `1`; no relay trigger has fired. PR #1118
   must now integrate this new `main` before any UAT/final-QA evidence can count.
+- PR #1118 integration is running in fresh worktree
+  `~/Jarv1s/.claude/worktrees/integrate-1118-post-1117`, branch
+  `integrate/1118-post-1117`, label `Integrate 1118 after 1117`, Claude session
+  `f97e5fca-68d9-4062-a5cc-11e10776c393`, Sonnet/high. It must rebase old head
+  `0ca557c82e068f2bacded1781dafd6b22e12821e` onto #1117 merge
+  `65b8a7f8864647cb8c73baa648b6cde05eab1ccc` and update the PR only by force-with-lease.
