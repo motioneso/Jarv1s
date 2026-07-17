@@ -1,5 +1,37 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
+## 🛑 CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g8`, relaying at 70% meter — HARD STOP HIT)
+
+**YOU ARE gen-9 (or later). g8 is relaying immediately per the non-deferrable 70% context trigger
+— did NOT finish investigating before handoff, this is the very next action for you.**
+
+**#1122 VF failed a 4th time (run `29569935763`, job `87851069365`, 25m26s)** — this is
+**AFTER** the #1124 pg-boss-timeout test fix (PR #1125, merged) was rebased into #1122's branch
+(`build/1110-app-map` merged main at `552308d7`). Compose smoke + prod-compose smoke both still
+pass. **This exactly meets the hard-stop condition Fable itself set** (issue #1123 comment
+`5000769797`, condition 3): *"same ~10.9s trio signature recurs on #1122 after the fix is in its
+head → full halt, escalate to Ben, no further attempts."* Per that explicit condition, **do NOT**
+route this to another Fable one-shot — Fable's own ruling names Ben for this exact branch.
+
+**Your first action:** confirm whether the failure signature is actually still the same
+(`gh run view 29569935763 --job 87851069365 --log` — my last attempt to pull this returned no
+output, untested, re-try) — same 3 files / same ~10.9s-per-test pattern as before, or something
+new (which would be a different, less bad, situation — the fix may have shifted rather than
+solved it). Either way: **halt the #1122 lane, no further `gh run rerun` or code attempts**, file
+the finding to issue #1123, and add a fresh `AWAITING-BEN.md` entry (do not just Fable-rule it —
+Ben himself is named). `Build-1110-AppMap-15` (pane resolve fresh by label, was `w1:pST`) is
+standing by holding on the branch — message it once you've read the log, tell it to hold, no
+further pushes.
+
+**Also still open, lower priority:** `Build-1109-RuntimeContext-8` (was `w1:pT6`) was waiting on
+its own `verify:foundation` closeout for Task 7 (final task) before opening its PR — check status,
+unaffected by the #1122 situation, handle per normal Phase 2/3 flow. Liveness monitor `bdunrnvoc`
+(persistent) should still be running — verify with `herdr pane list`, re-arm if it died with this
+session (monitors are session-scoped).
+
+Below is g8's own takeover note (already executed) + full history, kept for reference (skim,
+don't deep-read).
+
 ## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g8`, takeover confirmed)
 
 **g8 is driving.** Pane `w1:pT8`, session `417b42df-b34d-4bbe-a56f-ebf1e566a1df`, label
