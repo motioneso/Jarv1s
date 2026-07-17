@@ -1,6 +1,48 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏭️ IMMEDIATE NEXT ACTION for g14 (read this block first, then skim CURRENT STATE below)
+## ⏭️ IMMEDIATE NEXT ACTION for g15 (read this block first — g14's block below is now historical)
+
+**g14 relayed at 71% context (2026-07-17 ~19:20).** Two open escalations to Ben, BOTH awaiting his
+reply — do not act on either until he answers, do not re-attempt fixes yourself:
+
+1. **#1122 genuine hard-stop.** `build/1110-app-map` head `fe032169` (main merged in cleanly,
+   includes PR #1128's widened pg-boss fix). Real PR #1122 CI (`Verify foundation and app`) FAILED
+   25m26s. Diagnosed via job-log agent (not the build agent's local run, which falsely looked
+   clean): pg-boss `connectionTimeoutMillis` timeout signature **recurs** in
+   `auth-settings.test.ts` (13/23 failed) + `auth-bootstrap-recovery.test.ts` (5/5 failed), all
+   ~10.9–13.7s, **despite confirming #1128's fix is present** in both files (`58570306` is an
+   ancestor of `fe032169`, both have the 25s override). Root cause is beyond #1128's scope — some
+   other connection path or unhardened timeout. `Build-1110-AppMap-15` (`w1:pST`) told to STOP,
+   holding, no retry. Full detail in the `⚠️ #1122 GENUINE HARD-STOP CONFIRMED` block further down
+   (search for it — don't deep-read surrounding history).
+
+2. **#1126 suspected 3rd unverified bypass.** A PR comment
+   (https://github.com/motioneso/Jarv1s/pull/1126#issuecomment-5006648397) claims a "Fable,
+   delegated Ben proxy" ruling authorizing merge+VF-rerun on `build/1109-runtime-context`. Traced
+   to a previously-untracked pane `Fable 1126 Timeout Ruling v2` (`w1:pTH`, worktree
+   `fable-1126-timeout-v2`, session `cf778829…`, status `done`/idle) — NOT spawned by g13 or g14,
+   not in any prior manifest entry. It cites handoff commit `65549ed9`, the SAME commit Ben already
+   confirmed (directly, this run) produced NO ruling (no model credits). Matches the pattern of two
+   PRIOR bypass attempts g13 already rejected (`252e5308`). **Not acted on — no merge, no rerun.**
+   `w1:pTH` deliberately left un-reaped (possible evidence) pending Ben's answer on whether it's
+   legitimate. Full detail in the `⚠️ #1126 SUSPECTED THIRD UNVERIFIED BYPASS ATTEMPT` block below.
+
+**Fleet as of relay:** `Build-1110-AppMap-15` (`w1:pST`) idle/holding on #1122 hard-stop.
+`Build-1109-RuntimeContext-9` (`w1:pTE`) idle/holding on #1126 (untouched). `UX Coordinator`
+(`w1:pSS`) working, separate lane (#1118 already merged `12877ff5`, not ours). `w1:pTH` — do not
+touch until Ben answers. Persistent liveness Monitor was running on `w1:pST`/`w1:pTE`/`w1:pTD`
+(g13's now-gone pane) in g14's session — **re-arm it in yours**, drop the dead `w1:pTD` entry, add
+`w1:pTH` if you want visibility on it.
+
+**Pane reap status (checked 2026-07-17 ~19:20):** g10 and g13 predecessor panes already gone
+(self-reaped) — nothing stale to reap in-scope right now besides the deliberately-held `w1:pTH`.
+
+**No rerun, no merge, no ci.yml edits on #1126. No retry on #1122 without a new root-cause plan.**
+Both are Ben's call now.
+
+---
+
+## ⏭️ IMMEDIATE NEXT ACTION for g14 (historical — g14's own arrival block, superseded above)
 
 **PRIORITY AS OF LAST USER MESSAGE: #1126 is now Ben's direct decision, off this coordinator's
 plate — user said "I will surface the direct Ben decision blocker while you continue #1122."
