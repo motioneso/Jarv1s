@@ -1,6 +1,53 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏭️ IMMEDIATE NEXT ACTION for g16 (read this block first — g15's block below is now historical)
+## ⏭️ IMMEDIATE NEXT ACTION for g17 (read this block first — g16's block below is now historical)
+
+**g16 relaying at 71% context (2026-07-17 ~21:30, self-paced, no Ben-facing blockers).** Fleet
+is healthy, both lanes actively working, nothing awaiting Ben. Your job: keep supervising to
+completion.
+
+1. **#1122 — `Build-1110-AppMap-16` (`w1:pTN`, session freshly spawned, verified Sonnet, correct
+   tab `w1:t2D`).** This is the SECOND agent on this lane — `-15` relayed at ~0% context after
+   root-causing both test failures and writing a checkpoint. Handoff doc:
+   `docs/superpowers/handoffs/2026-07-17-1110-app-map-relay-22.md`. Told explicitly: (a)
+   `auth-settings.test.ts` fix is verified-safe (`maxConnections:1` pool exhaustion, unrelated to
+   the already-correct pg-boss override) — apply it; (b) `auth-bootstrap-recovery.test.ts` is NOT
+   confirmed the same bug (`maxConnections:2`, weaker theory) — needs its own verification before
+   touching, do not rush it; (c) also apply Task #28's `build:app-map`-missing-from-VF fix. Then
+   push + fresh VF + report to coordinator. **Not yet reported** — `-16` was just spawned this
+   relay, give it time before nudging.
+
+2. **#1126 — `Build-1109-RuntimeContext-9` (`w1:pTE`, same agent as prior relays, no relay of its
+   own yet).** Still watching CI run `29612829630` for the post-merge-main VF on
+   `build/1109-runtime-context`. Queued message in its input: "ping me when the VF run finishes" —
+   it knows to report. **Not yet reported.**
+
+3. **UX Coordinator (`w1:pSS`, Codex, worktree `coord-983-ux`) cross-lane heads-up — RESOLVED, no
+   action needed.** They're adding weekly-release automation + one external link anchor in
+   `apps/web/src/shell/command-palette.tsx` (footer). Checked both lanes' diffs
+   (`git diff --stat origin/main...HEAD` in each worktree) — **zero overlap** confirmed twice: (a)
+   original ask flagged `apps/web/src/settings/settings-page.tsx` (touched by both #1122 and
+   #1126) and `apps/web/src/shell/app-shell.tsx` (touched by #1126) — told them to avoid those,
+   they pivoted to `command-palette.tsx`; (b) re-checked `command-palette.tsx` specifically —
+   neither lane touches it. Confirmed clear to them. No further coordination needed unless their
+   file list changes again.
+
+4. **Liveness Monitor `brwa9u3b5`** (watching `w1:pTN` + `w1:pTE`) was running in g16's session —
+   **re-arm it fresh in yours** (dies with the session). Note: herdr `agent_status` flaps
+   working/idle/done rapidly for agents that have their own internal Monitor loops running — this
+   is normal noise, not a signal. Only act on it if the SAME status persists across 2+ reads with
+   no visible progress in a bounded pane read (real precedent this run: `-15`'s input box showed
+   identical unsubmitted text across 4 consecutive reads — that WAS real and needed a nudge).
+
+5. **`w1:pTH`** (Fable pane, `fable-1126-timeout-v2`) — still no longer disputed, still not urgent
+   to reap, leave as-is.
+
+**No new Ben decisions pending.** `AWAITING-BEN.md`'s only open items belong to a different
+coordinator run (job-search-overnight) — not ours.
+
+---
+
+## ⏭️ IMMEDIATE NEXT ACTION for g16 (historical — g16's own arrival block, superseded above)
 
 **g15 relaying at 70% context (2026-07-17 ~20:50). Ben answered both open items directly in
 chat — no more "hold and wait," both lanes are now active with real work dispatched. Nothing new
