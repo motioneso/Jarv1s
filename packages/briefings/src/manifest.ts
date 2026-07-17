@@ -42,6 +42,7 @@ export const briefingsModuleManifest = {
     {
       id: "briefings",
       label: "Briefings",
+      description: "Review generated morning and evening briefings.",
       path: "/briefings",
       icon: "newspaper",
       order: 50,

@@ -1645,6 +1645,47 @@ export const LIFECYCLE_MIGRATION_PENDING: readonly string[] = [
   "weather"
 ];
 
+const MAX_APP_MAP_DESCRIPTION_LENGTH = 240;
+
+function assertAppMapDescription(owner: string, kind: string, id: string, value: string): void {
+  const length = value.trim().length;
+  if (length === 0 || length > MAX_APP_MAP_DESCRIPTION_LENGTH) {
+    throw new Error(
+      `Module "${owner}" ${kind} "${id}" description must contain 1-${MAX_APP_MAP_DESCRIPTION_LENGTH} trimmed characters`
+    );
+  }
+}
+
+function assertAppMapDeclarations(manifest: JarvisModuleManifest): void {
+  for (const surface of manifest.navigation ?? []) {
+    assertAppMapDescription(manifest.id, "navigation", surface.id, surface.description);
+  }
+  for (const surface of manifest.settings ?? []) {
+    assertAppMapDescription(manifest.id, "settings", surface.id, surface.description);
+  }
+  for (const feature of manifest.features ?? []) {
+    assertAppMapDescription(manifest.id, "feature", feature.id, feature.description);
+    const remediationIds = new Set(feature.remediations?.map((item) => item.id) ?? []);
+    for (const remediation of feature.remediations ?? []) {
+      assertAppMapDescription(manifest.id, "remediation", remediation.id, remediation.description);
+    }
+    for (const error of feature.errors ?? []) {
+      assertAppMapDescription(manifest.id, "error", error.code, error.description);
+      if (error.class === "prerequisite") {
+        if (!error.remediationRef || !remediationIds.has(error.remediationRef)) {
+          throw new Error(
+            `Module "${manifest.id}" prerequisite error "${error.code}" has undeclared remediationRef "${error.remediationRef ?? ""}"`
+          );
+        }
+      } else if (error.remediationRef !== undefined) {
+        throw new Error(
+          `Module "${manifest.id}" non-prerequisite error "${error.code}" must not declare remediationRef`
+        );
+      }
+    }
+  }
+}
+
 // Compat gate (ADR 0009 §3): validate every built-in's compatibility.jarv1s against
 // CORE_VERSION at load time, before any registration path runs. Throws if a module is
 // incompatible or not defaultEnabled, naming the offender.
@@ -1675,6 +1716,8 @@ export function assertModuleRegistryConsistency(
   const externalSourceIds = new Map<string, string>();
 
   for (const registration of registrations) {
+    assertAppMapDeclarations(registration.manifest);
+
     const moduleId = registration.manifest.id;
 
     assertUniqueRegistryKey(moduleIds, moduleId, moduleId, "module id");

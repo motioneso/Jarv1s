@@ -52,6 +52,7 @@ export const calendarModuleManifest = {
     {
       id: "calendar",
       label: "Calendar",
+      description: "View the active actor's connected calendar events.",
       path: "/calendar",
       icon: "calendar-days",
       order: 35,
@@ -62,6 +63,7 @@ export const calendarModuleManifest = {
     {
       id: "calendar.module-settings",
       label: "Calendar",
+      description: "Choose calendar briefing and scheduling preferences.",
       path: "/settings/modules/calendar",
       scope: "user",
       order: 35,

@@ -26,6 +26,7 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       id: "settings",
       label: "Settings",
+      description: "Open personal and instance settings.",
       path: "/settings",
       icon: "settings",
       order: 1000,
@@ -36,6 +37,7 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       id: "priority-settings",
       label: "Priorities",
+      description: "Tell Jarvis which goals and commitments matter most.",
       path: "/settings?section=priorities",
       scope: "user",
       order: 30,
@@ -44,6 +46,7 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       id: "admin-settings",
       label: "Admin",
+      description: "Manage instance access, modules, AI providers, and host settings.",
       path: "/settings/admin",
       scope: "admin",
       order: 1000,

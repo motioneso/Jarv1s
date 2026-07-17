@@ -7,6 +7,23 @@ import type {
   ModuleSettingsSurfaceManifest
 } from "@jarv1s/module-sdk";
 import type { AiModelCapability, AiModelTier } from "@jarv1s/shared";
+import { assertModuleRegistryConsistency, type BuiltInModuleRegistration } from "@jarv1s/module-registry";
+
+function registration(manifest: JarvisModuleManifest): BuiltInModuleRegistration {
+  return { manifest, sqlMigrationDirectories: [], queueDefinitions: [] };
+}
+
+function baseManifest(overrides: Partial<JarvisModuleManifest>): JarvisModuleManifest {
+  return {
+    id: "fixture",
+    name: "Fixture",
+    version: "0.0.0",
+    publisher: "jarv1s",
+    lifecycle: "required",
+    compatibility: { jarv1s: ">=0.0.0" },
+    ...overrides
+  };
+}
 
 describe("app-map manifest contracts", () => {
   it("keeps shared AI requirement literals assignable to the module SDK", () => {
@@ -50,6 +67,47 @@ describe("app-map manifest contracts", () => {
         }
       ]
     } satisfies JarvisModuleManifest;
-    expect(manifest.features[0].errors[0].code).toBe(error.code);
+    expect(manifest.features[0]!.errors[0]!.code).toBe(error.code);
+  });
+
+  it.each(["", "   ", "x".repeat(241)])("rejects invalid surface description %j", (description) => {
+    expect(() =>
+      assertModuleRegistryConsistency([
+        registration(
+          baseManifest({
+            navigation: [{ id: "fixture", label: "Fixture", path: "/fixture", description }]
+          })
+        )
+      ])
+    ).toThrow(/description/i);
+  });
+
+  it("rejects a prerequisite error whose remediation is undeclared", () => {
+    expect(() =>
+      assertModuleRegistryConsistency([
+        registration(
+          baseManifest({
+            features: [
+              {
+                id: "fixture.do_thing",
+                description: "Do the thing.",
+                errors: [
+                  {
+                    code: "fixture.missing",
+                    class: "prerequisite",
+                    remediationRef: "fixture.configure",
+                    description: "Configuration is missing."
+                  }
+                ]
+              }
+            ]
+          })
+        )
+      ])
+    ).toThrow(/undeclared remediationRef/i);
+  });
+
+  it("accepts every built-in surface", () => {
+    expect(() => assertModuleRegistryConsistency()).not.toThrow();
   });
 });

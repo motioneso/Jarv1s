@@ -89,6 +89,7 @@ export const newsModuleManifest = {
     {
       id: "news",
       label: "News",
+      description: "Read personalized headlines from enabled sources.",
       path: "/news",
       icon: "newspaper",
       order: 34,
@@ -99,6 +100,7 @@ export const newsModuleManifest = {
     {
       id: "news.prefs",
       label: "News",
+      description: "Choose news sources, topics, and excluded publishers.",
       path: "/settings/modules/news",
       scope: "user",
       order: 34,
