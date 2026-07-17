@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-12
 **Merge-authority lock (#983):** label `UX Coordinator`, Codex session
-`019f6cf0-dc6f-7351-9978-d2b1e6605a96`.
+`019f71fc-e3b7-77b0-914b-5518538943ef`.
 **Peer coordinator boundary:** label `Coordinator`, Claude session
 `58a78927-385c-4b1d-8fa0-94db20255d6f`, owns its separate #1000/UAT and other recorded lanes.
 **Merge policy:** the locked `UX Coordinator` owns specs, builders, QA, and merges for #983.
@@ -3539,3 +3539,17 @@ resume from this note before taking any merge-sensitive action.
 - Preserve all unrelated modified/untracked files in this UX worktree, especially
   `.claude/context-meter.log`, Webwright artifacts, `.hallmark/`, and the pre-existing untracked
   `docs/releases/` directory. Do not stage them.
+
+## Continuation note — 2026-07-17 UX Coordinator authority adoption
+
+- Delegated `UX Coordinator` authority is adopted by immutable Codex session
+  `019f71fc-e3b7-77b0-914b-5518538943ef`; `merges_since_relay` is reset to `0` before any PR action.
+- After this manifest-only adoption commit is pushed and the successor confirms it is driving,
+  fresh-resolve and close only old exact label `UX Coordinator` plus session
+  `019f6e67-577e-78f0-9b4a-822c0c95c396`, then rename this session `UX Coordinator`. Never touch
+  primary Coordinator `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+- Continue PR #1129 by fresh-checking CI, obtaining independent routine-tier QA, recording live-path
+  proof for the command-palette link, rebasing and re-running integrated QA if `main` moved, then
+  merging. After merge, enable Pages with workflow build, dispatch `weekly-release.yml` on `main`,
+  and verify `https://motioneso.github.io/Jarv1s/` plus the in-app link.
+- Preserve unrelated changes, parked review lanes E/F/G, and the peer coordinator's active lanes.
