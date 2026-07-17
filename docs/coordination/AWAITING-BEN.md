@@ -201,4 +201,49 @@ VF on another branch — a bare re-run of the unchanged head is a lucky-runner b
 
 **Action taken:** tasked `Build-1110-AppMap-15` (owns #1122's branch, has full root-cause
 context) with the fix in a fresh worktree off main (`fix/1124-pgboss-test-timeout`), separate
-from the #1122 branch. In progress.
+from the #1122 branch. Fix landed as PR #1125 (merged), then merged into #1122's branch
+(`build/1110-app-map` @ `552308d7`) per condition 2 above.
+
+**🛑 4th VF FAILURE — HARD STOP HIT, ESCALATING TO YOU DIRECTLY (2026-07-17, `Coord-1109-1110-g8`).**
+Fresh VF on the post-fix head (`552308d7`) failed again: run `29569935763`, job `87851069365`,
+25m26s. This trips Fable's own condition 3 verbatim — per that ruling, this now goes to **you**,
+not another Fable pass, and **no further re-runs**.
+
+Pulled the failure log directly (`gh run view 29569935763 --job 87851069365 --log`). Two things
+worth flagging:
+- **It's not just the original 3 files anymore.** Failures now span at least 6 integration
+  suites: `multi-user-isolation` (14/15 failed), `auth-settings` (13/23), `account-self-deletion`
+  (8/8), `news-personalization-repository` (10/15), `auth-bootstrap-recovery` (5/5), and one
+  failure in `release-hardening` (1/19) — well beyond the trio #1125 patched.
+- **But the per-test timing is the same ~10-11s ceiling as before** (e.g. `multi-user-isolation`
+  failures logged at 11205ms/11074ms) — so this isn't a new failure mode, it's the *same*
+  10s-class timeout hitting far more surface area than originally scoped. Read together with
+  #1124's root cause (pg-boss's hardcoded 10000ms `connectionTimeoutMillis`, uncorrected because
+  no `boss` override is passed into `createApiServer`): it looks like more integration test files
+  than just the original 3 construct a real pg-boss client with no override, and this run's
+  GH-runner load pushed enough of them over the ceiling to cascade. #1125's fix was scoped to
+  the 3 files that failed in the first 3 runs — evidently too narrow.
+
+No `ECONNREFUSED`/pool-exhaustion/`EADDRINUSE` signature found (checked). One `HttpError:
+Unauthorized` line in the log is an intentional negative-path assertion in
+`data-export.test.ts` ("requires authentication"), not a real failure — ignore it, it's noise.
+
+**Not treating this as solved or re-attempting anything.** `-15` is holding on
+`build/1110-app-map`, no further pushes, no further re-runs, per Fable's condition 3 and your
+standing "no blockers on me but the named hard-stop still means Ben" framing. `Build-1109-RuntimeContext-8`
+is a separate, unaffected lane.
+
+**Your call, options as I see them (not deciding for you):**
+(a) Widen #1124's fix to every integration test file that omits a `boss` override (audit via
+`grep -rL "createPgBossClient" tests/integration/*.test.ts` cross-referenced against ones that
+call `createApiServer` directly) rather than the original 3 — durable fix, more surface to touch.
+(b) Raise pg-boss's real default `connectionTimeoutMillis` for CI specifically (env-gated), which
+fixes it for every current and future test file at once but changes runtime behavior more broadly
+than "test-scoped."
+(c) Treat this as confirmation the shared CI Postgres/runner is under-provisioned for this test
+suite's current size regardless of the pg-boss angle, and address runner sizing instead of test
+code.
+(d) Something else.
+
+#1122 stays fully blocked (VF red, plus the still-open #1110 live-path exit-criterion question
+above) until you weigh in — no further coordinator action on this lane.
