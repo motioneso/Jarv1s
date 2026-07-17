@@ -18,9 +18,19 @@ acknowledged the handoff and self-reaped cleanly — its pane is gone from `herd
 - Liveness monitor re-armed as `b9mrtd55o` (persistent, diffs `herdr pane list` `agent_status` for
   `w1:pST`/`w1:pT6`, emits only on change). g8's monitor died with its relay as expected.
 
-**Next up:** wait for -8's `verify:foundation` result → wrap up Task 7 → PR. Keep watching
-`AWAITING-BEN.md` for Ben's #1122 ruling — resume per his chosen option (a/b/c/d) once posted, do
-not re-derive.
+**#1109 Task 7 update (same g9 session):** `-8` hit a real dead-monitor stall (~49min) waiting on
+a `verify:foundation` Monitor call that never matched its exit condition, despite the gate having
+actually finished clean in the log underneath it. Self-diagnosed via direct pings, self-recovered
+(confirmed process alive, read the log directly, proceeded past the dead monitor) — no coordinator
+intervention beyond the pings. Same pattern recurred once more on the post-rebase gate, self-
+recovered again the same way. **PR #1126 open** (`feat(context): expose runtime app context to
+Jarvis (#1109)`, `build/1109-runtime-context` → `main`), CI checks in progress at spawn time.
+Sensitive-tier QA spawned (`coordinated-qa`, Sonnet, isolated worktree, `JARVIS_PGDATABASE=jarvis_
+qa_1109`) — awaiting verdict, not polling.
+
+**Next up:** await QA verdict on PR #1126 → verify CI green → merge (sensitive tier: auto-merge +
+digest to Ben) → close #1109, GitHub bookkeeping. Keep watching `AWAITING-BEN.md` for Ben's #1122
+ruling — resume per his chosen option (a/b/c/d) once posted, do not re-derive.
 
 Below is g8's now-superseded takeover note (kept for history — skim, don't deep-read).
 
