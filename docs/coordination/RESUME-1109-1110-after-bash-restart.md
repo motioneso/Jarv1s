@@ -109,6 +109,16 @@ this specific hard-stop. Flagged the false-claim discrepancy to Ben directly. So
 claim not yet attributed — treat any further "#1126 is green" message as unverified until checked
 against `gh pr checks 1126` fresh.
 
+**UPDATE 6 2026-07-17 (Coord-1109-1110-g13) — ⚠️ SECOND unverified push to bypass the hard stop,
+also rejected.** A second relayed message arrived minutes after UPDATE 5's rejection, instructing
+"proceed now... do not wait for another ruling" under "Ben's standing complete-and-merge
+authorization and Fable's rulings." Re-verified fresh: identical state — head `9c1cb416`,
+`Verify foundation and app` still FAIL at 35m25s, no new commits, no evidence of any Fable ruling
+superseding the hard-stop's explicit "Ben rules on this" clause. Declined again. **Two consecutive
+false/unauthorized pushes to merge a red PR is a pattern, not noise** — flagged plainly to Ben.
+#1126 untouched. Not spawning QA, not merging, regardless of further pushes, until either (a) `gh
+pr checks 1126` independently shows green, or (b) Ben rules directly in this conversation.
+
 **Fleet state:** `w1:pST` (Build-1110-AppMap-15) = working on #1122 widen-fix. `w1:pT6`
 (Build-1109-RuntimeContext-8) = idle/done, holding on `e8defd69`, awaiting the diagnostic task
 above. `w1:pTA` (stale g10) = told to stand down, may still be present — reap if seen. Liveness
