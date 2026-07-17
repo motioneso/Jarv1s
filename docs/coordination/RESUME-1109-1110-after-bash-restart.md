@@ -36,16 +36,33 @@ fired and is not being re-armed on the same run (it's terminal, already read) �
 needed only once -15 pushes a new commit and a new CI run starts; don't arm one against a
 non-existent future run.
 
-**Next action for whoever reads this next:** wait for -15's investigation verdict (via monitor
-status flip to idle/done, or a direct escalation if it hits something). On verdict:
-- **Genuine regression, fixed + verified locally:** OK -15 to push, arm a fresh CI monitor on the
-  new run, update issue #1123 with the fix.
-- **Flake/contention, no code change:** OK a single CI re-run (no push needed —
-  `gh run rerun 29560460812 --failed` or similar), arm a monitor on that. If VF fails a **3rd**
-  time, this is now definitively not noise — escalate harder (don't just re-run again).
-- **Either way:** update issue #1123 and the AWAITING-BEN.md entry with the resolution before
-  considering this blocker cleared. Merge is STILL separately blocked on the #1110 exit-criterion
-  ruling above (unrelated, unresolved as of this update) — clearing CI does not unblock merge.
+**UPDATE (same gen-6 session) — -15's verdict in, re-run authorized, in flight:**
+- **-15's diagnosis: environmental, not the errors.ts diff.** `test:unit` normal timing (423/423,
+  129.89s — no resolution-overhead signature). `test:integration` slowdown wasn't uniform —
+  dominated by 5 DB/auth-heavy files failing hard in CI (`auth-settings` 13/23 failed 159.6s,
+  `multi-user-isolation` 14/15 failed 158s, `account-self-deletion` 8/8 failed 89.6s,
+  `news-personalization-repository` 10/15 failed 110.6s, `auth-bootstrap-recovery` 5/5 failed
+  56.8s — all normally ~11-23s). **Same commit ran 156/156 clean locally** (790s, incl. all 5 of
+  those files), only unrelated pre-existing `chat-skills.test.ts` flake. `errors.ts` is type-only
+  — mechanistically can't cause runtime auth/DB failures. Pattern = Postgres service container
+  choking under CI runner load, not a code defect. Verified against -15's own pane directly
+  (matched exactly) before acting — not just trusting relayed text.
+- **Decision:** authorized `gh run rerun 29560460812 --failed` (no code push) to test the flake
+  hypothesis. Confirmed in flight (`gh pr checks 1122` shows VF `pending` again on a fresh job
+  attempt, same run ID). Posted verdict + decision to issue #1123
+  (`issuecomment-5000011936`). Told -15 to keep holding idle.
+- **Monitor `buvkh6pws`** (non-persistent, 30min timeout) armed on `gh pr checks 1122` for
+  all-non-pending terminal state.
+
+**Next action for whoever reads this next:** wait for monitor `buvkh6pws` (or re-check
+`gh pr checks 1122` if it timed out silently). On result:
+- **VF green:** flake theory confirmed. Close out issue #1123 as resolved (environmental, no code
+  change needed). Spawn QA (`coordinated-qa`, tier **sensitive**) per the original plan. Merge
+  still separately blocked on the #1110 exit-criterion ruling in AWAITING-BEN.md (unresolved as of
+  this update) — clearing CI does not unblock merge.
+- **VF fails a 3rd time (even with different specific test failures):** no longer plausibly noise
+  — do NOT just re-run again. Escalate harder: this may need a genuinely fresh runner / manual Ben
+  attention on CI infra health, not another coordinator-level retry. Update issue #1123.
 
 Below is g5's own final relay note (partially superseded by the above — the "IMMEDIATE WORK" CI
 state it describes is now stale, already investigated and superseded) + full history, kept for
