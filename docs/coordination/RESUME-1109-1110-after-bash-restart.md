@@ -1,6 +1,58 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g5`, session 435f7c1a — driving)
+## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g5`, session 435f7c1a — relay → gen-6, genuine 70%)
+
+**YOU ARE gen-6. Do these FIRST:**
+1. `herdr pane list` — find your own pane/session (relay spawns you in the SAME tab as g5's pane,
+   `w1:t2E`, NOT the agents tab).
+2. **Reap `Build-1109-RuntimeContext-5`** (pane `w1:pT1`, session `e06f43fd-1f9f-4dee-a923-
+   a923-e76e90310af7`) — its successor `Build-1109-RuntimeContext-6` (pane `w1:pT2`, session
+   `c865baf7-a3a4-4fc4-baa8-27a804aae18d`) was **already confirmed driving fresh** by g5 right
+   before this relay fired — re-resolve by label+session once more before closing (cheap, don't
+   skip), but this one is low-risk, already-verified.
+3. **Reap g5** (label `Coord-1109-1110-g5`, session `435f7c1a-1c09-493b-b091-af1cf10919f0`,
+   pane `w1:pSX`) — resolve fresh by label+session, confirm distinct successor first.
+4. Re-arm Monitor on PR #1122 CI (`gh pr checks 1122`) for terminal state — the prior one
+   (`b52frv1qd`) is session-only and died with g5; it does NOT auto-continue. Also re-arm a
+   `Build-1110-AppMap*` pane-status/lane-death watch (g5's `ban5o5gh8` also died with the
+   session).
+
+**IMMEDIATE WORK — PR #1122, both prior CI blockers fixed, 3rd run in flight, VF still pending:**
+- Head SHA `874759ec` (commits `a29cd8aa` fix + `874759ec` handoff docs from -15). Run
+  `29560460812`. **At last check:** `Compose deployment smoke` PASS, `Prod compose deployment
+  smoke` PASS, **`Verify foundation and app` still PENDING** — check `gh pr checks 1122` fresh,
+  don't assume it's still pending by the time you read this.
+- **-15 is idle, holding on the branch as instructed** (pane `w1:pST`, session `f8124cd9…`) —
+  don't re-message it unless CI comes back red again.
+- **On CI green (all required checks):** spawn QA — `Agent(subagent_type: "coordinated-qa",
+  isolation: "worktree", prompt: "PR: 1122 | Branch: build/1110-app-map | Spec: <see prior specs
+  in docs/superpowers/specs/ for #1110 app-map> | Tier: sensitive")` (Sonsonet inherits — this is
+  `sensitive` tier, not `security`, so no Opus override needed; tier rationale: module-sdk barrel
+  touch = cross-module contract change, confirmed in this session's investigation above).
+- **On CI red again:** this would be the first red run on `Verify foundation and app`
+  specifically since the VF fix landed (compose-smoke already passed once on the current head, so
+  compose-smoke red-again would count differently) — read the job log yourself before
+  re-escalating to -15; don't assume it's a flake or the same root cause.
+- **Merge stays blocked regardless of QA verdict** on Ben's `AWAITING-BEN.md` #1110
+  exit-criterion ruling (§"#1110 app-map — real-LLM grounding e2e...") — not yet resolved as of
+  this relay. QA + green CI do not unblock merge on their own.
+
+**#1109 in parallel:** now on **`Build-1109-RuntimeContext-6`** (pane `w1:pT2`, session
+`c865baf7…`), Task 5 (WIP, was mid-task at last relay — "chat.getCurrentView tool" was Task 4,
+now done+committed `e5d57c6e`). Healthy relay cadence throughout (-1→-6, all clean, no
+escalations) — this is normal churn for a long build, not a problem. Passive supervision only
+unless it escalates.
+
+**UX Coordinator (separate fleet, pane `w1:pSS`, tab `w1:t1Q`):** exchanged status pings this
+session. #1118 (their PR) completed its single Ben-authorized CI rerun GREEN, no overlap with any
+#1110-touched files (`packages/module-sdk/src/index.ts`, `packages/shared/src/index.ts`,
+`news-api.ts`) — confirmed by them. No action needed from this fleet; they're advancing through
+their own remaining gate independently.
+
+Below is g5's own takeover note (already executed) + full gen-4/gen-3 history, kept for reference
+(skim, don't deep-read):
+
+**gen-5 is driving.** Took over from g4 (5622ee69, reaped clean, pane `w1:pSV` closed after
 
 **gen-5 is driving.** Took over from g4 (5622ee69, reaped clean, pane `w1:pSV` closed after
 fresh label+session confirm). My pane `w1:pSX`, tab `w1:t2E` (same tab as predecessor, not the
