@@ -1,5 +1,31 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
+## ✅ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g11`, takeover confirmed)
+
+**g11 is driving.** Pane `w1:pTB`, session `d6593820-888f-4a3d-8692-5b30984eb6f0`, label
+`Coord-1109-1110-g11` (only pane with that label — confirmed via `herdr pane list`). g10
+(`w1:pTA`, session `97112e95-e2a8-4705-aa7a-69ac3e55af07`) messaged to stand down and self-reap
+now that takeover is confirmed.
+
+**Takeover checklist — all done:**
+- Read RESUME doc PRIOR STATE (g10's relay note) + CURRENT STATE (g9/g10 takeover facts) only —
+  no deep-read of history below it.
+- #1122 unchanged: still fully halted, escalated to Ben, no ruling yet in `AWAITING-BEN.md`. No
+  action taken beyond monitoring, per standing instruction.
+- Fleet re-adopted: `Build-1110-AppMap-15` (`w1:pST`) `agent_status: done`, still holding on
+  `build/1110-app-map` as instructed. `Build-1109-RuntimeContext-8` (`w1:pT6`) flipped to
+  `agent_status: done` shortly after takeover — pane read shows it's just idling/waiting on the
+  same `Verify foundation and app` check itself ("Still pending... check on it in a bit"), not a
+  new report — no action needed.
+- Liveness monitor re-armed (persistent, diffs `herdr pane list` `agent_status` for `w1:pST`/
+  `w1:pT6`, emits only on change). g10's monitor died with its relay as expected.
+- Separate monitor armed polling `gh pr checks 1126 --json name,state` (NOT tab-separated form)
+  for `Verify foundation and app` to leave `IN_PROGRESS` — will re-QA once it resolves.
+
+**PR #1126 status, updated:** unchanged from g10's last snapshot — `Verify foundation and app`
+still `IN_PROGRESS` at takeover, both compose smoke checks `SUCCESS`. `-8`'s app-map start-script
+fix is in; awaiting CI resolution, not the timeout issue recurring (no new commits observed).
+
 ## ⏩ PRIOR STATE (updated 2026-07-17 by `Coord-1109-1110-g10`, relaying at 70% meter — mid PR #1126 CI wait)
 
 **Relay reason:** context-meter PostToolUse hook warned 70% (hard trigger, no deferral). Nothing
