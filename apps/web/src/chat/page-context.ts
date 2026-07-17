@@ -1,11 +1,9 @@
 /**
- * #679 — "Jarvis can see what page I'm on."
+ * #679/#1109 — "Jarvis can see what page I'm on."
  *
- * Captures a bounded, redacted snapshot of the current page ONLY when the user's
- * message appears to be asking about it (see {@link asksAboutCurrentPage}), and only
- * for that one turn — see `sendChatTurn` in ../api/client.ts and
- * ChatSessionManager.engineText in packages/chat, which folds the snapshot into the
- * engine-bound prompt but never into the persisted message text.
+ * Captures a bounded, redacted snapshot of the current page. Pushed to the server via
+ * `updatePageContext` (../api/client.ts) on navigation/DOM changes and read on demand by
+ * the `chat.getCurrentView` pull tool (packages/chat) — never attached to a chat turn.
  *
  * Design choices, in order of how much privacy weight they carry:
  *
@@ -232,25 +230,6 @@ function truncate(value: string, maxLength: number): string {
   return value.length > maxLength ? value.slice(0, maxLength) : value;
 }
 
-// ─── Intent heuristic (pure, unit-tested directly) ─────────────────────────────────
-
-// Deliberately broad rather than narrow: a false positive costs one extra (redacted,
-// capped) block in the prompt; a false negative means the user's "what does this
-// button do?" question gets no page context at all. Kept as a standalone exported
-// function so its judgment calls are easy to test and adjust independently of the
-// capture/redaction logic above.
-const CURRENT_PAGE_PATTERN =
-  /\b(this page|this screen|this view|this tab|current page|what am i (looking at|on)|where am i|this button|this field|this form|this section|this list|this card|what does this|what is this|explain this|what('?s| is) (going on|here|on (my|the) screen)|on (my|this) screen)\b/i;
-
-/**
- * Heuristic: does this user message plausibly ask about what is currently on screen?
- * Used to gate whether a page-context snapshot is captured and attached at all — page
- * context is opt-in-by-content, never sent by default (see chat-drawer.tsx sendMessage).
- */
-export function asksAboutCurrentPage(text: string): boolean {
-  return CURRENT_PAGE_PATTERN.test(text);
-}
-
 // ─── Real-DOM adapter (thin, mechanical, not unit-tested directly) ─────────────────
 
 const CAPTURE_SELECTOR = "h1,h2,h3,h4,h5,h6,button,[role='button'],label,p,li";
@@ -378,13 +357,4 @@ export function capturePageContextSnapshot(): PageContextSnapshotDto {
       errors: []
     });
   }
-}
-
-/**
- * #679 — capture a page-context snapshot only when the message itself appears to ask
- * about the current page; returns undefined otherwise so page context is never attached
- * by default (on-demand-only capture is the whole point of the feature).
- */
-export function maybeCapturePageContext(userText: string): PageContextSnapshotDto | undefined {
-  return asksAboutCurrentPage(userText) ? capturePageContextSnapshot() : undefined;
 }

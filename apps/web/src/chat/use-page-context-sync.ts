@@ -27,7 +27,7 @@ export function createDebouncedPageContextSync(input: {
 }
 
 /**
- * #1109 — replaces the per-turn `<page_context>` push (deleted in Task 5): the client keeps the
+ * #1109 — replaces the per-turn page-context push (deleted in Task 5): the client keeps the
  * server's live-view snapshot current independent of chat activity, debounced so route changes,
  * DOM mutations, focus, and selection changes don't each fire a request.
  */

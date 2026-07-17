@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  asksAboutCurrentPage,
   buildPageContextSnapshot,
   isHiddenElementSignals,
   isSensitiveElementSignals,
@@ -197,28 +196,6 @@ describe("buildPageContextSnapshot", () => {
       selectedText: null
     });
     expect(() => new Date(snapshot.capturedAt).toISOString()).not.toThrow();
-  });
-});
-
-describe("asksAboutCurrentPage (#679 on-demand-only heuristic)", () => {
-  it.each([
-    "what does this button do?",
-    "What is this page for?",
-    "explain this screen",
-    "where am i right now",
-    "what's on my screen",
-    "what am I looking at"
-  ])("recognizes %s as asking about the current page", (text) => {
-    expect(asksAboutCurrentPage(text)).toBe(true);
-  });
-
-  it.each([
-    "what's the weather tomorrow",
-    "add a task called buy milk",
-    "remind me to call mom",
-    "how do I reset my password"
-  ])("does not treat %s as asking about the current page", (text) => {
-    expect(asksAboutCurrentPage(text)).toBe(false);
   });
 });
 

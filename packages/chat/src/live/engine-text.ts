@@ -1,10 +1,10 @@
 /**
- * Build the engine-bound text for one turn: folds the optional page-context block (#679)
- * together with passive-retrieval / cross-tool-reasoning hidden context ahead of the raw
- * user text. Extracted from ChatSessionManager so the (already substantial) retrieval
- * orchestration lives in its own module rather than growing the manager class further.
+ * Build the engine-bound text for one turn: folds passive-retrieval / cross-tool-reasoning
+ * hidden context ahead of the raw user text. Extracted from ChatSessionManager so the
+ * (already substantial) retrieval orchestration lives in its own module rather than
+ * growing the manager class further.
  */
-import type { AnswerSourceSupport, PageContextSnapshotDto } from "@jarv1s/shared";
+import type { AnswerSourceSupport } from "@jarv1s/shared";
 import type { MemoryRecallItem } from "@jarv1s/memory";
 import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
 
@@ -16,7 +16,6 @@ import {
   renderCrossToolContextBlock,
   type CrossToolReadRunner
 } from "./cross-tool-reasoning.js";
-import { renderPageContextBlock } from "./page-context.js";
 import { rankChatContext, reorderByPriority } from "../priority-consumer.js";
 import { combineHiddenContextBlocks } from "./chat-session-manager.js";
 
@@ -27,20 +26,13 @@ export interface EngineTextDeps {
   readonly priorityModel?: { getModel(actorUserId: string): Promise<PriorityModelPreferenceV1> };
 }
 
-function withPageContext(pageContextBlock: string, otherBlock: string, text: string): string {
-  const combined = [pageContextBlock, otherBlock].filter(Boolean).join("\n\n");
-  return combined ? `${combined}\n\n${text}` : text;
-}
-
 export async function buildEngineText(
   deps: EngineTextDeps,
   actorUserId: string,
-  text: string,
-  pageContext: PageContextSnapshotDto | undefined
+  text: string
 ): Promise<{ text: string; pendingItems: AnswerSourceSupport[] }> {
-  const pageContextBlock = pageContext ? renderPageContextBlock(pageContext) : "";
   if (!deps.passiveRetrieval && !deps.crossToolRead) {
-    return { text: withPageContext(pageContextBlock, "", text), pendingItems: [] };
+    return { text, pendingItems: [] };
   }
   try {
     const [{ recent }, threadCtx] = await Promise.all([
@@ -120,8 +112,8 @@ export async function buildEngineText(
     const pendingItems: AnswerSourceSupport[] = [...memoryItems, ...crossToolItems];
 
     const combined = combineHiddenContextBlocks(passiveResult.block, crossTool.block);
-    return { text: withPageContext(pageContextBlock, combined, text), pendingItems };
+    return { text: combined ? `${combined}\n\n${text}` : text, pendingItems };
   } catch {
-    return { text: withPageContext(pageContextBlock, "", text), pendingItems: [] };
+    return { text, pendingItems: [] };
   }
 }

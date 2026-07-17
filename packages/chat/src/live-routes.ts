@@ -41,7 +41,6 @@ import {
   ChatTurnInFlightError
 } from "./live/chat-session-manager.js";
 import { CliChatUnavailableError } from "./live/errors.js";
-import { projectPageContextSnapshot } from "./live/page-context.js";
 import type { PageContextStore } from "./live/page-context-store.js";
 import type { ChatSessionRuntime } from "./live/runtime.js";
 
@@ -100,13 +99,6 @@ export function registerChatLiveRoutes(
       }
       const { text } = textResult;
 
-      // #679 — optional page-context attachment. Malformed/oversized input is silently
-      // dropped rather than rejected with a 400: a bad snapshot must never block sending
-      // the actual chat message. `projectPageContextSnapshot` re-bounds arbitrary body
-      // input into the strict DTO shape (defense in depth on top of client-side redaction).
-      const rawPageContext = (request.body as Record<string, unknown> | undefined)?.pageContext;
-      const pageContext = projectPageContextSnapshot(rawPageContext) ?? undefined;
-
       try {
         const userName = await runtime.resolveUserName(access.actorUserId);
         const {
@@ -114,7 +106,7 @@ export function registerChatLiveRoutes(
           userMessageId,
           assistantMessageId,
           sourceFreshness
-        } = await runtime.manager.submitTurn(access.actorUserId, userName, text, pageContext);
+        } = await runtime.manager.submitTurn(access.actorUserId, userName, text);
 
         return reply.send({
           reply: assistantReply,

@@ -132,7 +132,6 @@ export interface PageContextSnapshotDto {
 
 export interface SendChatTurnRequest {
   readonly text: string;
-  readonly pageContext?: PageContextSnapshotDto;
 }
 
 /** #1109 — PUT /api/chat/page-context body: the actor's current client-reported view. */
