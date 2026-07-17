@@ -4,6 +4,7 @@ export type Brand<TValue, TBrand extends string> = TValue & {
 
 export type { JarvisError, JarvisErrorClass } from "@jarv1s/module-sdk";
 
+export * from "./app-map-core.js";
 export * from "./schema-fragments.js";
 export * from "./ai-api.js";
 export * from "./ai-service-binding-api.js";

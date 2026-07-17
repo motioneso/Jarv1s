@@ -36,6 +36,7 @@
     "dev:worker": "pnpm --filter @jarv1s/worker dev",
     "start:api": "pnpm --filter @jarv1s/api start",
     "build:web": "pnpm --filter @jarv1s/web build",
+    "build:app-map": "tsx scripts/build-app-map.ts",
     "build:api": "tsx scripts/build-app.ts api",
     "build:worker": "tsx scripts/build-app.ts worker",
     "smoke:compose:prod": "tsx scripts/smoke-compose.ts --compose-file infra/docker-compose.prod.yml --build",

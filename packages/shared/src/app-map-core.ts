@@ -1,0 +1,175 @@
+import type { AiModelCapability, AiModelTier } from "./ai-types.js";
+
+export interface CoreAppSurfaceDeclaration {
+  readonly id: string;
+  readonly label: string;
+  readonly description: string;
+  readonly path: string;
+  readonly scope: "user" | "admin";
+}
+
+export interface AppMapItem {
+  readonly moduleId: string;
+  readonly id?: string;
+  readonly featureId?: string;
+  readonly code?: string;
+  readonly class?: "prerequisite" | "transient" | "validation" | "permission" | "bug";
+  readonly remediationRef?: string;
+  readonly label?: string;
+  readonly description?: string;
+  readonly path?: string;
+  readonly scope?: "user" | "admin" | "system";
+  readonly featureFlagId?: string;
+  readonly requires?: {
+    readonly service: string;
+    readonly capability: AiModelCapability;
+    readonly tier: AiModelTier;
+  };
+}
+
+export interface AppMapArtifact {
+  readonly schemaVersion: 1;
+  readonly build: { readonly version: string; readonly buildId: string };
+  readonly screens: readonly AppMapItem[];
+  readonly settings: readonly AppMapItem[];
+  readonly features: readonly AppMapItem[];
+  readonly errors: readonly AppMapItem[];
+  readonly remediations: readonly AppMapItem[];
+  readonly narrative: { readonly authoritative: false; readonly markdown: string };
+}
+
+export const CORE_APP_SCREENS: readonly CoreAppSurfaceDeclaration[] = [
+  {
+    id: "today",
+    label: "Today",
+    description: "See the day's tasks, events, briefings, and priority cues in one place.",
+    path: "/today",
+    scope: "user"
+  },
+  {
+    id: "notifications",
+    label: "Notifications",
+    description: "Review notifications produced by enabled modules.",
+    path: "/notifications",
+    scope: "user"
+  }
+];
+
+// Mirrors the real PERSONAL_GROUPS/ADMIN_GROUPS section ids and labels declared in
+// apps/web/src/settings/settings-page.tsx — kept truthful to that file rather than
+// any earlier draft, per #1110 spec anti-hallucination (settings-page.tsx is the
+// source of truth for what a user can actually reach).
+export const CORE_APP_SETTINGS: readonly CoreAppSurfaceDeclaration[] = [
+  {
+    id: "profile",
+    label: "Account & preferences",
+    description: "Edit personal profile, account, and preference details.",
+    path: "/settings?section=profile",
+    scope: "user"
+  },
+  {
+    id: "appearance",
+    label: "Appearance",
+    description: "Choose the app theme and palette.",
+    path: "/settings?section=appearance",
+    scope: "user"
+  },
+  {
+    id: "assistant",
+    label: "Assistant & AI",
+    description: "Choose assistant behavior and model routing available to this user.",
+    path: "/settings?section=assistant",
+    scope: "user"
+  },
+  {
+    id: "priorities",
+    label: "Priorities",
+    description: "Set goals and commitments Jarvis should prioritize.",
+    path: "/settings?section=priorities",
+    scope: "user"
+  },
+  {
+    id: "memory",
+    label: "Memory & context",
+    description: "Review and configure Jarvis memory behavior.",
+    path: "/settings?section=memory",
+    scope: "user"
+  },
+  {
+    id: "activity",
+    label: "Activity",
+    description: "Review assistant activity visible to this user.",
+    path: "/settings?section=activity",
+    scope: "user"
+  },
+  {
+    id: "connected",
+    label: "Connected accounts",
+    description: "Connect external accounts and review their status.",
+    path: "/settings?section=connected",
+    scope: "user"
+  },
+  {
+    id: "sources",
+    label: "Data sources",
+    description: "Review sources Jarvis can read.",
+    path: "/settings?section=sources",
+    scope: "user"
+  },
+  {
+    id: "modules",
+    label: "Modules",
+    description: "Enable or disable user-toggleable modules.",
+    path: "/settings?section=modules",
+    scope: "user"
+  },
+  {
+    id: "skills",
+    label: "Skills",
+    description: "Manage assistant skill instructions.",
+    path: "/settings?section=skills",
+    scope: "user"
+  },
+  {
+    id: "people",
+    label: "People & access",
+    description: "Manage instance users, access, and registration policy.",
+    path: "/settings?section=people",
+    scope: "admin"
+  },
+  {
+    id: "aiproviders",
+    label: "Assistant & AI",
+    description: "Configure instance AI providers, models, and bindings.",
+    path: "/settings?section=aiproviders",
+    scope: "admin"
+  },
+  {
+    id: "instmods",
+    label: "Instance modules",
+    description: "Install and enable instance modules.",
+    path: "/settings?section=instmods",
+    scope: "admin"
+  },
+  {
+    id: "oversight",
+    label: "Connector oversight",
+    description: "Review connector health across the instance.",
+    path: "/settings?section=oversight",
+    scope: "admin"
+  },
+  {
+    id: "audit",
+    label: "Audit & operations",
+    description: "Review instance audit and operational records.",
+    path: "/settings?section=audit",
+    scope: "admin"
+  },
+  {
+    id: "host",
+    label: "Advanced host setup",
+    description: "Review non-secret host diagnostics and deployment guidance.",
+    path: "/settings?section=host",
+    scope: "admin"
+  }
+];
