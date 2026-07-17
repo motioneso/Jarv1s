@@ -20,7 +20,10 @@ tests/uat/*.ts
 tests/uat/specs
 spikes
 external-modules
-docs
+# #1110: build-app-map.ts reads docs/WHATS_NEW.md at image-build time as the app-map
+# narrative field, so it can't be blanket-excluded like the rest of docs/.
+docs/*
+!docs/WHATS_NEW.md
 backups
 exports
 **/dist
