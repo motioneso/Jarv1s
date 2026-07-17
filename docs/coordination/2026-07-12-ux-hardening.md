@@ -3513,3 +3513,29 @@ resume from this note before taking any merge-sensitive action.
   and its project item is Done. `merges_since_relay` is now `1`. The spent agent pane and clean QA
   worktree were reaped; the integration worktree remains parked to preserve its unrelated modified
   `.claude/context-meter.log`.
+
+## Continuation note — 2026-07-17 weekly release report relay
+
+- Compaction tripwire fired while completing Ben's weekly release-report request. Merge nothing
+  before this relay is adopted.
+- Delegated `UX Coordinator` authority remains immutable Codex session
+  `019f6e67-577e-78f0-9b4a-822c0c95c396`; `merges_since_relay` is `1` before handoff. The successor
+  must adopt authority with its own immutable session id, reset `merges_since_relay` to `0`, commit
+  and push only this manifest, confirm driving, then fresh-resolve and reap only this old exact
+  label/session. Never touch primary Coordinator `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+- Weekly release automation is implemented on branch `feat/weekly-release-report` in worktree
+  `~/Jarv1s/.claude/worktrees/weekly-release-report`, commit `87cb1780`, PR #1129. It adds the Friday
+  09:00 Pacific scheduled report workflow, dependency-free generator, initial archive and stable
+  GitHub Pages landing page, approved mini-spec, and a Jarv1s command-palette link. Local lint,
+  format, typecheck, build, unit, generator, report-count, and responsive-browser checks are green.
+- PR #1129 CI run `29614741707` was pending at compaction. Successor: fresh-check CI; if green,
+  obtain independent routine-tier QA, satisfy the user-facing live-path gate for the command-palette
+  link, rebase/integrated-QA if main moved, then merge under normal coordinator protocol. After merge,
+  enable Pages with workflow build, manually dispatch `weekly-release.yml` on `main`, and verify
+  `https://motioneso.github.io/Jarv1s/` plus the in-app link.
+- `Coord-1109-1110-g16` confirmed neither #1122 nor #1126 touches
+  `apps/web/src/shell/command-palette.tsx`; its successor label will be `Coord-1109-1110-g17`.
+  Do not touch their `settings-page.tsx` or `app-shell.tsx` lanes.
+- Preserve all unrelated modified/untracked files in this UX worktree, especially
+  `.claude/context-meter.log`, Webwright artifacts, `.hallmark/`, and the pre-existing untracked
+  `docs/releases/` directory. Do not stage them.
