@@ -1,6 +1,67 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ✅ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g12`, takeover confirmed, PR #1126 escalated to Ben)
+## ✅ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g13`, relay at 70% ctx, driving #1122+#1126 to merge per Ben)
+
+**g13 is the incoming successor — spawn confirms it, this note is g12's flush.** Read ONLY this
+section; the PRIOR STATE sections below are historical, do not deep-read.
+
+**Scope (Ben, verbatim, still binding):** complete and merge PRs #1118, #1122, #1126. Drive
+#1122/#1126 through existing Fable rulings, live-path/QA/CI gates, merge order, cleanup. Never
+merge red or bypass proof. **#1118 is UX Coordinator's lane (session
+`019f6e67-577e-78f0-9b4a-822c0c95c396`, pane `w1:pSS`) — do not touch.** Report compact
+status/blockers/merge SHAs to `w1:pSS` — **only for a genuinely new blocker or final merge SHAs**,
+not routine progress. Ben also said explicitly: don't re-ask him to choose among already-settled
+options — act on the established Fable-pattern reasoning yourself for anything already in that
+shape; only escalate to him directly when a ruling's own hard-stop condition names him (not Fable)
+as the next decision-maker.
+
+**#1122 (app-map, `build/1110-app-map` @ `552308d7`) — IN PROGRESS, unblocked, no Ben input
+needed.** 4th VF failure hit Fable's hard-stop verbatim (6 suites now failing, same ~10-11s pg-boss
+`connectionTimeoutMillis` signature, wider than the 3 files #1125 already fixed). g12 extended
+Fable's own established pattern (narrow test-scoped fix, not a runtime bump, not unconfirmed
+runner-sizing) to the wider scope rather than re-litigating — full reasoning recorded in
+`AWAITING-BEN.md` `## #1122 CI` section, final addendum "UPDATE 2026-07-17 (Coord-1109-1110-g12)".
+**Action in flight:** `Build-1110-AppMap-15` (`w1:pST`) tasked to audit every integration test file
+missing a pg-boss `boss` override (not just the original 3), fix all of them test-scoped, open PR
+"Part of #1124" from a fresh worktree off main. **Next steps for g13:** (1) watch for that PR to
+land (bounded pane read on `w1:pST`, or it will message this label), (2) spawn `coordinated-qa`
+(routine tier — test-config-only, zero prod diff) on it, (3) merge to main on green, (4) merge main
+into `build/1110-app-map` (never rerun the stale head `552308d7`), (5) fresh VF, (6) if the same
+signature recurs even after the widened fix — that's the real hard-stop, escalate to Ben directly,
+no further attempts. If it's clean: #1122 also still separately gated on the #1110 live-path
+UAT-evidence exit-criterion (`## #1110 app-map` section in `AWAITING-BEN.md`, line ~90) — re-check
+that's actually cleared before merging #1122 itself, it was open as of g6's note and g13 must
+re-verify current status, not assume.
+
+**#1126 (runtime-context, `build/1109-runtime-context` @ `e8defd69`) — HARD STOP, escalated to
+Ben, diagnostic dispatched, awaiting result.** Fable authorized a `ci.yml` timeout stopgap
+(25→35min) on the theory of ~+75% real growth (main baseline same morning = 14m02s). Landed
+(`e8defd69`), fresh VF run `29597220968`/job `87940451041` **ran the full 35 minutes and still got
+cancelled** (16:42:38Z→17:18:03Z) — over 2.5x baseline, past what the stopgap's own evidence
+predicted. This trips the ruling's hard-stop condition verbatim: **no more reruns, no more
+`ci.yml` edits, escalate directly to Ben (not Fable)** — full writeup in `AWAITING-BEN.md`
+`## #1126 CI` section, final "🛑 HARD STOP HIT" addendum. Already relayed to Ben in conversation;
+he asked for a diagnostic before ruling. **Action just dispatched, not yet confirmed landed:**
+task #10 in the coordinator's TaskList — message `Build-1109-RuntimeContext-8` (`w1:pT6`) to pull
+the failure log/timing breakdown from run `29597220968` job `87940451041` (`gh run view ... --log`
+or per-job API), determine single-hung-suite vs broad-based-slowdown, and specifically check
+whether commit `80ebb905` ("generate app-map artifact before start, not just dev") added
+synchronous per-server-boot cost that multiplies across the many integration test files (g12's
+leading hypothesis, unverified). **Report only — no code changes, no reruns, no ci.yml edits**
+until Ben rules on the diagnostic's findings. **g13's first action: send this diagnostic task to
+`w1:pT6` verbatim (it was created in TaskList but the pane message itself was not yet sent when
+g12 hit the 70% relay trigger) — this is the one piece of in-flight work g12 did NOT get to
+dispatch before flushing.**
+
+**Fleet state:** `w1:pST` (Build-1110-AppMap-15) = working on #1122 widen-fix. `w1:pT6`
+(Build-1109-RuntimeContext-8) = idle/done, holding on `e8defd69`, awaiting the diagnostic task
+above. `w1:pTA` (stale g10) = told to stand down, may still be present — reap if seen. Liveness
+Monitor for `w1:pT6`/`w1:pST` status changes died with g12's relay — **re-arm it** (persistent
+Monitor diffing `herdr pane list` `agent_status` for those two panes, emit only on change).
+
+**No merges yet on either PR.** No SHAs to report to UX Coordinator yet.
+
+## 🛑 PRIOR STATE (g12, superseded by g13 relay above — historical, do not deep-read)
 
 **g12 is driving.** Pane `w1:pTC`, session `f8ceb71f-2a1f-4e28-bcf0-dfe7e6ad43fb`, label
 `Coord-1109-1110-g12` (only pane with that label — confirmed via `herdr pane list`). g11
