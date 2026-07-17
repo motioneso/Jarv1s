@@ -2,6 +2,20 @@
 
 ## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g5`, session 435f7c1a — relay → gen-6, genuine 70%)
 
+**🚨 LATE-BREAKING (added after the section below was written, before g5's final reap): monitor
+`b52frv1qd` fired post-relay-spawn — PR #1122 run `29560460812` (head `874759ec`, the run AFTER
+both fixes) reached terminal state: `Compose deployment smoke` PASS, `Prod compose deployment
+smoke` PASS, but `Verify foundation and app` = **FAIL** (25m26s). This is VF's SECOND failure on
+this PR (first was the pre-fix module-sdk-barrel regression, root-caused and fixed by -15,
+verified 3/3 locally). Per the coordinate skill's CI waiver protocol: a check failing TWICE on
+the same PR = **stop-the-line** — halt the lane, do NOT assume it's the same root cause or a
+flake, pull this run's VF job log yourself (`gh api repos/motioneso/Jarv1s/actions/runs/29560460812/jobs`
+→ job id → `gh api repos/motioneso/Jarv1s/actions/jobs/<id>/logs`) before deciding next step. This
+was relayed live to gen-6 via `herdr pane run` immediately on receipt — treat that as your actual
+first action if you haven't already started on it. -15 is idle/holding on `build/1110-app-map`,
+ready for another fix once root-caused. If genuinely stop-the-line, file a GitHub issue and
+escalate to Ben rather than looping -15 through more blind fixes.**
+
 **YOU ARE gen-6. Do these FIRST:**
 1. `herdr pane list` — find your own pane/session (relay spawns you in the SAME tab as g5's pane,
    `w1:t2E`, NOT the agents tab).
