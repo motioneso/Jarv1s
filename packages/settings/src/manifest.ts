@@ -1,6 +1,11 @@
 import { fileURLToPath } from "node:url";
 
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import {
+  appGetMapSliceExecute,
+  appGetMapSliceInputSchema,
+  appGetMapSliceOutputSchema
+} from "./app-map-tool.js";
 
 export const settingsModuleSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
@@ -398,6 +403,18 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       method: "POST",
       path: "/api/onboarding/provider-login/cancel",
       permissionId: "settings.manage"
+    }
+  ],
+  assistantTools: [
+    {
+      name: "app.getMapSlice",
+      description:
+        "Look up a bounded slice of the app's declared screens, settings, features, errors, and remediations by screen id, setting id, error code, or free-text query.",
+      permissionId: "settings.view",
+      risk: "read",
+      inputSchema: appGetMapSliceInputSchema,
+      outputSchema: appGetMapSliceOutputSchema,
+      execute: appGetMapSliceExecute
     }
   ]
 };

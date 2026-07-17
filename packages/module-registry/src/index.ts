@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
@@ -190,7 +193,10 @@ import {
   type OnboardingLoginDependencies,
   type ExternalModulesDependencies,
   type ModuleDistributionDependencies,
-  type HerdrInstallDependencies
+  type HerdrInstallDependencies,
+  type AppMapReadService,
+  loadAppMap,
+  createAppMapReadService
 } from "@jarv1s/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
@@ -337,6 +343,21 @@ export {
   type RouteModuleIndex
 } from "./route-guard.js";
 
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+
+function findWorkspaceRoot(startDir: string): string {
+  let dir = startDir;
+  for (let depth = 0; depth < 16; depth += 1) {
+    if (existsSync(join(dir, "pnpm-workspace.yaml"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  throw new Error(`Cannot locate pnpm-workspace.yaml above ${startDir}`);
+}
+
+const APP_MAP_ARTIFACT_PATH = join(findWorkspaceRoot(MODULE_DIR), "dist", "app-map.json");
+
 export interface BuiltInRouteDependencies {
   // Raw root handle forwarded to settings' BootstrapHelper (pre-session bootstrap status).
   // Documented Kysely< exemption — see packages/settings/src/bootstrap.ts. This is the
@@ -370,6 +391,8 @@ export interface BuiltInRouteDependencies {
   }) => Promise<readonly { moduleId: string; readiness: number; summary: string }[]>;
   /** Resolved MCP endpoint advertised to CLI chat engines. Owned by API composition config. */
   readonly mcpServerUrl: string;
+  /** #1110 app-map read service, built once in registerBuiltInApiRoutes and threaded to the ai/chat modules' assistant tool wiring. */
+  readonly appMapService?: AppMapReadService;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
   readonly chatEngineFactory?: ChatEngineFactory;
   /**
@@ -1171,15 +1194,18 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         // #915 D6: installed set, not actor-filtered enablement.
         listInstalledModuleIds: () => deps.listModuleManifests().map((manifest) => manifest.id),
         tasksCompatibility,
-        readToolServices: deps.connectorsRepository
-          ? {
-              featureGrants: buildFeatureGrantService({
-                connectorsRepository: deps.connectorsRepository,
-                preferencesRepository: new PreferencesRepository()
-              }),
-              sourceContext: buildRuntimeSourceContextService()
-            }
-          : undefined,
+        readToolServices: {
+          ...(deps.connectorsRepository
+            ? {
+                featureGrants: buildFeatureGrantService({
+                  connectorsRepository: deps.connectorsRepository,
+                  preferencesRepository: new PreferencesRepository()
+                }),
+                sourceContext: buildRuntimeSourceContextService()
+              }
+            : {}),
+          appMap: deps.appMapService!
+        },
         // #1059 — the actual @jarv1s/chat dependency for the owner-terminal WS relay lives HERE,
         // not in packages/ai (see the import comment above for why). TerminalRpcClient.connect
         // opens the Unix-domain-socket RPC connection to the cli-runner's terminal host.
@@ -1230,7 +1256,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           : undefined,
         sourceContextService: deps.connectorsRepository
           ? buildRuntimeSourceContextService()
-          : undefined
+          : undefined,
+        appMapService: deps.appMapService
       }),
     registerWorkers: (boss, deps) =>
       registerChatJobWorkers(boss, deps.dataContext, {
@@ -2037,8 +2064,22 @@ export function registerBuiltInApiRoutes(
     logger: { warn: (obj, msg) => server.log.warn(obj, msg) }
   });
 
+  const appMapService = createAppMapReadService({
+    artifact: loadAppMap(APP_MAP_ARTIFACT_PATH),
+    resolveActiveModules: dependencies.resolveActiveModules,
+    resolveFeatureFlagState: (featureFlagId) =>
+      dependencies.listModuleManifests().some((manifest) =>
+        (manifest.featureFlags ?? []).some(
+          (flag) => flag.id === featureFlagId && flag.defaultEnabled === true
+        )
+      ),
+    getUser: (scopedDb, userId) => new SettingsRepository().getUserById(scopedDb, userId),
+    logGap: (fields) => server.log.info(fields, "app-map coverage gap")
+  });
+
   const deps: BuiltInRouteDependencies = {
     ...dependencies,
+    appMapService,
     chatEngineFactory,
     createCliStructuredAdapter: createCliStructuredAdapterFactory(structuredChatEngineFactory),
     // #342 (§3.5 boot-time fork): on the socket path hand the chat runtime an `engineSelection` so it

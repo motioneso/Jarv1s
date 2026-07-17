@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { AssistantToolGateway } from "@jarv1s/ai";
+import type { ModuleAssistantToolManifest } from "@jarv1s/module-sdk";
 
 function makeDeps(overrides: Partial<ConstructorParameters<typeof AssistantToolGateway>[0]> = {}) {
   return {
@@ -47,7 +48,7 @@ function makeReadTool(name: string, executeResult: unknown = { data: {} }) {
         risk: "read" as const,
         inputSchema: { type: "object", properties: { q: { type: "string" } } },
         execute: vi.fn().mockResolvedValue(executeResult)
-      }
+      } as ModuleAssistantToolManifest
     ]
   };
 }
@@ -135,5 +136,35 @@ describe("AssistantToolGateway.runReadToolForActor", () => {
       expect.anything(),
       {}
     );
+  });
+
+  it("caps and recursively allow-lists app.getMapSlice output", async () => {
+    const execute = vi.fn().mockResolvedValue({
+      data: { kind: "screen", items: [], build: { version: "1", buildId: "x", secret: "drop" } }
+    });
+    const module = makeReadTool("app.getMapSlice");
+    module.assistantTools[0] = {
+      ...module.assistantTools[0]!,
+      outputSchema: {
+        type: "object",
+        required: ["kind", "items", "build"],
+        properties: {
+          kind: { type: "string" },
+          items: { type: "array", items: { type: "object", properties: {} } },
+          build: {
+            type: "object",
+            required: ["version", "buildId"],
+            properties: { version: { type: "string" }, buildId: { type: "string" } }
+          }
+        }
+      },
+      execute
+    };
+    const gw = new AssistantToolGateway(
+      makeDeps({ resolveActiveModules: vi.fn().mockResolvedValue([module]) })
+    );
+    const result = await gw.runReadToolForActor("u1", "app.getMapSlice", { query: "news" });
+    expect(result.ok).toBe(true);
+    expect(JSON.stringify(result)).not.toContain("secret");
   });
 });

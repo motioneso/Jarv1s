@@ -39,3 +39,15 @@ export {
   registerProactiveMonitoringSettingsRoutes,
   type ReconcileProactiveScheduleFn
 } from "./proactive-monitoring-routes.js";
+export {
+  type AppMapQuery,
+  type AppMapReadService,
+  type ResolveFeatureFlagState,
+  loadAppMap,
+  createAppMapReadService
+} from "./app-map.js";
+export {
+  appGetMapSliceInputSchema,
+  appGetMapSliceOutputSchema,
+  appGetMapSliceExecute
+} from "./app-map-tool.js";
