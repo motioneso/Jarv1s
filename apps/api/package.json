@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --dir ../.. build:app-map && tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
+    "start": "pnpm --dir ../.. build:app-map && tsx src/server.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
