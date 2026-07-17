@@ -3409,3 +3409,8 @@ resume from this note before taking any merge-sensitive action.
   modify `apps/web/src/styles/kit-today.css` with different blobs. Serialize merge order as #1117
   first; after it lands, integrate #1118 onto the new `main`, then require fresh exact-head live
   UAT and final QA before merging #1118. Do not validate #1118 against its pre-integration head.
+- UAT session `609e1e93-a120-4a45-bd47-57f1678820e2` passed CP1-CP4 but reproduced CP5's missing
+  Activity timeout error across four script trigger strategies, then relayed cleanly before
+  root-cause classification. Focused successor label `UX 1117 CP5 Diagnose`, Claude session
+  `7c8c1a97-fc45-4e10-923f-32bbe238d411`, owns the clean exact-head worktree on Sonnet/high to
+  classify harness bug versus product defect; #1117 final QA and both merges remain stopped.
