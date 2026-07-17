@@ -21,6 +21,7 @@ describe("command palette model", () => {
       disabledModuleIds: ["wellness"],
       themes: {
         activeId: "light",
+        mode: "light",
         builtIn: [
           { id: "light", name: "Forest", builtIn: true },
           { id: "sage", name: "Sage", builtIn: true },
@@ -106,6 +107,7 @@ describe("command palette model", () => {
       disabledModuleIds: [],
       themes: {
         activeId: "dark",
+        mode: "dark",
         builtIn: [{ id: "dark", name: "Dark", builtIn: true }],
         custom: []
       }

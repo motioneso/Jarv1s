@@ -14,13 +14,6 @@ const SOURCE_LABEL: Record<string, string> = {
   notes: "Notes"
 };
 
-const BAND_CLASS: Record<string, string> = {
-  critical: "jds-badge--amber",
-  high: "jds-badge--amber",
-  normal: "jds-badge--steel",
-  low: "jds-badge--neutral"
-};
-
 export function ProactiveCards() {
   const queryClient = useQueryClient();
   const cardsQuery = useQuery({
@@ -75,7 +68,6 @@ function ProactiveCardRow(props: {
 }) {
   const { card } = props;
   const sourceLabel = SOURCE_LABEL[card.source] ?? card.source;
-  const bandClass = BAND_CLASS[card.priorityBand] ?? "jds-badge--neutral";
 
   return (
     <div className="jds-task jds-task--p2">
@@ -83,7 +75,6 @@ function ProactiveCardRow(props: {
       <div className="jds-task__main">
         <div className="jds-task__title">{card.title}</div>
         <div className="jds-task__meta">
-          <span className={`jds-badge ${bandClass}`}>{card.priorityBand}</span>
           <span className="jds-task__source">{sourceLabel}</span>
           {card.summary ? <span className="jds-task__time">{card.summary}</span> : null}
         </div>

@@ -308,6 +308,7 @@
 /* ------------------------------------------------------------------------- */
 /* DARK THEME — warm charcoal (re-points primitives + a few semantics).      */
 /* ------------------------------------------------------------------------- */
+[data-color-mode="dark"],
 [data-theme="dark"] {
   --paper: #1c1a16;
   --surface: #232019;
@@ -433,6 +434,57 @@
   --focus-ring: rgba(75, 74, 99, 0.45);
   --accent-soft-border: rgb(75 74 99 / 0.45);
   --accent-soft-border-weak: rgb(75 74 99 / 0.32);
+}
+
+/* Built-in accents stay independent from the charcoal base. */
+[data-color-mode="dark"][data-theme="sage"] {
+  --forest: #86a66b;
+  --forest-hover: #9abf7c;
+  --forest-active: #75945e;
+  --forest-soft: #293624;
+  --forest-soft-2: #35472e;
+  --forest-ink: #b9d8a0;
+  --focus-ring: rgba(134, 166, 107, 0.5);
+}
+
+[data-color-mode="dark"][data-theme="canyon"] {
+  --forest: #d07b4c;
+  --forest-hover: #e18b59;
+  --forest-active: #b9673e;
+  --forest-soft: #432b20;
+  --forest-soft-2: #563727;
+  --forest-ink: #f0b08a;
+  --focus-ring: rgba(208, 123, 76, 0.5);
+}
+
+[data-color-mode="dark"][data-theme="teal"] {
+  --forest: #63b8b2;
+  --forest-hover: #78ccc5;
+  --forest-active: #52a39e;
+  --forest-soft: #203937;
+  --forest-soft-2: #2a4a47;
+  --forest-ink: #a3ded9;
+  --focus-ring: rgba(99, 184, 178, 0.5);
+}
+
+[data-color-mode="dark"][data-theme="dusk"] {
+  --forest: #a3a1c8;
+  --forest-hover: #b5b3d7;
+  --forest-active: #8e8cad;
+  --forest-soft: #302f43;
+  --forest-soft-2: #3e3d56;
+  --forest-ink: #c9c7e6;
+  --focus-ring: rgba(163, 161, 200, 0.5);
+}
+
+[data-color-mode="dark"][data-theme="light"] {
+  --forest: #65b889;
+  --forest-hover: #7acb9d;
+  --forest-active: #52a477;
+  --forest-soft: #22392c;
+  --forest-soft-2: #2d4b3a;
+  --forest-ink: #b0dfc2;
+  --focus-ring: rgba(101, 184, 137, 0.5);
 }
 
 @media (prefers-reduced-motion: reduce) {

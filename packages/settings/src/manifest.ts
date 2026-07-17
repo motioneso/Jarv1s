@@ -150,6 +150,11 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     },
     {
       method: "PUT",
+      path: "/api/me/themes/mode",
+      permissionId: "settings.write"
+    },
+    {
+      method: "PUT",
       path: "/api/me/themes/:id",
       permissionId: "settings.write"
     },

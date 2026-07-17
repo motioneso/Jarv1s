@@ -209,7 +209,8 @@ export async function mockApi(page: Page, state: MockApiState): Promise<void> {
       { id: "dark", name: "Dark", builtIn: true }
     ],
     custom: [],
-    activeId: state.themeActiveId ?? "light"
+    activeId: state.themeActiveId ?? "light",
+    mode: "light"
   });
   await page.route("**/api/me/themes/active", (route) =>
     state.authenticated

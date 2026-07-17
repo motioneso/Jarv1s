@@ -79,11 +79,11 @@ describe("settings theme preferences", () => {
         { id: "sage", name: "Sage", builtIn: true },
         { id: "canyon", name: "Canyon", builtIn: true },
         { id: "teal", name: "Teal", builtIn: true },
-        { id: "dusk", name: "Dusk", builtIn: true },
-        { id: "dark", name: "Dark", builtIn: true }
+        { id: "dusk", name: "Dusk", builtIn: true }
       ],
       custom: [],
-      activeId: "light"
+      activeId: "light",
+      mode: "light"
     });
   });
 

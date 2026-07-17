@@ -7,12 +7,14 @@ import {
   OPTIONAL_AESTHETIC_TOKEN_KEYS,
   deleteCustomThemeRouteSchema,
   listThemesRouteSchema,
+  putColorModeRouteSchema,
   putActiveThemeRouteSchema,
   putCustomThemeRouteSchema,
   type AestheticThemeTokens,
   type BuiltInThemeDto,
   type CustomThemeDto,
   type PutActiveThemeRequest,
+  type PutColorModeRequest,
   type PutCustomThemeRequest
 } from "@jarv1s/shared";
 
@@ -21,6 +23,7 @@ import { handleSettingsRouteError } from "./route-error.js";
 
 const CUSTOM_THEMES_KEY = "themes.custom";
 const ACTIVE_THEME_KEY = "themes.active";
+const COLOR_MODE_KEY = "themes.color-mode";
 const BUILT_IN_THEMES: readonly BuiltInThemeDto[] = [
   // The "light" id keeps its value so stored active-theme preferences and
   // localStorage survive; only the display name changed for Park Press.
@@ -28,8 +31,7 @@ const BUILT_IN_THEMES: readonly BuiltInThemeDto[] = [
   { id: "sage", name: "Sage", builtIn: true },
   { id: "canyon", name: "Canyon", builtIn: true },
   { id: "teal", name: "Teal", builtIn: true },
-  { id: "dusk", name: "Dusk", builtIn: true },
-  { id: "dark", name: "Dark", builtIn: true }
+  { id: "dusk", name: "Dusk", builtIn: true }
 ];
 const BUILT_IN_IDS: ReadonlySet<string> = new Set(BUILT_IN_THEMES.map((theme) => theme.id));
 const THEME_ID_PATTERN = /^[a-zA-Z0-9_-]{1,80}$/;
@@ -51,11 +53,20 @@ export function registerThemeRoutes(
         const custom = normalizeCustomThemes(
           await dependencies.preferencesRepository.get(scopedDb, CUSTOM_THEMES_KEY)
         );
-        const activeId = normalizeActiveThemeId(
-          await dependencies.preferencesRepository.get(scopedDb, ACTIVE_THEME_KEY),
-          custom
+        const storedActiveId = await dependencies.preferencesRepository.get(
+          scopedDb,
+          ACTIVE_THEME_KEY
         );
-        return { builtIn: BUILT_IN_THEMES, custom, activeId };
+        const activeId = normalizeActiveThemeId(storedActiveId, custom);
+        return {
+          builtIn: BUILT_IN_THEMES,
+          custom,
+          activeId,
+          mode: normalizeColorMode(
+            await dependencies.preferencesRepository.get(scopedDb, COLOR_MODE_KEY),
+            storedActiveId
+          )
+        };
       });
     } catch (error) {
       return handleSettingsRouteError(error, reply);
@@ -75,13 +86,41 @@ export function registerThemeRoutes(
           );
           if (!isKnownThemeId(body.id, custom)) throw new HttpError(400, "Unknown theme");
           await dependencies.preferencesRepository.upsert(scopedDb, ACTIVE_THEME_KEY, body.id);
-          return { builtIn: BUILT_IN_THEMES, custom, activeId: body.id };
+          return {
+            builtIn: BUILT_IN_THEMES,
+            custom,
+            activeId: body.id,
+            mode: normalizeColorMode(
+              await dependencies.preferencesRepository.get(scopedDb, COLOR_MODE_KEY),
+              body.id
+            )
+          };
         });
       } catch (error) {
         return handleSettingsRouteError(error, reply);
       }
     }
   );
+
+  server.put("/api/me/themes/mode", { schema: putColorModeRouteSchema }, async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const body = request.body as PutColorModeRequest;
+      return dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+        const custom = normalizeCustomThemes(
+          await dependencies.preferencesRepository.get(scopedDb, CUSTOM_THEMES_KEY)
+        );
+        const activeId = normalizeActiveThemeId(
+          await dependencies.preferencesRepository.get(scopedDb, ACTIVE_THEME_KEY),
+          custom
+        );
+        await dependencies.preferencesRepository.upsert(scopedDb, COLOR_MODE_KEY, body.mode);
+        return { builtIn: BUILT_IN_THEMES, custom, activeId, mode: body.mode };
+      });
+    } catch (error) {
+      return handleSettingsRouteError(error, reply);
+    }
+  });
 
   server.put(
     "/api/me/themes/:id",
@@ -171,7 +210,16 @@ function normalizeCustomThemes(value: unknown): readonly CustomThemeDto[] {
 }
 
 function normalizeActiveThemeId(value: unknown, custom: readonly CustomThemeDto[]): string {
-  return typeof value === "string" && isKnownThemeId(value, custom) ? value : "light";
+  return typeof value === "string" && isKnownThemeId(value, custom)
+    ? value === "dark"
+      ? "light"
+      : value
+    : "light";
+}
+
+function normalizeColorMode(value: unknown, activeId: unknown): "light" | "dark" {
+  if (activeId === "dark") return "dark";
+  return value === "dark" ? "dark" : "light";
 }
 
 function isKnownThemeId(id: string, custom: readonly CustomThemeDto[]): boolean {

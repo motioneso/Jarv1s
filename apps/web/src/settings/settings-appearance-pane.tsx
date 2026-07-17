@@ -2,7 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Lock, Palette, Plus, Save, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { deleteCustomTheme, listThemes, putCustomTheme, setActiveTheme } from "../api/client";
+import {
+  deleteCustomTheme,
+  listThemes,
+  putCustomTheme,
+  setActiveTheme,
+  setColorMode
+} from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import {
   applyThemeTokens,
@@ -59,6 +65,8 @@ export function AppearancePane() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const activeId = themesQuery.data?.activeId ?? "light";
+  const activeMode = themesQuery.data?.mode ?? "light";
+  const activeIsBuiltIn = themesQuery.data?.builtIn.some((theme) => theme.id === activeId) ?? true;
 
   const refreshThemes = async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.settings.themes });
@@ -83,6 +91,11 @@ export function AppearancePane() {
       setDraft(null);
       await refreshThemes();
     },
+    onError: (err) => setError(readError(err))
+  });
+  const modeMutation = useMutation({
+    mutationFn: setColorMode,
+    onSuccess: refreshThemes,
     onError: (err) => setError(readError(err))
   });
 
@@ -157,6 +170,28 @@ export function AppearancePane() {
           </button>
         }
       >
+        <div className="jds-segmented" role="group" aria-label="Color mode">
+          {(["light", "dark"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              className={`jds-segmented__opt ${activeMode === mode ? "is-active" : ""}`}
+              aria-pressed={activeMode === mode}
+              disabled={!activeIsBuiltIn || modeMutation.isPending}
+              title={
+                activeIsBuiltIn
+                  ? undefined
+                  : "Custom themes use their saved fixed palette and do not support color mode."
+              }
+              onClick={() => modeMutation.mutate({ mode })}
+            >
+              {mode === "light" ? "Light" : "Dark"}
+            </button>
+          ))}
+        </div>
+        {!activeIsBuiltIn ? (
+          <Note>Custom themes use their saved fixed palette, so color mode is unavailable.</Note>
+        ) : null}
         <div className="theme-list">
           {themesQuery.data?.builtIn.map((theme) => (
             <ThemeRow

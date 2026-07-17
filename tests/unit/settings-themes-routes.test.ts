@@ -85,6 +85,50 @@ describe("theme settings routes", () => {
 
     await server.close();
   });
+
+  it("normalizes legacy Dark to Forest plus dark mode", async () => {
+    const prefs = new Map<string, unknown>([["themes.active", "dark"]]);
+    let activeReads = 0;
+    const server = Fastify({ logger: false });
+    registerThemeRoutes(server, {
+      dataContext: fakeDataContext(),
+      resolveAccessContext: async () => ({ actorUserId: "user-a", requestId: "req-a" }),
+      preferencesRepository: mapPreferences(prefs, (key) => {
+        if (key === "themes.active") activeReads += 1;
+      })
+    });
+    await server.ready();
+
+    const list = await server.inject({ method: "GET", url: "/api/me/themes" });
+    expect(list.json<ListThemesResponse>()).toMatchObject({ activeId: "light", mode: "dark" });
+    expect(list.json<ListThemesResponse>().builtIn.some((theme) => theme.id === "dark")).toBe(
+      false
+    );
+    expect(activeReads).toBe(1);
+
+    await server.close();
+  });
+
+  it("persists color mode independently of the active built-in accent", async () => {
+    const prefs = new Map<string, unknown>();
+    const server = Fastify({ logger: false });
+    registerThemeRoutes(server, {
+      dataContext: fakeDataContext(),
+      resolveAccessContext: async () => ({ actorUserId: "user-a", requestId: "req-a" }),
+      preferencesRepository: mapPreferences(prefs)
+    });
+    await server.ready();
+
+    const response = await server.inject({
+      method: "PUT",
+      url: "/api/me/themes/mode",
+      payload: { mode: "dark" }
+    });
+    expect(response.json<ListThemesResponse>()).toMatchObject({ activeId: "light", mode: "dark" });
+    expect(prefs.get("themes.color-mode")).toBe("dark");
+
+    await server.close();
+  });
 });
 
 function fakeDataContext(): DataContextRunner {
@@ -96,9 +140,12 @@ function fakeDataContext(): DataContextRunner {
   } as DataContextRunner;
 }
 
-function mapPreferences(values: Map<string, unknown>) {
+function mapPreferences(values: Map<string, unknown>, onGet?: (key: string) => void) {
   return {
-    get: async (_scopedDb: DataContextDb, key: string) => values.get(key) ?? null,
+    get: async (_scopedDb: DataContextDb, key: string) => {
+      onGet?.(key);
+      return values.get(key) ?? null;
+    },
     getWithMetadata: async () => null,
     upsert: async (_scopedDb: DataContextDb, key: string, value: unknown) => {
       values.set(key, value);

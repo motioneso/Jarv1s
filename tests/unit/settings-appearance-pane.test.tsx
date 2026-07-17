@@ -83,7 +83,7 @@ describe("appearance pane helpers", () => {
         },
         setActiveTheme: async (body) => {
           calls.push(`active:${body.id}`);
-          return { builtIn: [], custom: [], activeId: body.id };
+          return { builtIn: [], custom: [], activeId: body.id, mode: "light" as const };
         }
       }
     );

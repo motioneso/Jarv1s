@@ -41,7 +41,13 @@ import { ASK_JARVIS_STARTER, consumeAskJarvis } from "../onboarding/ask-jarvis-h
 import { HeaderWeather } from "../today/header-weather";
 import { applyThemeTokens } from "../theme/theme-runtime";
 import { CommandPalette } from "./command-palette";
-import { loadShellTheme, saveShellTheme, type ShellTheme } from "./theme-storage";
+import {
+  loadShellColorMode,
+  loadShellTheme,
+  saveShellColorMode,
+  saveShellTheme,
+  type ShellTheme
+} from "./theme-storage";
 import type { MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
 
 interface AppShellProps {
@@ -83,6 +89,7 @@ export function AppShell(props: AppShellProps) {
   const [moduleDraft, setModuleDraft] = useState<string | undefined>(undefined);
   const [focusActionRequestId, setFocusActionRequestId] = useState<string | null>(null);
   const [theme] = useState<ShellTheme>(() => loadShellTheme());
+  const [colorMode] = useState(() => loadShellColorMode());
   useEffect(() => {
     if (consumeAskJarvis()) {
       setAskJarvisStarter(ASK_JARVIS_STARTER);
@@ -142,10 +149,17 @@ export function AppShell(props: AppShellProps) {
   useEffect(() => {
     const customTheme =
       themesQuery.data?.custom.find((custom) => custom.id === activeThemeId) ?? null;
-    document.documentElement.setAttribute("data-theme", activeThemeId);
+    const isCustomTheme = Boolean(customTheme);
+    const mode = isCustomTheme ? "light" : (themesQuery.data?.mode ?? colorMode);
+    document.documentElement.setAttribute(
+      "data-theme",
+      isCustomTheme ? activeThemeId : activeThemeId === "dark" ? "light" : activeThemeId
+    );
+    document.documentElement.setAttribute("data-color-mode", mode);
     applyThemeTokens(document.documentElement.style, customTheme?.tokens ?? null);
     saveShellTheme(activeThemeId);
-  }, [activeThemeId, themesQuery.data?.custom]);
+    saveShellColorMode(mode);
+  }, [activeThemeId, colorMode, themesQuery.data?.custom, themesQuery.data?.mode]);
   const unreadCount = notificationsQuery.data?.unreadCount ?? 0;
   const onTodayPage = location.pathname.startsWith("/today");
   const weatherQuery = useQuery({

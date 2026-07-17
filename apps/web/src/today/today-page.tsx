@@ -37,6 +37,7 @@ import {
 import { findDefinition, targetTimeFor } from "../briefings/briefing-settings-model";
 import { useUserLocale } from "../locale/locale-format";
 import { useChatControls } from "../shell/chat-controls-context";
+import { readColorMode } from "../theme/color-mode";
 import { MedToday } from "../wellness/wellness-today";
 import { ManageMedsModal } from "../wellness/manage-meds-modal";
 import { CheckinModal, type CheckinFormValue } from "../wellness/checkin-modal";
@@ -171,7 +172,7 @@ export function TodayPage(props: {
       }, 500);
     }
   });
-  const theme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  const theme = readColorMode();
   const [medsModalOpen, setMedsModalOpen] = useState(false);
   const [manageMedsOpen, setManageMedsOpen] = useState(false);
   const [checkinModalOpen, setCheckinModalOpen] = useState(false);

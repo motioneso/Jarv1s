@@ -501,6 +501,16 @@
   background: var(--accent);
 }
 @media (max-width: 720px) {
+  .cmd-masthead__row {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .cmd-masthead__aside {
+    align-items: flex-start;
+  }
+  .cmd-dateline {
+    text-align: left;
+  }
   .cmd-clock {
     display: none;
   }

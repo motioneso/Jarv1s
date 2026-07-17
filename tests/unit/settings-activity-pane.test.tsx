@@ -1,0 +1,72 @@
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
+import { act, create } from "react-test-renderer";
+import { describe, expect, it, vi } from "vitest";
+
+const queryOptions = vi.hoisted(() => ({
+  current: null as { retry?: boolean; queryKey?: unknown } | null
+}));
+
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: vi.fn((options: { retry?: boolean; queryKey?: unknown }) => {
+    queryOptions.current = options;
+    return {
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      refetch: vi.fn()
+    };
+  })
+}));
+
+vi.mock("../../apps/web/src/api/client.js", () => ({
+  listActionAuditLog: vi.fn()
+}));
+
+vi.mock("../../apps/web/src/locale/locale-format.js", () => ({
+  formatDateTime: vi.fn(() => "July 16, 2026"),
+  useUserLocale: vi.fn(() => ({ timezone: "UTC", region: "en-US", dateFormat: "24" }))
+}));
+
+import { ActivityPane } from "../../apps/web/src/settings/settings-activity-pane.js";
+
+describe("ActivityPane", () => {
+  it("shows bounded recovery instead of endless loading or false empty state", () => {
+    const html = renderToString(createElement(ActivityPane, {}));
+
+    expect(html).toContain("Activity unavailable");
+    expect(html).toContain("Try again");
+    expect(html).not.toContain("Loading…");
+    expect(html).not.toContain("No Jarvis actions in this period.");
+    expect(queryOptions.current).toMatchObject({ retry: false });
+  });
+
+  it("keeps the query key stable across re-renders when Date.now() ticks (PR #1117 CP5)", () => {
+    // Unmemoized, `since` for non-"today" ranges was derived fresh from Date.now() on every
+    // render, so an abort/error re-render minted a new query key and the component remounted
+    // into isLoading forever instead of ever observing isError. See settings-activity-pane.tsx.
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+    try {
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(createElement(ActivityPane, {}));
+      });
+      const firstKey = queryOptions.current?.queryKey;
+
+      nowSpy.mockReturnValue(1_700_000_050_000);
+      act(() => {
+        renderer.update(createElement(ActivityPane, {}));
+      });
+      const secondKey = queryOptions.current?.queryKey;
+
+      expect(firstKey).toBeDefined();
+      expect(secondKey).toEqual(firstKey);
+
+      act(() => {
+        renderer.unmount();
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+});
