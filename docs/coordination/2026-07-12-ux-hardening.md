@@ -3438,3 +3438,8 @@ resume from this note before taking any merge-sensitive action.
   as label `UX 1117 UAT 6ca14fca-2`, Claude session
   `1d64f426-0873-470c-968b-6a30d232acd6`, Sonnet/high, with exclusive use of the exact-head
   worktree and no product-code authority.
+- Exact-head UAT is GREEN: all CP1-CP8 passed at `6ca14fcad8bec023c98e699000a2384657232843`,
+  including CP5 truthful error at 3.64 seconds and CP6 retry recovery. Evidence branch
+  `uat/1117-final-6ca14fca` is at `9ff04747b825d9713437c4e305ba0d845c2922c2`; durable proof:
+  https://github.com/motioneso/Jarv1s/pull/1117#issuecomment-4998813024. UAT session was reaped.
+  Automatic CI run `29552827799` remains in progress; final QA is still stopped on CI.
