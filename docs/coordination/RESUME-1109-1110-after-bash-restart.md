@@ -53,6 +53,14 @@ until Ben rules on the diagnostic's findings. **g13's first action: send this di
 g12 hit the 70% relay trigger) — this is the one piece of in-flight work g12 did NOT get to
 dispatch before flushing.**
 
+**UPDATE 2026-07-17 (Coord-1109-1110-g13):** Adopted the fleet, confirmed pane uniqueness
+(`w1:pTD`, label `Coord-1109-1110-g13`, only pane with that label). Sent the #1126 diagnostic task
+to `w1:pT6` verbatim per above — confirmed submitted, agent now `working`. Re-armed persistent
+liveness Monitor diffing `agent_status` for `w1:pST`/`w1:pT6`. Awaiting: (1) diagnostic findings
+from `w1:pT6`, report only — no reruns/ci.yml edits until Ben rules; (2) #1122 widen-fix PR from
+`w1:pST`. `w1:pTA` (stale g10) still present, idle — will reap once g12 confirmed stood down.
+`w1:pTC` (g12) still showing `working`/focused — messaging it now to confirm safe-to-reap.
+
 **Fleet state:** `w1:pST` (Build-1110-AppMap-15) = working on #1122 widen-fix. `w1:pT6`
 (Build-1109-RuntimeContext-8) = idle/done, holding on `e8defd69`, awaiting the diagnostic task
 above. `w1:pTA` (stale g10) = told to stand down, may still be present — reap if seen. Liveness
