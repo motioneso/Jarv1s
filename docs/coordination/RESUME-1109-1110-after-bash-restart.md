@@ -61,6 +61,21 @@ from `w1:pT6`, report only — no reruns/ci.yml edits until Ben rules; (2) #1122
 `w1:pST`. `w1:pTA` (stale g10) still present, idle — will reap once g12 confirmed stood down.
 `w1:pTC` (g12) still showing `working`/focused — messaging it now to confirm safe-to-reap.
 
+**UPDATE 2 2026-07-17 (Coord-1109-1110-g13):** g12 self-reaped cleanly (confirmed via `herdr pane
+list` — `w1:pTC` no longer present). `Build-1109-RuntimeContext-8` (`w1:pT6`) ran the diagnostic
+but hit its own context limit mid-task: wrote handoff
+`docs/superpowers/handoffs/2026-07-17-1109-runtime-context-relay-10.md` (uncommitted, in
+`build-1109-runtime-context` worktree) stating the diagnostic is **incomplete** — full VF job log
+already pulled to a session-scoped scratchpad path, but first-pass grep patterns for test
+timestamps / `build:app-map` mentions returned zero matches (wrong regex, not proof of absence);
+turn ended without actually spawning a successor pane (`agent_status: done`, same session id, no
+new pane). g13 spawned the successor itself: `Build-1109-RuntimeContext-9` (`w1:pTE`, tab
+`w1:t2D`, confirmed Sonnet), tasked to re-grep the pulled log with corrected patterns and resolve
+the app-map-boot-cost hypothesis by reading `tests/integration`'s setup/globalSetup. Read-only
+constraints repeated (no reruns/ci.yml edits/code changes). Reaped dead `w1:pT6` pane. Monitor
+retargeted to `w1:pST`/`w1:pTE`. `w1:pTA` (stale g10) still idle/unreaped — low priority, will
+reap opportunistically.
+
 **Fleet state:** `w1:pST` (Build-1110-AppMap-15) = working on #1122 widen-fix. `w1:pT6`
 (Build-1109-RuntimeContext-8) = idle/done, holding on `e8defd69`, awaiting the diagnostic task
 above. `w1:pTA` (stale g10) = told to stand down, may still be present — reap if seen. Liveness
