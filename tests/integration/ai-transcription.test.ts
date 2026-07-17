@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import { AiRepository } from "@jarv1s/ai";
 import {
   DataContextRunner,
@@ -27,6 +28,7 @@ describe("AI voice transcription route (#738)", () => {
   let dataContext: DataContextRunner;
   let repository: AiRepository;
   let server: ReturnType<typeof createApiServer>;
+  let boss: PgBoss;
   let originalSecretKey: string | undefined;
   let originalFetch: typeof fetch;
 
@@ -39,12 +41,18 @@ describe("AI voice transcription route (#738)", () => {
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     dataContext = new DataContextRunner(appDb);
     repository = new AiRepository();
-    server = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
     if (originalSecretKey === undefined) {
       delete process.env.JARVIS_AI_SECRET_KEY;
     } else {
@@ -155,7 +163,7 @@ describe("AI voice transcription route (#738)", () => {
 
     // A dedicated logger:true instance for this one test — logger:false (used by the shared
     // `server` above) is a Fastify null logger that would make this assertion vacuous.
-    const loggedServer = createApiServer({ appDb, logger: true });
+    const loggedServer = createApiServer({ appDb, boss, logger: true });
     await loggedServer.ready();
 
     let response;

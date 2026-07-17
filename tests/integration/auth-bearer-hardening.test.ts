@@ -4,6 +4,7 @@ import pg from "pg";
 
 import { createJarvisAuthRuntime, type AuthLogger } from "@jarv1s/auth";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
@@ -68,6 +69,7 @@ describe("Legacy session-bearer auth hardening (#113)", () => {
   describe("expires_at enforcement", () => {
     const expiredSessionId = "40000000-0000-4000-8000-0000000000ee";
     let server: ReturnType<typeof createApiServer>;
+    let boss: PgBoss;
 
     beforeAll(async () => {
       await resetFoundationDatabase();
@@ -84,8 +86,15 @@ describe("Legacy session-bearer auth hardening (#113)", () => {
         await client.end();
       }
 
+      // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+      // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+      // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+      // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+      // Test-only — production callers of createApiServer() are unaffected.
+      boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
       server = createApiServer({
         appDb: createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 }),
+        boss,
         logger: false
       });
       await server.ready();
@@ -93,6 +102,7 @@ describe("Legacy session-bearer auth hardening (#113)", () => {
 
     afterAll(async () => {
       await server?.close();
+      await boss?.stop({ graceful: false });
     });
 
     it("accepts a live session id as a bearer token", async () => {
@@ -116,6 +126,7 @@ describe("Legacy session-bearer auth hardening (#113)", () => {
 
   describe("rate-limit class", () => {
     let server: ReturnType<typeof createApiServer>;
+    let boss: PgBoss;
     let originalGlobalMax: string | undefined;
 
     beforeAll(async () => {
@@ -124,8 +135,15 @@ describe("Legacy session-bearer auth hardening (#113)", () => {
       process.env.JARVIS_RL_GLOBAL_MAX = "2";
 
       await resetFoundationDatabase();
+      // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+      // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+      // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+      // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+      // Test-only — production callers of createApiServer() are unaffected.
+      boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
       server = createApiServer({
         appDb: createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 }),
+        boss,
         logger: false
       });
       await server.ready();
@@ -133,6 +151,7 @@ describe("Legacy session-bearer auth hardening (#113)", () => {
 
     afterAll(async () => {
       await server?.close();
+      await boss?.stop({ graceful: false });
       if (originalGlobalMax === undefined) {
         delete process.env.JARVIS_RL_GLOBAL_MAX;
       } else {
@@ -191,6 +210,7 @@ describe("Legacy session-bearer auth hardening (#113)", () => {
   // fresh bucket per request and re-opens sign-in brute-force (OTNR-P4 #122 / C1).
   describe("credential brute-force throttle (#113 Finding 1)", () => {
     let server: ReturnType<typeof createApiServer>;
+    let boss: PgBoss;
     let originalAuthMax: string | undefined;
 
     beforeAll(async () => {
@@ -198,8 +218,15 @@ describe("Legacy session-bearer auth hardening (#113)", () => {
       process.env.JARVIS_RL_AUTH_MAX = "2";
 
       await resetFoundationDatabase();
+      // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+      // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+      // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+      // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+      // Test-only — production callers of createApiServer() are unaffected.
+      boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
       server = createApiServer({
         appDb: createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 }),
+        boss,
         logger: false
       });
       await server.ready();
@@ -207,6 +234,7 @@ describe("Legacy session-bearer auth hardening (#113)", () => {
 
     afterAll(async () => {
       await server?.close();
+      await boss?.stop({ graceful: false });
       if (originalAuthMax === undefined) {
         delete process.env.JARVIS_RL_AUTH_MAX;
       } else {

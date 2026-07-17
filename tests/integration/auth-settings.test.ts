@@ -5,6 +5,7 @@ import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import type { ListAdminAuditEventsResponse, ListModulesResponse, MeResponse } from "@jarv1s/shared";
 import {
   connectionStrings,
@@ -27,6 +28,7 @@ describe("M3 auth, users, settings", () => {
   ] as const;
   let appDb: Kysely<JarvisDatabase>;
   let server: ReturnType<typeof createApiServer>;
+  let boss: PgBoss;
   let originalAuthEnv: Record<(typeof authEnvKeys)[number], string | undefined>;
   let ownerCookie: string;
   let memberCookie: string;
@@ -51,15 +53,22 @@ describe("M3 auth, users, settings", () => {
     // Disable requires_approval so subsequently-registered users in M3 tests get active status.
     // (Phase 2 Slice A approval-flow tests run in their own describe with a fresh DB per test.)
     await setInstanceSetting("registration.requires_approval", { value: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
     server = createApiServer({
       appDb,
+      boss,
       logger: false
     });
     await server.ready();
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
     restoreAuthEnv(originalAuthEnv);
   });
 
@@ -409,6 +418,7 @@ describe("M3 auth, users, settings", () => {
 describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
   let appDb: Kysely<JarvisDatabase>;
   let authRuntime: JarvisAuthRuntime;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
 
   async function signUp(opts: { name: string; email: string; password: string }) {
@@ -424,12 +434,23 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
-    server = createApiServer({ appDb, authRuntime, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, authRuntime, boss, logger: false });
     await server.ready();
   });
 
   afterEach(async () => {
-    await Promise.allSettled([server?.close(), authRuntime?.close(), appDb?.destroy()]);
+    await Promise.allSettled([
+      server?.close(),
+      authRuntime?.close(),
+      appDb?.destroy(),
+      boss?.stop({ graceful: false })
+    ]);
   });
 
   it("rejects sign-up with 403 when registration.enabled is false (seeded directly)", async () => {

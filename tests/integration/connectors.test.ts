@@ -25,6 +25,7 @@ import {
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
 } from "@jarv1s/module-registry";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -34,6 +35,7 @@ describe("Connectors encrypted foundation", () => {
   let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
   let repository: ConnectorsRepository;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let originalSecretKey: string | undefined;
 
@@ -50,15 +52,22 @@ describe("Connectors encrypted foundation", () => {
     auth = new AuthSessionResolver(appDb);
     dataContext = new DataContextRunner(appDb);
     repository = new ConnectorsRepository();
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
     server = createApiServer({
       appDb,
+      boss,
       logger: false
     });
     await server.ready();
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
     if (originalSecretKey === undefined) {
       delete process.env.JARVIS_CONNECTOR_SECRET_KEY;
     } else {

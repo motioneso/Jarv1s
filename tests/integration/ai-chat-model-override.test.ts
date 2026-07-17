@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -12,6 +13,7 @@ describe("AI chat model override", () => {
   let appDb: Kysely<JarvisDatabase>;
   let dataContext: DataContextRunner;
   let server: ReturnType<typeof createApiServer>;
+  let boss: PgBoss;
 
   beforeAll(async () => {
     await resetFoundationDatabase();
@@ -19,12 +21,18 @@ describe("AI chat model override", () => {
 
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     dataContext = new DataContextRunner(appDb);
-    server = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   });
 
   it("persists per-user chat model overrides and falls back when globally disabled or disallowed", async () => {

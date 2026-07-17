@@ -5,6 +5,7 @@ import { type Kysely } from "kysely";
 import pg from "pg";
 
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
@@ -142,6 +143,7 @@ describe("Phase 4 member onboarding — migration", () => {
 
 describe("Phase 4 member onboarding — repository methods", () => {
   let appDb: Kysely<JarvisDatabase>;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let dataContext: DataContextRunner;
   let memberAId: string;
@@ -151,7 +153,13 @@ describe("Phase 4 member onboarding — repository methods", () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     dataContext = new DataContextRunner(appDb);
-    server = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
 
     // First sign-up becomes the bootstrap owner + admin. Turn approval off so members
@@ -183,7 +191,7 @@ describe("Phase 4 member onboarding — repository methods", () => {
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   });
 
   let ownerId: string;
@@ -257,6 +265,7 @@ describe("Phase 4 member onboarding — repository methods", () => {
 
 describe("Phase 4 member onboarding — route branch (status/complete/skip per actor)", () => {
   let appDb: Kysely<JarvisDatabase>;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let ownerCookie: string;
   let memberCookie: string;
@@ -264,7 +273,13 @@ describe("Phase 4 member onboarding — route branch (status/complete/skip per a
   beforeAll(async () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    server = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
 
     const owner = await server.inject({
@@ -286,7 +301,7 @@ describe("Phase 4 member onboarding — route branch (status/complete/skip per a
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   });
 
   it("founder GET /status returns role: founder (unchanged founder shape)", async () => {

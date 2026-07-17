@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import {
@@ -23,6 +24,7 @@ import {
 
 let root: string;
 let appDb: Kysely<JarvisDatabase>;
+let boss: PgBoss;
 let server: ReturnType<typeof createApiServer>;
 let adminCookie: string;
 let memberCookie: string;
@@ -78,8 +80,15 @@ beforeAll(async () => {
   );
 
   appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+  // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+  // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+  // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+  // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+  // Test-only — production callers of createApiServer() are unaffected.
+  boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
   server = createApiServer({
     appDb,
+    boss,
     logger: false,
     apiServerConfig: {
       host: "0.0.0.0",
@@ -107,7 +116,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   rmSync(root, { recursive: true, force: true });
 });
 

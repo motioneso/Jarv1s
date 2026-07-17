@@ -4,6 +4,7 @@ import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import type { GetChatSettingsResponse } from "@jarv1s/shared";
 
 import {
@@ -24,6 +25,7 @@ function cookieHeader(headers: OutgoingHttpHeaders): string {
 
 describe("chat settings", () => {
   let appDb: Kysely<JarvisDatabase>;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let ownerCookie: string;
   let memberCookie: string;
@@ -32,7 +34,13 @@ describe("chat settings", () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     await setInstanceSetting("registration.requires_approval", { value: false });
-    server = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
 
     ownerCookie = await signUp("Owner", "owner.chat-settings@example.test");
@@ -40,7 +48,7 @@ describe("chat settings", () => {
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   });
 
   it("returns balanced defaults before any update", async () => {

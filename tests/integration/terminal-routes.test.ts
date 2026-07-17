@@ -6,6 +6,7 @@ import { WebSocket } from "ws";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import type { TerminalRpcHandle } from "@jarv1s/ai";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -24,6 +25,7 @@ import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database
 // that gate-passed proof possible without a running backend.
 describe("terminal routes (#1059)", () => {
   let appDb: Kysely<JarvisDatabase>;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let adminCookie: string;
   let memberCookie: string;
@@ -33,7 +35,13 @@ describe("terminal routes (#1059)", () => {
   beforeAll(async () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    server = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
     // Listen on a real ephemeral port — the WS-upgrade gate assertions need an actual TCP
     // socket (server.inject can't simulate a WebSocket handshake).
@@ -59,7 +67,7 @@ describe("terminal routes (#1059)", () => {
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   });
 
   it("non-admin gets 403 on password set", async () => {
@@ -313,8 +321,14 @@ describe("terminal routes (#1059)", () => {
     // so this test's connectTerminalRpc override doesn't affect the other cases above, which
     // deliberately rely on connectTerminalRpc being absent (asserting the graceful-degradation
     // 1011 path with no cli-runner at all).
+    // #1124: give this one-off leak-repro server its own explicit boss with a longer
+    // connectionTimeoutMillis, same rationale as the shared server above (test-only).
+    const leakBoss = createPgBossClient(connectionStrings.app, {
+      connectionTimeoutMillis: 25_000
+    });
     const leakServer = createApiServer({
       appDb,
+      boss: leakBoss,
       logger: false,
       connectTerminalRpc: () => Promise.resolve(fakeHandle)
     });
@@ -344,6 +358,7 @@ describe("terminal routes (#1059)", () => {
       expect(closeCallCount).toBe(1);
     } finally {
       await leakServer.close();
+      await leakBoss.stop({ graceful: false });
     }
   });
 });

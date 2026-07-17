@@ -4,6 +4,7 @@ import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import type { GetQuietHoursSettingsResponse } from "@jarv1s/shared";
 import {
   connectionStrings,
@@ -23,6 +24,7 @@ function cookieHeader(headers: OutgoingHttpHeaders): string {
 
 describe("settings quiet-hours preferences", () => {
   let appDb: Kysely<JarvisDatabase>;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let ownerCookie: string;
   let memberCookie: string;
@@ -31,7 +33,13 @@ describe("settings quiet-hours preferences", () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     await setInstanceSetting("registration.requires_approval", { value: false });
-    server = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
 
     ownerCookie = await signUp("Owner", "owner.qh@example.test");
@@ -39,7 +47,7 @@ describe("settings quiet-hours preferences", () => {
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   });
 
   it("returns disabled defaults when the quiet-hours preference is unset", async () => {
