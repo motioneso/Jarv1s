@@ -15,7 +15,7 @@ implementation agents use Luna (`gpt-5.6-luna`) at medium reasoning. QA remains 
 risk-tiered. This user directive overrides the `coordinate` skill's Claude/Sonnet spawn examples.
 **Grounded on:** `origin/main` `3ca138eb` after #1004 and #1005 merged; post-merge deployment
 smokes green, foundation/app CI still running at first-wave worktree creation.
-**merges_since_relay:** 0
+**merges_since_relay:** 1
 
 This is a delegated, collision-partitioned lane under the single merge-authority lock. GitHub #983
 and its native sub-issues are the product source of truth; this file tracks only operational state.
@@ -3627,3 +3627,14 @@ resume from this note before taking any merge-sensitive action.
   Durable proof is PR comment `#issuecomment-5008197559` from evidence-only commit `2f82df4e`.
 - The current Pages 404 is expected until the repository Pages source is enabled after merge. Wait for
   fresh CI green and fresh independent integrated routine-tier QA at `45715bb0` before merging.
+
+## Continuation note — 2026-07-17 PR #1129 merged and deploying
+
+- Delegated authority remains immutable Codex session `019f71fc-e3b7-77b0-914b-5518538943ef`.
+- PR #1129 merged routine-tier at merge commit `19e5b3ad92e4589bc35c86979d73b12bcd468dd8`
+  after current-main ancestry, 4/4 CI, exact integrated-head live UAT, and fresh independent routine QA
+  GREEN with zero findings. `merges_since_relay` is now `1`; no relay trigger fires yet.
+- GitHub Pages is enabled with `build_type: workflow`, HTTPS enforced, at
+  `https://motioneso.github.io/Jarv1s/`. Manual `main` dispatch run `29619987276` is in progress at
+  the merge commit. Wait for the workflow and Pages deployment to succeed, then verify the report and
+  the in-app target before finalizing.
