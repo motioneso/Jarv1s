@@ -245,6 +245,23 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     expect(defaultMetadata.executed?.model).toBe("claude-live");
   });
 
+  it("POST /api/chat/turn ignores an attached pageContext field — the turn contract is text-only (#1109)", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/chat/turn",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        text: "hello text-only",
+        pageContext: { route: "/forged", pageTitle: "Forged" }
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    // The fake engine echoes back exactly what it received as engine text (§FakeLiveEngine.submit
+    // above); a bare, unmodified echo proves no <page_context> block was folded in server-side.
+    expect(response.json<{ reply: string }>().reply).toBe("echo:hello text-only");
+  });
+
   it("POST /api/chat/turn without a session returns 401", async () => {
     const response = await server.inject({
       method: "POST",
