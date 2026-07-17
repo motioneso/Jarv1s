@@ -58,9 +58,7 @@ import { sendJob } from "@jarv1s/jobs";
 import {
   ChatMemoryFactsRepository,
   ChatMemorySuppressionsRepository,
-  createMemoryFactSignature,
-  type MemoryCorrection,
-  type MemoryFact
+  createMemoryFactSignature
 } from "@jarv1s/memory";
 import { handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
 import {
@@ -88,10 +86,15 @@ import type {
   PersonaPreferencesPort,
   RpcConnection
 } from "./live/runtime.js";
+import { ChatUserMemorySettingsRepository } from "./memory-settings-repository.js";
 import {
-  ChatUserMemorySettingsRepository,
-  type UserMemorySettings
-} from "./memory-settings-repository.js";
+  parsePagination,
+  parseSettingsPatch,
+  serializeCorrection,
+  serializeFact,
+  serializeSettings,
+  toIsoString
+} from "./memory-serializers.js";
 import { readStoredProvenance, provenanceCards } from "./live/answer-provenance.js";
 import { registerMcpTransportRoute, registerNativePermissionRoute } from "./mcp-transport.js";
 import { ChatRepository } from "./repository.js";
@@ -946,63 +949,6 @@ export function readSourceFreshness(value: unknown): SourceFreshnessV1 | null {
     return [{ source: r.source, freshnessKind: r.freshnessKind as FreshnessKind, asOf }];
   });
   return { version: 1, capturedAt: rec.capturedAt as string, sources };
-}
-
-function serializeSettings(s: UserMemorySettings) {
-  return {
-    recallEnabled: s.recallEnabled,
-    factsEnabled: s.factsEnabled,
-    updatedAt: toIsoString(s.updatedAt)
-  };
-}
-
-function serializeFact(f: MemoryFact) {
-  return {
-    id: f.id,
-    category: f.category,
-    content: f.content,
-    importance: f.importance,
-    provenance: f.provenance,
-    sourceThreadId: f.sourceThreadId,
-    createdAt: toIsoString(f.createdAt)
-  };
-}
-
-function serializeCorrection(c: MemoryCorrection) {
-  return {
-    id: c.id,
-    category: c.category,
-    content: c.content,
-    reason: c.reason,
-    source: c.source,
-    factId: c.factId,
-    beforeContent: c.beforeContent,
-    afterContent: c.afterContent,
-    createdAt: toIsoString(c.createdAt)
-  };
-}
-
-function parsePagination(query: unknown): { limit: number; offset: number } {
-  const q = query && typeof query === "object" ? (query as Record<string, unknown>) : {};
-  const rawLimit = Number(q.limit ?? 25);
-  const rawOffset = Number(q.offset ?? 0);
-  return {
-    limit: Number.isInteger(rawLimit) ? Math.min(100, Math.max(1, rawLimit)) : 25,
-    offset: Number.isInteger(rawOffset) ? Math.max(0, rawOffset) : 0
-  };
-}
-
-function parseSettingsPatch(body: unknown): { recallEnabled?: boolean; factsEnabled?: boolean } {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return {};
-  const b = body as Record<string, unknown>;
-  const patch: { recallEnabled?: boolean; factsEnabled?: boolean } = {};
-  if (typeof b.recallEnabled === "boolean") patch.recallEnabled = b.recallEnabled;
-  if (typeof b.factsEnabled === "boolean") patch.factsEnabled = b.factsEnabled;
-  return patch;
-}
-
-function toIsoString(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : value;
 }
 
 function handleRouteError(error: unknown, reply: FastifyReply) {
