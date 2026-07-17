@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { AccessContext, DataContextDb, DataContextRunner, PreferencesPort } from "@jarv1s/db";
 import { CHAT_SETTINGS_PREFERENCE_KEY } from "@jarv1s/shared";
-import { DEFAULT_JARVIS_PERSONA, resolveChatPersona } from "../../packages/chat/src/live/runtime.js";
+import {
+  DEFAULT_JARVIS_PERSONA,
+  resolveChatPersona
+} from "../../packages/chat/src/live/runtime.js";
 
 describe("DEFAULT_JARVIS_PERSONA", () => {
   it("keeps app knowledge closed behind map and snapshot tools", () => {

@@ -397,12 +397,7 @@ export {
 } from "./ai-capabilities.js";
 import type { AiModelCapability, AiModelTier } from "./ai-capabilities.js";
 
-export type JarvisErrorClass =
-  | "prerequisite"
-  | "transient"
-  | "validation"
-  | "permission"
-  | "bug";
+export type JarvisErrorClass = "prerequisite" | "transient" | "validation" | "permission" | "bug";
 
 export interface JarvisError {
   readonly code: string;

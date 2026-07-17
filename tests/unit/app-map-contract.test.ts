@@ -7,7 +7,10 @@ import type {
   ModuleSettingsSurfaceManifest
 } from "@jarv1s/module-sdk";
 import type { AiModelCapability, AiModelTier } from "@jarv1s/shared";
-import { assertModuleRegistryConsistency, type BuiltInModuleRegistration } from "@jarv1s/module-registry";
+import {
+  assertModuleRegistryConsistency,
+  type BuiltInModuleRegistration
+} from "@jarv1s/module-registry";
 import { newsAddSourceRequirement, newsModuleManifest } from "@jarv1s/news";
 
 function registration(manifest: JarvisModuleManifest): BuiltInModuleRegistration {

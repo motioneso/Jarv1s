@@ -10,8 +10,13 @@ import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
  */
 export async function seedAiProviderChunk(
   runner: DataContextRunner,
-  actorUserId: string
+  actorUserId: string,
+  options: { readonly bindNews: boolean } = { bindNews: true }
 ): Promise<void> {
+  if (!options.bindNews) return; // #1110: no default provider at all ⇒ hasJsonModel()
+  // genuinely false — see resolveModelForService's implicit-default-provider fallback
+  // (packages/ai/src/repository.ts resolveDefaultProviderId): merely leaving module.news
+  // unbound is NOT enough, the provider still wins as instance-default otherwise.
   const repo = new AiRepository();
   const cipher = createAiSecretCipher();
 

@@ -154,6 +154,14 @@ export default defineConfig({
         )
       },
       {
+        // Subpath export (#1110 fix in 34457186); must precede the bare "@jarv1s/module-sdk"
+        // alias below, same pairing requirement as core-version above.
+        find: "@jarv1s/module-sdk/ai-capabilities",
+        replacement: fileURLToPath(
+          new URL("./packages/module-sdk/src/ai-capabilities.ts", import.meta.url)
+        )
+      },
+      {
         find: "@jarv1s/module-sdk",
         replacement: fileURLToPath(new URL("./packages/module-sdk/src/index.ts", import.meta.url))
       },

@@ -395,7 +395,8 @@ export const newsModuleManifest = {
         {
           code: "news.add_source.discovery_unavailable",
           class: "transient",
-          description: "Source discovery is temporarily unavailable; retry or contact an administrator."
+          description:
+            "Source discovery is temporarily unavailable; retry or contact an administrator."
         }
       ]
     }

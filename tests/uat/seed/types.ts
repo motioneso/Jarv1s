@@ -34,4 +34,6 @@ export interface SeedOptions {
   readonly level: UatSeedLevel;
   /** #1025: e.g. omit "job-search" to prove the absent-module UI path. */
   readonly excludeChunks?: readonly UatSeedChunk[];
+  /** #1110: leave module.news unbound to a JSON-capable model, to prove the prerequisite-error path. */
+  readonly withoutNewsJsonBinding?: boolean;
 }

@@ -1,5 +1,13 @@
 # What's New in Jarvis
 
+## App-grounded help — 2026-07-16
+
+Jarvis can now look up shipped screens, settings, prerequisites, and named fixes from the app's
+build artifact. This entry is a narrative summary only; the generated app map remains the
+authority for behavior and remediation.
+
+---
+
 ## Second run — 2026-06-29
 
 ### Your timezone, everywhere (first slice)

@@ -252,7 +252,8 @@ import {
   newsModuleManifest,
   newsModuleSqlMigrationDirectory,
   registerNewsJobWorkers,
-  registerNewsRoutes
+  registerNewsRoutes,
+  type NewsRoutesDependencies
 } from "@jarv1s/news";
 import { assertValidFetchHosts, createDatasetClient } from "@jarv1s/datasets";
 import {
@@ -617,6 +618,25 @@ function buildNewsDiscoveryPorts(
       }
     }
   };
+}
+
+/**
+ * #1110: UAT-only. Deterministically fakes a transient News source-preview error for one
+ * sentinel input, so the app-map-grounding UAT spec can prove the "no invented fix" path
+ * without a live upstream. Both env vars are set unconditionally in the UAT app container's
+ * env_file (tests/uat/provisioner.ts writeUatEnvFile) — absent in every non-UAT deploy, so this
+ * is undefined (a no-op) everywhere else.
+ */
+function buildUatNewsPreviewOverride(): NewsRoutesDependencies["previewOverride"] | undefined {
+  const transientInput = process.env.JARVIS_UAT_NEWS_TRANSIENT_INPUT?.trim();
+  if (process.env.JARVIS_UAT_SEED_CONFIRM !== "1" || !transientInput) return undefined;
+  return (input) =>
+    input === transientInput
+      ? {
+          status: "unavailable",
+          error: { code: "news.add_source.discovery_unavailable", class: "transient" }
+        }
+      : undefined;
 }
 
 /** Recurring per-user/per-source scheduled check — at most every 30 minutes (spec §7). */
@@ -1490,12 +1510,14 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         createModuleLogger(server.log, "news"),
         deps.chatEngineFactory
       );
+      const previewOverride = buildUatNewsPreviewOverride();
       registerNewsRoutes(server, {
         dataContext: deps.dataContext,
         resolveAccessContext: deps.resolveAccessContext,
         datasetClient,
         discovery,
         boss: deps.boss,
+        previewOverride,
         // #953: news receives capability BOOLEANS only — model identity and key material stay
         // behind the AI/Settings public APIs; nothing secret crosses this seam.
         availability: {
@@ -2068,11 +2090,13 @@ export function registerBuiltInApiRoutes(
     artifact: loadAppMap(APP_MAP_ARTIFACT_PATH),
     resolveActiveModules: dependencies.resolveActiveModules,
     resolveFeatureFlagState: (featureFlagId) =>
-      dependencies.listModuleManifests().some((manifest) =>
-        (manifest.featureFlags ?? []).some(
-          (flag) => flag.id === featureFlagId && flag.defaultEnabled === true
-        )
-      ),
+      dependencies
+        .listModuleManifests()
+        .some((manifest) =>
+          (manifest.featureFlags ?? []).some(
+            (flag) => flag.id === featureFlagId && flag.defaultEnabled === true
+          )
+        ),
     getUser: (scopedDb, userId) => new SettingsRepository().getUserById(scopedDb, userId),
     logGap: (fields) => server.log.info(fields, "app-map coverage gap")
   });
