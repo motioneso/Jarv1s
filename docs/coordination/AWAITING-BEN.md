@@ -84,3 +84,29 @@ infra (headroom proxy) + a harness-design call. Outside my build-lane autonomy.
      fidelity the #1050 exit criterion asked for.
 **Coordinator lean:** B (host-side CLI leg + container app leg) unless Ben wants full in-container
 fidelity — A is real box-infra + credential work, not an overnight build task.
+
+---
+
+## #1110 app-map — real-LLM grounding e2e can't meet the #1000 hard-gate in current UAT (2026-07-16, `Coord-1109-1110-g3`)
+
+**Same root gap as the #1050 entry above.** Building #1110 Task 8, `app-map-grounding.uat.spec.ts`
+became the first UAT to assert a **real LLM-generated chat response** (grounded phrases). Verified
+against source: UAT provider is fake-by-design (`{cli:true}`, #1025), seed binds only `module.news`
+(no `purpose='assistant'` binding), and the UAT image ships **no CLI chat engine**. So Jarvis
+answering an app-map question in a live chat turn is **not e2e-provable** in this harness without
+milestone-scope infra.
+
+**What I directed (build-lane autonomy) — deterministic ship, no scope blowout:**
+- #1110 ships with a **deterministic** #1000 UAT: news prerequisite error-code + previewOverride
+  deep-link href + non-admin no-leak (test4 already PASSES).
+- Grounding persona/strings stay proven at **unit** level (`chat-runtime-persona.test.ts`, Task 7).
+- The 3 real-LLM grounded-phrase assertions are **deferred to issue #1121** (deterministic
+  scriptable chat engine for UAT — the general fix that also unblocks #1050's leg and future chat
+  e2e).
+
+**Your call (gates merge — I will NOT merge #1110 until you rule):** is deterministic-UAT +
+unit-grounding acceptable as #1110's exit criterion, with real-chat e2e deferred to #1121? Or do you
+want #1121's harness built **before** #1110 merges? **Coordinator lean:** accept the deferral —
+#1121 is the right long-term fix and shouldn't block #1110/#1109; the feature code is fully covered
+at unit+integration level and the deterministic UAT proves the prerequisite surfaces on a real
+instance.
