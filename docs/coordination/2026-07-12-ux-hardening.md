@@ -15,7 +15,7 @@ implementation agents use Luna (`gpt-5.6-luna`) at medium reasoning. QA remains 
 risk-tiered. This user directive overrides the `coordinate` skill's Claude/Sonnet spawn examples.
 **Grounded on:** `origin/main` `3ca138eb` after #1004 and #1005 merged; post-merge deployment
 smokes green, foundation/app CI still running at first-wave worktree creation.
-**merges_since_relay:** 1
+**merges_since_relay:** 2
 
 This is a delegated, collision-partitioned lane under the single merge-authority lock. GitHub #983
 and its native sub-issues are the product source of truth; this file tracks only operational state.
@@ -3672,3 +3672,21 @@ resume from this note before taking any merge-sensitive action.
   before merging. Then redispatch the weekly workflow and verify deploy + live Pages + in-app target.
 - Delegated authority remains immutable session `019f71fc-e3b7-77b0-914b-5518538943ef`;
   `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-17 weekly deployment verification relay
+
+- The second routine merge fired the mandatory relay trigger. Merge nothing else before adoption.
+- PR #1132 merged at `be2ae0094ee96110fd46897d2bd798259254c9d9` after 4/4 CI green,
+  current-main ancestry, and independent routine QA GREEN with zero findings. `merges_since_relay`
+  is now `2` before handoff.
+- Delegated `UX Coordinator` authority remains immutable Codex session
+  `019f71fc-e3b7-77b0-914b-5518538943ef`. The successor must adopt authority with its own immutable
+  session id, reset `merges_since_relay` to `0`, commit and push only this manifest, confirm driving,
+  then fresh-resolve and close only this old exact label/session and rename itself `UX Coordinator`.
+  Never touch primary Coordinator `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+- GitHub Pages is already enabled with workflow build and HTTPS. The prior dispatch `29619987276`
+  failed before generation because setup-node tried pnpm caching; #1132 disables that unused cache.
+  Successor: dispatch `weekly-release.yml` on `main`, wait for generate + deploy green, verify
+  `https://motioneso.github.io/Jarv1s/` serves the report (not 404), and verify the in-app link target.
+- Preserve unrelated UX-tree changes, parked review lanes E/F/G, primary Coordinator lanes, evidence
+  branches/worktrees, and the clean fix worktree until final verification is durable.
