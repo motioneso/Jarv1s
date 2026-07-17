@@ -54,6 +54,35 @@ pre-existing gap):**
   while the new compose-smoke CI run is in flight, no re-derivation needed. As of hand-off it was
   actively working (67% context).
 
+**UPDATE (same gen-5 session) — VF regression FIXED too, both blockers now resolved:**
+- **Root cause (confirmed via `git diff origin/main`, not assumed):** PR added 2 new bare
+  type-only imports (`packages/shared/src/index.ts:5` + `news-api.ts:2`) from
+  `@jarv1s/module-sdk`. The browser-safety walker resolves bare specifiers via the whole barrel
+  and can't distinguish type-only from runtime imports — pulled module-sdk's pre-existing
+  fastify/node:crypto re-exports (`route-errors.ts`/`logger.ts`/`rate-limit-key.ts`) into news's
+  browser graph.
+- **Fix:** moved `JarvisError`/`JarvisErrorClass` to a new node-clean
+  `packages/module-sdk/src/errors.ts` leaf + `./errors` export subpath (mirrors the existing
+  `ai-capabilities.ts` pattern from `34457186`); both shared consumers now import via the
+  subpath. Walker can't resolve subpaths, so the leaf stays invisible to it — same blind spot the
+  `ai-capabilities` fix already relies on.
+- **Verified by -15:** `module-web-browser-safety.test.ts` 3/3 pass, typecheck EXIT=0,
+  `test:unit` 423/423 files clean, `test:integration` 155/156 files (1 unrelated pre-existing
+  timestamp-precision flake in `chat-skills.test.ts`, untouched by this fix). Deferred/unrelated:
+  #1087 uat-seed shared-DB `guard.test.ts` (known issue, tracked separately).
+- **Pushed:** commits `a29cd8aa` (fix) + `874759ec` (handoff docs) → `build/1110-app-map`. **PR
+  #1122 head is now `874759ec`.**
+- **New CI run `29560460812` in flight** (all 3 checks pending at last check). **Monitor
+  `b52frv1qd`** (persistent) armed for terminal state.
+- Told -15 to stay idle on the branch until CI reports back and QA runs — **don't touch anything
+  else.**
+- **Next action:** on CI terminal — if green, spawn QA (`coordinated-qa`, tier **sensitive**,
+  per prior tentative call — module-sdk barrel touch = cross-module contract change). Merge still
+  gated on Ben's `AWAITING-BEN.md` #1110 exit-criterion ruling regardless of QA verdict. If red
+  again, this is the **2nd failure on this lane's CI** (compose-smoke and VF both failed once
+  already, both now fixed once each — so a 3rd red run of the SAME check would trip the
+  twice-failing stop-the-line rule; a red run on a *different* check would not).
+
 Below is g4's own relay note (its "YOU ARE gen-5" instructions, now executed) + full history,
 kept for reference (skim, don't deep-read):
 
