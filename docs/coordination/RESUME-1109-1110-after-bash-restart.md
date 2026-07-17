@@ -76,6 +76,20 @@ constraints repeated (no reruns/ci.yml edits/code changes). Reaped dead `w1:pT6`
 retargeted to `w1:pST`/`w1:pTE`. `w1:pTA` (stale g10) still idle/unreaped — low priority, will
 reap opportunistically.
 
+**UPDATE 3 2026-07-17 (Coord-1109-1110-g13):** `Build-1109-RuntimeContext-9` (`w1:pTE`) completed
+the #1126 diagnostic. Result: broad-based slowdown across ~46 unrelated integration test files
+(each losing a clean multiple of ~11.1s), NOT one hung suite; the app-map-before-start hypothesis
+(`80ebb905`) is mechanically REFUTED (integration tests boot via `createApiServer()` in-process,
+never through the `start`/`dev` scripts that call `build:app-map`). Adjacent unconfirmed lead:
+`registerBuiltInApiRoutes` calls `loadAppMap` unconditionally with no try/catch, artifact never
+produced in `verify:foundation`'s chain, but no ENOENT strings in the log — pinged `w1:pST`
+(#1122/app-map lane) to cross-check since it's their scope. Open: exact ~11.1s constant source not
+pinned, next lead = grep for a shared ~10-11s fetch/connect timeout. Full write-up appended to
+`AWAITING-BEN.md` `## #1126 CI` DIAGNOSTIC RESULT block, committed. **This is Ben's call per the
+hard-stop's own escalation clause — surfaced to him directly in-conversation, no further action
+(reruns/ci.yml/code) until he rules.** Did not relay routine status to UX Coordinator (`w1:pSS`)
+— no new blocker or merge SHA on our lanes, per Ben's standing instruction to only report those.
+
 **Fleet state:** `w1:pST` (Build-1110-AppMap-15) = working on #1122 widen-fix. `w1:pT6`
 (Build-1109-RuntimeContext-8) = idle/done, holding on `e8defd69`, awaiting the diagnostic task
 above. `w1:pTA` (stale g10) = told to stand down, may still be present — reap if seen. Liveness
