@@ -3182,6 +3182,17 @@ resume from this note before taking any merge-sensitive action.
   stopped; parked review lanes E/F/G and unrelated changes remain untouched.
   `merges_since_relay` is `0`.
 
+## Continuation note — 2026-07-17 #1117 Activity fix pushed
+
+- Activity root fix `4d2d17ba418b9140a7ea307398fe9e447bd06446` is pushed: its query now uses
+  `retry: false`, preserving the existing abort plus `Activity unavailable`/`Try again` UI. Focused
+  test passed `1/1`; file-level Prettier passed. No broad gate or manual CI/job rerun occurred.
+- Automatic run `29547586161` is in progress at the exact head. Exact owner session
+  `019f6daf-1877-7f62-8eca-d0356d6b2c16` was reaped; its tab auto-closed and the owner worktree is
+  clean. Wait for full green before a focused exact-head Activity UAT.
+- Final QA and merge remain stopped. Parked review lanes E/F/G and unrelated changes remain
+  untouched; `merges_since_relay` is `0`.
+
 ## Continuation note — 2026-07-17 #1117 final UAT RED; Activity blocker
 
 - Final exact-head UAT posted RED at
