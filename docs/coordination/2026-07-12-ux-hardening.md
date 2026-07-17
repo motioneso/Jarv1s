@@ -3429,3 +3429,8 @@ resume from this note before taking any merge-sensitive action.
 - Fresh exact-head UAT is running in `~/Jarv1s/.claude/worktrees/uat-1117-final-6ca14fca`, label
   `UX 1117 UAT 6ca14fca`, Claude session `61c9ee5d-b16f-4fc2-aae6-77807a5e2719`, Sonnet/high.
   Only durable evidence branch `uat/1117-final-6ca14fca` may be pushed; final QA remains gated.
+- UAT session `61c9ee5d-b16f-4fc2-aae6-77807a5e2719` stopped before running because #1110 owns the
+  same fixed Docker subnet `10.254.0.0/24`; no UAT result exists. It wrote
+  `artifacts/webwright/pr-1117-6ca14fca-final/UAT_HANDOFF.md` and was reaped cleanly. Resume only
+  after label `Build-1110-AppMap-11`, session `80422bad-c77e-4f44-aaeb-5c4f43f3602e`, confirms
+  its stack is torn down and the subnet is clear.
