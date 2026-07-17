@@ -247,3 +247,40 @@ code.
 
 #1122 stays fully blocked (VF red, plus the still-open #1110 live-path exit-criterion question
 above) until you weigh in — no further coordinator action on this lane.
+
+## #1126 CI — 'Verify foundation' timing out 3x consecutively, needs your call (2026-07-17, `Coord-1109-1110-g12`)
+
+**Separate lane from #1122 above — this is PR #1126, #1109's final task (7/7).** The `Verify
+foundation and app` workflow's `Verify foundation` step has hit the job's 25-minute timeout cap
+(`ci.yml:18`) **3 consecutive times** on `build/1109-runtime-context`:
+
+| Run | SHA | Created (UTC) | Conclusion | Duration |
+| --- | --- | --- | --- | --- |
+| [29577885359](https://github.com/motioneso/Jarv1s/actions/runs/29577885359) | `a317cad0` | 2026-07-17 11:45:04Z | failure | 25m29s |
+| [29579771831](https://github.com/motioneso/Jarv1s/actions/runs/29579771831) | `80ebb905` | 2026-07-17 12:18:31Z | cancelled (timeout) | 25m28s |
+| [29582266459](https://github.com/motioneso/Jarv1s/actions/runs/29582266459) | `96239450` | 2026-07-17 12:59:36Z | cancelled (timeout) | 25m26s |
+
+Each landed at ~24:39–24:45 elapsed — a hard ceiling miss every run, not one-off variance. This is
+past the CLAUDE.md CI waiver protocol's "fails twice = stop-the-line" bar. Filed
+[issue #1127](https://github.com/motioneso/Jarv1s/issues/1127) with full evidence.
+
+**PR #1126 is otherwise fully green** — both compose smoke checks pass (`Compose deployment
+smoke`, `Prod compose deployment smoke`), sensitive-tier QA already passed its 2nd cycle. This
+timeout is the only remaining blocker.
+
+**Root cause not yet fully proven.** Working hypothesis: branch runs ~25min+ vs `main`'s
+~18-20min baseline, likely from #1109's added test volume across its 7 build tasks. The first
+failure (`a317cad0`) was previously read as pre-existing/proportional-to-added-tests, not caused
+by this PR's app-map fix specifically. Nobody has yet read the actual step log for a stuck/
+looping test to rule out a real hang vs. accumulated legitimate runtime crossing the cap.
+
+**Your call, options as I see them (not deciding for you):**
+(a) Bump `ci.yml` `timeout-minutes` 25→35 as a documented stopgap — unblocks immediately, doesn't
+resolve whether there's a real perf regression or hang underneath.
+(b) Investigate further for a real hang/loop (read the actual step log, isolate which test(s)
+account for the ~5-7min overage vs `main`) before touching the timeout — slower, but distinguishes
+"needs more budget" from "something is actually stuck."
+
+**Held per standing instruction:** `Build-1109-RuntimeContext-8` (`w1:pT6`) — no more reruns, no
+`ci.yml` edits, no further escalation of its own. Holding for your ruling; will resume per your
+choice.

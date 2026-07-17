@@ -1,6 +1,40 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## 🛑 CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g11`, relaying at 70% meter — PR #1126 STOP-THE-LINE, escalated)
+## ✅ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g12`, takeover confirmed, PR #1126 escalated to Ben)
+
+**g12 is driving.** Pane `w1:pTC`, session `f8ceb71f-2a1f-4e28-bcf0-dfe7e6ad43fb`, label
+`Coord-1109-1110-g12` (only pane with that label — confirmed via `herdr pane list`). g11
+(`w1:pTB`, session `d6593820-888f-4a3d-8692-5b30984eb6f0`) messaged to stand down and self-reap
+now that takeover is confirmed. Note: `Coord-1109-1110-g10` (`w1:pTA`) is still present/idle —
+appears not to have self-reaped after g11's earlier takeover; not actioned by g12 (out of scope
+of this handoff's instructions), flagging for awareness only.
+
+**Successor action list — all done:**
+1. **Filed [issue #1127](https://github.com/motioneso/Jarv1s/issues/1127)** documenting the 3x
+   consecutive `Verify foundation` timeout-cancellations on `build/1109-runtime-context`, with
+   SHAs/timestamps (`a317cad0` 11:45:04Z failure, `80ebb905` 12:18:31Z cancelled,
+   `96239450` 12:59:36Z cancelled — each ~25m26-29s), root-cause hypothesis, and the two-option
+   framing.
+2. **Wrote the `AWAITING-BEN.md` escalation entry** (`## #1126 CI — ...` section, appended after
+   the existing #1122 content) — frames option (a) bump `ci.yml` `timeout-minutes` 25→35 as
+   stopgap vs option (b) investigate for a real hang; links issue #1127 and PR #1126; notes PR
+   #1126 is otherwise fully green and is #1109's final task (7/7).
+3. **Did not touch `ci.yml`.**
+4. **Verified `Build-1109-RuntimeContext-8` (`w1:pT6`) actually stopped**: bounded pane read
+   confirms it independently re-verified the 3x timeout via `gh run list`, held all reruns/
+   `ci.yml` edits, and told its own sub-teammate (`pr-1126-ciwatch`) to stand down too. Holding
+   for Ben's ruling — do not resume without it.
+5. `#1122` unchanged: still fully halted, escalated, no ruling yet — monitor only, no action taken.
+6. `Build-1110-AppMap-15` (`w1:pST`) unchanged: `done`, holding on `build/1110-app-map` per
+   standing instruction, no action.
+7. Liveness monitor re-armed (persistent, diffs `herdr pane list` `agent_status` for `w1:pT6`/
+   `w1:pST`, emits only on change). g11's monitor died with its relay as expected.
+
+**Next coordinator action:** none until Ben rules on the `AWAITING-BEN.md` #1126 entry (or the
+still-open #1122 entry). Resume per whichever ruling lands first; re-read only this section plus
+the linked `AWAITING-BEN.md` state — do not deep-read history below.
+
+## 🛑 PRIOR STATE (updated 2026-07-17 by `Coord-1109-1110-g11`, relaying at 70% meter — PR #1126 STOP-THE-LINE, escalated)
 
 **Relay reason:** context-meter hard trigger at 70%, no deferral.
 
