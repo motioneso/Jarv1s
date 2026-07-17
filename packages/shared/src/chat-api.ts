@@ -2,8 +2,8 @@ import type { AiCapabilityRouteReason, AiConfiguredModelDto, AiModelCapability }
 import type { SourceFreshnessV1 } from "./freshness-types.js";
 import { errorResponseSchema } from "./schema-fragments.js";
 
-export type { JarvisError, JarvisErrorClass } from "@jarv1s/module-sdk";
-import type { JarvisError } from "@jarv1s/module-sdk";
+export type { JarvisError, JarvisErrorClass } from "@jarv1s/module-sdk/error-types";
+import type { JarvisError } from "@jarv1s/module-sdk/error-types";
 
 export type ChatMessageRole = "user" | "assistant";
 export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model" | "working" | "error";
