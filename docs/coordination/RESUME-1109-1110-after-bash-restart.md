@@ -1,6 +1,67 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏭️ IMMEDIATE NEXT ACTION for g17 (read this block first — g16's block below is now historical)
+## ⏭️ IMMEDIATE NEXT ACTION for g18 (read this block first — g17's block below is now historical)
+
+**g17 relaying at 70% context (2026-07-17, self-paced).** Fleet healthy, no Ben-facing blockers
+except awaiting the new investigation's findings. Your job: supervise 4 agents to completion.
+
+1. **#1122 — `Build-1110-AppMap-16` (`w1:pTN`).** All 3 fixes applied (auth-settings.test.ts pool
+   fix, auth-bootstrap-recovery verified+applied, Task #28 build:app-map/VF wiring). Was on its
+   final step (push + fresh VF + report) when I relayed — **not yet reported**, check for its
+   report first.
+
+2. **#1126 — `Build-1109-RuntimeContext-9` (`w1:pTE`).** Reported back: merged `main`(incl #1128's
+   pg-boss timeout widening)→`build/1109-runtime-context` clean, pushed `3b43080b`, fresh VF run
+   `29612829630` **still cancelled at 35min cap, same stall signature, WORSE (52 affected suite
+   lines vs 46 before)**. Told to hold, no retry, no further digging — **this now CONFIRMS the
+   #1122 hard-stop is systemic across both lanes**, not lane-specific. Holding as-is.
+
+3. **NEW — Ben's mid-turn directive: "Get Fable on this with Sol xhigh support."** Spawned a
+   cross-model root-cause investigation panel (two-model panel pattern, precedent in
+   `2026-07-09-job-search-overnight.md`):
+   - `Fable-TimeoutRootCause-v1` (**`w1:pTT`** — NOTE: an earlier spawn attempt landed at `w1:pTR`
+     with a missing `--cwd` (defaulted to `/home/ben`, no git repo there at all) — closed and
+     respawned correctly at `pTT`. `claude --model fable`, cwd
+     `.claude/worktrees/coord-2026-06-30-rfa-fleet/.claude/worktrees/fable-timeout-rootcause-v1`,
+     detached HEAD @ `build/1109-runtime-context` `3b43080b`. Confirmed booted ("Fable 5" in
+     status line) and working.
+   - `Sol-TimeoutRootCause-v1` (**`w1:pTV`** — same `--cwd` bug + respawn as above. `codex --model
+     gpt-5.6-sol -c model_reasoning_effort=xhigh -s danger-full-access -a never`, cwd
+     `.claude/worktrees/coord-2026-06-30-rfa-fleet/.claude/worktrees/sol-timeout-rootcause-v1`,
+     same commit. Confirmed booted (gpt-5.6 in status line) and working.
+   - **If you see `w1:pTR`/`w1:pTS` mentioned anywhere else (or still in `herdr pane list`) —
+     those are the dead/closed mis-cwd'd originals, ignore/don't resurrect them.**
+   Both given the same investigation brief (full CI evidence from both lanes, prior classification-B
+   diagnosis, told NOT to redo it) — read real CI job logs, find why the ~11.1s-multiple stall
+   signature recurs in CI despite #1128's widened override being a confirmed ancestor + present in
+   both files. **Explicit hard guardrail in both prompts: INVESTIGATION-ONLY, no merge/push/PR-
+   comment authority, no claiming to speak for Ben** — this is deliberate given `#1126`'s
+   documented history of 2-3 suspected fake "delegated Ben proxy" bypass PR comments (see g14's
+   block below, "SUSPECTED THIRD UNVERIFIED BYPASS"). **Neither has reported yet** — give them time,
+   then check in. When either reports, relay the finding to Ben before acting on any proposed fix.
+   Full investigation prompt text is on disk in g17/g18's scratchpad if you need to re-spawn:
+   `timeout-investigation-prompt.txt` (or just re-derive from the CI numbers above).
+
+4. **`w1:pTH`** (Fable pane, `fable-1126-timeout-v2`, the SUSPECTED bypass-attempt pane) — still
+   not confirmed either way by Ben, still do not touch, still not urgent to reap.
+
+5. **Liveness Monitor `bhfmk2xpo`** (was watching only `w1:pTN`+`w1:pTE`) — still alive, g17 did NOT
+   relay (Ben: "just fyi you auto compacted, no need to relay" — compaction happened but Ben
+   waived the relay-on-compaction rule this once). If you inherit this fleet from a real relay
+   later, re-arm fresh covering all 4: `w1:pTN`, `w1:pTE`, `w1:pTT`, `w1:pTV`.
+
+6. **Cosmetic, not urgent:** tab `w1:t2D`'s pane layout got lopsided (my resize attempts fighting
+   the ratio-coupled split tree made it worse, not better) — panes are readable but tight. Doesn't
+   affect any agent's actual function, only human/your visual comfort. Fix opportunistically if
+   you want, don't burn context on it — I already tried twice and made it worse both times.
+
+**No new Ben decisions pending beyond the investigation findings once they land.**
+`AWAITING-BEN.md`'s open items belong to a different coordinator run (job-search-overnight) — not
+ours.
+
+---
+
+## ⏭️ IMMEDIATE NEXT ACTION for g17 (historical — g17's own arrival block, superseded above)
 
 **g16 relaying at 71% context (2026-07-17 ~21:30, self-paced, no Ben-facing blockers).** Fleet
 is healthy, both lanes actively working, nothing awaiting Ben. Your job: keep supervising to
