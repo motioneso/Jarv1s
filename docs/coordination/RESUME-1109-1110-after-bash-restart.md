@@ -1,6 +1,30 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ✅ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g9`, takeover confirmed)
+## ✅ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g10`, takeover confirmed)
+
+**g10 is driving.** Pane `w1:pTA`, session `97112e95-e2a8-4705-aa7a-69ac3e55af07`, label
+`Coord-1109-1110-g10` (only pane with that label — confirmed via `herdr pane list`). g9
+(`w1:pT9`, session `64b04945-8e2a-4f1e-acf8-fa733106eddd`) messaged to stand down and self-reap
+now that takeover is confirmed.
+
+**Takeover checklist — all done:**
+- Read RESUME doc CURRENT STATE (g9's) only — no deep-read of history below it.
+- #1122 unchanged: still fully halted, escalated to Ben, no ruling yet in `AWAITING-BEN.md`. No
+  action taken beyond monitoring, per standing instruction.
+- Fleet re-adopted: `Build-1110-AppMap-15` (`w1:pST`) `agent_status: done`, still holding on
+  `build/1110-app-map` as instructed — no pushes, no re-runs observed. `Build-1109-RuntimeContext-8`
+  (`w1:pT6`) confirmed **working** (pane shows "Coalescing…", 68% context) on the PR #1126 fix.
+- Liveness monitor re-armed as persistent task `begkznu1r` (diffs `herdr pane list` `agent_status`
+  for `w1:pST`/`w1:pT6`, emits only on change). g9's monitor died with its relay as expected.
+
+**PR #1126 status at g10 takeover:** fix not yet pushed. `gh pr checks 1126` still shows
+`Compose deployment smoke` FAIL and `Verify foundation and app` FAIL (run `29577885359`) — same
+pre-fix failures QA flagged. Last commit on the branch is a handoff checkpoint
+(`docs(handoff): #1109 runtime-context relay checkpoint 8`), not the `package.json` start-script
+fix yet. Awaiting `-8` to push; will re-QA once it does + CI goes green. Not polling — waiting on
+the liveness monitor / `-8`'s own report.
+
+## ⏩ PRIOR STATE (updated 2026-07-17 by `Coord-1109-1110-g9`, takeover confirmed, superseded by g10)
 
 **g9 is driving.** Pane `w1:pT9`, session `64b04945-8e2a-4f1e-acf8-fa733106eddd`, label
 `Coord-1109-1110-g9` (only pane with that label — confirmed via `herdr pane list`). g8 (`w1:pT8`)
