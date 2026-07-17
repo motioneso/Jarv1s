@@ -3503,3 +3503,8 @@ resume from this note before taking any merge-sensitive action.
   `019f6e67-577e-78f0-9b4a-822c0c95c396`; `merges_since_relay` is reset to `0`.
 - Preserve unrelated changes and parked lanes. Never touch primary Coordinator
   `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+- Ben explicitly authorized completion and merge of PRs #1118, #1122, and #1126 on 2026-07-17;
+  primary successor `Coord-1109-1110-g12` owns #1122/#1126 while this delegated lock owns #1118.
+- PR #1118 rebased cleanly onto `origin/main` `7dc9672f` at exact head
+  `5be51d4863d05d2d82b438e34f507a76662cb2da`; fresh CI run `29598820300` is GREEN and exact-head
+  live UAT is GREEN at PR comment `5005768157`. Fresh integrated routine QA is pending.
