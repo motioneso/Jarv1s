@@ -27,6 +27,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+          package-manager-cache: false
       - name: Keep scheduled runs at 09:00 Pacific
         id: clock
         env:
