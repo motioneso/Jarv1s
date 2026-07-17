@@ -1,11 +1,14 @@
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
+import { act, create } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 
-const queryOptions = vi.hoisted(() => ({ current: null as { retry?: boolean } | null }));
+const queryOptions = vi.hoisted(() => ({
+  current: null as { retry?: boolean; queryKey?: unknown } | null
+}));
 
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: vi.fn((options: { retry?: boolean }) => {
+  useQuery: vi.fn((options: { retry?: boolean; queryKey?: unknown }) => {
     queryOptions.current = options;
     return {
       data: undefined,
@@ -36,5 +39,34 @@ describe("ActivityPane", () => {
     expect(html).not.toContain("Loading…");
     expect(html).not.toContain("No Jarvis actions in this period.");
     expect(queryOptions.current).toMatchObject({ retry: false });
+  });
+
+  it("keeps the query key stable across re-renders when Date.now() ticks (PR #1117 CP5)", () => {
+    // Unmemoized, `since` for non-"today" ranges was derived fresh from Date.now() on every
+    // render, so an abort/error re-render minted a new query key and the component remounted
+    // into isLoading forever instead of ever observing isError. See settings-activity-pane.tsx.
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+    try {
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(createElement(ActivityPane, {}));
+      });
+      const firstKey = queryOptions.current?.queryKey;
+
+      nowSpy.mockReturnValue(1_700_000_050_000);
+      act(() => {
+        renderer.update(createElement(ActivityPane, {}));
+      });
+      const secondKey = queryOptions.current?.queryKey;
+
+      expect(firstKey).toBeDefined();
+      expect(secondKey).toEqual(firstKey);
+
+      act(() => {
+        renderer.unmount();
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { listActionAuditLog } from "../api/client.js";
@@ -73,7 +73,10 @@ export function ActivityPane(_props: PaneProps) {
   const [range, setRange] = useState<DateRange>("30d");
   const [familyFilter, setFamilyFilter] = useState<string>("");
 
-  const since = sinceForRange(range);
+  // sinceForRange derives from Date.now() for non-"today" ranges; unmemoized, it produced a new
+  // ISO timestamp (and thus a new query key) on every render, so an abort/error re-render could
+  // never settle into isError — it remounted a fresh isLoading query instead (PR #1117 CP5 RED).
+  const since = useMemo(() => sinceForRange(range), [range]);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.ai.actionAuditLog({ since }),
