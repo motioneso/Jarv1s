@@ -28,7 +28,19 @@ Jarvis (#1109)`, `build/1109-runtime-context` → `main`), CI checks in progress
 Sensitive-tier QA spawned (`coordinated-qa`, Sonnet, isolated worktree, `JARVIS_PGDATABASE=jarvis_
 qa_1109`) — awaiting verdict, not polling.
 
-**Next up:** await QA verdict on PR #1126 → verify CI green → merge (sensitive tier: auto-merge +
+**QA verdict on PR #1126: RED (1st cycle).** Sensitive-tier QA (Sonnet, `coordinated-qa`) found one
+real, root-caused blocking defect: `apps/api/package.json:8` `start` script (`tsx src/server.ts`)
+is missing the `build:app-map` step present in `dev` (line 7). `packages/module-registry/src/
+index.ts` (~L2089) now calls `loadAppMap` unconditionally at bootstrap (throws if the artifact is
+missing) — `infra/docker-compose.yml`'s api service runs `start:api`, never generating `dist/app-
+map.json` → deterministic dev-compose API crash-loop. This is what tripped CI's "Compose
+deployment smoke" check. "Prod compose deployment smoke" only passed because the Docker image
+build's `build:api` separately shells out to `build:app-map`. Everything else reviewed clean
+(invariants ok, exit-criteria mostly met, pull-model tool design/Tier-1 projection/module-sdk
+split all fine). Full verdict: PR #1126 comment `5003131589`. Relayed to `-8` to fix the start
+script and push; will re-QA after. Failure budget: 1/2 — not yet at stop-the-line.
+
+**Next up:** await -8's fix + green CI → re-QA PR #1126 → merge (sensitive tier: auto-merge +
 digest to Ben) → close #1109, GitHub bookkeeping. Keep watching `AWAITING-BEN.md` for Ben's #1122
 ruling — resume per his chosen option (a/b/c/d) once posted, do not re-derive.
 
