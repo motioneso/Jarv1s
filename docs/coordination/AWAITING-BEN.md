@@ -180,3 +180,25 @@ NOT touch #1122 code, did not merge/board — held per instruction.
 **Next-step decision routed to a fresh Fable one-shot** (re-run now vs. require #1124 fixed first
 vs. a scoped test-only timeout/boss-override fix ahead of #1122) — awaiting that ruling before
 any further CI action on #1122. Will record the ruling here once it lands.
+
+**RULING (2026-07-17, Fable, [issue #1123 comment 5000769797](https://github.com/motioneso/Jarv1s/issues/1123#issuecomment-5000769797)):
+path (c) — narrow test-scoped mitigation, not a blind re-run, not gated on the full #1124
+redesign.** Reasoning: 3/3 identical failures is a constant not noise, plus a same-morning clean
+VF on another branch — a bare re-run of the unchanged head is a lucky-runner bet; the durable
+#1124 policy question shouldn't gate #1122, only the narrow mechanism needs removing.
+
+**Conditions (enforced by coordinator):**
+1. Tiny PR under #1124 ("Part of #1124"): `boss` override or test-path-only
+   `connectionTimeoutMillis` raise in the 3 trio test files only. Zero production-runtime
+   changes. Full local gate + normal (routine-tier) QA. No new spec required — evidence-backed
+   bugfix under an existing issue. If scope creeps past test-config, halt and report.
+2. After merge to main: merge main into #1122's branch (`build/1110-app-map`) — do NOT rerun the
+   stale head — then fresh VF.
+3. **Hard stop:** same ~10.9s trio signature recurs on #1122 after the fix is in its head → full
+   halt, escalate to Ben, no further attempts.
+4. #1122 merge still separately gated on the deferred #1110 live-path walk evidence. #1124 stays
+   open for any durable policy fix. Never merge with red required checks.
+
+**Action taken:** tasked `Build-1110-AppMap-15` (owns #1122's branch, has full root-cause
+context) with the fix in a fresh worktree off main (`fix/1124-pgboss-test-timeout`), separate
+from the #1122 branch. In progress.
