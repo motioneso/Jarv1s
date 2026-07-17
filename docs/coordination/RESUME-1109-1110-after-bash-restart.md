@@ -1,6 +1,46 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g4`, session 5622ee69 — relay → gen-5, genuine 70%)
+## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g5`, session 435f7c1a — driving)
+
+**gen-5 is driving.** Took over from g4 (5622ee69, reaped clean, pane `w1:pSV` closed after
+fresh label+session confirm). My pane `w1:pSX`, tab `w1:t2E` (same tab as predecessor, not the
+agents tab) — labeled `Coord-1109-1110-g5`.
+
+**Monitors re-armed (session-only, both fresh):**
+- `bxa08yb28` — PR #1122 CI terminal-state watch. Fired immediately (CI was already terminal,
+  both checks still red, no change) — task ended, not re-armed since nothing pending; re-arm a
+  fresh one after the next push instead.
+- `blps7dqlc` — watches `Build-1110-AppMap*` pane status/relay/death. Live.
+
+**VF failure on PR #1122 — INVESTIGATED, CONFIRMED REAL REGRESSION (not the previously-assumed
+pre-existing gap):**
+- Job `87815542433` log: `module-web-browser-safety.test.ts` fails with `module "news": expected
+  [ …(4) ] to deeply equal []` — first listed offender `packages/module-sdk/src/route-errors.ts
+  imports backend-only package "fastify"`.
+- **This is NOT the previously-documented pre-existing false positive** (that one was about
+  `packages/shared/src/index.ts:5`, a different symptom). Proof: pulled the `Verify foundation
+  and app` job log from the latest **green** run on `main` (run `29554454835`, job
+  `87803601966`, 2026-07-17T04:19) — `module-web-browser-safety.test.ts` passes clean, 3/3, no
+  mention of "news" or "fastify" or "route-errors". The branch-only failure is real.
+- **Root cause not fully pinned — handed to the build lane, not resolved by me.** No `modules/news/`
+  files changed in this PR's diff at all. The two `apps/web/src/` files that import
+  `@jarv1s/module-sdk` are `apps/web/src/chat/use-chat-stream.ts` and
+  `apps/web/src/settings/settings-admin-panes.tsx` — one of these is almost certainly how module
+  "news"'s web-contribution graph now reaches the barrel's `route-errors.js` re-export (barrel
+  line 6, pre-existing, unchanged by this PR). The PR's own `packages/module-sdk/src/index.ts`
+  diff (the "#1110 regression fix" commit, moving `AI_MODEL_CAPABILITIES` to a leaf) added only
+  type-only interfaces (`JarvisError`, `ModuleErrorManifest`, etc.) — didn't look like the direct
+  cause on inspection, but I did not chase further; **-15 (or successor) should verify with an
+  isolated import-graph trace**, not assume.
+- Compose-smoke: -15 still on it. Went through an auto-compact cycle (was at 1% until
+  auto-compact, then compacted, now back to `working` per `blps7dqlc`). No new findings surfaced
+  yet — **check its pane before re-messaging**, don't duplicate work.
+- **Next action for whoever reads this next:** once -15 (or its relay successor) is at a natural
+  break point (idle, or done with compose-smoke), relay it the VF finding above verbatim — don't
+  make it re-derive the main-vs-branch proof.
+
+Below is g4's own relay note (its "YOU ARE gen-5" instructions, now executed) + full history,
+kept for reference (skim, don't deep-read):
 
 **YOU ARE gen-5. Do these FIRST:**
 1. `herdr pane list` — find your own pane/session, confirm it (relay spawns you in the SAME tab
