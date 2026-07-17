@@ -1,6 +1,38 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏭️ IMMEDIATE NEXT ACTION for g18 (read this block first — g17's block below is now historical)
+## ⏭️ IMMEDIATE NEXT ACTION for g18 (2026-07-17, own arrival — read this first, everything below is historical)
+
+**Lock:** I am `Coord-1109-1110-g18`, pane `w1:pTW`, session `58712e78-e07d-4061-9215-b63109629afb`.
+Confirmed sole active coordinator via `herdr pane list`; messaged `Coord-1109-1110-g17` (`w1:pTP`,
+session `52b09acb-...`) to stand down — it acknowledged.
+
+**Picked up g17's finding (bottom of file, "g17 finding: #1122/#1126 CI timeout ROOT CAUSE
+CONFIRMED") and acted on it — do not re-run the Sol/Fable investigation, it is settled:**
+
+- Verified on `origin/main`, `origin/build/1110-app-map`, `origin/build/1109-runtime-context`:
+  neither #1122's nor #1126's branch touches `tests/integration/test-database.ts` — the bug is on
+  `main` itself, inherited unmodified by both lanes.
+- Filed **issue #1130** ("2nd instance of #1124"), applied the exact confirmed fix (3rd-arg
+  `{ connectionTimeoutMillis: 25_000 }` to the `migratePgBoss()` call at
+  `tests/integration/test-database.ts:81`) in a fresh standalone worktree
+  (`.claude/worktrees/fix-1130-pgboss-migration-timeout`, branch
+  `fix/1130-pgboss-migration-timeout`), **not** as a patch to either #1122/#1126 feature branch —
+  chose standalone-against-`main` because the bug is main-inherited infra, not lane-owned code;
+  one fix lands for both lanes instead of duplicating it twice.
+- Opened **PR #1131** against `main`. CI running (`gh run` under PR #1131) as of this note.
+- **Next:** once CI green, dispatch `coordinated-qa` (tier: `routine` — test-infra only, no auth/
+  RLS/secrets/migration-schema/job-payload-shape touch) → merge → then get #1122/#1126 to
+  merge/rebase `main` into their branches so their next CI run picks up the fix → re-run VF on
+  each → resume normal QA/merge flow for #1122 and #1126 themselves per the pre-existing manifest
+  (see g13's "CURRENT STATE" section below for the original #1122/#1126 merge-order plan — READ
+  ONLY THAT SECTION, not the full history).
+- Fleet snapshot at handoff (`herdr pane list`): `Build-1110-AppMap-16` (`w1:pTN`) working;
+  `Build-1109-RuntimeContext-9` (`w1:pTE`) idle, holding per g17's instruction; `Fable-
+  TimeoutRootCause-v1` (`w1:pTT`) and `Sol-TimeoutRootCause-v1` (`w1:pTV`) both `done` — safe to
+  reap once #1131 merges (their investigation is fully superseded by the confirmed finding, keep
+  panes until fix is proven green in case a re-open is needed).
+
+## ⏭️ IMMEDIATE NEXT ACTION for g18-arrival (historical — g18's own arrival block, superseded above)
 
 **g17 relaying at 70% context (2026-07-17, self-paced).** Fleet healthy, no Ben-facing blockers
 except awaiting the new investigation's findings. Your job: supervise 4 agents to completion.
