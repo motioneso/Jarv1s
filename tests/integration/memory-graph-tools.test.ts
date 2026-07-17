@@ -4,6 +4,7 @@ import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -31,6 +32,7 @@ interface InvocationResponse {
 
 describe("memory graph assistant tools", () => {
   let appDb: Kysely<JarvisDatabase>;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let originalSecretKey: string | undefined;
   let originalEmbedProvider: string | undefined;
@@ -48,12 +50,18 @@ describe("memory graph assistant tools", () => {
       connectionString: connectionStrings.app,
       maxConnections: 1
     });
-    server = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
     if (originalSecretKey === undefined) {
       delete process.env.JARVIS_AI_SECRET_KEY;
     } else {

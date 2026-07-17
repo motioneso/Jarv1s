@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
@@ -25,6 +26,7 @@ let root: string;
 let modulesDir: string;
 let installedDir: string;
 let appDb: Kysely<JarvisDatabase>;
+let boss: PgBoss;
 let server: ReturnType<typeof createApiServer>;
 let adminCookie: string;
 let memberCookie: string;
@@ -39,6 +41,7 @@ let memberUserId: string;
 const bootServer = async (): Promise<void> => {
   server = createApiServer({
     appDb,
+    boss,
     logger: false,
     apiServerConfig: {
       host: "0.0.0.0",
@@ -62,6 +65,13 @@ beforeAll(async () => {
   cpSync(join(sourceDir, "dist"), join(installedDir, "dist"), { recursive: true });
 
   appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+  // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+  // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+  // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+  // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+  // Test-only — production callers of createApiServer() are unaffected. One boss instance is
+  // reused across bootServer() restarts (the server is recreated over the same appDb + boss).
+  boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
   await bootServer();
 
   const admin = await signUp(server, "owner@job-search.test", "Owner");
@@ -78,7 +88,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  await Promise.allSettled([server?.close(), appDb?.destroy()]);
+  await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   rmSync(root, { recursive: true, force: true });
 });
 

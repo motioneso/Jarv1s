@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import { AiRepository } from "@jarv1s/ai";
 import {
   DataContextRunner,
@@ -41,6 +42,7 @@ describe("AI service bindings + instance-default resolver", () => {
   let dataContext: DataContextRunner;
   let repository: AiRepository;
   let server: ReturnType<typeof createApiServer>;
+  let boss: PgBoss;
   let originalSecretKey: string | undefined;
   let restoreFetch: () => void;
   let providerId: string;
@@ -54,7 +56,13 @@ describe("AI service bindings + instance-default resolver", () => {
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     dataContext = new DataContextRunner(appDb);
     repository = new AiRepository();
-    server = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
 
     providerId = await seedProvider("Service binding provider");
@@ -68,7 +76,7 @@ describe("AI service bindings + instance-default resolver", () => {
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
     restoreFetch?.();
     if (originalSecretKey === undefined) {
       delete process.env.JARVIS_AI_SECRET_KEY;
@@ -316,6 +324,7 @@ describe("AI legacy capability-route read-through (H2)", () => {
   let dataContext: DataContextRunner;
   let repository: AiRepository;
   let server: ReturnType<typeof createApiServer>;
+  let boss: PgBoss;
   let originalSecretKey: string | undefined;
   let restoreFetch: () => void;
   let providerId: string;
@@ -332,7 +341,13 @@ describe("AI legacy capability-route read-through (H2)", () => {
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     dataContext = new DataContextRunner(appDb);
     repository = new AiRepository();
-    server = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
 
     providerId = await seedProvider("Legacy read-through provider");
@@ -347,7 +362,7 @@ describe("AI legacy capability-route read-through (H2)", () => {
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
     restoreFetch?.();
     if (originalSecretKey === undefined) {
       delete process.env.JARVIS_AI_SECRET_KEY;

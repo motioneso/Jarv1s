@@ -12,6 +12,7 @@ import {
   type JarvisDatabase,
   type User
 } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
 import {
   registerOnboardingRoutes,
@@ -76,6 +77,7 @@ function makeFakeConnection(state: FakeRpc): RpcConnection {
 describe("Phase 2 onboarding — provider-install seam (REAL wiring)", () => {
   let bootstrapServer: ReturnType<typeof createApiServer>;
   let appDb: Kysely<JarvisDatabase>;
+  let boss: PgBoss;
   let dataContext: DataContextRunner;
   let repository: SettingsRepository;
   let ownerUserId: string;
@@ -93,8 +95,14 @@ describe("Phase 2 onboarding — provider-install seam (REAL wiring)", () => {
     dataContext = new DataContextRunner(appDb);
     repository = new SettingsRepository();
 
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
     // The first sign-up is the bootstrap owner / instance admin (the 0103 write-RLS actor).
-    bootstrapServer = createApiServer({ appDb, logger: false });
+    bootstrapServer = createApiServer({ appDb, boss, logger: false });
     await bootstrapServer.ready();
     const signUp = await bootstrapServer.inject({
       method: "POST",
@@ -168,7 +176,12 @@ describe("Phase 2 onboarding — provider-install seam (REAL wiring)", () => {
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), bootstrapServer?.close(), appDb?.destroy()]);
+    await Promise.allSettled([
+      server?.close(),
+      bootstrapServer?.close(),
+      appDb?.destroy(),
+      boss?.stop({ graceful: false })
+    ]);
   });
 
   async function readPersisted(provider: string) {
@@ -286,6 +299,7 @@ describe("Phase 2 onboarding — provider-install seam (REAL wiring)", () => {
 describe("#1081 H2 — binaryChanged forwarding + session-drop trigger (REAL wiring)", () => {
   let bootstrapServer: ReturnType<typeof createApiServer>;
   let appDb: Kysely<JarvisDatabase>;
+  let boss: PgBoss;
   let dataContext: DataContextRunner;
   let repository: SettingsRepository;
   let ownerUserId: string;
@@ -304,7 +318,13 @@ describe("#1081 H2 — binaryChanged forwarding + session-drop trigger (REAL wir
     dataContext = new DataContextRunner(appDb);
     repository = new SettingsRepository();
 
-    bootstrapServer = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    bootstrapServer = createApiServer({ appDb, boss, logger: false });
     await bootstrapServer.ready();
     const signUp = await bootstrapServer.inject({
       method: "POST",
@@ -379,7 +399,12 @@ describe("#1081 H2 — binaryChanged forwarding + session-drop trigger (REAL wir
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), bootstrapServer?.close(), appDb?.destroy()]);
+    await Promise.allSettled([
+      server?.close(),
+      bootstrapServer?.close(),
+      appDb?.destroy(),
+      boss?.stop({ graceful: false })
+    ]);
   });
 
   it("forwards binaryChanged:true through the response AND drops that provider's sessions", async () => {

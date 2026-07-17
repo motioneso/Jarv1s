@@ -19,6 +19,7 @@ import {
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
 } from "@jarv1s/module-registry";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import {
   NotificationsRepository,
   type CreateNotificationInput,
@@ -55,6 +56,7 @@ describe("Notifications module M5", () => {
   let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
   let repository: NotificationsRepository;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
 
   beforeAll(async () => {
@@ -68,15 +70,22 @@ describe("Notifications module M5", () => {
     auth = new AuthSessionResolver(appDb);
     dataContext = new DataContextRunner(appDb);
     repository = new NotificationsRepository();
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
     server = createApiServer({
       appDb,
+      boss,
       logger: false
     });
     await server.ready();
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   });
 
   it("applies Notifications migrations with forced RLS and a narrow worker SELECT/INSERT grant on notifications", async () => {

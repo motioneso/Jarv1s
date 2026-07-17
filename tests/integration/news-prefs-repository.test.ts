@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import type { Kysely } from "kysely";
 import { createApiServer } from "../../apps/api/src/server.js";
 import { NewsPrefsRepository } from "../../packages/news/src/repository.js";
@@ -17,6 +18,7 @@ import {
 describe("news prefs repository RLS", () => {
   let appDb: Kysely<JarvisDatabase>;
   let authRuntime: JarvisAuthRuntime;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let dataCtx: DataContextRunner;
   const repo = new NewsPrefsRepository();
@@ -39,13 +41,24 @@ describe("news prefs repository RLS", () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
-    server = createApiServer({ appDb, authRuntime, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, authRuntime, boss, logger: false });
     await server.ready();
     dataCtx = new DataContextRunner(appDb);
   });
 
   afterEach(async () => {
-    await Promise.allSettled([server?.close(), authRuntime?.close(), appDb?.destroy()]);
+    await Promise.allSettled([
+      server?.close(),
+      authRuntime?.close(),
+      appDb?.destroy(),
+      boss?.stop({ graceful: false })
+    ]);
   });
 
   it("owner create then list round-trips (owner sees own pref)", async () => {

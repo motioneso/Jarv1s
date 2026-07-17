@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import pg from "pg";
 
 import { AuthSessionResolver, createDatabase } from "@jarv1s/db";
+import { createPgBossClient } from "@jarv1s/jobs";
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createBackupPlan } from "../../scripts/backup-database.js";
 import { auditReleaseHardening } from "../../scripts/audit-release-hardening.js";
@@ -192,15 +193,15 @@ describe("M7 release hardening lifecycle scripts", () => {
   });
 
   it("DELETE /api/admin/users/:id succeeds after workspace tables are dropped", async () => {
-    const appDb2 = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    const server2 = createApiServer({ appDb: appDb2, logger: false });
+    const db2 = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    const boss2 = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 }); // #1124: CI PG connect can exceed pg-boss's 10s default even on success (test-only)
+    const server2 = createApiServer({ appDb: db2, boss: boss2, logger: false });
     await server2.ready();
     const bootstrapClient = new Client({ connectionString: connectionStrings.bootstrap });
     await bootstrapClient.connect();
     try {
-      // Disable approval so newly registered users are active, not pending.
-      // instance_settings UPDATE is admin-gated by RLS (migration 0059); write through
-      // the bootstrap superuser already open here, which bypasses RLS for test setup.
+      // Disable approval so newly registered users are active, not pending. instance_settings
+      // UPDATE is RLS-gated (migration 0059); write through the open bootstrap superuser client.
       await bootstrapClient.query(
         `UPDATE app.instance_settings SET value = '{"value": false}'::jsonb, updated_at = now() WHERE key = 'registration.requires_approval'`
       );
@@ -240,7 +241,7 @@ describe("M7 release hardening lifecycle scripts", () => {
       expect(deleteRes.json<{ deletedUserId: string }>().deletedUserId).toBe(targetId);
     } finally {
       await bootstrapClient.end();
-      await Promise.allSettled([server2.close(), appDb2.destroy()]);
+      await Promise.allSettled([server2.close(), db2.destroy(), boss2.stop({ graceful: false })]);
     }
   });
 

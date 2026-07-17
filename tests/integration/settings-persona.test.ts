@@ -3,6 +3,7 @@ import type { OutgoingHttpHeaders } from "node:http";
 import type { Kysely } from "kysely";
 
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import type {
   GetPersonaSettingsResponse,
   PreviewPersonaResponse,
@@ -18,6 +19,7 @@ import {
 
 describe("settings persona preferences", () => {
   let appDb: Kysely<JarvisDatabase>;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let ownerCookie: string;
   let memberCookie: string;
@@ -32,8 +34,15 @@ describe("settings persona preferences", () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 2 });
     await setInstanceSetting("registration.requires_approval", { value: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
     server = createApiServer({
       appDb,
+      boss,
       logger: false,
       personaPreview: async (input) => {
         previewCalls.push(input);
@@ -47,7 +56,7 @@ describe("settings persona preferences", () => {
   });
 
   afterEach(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
     previewCalls.length = 0;
   });
 

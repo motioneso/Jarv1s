@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import { NotificationsRepository } from "@jarv1s/notifications";
 import type { ListNotificationPreferencesResponse } from "@jarv1s/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -10,18 +11,25 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 describe("notification preferences", () => {
   let appDb: Kysely<JarvisDatabase>;
   let dataContext: DataContextRunner;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
 
   beforeAll(async () => {
     await resetFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     dataContext = new DataContextRunner(appDb);
-    server = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
   });
 
   afterAll(async () => {
-    await Promise.allSettled([server?.close(), appDb?.destroy()]);
+    await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   });
 
   it("lists active notification-capable modules with default enabled preferences", async () => {

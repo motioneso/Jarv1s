@@ -2,10 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import { connectionStrings, resetFoundationDatabase } from "./test-database.js";
 
 describe("Rate limiting", () => {
   let server: ReturnType<typeof createApiServer>;
+  let boss: PgBoss;
   let originalAuthMax: string | undefined;
   let originalOauthMax: string | undefined;
 
@@ -17,8 +19,15 @@ describe("Rate limiting", () => {
     process.env.JARVIS_RL_OAUTH_MAX = "2";
 
     await resetFoundationDatabase();
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
     server = createApiServer({
       appDb: createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 }),
+      boss,
       logger: false
     });
     await server.ready();
@@ -26,6 +35,7 @@ describe("Rate limiting", () => {
 
   afterAll(async () => {
     await server?.close();
+    await boss?.stop({ graceful: false });
     if (originalAuthMax === undefined) {
       delete process.env.JARVIS_RL_AUTH_MAX;
     } else {

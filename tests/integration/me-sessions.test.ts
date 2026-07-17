@@ -5,6 +5,7 @@ import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import type { ListMySessionsResponse } from "@jarv1s/shared";
 import type { Kysely } from "kysely";
 
@@ -48,6 +49,7 @@ describe("#237 current-user active sessions", () => {
   const handleSessionB = handle(ids.sessionB);
 
   let appDb: Kysely<JarvisDatabase>;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
 
   const asUserA = (method: "GET" | "DELETE", url: string) =>
@@ -120,7 +122,13 @@ describe("#237 current-user active sessions", () => {
   beforeAll(async () => {
     await resetFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    server = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
   });
 
@@ -129,6 +137,7 @@ describe("#237 current-user active sessions", () => {
   afterAll(async () => {
     await server?.close();
     await appDb?.destroy();
+    await boss?.stop({ graceful: false });
   });
 
   it("lists own non-expired sessions, marks current, and never leaks a bearer secret or token", async () => {
@@ -258,6 +267,7 @@ describe("#237 current-user active sessions — cookie auth", () => {
   const otherCookieToken = "cookie-other-SECRET-must-not-leak";
 
   let appDb: Kysely<JarvisDatabase>;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let cookie: string;
   let ownerUserId: string;
@@ -266,7 +276,13 @@ describe("#237 current-user active sessions — cookie auth", () => {
     await resetEmptyFoundationDatabase();
     await setInstanceSetting("registration.requires_approval", { value: false });
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    server = createApiServer({ appDb, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
 
     // First sign-up bootstraps an active owner and returns a real Better Auth session cookie.
@@ -298,6 +314,7 @@ describe("#237 current-user active sessions — cookie auth", () => {
   afterAll(async () => {
     await server?.close();
     await appDb?.destroy();
+    await boss?.stop({ graceful: false });
   });
 
   async function cookieSessionExists(id: string): Promise<boolean> {

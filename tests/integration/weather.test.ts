@@ -4,6 +4,7 @@ import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import type {
   GetWeatherTodayResponse,
   GetWeatherLocationResponse,
@@ -47,6 +48,7 @@ function makeIpWhoIsResponse(lat: number, lon: number, city: string, country: st
 
 describe("weather integration", () => {
   let appDb: Kysely<JarvisDatabase>;
+  let boss: PgBoss;
   let ownerCookie: string;
   let memberCookie: string;
 
@@ -69,17 +71,24 @@ describe("weather integration", () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     await setInstanceSetting("registration.requires_approval", { value: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Every server built below shares this appDb/connection, so one boss is reused throughout.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
   });
 
   afterAll(async () => {
-    await appDb?.destroy();
+    await Promise.allSettled([appDb?.destroy(), boss?.stop({ graceful: false })]);
   });
 
   describe("weather-location preference", () => {
     let server: ReturnType<typeof createApiServer>;
 
     beforeAll(async () => {
-      server = createApiServer({ appDb, logger: false });
+      server = createApiServer({ appDb, boss, logger: false });
       await server.ready();
       ownerCookie = await signUp(server, "Owner", "owner.wx@example.test");
       memberCookie = await signUp(server, "Member", "member.wx@example.test");
@@ -177,7 +186,12 @@ describe("weather integration", () => {
   describe("GET /api/weather/today", () => {
     it("returns data from Open-Meteo when preference is set", async () => {
       const fakeFetch = vi.fn().mockResolvedValue(makeOpenMeteoResponse(18, 15, 0));
-      const srv = createApiServer({ appDb, logger: false, fetchFn: fakeFetch as typeof fetch });
+      const srv = createApiServer({
+        appDb,
+        boss,
+        logger: false,
+        fetchFn: fakeFetch as typeof fetch
+      });
       await srv.ready();
       const cookie = await signUp(srv, "WxUser", "wx.user@example.test");
 
@@ -213,7 +227,12 @@ describe("weather integration", () => {
 
     it("returns null when no location set and IP is loopback", async () => {
       const fakeFetch = vi.fn();
-      const srv = createApiServer({ appDb, logger: false, fetchFn: fakeFetch as typeof fetch });
+      const srv = createApiServer({
+        appDb,
+        boss,
+        logger: false,
+        fetchFn: fakeFetch as typeof fetch
+      });
       await srv.ready();
       const cookie = await signUp(srv, "NoLocUser", "noloc@example.test");
 
@@ -236,7 +255,12 @@ describe("weather integration", () => {
         .mockResolvedValueOnce(makeIpWhoIsResponse(48.85, 2.35, "Paris", "France"))
         .mockResolvedValueOnce(makeOpenMeteoResponse(22, 20, 1));
 
-      const srv = createApiServer({ appDb, logger: false, fetchFn: fakeFetch as typeof fetch });
+      const srv = createApiServer({
+        appDb,
+        boss,
+        logger: false,
+        fetchFn: fakeFetch as typeof fetch
+      });
       await srv.ready();
       const cookie = await signUp(srv, "IpUser", "ipuser@example.test");
 
@@ -253,7 +277,7 @@ describe("weather integration", () => {
     });
 
     it("requires authentication", async () => {
-      const srv = createApiServer({ appDb, logger: false });
+      const srv = createApiServer({ appDb, boss, logger: false });
       await srv.ready();
       const res = await srv.inject({ method: "GET", url: "/api/weather/today" });
       expect(res.statusCode).toBe(401);

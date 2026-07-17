@@ -3,6 +3,7 @@ import pg from "pg";
 
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import type { Kysely } from "kysely";
 import { createApiServer } from "../../apps/api/src/server.js";
 import {
@@ -167,6 +168,7 @@ describe("news personalization schema posture (#953)", () => {
 describe("news personalization repository (#953 Task 3)", () => {
   let appDb: Kysely<JarvisDatabase>;
   let authRuntime: JarvisAuthRuntime;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let dataCtx: DataContextRunner;
   let bootstrap: pg.Client;
@@ -203,7 +205,13 @@ describe("news personalization repository (#953 Task 3)", () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
-    server = createApiServer({ appDb, authRuntime, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, authRuntime, boss, logger: false });
     await server.ready();
     dataCtx = new DataContextRunner(appDb);
     bootstrap = new Client({ connectionString: connectionStrings.bootstrap });
@@ -215,7 +223,8 @@ describe("news personalization repository (#953 Task 3)", () => {
       server?.close(),
       authRuntime?.close(),
       appDb?.destroy(),
-      bootstrap?.end()
+      bootstrap?.end(),
+      boss?.stop({ graceful: false })
     ]);
   });
 
@@ -434,6 +443,7 @@ describe("news validation state repository (#975 Slice 4)", () => {
   let appDb: Kysely<JarvisDatabase>;
   let workerDb: Kysely<JarvisDatabase>;
   let authRuntime: JarvisAuthRuntime;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let dataCtx: DataContextRunner;
   let workerCtx: DataContextRunner;
@@ -499,7 +509,13 @@ describe("news validation state repository (#975 Slice 4)", () => {
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     workerDb = createDatabase({ connectionString: connectionStrings.worker, maxConnections: 1 });
     authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
-    server = createApiServer({ appDb, authRuntime, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, authRuntime, boss, logger: false });
     await server.ready();
     dataCtx = new DataContextRunner(appDb);
     workerCtx = new DataContextRunner(workerDb);
@@ -513,7 +529,8 @@ describe("news validation state repository (#975 Slice 4)", () => {
       authRuntime?.close(),
       appDb?.destroy(),
       workerDb?.destroy(),
-      bootstrap?.end()
+      bootstrap?.end(),
+      boss?.stop({ graceful: false })
     ]);
   });
 
