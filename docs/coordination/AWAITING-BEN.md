@@ -412,3 +412,26 @@ a "just bump the budget" stopgap. Alternative: guard `loadAppMap` with a safe fa
 app-map should be non-fatal at runtime (separate question — may be worth doing regardless, but
 doesn't itself fix VF timing without also producing the file in test setup). Holding — no action
 without your explicit authorization per the hard stop.
+
+---
+
+**✅ BEN DECIDED (2026-07-17, direct reply to `Coord-1109-1110-g15`):**
+
+- **#1122** — "I don't know what's going on, so we need to fix it. Is it just a dev issue?"
+  Answer: yes — confirmed test/CI-infrastructure only, zero production-runtime impact (the
+  pg-boss `connectionTimeoutMillis` root cause only fires because test files construct a real
+  pg-boss PG client directly; production's configured path doesn't hit this). Authorized to
+  actually root-cause-and-fix now (not rerun, not another `ci.yml` bump). Dispatched to
+  `Build-1110-AppMap-15` (`w1:pST`): (a) explain why #1128's widened override still doesn't cover
+  `auth-settings.test.ts`/`auth-bootstrap-recovery.test.ts`, (b) evaluate wiring `build:app-map`
+  into `verify:foundation` per g13's unauthorized-until-now theory (missing `dist/app-map.json` on
+  fresh CI checkout → synchronous throw in every integration `beforeAll` → possible ~11.1s retry
+  backoff explaining the broader 46-file slowdown pattern).
+- **#1126** — Fable-as-Ben's-delegate confirmed legitimate; the earlier "no model credits" failure
+  was a genuine outage, not a bypass — no fraud pattern, false alarm closed. The
+  `issuecomment-5006648397` ruling on PR #1126 (head `9c1cb416`) stands: real defect (missing
+  `build:app-map` in `apps/api/package.json`'s `start` script) already fixed at this head via
+  `80ebb905`; ruling requires fresh sensitive-tier QA + UAT proof (deterministic halves; real-LLM
+  halves deferred to #1121) before merge — **no waiver, still gated.** Dispatching sensitive-tier
+  QA now. `w1:pTH` no longer disputed — held for now, reap once QA has what it needs from it (or on
+  next relay if untouched).
