@@ -1,0 +1,6 @@
+step 1 action: integrated PR head 45715bb0352a08f72c1015c96af7b0d9d0588d97 live bare UAT ready as uat-252775_f856bc26 at http://127.0.0.1:20000
+step 2 action: created the first owner through the real signup UI and reached onboarding
+step 3 action: skipped optional setup and navigated through the authenticated user menu to /settings
+step 4 action: opened command palette on /settings; Weekly releases is visible with href https://motioneso.github.io/Jarv1s/
+step 5 action: clicked Weekly releases and opened https://motioneso.github.io/Jarv1s/
+final datum: integrated-head live path GREEN; Weekly releases opens https://motioneso.github.io/Jarv1s/
