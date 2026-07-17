@@ -1,5 +1,43 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
+## 🛑 CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g11`, relaying at 70% meter — PR #1126 STOP-THE-LINE, escalated)
+
+**Relay reason:** context-meter hard trigger at 70%, no deferral.
+
+**PR #1126 stop-the-line — new escalation, action needed by successor:** `Verify foundation and
+app`'s `Verify foundation` step has now **CANCELLED (timeout) 3 consecutive times** on this
+branch: completed 12:10:32Z, 13:13:44Z, 13:24:51Z (2026-07-17), each hitting the job's 25-min cap
+(`ci.yml:18`) at ~24:39–24:45 elapsed every single time — consistent enough to read as a hard
+ceiling miss on every run, not one-off variance. This is PAST the CLAUDE.md CI waiver protocol's
+"fails twice = stop-the-line" bar (3rd occurrence, including the failure `-8` already
+root-caused as pre-existing/proportional-to-added-tests, not caused by its app-map fix — see
+prior PRIOR STATE block above for that analysis).
+
+**Successor must do, in order:**
+1. **File a GitHub issue** documenting: 3x consecutive `Verify foundation` timeout-cancellations
+   on `build/1109-runtime-context` (SHAs/timestamps above), root cause = branch runs ~25min+ vs
+   main's ~18-20min baseline (likely #1109's added test volume across 7 tasks), decision needed:
+   bump `ci.yml` `timeout-minutes` 25→35 as documented stopgap, or investigate further for a real
+   hang (not yet ruled out — nobody has read the actual step log for a stuck/looping test).
+2. **Escalate to Ben via `AWAITING-BEN.md`** (not yet written — do this now): frame the two options,
+   link the new issue, note PR #1126 is otherwise fully green (both compose smoke checks SUCCESS,
+   sensitive-tier QA already passed 2nd cycle pending only this check) and is #1109's final task
+   (Task 7/7) — everything else is done, this is the only blocker.
+3. `Build-1109-RuntimeContext-8` (`w1:pT6`) was instructed to **STOP** — no more reruns, no
+   `ci.yml` edits, holding for Ben's ruling. Confirm it received/stopped (I sent the halt message
+   but relayed before confirming it landed cleanly — bounded pane read to verify, resend Enter if
+   still sitting unsubmitted).
+4. Do **not** touch `ci.yml` yourself without Ben's explicit choice — modifying CI pipeline config
+   is a hard-to-reverse/shared-impact action.
+5. `#1122` unchanged: still fully halted, escalated, no ruling yet — monitor only, don't re-derive.
+6. `Build-1110-AppMap-15` (`w1:pST`) unchanged: `done`, holding on `build/1110-app-map`, no
+   action.
+7. Liveness monitor died with this relay as expected — re-arm on `w1:pT6`/`w1:pST`.
+
+**g11 was driving.** Pane `w1:pTB`, session `d6593820-888f-4a3d-8692-5b30984eb6f0`, label
+`Coord-1109-1110-g11`. Successor: claim `Coord-1109-1110-g12`, confirm uniqueness, reap g11 once
+you confirm driving.
+
 ## ✅ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g11`, takeover confirmed)
 
 **g11 is driving.** Pane `w1:pTB`, session `d6593820-888f-4a3d-8692-5b30984eb6f0`, label
