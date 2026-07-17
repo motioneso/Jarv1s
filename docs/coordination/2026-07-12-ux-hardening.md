@@ -3395,3 +3395,8 @@ resume from this note before taking any merge-sensitive action.
   `UX 1117 UAT 4d2d17ba`, Claude session `1015b583-a992-4415-bbdc-277a4ee688d3`, on Sonnet/high.
   It may push only dedicated evidence branch `uat/1117-final-4d2d17ba`; final QA remains gated on
   its durable GREEN proof for exact head `4d2d17ba418b9140a7ea307398fe9e447bd06446`.
+- UAT session `1015b583-a992-4415-bbdc-277a4ee688d3` hit its context tripwire after a successful
+  live provisioning smoke, wrote `artifacts/webwright/pr-1117-4d2d17ba-final/UAT_HANDOFF.md`, and
+  was reaped with no live resources. Successor label `UX 1117 UAT 4d2d17ba-2`, Claude session
+  `da1a8e4d-48da-4055-9c9a-dd75ede7caaf`, resumed the same worktree on Sonnet/high to complete
+  the eight Webwright critical points and durable exact-head evidence.
