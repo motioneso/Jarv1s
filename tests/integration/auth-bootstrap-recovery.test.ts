@@ -9,6 +9,7 @@ import {
   type BootstrapSettings,
   type JarvisAuthRuntime
 } from "@jarv1s/auth";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import { recordBootstrapOwnerAuditEvent } from "@jarv1s/settings";
 import {
   connectionStrings,
@@ -19,18 +20,27 @@ import {
 describe("owner bootstrap recovery", () => {
   let appDb: Kysely<JarvisDatabase>;
   let authRuntime: JarvisAuthRuntime;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
 
   beforeEach(async () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 2 });
     authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
-    server = createApiServer({ appDb, authRuntime, logger: false });
+    // #1124: see multi-user-isolation.test.ts for rationale — override pg-boss's default
+    // 10s connectionTimeoutMillis so a slow-but-healthy CI connection isn't killed early.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, authRuntime, boss, logger: false });
     await server.ready();
   });
 
   afterEach(async () => {
-    await Promise.allSettled([server?.close(), authRuntime?.close(), appDb?.destroy()]);
+    await Promise.allSettled([
+      server?.close(),
+      authRuntime?.close(),
+      appDb?.destroy(),
+      boss?.stop({ graceful: false })
+    ]);
   });
 
   async function signUp(opts: { name: string; email: string; password: string }) {
@@ -248,7 +258,8 @@ describe("owner bootstrap recovery", () => {
       runner: new DataContextRunner(appDb),
       _settingsOverride: throwingSettings
     });
-    server = createApiServer({ appDb, authRuntime, logger: false });
+    // Reuse the same #1124 boss override created in beforeEach — no need for a fresh client.
+    server = createApiServer({ appDb, authRuntime, boss, logger: false });
     await server.ready();
 
     // Seed a non-bootstrap-owner so bootstrapOwnerExists=false when before-hooks run

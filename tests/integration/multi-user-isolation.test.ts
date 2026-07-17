@@ -4,6 +4,7 @@ import pg from "pg";
 
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
 import { sql, type Kysely } from "kysely";
 import { createApiServer } from "../../apps/api/src/server.js";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
@@ -16,6 +17,7 @@ import {
 describe("multi-user isolation", () => {
   let appDb: Kysely<JarvisDatabase>;
   let authRuntime: JarvisAuthRuntime;
+  let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
 
   async function signUp(name: string, email: string) {
@@ -60,12 +62,23 @@ describe("multi-user isolation", () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
-    server = createApiServer({ appDb, authRuntime, logger: false });
+    // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
+    // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
+    // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
+    // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
+    // Test-only — production callers of createApiServer() are unaffected.
+    boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
+    server = createApiServer({ appDb, authRuntime, boss, logger: false });
     await server.ready();
   });
 
   afterEach(async () => {
-    await Promise.allSettled([server?.close(), authRuntime?.close(), appDb?.destroy()]);
+    await Promise.allSettled([
+      server?.close(),
+      authRuntime?.close(),
+      appDb?.destroy(),
+      boss?.stop({ graceful: false })
+    ]);
   });
 
   it("a member cannot read another member's private task", async () => {
