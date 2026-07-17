@@ -29,12 +29,16 @@ slowdown, not marginal/noise.
   checking in with the coordinator first** (lane is halted per stop-the-line, no more blind
   fixes). -15 was at 61% context when messaged, flipped to `working` immediately after.
 
-**Re-armed monitor:** persistent Monitor (`b28z85fu6`) diffing `herdr pane list` for
-`Build-1109-RuntimeContext-6` + `Build-1110-AppMap-15` status changes / pane death — only emits on
-change, so silence = both still running. The prior CI-terminal-state monitor (`b52frv1qd`) already
-fired and is not being re-armed on the same run (it's terminal, already read) — a **fresh** one is
-needed only once -15 pushes a new commit and a new CI run starts; don't arm one against a
-non-existent future run.
+**Re-armed monitor:** persistent Monitor (`bjxpou3zi`, superseded `b28z85fu6` after -6→-7 relay
+below) diffing `herdr pane list` for `Build-1109-RuntimeContext-7` + `Build-1110-AppMap-15` status
+changes / pane death — only emits on change, so silence = both still running.
+
+**#1109 relay (same gen-6 session):** `Build-1109-RuntimeContext-6` finished Task 5 (deleted
+per-turn page_context push path, committed `4922cb06`, all green), relayed at 70% meter warning to
+`Build-1109-RuntimeContext-7` (pane `w1:pT4`, session `1ece3f0a…`). Verified tab placement
+(`w1:t2D`, correct shared agents tab) and Sonnet + `working` before reaping `-6` (pane `w1:pT2`
+closed). Handoff doc: `docs/superpowers/handoffs/2026-07-16-1109-runtime-context-relay-6.md`
+(`ddd4fa0d`). -7 now on Task 6. Healthy relay cadence continues (-1→-7 all clean).
 
 **UPDATE (same gen-6 session) — -15's verdict in, re-run authorized, in flight:**
 - **-15's diagnosis: environmental, not the errors.ts diff.** `test:unit` normal timing (423/423,
