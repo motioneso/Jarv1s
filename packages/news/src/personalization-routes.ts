@@ -343,12 +343,27 @@ export function registerNewsPersonalizationRoutes(
             dependencies.availability.hasJsonModel(db),
             dependencies.availability.hasWebSearch(db)
           ]);
-          if (!hasJsonModel) return { status: "unavailable" as const };
+          if (!hasJsonModel) {
+            return {
+              status: "unavailable" as const,
+              error: {
+                code: "news.add_source.no_json_model",
+                class: "prerequisite" as const,
+                remediationRef: "news.add_source.configure_json_model"
+              }
+            };
+          }
           const result = await resolveSourceInput(
             db,
             { ...dependencies.discovery, repo: repository },
             { raw: input.input, hasWebSearch }
           );
+          if (result.status === "unavailable") {
+            return {
+              ...result,
+              error: { code: "news.add_source.discovery_unavailable", class: "transient" as const }
+            };
+          }
           if (result.status !== "ok" && result.status !== "ambiguous") return result;
 
           const confirmationId = previews.put({

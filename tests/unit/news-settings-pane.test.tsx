@@ -14,6 +14,7 @@ import { ApiError } from "@jarv1s/module-web-sdk";
 
 import NewsSettings from "../../packages/news/src/settings/index.js";
 import {
+  NewsAddSourceError,
   previewOutcomeMessage,
   zipPreviewCandidates
 } from "../../packages/news/src/settings/add-source.js";
@@ -356,7 +357,9 @@ describe("NewsSettings write flows (#975 Task 9)", () => {
 // errors) can't be reached through renderToString, so their copy mapping is tested directly.
 describe("add-flow error/candidate helpers (#975 Task 9)", () => {
   it("maps preview failure statuses to fixed human copy, never echoing the machine key", () => {
-    expect(previewOutcomeMessage({ status: "unavailable" })).toContain("AI model");
+    // Structured errors (prerequisite/transient/etc.) render via NewsAddSourceError instead —
+    // this helper no longer guesses settings copy for "unavailable".
+    expect(previewOutcomeMessage({ status: "unavailable" })).toBeNull();
     expect(previewOutcomeMessage({ status: "rejected", reason: "not_https" })).toContain("HTTPS");
     expect(previewOutcomeMessage({ status: "rejected", reason: "unreachable" })).toContain("reach");
     // Unknown reason keys fall back to generic copy instead of leaking the key.
@@ -393,6 +396,34 @@ describe("add-flow error/candidate helpers (#975 Task 9)", () => {
       "Custom topic limit reached"
     );
     expect(topicCreateErrorMessage(new Error("boom"))).toBe("Could not add that topic. Try again.");
+  });
+});
+
+describe("NewsAddSourceError", () => {
+  it("emits machine-readable prerequisite metadata without guessing a settings link", () => {
+    const html = renderToString(
+      createElement(NewsAddSourceError, {
+        error: {
+          code: "news.add_source.no_json_model",
+          class: "prerequisite",
+          remediationRef: "news.add_source.configure_json_model"
+        }
+      })
+    );
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('data-jarvis-error-code="news.add_source.no_json_model"');
+    expect(html).toContain('data-jarvis-error-class="prerequisite"');
+    expect(html).not.toContain("Assistant settings");
+  });
+
+  it("omits the remediation attribute for a transient error with no remediationRef", () => {
+    const html = renderToString(
+      createElement(NewsAddSourceError, {
+        error: { code: "news.add_source.discovery_unavailable", class: "transient" }
+      })
+    );
+    expect(html).toContain('data-jarvis-error-class="transient"');
+    expect(html).not.toContain("data-jarvis-error-remediation-ref");
   });
 });
 

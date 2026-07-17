@@ -1,4 +1,6 @@
 // packages/shared/src/news-api.ts — BROWSER-SAFE. No node:* imports.
+import type { JarvisError } from "@jarv1s/module-sdk";
+
 import { errorResponseSchema } from "./schema-fragments.js";
 
 /** Cross-source topic vocabulary; each source maps topics to its own feeds (see news catalog). */
@@ -183,6 +185,7 @@ export interface NewsSourcePreviewCandidate {
 
 export interface NewsSourcePreviewResponse {
   readonly status: "ok" | "ambiguous" | "rejected" | "unavailable" | "invalid";
+  readonly error?: JarvisError;
   readonly confirmationId?: string;
   readonly candidates?: readonly NewsSourcePreviewCandidate[];
   readonly candidateIds?: readonly string[];
@@ -634,6 +637,19 @@ export const previewNewsSourceSchema = {
         status: {
           type: "string",
           enum: ["ok", "ambiguous", "rejected", "unavailable", "invalid"]
+        },
+        error: {
+          type: "object",
+          additionalProperties: false,
+          required: ["code", "class"],
+          properties: {
+            code: { type: "string" },
+            class: {
+              type: "string",
+              enum: ["prerequisite", "transient", "validation", "permission", "bug"]
+            },
+            remediationRef: { type: "string" }
+          }
         },
         confirmationId: { type: "string" },
         candidates: {
