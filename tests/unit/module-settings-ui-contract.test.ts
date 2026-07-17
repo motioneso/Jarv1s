@@ -7,6 +7,7 @@ describe("settings UI package contract", () => {
     const surface: ModuleSettingsSurfaceManifest = {
       id: "fixture.settings",
       label: "Fixture",
+      description: "Fixture settings surface for contract testing.",
       path: "/settings/modules/fixture",
       scope: "user",
       entry: "./settings"

@@ -93,6 +93,7 @@ import { registerMcpTransportRoute, registerNativePermissionRoute } from "./mcp-
 import { ChatRepository } from "./repository.js";
 import { registerChatSkillsRoutes } from "./skills/routes.js";
 import { ChatSkillsRepository } from "./skills/repository.js";
+import type { AppMapReadService } from "@jarv1s/settings";
 
 const STALE_ACTION_GRACE_MS = 5 * 60_000;
 
@@ -123,6 +124,8 @@ export interface ChatRoutesDependencies {
   readonly featureGrantService?: FeatureGrantService;
   /** Injected by the composition root; live-first email/calendar reads for the read tools (#729). */
   readonly sourceContextService?: SourceContextService;
+  /** Injected by the composition root; app-map read tool (#1110). Never bucket under collaborators. */
+  readonly appMapService?: AppMapReadService;
   /**
    * #342 (§3.5 boot-time fork) — when no explicit {@link chatEngineFactory} is supplied, hand this to
    * {@link createChatSessionRuntime} so the runtime selects the engine factory itself: the RPC client
@@ -211,6 +214,7 @@ export function registerChatRoutes(
                 featureGrantService: dependencies.featureGrantService,
                 sourceContextService: dependencies.sourceContextService
               },
+              appMapService: dependencies.appMapService,
               agencyPreferences: dependencies.agencyPreferences,
               localePreferences: dependencies.localePreferences
             })
@@ -688,6 +692,7 @@ export function buildChatGatewayDependencies(args: {
   notifier: SessionNotifier;
   agencyPreferences?: PreferencesPort;
   localePreferences?: PreferencesPort;
+  appMapService?: AppMapReadService;
   collaborators: {
     googleConnectionService?: GoogleConnectionService;
     googleApiClient?: GoogleApiClient;
@@ -722,14 +727,17 @@ export function buildChatGatewayDependencies(args: {
       ),
     toolServices: buildChatToolServices(args.collaborators),
     readToolServices:
-      args.collaborators.featureGrantService || args.collaborators.sourceContextService
+      args.collaborators.featureGrantService ||
+      args.collaborators.sourceContextService ||
+      args.appMapService
         ? {
             ...(args.collaborators.featureGrantService
               ? { featureGrants: args.collaborators.featureGrantService }
               : {}),
             ...(args.collaborators.sourceContextService
               ? { sourceContext: args.collaborators.sourceContextService }
-              : {})
+              : {}),
+            ...(args.appMapService ? { appMap: args.appMapService } : {})
           }
         : undefined,
     resolveLocalTimezone: args.localePreferences

@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
+    "dev": "pnpm --dir ../.. build:app-map && tsx watch src/server.ts",
+    "start": "pnpm --dir ../.. build:app-map && tsx src/server.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

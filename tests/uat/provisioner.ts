@@ -125,6 +125,11 @@ export function writeUatEnvFile(input: { readonly webPort: number }): UatEnvFile
       "JARVIS_MODULE_CREDENTIAL_SECRET_KEY=22222222222222222222222222222222",
       `JARVIS_CLI_RUNNER_RPC_SECRET=${UAT_CLI_RUNNER_RPC_SECRET}`,
       "JARVIS_EMBED_PROVIDER=stub",
+      // #1110: module-registry's buildUatNewsPreviewOverride() reads these at app runtime (not
+      // seed-time) to deterministically fake a transient News preview error for one sentinel
+      // input — hence env_file: here, not the seed container's docker -e args below.
+      "JARVIS_UAT_SEED_CONFIRM=1",
+      "JARVIS_UAT_NEWS_TRANSIENT_INPUT=uat-transient.invalid",
       ""
     ].join("\n"),
     { mode: 0o600 }
@@ -160,6 +165,7 @@ export type SeedHook = (ctx: {
   readonly projectName: string;
   readonly level: UatSeedLevel;
   readonly excludeChunks?: readonly string[];
+  readonly withoutNewsJsonBinding?: boolean;
 }) => Promise<void>;
 
 // #1024/#1000: Phase 1 ships zero seed data by design (spec §8.1 acceptance = bare level only).
@@ -175,7 +181,12 @@ export const bareSeedHook: SeedHook = async () => {};
  * cli.ts (Task 6) refuses to run for anything else that might invoke the
  * `seed` service against a non-ephemeral stack.
  */
-export const composeSeedHook: SeedHook = async ({ projectName, level, excludeChunks }) => {
+export const composeSeedHook: SeedHook = async ({
+  projectName,
+  level,
+  excludeChunks,
+  withoutNewsJsonBinding
+}) => {
   await runCommand(
     "docker",
     buildUatComposeArgs(projectName, [
@@ -187,6 +198,8 @@ export const composeSeedHook: SeedHook = async ({ projectName, level, excludeChu
       `JARVIS_UAT_SEED_LEVEL=${level}`,
       "-e",
       `JARVIS_UAT_SEED_EXCLUDE_CHUNKS=${(excludeChunks ?? []).join(",")}`,
+      "-e",
+      `JARVIS_UAT_WITHOUT_NEWS_JSON_BINDING=${withoutNewsJsonBinding === true ? "1" : "0"}`,
       "-e",
       "JARVIS_UAT_SEED_CONFIRM=1",
       "seed"
@@ -379,12 +392,27 @@ async function waitForReady(url: string, timeoutMs = 120_000): Promise<void> {
   throw new Error(`Timed out waiting for ${url}: ${String(lastError ?? "health check failed")}`);
 }
 
+export interface UatProvisionOptions {
+  readonly excludeChunks?: readonly string[];
+  readonly withoutNewsJsonBinding?: boolean;
+}
+
 export function buildSeedHookInput(
   projectName: string,
   level: UatSeedLevel,
-  opts?: { excludeChunks?: readonly string[] }
-): { projectName: string; level: UatSeedLevel; excludeChunks?: readonly string[] } {
-  return { projectName, level, excludeChunks: opts?.excludeChunks };
+  opts?: UatProvisionOptions
+): {
+  projectName: string;
+  level: UatSeedLevel;
+  excludeChunks?: readonly string[];
+  withoutNewsJsonBinding?: boolean;
+} {
+  return {
+    projectName,
+    level,
+    excludeChunks: opts?.excludeChunks,
+    withoutNewsJsonBinding: opts?.withoutNewsJsonBinding
+  };
 }
 
 export async function restartUatStack(projectName: string, baseURL: string): Promise<void> {
@@ -407,7 +435,7 @@ export async function restartUatStack(projectName: string, baseURL: string): Pro
 
 export async function provisionForUat(
   level: UatSeedLevel,
-  opts?: { excludeChunks?: readonly string[] }
+  opts?: UatProvisionOptions
 ): Promise<{ baseURL: string; projectName: string; teardown: () => Promise<void> }> {
   const overallStart = Date.now();
   // #1024/#1000: bounded by the reserved range itself (100 candidates) — never an unbounded

@@ -54,6 +54,7 @@ export const chatModuleManifest = {
     {
       id: "chat",
       label: "Chat",
+      description: "Talk with Jarvis and review prior conversations.",
       path: "/chat",
       icon: "message-square",
       order: 45,

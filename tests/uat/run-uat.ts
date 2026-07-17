@@ -36,15 +36,18 @@ async function resolveSpecPaths(filters: readonly string[]): Promise<string[]> {
   return selected;
 }
 
-async function readUatLevel(
-  specPath: string
-): Promise<{ level: UatSeedLevel; without: readonly UatSeedChunk[] }> {
+async function readUatLevel(specPath: string): Promise<{
+  level: UatSeedLevel;
+  without: readonly UatSeedChunk[];
+  withoutNewsJsonBinding: boolean;
+}> {
   const source = await readFile(specPath, "utf8");
   const match = source.match(
-    /export\s+const\s+uatLevel\s*=\s*\{\s*level:\s*["']([^"']+)["']\s*,\s*without:\s*\[([^\]]*)\]\s*\}\s+as const/
+    /export\s+const\s+uatLevel\s*=\s*\{\s*level:\s*["']([^"']+)["']\s*,\s*without:\s*\[([^\]]*)\]\s*(?:,\s*withoutNewsJsonBinding:\s*(true|false))?\s*\}\s+as const/
   );
   const level = match?.[1];
   const withoutSource = match?.[2];
+  const withoutNewsJsonBindingSource = match?.[3];
   if (!level || withoutSource === undefined) {
     throw new Error(`${specPath} must export uatLevel per harness spec §5`);
   }
@@ -57,13 +60,18 @@ async function readUatLevel(
   if (invalidChunk) {
     throw new Error(`${specPath} has invalid uatLevel.without chunk: ${invalidChunk}`);
   }
-  return { level: level as UatSeedLevel, without: without as UatSeedChunk[] };
+  return {
+    level: level as UatSeedLevel,
+    without: without as UatSeedChunk[],
+    withoutNewsJsonBinding: withoutNewsJsonBindingSource === "true"
+  };
 }
 
 async function runSpec(specPath: string): Promise<number> {
   const uatLevel = await readUatLevel(specPath);
   const { baseURL, projectName, teardown } = await provisionForUat(uatLevel.level, {
-    excludeChunks: uatLevel.without
+    excludeChunks: uatLevel.without,
+    withoutNewsJsonBinding: uatLevel.withoutNewsJsonBinding
   });
 
   const onSignal = () => {

@@ -268,6 +268,7 @@ export const tasksModuleManifest = {
     {
       id: "tasks",
       label: "Tasks",
+      description: "View and manage the active actor's tasks.",
       path: "/tasks",
       icon: "check-square",
       order: 10,
@@ -278,6 +279,7 @@ export const tasksModuleManifest = {
     {
       id: "tasks.module-settings",
       label: "Tasks",
+      description: "Choose task defaults and Jarvis task-action permissions.",
       path: "/settings/modules/tasks",
       scope: "user",
       order: 10,

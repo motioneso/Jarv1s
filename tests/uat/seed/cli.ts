@@ -40,8 +40,9 @@ async function main(): Promise<void> {
   // guard first.
   const level = parseUatSeedLevel(process.env.JARVIS_UAT_SEED_LEVEL ?? "bare");
   const excludeChunks = parseUatExcludeChunks(process.env.JARVIS_UAT_SEED_EXCLUDE_CHUNKS ?? "");
+  const withoutNewsJsonBinding = process.env.JARVIS_UAT_WITHOUT_NEWS_JSON_BINDING === "1";
 
-  await seedLevel({ level, excludeChunks });
+  await seedLevel({ level, excludeChunks, withoutNewsJsonBinding });
   console.log(
     `[uat-seed] seeded level "${level}"${excludeChunks.length ? ` (excluding: ${excludeChunks.join(", ")})` : ""}`
   );

@@ -8,29 +8,20 @@ export type AiProviderStatus = "active" | "error" | "disabled" | "revoked";
 export type AiAuthMethod = "cli" | "api_key";
 export type AiProviderExecutionMode = "interactive" | "non_interactive";
 export type AiModelStatus = "active" | "disabled";
-export type AiModelTier = "reasoning" | "interactive" | "economy";
-export type AiModelCapability =
-  | "chat"
-  | "tool-use"
-  | "json"
-  | "vision"
-  | "summarization"
-  | "transcription";
 
-/**
- * Canonical, single-source-of-truth list of recognized capabilities. Every place that
- * validates/enumerates capabilities (route param parsing, capability-route map schema,
- * settings UI) should derive from this instead of hand-maintaining a parallel literal set —
- * a capability added here and forgotten elsewhere silently 400s or drops from routing.
- */
-export const AI_MODEL_CAPABILITIES: readonly AiModelCapability[] = [
-  "chat",
-  "tool-use",
-  "json",
-  "vision",
-  "summarization",
-  "transcription"
-];
+// #1110: tier/capability are canonical on @jarv1s/module-sdk (module manifests need them for
+// AI requirement declarations); re-exported here so existing @jarv1s/shared consumers don't churn.
+// Regression fix (#1110, tracked cleanup #1120): import from the ./ai-capabilities subpath, not the
+// bare @jarv1s/module-sdk barrel — the barrel eagerly re-exports rate-limit-key.ts (node:crypto),
+// and AI_MODEL_CAPABILITIES is a runtime const (can't be type-only), so importing it from the
+// barrel dragged node:crypto into the apps/web browser bundle.
+export {
+  AI_MODEL_CAPABILITIES,
+  type AiModelCapability,
+  type AiModelTier
+} from "@jarv1s/module-sdk/ai-capabilities";
+import type { AiModelCapability, AiModelTier } from "@jarv1s/module-sdk/ai-capabilities";
+
 export type AiCapabilityRouteReason =
   | "admin-pin"
   | "admin-pin-unavailable"

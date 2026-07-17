@@ -24,6 +24,7 @@ import {
   type NewsRefreshStateDto,
   type NewsSourceExclusionDto,
   type NewsSourcePreviewRequest,
+  type NewsSourcePreviewResponse,
   type NewsSnapshotMetaDto,
   type UpdateNewsTopicRequest
 } from "@jarv1s/shared";
@@ -127,6 +128,8 @@ export interface PersonalizationRouteDependencies {
    * REST and vice versa. Defaults to a private store for existing callers.
    */
   readonly previews?: NewsSourcePreviewStore;
+  /** #1110: UAT-only deterministic override for the source-preview route; see module-registry's buildUatNewsPreviewOverride(). */
+  readonly previewOverride?: (input: string) => NewsSourcePreviewResponse | undefined;
 }
 
 function toSnapshotMeta(record: NewsSnapshotRecord | null): NewsSnapshotMetaDto | null {
@@ -338,17 +341,38 @@ export function registerNewsPersonalizationRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = request.body as NewsSourcePreviewRequest;
+        // #1110: UAT-only deterministic override, checked before the hasJsonModel gate below
+        // (both the "declared prerequisite" and "transient error" UAT specs share a
+        // withoutNewsJsonBinding:true seed level, so the override must win first or the
+        // transient-input case would incorrectly surface as a prerequisite error instead).
+        const override = dependencies.previewOverride?.(input.input);
+        if (override) return override;
         return await dependencies.dataContext.withDataContext(accessContext, async (db) => {
           const [hasJsonModel, hasWebSearch] = await Promise.all([
             dependencies.availability.hasJsonModel(db),
             dependencies.availability.hasWebSearch(db)
           ]);
-          if (!hasJsonModel) return { status: "unavailable" as const };
+          if (!hasJsonModel) {
+            return {
+              status: "unavailable" as const,
+              error: {
+                code: "news.add_source.no_json_model",
+                class: "prerequisite" as const,
+                remediationRef: "news.add_source.configure_json_model"
+              }
+            };
+          }
           const result = await resolveSourceInput(
             db,
             { ...dependencies.discovery, repo: repository },
             { raw: input.input, hasWebSearch }
           );
+          if (result.status === "unavailable") {
+            return {
+              ...result,
+              error: { code: "news.add_source.discovery_unavailable", class: "transient" as const }
+            };
+          }
           if (result.status !== "ok" && result.status !== "ambiguous") return result;
 
           const confirmationId = previews.put({

@@ -1,4 +1,9 @@
-import type { LocaleSettingsDto, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
+import {
+  CORE_APP_SCREENS,
+  type LocaleSettingsDto,
+  type ModuleDto,
+  type ModuleNavigationEntryDto
+} from "@jarv1s/shared";
 import { MODULE_WEB_ROUTES } from "virtual:jarvis-module-web";
 
 import { DEFAULT_LOCALE, formatDate } from "./locale/locale-format.js";
@@ -30,10 +35,12 @@ export interface NavSection {
   readonly items: readonly ModuleNavigationEntryDto[];
 }
 
+const todayCoreScreen = CORE_APP_SCREENS.find(({ id }) => id === "today")!;
+
 export const todayNavEntry: ModuleNavigationEntryDto = {
-  id: "today",
-  label: "Today",
-  path: "/today",
+  id: todayCoreScreen.id,
+  label: todayCoreScreen.label,
+  path: todayCoreScreen.path,
   icon: "house",
   order: -1
 };

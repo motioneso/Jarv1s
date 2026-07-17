@@ -54,6 +54,7 @@ export const emailModuleManifest = {
     {
       id: "email.module-settings",
       label: "Email",
+      description: "Configure email briefing and message behavior.",
       path: "/settings/modules/email",
       scope: "user",
       order: 40,

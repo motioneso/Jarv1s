@@ -11,7 +11,8 @@ import {
   newsOverviewResponseSchema,
   newsPrefsResponseSchema,
   type CreateNewsPrefRequest,
-  type NewsPrefDto
+  type NewsPrefDto,
+  type NewsSourcePreviewResponse
 } from "@jarv1s/shared";
 
 import { configureNewsChatTools } from "./chat-tools.js";
@@ -74,6 +75,8 @@ export interface NewsRoutesDependencies {
   readonly repository?: NewsPrefsWriter;
   /** Optional injection point for tests; defaults to a real `NewsPersonalizationRepository`. */
   readonly personalizationRepository?: NewsPersonalizationStore;
+  /** #1110: UAT-only deterministic override for the source-preview route; see module-registry's buildUatNewsPreviewOverride(). */
+  readonly previewOverride?: (input: string) => NewsSourcePreviewResponse | undefined;
 }
 
 /** POST /prefs key validation: the key must exist in the catalog for its kind. */
@@ -223,7 +226,8 @@ export function registerNewsRoutes(
     discovery: dependencies.discovery,
     boss: dependencies.boss,
     repository: personalization,
-    previews
+    previews,
+    previewOverride: dependencies.previewOverride
   });
   registerNewsImageRoute(server, {
     dataContext: dependencies.dataContext,

@@ -13,7 +13,12 @@ export {
 } from "./jobs.js";
 export type { NewsRefreshPayload, NewsRevalidatePayload } from "./jobs.js";
 export type { NewsAiPort, NewsSafeFetchPort, NewsWebSearchPort } from "./discovery/ports.js";
-export { NEWS_MODULE_ID, newsModuleManifest, newsModuleSqlMigrationDirectory } from "./manifest.js";
+export {
+  NEWS_MODULE_ID,
+  newsAddSourceRequirement,
+  newsModuleManifest,
+  newsModuleSqlMigrationDirectory
+} from "./manifest.js";
 export { configureNewsBriefingService, newsTopHeadlinesTodayExecute } from "./briefing-tool.js";
 export { configureNewsChatTools } from "./chat-tools.js";
 export type { NewsChatToolDependencies } from "./chat-tools.js";

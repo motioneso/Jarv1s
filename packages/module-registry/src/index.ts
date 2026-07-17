@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
@@ -190,7 +193,10 @@ import {
   type OnboardingLoginDependencies,
   type ExternalModulesDependencies,
   type ModuleDistributionDependencies,
-  type HerdrInstallDependencies
+  type HerdrInstallDependencies,
+  type AppMapReadService,
+  loadAppMap,
+  createAppMapReadService
 } from "@jarv1s/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
@@ -242,10 +248,12 @@ import {
   configureNewsBriefingService,
   createRssDatasetAdapter,
   NEWS_QUEUE_DEFINITIONS,
+  newsAddSourceRequirement,
   newsModuleManifest,
   newsModuleSqlMigrationDirectory,
   registerNewsJobWorkers,
-  registerNewsRoutes
+  registerNewsRoutes,
+  type NewsRoutesDependencies
 } from "@jarv1s/news";
 import { assertValidFetchHosts, createDatasetClient } from "@jarv1s/datasets";
 import {
@@ -336,6 +344,21 @@ export {
   type RouteModuleIndex
 } from "./route-guard.js";
 
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+
+function findWorkspaceRoot(startDir: string): string {
+  let dir = startDir;
+  for (let depth = 0; depth < 16; depth += 1) {
+    if (existsSync(join(dir, "pnpm-workspace.yaml"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  throw new Error(`Cannot locate pnpm-workspace.yaml above ${startDir}`);
+}
+
+const APP_MAP_ARTIFACT_PATH = join(findWorkspaceRoot(MODULE_DIR), "dist", "app-map.json");
+
 export interface BuiltInRouteDependencies {
   // Raw root handle forwarded to settings' BootstrapHelper (pre-session bootstrap status).
   // Documented Kysely< exemption — see packages/settings/src/bootstrap.ts. This is the
@@ -369,6 +392,8 @@ export interface BuiltInRouteDependencies {
   }) => Promise<readonly { moduleId: string; readiness: number; summary: string }[]>;
   /** Resolved MCP endpoint advertised to CLI chat engines. Owned by API composition config. */
   readonly mcpServerUrl: string;
+  /** #1110 app-map read service, built once in registerBuiltInApiRoutes and threaded to the ai/chat modules' assistant tool wiring. */
+  readonly appMapService?: AppMapReadService;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
   readonly chatEngineFactory?: ChatEngineFactory;
   /**
@@ -593,6 +618,25 @@ function buildNewsDiscoveryPorts(
       }
     }
   };
+}
+
+/**
+ * #1110: UAT-only. Deterministically fakes a transient News source-preview error for one
+ * sentinel input, so the app-map-grounding UAT spec can prove the "no invented fix" path
+ * without a live upstream. Both env vars are set unconditionally in the UAT app container's
+ * env_file (tests/uat/provisioner.ts writeUatEnvFile) — absent in every non-UAT deploy, so this
+ * is undefined (a no-op) everywhere else.
+ */
+function buildUatNewsPreviewOverride(): NewsRoutesDependencies["previewOverride"] | undefined {
+  const transientInput = process.env.JARVIS_UAT_NEWS_TRANSIENT_INPUT?.trim();
+  if (process.env.JARVIS_UAT_SEED_CONFIRM !== "1" || !transientInput) return undefined;
+  return (input) =>
+    input === transientInput
+      ? {
+          status: "unavailable",
+          error: { code: "news.add_source.discovery_unavailable", class: "transient" }
+        }
+      : undefined;
 }
 
 /** Recurring per-user/per-source scheduled check — at most every 30 minutes (spec §7). */
@@ -1170,15 +1214,18 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         // #915 D6: installed set, not actor-filtered enablement.
         listInstalledModuleIds: () => deps.listModuleManifests().map((manifest) => manifest.id),
         tasksCompatibility,
-        readToolServices: deps.connectorsRepository
-          ? {
-              featureGrants: buildFeatureGrantService({
-                connectorsRepository: deps.connectorsRepository,
-                preferencesRepository: new PreferencesRepository()
-              }),
-              sourceContext: buildRuntimeSourceContextService()
-            }
-          : undefined,
+        readToolServices: {
+          ...(deps.connectorsRepository
+            ? {
+                featureGrants: buildFeatureGrantService({
+                  connectorsRepository: deps.connectorsRepository,
+                  preferencesRepository: new PreferencesRepository()
+                }),
+                sourceContext: buildRuntimeSourceContextService()
+              }
+            : {}),
+          appMap: deps.appMapService!
+        },
         // #1059 — the actual @jarv1s/chat dependency for the owner-terminal WS relay lives HERE,
         // not in packages/ai (see the import comment above for why). TerminalRpcClient.connect
         // opens the Unix-domain-socket RPC connection to the cli-runner's terminal host.
@@ -1229,7 +1276,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           : undefined,
         sourceContextService: deps.connectorsRepository
           ? buildRuntimeSourceContextService()
-          : undefined
+          : undefined,
+        appMapService: deps.appMapService
       }),
     registerWorkers: (boss, deps) =>
       registerChatJobWorkers(boss, deps.dataContext, {
@@ -1462,21 +1510,27 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         createModuleLogger(server.log, "news"),
         deps.chatEngineFactory
       );
+      const previewOverride = buildUatNewsPreviewOverride();
       registerNewsRoutes(server, {
         dataContext: deps.dataContext,
         resolveAccessContext: deps.resolveAccessContext,
         datasetClient,
         discovery,
         boss: deps.boss,
+        previewOverride,
         // #953: news receives capability BOOLEANS only — model identity and key material stay
         // behind the AI/Settings public APIs; nothing secret crosses this seam.
         availability: {
           hasJsonModel: async (scopedDb) =>
             (
-              await new AiRepository().resolveModelForService(scopedDb, "module.news", {
-                capability: "json",
-                tierHint: "economy"
-              })
+              await new AiRepository().resolveModelForService(
+                scopedDb,
+                newsAddSourceRequirement.service,
+                {
+                  capability: newsAddSourceRequirement.capability,
+                  tierHint: newsAddSourceRequirement.tier
+                }
+              )
             ).model !== null,
           hasWebSearch: async (scopedDb) => (await getWebSearchKeyConfig(scopedDb)).configured
         }
@@ -1645,6 +1699,47 @@ export const LIFECYCLE_MIGRATION_PENDING: readonly string[] = [
   "weather"
 ];
 
+const MAX_APP_MAP_DESCRIPTION_LENGTH = 240;
+
+function assertAppMapDescription(owner: string, kind: string, id: string, value: string): void {
+  const length = value.trim().length;
+  if (length === 0 || length > MAX_APP_MAP_DESCRIPTION_LENGTH) {
+    throw new Error(
+      `Module "${owner}" ${kind} "${id}" description must contain 1-${MAX_APP_MAP_DESCRIPTION_LENGTH} trimmed characters`
+    );
+  }
+}
+
+function assertAppMapDeclarations(manifest: JarvisModuleManifest): void {
+  for (const surface of manifest.navigation ?? []) {
+    assertAppMapDescription(manifest.id, "navigation", surface.id, surface.description);
+  }
+  for (const surface of manifest.settings ?? []) {
+    assertAppMapDescription(manifest.id, "settings", surface.id, surface.description);
+  }
+  for (const feature of manifest.features ?? []) {
+    assertAppMapDescription(manifest.id, "feature", feature.id, feature.description);
+    const remediationIds = new Set(feature.remediations?.map((item) => item.id) ?? []);
+    for (const remediation of feature.remediations ?? []) {
+      assertAppMapDescription(manifest.id, "remediation", remediation.id, remediation.description);
+    }
+    for (const error of feature.errors ?? []) {
+      assertAppMapDescription(manifest.id, "error", error.code, error.description);
+      if (error.class === "prerequisite") {
+        if (!error.remediationRef || !remediationIds.has(error.remediationRef)) {
+          throw new Error(
+            `Module "${manifest.id}" prerequisite error "${error.code}" has undeclared remediationRef "${error.remediationRef ?? ""}"`
+          );
+        }
+      } else if (error.remediationRef !== undefined) {
+        throw new Error(
+          `Module "${manifest.id}" non-prerequisite error "${error.code}" must not declare remediationRef`
+        );
+      }
+    }
+  }
+}
+
 // Compat gate (ADR 0009 §3): validate every built-in's compatibility.jarv1s against
 // CORE_VERSION at load time, before any registration path runs. Throws if a module is
 // incompatible or not defaultEnabled, naming the offender.
@@ -1675,6 +1770,8 @@ export function assertModuleRegistryConsistency(
   const externalSourceIds = new Map<string, string>();
 
   for (const registration of registrations) {
+    assertAppMapDeclarations(registration.manifest);
+
     const moduleId = registration.manifest.id;
 
     assertUniqueRegistryKey(moduleIds, moduleId, moduleId, "module id");
@@ -1989,8 +2086,24 @@ export function registerBuiltInApiRoutes(
     logger: { warn: (obj, msg) => server.log.warn(obj, msg) }
   });
 
+  const appMapService = createAppMapReadService({
+    artifact: loadAppMap(APP_MAP_ARTIFACT_PATH),
+    resolveActiveModules: dependencies.resolveActiveModules,
+    resolveFeatureFlagState: (featureFlagId) =>
+      dependencies
+        .listModuleManifests()
+        .some((manifest) =>
+          (manifest.featureFlags ?? []).some(
+            (flag) => flag.id === featureFlagId && flag.defaultEnabled === true
+          )
+        ),
+    getUser: (scopedDb, userId) => new SettingsRepository().getUserById(scopedDb, userId),
+    logGap: (fields) => server.log.info(fields, "app-map coverage gap")
+  });
+
   const deps: BuiltInRouteDependencies = {
     ...dependencies,
+    appMapService,
     chatEngineFactory,
     createCliStructuredAdapter: createCliStructuredAdapterFactory(structuredChatEngineFactory),
     // #342 (§3.5 boot-time fork): on the socket path hand the chat runtime an `engineSelection` so it

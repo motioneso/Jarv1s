@@ -386,9 +386,52 @@ export interface ModuleNotificationManifest {
   readonly supported: true;
 }
 
+// #1110 regression fix: moved to ./ai-capabilities.ts (a node-clean leaf) so @jarv1s/shared can
+// import the AI_MODEL_CAPABILITIES value via the ./ai-capabilities subpath instead of this barrel,
+// which eagerly re-exports rate-limit-key.js (node:crypto) below and would leak it into the
+// apps/web browser bundle. Re-exported here so existing barrel consumers are unaffected.
+export {
+  AI_MODEL_CAPABILITIES,
+  type AiModelTier,
+  type AiModelCapability
+} from "./ai-capabilities.js";
+import type { AiModelCapability, AiModelTier } from "./ai-capabilities.js";
+
+// #1110 regression fix: moved to ./errors.ts (a node-clean leaf) for the same reason as
+// ai-capabilities.ts above — see that leaf's docstring. Re-exported here so existing barrel
+// consumers are unaffected.
+export type { JarvisError, JarvisErrorClass } from "./errors.js";
+import type { JarvisError } from "./errors.js";
+
+export interface ModuleAiRequirementManifest {
+  readonly service: `module.${string}`;
+  readonly capability: AiModelCapability;
+  readonly tier: AiModelTier;
+}
+
+export interface ModuleRemediationManifest {
+  readonly id: string;
+  readonly description: string;
+  readonly path: string;
+}
+
+export interface ModuleErrorManifest extends JarvisError {
+  readonly description: string;
+}
+
+export interface ModuleFeatureManifest {
+  readonly id: string;
+  readonly description: string;
+  readonly requires?: ModuleAiRequirementManifest;
+  readonly remediations?: readonly ModuleRemediationManifest[];
+  readonly errors?: readonly ModuleErrorManifest[];
+  readonly featureFlagId?: string;
+}
+
 export interface ModuleNavigationEntryManifest {
   readonly id: string;
   readonly label: string;
+  readonly description: string;
   readonly path: string;
   readonly icon?: string;
   readonly order?: number;
@@ -399,6 +442,7 @@ export interface ModuleNavigationEntryManifest {
 export interface ModuleSettingsSurfaceManifest {
   readonly id: string;
   readonly label: string;
+  readonly description: string;
   readonly path: string;
   readonly scope: ModuleScope;
   readonly order?: number;
@@ -490,6 +534,7 @@ export interface JarvisModuleManifest {
   readonly database?: ModuleDatabaseManifest;
   readonly navigation?: readonly ModuleNavigationEntryManifest[];
   readonly settings?: readonly ModuleSettingsSurfaceManifest[];
+  readonly features?: readonly ModuleFeatureManifest[];
   readonly permissions?: readonly ModulePermissionManifest[];
   readonly featureFlags?: readonly ModuleFeatureFlagManifest[];
   readonly notifications?: ModuleNotificationManifest;

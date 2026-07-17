@@ -70,6 +70,7 @@ export const connectorsModuleManifest = {
     {
       id: "connectors.user-settings",
       label: "Connectors",
+      description: "Connect and manage external accounts used by Jarvis.",
       path: "/settings/connectors",
       scope: "user",
       order: 30,
@@ -78,6 +79,7 @@ export const connectorsModuleManifest = {
     {
       id: "connectors.admin-settings",
       label: "Connector Accounts",
+      description: "View safe connector account metadata across the instance.",
       path: "/settings/admin/connectors",
       scope: "admin",
       order: 30,

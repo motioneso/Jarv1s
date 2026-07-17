@@ -2,7 +2,11 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Note } from "@jarv1s/settings-ui";
 import { ApiError } from "@jarv1s/module-web-sdk";
-import type { NewsSourcePreviewCandidate, NewsSourcePreviewResponse } from "@jarv1s/shared";
+import type {
+  JarvisError,
+  NewsSourcePreviewCandidate,
+  NewsSourcePreviewResponse
+} from "@jarv1s/shared";
 
 import { confirmNewsSource, previewNewsSource } from "../web/news-client.js";
 import { newsQueryKeys } from "../web/query-keys.js";
@@ -23,11 +27,13 @@ const PREVIEW_REJECTION_COPY: Record<string, string> = {
   not_https: "Only HTTPS links or bare domains are accepted."
 };
 
-/** Human copy for a failed preview, or null when the preview produced candidates. */
+/**
+ * Human copy for a failed preview, or null when the preview produced candidates or carries a
+ * structured `error` (rendered by `NewsAddSourceError` instead — this helper never guesses
+ * settings-specific remediation copy).
+ */
 export function previewOutcomeMessage(result: NewsSourcePreviewResponse): string | null {
   switch (result.status) {
-    case "unavailable":
-      return "Adding sources is unavailable right now — check your AI model in Assistant settings.";
     case "rejected":
     case "invalid":
       return (
@@ -37,6 +43,27 @@ export function previewOutcomeMessage(result: NewsSourcePreviewResponse): string
     default:
       return null;
   }
+}
+
+/** Renders a structured `JarvisError` with machine-readable attributes for QA/tooling. */
+export function NewsAddSourceError({ error }: { readonly error: JarvisError }) {
+  const message =
+    error.class === "prerequisite"
+      ? "Adding sources needs a configured JSON-capable economy model."
+      : error.class === "transient"
+        ? "Source discovery is temporarily unavailable — try again shortly."
+        : "This source could not be added.";
+  return (
+    <p
+      className="nw-set__exerr"
+      role="alert"
+      data-jarvis-error-code={error.code}
+      data-jarvis-error-class={error.class}
+      data-jarvis-error-remediation-ref={error.remediationRef}
+    >
+      {message}
+    </p>
+  );
 }
 
 /**
@@ -148,7 +175,9 @@ export function AddSourceFlow() {
         </div>
       </form>
 
-      {errorMessage ? (
+      {preview?.error ? (
+        <NewsAddSourceError error={preview.error} />
+      ) : errorMessage ? (
         <p className="nw-set__exerr" role="alert">
           {errorMessage}
         </p>

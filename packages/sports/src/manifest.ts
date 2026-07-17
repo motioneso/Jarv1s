@@ -53,6 +53,7 @@ export const sportsModuleManifest = {
     {
       id: "sports",
       label: "Sports",
+      description: "Follow scores, schedules, and standings for selected teams.",
       path: "/sports",
       icon: "trophy",
       order: 35,
@@ -63,6 +64,7 @@ export const sportsModuleManifest = {
     {
       id: "sports.follows",
       label: "Sports",
+      description: "Choose the teams and leagues shown in Sports.",
       path: "/settings/modules/sports",
       scope: "user",
       order: 35,

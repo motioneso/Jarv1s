@@ -685,6 +685,42 @@ describe("news personalization routes (#958 Slice 2)", () => {
     await app.close();
   });
 
+  it("returns the declared prerequisite envelope when no JSON model is available", async () => {
+    const { app } = buildApp({ hasJsonModel: false });
+    await app.ready();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/news/sources/preview",
+      payload: { input: "example.com" }
+    });
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      status: "unavailable",
+      error: {
+        code: "news.add_source.no_json_model",
+        class: "prerequisite",
+        remediationRef: "news.add_source.configure_json_model"
+      }
+    });
+    await app.close();
+  });
+
+  it("classifies provider discovery failure as transient without remediation", async () => {
+    const { app } = buildApp({ hasJsonModel: true, hasWebSearch: false });
+    await app.ready();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/news/sources/preview",
+      payload: { input: "Example News Co" }
+    });
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).error).toEqual({
+      code: "news.add_source.discovery_unavailable",
+      class: "transient"
+    });
+    await app.close();
+  });
+
   it("rejects a topic when the provider policy does not affirm it", async () => {
     const { app, personalization } = buildApp({
       discovery: {

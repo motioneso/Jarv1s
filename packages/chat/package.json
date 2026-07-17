@@ -22,6 +22,7 @@
     "@jarv1s/module-sdk": "workspace:*",
     "@jarv1s/notes": "workspace:*",
     "@jarv1s/priority": "workspace:*",
+    "@jarv1s/settings": "workspace:*",
     "@jarv1s/shared": "workspace:*",
     "@jarv1s/structured-state": "workspace:*",
     "@jarv1s/tasks": "workspace:*",

@@ -5,7 +5,7 @@ import {
   resolvePageHeading,
   webRoutes
 } from "../../apps/web/src/app-route-metadata.js";
-import type { ModuleDto } from "@jarv1s/shared";
+import { CORE_APP_SCREENS, type ModuleDto } from "@jarv1s/shared";
 
 describe("web route metadata", () => {
   it("keeps shell navigation policy in route metadata instead of AppShell conditionals", () => {
@@ -72,6 +72,13 @@ describe("web route metadata", () => {
       "/sports",
       "/settings"
     ]);
+  });
+
+  it("keeps every core app-map screen reachable by web route metadata", () => {
+    const routeIds = new Set(webRoutes.map((route) => route.id));
+    expect(CORE_APP_SCREENS.map((surface) => surface.id).filter((id) => !routeIds.has(id))).toEqual(
+      []
+    );
   });
 });
 

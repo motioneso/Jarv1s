@@ -64,6 +64,7 @@ export const wellnessModuleManifest = {
     {
       id: "wellness",
       label: "Wellness",
+      description: "Record and review the active actor's wellness check-ins.",
       path: "/wellness",
       icon: "heart-pulse",
       order: 40,
@@ -74,6 +75,7 @@ export const wellnessModuleManifest = {
     {
       id: "wellness.ai-consent",
       label: "Wellness",
+      description: "Choose wellness goals, reminders, and tracking preferences.",
       path: "/settings/modules/wellness",
       scope: "user",
       order: 40,

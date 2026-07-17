@@ -75,6 +75,9 @@ const externalizeUnusedSqliteDialects: Plugin = {
 
 async function buildTarget(target: Target): Promise<void> {
   const { entry, outfile } = ENTRYPOINTS[target];
+  if (target === "api") {
+    execFileSync("pnpm", ["build:app-map"], { cwd: root, stdio: "inherit" });
+  }
   await build({
     entryPoints: [resolve(root, entry)],
     outfile: resolve(root, outfile),

@@ -33,6 +33,8 @@
       "@jarv1s/module-registry": ["packages/module-registry/src/index.ts"],
       "@jarv1s/module-registry/node": ["packages/module-registry/src/node.ts"],
       "@jarv1s/module-sdk": ["packages/module-sdk/src/index.ts"],
+      "@jarv1s/module-sdk/ai-capabilities": ["packages/module-sdk/src/ai-capabilities.ts"],
+      "@jarv1s/module-sdk/errors": ["packages/module-sdk/src/errors.ts"],
       "@jarv1s/module-web-sdk": ["packages/module-web-sdk/src/index.ts"],
       "@jarv1s/news": ["packages/news/src/index.ts"],
       "@jarv1s/news/web": ["packages/news/src/web/index.tsx"],

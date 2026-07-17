@@ -76,7 +76,9 @@ export async function seedLevel(options: SeedOptions): Promise<void> {
     // #1025: AI provider/model/binding must land before the news chunk, since
     // news settings check for an active module.news binding — order matters here,
     // it is not a parallelizable Promise.all.
-    await seedAiProviderChunk(runner, adminUserId);
+    await seedAiProviderChunk(runner, adminUserId, {
+      bindNews: options.withoutNewsJsonBinding !== true
+    });
     await seedDataChunks(runner, adminUserId, exclude);
 
     if (options.level === "multi-user") {

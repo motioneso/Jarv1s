@@ -38,7 +38,7 @@ import {
 } from "./settings-storage";
 import type { PaneProps } from "./settings-types";
 import { PrioritySettings, Segmented } from "./settings-ui";
-import type { MeResponse } from "@jarv1s/shared";
+import { CORE_APP_SETTINGS, type MeResponse } from "@jarv1s/shared";
 
 type SettingsPane = ComponentType<PaneProps>;
 
@@ -46,7 +46,14 @@ interface SettingsSection<Id extends string> {
   readonly id: Id;
   readonly icon: LucideIcon;
   readonly label: string;
+  readonly description: string;
   readonly Pane: SettingsPane;
+}
+
+function coreSettingDescription(id: string): string {
+  const declaration = CORE_APP_SETTINGS.find((setting) => setting.id === id);
+  if (!declaration) throw new Error(`Missing core app-map setting declaration: ${id}`);
+  return declaration.description;
 }
 
 type PersonalSectionId =
@@ -121,41 +128,109 @@ const PERSONAL_GROUPS = [
   {
     label: "Your account",
     sections: [
-      { id: "profile", icon: UserRound, label: "Account & preferences", Pane: ProfilePane },
-      { id: "appearance", icon: Palette, label: "Appearance", Pane: AppearancePane }
+      {
+        id: "profile",
+        icon: UserRound,
+        label: "Account & preferences",
+        description: coreSettingDescription("profile"),
+        Pane: ProfilePane
+      },
+      {
+        id: "appearance",
+        icon: Palette,
+        label: "Appearance",
+        description: coreSettingDescription("appearance"),
+        Pane: AppearancePane
+      }
     ]
   },
   {
     label: "Jarvis",
     sections: [
-      { id: "assistant", icon: GitCommitHorizontal, label: "Assistant & AI", Pane: AssistantPane },
-      { id: "priorities", icon: ListChecks, label: "Priorities", Pane: PrioritiesPane },
-      { id: "memory", icon: Brain, label: "Memory & context", Pane: MemoryPane },
-      { id: "activity", icon: Activity, label: "Activity", Pane: ActivityPane }
+      {
+        id: "assistant",
+        icon: GitCommitHorizontal,
+        label: "Assistant & AI",
+        description: coreSettingDescription("assistant"),
+        Pane: AssistantPane
+      },
+      {
+        id: "priorities",
+        icon: ListChecks,
+        label: "Priorities",
+        description: coreSettingDescription("priorities"),
+        Pane: PrioritiesPane
+      },
+      {
+        id: "memory",
+        icon: Brain,
+        label: "Memory & context",
+        description: coreSettingDescription("memory"),
+        Pane: MemoryPane
+      },
+      {
+        id: "activity",
+        icon: Activity,
+        label: "Activity",
+        description: coreSettingDescription("activity"),
+        Pane: ActivityPane
+      }
     ]
   },
   {
     label: "Connections",
     sections: [
-      { id: "connected", icon: Link2, label: "Connected accounts", Pane: ConnectedPane },
-      { id: "sources", icon: Database, label: "Data sources", Pane: SourcesPane }
+      {
+        id: "connected",
+        icon: Link2,
+        label: "Connected accounts",
+        description: coreSettingDescription("connected"),
+        Pane: ConnectedPane
+      },
+      {
+        id: "sources",
+        icon: Database,
+        label: "Data sources",
+        description: coreSettingDescription("sources"),
+        Pane: SourcesPane
+      }
     ]
   },
   {
     label: "Extensions",
     sections: [
-      { id: "modules", icon: Boxes, label: "Modules", Pane: ModulesPane },
-      { id: "skills", icon: Command, label: "Skills", Pane: SkillsPane }
+      {
+        id: "modules",
+        icon: Boxes,
+        label: "Modules",
+        description: coreSettingDescription("modules"),
+        Pane: ModulesPane
+      },
+      {
+        id: "skills",
+        icon: Command,
+        label: "Skills",
+        description: coreSettingDescription("skills"),
+        Pane: SkillsPane
+      }
     ]
   }
 ] as const satisfies readonly SettingsSectionGroup<SettingsSection<PersonalSectionId>>[];
-const PERSONAL_SECTIONS =
+export const PERSONAL_SECTIONS =
   flattenSettingsGroups<SettingsSection<PersonalSectionId>>(PERSONAL_GROUPS);
 
 const ADMIN_GROUPS = [
   {
     label: "Access",
-    sections: [{ id: "people", icon: Users, label: "People & access", Pane: PeoplePane }]
+    sections: [
+      {
+        id: "people",
+        icon: Users,
+        label: "People & access",
+        description: coreSettingDescription("people"),
+        Pane: PeoplePane
+      }
+    ]
   },
   {
     label: "AI & extensions",
@@ -164,21 +239,46 @@ const ADMIN_GROUPS = [
         id: "aiproviders",
         icon: GitCommitHorizontal,
         label: "Assistant & AI",
+        description: coreSettingDescription("aiproviders"),
         Pane: AiProvidersPane
       },
-      { id: "instmods", icon: Package, label: "Instance modules", Pane: InstanceModulesPane }
+      {
+        id: "instmods",
+        icon: Package,
+        label: "Instance modules",
+        description: coreSettingDescription("instmods"),
+        Pane: InstanceModulesPane
+      }
     ]
   },
   {
     label: "Operations",
     sections: [
-      { id: "oversight", icon: Activity, label: "Connector oversight", Pane: OversightPane },
-      { id: "audit", icon: ScrollText, label: "Audit & operations", Pane: AuditPane },
-      { id: "host", icon: ServerCog, label: "Advanced host setup", Pane: HostPane }
+      {
+        id: "oversight",
+        icon: Activity,
+        label: "Connector oversight",
+        description: coreSettingDescription("oversight"),
+        Pane: OversightPane
+      },
+      {
+        id: "audit",
+        icon: ScrollText,
+        label: "Audit & operations",
+        description: coreSettingDescription("audit"),
+        Pane: AuditPane
+      },
+      {
+        id: "host",
+        icon: ServerCog,
+        label: "Advanced host setup",
+        description: coreSettingDescription("host"),
+        Pane: HostPane
+      }
     ]
   }
 ] as const satisfies readonly SettingsSectionGroup<SettingsSection<AdminSectionId>>[];
-const ADMIN_SECTIONS = flattenSettingsGroups<SettingsSection<AdminSectionId>>(ADMIN_GROUPS);
+export const ADMIN_SECTIONS = flattenSettingsGroups<SettingsSection<AdminSectionId>>(ADMIN_GROUPS);
 
 interface SettingsPageProps {
   readonly me: MeResponse;
