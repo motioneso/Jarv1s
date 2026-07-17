@@ -1,0 +1,29 @@
+step 1 action: began final exact-head UAT; target_sha=f05d977c186b82b31b42b0d6cff3b98bb1d91b47
+step 2 action: fresh admin and data stack reached ready state at the target SHA
+step 3 action: CP3 desktop Today at explicitly labeled 1280x1800; screenshot=final_execution_03_today-desktop-1280x1800.png
+step 4 action: CP2 normal Activity after 4s remained loading; screenshot=final_execution_04_activity-normal-after-4s.png
+step 5 action: CP2 controlled delay beyond 3s showed neither truthful error nor Try again; screenshot=final_execution_05_activity-controlled-delay-after-3s.png
+step 6 action: CP2 delay removal and retry attempt remained loading; screenshot=final_execution_06_activity-retry-recovery.png
+step 7 action: CP4 selected Teal accent plus Dark independently; document attributes matched; screenshot=final_execution_07_appearance-dark-teal.png
+step 8 action: CP4 subsequently selected Light independently; document attributes remained Teal plus Light
+step 9 action: CP3 explicitly labeled narrow Today at 390x844 had readable stacked masthead and lead copy; screenshot=final_execution_09_today-narrow-390x844.png
+step 10 action: CP5 microphone attempt was disabled by missing transcription-model configuration; Firefox permission grant errored on secure localhost; screenshot=final_execution_10_microphone-prerequisite-blocker.png
+step 11 action: CP6 News freeform add was disabled by the visible web-search prerequisite; screenshot=final_execution_11_news-freeform-prerequisite.png
+step 12 action: CP6 News image-failure attempt produced zero-width images while article text stayed visible; no feedback controls were exposed; screenshot=final_execution_12_news-image-failure-and-feedback-attempt.png
+step 13 action: CP7 Calendar access grant removal and restoration both succeeded; screenshot=final_execution_13_calendar-grant-restored.png
+step 14 action: CP7 model default and service-binding actions succeeded; screenshot=final_execution_14_admin-model-action.png
+step 15 action: CP7 created and enabled a skill through the live UI; screenshot=final_execution_15_skill-created.png
+step 16 action: CP7 skill invocation was blocked by the visible no-provider chat state; screenshot=final_execution_16_skill-invocation-attempt.png
+step 17 action: CP8 Sports desktop hero title truncation remained visible as a deferred residual; screenshot=final_execution_17_sports-desktop-deferred-residual.png
+step 18 action: isolated admin and data stack was removed
+step 19 action: fresh solo-admin stack reached ready state at the target SHA
+step 20 action: CP1 fresh onboarding reached the Finish summary; screenshot=final_execution_20_onboarding-finish.png
+step 21 action: CP1 visible Go to settings landed exactly on /settings; screenshot=final_execution_21_onboarding-go-to-settings-destination.png
+step 22 action: CP7 export reached a ready-to-download archive; screenshot=final_execution_22_disposable-export-ready.png
+step 23 action: CP7 archive download completed with nonzero bytes; downloaded archive excluded from evidence
+step 24 action: CP7 account-deletion safeguards enabled the first confirmation; screenshot=final_execution_24_disposable-delete-confirmation.png
+step 25 action: CP7 deletion reached the separate irreversible confirmation; screenshot=final_execution_25_disposable-delete-final-confirmation.png
+step 26 action: CP7 deletion did not complete because the account is the instance owner; screenshot=final_execution_26_disposable-delete-result.png
+step 27 action: isolated solo-admin stack was removed
+
+FINAL_RESPONSE: RED at f05d977c186b82b31b42b0d6cff3b98bb1d91b47; Activity acceptance failed. Onboarding destination, responsive Today, appearance, export, Calendar grant, model action, and skill creation passed. Explicit prerequisites/blockers and the deferred Sports residual remain recorded without inferred closure.
