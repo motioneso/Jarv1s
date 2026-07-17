@@ -3390,3 +3390,8 @@ resume from this note before taking any merge-sensitive action.
 - PR #1117 remains open, draft, and mergeable. Final QA and merge remain stopped under the prior
   continuation gates. Preserve unrelated changes, parked lanes E/F/G, and primary Coordinator
   session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+- Exact-head live-path UAT is running in fresh detached worktree
+  `~/Jarv1s/.claude/worktrees/uat-1117-final-4d2d17ba` as label
+  `UX 1117 UAT 4d2d17ba`, Claude session `1015b583-a992-4415-bbdc-277a4ee688d3`, on Sonnet/high.
+  It may push only dedicated evidence branch `uat/1117-final-4d2d17ba`; final QA remains gated on
+  its durable GREEN proof for exact head `4d2d17ba418b9140a7ea307398fe9e447bd06446`.
