@@ -3497,8 +3497,9 @@ resume from this note before taking any merge-sensitive action.
 - PR #1118 exact head `00c43878c6ffada902f3955962f3f9101dc6e14b` has GREEN CP1-CP6 UAT but
   RED automatic CI run `29554612636`, failed job `87804059657`. The focused integration test
   passed 7/7 on pinned `origin/main`, so no waiver is established or recorded.
-- Ben must explicitly authorize one rerun of failed job `87804059657`; otherwise leave #1118
-  stopped. If that rerun fails, stop the lane and escalate without a fix or further rerun.
+- Ben explicitly authorized one rerun of failed job `87804059657` on 2026-07-16. Attempt 2 is
+  job `87820200691`; no rerun authorization remains. If it fails, stop the lane and escalate
+  without a fix or further rerun.
 - Delegated `UX Coordinator` authority is adopted by immutable Codex session
   `019f6e67-577e-78f0-9b4a-822c0c95c396`; `merges_since_relay` is reset to `0`.
 - Preserve unrelated changes and parked lanes. Never touch primary Coordinator
