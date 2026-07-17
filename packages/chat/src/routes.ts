@@ -13,6 +13,7 @@ import type {
   PreferencesPort
 } from "@jarv1s/db";
 import {
+  AI_MODEL_CAPABILITIES,
   CHAT_SETTINGS_PREFERENCE_KEY,
   getChatSettingsRouteSchema,
   listChatThreadMessagesRouteSchema,
@@ -20,6 +21,7 @@ import {
   listMemoryCorrectionsRouteSchema,
   normalizeChatSettings,
   putChatSettingsRouteSchema,
+  type AiModelCapability,
   type AnswerSourceSupportCard,
   type ChatActivityEventDto,
   type ChatMessageDto,
@@ -77,6 +79,7 @@ import { buildEmailWriteService } from "./email-write-impl.js";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
 import { registerChatLiveRoutes, type EveningInterviewSeed } from "./live-routes.js";
 import { CliChatUnavailableError } from "./live/errors.js";
+import { createCurrentViewReadService, type CurrentViewReadService } from "./live/current-view.js";
 import { PageContextStore } from "./live/page-context-store.js";
 import type { PassiveMemoryGraphRecallPort } from "./live/passive-retrieval.js";
 import { createChatSessionRuntime, type ChatEngineFactory } from "./live/runtime.js";
@@ -177,6 +180,20 @@ export function registerChatRoutes(
   // #1109 — one store for the process; shared by the PUT route below and Task 4's
   // chat.getCurrentView tool so both read/write the same actor-keyed views.
   const pageContextStore = new PageContextStore({ now: () => Date.now(), ttlMs: 300_000 });
+  // #1109 Task 4 — only wired when the #1110 app-map service is available; that's the
+  // sole source of the build-stamp facts the tool must report.
+  const currentViewService: CurrentViewReadService | undefined = dependencies.appMapService
+    ? createCurrentViewReadService({
+        store: pageContextStore,
+        getModelCapabilities: async (scopedDb) => {
+          const model = await new AiRepository().selectChatModelForUser(scopedDb);
+          return (model?.capabilities ?? []).filter((c): c is AiModelCapability =>
+            AI_MODEL_CAPABILITIES.includes(c as AiModelCapability)
+          );
+        },
+        getBuildInfo: () => dependencies.appMapService!.getBuildInfo()
+      })
+    : undefined;
 
   const repository = dependencies.repository ?? new ChatRepository();
   const skillsRepository = dependencies.skillsRepository ?? new ChatSkillsRepository();
@@ -217,7 +234,8 @@ export function registerChatRoutes(
                 connectorsRepository: dependencies.connectorsRepository,
                 boss: dependencies.boss,
                 featureGrantService: dependencies.featureGrantService,
-                sourceContextService: dependencies.sourceContextService
+                sourceContextService: dependencies.sourceContextService,
+                currentViewService
               },
               appMapService: dependencies.appMapService,
               agencyPreferences: dependencies.agencyPreferences,
@@ -706,6 +724,7 @@ export function buildChatGatewayDependencies(args: {
     boss?: PgBoss;
     featureGrantService?: FeatureGrantService;
     sourceContextService?: SourceContextService;
+    currentViewService?: CurrentViewReadService;
   };
 }): AssistantToolGatewayDependencies {
   return {
@@ -735,6 +754,7 @@ export function buildChatGatewayDependencies(args: {
     readToolServices:
       args.collaborators.featureGrantService ||
       args.collaborators.sourceContextService ||
+      args.collaborators.currentViewService ||
       args.appMapService
         ? {
             ...(args.collaborators.featureGrantService
@@ -742,6 +762,9 @@ export function buildChatGatewayDependencies(args: {
               : {}),
             ...(args.collaborators.sourceContextService
               ? { sourceContext: args.collaborators.sourceContextService }
+              : {}),
+            ...(args.collaborators.currentViewService
+              ? { currentView: args.collaborators.currentViewService }
               : {}),
             ...(args.appMapService ? { appMap: args.appMapService } : {})
           }
