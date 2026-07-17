@@ -3423,3 +3423,9 @@ resume from this note before taking any merge-sensitive action.
   on branch `fix/1117-cp5-query-key`, label `Fix 1117 CP5 Query Key`, Claude session
   `c84ca792-8ff2-4cd5-a214-a6b551559916`, Sonnet/high. Pre-approved scope is the stable memoized
   query key plus the smallest regression check; it may fast-forward only PR #1117's head branch.
+- Repair commit `6ca14fcad8bec023c98e699000a2384657232843` fast-forwarded PR #1117 with only
+  `settings-activity-pane.tsx` and its unit test changed; focused typecheck and `git diff --check`
+  exited 0. Automatic CI run `29552827799` is in progress and must only be inspected.
+- Fresh exact-head UAT is running in `~/Jarv1s/.claude/worktrees/uat-1117-final-6ca14fca`, label
+  `UX 1117 UAT 6ca14fca`, Claude session `61c9ee5d-b16f-4fc2-aae6-77807a5e2719`, Sonnet/high.
+  Only durable evidence branch `uat/1117-final-6ca14fca` may be pushed; final QA remains gated.
