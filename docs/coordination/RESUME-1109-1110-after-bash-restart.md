@@ -36,6 +36,15 @@ that's normal churn per the established pattern, not a problem. No #1110 PR open
   accidental push confusion). Handoff doc copied + committed (`90f84810`). Build agent
   **`Build-1109-RuntimeContext`**, pane `w1:pSW`, tab `w1:t2D` (shared agents tab), confirmed
   Sonnet 5, working.
+- **PR #1122 CI: `Compose deployment smoke` FAILED** (job run 29558438821/job 87815542417,
+  `infra-api-1` never healthy, no app logs captured — job has no diagnostic-dump step). Confirmed
+  NOT pre-existing: same check is green on `main` at the current base SHA (`65b8a7f8`), and `Prod
+  compose deployment smoke` passed on this same branch — so it's isolated to the dev
+  docker-compose path, real regression, **not CI-waivable**. Reopened `Build-1110-AppMap-15`'s
+  lane (still on pane `w1:pST`, same worktree/branch) with repro instructions
+  (`docker compose -f infra/docker-compose.yml up`, watch `infra-api-1` logs, root-cause + fix +
+  push). QA (task) stays blocked until this goes green. `Verify foundation and app` was still
+  pending at last check — Monitor `bt30t6376` watching all three checks for terminal state.
 
 Below is gen-3's prior CURRENT STATE (2026-07-16, session cb9ca6a3 — gen-3 relay → gen-4, genuine 70%), kept for history:
 
