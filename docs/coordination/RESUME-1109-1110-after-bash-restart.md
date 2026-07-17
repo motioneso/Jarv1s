@@ -17,12 +17,19 @@ now that takeover is confirmed.
 - Liveness monitor re-armed as persistent task `begkznu1r` (diffs `herdr pane list` `agent_status`
   for `w1:pST`/`w1:pT6`, emits only on change). g9's monitor died with its relay as expected.
 
-**PR #1126 status at g10 takeover:** fix not yet pushed. `gh pr checks 1126` still shows
-`Compose deployment smoke` FAIL and `Verify foundation and app` FAIL (run `29577885359`) — same
-pre-fix failures QA flagged. Last commit on the branch is a handoff checkpoint
-(`docs(handoff): #1109 runtime-context relay checkpoint 8`), not the `package.json` start-script
-fix yet. Awaiting `-8` to push; will re-QA once it does + CI goes green. Not polling — waiting on
-the liveness monitor / `-8`'s own report.
+**PR #1126 status, updated:** `-8` pushed the app-map start-script fix
+(`fix(api): generate app-map artifact before start, not just dev`). Compose smoke checks now
+SUCCESS on both. `Verify foundation and app` hit the CI job's `timeout-minutes: 25`
+(`.github/workflows/ci.yml:18`) and was CANCELLED — `-8` root-caused this as **pre-existing on
+both the pre-fix and fix commits** (branch runs ~25min+ vs main's normal ~18-20min), i.e. NOT
+caused by the app-map fix. Likely explained by #1109's 7 tasks adding new test files/suites.
+
+Instructed `-8` (bounded, ≤10min): confirm the slowdown is roughly proportional to added test
+volume (no hang/leak/infinite-retry) → if so, bump `ci.yml` `timeout-minutes` 25→35 as a
+documented stopgap + file a follow-up perf-tracking issue, push, report back. If it looks like a
+real hang/regression instead: stop, don't touch `ci.yml`, report to coordinator. Awaiting that
+push; will re-QA once green. Not polling — waiting on `b97inyn6m` monitor (new commit) / `-8`'s
+own report.
 
 ## ⏩ PRIOR STATE (updated 2026-07-17 by `Coord-1109-1110-g9`, takeover confirmed, superseded by g10)
 
