@@ -3186,6 +3186,17 @@ resume from this note before taking any merge-sensitive action.
 - Reopen only an Activity owner repair plan. Final QA and merge remain stopped; parked review lanes
   E/F/G and unrelated changes remain untouched. `merges_since_relay` is `0`.
 
+## Continuation note — 2026-07-17 #1117 Activity repair planning
+
+- Exact label `UX 1117 Activity Repair`, Codex session
+  `019f6daf-1877-7f62-8eca-d0356d6b2c16`, is planning in the clean owner worktree on Luna/medium.
+  Scope is the Activity loading/error/retry live blocker only; all proven passing paths and the
+  deferred Sports residual are out of scope.
+- The agent must trace request/state flow, write a temporary unstaged minimal plan, and await exact
+  coordinator approval before code. No manual CI/job rerun or broad local gate is allowed.
+- Final QA and merge remain stopped. Parked review lanes E/F/G and unrelated changes remain
+  untouched; `merges_since_relay` is `0`.
+
 ## Continuation note — 2026-07-17 #1117 UAT reporting relay
 
 - Exact-head browser run `run_1` completed, but UAT session
