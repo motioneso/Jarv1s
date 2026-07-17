@@ -3661,3 +3661,14 @@ resume from this note before taking any merge-sensitive action.
   `weekly-release.yml` and verify Pages plus the in-app target.
 - Delegated authority remains immutable session `019f71fc-e3b7-77b0-914b-5518538943ef`;
   `merges_since_relay` remains `1`.
+
+## Continuation note — 2026-07-17 PR #1132 in CI
+
+- Focused ready PR #1132 is open at head `f6a8dd166287e369146cf796466a829a710e881e`.
+  Its exact diff adds only `package-manager-cache: false` to the weekly setup-node step.
+- YAML structure, generator self-test, diff check, format, lint, typecheck, release-hardening audit,
+  fetch/rebase, push, and PR creation all exited `0`; the worktree is clean.
+- Fresh CI run `29620403209` is active. Require full CI green and fresh independent routine-tier QA
+  before merging. Then redispatch the weekly workflow and verify deploy + live Pages + in-app target.
+- Delegated authority remains immutable session `019f71fc-e3b7-77b0-914b-5518538943ef`;
+  `merges_since_relay` remains `1`.
