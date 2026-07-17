@@ -1,6 +1,53 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g6`, session 08b39789)
+## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g6`, session 08b39789 — relay → gen-7, 70% meter)
+
+**YOU ARE gen-7. Do these FIRST:**
+1. `herdr pane list` — find your own pane/session (relay spawns you in the SAME tab as g6's pane,
+   `w1:t2E`, NOT the agents tab).
+2. **Reap g6** (label `Coord-1109-1110-g6`, session `08b39789-f9ad-4bee-ac33-f1b438142dbc`, pane
+   `w1:pT3`) — resolve fresh by label+session, confirm you're the distinct successor first.
+3. **Re-arm both monitors — both are session-only and died with g6:**
+   - PR #1122 CI re-run terminal-state watch (was `buvkh6pws`, non-persistent, still running at
+     handoff — `gh pr checks 1122`, check if it already landed before re-arming a new one).
+   - Fleet liveness on `Build-1109-RuntimeContext-7` (pane `w1:pT4`, session `1ece3f0a…`) +
+     `Build-1110-AppMap-15` (pane `w1:pST`, session `f8124cd9…`) — was `bjxpou3zi`.
+
+**IMMEDIATE WORK — PR #1122 CI re-run in flight, verdict pending:**
+- **Stop-the-line context (full detail: GitHub issue #1123, `AWAITING-BEN.md` new section):** VF
+  failed 2nd time on run `29560460812` (head `874759ec`) — but a **different failure mode** than
+  the pre-fix regression: 25-min job timeout mid-`test:integration`, 5 DB/auth-heavy files failing
+  hard (not just slow) vs. clean 156/156 on the identical commit locally. -15 diagnosed this as
+  **CI Postgres-container contention under runner load, not a code regression** (type-only diff,
+  normal unit timing, auth-heavy-files-only failure pattern) — verdict verified directly against
+  -15's own pane, not just relayed text. **Coordinator authorized `gh run rerun 29560460812
+  --failed`** (no code push) to test the flake hypothesis — this is a re-run, not a waiver (no
+  Ben approval needed for re-triggering the existing gate on the same commit).
+- **Check `gh pr checks 1122` fresh — do not assume still pending.** On terminal:
+  - **VF green:** flake confirmed. Update issue #1123 (comment: resolved, environmental, no code
+    change) and close it. Spawn QA (`coordinated-qa`, tier **sensitive** — module-sdk barrel
+    touch = cross-module contract change). Merge is **still separately blocked** on Ben's pending
+    #1110 exit-criterion ruling in `AWAITING-BEN.md` (unresolved as of this relay) — QA green does
+    not unblock merge.
+  - **VF fails a 3rd time:** no longer plausibly noise — do NOT just re-run again. This needs
+    real escalation (possibly CI infra health, needs Ben's attention) — read the job log yourself
+    first (same method as g6: `gh run view <id> --job <id>`, compare timing/failure pattern
+    against the 2nd failure to see if it's the *same* environmental signature recurring, which
+    would actually strengthen the flake diagnosis, vs a *new* pattern, which would not). Update
+    issue #1123 either way.
+- **-15 is idle, holding on the branch as instructed** (pane `w1:pST`) — don't re-message it
+  unless CI comes back red a 3rd time or you need it to push a real fix.
+
+**#1109 in parallel:** now on `Build-1109-RuntimeContext-7` (pane `w1:pT4`, session `1ece3f0a…`),
+Task 6 (WIP, was mid-task at last relay). Task 5 (delete per-turn page_context push path) done +
+committed `4922cb06`, handoff doc `docs/superpowers/handoffs/2026-07-16-1109-runtime-context-relay-6.md`
+(`ddd4fa0d`). Healthy relay cadence throughout (-1→-7, all clean, no escalations) — normal churn
+for a long build. Passive supervision only unless it escalates.
+
+Below is g6's own takeover note (already executed) + full history, kept for reference (skim, don't
+deep-read):
+
+## ⏩ PRIOR STATE (updated 2026-07-17 by `Coord-1109-1110-g6`, session 08b39789)
 
 **gen-6 is driving.** Pane `w1:pT3`, tab `w1:t2E` (same tab as g5, not agents tab). Reaped g5
 (session `435f7c1a`, pane `w1:pSX` closed, confirmed distinct successor first) and confirmed
