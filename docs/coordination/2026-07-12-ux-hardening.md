@@ -3223,17 +3223,6 @@ resume from this note before taking any merge-sensitive action.
 - Final QA and merge remain stopped. Parked review lanes E/F/G and unrelated changes remain
   untouched; `merges_since_relay` is `0`.
 
-## Continuation note — 2026-07-16 delegated UX Coordinator adoption
-
-- Delegated UX Coordinator authority is Codex session
-  `019f6dc5-45d7-7f23-b404-d4fef1bf587f`; `merges_since_relay` is reset to `0`.
-- Automatic CI run `29547586161` completed `success` at exact PR #1117 head
-  `4d2d17ba418b9140a7ea307398fe9e447bd06446`; all four jobs succeeded. No CI job or
-  broad gate was rerun.
-- PR #1117 remains open, draft, and mergeable. Final QA and merge remain stopped under the prior
-  continuation gates. Preserve unrelated changes, parked lanes E/F/G, and primary Coordinator
-  session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
-
 ## Continuation note — 2026-07-17 #1117 final UAT RED; Activity blocker
 
 - Final exact-head UAT posted RED at
@@ -3390,3 +3379,14 @@ resume from this note before taking any merge-sensitive action.
   evidence before final QA can start.
 - Final QA and merge remain stopped. Parked review lanes E/F/G and unrelated changes remain
   untouched; `merges_since_relay` is `0`.
+
+## Continuation note — 2026-07-16 delegated UX Coordinator adoption
+
+- Delegated UX Coordinator authority is Codex session
+  `019f6dc5-45d7-7f23-b404-d4fef1bf587f`; `merges_since_relay` is reset to `0`.
+- Automatic CI run `29547586161` completed `success` at exact PR #1117 head
+  `4d2d17ba418b9140a7ea307398fe9e447bd06446`; all four jobs succeeded. No CI job or
+  broad gate was rerun.
+- PR #1117 remains open, draft, and mergeable. Final QA and merge remain stopped under the prior
+  continuation gates. Preserve unrelated changes, parked lanes E/F/G, and primary Coordinator
+  session `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
