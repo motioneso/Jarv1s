@@ -3499,6 +3499,7 @@ resume from this note before taking any merge-sensitive action.
   passed 7/7 on pinned `origin/main`, so no waiver is established or recorded.
 - Ben must explicitly authorize one rerun of failed job `87804059657`; otherwise leave #1118
   stopped. If that rerun fails, stop the lane and escalate without a fix or further rerun.
-- `merges_since_relay` remains `1`. Preserve unrelated changes and parked lanes. Successor must
-  adopt delegated `UX Coordinator` authority with its own immutable session id and must never
-  touch primary Coordinator `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
+- Delegated `UX Coordinator` authority is adopted by immutable Codex session
+  `019f6e67-577e-78f0-9b4a-822c0c95c396`; `merges_since_relay` is reset to `0`.
+- Preserve unrelated changes and parked lanes. Never touch primary Coordinator
+  `f3e5e852-b905-47f4-bbb0-df8f9b2d95f1`.
