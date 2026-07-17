@@ -248,6 +248,28 @@ code.
 #1122 stays fully blocked (VF red, plus the still-open #1110 live-path exit-criterion question
 above) until you weigh in — no further coordinator action on this lane.
 
+**UPDATE 2026-07-17 (`Coord-1109-1110-g12`) — proceeding under Ben's explicit "complete and merge
+#1122" instruction, extending Fable's already-approved fix pattern rather than re-litigating the
+fork.** Ben directed the coordinator to drive #1118/#1122/#1126 to merge without further per-fork
+sign-off. Rather than picking cold among options (a)/(b)/(c)/(d) above, applying the *same*
+reasoning Fable already used for this exact lane (issue #1123 comment 5000769797: narrow,
+test-scoped, root-cause-consistent fix over a blind rerun or an unconfirmed infra-sizing bet) to
+the now-confirmed wider scope. Chosen path = **(a) widened**, i.e. the direct extension of the
+already-merged #1125 fix: audit every integration test file that instantiates `createApiServer`
+without a `boss`/pg-boss override (not just the original 3), apply the same test-scoped
+`connectionTimeoutMillis` fix to all of them. Not (b) — a runtime-default bump is broader-blast
+than a test-scoped fix and Fable's own ruling preferred the narrower option when both were on the
+table. Not (c) — runner/Postgres sizing remains an unconfirmed theory with standing counter-evidence
+(`fix/1112` ran the identical job green the same morning); no infra spend without a confirmed
+signature after the widened fix is actually in place.
+
+**Guardrail (unchanged from Fable's condition 3):** if the same ~10-11s signature recurs *after*
+this widened fix lands in #1122's head, that is a genuine new signal (root-cause theory falsified)
+and gets escalated to Ben directly — not another self-directed pass, not another Fable pass.
+Tasked to `Build-1110-AppMap-15`, new PR "Part of #1124", zero production-runtime changes, full
+local gate + routine-tier QA before merge to main, then main merged into `build/1110-app-map`
+(never rerun the stale head) per condition 2, fresh VF.
+
 ## #1126 CI — 'Verify foundation' timing out 3x consecutively, needs your call (2026-07-17, `Coord-1109-1110-g12`)
 
 **Separate lane from #1122 above — this is PR #1126, #1109's final task (7/7).** The `Verify
