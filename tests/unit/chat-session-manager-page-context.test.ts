@@ -26,6 +26,7 @@ function pageContext(overrides: Partial<PageContextSnapshotDto> = {}): PageConte
     visibleText: ["3 tasks due today"],
     focused: null,
     selectedText: null,
+    errors: [],
     capturedAt: "2026-07-05T00:00:00.000Z",
     ...overrides
   };

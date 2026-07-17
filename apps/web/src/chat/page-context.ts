@@ -30,7 +30,12 @@
  * (`capturePageContextSnapshot`, `elementPrivacySignals`, `collectPageContextCandidates`)
  * touches real browser APIs.
  */
-import type { PageContextFocusedElementDto, PageContextSnapshotDto } from "@jarv1s/shared";
+import type {
+  JarvisError,
+  JarvisErrorClass,
+  PageContextFocusedElementDto,
+  PageContextSnapshotDto
+} from "@jarv1s/shared";
 
 import { resolvePageHeading } from "../app-route-metadata.js";
 
@@ -42,6 +47,15 @@ const MAX_TEXT_LENGTH = 200;
 const MAX_ROUTE_LENGTH = 200;
 const MAX_TITLE_LENGTH = 200;
 const MAX_SELECTED_TEXT_LENGTH = 500;
+const MAX_CONTEXT_ERRORS = 10;
+
+const ERROR_CLASSES = new Set<JarvisErrorClass>([
+  "prerequisite",
+  "transient",
+  "validation",
+  "permission",
+  "bug"
+]);
 
 // ─── Pure redaction decisions (DOM-independent, unit-tested directly) ──────────────
 
@@ -112,6 +126,7 @@ export interface PageContextRawInput {
   readonly candidates: readonly PageContextCandidate[];
   readonly focused: PageContextFocusInfo | null;
   readonly selectedText: string | null;
+  readonly errors?: readonly JarvisError[];
 }
 
 /**
@@ -164,8 +179,53 @@ export function buildPageContextSnapshot(input: PageContextRawInput): PageContex
     visibleText,
     focused,
     selectedText,
+    errors: input.errors ?? [],
     capturedAt: new Date().toISOString()
   };
+}
+
+/**
+ * Project one candidate `data-jarvis-error-*` attribute triple into a {@link JarvisError},
+ * or `null` when it's structurally invalid. A `prerequisite` error without a
+ * `remediationRef` is dropped rather than surfaced without a fix (the map/tool contract
+ * requires `class:"prerequisite"` to resolve to a named remediation).
+ */
+export function projectPageContextErrorAttributes(input: {
+  readonly code: string | null;
+  readonly errorClass: string | null;
+  readonly remediationRef: string | null;
+}): JarvisError | null {
+  const code = input.code?.trim().slice(0, 160);
+  const errorClass = input.errorClass as JarvisErrorClass | null;
+  const remediationRef = input.remediationRef?.trim().slice(0, 160);
+  if (!code || !errorClass || !ERROR_CLASSES.has(errorClass)) return null;
+  if (errorClass === "prerequisite") {
+    return remediationRef ? { code, class: errorClass, remediationRef } : null;
+  }
+  return { code, class: errorClass };
+}
+
+/**
+ * Collect declared `[data-jarvis-error-code][data-jarvis-error-class]` markers under
+ * `root` — the structured-error analogue of the text candidates above. Modules opt a
+ * visible error surface into page context by setting those attributes; nothing here
+ * infers an error from visible prose.
+ */
+export function collectPageContextErrors(root: ParentNode): readonly JarvisError[] {
+  const errors: JarvisError[] = [];
+  const nodes = root.querySelectorAll<HTMLElement>(
+    "[data-jarvis-error-code][data-jarvis-error-class]"
+  );
+  for (const node of nodes) {
+    if (errors.length === MAX_CONTEXT_ERRORS) break;
+    const projected = projectPageContextErrorAttributes({
+      code: node.dataset.jarvisErrorCode ?? null,
+      errorClass: node.dataset.jarvisErrorClass ?? null,
+      remediationRef: node.dataset.jarvisErrorRemediationRef ?? null
+    });
+    if (projected) errors.push(projected);
+  }
+  return errors;
 }
 
 function truncate(value: string, maxLength: number): string {
@@ -248,6 +308,7 @@ function collectPageContextCandidates(root: ParentNode): {
   candidates: PageContextCandidate[];
   focused: PageContextFocusInfo | null;
   selectedText: string | null;
+  errors: readonly JarvisError[];
 } {
   const candidates: PageContextCandidate[] = [];
   const elements = root.querySelectorAll(CAPTURE_SELECTOR);
@@ -265,7 +326,12 @@ function collectPageContextCandidates(root: ParentNode): {
   const focused =
     active && active instanceof Element && active !== document.body ? focusInfo(active) : null;
 
-  return { candidates, focused, selectedText: readSelectedText() };
+  return {
+    candidates,
+    focused,
+    selectedText: readSelectedText(),
+    errors: collectPageContextErrors(root)
+  };
 }
 
 function readSelectedText(): string | null {
@@ -291,15 +357,25 @@ export function capturePageContextSnapshot(): PageContextSnapshotDto {
   }
 
   try {
-    const { candidates, focused, selectedText } = collectPageContextCandidates(document.body);
-    return buildPageContextSnapshot({ route, pageTitle, candidates, focused, selectedText });
+    const { candidates, focused, selectedText, errors } = collectPageContextCandidates(
+      document.body
+    );
+    return buildPageContextSnapshot({
+      route,
+      pageTitle,
+      candidates,
+      focused,
+      selectedText,
+      errors
+    });
   } catch {
     return buildPageContextSnapshot({
       route,
       pageTitle,
       candidates: [],
       focused: null,
-      selectedText: null
+      selectedText: null,
+      errors: []
     });
   }
 }

@@ -2,6 +2,9 @@ import type { AiCapabilityRouteReason, AiConfiguredModelDto, AiModelCapability }
 import type { SourceFreshnessV1 } from "./freshness-types.js";
 import { errorResponseSchema } from "./schema-fragments.js";
 
+export type { JarvisError, JarvisErrorClass } from "@jarv1s/module-sdk";
+import type { JarvisError } from "@jarv1s/module-sdk";
+
 export type ChatMessageRole = "user" | "assistant";
 export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model" | "working" | "error";
 
@@ -123,6 +126,7 @@ export interface PageContextSnapshotDto {
   readonly visibleText: readonly string[];
   readonly focused: PageContextFocusedElementDto | null;
   readonly selectedText: string | null;
+  readonly errors: readonly JarvisError[];
   readonly capturedAt: string;
 }
 

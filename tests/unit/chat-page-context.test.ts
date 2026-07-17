@@ -16,6 +16,7 @@ function validSnapshot(overrides: Partial<PageContextSnapshotDto> = {}): unknown
     visibleText: ["3 tasks due today"],
     focused: null,
     selectedText: null,
+    errors: [],
     capturedAt: "2026-07-05T00:00:00.000Z",
     ...overrides
   };
@@ -99,6 +100,35 @@ describe("projectPageContextSnapshot", () => {
       validSnapshot({ headings: [{ nested: "object" }] } as never)
     );
     expect(projected?.headings).toEqual([]);
+  });
+
+  it("re-projects structured errors and strips undeclared keys", () => {
+    const projected = projectPageContextSnapshot(
+      validSnapshot({
+        errors: [
+          {
+            code: "news.add_source.no_json_model",
+            class: "prerequisite",
+            remediationRef: "news.add_source.configure_json_model",
+            secret: "drop"
+          },
+          {
+            code: "news.add_source.discovery_unavailable",
+            class: "transient",
+            remediationRef: "must-drop"
+          }
+        ]
+      } as never)
+    );
+    expect(projected?.errors).toEqual([
+      {
+        code: "news.add_source.no_json_model",
+        class: "prerequisite",
+        remediationRef: "news.add_source.configure_json_model"
+      },
+      { code: "news.add_source.discovery_unavailable", class: "transient" }
+    ]);
+    expect(JSON.stringify(projected)).not.toContain("secret");
   });
 });
 

@@ -6,6 +6,7 @@ import {
   buildPageContextSnapshot,
   isHiddenElementSignals,
   isSensitiveElementSignals,
+  projectPageContextErrorAttributes,
   type ElementPrivacySignals
 } from "../../apps/web/src/chat/page-context.js";
 
@@ -218,6 +219,49 @@ describe("asksAboutCurrentPage (#679 on-demand-only heuristic)", () => {
     "how do I reset my password"
   ])("does not treat %s as asking about the current page", (text) => {
     expect(asksAboutCurrentPage(text)).toBe(false);
+  });
+});
+
+describe("projectPageContextErrorAttributes (#1109 structured UI errors)", () => {
+  it("projects declared data-jarvis attributes without visible prose inference", () => {
+    expect(
+      projectPageContextErrorAttributes({
+        code: "news.add_source.no_json_model",
+        errorClass: "prerequisite",
+        remediationRef: "news.add_source.configure_json_model"
+      })
+    ).toEqual({
+      code: "news.add_source.no_json_model",
+      class: "prerequisite",
+      remediationRef: "news.add_source.configure_json_model"
+    });
+    expect(
+      projectPageContextErrorAttributes({
+        code: "news.add_source.discovery_unavailable",
+        errorClass: "transient",
+        remediationRef: null
+      })
+    ).toEqual({
+      code: "news.add_source.discovery_unavailable",
+      class: "transient"
+    });
+  });
+
+  it("drops malformed error classes and prerequisite errors without remediation", () => {
+    expect(
+      projectPageContextErrorAttributes({
+        code: "bad.one",
+        errorClass: "other",
+        remediationRef: null
+      })
+    ).toBeNull();
+    expect(
+      projectPageContextErrorAttributes({
+        code: "bad.two",
+        errorClass: "prerequisite",
+        remediationRef: null
+      })
+    ).toBeNull();
   });
 });
 
