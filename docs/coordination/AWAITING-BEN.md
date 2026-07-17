@@ -332,3 +332,21 @@ merge proceeds, but coordinator notes the near-ceiling duration here for your aw
 
 **Held per this ruling:** `Build-1109-RuntimeContext-8` (`w1:pT6`) — tasked with the one commit +
 one VF run above, nothing further without hitting the hard stop.
+
+**🛑 HARD STOP HIT (2026-07-17, `Coord-1109-1110-g12`) — escalating directly to you per condition
+above, no further reruns, no further `ci.yml` edits.** Post-bump commit `e8defd69` (`ci.yml`
+`timeout-minutes` 25→35, citing #1127) landed as instructed. Fresh VF run
+[29597220968](https://github.com/motioneso/Jarv1s/actions/runs/29597220968), job `87940451041`:
+started 16:42:38Z, completed 17:18:03Z = **35m25s, conclusion `cancelled`**. This is not the
+"secondary flag" case (green-but-near-ceiling) — the job consumed the *entire* raised 35-minute
+budget and still did not finish. Both compose-smoke checks stayed green; only `Verify foundation
+and app` hit the wall again.
+
+This falsifies the "known ~+75% growth, no hang, just needs headroom" read Fable's evidence was
+based on (main same-morning baseline was 14m02s; a proportional +75% growth would land ~24-25min,
+not exceed a 35min cap). Something is consuming meaningfully more than the previously-measured
+delta, or genuinely hanging past where the first read stopped looking. Per the ruling's own hard
+stop: **no further reruns, no further timeout edits, not routing to another Fable pass** — this is
+your call now on the actual mechanism (real hang vs. much larger perf regression than measured).
+`Build-1109-RuntimeContext-8` is holding on `build/1109-runtime-context` @ `e8defd69`, no further
+pushes. #1122 (separate lane, see above) is unaffected and proceeding independently.
