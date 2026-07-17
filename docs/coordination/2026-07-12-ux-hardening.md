@@ -3443,3 +3443,8 @@ resume from this note before taking any merge-sensitive action.
   `uat/1117-final-6ca14fca` is at `9ff04747b825d9713437c4e305ba0d845c2922c2`; durable proof:
   https://github.com/motioneso/Jarv1s/pull/1117#issuecomment-4998813024. UAT session was reaped.
   Automatic CI run `29552827799` remains in progress; final QA is still stopped on CI.
+- Automatic CI run `29552827799` completed `success` at exact head
+  `6ca14fcad8bec023c98e699000a2384657232843`. Independent sensitive-tier final QA is running as
+  native subagent `qa_1117_final` in fresh detached worktree
+  `~/Jarv1s/.claude/worktrees/qa-1117-final-6ca14fca`; it trusts CI and must post its compact
+  verdict to PR #1117 without rerunning gates.
