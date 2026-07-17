@@ -77,7 +77,8 @@ export function ActivityPane(_props: PaneProps) {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.ai.actionAuditLog({ since }),
-    queryFn: () => listActionAuditLog({ since, limit: 200 })
+    queryFn: () => listActionAuditLog({ since, limit: 200 }),
+    retry: false
   });
 
   const entries = data?.entries ?? [];

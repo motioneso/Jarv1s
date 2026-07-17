@@ -2,13 +2,18 @@ import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+const queryOptions = vi.hoisted(() => ({ current: null as { retry?: boolean } | null }));
+
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: vi.fn(() => ({
-    data: undefined,
-    isLoading: false,
-    isError: true,
-    refetch: vi.fn()
-  }))
+  useQuery: vi.fn((options: { retry?: boolean }) => {
+    queryOptions.current = options;
+    return {
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      refetch: vi.fn()
+    };
+  })
 }));
 
 vi.mock("../../apps/web/src/api/client.js", () => ({
@@ -30,5 +35,6 @@ describe("ActivityPane", () => {
     expect(html).toContain("Try again");
     expect(html).not.toContain("Loading…");
     expect(html).not.toContain("No Jarvis actions in this period.");
+    expect(queryOptions.current).toMatchObject({ retry: false });
   });
 });
