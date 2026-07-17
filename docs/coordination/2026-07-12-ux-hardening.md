@@ -3553,3 +3553,18 @@ resume from this note before taking any merge-sensitive action.
   merging. After merge, enable Pages with workflow build, dispatch `weekly-release.yml` on `main`,
   and verify `https://motioneso.github.io/Jarv1s/` plus the in-app link.
 - Preserve unrelated changes, parked review lanes E/F/G, and the peer coordinator's active lanes.
+
+## Continuation note — 2026-07-17 PR #1129 live gate
+
+- Delegated `UX Coordinator` authority remains immutable Codex session
+  `019f71fc-e3b7-77b0-914b-5518538943ef`; `merges_since_relay` remains `0`.
+- PR #1129 head `87cb178004d1324c0dc8de21e33b24129dc4ba25` passed exact-head live UAT:
+  fresh owner signup, onboarding skip, authenticated app shell, `/settings`, command palette, and
+  the visible `Weekly releases` link opening `https://motioneso.github.io/Jarv1s/`. Durable evidence
+  is recorded at PR comment `#issuecomment-5007780549` from evidence-only commit `6e3b7951`.
+- `origin/main` `58570306` is an ancestor of the PR head, so no rebase is required. Verify foundation
+  and both Compose smokes are green; `Build and publish images` is still pending. Independent
+  routine-tier QA is in progress. Merge nothing until both are green.
+- Pages is not yet enabled, so the target currently shows the expected pre-deployment 404. After
+  merge, enable Pages with workflow build, dispatch `weekly-release.yml` on `main`, and verify the
+  deployed report plus the in-app link.
