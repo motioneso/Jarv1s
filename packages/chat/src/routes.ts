@@ -77,6 +77,7 @@ import { buildEmailWriteService } from "./email-write-impl.js";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
 import { registerChatLiveRoutes, type EveningInterviewSeed } from "./live-routes.js";
 import { CliChatUnavailableError } from "./live/errors.js";
+import { PageContextStore } from "./live/page-context-store.js";
 import type { PassiveMemoryGraphRecallPort } from "./live/passive-retrieval.js";
 import { createChatSessionRuntime, type ChatEngineFactory } from "./live/runtime.js";
 import type {
@@ -173,6 +174,10 @@ export function registerChatRoutes(
   server: FastifyInstance,
   dependencies: ChatRoutesDependencies
 ): void {
+  // #1109 — one store for the process; shared by the PUT route below and Task 4's
+  // chat.getCurrentView tool so both read/write the same actor-keyed views.
+  const pageContextStore = new PageContextStore({ now: () => Date.now(), ttlMs: 300_000 });
+
   const repository = dependencies.repository ?? new ChatRepository();
   const skillsRepository = dependencies.skillsRepository ?? new ChatSkillsRepository();
   const chatSettingsRepo = new PreferencesRepository();
@@ -350,7 +355,8 @@ export function registerChatRoutes(
     runtime: {
       ...runtime,
       resolveEveningInterviewSeed: dependencies.resolveEveningInterviewSeed
-    }
+    },
+    pageContextStore
   });
 
   registerChatSkillsRoutes(

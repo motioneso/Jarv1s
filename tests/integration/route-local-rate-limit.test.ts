@@ -20,6 +20,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SessionTokenRegistry } from "@jarv1s/ai";
 import type { AccessContext } from "@jarv1s/db";
 
+import { PageContextStore } from "../../packages/chat/src/live/page-context-store.js";
+
 // Low ceilings so 3 distinct junk tokens cross the threshold: with max=2, requests #1 and #2
 // pass and #3 is throttled — only possible if all three share ONE bucket.
 process.env.JARVIS_RL_CHAT_MAX = "2";
@@ -65,7 +67,8 @@ describe("route-local junk-credential rate-limit gates (#207)", () => {
         }
         throw new Error("unauthenticated");
       },
-      runtime: stubRuntime as never
+      runtime: stubRuntime as never,
+      pageContextStore: new PageContextStore({ now: () => Date.now(), ttlMs: 300_000 })
     });
     await chatApp.ready();
 

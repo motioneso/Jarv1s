@@ -42,6 +42,7 @@ import {
 } from "./live/chat-session-manager.js";
 import { CliChatUnavailableError } from "./live/errors.js";
 import { projectPageContextSnapshot } from "./live/page-context.js";
+import type { PageContextStore } from "./live/page-context-store.js";
 import type { ChatSessionRuntime } from "./live/runtime.js";
 
 // Per-user rate-limit key via the shared module-sdk helper: a UUID-shaped session bearer or
@@ -68,6 +69,8 @@ export interface ChatLiveRoutesDependencies {
       briefingRunId?: string
     ) => Promise<EveningInterviewSeed>;
   };
+  /** #1109 — TTL-backed store the pull-based chat.getCurrentView tool reads from. */
+  readonly pageContextStore: PageContextStore;
 }
 
 export function registerChatLiveRoutes(
@@ -317,6 +320,31 @@ export function registerChatLiveRoutes(
       } catch (error) {
         return handleLiveRouteError(error, reply);
       }
+    }
+  );
+
+  // #1109 — client PUTs its current view here (debounced, on navigation/change); an AI tool
+  // pulls it on demand rather than the client pushing it on every chat turn.
+  server.put(
+    "/api/chat/page-context",
+    {
+      config: {
+        rateLimit: {
+          max: CHAT_MUTATION_MAX,
+          timeWindow: "1 minute",
+          keyGenerator: sessionRateLimitKey
+        }
+      }
+    },
+    async (request, reply) => {
+      const access = await resolveOr401(dependencies, request, reply);
+      if (!access) return reply;
+
+      const body = request.body as { readonly snapshot?: unknown } | undefined;
+      if (!dependencies.pageContextStore.update(access.actorUserId, body?.snapshot, "web")) {
+        return reply.code(400).send({ error: "Invalid page context snapshot" });
+      }
+      return reply.code(204).send();
     }
   );
 
