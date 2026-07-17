@@ -3507,4 +3507,9 @@ resume from this note before taking any merge-sensitive action.
   primary successor `Coord-1109-1110-g12` owns #1122/#1126 while this delegated lock owns #1118.
 - PR #1118 rebased cleanly onto `origin/main` `7dc9672f` at exact head
   `5be51d4863d05d2d82b438e34f507a76662cb2da`; fresh CI run `29598820300` is GREEN and exact-head
-  live UAT is GREEN at PR comment `5005768157`. Fresh integrated routine QA is pending.
+  live UAT is GREEN at PR comment `5005768157`. Fresh integrated routine QA is GREEN at PR
+  comment `5005826610`.
+- PR #1118 merged as squash `12877ff558bce5b4359e7caa2ed0e3f236b0f8c0`; issue #1112 is closed
+  and its project item is Done. `merges_since_relay` is now `1`. The spent agent pane and clean QA
+  worktree were reaped; the integration worktree remains parked to preserve its unrelated modified
+  `.claude/context-meter.log`.
