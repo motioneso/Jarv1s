@@ -1,33 +1,32 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## 🛑 CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g8`, relaying at 70% meter — HARD STOP HIT)
+## 🛑 CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g8`, relaying at 70% meter — #1122 FULLY HALTED, ESCALATED)
 
-**YOU ARE gen-9 (or later). g8 is relaying immediately per the non-deferrable 70% context trigger
-— did NOT finish investigating before handoff, this is the very next action for you.**
+**YOU ARE gen-9 (or later).** g8 finished the hard-stop investigation and escalation before
+relaying — nothing left to investigate on this thread, your job is to hold the line, not re-open it.
 
-**#1122 VF failed a 4th time (run `29569935763`, job `87851069365`, 25m26s)** — this is
-**AFTER** the #1124 pg-boss-timeout test fix (PR #1125, merged) was rebased into #1122's branch
-(`build/1110-app-map` merged main at `552308d7`). Compose smoke + prod-compose smoke both still
-pass. **This exactly meets the hard-stop condition Fable itself set** (issue #1123 comment
-`5000769797`, condition 3): *"same ~10.9s trio signature recurs on #1122 after the fix is in its
-head → full halt, escalate to Ben, no further attempts."* Per that explicit condition, **do NOT**
-route this to another Fable one-shot — Fable's own ruling names Ben for this exact branch.
+**#1122 is fully halted, escalated to Ben directly (not Fable).** 4th VF failure (run
+`29569935763`, job `87851069365`, 25m26s) on the post-#1125-fix head (`build/1110-app-map` @
+`552308d7`) trips Fable's own hard-stop condition 3 (issue #1123 comment `5000769797`) verbatim.
+Pulled the actual log (`gh run view 29569935763 --job 87851069365 --log` — works fine, the
+earlier `--log-failed` attempt was the dead end, don't repeat it). Findings, already written up
+in full in `docs/coordination/AWAITING-BEN.md` (new section under `#1122`, appended
+2026-07-17 by g8) with 4 options for Ben to choose from — **read that doc, don't re-derive**:
+- Failure now spans 6+ integration suites (not just the original 3), but same ~10-11s per-test
+  timeout ceiling as before — same root cause (pg-boss default `connectionTimeoutMillis`), wider
+  blast radius than #1125 scoped for.
+- `Build-1110-AppMap-15` (`w1:pST`) has been told to hold — no pushes, no re-runs, may pick up
+  other unblocked work but leave `build/1110-app-map` untouched.
 
-**Your first action:** confirm whether the failure signature is actually still the same
-(`gh run view 29569935763 --job 87851069365 --log` — my last attempt to pull this returned no
-output, untested, re-try) — same 3 files / same ~10.9s-per-test pattern as before, or something
-new (which would be a different, less bad, situation — the fix may have shifted rather than
-solved it). Either way: **halt the #1122 lane, no further `gh run rerun` or code attempts**, file
-the finding to issue #1123, and add a fresh `AWAITING-BEN.md` entry (do not just Fable-rule it —
-Ben himself is named). `Build-1110-AppMap-15` (pane resolve fresh by label, was `w1:pST`) is
-standing by holding on the branch — message it once you've read the log, tell it to hold, no
-further pushes.
+**Your job:** do nothing further on #1122 until Ben rules in `AWAITING-BEN.md`. Do not re-run VF,
+do not route to Fable, do not touch the branch. If Ben's answer shows up there, resume from his
+chosen option (a/b/c/d, see the doc) and re-task `-15` accordingly.
 
-**Also still open, lower priority:** `Build-1109-RuntimeContext-8` (was `w1:pT6`) was waiting on
-its own `verify:foundation` closeout for Task 7 (final task) before opening its PR — check status,
+**Also still open, lower priority:** `Build-1109-RuntimeContext-8` (`w1:pT6`) was waiting on its
+own `verify:foundation` closeout for Task 7 (final task) before opening its PR — check status,
 unaffected by the #1122 situation, handle per normal Phase 2/3 flow. Liveness monitor `bdunrnvoc`
-(persistent) should still be running — verify with `herdr pane list`, re-arm if it died with this
-session (monitors are session-scoped).
+(persistent) died with g8's relay — re-arm it (snapshot `herdr pane list` every ~60s, emit only
+changed lines).
 
 Below is g8's own takeover note (already executed) + full history, kept for reference (skim,
 don't deep-read).
