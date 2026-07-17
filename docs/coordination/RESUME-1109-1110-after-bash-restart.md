@@ -1,57 +1,57 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏩ CURRENT STATE (updated 2026-07-16 by `Coord-1109-1110-g3`, session cb9ca6a3 — gen-3 relay → gen-4)
+## ⏩ CURRENT STATE (updated 2026-07-16 by `Coord-1109-1110-g3`, session cb9ca6a3 — gen-3 relay → gen-4, genuine 70%)
 
-Run is HEALTHY and mid-build. #1110 build lane in its final task (Task 8 UAT gate); #1109 gated on
-#1110 PR. **Do NOT redo:** plans, #1110 spawn, step-½, Tasks 1–7.
+Run is HEALTHY. #1110 build lane in the **home stretch of Task 8** (final task); #1109 gated on #1110
+PR. **Do NOT redo:** plans, #1110 spawn, step-½, Tasks 1–7, the module-sdk blocker fix, the UAT
+harness re-scope, the seed-bug fix. All below is DONE unless marked otherwise.
 
-**YOU ARE gen-4 — do these FIRST (gen-3's session died with these live-only bits):**
-1. **RE-ARM the PR Monitor** (monitors are session-only, died with gen-3). Persistent Monitor that
-   fires on (a) `build/1110-app-map` PR open — poll
-   `gh pr list --head build/1110-app-map --json number --jq '.[0].number // empty'` — AND (b) lane
-   death (no pane whose label starts `Build-1110-AppMap` in `herdr agent list`).
-2. **Resolve the live build pane FRESH** by label from `herdr agent list` (pane numbers reflow).
-   Last driver was **`Build-1110-AppMap-12`**, session `17b54d76…`, pane was `w1:pSK`. Confirm
-   exactly one pane holds a `Build-1110-AppMap*` label before addressing/reaping.
+**YOU ARE gen-4 — do these FIRST (gen-3's live-only bits died with the session):**
+1. **RE-ARM the PR Monitor** (session-only; gen-3's `bkqkcduoc` is dead). Persistent Monitor firing on
+   (a) `build/1110-app-map` PR open — `gh pr list --head build/1110-app-map --json number --jq '.[0].number // empty'`
+   — AND (b) lane death (no `Build-1110-AppMap*` pane in `herdr agent list`).
+2. **Resolve the live build pane FRESH** by label. Last driver **`Build-1110-AppMap-15`**, session
+   `f8124cd9…`, pane was `w1:pST`. Confirm exactly one `Build-1110-AppMap*` pane before addressing.
+   Relay chain has churned -5→-15 (autocompact race reaped -12; rest clean) — expect more hops, each
+   deliberate at 70% with work committed to disk. Don't panic at churn.
 
-**#1110 app-map build lane (branch `build/1110-app-map`, worktree
-`~/Jarv1s/.claude/worktrees/build-1110-app-map`):**
-- **Committed:** Tasks 1–7 (T5 `5fc87016`, T6 `a274d98d`, T7 `08e6a716`; earlier T1 `2ffadbf1`,
-  T2 `432fe68e`, T3 `25e44f86`). Relay checkpoint HEAD ~`b75aa94a`.
-- **Task 8 = FINAL task, mid-flight:** #1000 UAT grounding spec. Plan text for T8 is STALE — the
-  authoritative T8 guide is `docs/superpowers/handoffs/2026-07-16-1110-app-map-relay-8.md` (per-spec
-  `uatLevel` export, NOT `run-uat.ts` selector; SKIP `seed/member.ts` — id collides with
-  `UAT_SECOND_OWNER_ID`; thread `withoutNewsJsonBinding` additively).
-- **BLOCKER I ADJUDICATED (done, -12 building the fix):** T8 UAT surfaced a browser-bundle break —
-  `packages/shared` re-exports the runtime `const AI_MODEL_CAPABILITIES` from the `@jarv1s/module-sdk`
-  barrel, which transitively pulls `rate-limit-key.ts`'s `node:crypto` → vite `createHash` error in
-  `apps/web`. **Directed NARROW fix** (NOT moving rate-limit-key = 6-file server blast radius):
-  extract `AI_MODEL_CAPABILITIES` + `AiModelCapability`/`AiModelTier` into node-clean leaf
-  `packages/module-sdk/src/ai-capabilities.ts`; barrel re-exports from it; add subpath export
-  `"./ai-capabilities"` to module-sdk `package.json`; `packages/shared/src/ai-types.ts` imports the
-  leaf subpath, not the barrel. Filed follow-up **issue #1120** (proper barrel browser-safe split via
-  `./server` subpath) — -12 cites #1120 in the regression-fix commit. **If -12 escalates the fix is
-  bigger than scoped, hold and reassess — do not let it balloon T8.**
-- **After T8 green:** `verify:foundation` → pre-push trio → rebase origin/main → `coordinated-wrap-up`
-  (build agent opens PR + reports to `Coord-1109-1110-g3`; coordinator NEVER merges/boards/closes).
+**#1110 app-map (branch `build/1110-app-map`, worktree `~/Jarv1s/.claude/worktrees/build-1110-app-map`):**
+- **Committed:** Tasks 1–7; module-sdk blocker fix `34457186`; Task 8 seed fix `23639d0b`. HEAD
+  ~`23639d0b` (+ relay-checkpoint docs). Spec rewrite may still be uncommitted on disk — `-15` commits it.
+- **Task 8 remaining (mechanical):** re-run `pnpm test:uat -- app-map-grounding` GREEN → `verify:foundation`
+  → explicit-add commit → `coordinated-wrap-up` PR. Build agent opens the PR + reports to this label;
+  **coordinator NEVER merges/boards/closes.**
+- **RESOLVED — module-sdk browser-bundle blocker:** `shared` pulled `node:crypto` via the module-sdk
+  barrel. Narrow leaf fix landed (`34457186`, verified real: vite build + bundle grep), CI-safe
+  (`shared` deps `@jarv1s/module-sdk: workspace:*`). Proper barrel split = follow-up **issue #1120**.
+- **RESOLVED — UAT harness conflict (the big one):** Task 8's spec was the first UAT to assert a **real
+  LLM chat response**, impossible in the fake-provider/no-chat-engine harness. **Decided: deterministic
+  path.** test1=`no_json_model` (tied to seed threading — non-tautological), test3=`error-class=transient`
+  (tied to previewOverride — non-tautological), **test2 (honest-unknown) DELETED** (pure LLM → covered
+  by Task 7 unit + #1121), test4 kept (negative-assertion, in-file caveat). Real-LLM grounding e2e
+  **deferred to issue #1121** (deterministic scriptable chat engine for UAT; also unblocks #1050).
+- **RESOLVED — seed bug (`23639d0b`):** `seedAiProviderChunk` created a provider even at `bindNews:false`,
+  so `hasJsonModel()` stayed true via AiRepository implicit-default fallback → test1 hit network err not
+  `no_json_model`. Fixed so `bindNews:false` genuinely yields no json model.
 
-**⚠ CROSS-SESSION HOLD YOU OWE A RELEASE:** pane label **`UX 1117 UAT 6ca14fca`**, session
-`61c9ee5d…` (was pane `w1:pSH`) is HOLDING all docker UAT for us to avoid a 10.254.0.0/24 subnet
-collision (no overlap guard — memory `uat-docker-subnet-map`). **Ping it "clear — build UAT done,
-docker free"** via `herdr-pane-message` the moment -12's UAT run finishes (or when #1110 PR opens).
-Do not leave it blocked.
+**⚠ GATE YOU MUST HONOR:** `docs/coordination/AWAITING-BEN.md` has the **#1110 exit-criterion deferral**
+decision (accept deterministic-UAT + unit-grounding, real-chat e2e → #1121?). **This gates #1110 MERGE
+ONLY** — NOT the PR opening, NOT #1109 spawn. gen-4: do **not** merge #1110 until Ben rules. My lean =
+accept (parked in the doc).
 
-**#1109 (spawn AFTER #1110 PR opens):** handoff PRE-WRITTEN at
-`docs/superpowers/handoffs/2026-07-16-1109-runtime-context-build.md` (coord branch). On PR open:
-create branch `build/1109-runtime-context` off `build/1110-app-map`, copy handoff onto it, commit,
-spawn build agent (Sonnet 5). Handoff already folds in grounding rule + canonical DI seam
-(`dependencies.appMapService` / `getBuildInfo()`). #1109 plan = 7 tasks.
+**#1109 (spawn AFTER #1110 PR opens — UNCHANGED, seam frozen):** handoff PRE-WRITTEN at
+`docs/superpowers/handoffs/2026-07-16-1109-runtime-context-build.md`. On PR open: branch
+`build/1109-runtime-context` off `build/1110-app-map`, copy handoff, commit, spawn (Sonnet 5). Consumes
+#1110's frozen DI seam (`dependencies.appMapService` / `getBuildInfo()`). 7 tasks. Ben's merge ruling on
+#1110 does NOT block #1109 — the seam is committed and stable regardless.
 
-**GROUNDING RULE (both issues):** app-map + current-view MUST mirror actual code/runtime — real
-section ids, labels, panes, build facts. Never invent surfaces. Spec anti-hallucination.
+**UX-1117 docker hold: MOOT** — the holder pane left the fleet; docker is free, no release ping owed.
+
+**GROUNDING RULE (both issues):** app-map + current-view MUST mirror real code/runtime — real section
+ids, labels, panes, build facts. Never invent surfaces.
 
 **Reap protocol:** before `herdr pane close`, re-resolve by label + confirm `agent_session.value`
-matches the predecessor you mean to kill; confirm successor is driving. gen-3 cleanly reaped -5..-11.
+matches the predecessor; confirm successor is a DISTINCT new session and `working`. gen-3 reaped -11..-14.
 
 **⚠ SUCCESSOR MUST RE-ARM THE MONITOR.** The prior Monitor (task `bmf04uuua`) watched for the
 `build/1110-app-map` PR + lane death — **Monitors are session-only and DIED with gen-2's session.**
