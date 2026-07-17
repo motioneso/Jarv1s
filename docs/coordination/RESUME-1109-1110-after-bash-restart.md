@@ -39,6 +39,21 @@ pre-existing gap):**
   break point (idle, or done with compose-smoke), relay it the VF finding above verbatim — don't
   make it re-derive the main-vs-branch proof.
 
+**UPDATE (same gen-5 session):**
+- **Compose-smoke: FIXED, pushed** by -15. Root cause: `apps/api`'s `start` script (used by the
+  dev docker-compose `api` service) never generated `dist/app-map.json` — only the `dev` script
+  did. `registerBuiltInApiRoutes` eagerly `loadAppMap()`s at boot → ENOENT on fresh checkout →
+  container crash-loop → healthcheck never passes. **Unrelated to the module-sdk barrel fix.**
+  Fix: `apps/api/package.json` `start` now mirrors `dev` (`pnpm --dir ../.. build:app-map && tsx
+  src/server.ts`, 1-line diff). -15 verified empirically (repro'd the ENOENT crash by deleting
+  `dist/app-map.json`, applied fix, repro'd again — `GET /health` now 200). Pushed 2 commits (fix
+  `8e30e1da` + handoff doc `8e35e67f`) — **PR #1122 head is now `8e35e67f`.** New CI run
+  `29559158348` in flight.
+- **Monitor `b9czcxmvb`** (persistent) re-armed watching this new run for terminal state.
+- **Relayed the VF finding (above) to -15 verbatim** — told it to start on the VF regression now
+  while the new compose-smoke CI run is in flight, no re-derivation needed. As of hand-off it was
+  actively working (67% context).
+
 Below is g4's own relay note (its "YOU ARE gen-5" instructions, now executed) + full history,
 kept for reference (skim, don't deep-read):
 
