@@ -3414,3 +3414,12 @@ resume from this note before taking any merge-sensitive action.
   root-cause classification. Focused successor label `UX 1117 CP5 Diagnose`, Claude session
   `7c8c1a97-fc45-4e10-923f-32bbe238d411`, owns the clean exact-head worktree on Sonnet/high to
   classify harness bug versus product defect; #1117 final QA and both merges remain stopped.
+- CP5 diagnosis is genuine product RED at exact head `4d2d17ba418b9140a7ea307398fe9e447bd06446`:
+  `settings-activity-pane.tsx` recomputes a `Date.now()`-derived `since` inside the query key, so
+  each 3-second abort re-render mounts a new query before the error state can render. Durable RED:
+  https://github.com/motioneso/Jarv1s/pull/1117#issuecomment-4998710772. CP1-CP4 pass; CP5 fails;
+  CP6-CP8 are blocked. Diagnostic session was reaped; a product owner fix is required next.
+- Product repair is building in isolated worktree `~/Jarv1s/.claude/worktrees/fix-1117-cp5-query-key`
+  on branch `fix/1117-cp5-query-key`, label `Fix 1117 CP5 Query Key`, Claude session
+  `c84ca792-8ff2-4cd5-a214-a6b551559916`, Sonnet/high. Pre-approved scope is the stable memoized
+  query key plus the smallest regression check; it may fast-forward only PR #1117's head branch.
