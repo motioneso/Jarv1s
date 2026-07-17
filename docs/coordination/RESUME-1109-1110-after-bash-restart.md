@@ -1,6 +1,38 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
-## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g6`, session 08b39789 — relay → gen-7, 70% meter)
+## ⏩ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g7`, session a6112658, pane `w1:pT5`)
+
+**gen-7 is driving.** Reaped g6 (session `08b39789…`, pane `w1:pT3`, was idle at prompt post-relay,
+51% meter — closed cleanly). Confirmed distinct successor session id before reaping.
+
+**Re-armed both monitors (both had died with g6, session-only):**
+- `bra9ox5lm` — PR #1122 `gh pr checks` diff, non-persistent (30min timeout), emits on any check
+  change and again on terminal (all-non-pending) state. Initial read on re-arm:
+  **VF still `pending`** on run `29560460812` (the re-run from g6's authorization) — Compose smoke
+  + prod-compose smoke both `pass`. No new information yet vs. g6's handoff; re-run is still in
+  flight, not yet resolved.
+- `bnaa8c3du` — persistent fleet liveness diff on `Build-1109-RuntimeContext-7` (`w1:pT4`) +
+  `Build-1110-AppMap-15` (`w1:pST`); both present at re-arm, `-7` was `working`.
+
+**Next action for whoever reads this (me, later, or a further successor):** wait for `bra9ox5lm`
+terminal-state event. On result:
+- **VF green:** flake theory confirmed (2nd time — strengthens it). Comment + close issue #1123
+  as resolved (environmental, no code change). Spawn QA (`coordinated-qa`, tier **sensitive**).
+  Merge still separately blocked on Ben's pending #1110 exit-criterion ruling in
+  `AWAITING-BEN.md` — confirm it's still unresolved before assuming merge is clear.
+- **VF fails again (3rd overall):** stop-the-line, do NOT re-run again. Read the job log directly
+  (`gh run view <id> --job <id>`), compare failure signature against the 2nd failure (same DB/auth
+  file pattern = strengthens flake diagnosis but still needs Ben/CI-infra escalation; different
+  pattern = new problem). Update issue #1123 either way. -15 is idle holding on the branch —
+  message it only if a real fix is needed, not for another blind re-run.
+
+**#1109 in parallel:** `Build-1109-RuntimeContext-7` (`w1:pT4`) still `working` on Task 6 at
+re-arm, no relay yet — normal, healthy cadence (-1→-7 all clean so far). Passive supervision only.
+
+Below is g6's own takeover note (already executed, now superseded by the above) + full history,
+kept for reference (skim, don't deep-read):
+
+## ⏩ PRIOR STATE (updated 2026-07-17 by `Coord-1109-1110-g6`, session 08b39789 — relay → gen-7, 70% meter)
 
 **YOU ARE gen-7. Do these FIRST:**
 1. `herdr pane list` — find your own pane/session (relay spawns you in the SAME tab as g6's pane,
