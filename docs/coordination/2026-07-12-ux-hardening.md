@@ -3584,3 +3584,17 @@ resume from this note before taking any merge-sensitive action.
 - Exact-head live-path evidence remains valid only for `87cb1780`; any user-facing command-palette
   change would require a fresh live run. After the fix, wait for fresh CI and obtain fresh independent
   QA before any merge decision.
+
+## Continuation note — 2026-07-17 PR #1129 remediation pushed
+
+- Delegated authority remains immutable Codex session `019f71fc-e3b7-77b0-914b-5518538943ef`;
+  `merges_since_relay` remains `0`.
+- Remediation commit `ba745cc76aecc5cfc40ee3495335f8ad102a9e62` is pushed and matches PR #1129:
+  `pull-requests: read` is present, the generator enforces an exact 168-hour window, all six category
+  totals render, and the regenerated archive contains 79 source PRs with a category sum of 79.
+- Focused self-test/archive validation, format, lint, typecheck, release-hardening audit, rebase, and
+  push all exited `0`. Local `verify:foundation` was blocked only by pre-existing shared UAT-seed DB
+  contamination in `tests/uat/seed/guard.test.ts`; no shared DB was reset.
+- Fresh CI run `29616576458` is active. The remediation touched no command-palette or other UI file,
+  so the durable live-path proof remains applicable. Wait for fresh CI green and a fresh independent
+  routine-tier QA verdict at `ba745cc7` before merging.
