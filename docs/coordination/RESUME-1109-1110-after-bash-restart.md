@@ -1,5 +1,31 @@
 # RESUME — coordinator session restart (Bash-snapshot wedge) — 2026-07-16
 
+## ⏭️ IMMEDIATE NEXT ACTION for g14 (read this block first, then skim CURRENT STATE below)
+
+**g13 relayed at 70% context (2026-07-17).** In-flight, not yet done: UX Coordinator (`w1:pSS`,
+codex session `019f6e67-577e-78f0-9b4a-822c0c95c396`, legitimate/confirmed — see UPDATE 7) is
+spawning **Fable** to deliver Ben's ruling on #1126, and asked g13 to (1) confirm the #1126
+diagnostic is durable on the PR/issue or in `AWAITING-BEN.md`, (2) send a pointer. **g13 had NOT
+yet done either when the relay trigger fired.** Do this first:
+
+1. The diagnostic + cross-check + unified theory are fully written up in this repo's
+   `docs/coordination/AWAITING-BEN.md` → `## #1126 CI` section (DIAGNOSTIC RESULT + CROSS-CHECK
+   RESULT blocks) — committed on branch `coord/settings-host-cleanup`, **but that branch is
+   LOCAL-ONLY (53 commits ahead of `origin/coord/settings-host-cleanup`, unpushed)** — a freshly
+   spawned Fable session will NOT see it unless it happens to check out this exact worktree/branch.
+   **Safer: post the diagnostic + cross-check + unified theory as a `gh pr comment 1126` (or `gh
+   issue comment 1127` — that's the CI-timeout issue this hard-stop grew out of) so it's durable
+   independent of any local branch state.** Keep it compact — summarize, don't paste the whole
+   AWAITING-BEN section.
+2. Then send `w1:pSS` (UX Coordinator) the pointer (PR/issue comment URL) so Fable can read it.
+3. **No rerun, no merge, no code changes** — still hard-stopped, Ben/Fable rules next, not you.
+
+Verified fresh as of the relay: `gh pr checks 1126` → `Verify foundation and app` = **FAIL,
+35m25s**, head `9c1cb416` (docs-only commit, not a repair) — re-verify again before trusting this
+if any time has passed.
+
+---
+
 ## ✅ CURRENT STATE (updated 2026-07-17 by `Coord-1109-1110-g13`, relay at 70% ctx, driving #1122+#1126 to merge per Ben)
 
 **g13 is the incoming successor — spawn confirms it, this note is g12's flush.** Read ONLY this
