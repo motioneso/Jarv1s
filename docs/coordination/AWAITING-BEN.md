@@ -163,3 +163,20 @@ pgvector Postgres, run on branch head `874759ec` AND `origin/main`, `pg_stat_act
 naming the exact resource the constant ~10.9s per-test hang maps to. Branch-only repro → real
 defect, `-15` fixes+pushes once. Repros on `main` too → separate CI-infra task, no #1122 code
 touch. Awaiting `-15`'s verdict (posts to #1123, pings coordinator label).
+
+**UPDATE 2026-07-17 (`Coord-1109-1110-g8`) — repro done, verdict = CI-infra fragility, confirmed
+zero #1122 code cause.** [issue #1123 comment 5000739946](https://github.com/motioneso/Jarv1s/issues/1123#issuecomment-5000739946):
+matched-CI repro (2vCPU taskset, fresh pgvector Postgres, CI defaults) ran the failing trio CLEAN
+(27/27, ~69s) on **both** branch head `874759ec` and `origin/main` — no hang, no lock contention.
+Named cause: pg-boss's own hardcoded `connectionTimeoutMillis` default (10000ms,
+`node_modules/pg-boss/dist/db.js`), never overridden by `packages/jobs/src/pg-boss.ts`; the 3
+failing test files instantiate a server with no `boss` override
+(`apps/api/src/server.ts:195`), so each spins a real pg-boss PG client subject to that 10s
+ceiling — plausible to trip under real GH-runner contention, not reproducible on an uncontended
+local box. `git diff origin/main` on pg-boss.ts/server.ts/all 3 trio files = **empty** — 100%
+pre-existing, zero relation to #1122's diff. Separate CI-infra issue **#1124** filed. `-15` did
+NOT touch #1122 code, did not merge/board — held per instruction.
+
+**Next-step decision routed to a fresh Fable one-shot** (re-run now vs. require #1124 fixed first
+vs. a scoped test-only timeout/boss-override fix ahead of #1122) — awaiting that ruling before
+any further CI action on #1122. Will record the ruling here once it lands.
