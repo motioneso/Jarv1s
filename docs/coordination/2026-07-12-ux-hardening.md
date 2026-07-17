@@ -3614,3 +3614,16 @@ resume from this note before taking any merge-sensitive action.
 - After a clean rebase, require fresh CI and fresh integrated routine-tier QA. Because upstream changed
   the Settings route used by the live walk, rerun exact-head owner-signup → Settings → command-palette
   proof before merging.
+
+## Continuation note — 2026-07-17 PR #1129 integrated live gate
+
+- Delegated authority remains immutable Codex session `019f71fc-e3b7-77b0-914b-5518538943ef`;
+  `merges_since_relay` remains `0`.
+- PR #1129 rebased cleanly onto `origin/main` `3334d693`; integrated head is
+  `45715bb0352a08f72c1015c96af7b0d9d0588d97`, remote matches, the tree is clean, and the ancestor
+  check is green. Fresh CI run `29618440773` is active.
+- Exact integrated-head live UAT is GREEN: fresh owner signup, onboarding skip, authenticated user
+  menu, rendered `/settings`, command palette, visible `Weekly releases`, and the correct Pages target.
+  Durable proof is PR comment `#issuecomment-5008197559` from evidence-only commit `2f82df4e`.
+- The current Pages 404 is expected until the repository Pages source is enabled after merge. Wait for
+  fresh CI green and fresh independent integrated routine-tier QA at `45715bb0` before merging.
