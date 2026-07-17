@@ -30,9 +30,23 @@ of this handoff's instructions), flagging for awareness only.
 7. Liveness monitor re-armed (persistent, diffs `herdr pane list` `agent_status` for `w1:pT6`/
    `w1:pST`, emits only on change). g11's monitor died with its relay as expected.
 
-**Next coordinator action:** none until Ben rules on the `AWAITING-BEN.md` #1126 entry (or the
-still-open #1122 entry). Resume per whichever ruling lands first; re-read only this section plus
-the linked `AWAITING-BEN.md` state — do not deep-read history below.
+**Update (g12): PR #1126 CI resolved via Fable, not Ben — process correction.** g12 initially
+mis-escalated #1126's CI timeout straight to `AWAITING-BEN.md` as a Ben-blocking wait; Ben
+flagged that this run has a standing overnight delegation ("route judgment calls to a Fable
+one-shot subagent, not waiting on Ben" — see PRIOR STATE below) that was still active and
+applied here too. Corrected: routed to Fable
+(`Agent(model:"fable", ...)`). **Ruling:** path (a), evidence-backed —
+[issue #1127 comment 5005410092](https://github.com/motioneso/Jarv1s/issues/1127#issuecomment-5005410092).
+Bump `ci.yml` timeout-minutes 25→35 (one commit, why-comment citing #1127), one fresh VF run,
+record duration, no auto-merge, poll-then-merge. Hard stop (VF fails again post-bump) → escalate
+directly to Ben. Relayed to `Build-1109-RuntimeContext-8` (`w1:pT6`) — tasked with the commit +
+one VF run now. Full detail in `AWAITING-BEN.md`'s `## #1126 CI` section (now marked RESOLVED).
+
+**Next coordinator action:** watch `w1:pT6` for the ci.yml commit + VF result (liveness monitor +
+a `gh pr checks 1126` terminal-state monitor both armed). On VF green: confirm not >~32min (if
+so, note to Ben), then merge PR #1126 under normal gates (#1109's final task, 7/7) and close out
+the #1109 lane. On VF red/timeout again: hard stop, escalate to Ben directly per the ruling
+above, no further Fable/reruns. `#1122` still separately open, no ruling yet — monitor only.
 
 ## 🛑 PRIOR STATE (updated 2026-07-17 by `Coord-1109-1110-g11`, relaying at 70% meter — PR #1126 STOP-THE-LINE, escalated)
 

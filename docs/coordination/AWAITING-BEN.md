@@ -281,6 +281,32 @@ resolve whether there's a real perf regression or hang underneath.
 account for the ~5-7min overage vs `main`) before touching the timeout — slower, but distinguishes
 "needs more budget" from "something is actually stuck."
 
-**Held per standing instruction:** `Build-1109-RuntimeContext-8` (`w1:pT6`) — no more reruns, no
-`ci.yml` edits, no further escalation of its own. Holding for your ruling; will resume per your
-choice.
+**✅ RESOLVED 2026-07-17 (Fable, delegated per Ben's standing overnight "route judgment calls to
+Fable" policy — coordinator initially mis-escalated this straight to Ben, corrected)** —
+[issue #1127 comment 5005410092](https://github.com/motioneso/Jarv1s/issues/1127#issuecomment-5005410092).
+
+**Path (a) chosen, evidence-backed** — Fable pulled the actual VF step log itself (the gap
+nobody had closed): no hang. Integration files complete green steadily until 9s before
+cancellation. Measured delta: main's same-morning VF step = 14m02s (run `29569865167`); branch =
+24m45s unfinished (run `29582266459` job `87890580965`, killed 13:24:51Z, last file green
+13:24:42Z) — a ~+75% growth, consistent with #1109's added test volume across 7 tasks. Time sink
+identified: multi-minute silent gaps between integration files (per-file setup/migration cost) —
+named as a durable-fix lead for a follow-up, not a defect in #1126.
+
+**Conditions (enforced by coordinator, relayed to `Build-1109-RuntimeContext-8`):**
+1. One single-line commit on `build/1109-runtime-context`: `ci.yml` `timeout-minutes` 25→35, with
+   a why-comment citing #1127. Nothing else in the diff.
+2. One fresh VF run on the new head. Pass bar = mechanically green with a completed-suite
+   summary; actual VF duration recorded as a PR #1126 comment.
+3. No auto-merge (VF may not be a required check) — poll green, merge manually under normal
+   gates.
+4. #1127 stays open, re-scoped as a perf follow-up (attribute the ~11min growth, restore
+   headroom) — does not block #1126.
+
+**Hard stop:** if the single post-bump VF run does not complete green (timeout at 35 or any test
+failure) → full halt, no reruns, no further `ci.yml` edits, escalate directly to Ben (not
+another Fable pass). Secondary flag: green but VF step duration >~32min (near the new ceiling) →
+merge proceeds, but coordinator notes the near-ceiling duration here for your awareness.
+
+**Held per this ruling:** `Build-1109-RuntimeContext-8` (`w1:pT6`) — tasked with the one commit +
+one VF run above, nothing further without hitting the hard stop.
