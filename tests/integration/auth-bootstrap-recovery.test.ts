@@ -25,7 +25,21 @@ describe("owner bootstrap recovery", () => {
 
   beforeEach(async () => {
     await resetEmptyFoundationDatabase();
-    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 2 });
+    // #1122: createDatabase()'s default connectionTimeoutMillis (JARVIS_DB_CONNECT_TIMEOUT_MS
+    // ?? 5000) is fragile on a loaded CI runner. Unlike auth-settings.test.ts (maxConnections:1,
+    // confirmed in-process pool exhaustion from 2 overlapping onReady queries), this file's
+    // maxConnections:2 rules that out — boot only ever issues 1 appDb query at a time (Fastify's
+    // onReady hooks run serially), so exhaustion would need 3+ simultaneous holders. The
+    // remaining candidate is CI-wide contention: connectionTimeoutMillis also governs raw
+    // physical-connection establishment, and ~46 test files' pools connecting concurrently
+    // can plausibly blow a flat 5s ceiling independent of this file's own concurrency. Same
+    // widening as the confirmed fix, applied here on the weaker/unverified theory — flag if a
+    // future CI run still shows this file timing out after this change.
+    appDb = createDatabase({
+      connectionString: connectionStrings.app,
+      maxConnections: 2,
+      connectionTimeoutMillis: 25_000
+    });
     authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
     // #1124: see multi-user-isolation.test.ts for rationale — override pg-boss's default
     // 10s connectionTimeoutMillis so a slow-but-healthy CI connection isn't killed early.

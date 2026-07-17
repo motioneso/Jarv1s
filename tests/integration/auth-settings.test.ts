@@ -48,7 +48,15 @@ describe("M3 auth, users, settings", () => {
 
     appDb = createDatabase({
       connectionString: connectionStrings.app,
-      maxConnections: 1
+      maxConnections: 1,
+      // #1122: createDatabase()'s default connectionTimeoutMillis (JARVIS_DB_CONNECT_TIMEOUT_MS
+      // ?? 5000) applies to queued pool.connect() waiters too, not just new physical
+      // connections. With maxConnections:1, any 2 overlapping queries during
+      // createApiServer()'s server.ready() boot can hit that 5000ms ceiling on a loaded CI
+      // runner, producing an error shape easily mistaken for pg-boss's own timeout. Same
+      // longer-but-still-under-hookTimeout override pattern as the #1124 boss fix below.
+      // Test-only — production callers of createDatabase() are unaffected.
+      connectionTimeoutMillis: 25_000
     });
     // Disable requires_approval so subsequently-registered users in M3 tests get active status.
     // (Phase 2 Slice A approval-flow tests run in their own describe with a fresh DB per test.)
