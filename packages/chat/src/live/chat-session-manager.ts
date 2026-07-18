@@ -2,12 +2,15 @@ import type { ProviderKind } from "@jarv1s/ai";
 import type {
   AnswerProvenanceMetadataV1,
   AiProviderExecutionMode,
+  ChatAttachmentDto,
   SourceFreshnessV1
 } from "@jarv1s/shared";
 import type { MemoryRecallItem } from "@jarv1s/memory";
 
+import type { StoredAttachmentMeta } from "../attachments-service.js";
 import type { RecallPort } from "../recall-port.js";
 import { finalizeProvenance, parseAnswerMarkers } from "./answer-provenance.js";
+import { renderAttachmentsManifest } from "./attachments-manifest.js";
 import { renderReplayBlock, renderSummaryBlock } from "./chat-context-blocks.js";
 import type { CrossToolReadRunner } from "./cross-tool-reasoning.js";
 import { buildEngineText } from "./engine-text.js";
@@ -50,6 +53,8 @@ export interface ChatPersistencePort {
     opts?: {
       readonly invokedToolNames?: ReadonlySet<string>;
       readonly answerProvenance?: AnswerProvenanceMetadataV1;
+      /** #1133 — display metadata for files sent with this turn (user-message tool_metadata). */
+      readonly attachments?: readonly ChatAttachmentDto[];
     }
   ): Promise<
     | {
@@ -396,7 +401,8 @@ export class ChatSessionManager {
   async submitTurn(
     actorUserId: string,
     userName: string,
-    text: string
+    text: string,
+    opts?: { readonly attachments?: readonly StoredAttachmentMeta[] }
   ): Promise<{
     reply: string;
     userMessageId?: string;
@@ -411,7 +417,7 @@ export class ChatSessionManager {
     }
     this.turnsInFlight.add(actorUserId);
     try {
-      return await this.runTurn(actorUserId, userName, text);
+      return await this.runTurn(actorUserId, userName, text, opts);
     } finally {
       this.turnsInFlight.delete(actorUserId);
     }
@@ -428,7 +434,8 @@ export class ChatSessionManager {
   private async runTurn(
     actorUserId: string,
     userName: string,
-    text: string
+    text: string,
+    opts?: { readonly attachments?: readonly StoredAttachmentMeta[] }
   ): Promise<{
     reply: string;
     userMessageId?: string;
@@ -443,7 +450,8 @@ export class ChatSessionManager {
     this.turnControllers.set(actorUserId, controller);
 
     try {
-      const { text: engineText, pendingItems } = await buildEngineText(
+      const attachments = opts?.attachments ?? [];
+      const { text: builtEngineText, pendingItems } = await buildEngineText(
         {
           persistence: this.deps.persistence,
           passiveRetrieval: this.deps.passiveRetrieval,
@@ -453,6 +461,10 @@ export class ChatSessionManager {
         actorUserId,
         text
       );
+      // #1133 — attachments ride as a server-composed manifest appended AFTER all
+      // user-influenced text; the engine pulls bytes via chat.readAttachment on demand.
+      const manifest = renderAttachmentsManifest(attachments);
+      const engineText = manifest ? `${builtEngineText}\n\n${manifest}` : builtEngineText;
       this.emit(actorUserId, { kind: "user", text });
       try {
         await session.engine.submit(engineText);
@@ -564,7 +576,19 @@ export class ChatSessionManager {
           provider: session.provider,
           model: session.model
         },
-        { invokedToolNames, answerProvenance }
+        {
+          invokedToolNames,
+          answerProvenance,
+          attachments:
+            attachments.length > 0
+              ? attachments.map((meta) => ({
+                  id: meta.id,
+                  fileName: meta.fileName,
+                  mimeType: meta.mimeType,
+                  sizeBytes: meta.sizeBytes
+                }))
+              : undefined
+        }
       );
       session.lastActivity = this.deps.clock.now();
       this.deps.touchMcpToken?.(actorUserId);

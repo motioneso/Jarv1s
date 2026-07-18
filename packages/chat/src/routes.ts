@@ -24,6 +24,7 @@ import {
   type AiModelCapability,
   type AnswerSourceSupportCard,
   type ChatActivityEventDto,
+  type ChatAttachmentDto,
   type ChatMessageDto,
   type ChatSelectedToolMetadataDto,
   type ChatThreadDto,
@@ -392,7 +393,9 @@ export function registerChatRoutes(
       ...runtime,
       resolveEveningInterviewSeed: dependencies.resolveEveningInterviewSeed
     },
-    pageContextStore
+    pageContextStore,
+    // #1133 — lets /turn resolve uploaded attachment ids to vault metadata.
+    attachmentsService
   });
 
   registerChatSkillsRoutes(
@@ -901,6 +904,7 @@ function serializeMessage(message: ChatMessage): ChatMessageDto {
     modelRoute: null,
     tools: readTools(toolMetadata.selectedTools),
     activity: readActivity(toolMetadata.activity),
+    attachments: readAttachments(toolMetadata.attachments),
     sourceFreshness: readSourceFreshness(toolMetadata.sourceFreshness),
     createdAt: toIsoString(message.created_at),
     updatedAt: toIsoString(message.updated_at),
@@ -949,6 +953,32 @@ function readTools(value: unknown): ChatSelectedToolMetadataDto[] {
       }
     ];
   });
+}
+
+/**
+ * #1133 — shape-check the `attachments` display metadata stored on a user message's
+ * tool_metadata (see ChatRepository.recordCompletedTurn). Undefined when absent so
+ * fast-json-stringify simply omits the field for pre-attachment messages.
+ */
+export function readAttachments(value: unknown): ChatAttachmentDto[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const attachments = value.flatMap((item) => {
+    const record = asRecord(item);
+    return typeof record.id === "string" &&
+      typeof record.fileName === "string" &&
+      typeof record.mimeType === "string" &&
+      typeof record.sizeBytes === "number"
+      ? [
+          {
+            id: record.id,
+            fileName: record.fileName,
+            mimeType: record.mimeType,
+            sizeBytes: record.sizeBytes
+          }
+        ]
+      : [];
+  });
+  return attachments.length > 0 ? attachments : undefined;
 }
 
 export function readSourceFreshness(value: unknown): SourceFreshnessV1 | null {

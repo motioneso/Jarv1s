@@ -294,6 +294,22 @@ const chatSelectedToolMetadataSchema = {
   }
 } as const;
 
+/**
+ * #1133 — display metadata for a file attached to a user message. Must stay declared
+ * in chatMessageSchema or fast-json-stringify silently strips it from responses.
+ */
+const chatAttachmentSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["id", "fileName", "mimeType", "sizeBytes"],
+  properties: {
+    id: { type: "string" },
+    fileName: { type: "string" },
+    mimeType: { type: "string" },
+    sizeBytes: { type: "number" }
+  }
+} as const;
+
 const chatModelRouteSchema = {
   type: "object",
   additionalProperties: false,
@@ -335,6 +351,7 @@ const chatMessageSchema = {
     modelRoute: { anyOf: [chatModelRouteSchema, { type: "null" }] },
     tools: { type: "array", items: chatSelectedToolMetadataSchema },
     activity: { type: "array", items: chatActivityEventSchema },
+    attachments: { type: "array", items: chatAttachmentSchema },
     sourceFreshness: {
       anyOf: [
         {

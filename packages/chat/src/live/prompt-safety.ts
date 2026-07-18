@@ -25,7 +25,7 @@
  */
 export function neutralizeSeedFraming(text: string): string {
   return text.replace(
-    /<\/?(?:memory|conversation|prior-context|retrieved_context|cross_tool_context|page_context)>/gi,
+    /<\/?(?:memory|conversation|prior-context|retrieved_context|cross_tool_context|page_context|attachments)>/gi,
     (match) => match.replace("<", "[").replace(">", "]")
   );
 }
