@@ -131,7 +131,9 @@ export class LoginService {
    */
   async isLoginActive(): Promise<boolean> {
     if (this.flow) return true;
-    const live = await listLoginMuxSessions(this.deps.io).catch(() => [] as string[]);
+    const live = await listLoginMuxSessions(this.deps.io, this.homeBase).catch(
+      () => [] as string[]
+    );
     return live.length > 0;
   }
 
@@ -175,7 +177,9 @@ export class LoginService {
         });
       } catch (err) {
         // Best-effort kill + LATE-SUCCESS reap (mirrors engine-host launch §L.3.1).
-        await killLoginMuxSession(this.deps.io, flow.provider).catch(() => undefined);
+        await killLoginMuxSession(this.deps.io, flow.provider, this.homeBase).catch(
+          () => undefined
+        );
         if (timedOut) {
           void startPromise
             .then(
@@ -184,7 +188,9 @@ export class LoginService {
             )
             .then(async (createdLate) => {
               if (createdLate)
-                await killLoginMuxSession(this.deps.io, flow.provider).catch(() => undefined);
+                await killLoginMuxSession(this.deps.io, flow.provider, this.homeBase).catch(
+                  () => undefined
+                );
             });
         }
         return this.settle(flow, "error", redactSecrets((err as Error).message));
@@ -262,7 +268,7 @@ export class LoginService {
   async cancel(provider: RpcProviderKind, loginId: string): Promise<void> {
     if (!this.flow || this.flow.provider !== provider || this.flow.loginId !== loginId) {
       // No matching in-flight login — best-effort reap any orphan session for the provider.
-      await killLoginMuxSession(this.deps.io, provider).catch(() => undefined);
+      await killLoginMuxSession(this.deps.io, provider, this.homeBase).catch(() => undefined);
       return;
     }
     await this.teardown(this.flow);
@@ -274,9 +280,11 @@ export class LoginService {
    * on-disk neutral cleanup — login writes provider config under HOME (the intended cred).
    */
   async startupSweep(): Promise<void> {
-    const live = await listLoginMuxSessions(this.deps.io).catch(() => [] as string[]);
+    const live = await listLoginMuxSessions(this.deps.io, this.homeBase).catch(
+      () => [] as string[]
+    );
     for (const provider of live) {
-      await killLoginMuxSession(this.deps.io, provider).catch(() => undefined);
+      await killLoginMuxSession(this.deps.io, provider, this.homeBase).catch(() => undefined);
     }
     // Phase-4 Obs 1-A: also drop any orphaned `jarv1s-login-*` SERVER-global paste buffer (a crash
     // BETWEEN load-buffer and the explicit delete can strand one even when its session is already
@@ -311,9 +319,11 @@ export class LoginService {
    * this only fires strictly past the existing lifetime bound. Best-effort: never throws.
    */
   async reapStaleLogins(maxAgeMs: number = this.loginTimeoutMs): Promise<void> {
-    const sessions = await listLoginMuxSessionsWithAge(this.deps.io).catch(
-      () => [] as { provider: string; ageMs: number }[]
-    );
+    const sessions = await listLoginMuxSessionsWithAge(
+      this.deps.io,
+      undefined,
+      this.homeBase
+    ).catch(() => [] as { provider: string; ageMs: number }[]);
     for (const { provider, ageMs } of sessions) {
       if (ageMs <= maxAgeMs) continue; // a within-lifetime (possibly active) login — leave it
       // Clear a matching in-memory flow (+ its armed deadline timer) so the slot is freed and the
@@ -323,7 +333,7 @@ export class LoginService {
         this.flow.heldToken = undefined;
         this.flow = null;
       }
-      await killLoginMuxSession(this.deps.io, provider).catch(() => undefined);
+      await killLoginMuxSession(this.deps.io, provider, this.homeBase).catch(() => undefined);
       await this.deleteLoginBuffer(provider as RpcProviderKind).catch(() => undefined);
     }
   }
@@ -448,7 +458,9 @@ export class LoginService {
       "Enter"
     ]);
     if (sent.code !== 0) {
-      await killLoginMuxSession(this.deps.io, sessionProvider(session)).catch(() => undefined);
+      await killLoginMuxSession(this.deps.io, sessionProvider(session), this.homeBase).catch(
+        () => undefined
+      );
       throw new Error(`login command send failed: ${redactSecrets(sent.stderr)}`);
     }
   }
@@ -465,7 +477,7 @@ export class LoginService {
     if (flow.timer) clearTimeout(flow.timer);
     flow.heldToken = undefined;
     if (this.flow && this.flow.loginId === flow.loginId) this.flow = null;
-    await killLoginMuxSession(this.deps.io, flow.provider).catch(() => undefined);
+    await killLoginMuxSession(this.deps.io, flow.provider, this.homeBase).catch(() => undefined);
     // Phase-4 Obs 1-A: defensively drop the server-global paste buffer too (it outlives the
     // session) — covers a teardown reached before submitToken's explicit delete (e.g. an error
     // or timeout mid-paste). delete-buffer on an absent buffer is a harmless no-op.

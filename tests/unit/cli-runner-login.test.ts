@@ -72,7 +72,7 @@ function makeLoginIo(
   const run = vi.fn(async (cmd: string, args: readonly string[]) => {
     calls.push({ cmd, args: [...args] });
     if (cmd === "tmux") {
-      const verb = args[0];
+      const verb = args[0] === "-S" ? args[2] : args[0];
       if (verb === "new-session") {
         // A gate lets a test wedge the session create past the start timeout (§L.3.1 late reap).
         if (opts.newSessionGate) await opts.newSessionGate;
@@ -159,7 +159,7 @@ describe("LoginService flow (§L.2/§L.3)", () => {
     // the exact session WITH a trailing colon (`=<session>:`). On tmux 3.3a a bare
     // `=<session>` is parsed as a pane name → "can't find pane" → login always failed.
     for (const verb of ["send-keys", "capture-pane"]) {
-      const call = f.calls.find((c) => c.cmd === "tmux" && c.args[0] === verb);
+      const call = f.calls.find((c) => c.cmd === "tmux" && c.args.includes(verb));
       expect(call, `expected a tmux ${verb} call`).toBeDefined();
       const target = call!.args[call!.args.indexOf("-t") + 1];
       expect(target).toBe("=jarv1s-login-anthropic:");
@@ -167,10 +167,10 @@ describe("LoginService flow (§L.2/§L.3)", () => {
     // Regression (#342): the login pane must be WIDE so the provider's authorization URL
     // is not hard-wrapped across lines (which truncated the surfaced URL), and capture-pane
     // must pass -J to rejoin any soft wraps.
-    const newSession = f.calls.find((c) => c.cmd === "tmux" && c.args[0] === "new-session");
+    const newSession = f.calls.find((c) => c.cmd === "tmux" && c.args.includes("new-session"));
     const width = Number(newSession!.args[newSession!.args.indexOf("-x") + 1]);
     expect(width).toBeGreaterThanOrEqual(1000);
-    const capture = f.calls.find((c) => c.cmd === "tmux" && c.args[0] === "capture-pane");
+    const capture = f.calls.find((c) => c.cmd === "tmux" && c.args.includes("capture-pane"));
     expect(capture!.args).toContain("-J");
     expect(await svc.isLoginActive()).toBe(true);
     await svc.cancel("anthropic", loginId);
@@ -230,8 +230,8 @@ describe("LoginService flow (§L.2/§L.3)", () => {
     await svc.submitToken("anthropic", loginId, TOKEN);
 
     // The token was pasted via a tmux BUFFER (load-buffer), never as an argv.
-    expect(f.calls.some((c) => c.cmd === "tmux" && c.args[0] === "load-buffer")).toBe(true);
-    expect(f.calls.some((c) => c.cmd === "tmux" && c.args[0] === "paste-buffer")).toBe(true);
+    expect(f.calls.some((c) => c.cmd === "tmux" && c.args.includes("load-buffer"))).toBe(true);
+    expect(f.calls.some((c) => c.cmd === "tmux" && c.args.includes("paste-buffer"))).toBe(true);
     for (const call of f.calls) {
       expect(call.args).not.toContain(TOKEN); // NEVER in /proc/cmdline (no send-keys-with-token)
     }
@@ -339,7 +339,9 @@ describe("Phase-4 Obs 1-A — pasted-code buffer is deleted (token-lifetime gap)
     await svc.submitToken("anthropic", loginId, "PASTED-CODE-abc123");
     const buf = `${LOGIN_SESSION_PREFIX}anthropic`;
     expect(
-      f.calls.some((c) => c.cmd === "tmux" && c.args[0] === "delete-buffer" && c.args.includes(buf))
+      f.calls.some(
+        (c) => c.cmd === "tmux" && c.args.includes("delete-buffer") && c.args.includes(buf)
+      )
     ).toBe(true);
     await svc.cancel("anthropic", loginId);
   });
@@ -350,7 +352,7 @@ describe("Phase-4 Obs 1-A — pasted-code buffer is deleted (token-lifetime gap)
     // Model a crash-orphaned buffer (session already gone) by stubbing list-buffers.
     const baseRun = f.io.run;
     f.io.run = (async (cmd: string, args: readonly string[]) => {
-      if (cmd === "tmux" && args[0] === "list-buffers") {
+      if (cmd === "tmux" && args.includes("list-buffers")) {
         return { code: 0, stdout: `${buf}\nother-buffer`, stderr: "" };
       }
       return baseRun(cmd, args);
@@ -359,12 +361,15 @@ describe("Phase-4 Obs 1-A — pasted-code buffer is deleted (token-lifetime gap)
     const svc = makeService(f.io, makeProbe({ status: "needs_login" }).fn);
     await svc.startupSweep();
     expect(
-      f.calls.some((c) => c.cmd === "tmux" && c.args[0] === "delete-buffer" && c.args.includes(buf))
+      f.calls.some(
+        (c) => c.cmd === "tmux" && c.args.includes("delete-buffer") && c.args.includes(buf)
+      )
     ).toBe(true);
     // The non-login buffer is left alone.
     expect(
       f.calls.some(
-        (c) => c.cmd === "tmux" && c.args[0] === "delete-buffer" && c.args.includes("other-buffer")
+        (c) =>
+          c.cmd === "tmux" && c.args.includes("delete-buffer") && c.args.includes("other-buffer")
       )
     ).toBe(false);
   });

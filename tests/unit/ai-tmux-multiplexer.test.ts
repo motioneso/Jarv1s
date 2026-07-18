@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { TmuxMultiplexer } from "../../packages/ai/src/adapters/tmux-multiplexer.js";
+import {
+  resolveTmuxSocketPath,
+  TmuxMultiplexer
+} from "../../packages/ai/src/adapters/tmux-multiplexer.js";
+
+const DEFAULT_SOCKET = resolveTmuxSocketPath(undefined);
+const SOCKET_PREFIX = `-S ${DEFAULT_SOCKET} `;
 
 function makeIo() {
   return {
@@ -28,10 +34,15 @@ describe("TmuxMultiplexer", () => {
     expect(handle).toBe("jarv1s-live-x");
     const flat = calls(io);
     expect(
-      flat.some((c) => c.startsWith("tmux new-session -d -s jarv1s-live-x -x 220 -y 50"))
+      flat.some((c) =>
+        c.startsWith(`tmux ${SOCKET_PREFIX}new-session -d -s jarv1s-live-x -x 220 -y 50`)
+      )
     ).toBe(true);
     expect(
-      flat.some((c) => c.startsWith("tmux send-keys -t jarv1s-live-x") && c.endsWith("Enter"))
+      flat.some(
+        (c) =>
+          c.startsWith(`tmux ${SOCKET_PREFIX}send-keys -t jarv1s-live-x`) && c.endsWith("Enter")
+      )
     ).toBe(true);
   });
 
@@ -39,7 +50,7 @@ describe("TmuxMultiplexer", () => {
     const io = makeIo();
     io.run.mockImplementation(async (_cmd: string, args: string[]) => ({
       code: 0,
-      stdout: args[0] === "capture-pane" ? "pane snapshot" : "",
+      stdout: args.includes("capture-pane") ? "pane snapshot" : "",
       stderr: ""
     }));
     const mux = new TmuxMultiplexer(io);
@@ -67,7 +78,7 @@ describe("TmuxMultiplexer", () => {
   it("cleans the tmux buffer and prompt file when paste fails", async () => {
     const io = makeIo();
     io.run.mockImplementation(async (_cmd: string, args: string[]) => ({
-      code: args[0] === "paste-buffer" ? 1 : 0,
+      code: args.includes("paste-buffer") ? 1 : 0,
       stdout: "",
       stderr: "paste failed"
     }));
@@ -94,12 +105,16 @@ describe("TmuxMultiplexer", () => {
     const io = makeIo();
     const mux = new TmuxMultiplexer(io);
     await mux.kill("jarv1s-live-x");
-    expect(calls(io).some((c) => c.startsWith("tmux kill-session -t jarv1s-live-x"))).toBe(true);
+    expect(
+      calls(io).some((c) => c.startsWith(`tmux ${SOCKET_PREFIX}kill-session -t jarv1s-live-x`))
+    ).toBe(true);
   });
 
   it("attachCommand() returns a human-runnable tmux attach line", () => {
     const mux = new TmuxMultiplexer(makeIo());
-    expect(mux.attachCommand("jarv1s-live-x")).toBe("tmux attach -t jarv1s-live-x");
+    expect(mux.attachCommand("jarv1s-live-x")).toBe(
+      `tmux -S ${DEFAULT_SOCKET} attach -t jarv1s-live-x`
+    );
   });
 
   it("open() throws when new-session exits non-zero (e.g. binary missing / name clash)", async () => {
@@ -121,7 +136,9 @@ describe("TmuxMultiplexer", () => {
       mux.open({ name: "jarv1s-live-x", cols: 220, rows: 50, launchLine: "claude" })
     ).rejects.toThrow(/send-keys failed/);
     // The detached session must be torn down so nothing is orphaned.
-    expect(calls(io).some((c) => c.startsWith("tmux kill-session -t jarv1s-live-x"))).toBe(true);
+    expect(
+      calls(io).some((c) => c.startsWith(`tmux ${SOCKET_PREFIX}kill-session -t jarv1s-live-x`))
+    ).toBe(true);
   });
 
   it("redacts a token-bearing launch line echoed back on stderr (open() failure path)", async () => {
@@ -152,5 +169,18 @@ describe("TmuxMultiplexer", () => {
     expect(err!.message).not.toContain("JARVIS_MCP_TOKEN=jst_");
     expect(err!.message).toContain("[redacted]");
     expect(err!.message).toMatch(/new-session failed/);
+  });
+
+  it("uses a distinct, stable socket per homeBase, never the shared tmux default (#1142)", async () => {
+    const io = makeIo();
+    const muxA1 = new TmuxMultiplexer(io, { homeBase: "/data/cli-auth/tenant-a" });
+    const muxA2 = new TmuxMultiplexer(io, { homeBase: "/data/cli-auth/tenant-a" });
+    const muxB = new TmuxMultiplexer(io, { homeBase: "/data/cli-auth/tenant-b" });
+    const muxNone = new TmuxMultiplexer(io);
+
+    expect(muxA1.attachCommand("x")).toBe(muxA2.attachCommand("x")); // stable across restarts
+    expect(muxA1.attachCommand("x")).not.toBe(muxB.attachCommand("x")); // isolated per tenant
+    expect(muxA1.attachCommand("x")).not.toBe(muxNone.attachCommand("x")); // never the bare default
+    expect(muxNone.attachCommand("x")).toBe(`tmux -S ${DEFAULT_SOCKET} attach -t x`);
   });
 });
