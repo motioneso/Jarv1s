@@ -8,6 +8,7 @@ import {
   VaultContextError,
   VaultContextRunner,
   VaultPathError,
+  deleteVaultDir,
   deleteVaultFile,
   listVaultDirectories,
   listVaultFiles,
@@ -159,6 +160,23 @@ describe("vault file operations", () => {
         writeVaultFileBytes(ctx, "../outside/evil.bin", Buffer.from([1]))
       ).rejects.toThrow(VaultPathError);
       await expect(readVaultFileBytes(ctx, "../outside/evil.bin")).rejects.toThrow(VaultPathError);
+    });
+  });
+
+  // #1133 — attachment GC deletes one `attachments/<id>/` dir at a time; the helper must
+  // remove nested content, stay idempotent, and never be able to target the vault root.
+  it("deleteVaultDir removes a nested dir, is idempotent, and refuses the vault root", async () => {
+    await opsRunner.withVaultContext({ actorUserId: opsUserId }, async (ctx) => {
+      await writeVaultFileBytes(ctx, "attachments/gc-test/blob", Buffer.from([1, 2, 3]));
+      await writeVaultFile(ctx, "attachments/gc-test/meta.json", "{}");
+      await deleteVaultDir(ctx, "attachments/gc-test");
+      expect(await vaultFileExists(ctx, "attachments/gc-test/blob")).toBe(false);
+      // Idempotent: deleting again (or a never-created dir) is a no-op, not an error.
+      await deleteVaultDir(ctx, "attachments/gc-test");
+      await deleteVaultDir(ctx, "attachments/never-existed");
+      // The vault root itself is off-limits through this helper.
+      await expect(deleteVaultDir(ctx, ".")).rejects.toThrow(VaultPathError);
+      await expect(deleteVaultDir(ctx, "../other-user")).rejects.toThrow(VaultPathError);
     });
   });
 

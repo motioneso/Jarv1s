@@ -128,6 +128,22 @@ export async function deleteVaultFile(ctx: VaultContext, relativePath: string): 
   await rm(fullPath);
 }
 
+/**
+ * #1133 — recursive delete of a directory INSIDE the vault (e.g. one attachment's
+ * `attachments/<id>/` folder during lazy GC). Refuses the vault root itself so a bug can
+ * never wipe a whole vault through this path; account deletion uses deleteUserVaultDir.
+ * Idempotent (`force: true`) because GC may race a concurrent sweep.
+ */
+export async function deleteVaultDir(ctx: VaultContext, relativeDir: string): Promise<void> {
+  assertVaultContext(ctx);
+  const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
+  await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
+  if (resolve(fullPath) === resolve(ctx.vaultRoot)) {
+    throw new VaultPathError(relativeDir);
+  }
+  await rm(fullPath, { recursive: true, force: true });
+}
+
 export async function vaultFileExists(ctx: VaultContext, relativePath: string): Promise<boolean> {
   assertVaultContext(ctx);
   // resolveVaultPath + assertNoSymlinkEscape outside the try so their errors propagate

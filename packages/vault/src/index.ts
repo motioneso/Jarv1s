@@ -9,6 +9,7 @@ export type { VaultContext } from "./vault-context.js";
 export { getVaultBaseDir } from "./vault-config.js";
 export {
   deleteUserVaultDir,
+  deleteVaultDir,
   deleteVaultFile,
   listVaultFiles,
   listVaultDirectories,
