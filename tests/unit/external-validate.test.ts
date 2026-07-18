@@ -260,4 +260,49 @@ describe("validateExternalModuleManifest (#917)", () => {
       expect(errors).toContain("unique");
     }
   });
+  // FIN-00 #1145: instanceWritePolicy is only meaningful (and only admin-approved)
+  // for namespaces that actually carry instance scope, and only two values exist.
+  it("accepts instanceWritePolicy 'module' on an instance-scoped namespace", () => {
+    const result = validateExternalModuleManifest(
+      {
+        ...base,
+        storage: [
+          { namespace: "acme-widgets.state", scopes: ["instance"], instanceWritePolicy: "module" }
+        ]
+      },
+      "acme-widgets",
+      "0.1.0"
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects instanceWritePolicy on a user-only namespace", () => {
+    const result = validateExternalModuleManifest(
+      {
+        ...base,
+        storage: [
+          { namespace: "acme-widgets.state", scopes: ["user"], instanceWritePolicy: "module" }
+        ]
+      },
+      "acme-widgets",
+      "0.1.0"
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(" ")).toContain("instanceWritePolicy");
+  });
+
+  it("rejects unknown instanceWritePolicy values", () => {
+    const result = validateExternalModuleManifest(
+      {
+        ...base,
+        storage: [
+          { namespace: "acme-widgets.state", scopes: ["instance"], instanceWritePolicy: "always" }
+        ]
+      },
+      "acme-widgets",
+      "0.1.0"
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(" ")).toContain("instanceWritePolicy");
+  });
 });
