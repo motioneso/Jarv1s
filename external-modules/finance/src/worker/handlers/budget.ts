@@ -8,9 +8,14 @@
 //     category (never increments), which keeps the budget-apply queue
 //     replay-safe at retryLimit 1.
 //   state:{YYYY-MM}  — cached BudgetMonthState, a pure performance
-//     projection. budget.status recomputes on miss; every write path
-//     (assign here, chunk writes in sync.ts) deletes caches ≥ the affected
-//     month, because carry/TBB flow forward — deleting is always safe.
+//     projection OWNED BY THE WRITE PATHS. budget.status is a read-risk
+//     tool: the host rpc rejects kv.set from read tools with
+//     `forbidden_kv_mutation` (worker-rpc-host.ts — surfaced as the UAT
+//     run-2 handler_failed), so status recomputes on miss and returns the
+//     result WITHOUT persisting. Every write path (assign here, chunk
+//     writes in sync.ts) deletes caches ≥ the affected month — carry/TBB
+//     flow forward, so deleting is always safe — and assign then re-derives
+//     and warms the assigned month's cache.
 //
 // Two write paths, one apply: the assistant tool (budget.assign) and the
 // web queue twin (finance.budget-apply) both converge on applyAssignment.
@@ -108,11 +113,10 @@ async function computeMonthState(ports: WorkerPorts, month: string): Promise<Bud
 export const budgetStatusHandler: ToolFactory = (ports) => async (input) => {
   const month = readMonth(input);
   const cached = (await ports.kv.get(NS.budgets, stateKey(month))) as BudgetMonthState | null;
-  let state = cached;
-  if (!state) {
-    state = await computeMonthState(ports, month);
-    await ports.kv.set(NS.budgets, stateKey(month), state);
-  }
+  // Compute-on-miss, never persist: this tool is risk "read", and the host
+  // rejects kv.set from read tools (see storage contract above). The cache
+  // only exists when a write path warmed it.
+  const state = cached ?? (await computeMonthState(ports, month));
   // Taxonomy rides along so the web budget screen renders names and group
   // order from a single call (same shape transactions.query ships).
   return { month, state, categories: await loadCategories(ports) };
@@ -135,6 +139,10 @@ async function applyAssignment(
   ledger.assignments[args.categoryId] = args.amountCents;
   await ports.kv.set(NS.budgets, key, ledger);
   await invalidateBudgetStateFrom(ports.kv, args.month);
+  // Warm the assigned month's cache from here — the write-risk path — since
+  // read-risk status can never persist it. Later months stay cold and are
+  // recomputed on demand by status.
+  await ports.kv.set(NS.budgets, stateKey(args.month), await computeMonthState(ports, args.month));
 
   return { status: "ok", ...args };
 }

@@ -14,12 +14,16 @@ import {
 } from "../../external-modules/finance/src/worker/handlers/budget.js";
 import type { WorkerPorts } from "../../external-modules/finance/src/worker/ports.js";
 
-// FIN-03 (#1148) Task 3: the budget handler contracts (spec delta §"Worker
+// FIN-03 (#1148) Task 3+5: the budget handler contracts (spec delta §"Worker
 // delta"). Pinned here: `ledger:{month}` is the source of truth and assign
-// SETS a total (never increments); `state:{month}` is a throwaway cache —
-// status recomputes on miss, serves it on hit, and every write path deletes
-// caches ≥ the affected month; the queue twin consumes the HOST job envelope
-// (ids in input.params — the a6023cb7 regression), not flat ids.
+// SETS a total (never increments); `state:{month}` is a throwaway cache
+// OWNED BY THE WRITE PATHS — status serves it on hit and recomputes on miss
+// WITHOUT persisting, because finance.budget.status is a read-risk tool and
+// the host rpc rejects kv.set from read tools with `forbidden_kv_mutation`
+// (worker-rpc-host.ts; this surfaced as the UAT run-2 handler_failed). The
+// write paths delete caches ≥ the affected month, then warm the assigned
+// month; the queue twin consumes the HOST job envelope (ids in input.params —
+// the a6023cb7 regression), not flat ids.
 
 const NOW = new Date("2026-07-18T12:00:00Z");
 
@@ -103,7 +107,7 @@ async function seedJuly(kv: FinanceKv): Promise<void> {
 }
 
 describe("finance budget.status (#1148)", () => {
-  it("derives the month from ledger + chunks and writes the state cache", async () => {
+  it("derives the month from ledger + chunks WITHOUT persisting (read-risk tool)", async () => {
     const kv = fakeKv();
     await seedJuly(kv);
 
@@ -122,7 +126,9 @@ describe("finance budget.status (#1148)", () => {
     expect((result.categories as Array<{ id: string }>).some((c) => c.id === "groceries")).toBe(
       true
     );
-    expect(await kv.get(NS.budgets, "state:2026-07")).toEqual(result.state);
+    // status must NOT kv.set — the host rejects writes from read-risk tools
+    // (forbidden_kv_mutation), which is exactly the UAT run-2 handler_failed.
+    expect(await kv.get(NS.budgets, "state:2026-07")).toBeNull();
   });
 
   it("serves the cached state on a second call instead of recomputing", async () => {
@@ -149,7 +155,7 @@ describe("finance budget.status (#1148)", () => {
       categories: Record<string, { availableCents: number }>;
     };
     expect(state.tbbCents).toBe(150_000);
-    expect(state.categories.groceries.availableCents).toBe(37_655);
+    expect(state.categories.groceries!.availableCents).toBe(37_655);
   });
 
   it("rejects a malformed month", async () => {
@@ -193,7 +199,7 @@ describe("finance budget.assign — tool path (#1148)", () => {
     });
   });
 
-  it("invalidates state caches for the month and everything after it", async () => {
+  it("invalidates later caches and warms the assigned month's cache", async () => {
     const kv = fakeKv();
     for (const month of ["2026-06", "2026-07", "2026-08"]) {
       await kv.set(NS.budgets, `state:${month}`, { computedAt: "x", tbbCents: 0, categories: {} });
@@ -205,9 +211,18 @@ describe("finance budget.assign — tool path (#1148)", () => {
       amountCents: 1_000
     });
 
-    // June derives only from months ≤ June — untouched. July onward is stale.
+    // June derives only from months ≤ June — untouched. August is stale and
+    // stays deleted (status recomputes it on demand). July — the assigned
+    // month — is re-derived and persisted HERE, because assign is the
+    // write-risk path and status (read-risk) can never persist it.
     expect(await kv.get(NS.budgets, "state:2026-06")).not.toBeNull();
-    expect(await kv.get(NS.budgets, "state:2026-07")).toBeNull();
+    expect(await kv.get(NS.budgets, "state:2026-07")).toEqual({
+      computedAt: NOW.toISOString(),
+      tbbCents: -1_000,
+      categories: {
+        groceries: { assignedCents: 1_000, activityCents: 0, availableCents: 1_000 }
+      }
+    });
     expect(await kv.get(NS.budgets, "state:2026-08")).toBeNull();
   });
 
@@ -243,6 +258,9 @@ describe("finance budget-apply — queue path (#1148)", () => {
     expect(await kv.get(NS.budgets, "ledger:2026-07")).toEqual({
       assignments: { groceries: 50_000 }
     });
+    // The queue twin shares applyAssignment, so it warms the month's cache
+    // too — this is what the UAT reload-poll reads back after the assign.
+    expect(await kv.get(NS.budgets, "state:2026-07")).toMatchObject({ tbbCents: -50_000 });
   });
 
   it("rejects flat ids (the a6023cb7 regression) and a foreign jobKind", async () => {
