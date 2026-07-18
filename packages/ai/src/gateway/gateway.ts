@@ -87,6 +87,15 @@ const NATIVE_TOOL_MODULE_NAME = "Claude Native Tools";
 // Bash and Task stay permanently gated: YOLO removes confirmation only for these mutation-only
 // tools, and unknown/future native capabilities fail closed to the normal confirmation path.
 const NATIVE_YOLO_AUTO_ALLOW = new Set(["Edit", "Write", "NotebookEdit"]);
+// #1158: read-only native META-tools that must never require a user confirmation.
+// Claude Code loads its MCP tool schemas lazily via the native ToolSearch tool; gating it
+// behind the confirm flow deadlocks the permission hook (150s confirm wait == 150s hook
+// deadline), the hook fails closed, claude retries in silence, and the #456 idle watchdog
+// kills the live engine (prod outage 2026-07-18, issue #1157). Allow immediately with no
+// pending action row — ToolSearch fires many times per conversation and cannot mutate
+// anything, so a row per call is audit spam. Keep this set minimal: anything unlisted
+// (including read-only tools like Grep/Read) stays on the confirm path.
+const NATIVE_READONLY_AUTO_ALLOW = new Set(["ToolSearch"]);
 const NATIVE_CONFIG_FILE_NAMES = new Set([
   "settings.json",
   "settings.local.json",
@@ -187,6 +196,11 @@ export class AssistantToolGateway {
   ): Promise<NativeToolPermissionResponse> {
     const { actorUserId, chatSessionId } = this.deps.tokens.verify(token);
     const toolName = safeNativeToolName(request.toolName);
+    // #1158: read-only meta-tools return before any DB/timezone work — this is the hot path
+    // (every conversation's first jarvis tool use goes through ToolSearch).
+    if (NATIVE_READONLY_AUTO_ALLOW.has(toolName)) {
+      return { decision: "allow", reason: "Read-only native tool." };
+    }
     const input = request.toolInput;
     const requestId = `native_${randomUUID()}`;
     const access: AccessContext = { actorUserId, requestId };

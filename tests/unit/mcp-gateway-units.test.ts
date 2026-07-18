@@ -261,6 +261,70 @@ describe("native Claude tool permission bridge", () => {
     });
   });
 
+  it("auto-allows read-only native meta-tools without a pending action or notifier event (#1158)", async () => {
+    // #1158: claude MUST call ToolSearch to load deferred MCP tool schemas before it can use
+    // any jarvis tool. Routing it through the confirm flow deadlocked prod (150s confirm wait
+    // == 150s hook deadline → fail-closed deny → retry stall → watchdog kill).
+    const tokens = new SessionTokenRegistry();
+    const emitted: unknown[] = [];
+    const created: unknown[] = [];
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [],
+      repository: {
+        createPendingAssistantAction: async (_db: unknown, input: unknown) => {
+          created.push(input);
+          return { id: "native-action-x" };
+        }
+      } as never,
+      runner: {
+        withDataContext: async (_access: unknown, work: (db: unknown) => Promise<unknown>) =>
+          work({})
+      } as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: (_chatSessionId, record) => emitted.push(record) },
+      confirmTimeoutMs: 5
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    await expect(
+      gateway.requestNativeToolPermission(token, {
+        toolName: "ToolSearch",
+        toolInput: { query: "select:mcp__jarvis__calendar_listVisibleEvents" }
+      })
+    ).resolves.toEqual({ decision: "allow", reason: "Read-only native tool." });
+
+    // No pending action row (ToolSearch fires many times per conversation — a row per call
+    // is audit spam for a tool that cannot mutate anything) and no notifier traffic.
+    expect(created).toHaveLength(0);
+    expect(emitted).toHaveLength(0);
+  });
+
+  it("still routes unlisted native tools through the confirm flow (#1158)", async () => {
+    // "Grep" is read-only in claude but intentionally NOT in NATIVE_READONLY_AUTO_ALLOW —
+    // the allowlist stays minimal; anything unlisted keeps the confirm path (here: timeout→deny).
+    const tokens = new SessionTokenRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [],
+      repository: {
+        createPendingAssistantAction: async () => ({ id: "native-action-grep" })
+      } as never,
+      runner: {
+        withDataContext: async (_access: unknown, work: (db: unknown) => Promise<unknown>) =>
+          work({})
+      } as never,
+      tokens,
+      confirmations: new ConfirmationRegistry(),
+      notifier: { emit: () => undefined },
+      confirmTimeoutMs: 5
+    });
+    const token = tokens.mint({ actorUserId: "u1", chatSessionId: "s1", allowedToolNames: null });
+
+    await expect(
+      gateway.requestNativeToolPermission(token, { toolName: "Grep", toolInput: {} })
+    ).resolves.toEqual({ decision: "deny", reason: "Timed out awaiting confirmation." });
+  });
+
   it.each([
     ["Edit", { file_path: "src/a.ts", old_string: "a", new_string: "b" }],
     ["Write", { file_path: "src/a.ts", content: "hello" }],
