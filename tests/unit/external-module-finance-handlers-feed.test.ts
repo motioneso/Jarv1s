@@ -258,29 +258,47 @@ describe("finance feed handlers (#1147)", () => {
       ]
     });
     const apply = categorizeApplyHandler(fakePorts(kv));
+    // The queue envelope the host actually delivers (apps/worker/src/
+    // external-module-job-handler.ts): ids ride in `params`, never top-level.
+    const envelope = (params: Record<string, unknown>) => ({
+      actorUserId: "00000000-0000-4000-8000-000000000001",
+      jobKind: "finance.categorize-apply",
+      idempotencyKey: "finance:finance.categorize-apply:job-1",
+      params
+    });
     const base = { accountId: "acc-1", month: "2026-07", categoryId: "dining" };
-    await expect(apply({ ...base, transactionId: "t-missing" })).rejects.toMatchObject({
+    await expect(apply(envelope({ ...base, transactionId: "t-missing" }))).rejects.toMatchObject({
       code: "not_found"
     });
     await expect(
-      apply({ ...base, transactionId: "t-a", categoryId: "nope" })
+      apply(envelope({ ...base, transactionId: "t-a", categoryId: "nope" }))
     ).rejects.toMatchObject({ code: "invalid_category" });
     await expect(
-      apply({ ...base, transactionId: "t-a", categoryId: "old-cat" })
+      apply(envelope({ ...base, transactionId: "t-a", categoryId: "old-cat" }))
     ).rejects.toMatchObject({ code: "invalid_category" });
   });
 
-  it("queue path applies the category but never persists notes (D6)", async () => {
+  it("queue path reads ids from the job envelope's params and never persists notes (D6)", async () => {
     const kv = fakeKv();
     await seedFeed(kv);
-    // The manifest paramsSchema already rejects extra keys host-side; the
-    // handler ignoring notes is defense in depth for the shared helper.
+    // Regression (#1147 UAT run 1): the host invokes queue handlers with the
+    // full job envelope { actorUserId, jobKind, idempotencyKey, params } —
+    // reading ids from the top level made every real queued job die with
+    // invalid_input while the flat-input unit test stayed green. This test
+    // now models the envelope exactly as external-module-job-handler.ts
+    // builds it. The manifest paramsSchema already rejects extra keys
+    // host-side; the handler ignoring notes is defense in depth.
     await categorizeApplyHandler(fakePorts(kv))({
-      transactionId: "t-a",
-      accountId: "acc-1",
-      month: "2026-07",
-      categoryId: "transport",
-      notes: "must not land"
+      actorUserId: "00000000-0000-4000-8000-000000000001",
+      jobKind: "finance.categorize-apply",
+      idempotencyKey: "finance:finance.categorize-apply:job-1",
+      params: {
+        transactionId: "t-a",
+        accountId: "acc-1",
+        month: "2026-07",
+        categoryId: "transport",
+        notes: "must not land"
+      }
     });
     const chunk = (await kv.get(NS.transactions, "acc-1:2026-07")) as {
       transactions: TransactionRecord[];

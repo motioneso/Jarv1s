@@ -145,9 +145,23 @@ export const transactionCategorizeHandler: ToolFactory = (ports) => async (input
 };
 
 export const categorizeApplyHandler: ToolFactory = (ports) => async (input) => {
-  // Queue path (D6): the four identifier ids only. The manifest paramsSchema
-  // rejects extra keys host-side; ignoring the rest here is defense in depth.
-  const ids = readApplyIds(input);
+  // Queue path (D6): unlike the tool handlers above, this one is invoked with
+  // the host's job envelope { actorUserId, jobKind, idempotencyKey, params }
+  // (apps/worker/src/external-module-job-handler.ts, same shape job-search's
+  // monitorRunHandler consumes) — the four identifier ids ride in `params`,
+  // never at the top level. #1147 UAT run 1 regression: reading them flat made
+  // every real queued job fail invalid_input while the enqueue still 202'd.
+  const jobKind = readString(input, "jobKind", { required: true });
+  if (jobKind !== "finance.categorize-apply") {
+    throw new InputError("jobKind is not supported");
+  }
+  const params = input.params;
+  if (!params || typeof params !== "object" || Array.isArray(params)) {
+    throw new InputError("params must be an object");
+  }
+  // The manifest paramsSchema rejects extra keys host-side; ignoring the rest
+  // here is defense in depth.
+  const ids = readApplyIds(params as Record<string, unknown>);
   const { chunkKey, chunk, record } = await applyCategory(ports, ids);
   await ports.kv.set(NS.transactions, chunkKey, chunk);
   return { status: "ok", transaction: record };

@@ -25,6 +25,22 @@ export const uatLevel = { level: "admin+data", without: [] } as const;
 // link (not a goto) is itself part of the assertion. page.reload() is allowed — it is
 // exactly what proves the recategorize persisted (reload discards the feed's optimistic
 // category override, so the value can only come from the worker's KV write).
+// run-uat.ts's finally always tears the stack down with `down -v`, so container
+// logs are unrecoverable after a failure (learned the hard way on this spec's
+// first run: a silently-failing queue job left no evidence). Dump them into the
+// run log BEFORE teardown whenever the test didn't pass.
+test.afterEach(async ({}, testInfo) => {
+  const projectName = process.env.JARVIS_UAT_PROJECT_NAME;
+  if (testInfo.status === testInfo.expectedStatus || !projectName) return;
+  try {
+    execFileSync("docker", buildUatComposeArgs(projectName, ["logs", "--tail", "400", "jarv1s"]), {
+      stdio: "inherit"
+    });
+  } catch {
+    // Diagnostics only — never mask the real test failure with a logs error.
+  }
+});
+
 test("Finance feed works end-to-end on a docker-cp activated module", async ({ page }) => {
   // Two real container restarts + a pg-boss-driven recategorize poll — well past the
   // 60s config default.
