@@ -76,10 +76,27 @@ categoryId/notes forward.
 FIN-00 error codes + setCredential rules: dev guide §13. Slice scopes: spec lines
 41–58. House plan format: `docs/superpowers/plans/2026-07-18-fin-00-module-runtime-write-seams.md`.
 
-## Small lookups left (do during planning)
+## Resolved lookups (2nd pass)
 
-`matchesModuleParamsSchema` "identifier" regex (does it admit `2026-07` month keys and
-Plaid tx ids?); module-KV repository import path for UAT seeding.
+- `identifier` param regex = `/^[a-z0-9][a-z0-9_.:-]{0,63}$/i`
+  (`packages/module-sdk/src/module-params.ts:63`) — Plaid account/tx ids, `YYYY-MM`
+  month keys, and kebab category ids all pass → FIN-02 `finance.categorize-apply`
+  queue params can be plain `identifier` scalars.
+- Module-KV/credential repo exports from `@jarv1s/settings`: `getModuleKvValue`,
+  `setModuleKvValue`, `listModuleKvKeys`, `deleteModuleKvKey`, `upsertModuleCredential`,
+  `readModuleCredentialSecret` — the seed chunk writes finance KV rows via
+  `setModuleKvValue`.
+- **D7 resolved:** `JARVIS_MODULE_REGISTRY_URL` is refused when
+  `NODE_ENV=production` (`registry-source.ts:25`) and the UAT stack runs production →
+  no mock registry. Instead: build the finance bundle
+  (`pnpm build:external:finance`), `docker cp` the trust set (`jarvis.module.json` +
+  `dist/**` + `sql/**`) into the UAT container's modules dir, then `restartUatStack`
+  → boot reconcile (`scripts/module-reconcile.ts` phases 4 scan-disk + 6 DB-install)
+  installs it with REAL hashes — registry install has no separate manual-enable step,
+  so tools genuinely work. Seed finance KV data via `setModuleKvValue` in a seed
+  chunk. Verify at execution time: exact in-container modules dir path
+  (`resolveModulesDir`) and per-user activation (drive any user-level enable through
+  the UI in the spec itself if needed).
 
 ## Next actions (unchanged from base handoff)
 
