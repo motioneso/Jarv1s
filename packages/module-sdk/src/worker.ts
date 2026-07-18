@@ -12,7 +12,10 @@ export { MODULE_WORKER_CONTRACT_VERSION } from "./worker-protocol.js";
 
 export interface ModuleWorkerContext {
   readonly input: Record<string, unknown>;
-  readonly auth: { getCredential(authId: string): Promise<string> };
+  readonly auth: {
+    getCredential(authId: string): Promise<string>;
+    setCredential(authId: string, value: string): Promise<void>;
+  };
   readonly fetch: (request: ModuleFetchRequest) => Promise<ModuleFetchResponse>;
   readonly kv: {
     get(
@@ -126,7 +129,9 @@ export function defineModuleWorker(input: {
               : {},
           auth: {
             getCredential: (authId) =>
-              callParent("auth.getCredential", { authId }) as Promise<string>
+              callParent("auth.getCredential", { authId }) as Promise<string>,
+            setCredential: (authId, value) =>
+              callParent("auth.setCredential", { authId, value }) as Promise<void>
           },
           fetch: (request) => callParent("fetch.request", request) as Promise<ModuleFetchResponse>,
           kv,
