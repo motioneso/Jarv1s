@@ -7,6 +7,7 @@
 // shell over this table. All four FIN-01 manifest handler keys are real as
 // of Task 7 (#1146); notImplemented stays exported for FIN-02's Task 8 keys.
 import { accountsListHandler } from "./handlers/accounts.js";
+import { budgetApplyHandler, budgetAssignHandler, budgetStatusHandler } from "./handlers/budget.js";
 import { connectPollHandler, connectStartHandler } from "./handlers/connect.js";
 import {
   categorizeApplyHandler,
@@ -29,5 +30,9 @@ export const HANDLERS: Readonly<Record<string, ToolFactory>> = {
   // FIN-02 (#1147) Task 10: the feed surface declared by manifest v2.
   "transactions.query": transactionsQueryHandler,
   "transaction.categorize": transactionCategorizeHandler,
-  "categorize.apply": categorizeApplyHandler
+  "categorize.apply": categorizeApplyHandler,
+  // FIN-03 (#1148) Task 3: the envelope-budget surface of manifest v0.2.0.
+  "budget.status": budgetStatusHandler,
+  "budget.assign": budgetAssignHandler,
+  "budget.apply": budgetApplyHandler
 };

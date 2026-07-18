@@ -19,9 +19,10 @@ export interface FinanceKv {
   list(namespace: string): Promise<readonly string[]>;
 }
 
-// The seven namespaces declared by jarvis.module.json — the manifest is
+// The eight namespaces declared by jarvis.module.json — the manifest is
 // authoritative. `settings` also carries instance scope in the manifest;
-// this port only ever sees its user scope.
+// this port only ever sees its user scope. `budgets` (FIN-03, #1148) holds
+// `ledger:{month}` assignment ledgers and throwaway `state:{month}` caches.
 export const NS = {
   connections: "finance.connections",
   accounts: "finance.accounts",
@@ -29,6 +30,7 @@ export const NS = {
   categories: "finance.categories",
   rules: "finance.rules",
   snapshots: "finance.snapshots",
+  budgets: "finance.budgets",
   settings: "finance.settings"
 } as const;
 

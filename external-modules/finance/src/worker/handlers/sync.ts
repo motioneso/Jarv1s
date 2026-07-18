@@ -34,6 +34,7 @@ import { buildCategorizeAi } from "../ai-port.js";
 import type { WorkerPorts } from "../ports.js";
 import type { ToolFactory } from "../registry.js";
 import { InputError } from "../validate.js";
+import { invalidateBudgetStateFrom } from "./budget.js";
 import { buildPlaid, loadItems } from "./connect.js";
 
 // Plaid pages are capped at count:100 (adapter), so 20 pages = 2000
@@ -168,6 +169,13 @@ async function syncItem(
     const next = await categorizeChunks(reduced.chunks, reduced.touched, categorizeCtx);
     for (const key of reduced.touched) {
       await ports.kv.set(NS.transactions, key, next[key]!);
+    }
+    // FIN-03 (#1148): new/changed activity stales every cached budget
+    // projection from the earliest touched month forward (carry/TBB flow
+    // forward only). Chunk keys end in the txn month, so slice(-7) is it.
+    if (reduced.touched.length > 0) {
+      const earliestMonth = [...reduced.touched].map((key) => key.slice(-7)).sort()[0]!;
+      await invalidateBudgetStateFrom(ports.kv, earliestMonth);
     }
     // Cursor LAST (see header): only after this page's chunks are durable.
     await ports.kv.set(NS.connections, cursorKey(item.itemId), { cursor: page.nextCursor });

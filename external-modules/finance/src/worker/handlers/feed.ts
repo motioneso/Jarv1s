@@ -28,7 +28,7 @@ function readMonth(input: Record<string, unknown>, ports: WorkerPorts): string {
  * writer (Task 9 loadCategorizeCtx), so a pre-first-sync feed just sees the
  * defaults. Keeping reads side-effect free also keeps query safe to retry.
  */
-async function loadCategories(ports: WorkerPorts): Promise<Category[]> {
+export async function loadCategories(ports: WorkerPorts): Promise<Category[]> {
   const stored = (await ports.kv.get(NS.categories, "taxonomy")) as {
     categories: Category[];
   } | null;
