@@ -394,6 +394,30 @@ export class ChatSessionManager {
   }
 
   /**
+   * #1157 self-heal: the engine behind this session is gone (the daemon killed it after a
+   * VerifiedSubmitError, the cli-runner restarted, or the tmux server died with the
+   * container). Evict the stale entry, revoke the per-session MCP token (a fresh one is
+   * minted on relaunch), force a conversation replay so the fresh engine has context, and
+   * relaunch. The caller retries the submit exactly once — a second failure surfaces.
+   */
+  private async healAndRelaunch(
+    actorUserId: string,
+    userName: string,
+    dead: UserSession
+  ): Promise<UserSession> {
+    if (this.sessions.get(actorUserId) === dead) this.sessions.delete(actorUserId);
+    this.deps.revokeMcpToken?.(actorUserId);
+    try {
+      await dead.engine.kill();
+    } catch {
+      // Already dead — kill is best-effort teardown of a stale handle.
+    }
+    this.pendingForcedReplay.add(actorUserId);
+    this.emit(actorUserId, { kind: "status", text: "Chat session was lost — reconnecting…" });
+    return this.ensureSession(actorUserId, userName);
+  }
+
+  /**
    * Submit one user turn: echo it to subscribers, send it to the engine, fan out
    * every new transcript record until the engine reports complete, persist the
    * completed turn, and return the assistant reply.
@@ -442,7 +466,16 @@ export class ChatSessionManager {
     assistantMessageId?: string;
     sourceFreshness?: SourceFreshnessV1 | null;
   }> {
-    const session = await this.ensureSession(actorUserId, userName);
+    // #1157: a failed launch (dead tmux server after a container restart, stale daemon
+    // state) gets exactly one retry with forced replay before surfacing.
+    let session: UserSession;
+    try {
+      session = await this.ensureSession(actorUserId, userName);
+    } catch (err) {
+      if (!(err instanceof CliChatUnavailableError)) throw err;
+      this.pendingForcedReplay.add(actorUserId);
+      session = await this.ensureSession(actorUserId, userName);
+    }
 
     // #456 — per-turn stop signal. stopTurn(actorUserId) aborts this; the poll loop checks
     // signal.aborted after every readNew and breaks cleanly (no error) when set.
@@ -470,10 +503,20 @@ export class ChatSessionManager {
         await session.engine.submit(engineText);
       } catch (err) {
         if (err instanceof CliChatDeliveryUnknownError) {
+          // Delivery MAY have happened — never resubmit (duplicate-turn risk). Evict so
+          // the next turn relaunches cleanly (pre-#1157 behavior, kept).
           if (this.sessions.get(actorUserId) === session) this.sessions.delete(actorUserId);
           this.deps.revokeMcpToken?.(actorUserId);
+          throw err;
         }
-        throw err;
+        if (err instanceof CliChatUnavailableError) {
+          // #1157: unavailable = the text verifiably never entered the engine (paste failed
+          // pre-entry, or the daemon has no live session). Safe to heal + resubmit ONCE.
+          session = await this.healAndRelaunch(actorUserId, userName, session);
+          await session.engine.submit(engineText);
+        } else {
+          throw err;
+        }
       }
 
       let reply = "";
