@@ -83,10 +83,13 @@ sizeBytes }]`), exactly like tools/activity/provenance already do.
 
 ### 2. Upload — `POST /api/chat/attachments`
 
-- Raw single-blob body with the file's own `content-type` header plus an
-  `x-jarvis-file-name` header (percent-encoded), mirroring the transcription route's "one blob,
-  no multipart" pattern. Registered in `packages/chat/src/routes.ts`, declared in
-  `packages/chat/src/manifest.ts` routes with its own permission id (`chat.use`, same as turn).
+- Raw single-blob body sent as `content-type: application/octet-stream`; the file's DECLARED
+  mime travels in an `x-jarvis-mime-type` header and the display filename, percent-encoded, in
+  `x-jarvis-file-name` — mirroring the transcription route's "one blob, no multipart" pattern
+  while keeping one exact-match buffer parser that can't collide with the JSON/markdown parsers.
+  (As built: registered in `packages/chat/src/attachments-routes.ts`, wired from
+  `packages/chat/src/routes.ts`.) Declared in `packages/chat/src/manifest.ts` routes with its
+  own permission id (`chat.use`, same as turn).
 - Validation (fail-closed whitelist):
   - **Mime whitelist:** `image/png`, `image/jpeg`, `image/webp`, `image/gif`,
     `application/pdf`, `text/*` (plus `application/json`). Anything else → 415.
