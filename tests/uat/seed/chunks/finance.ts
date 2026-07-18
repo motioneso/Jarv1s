@@ -35,6 +35,7 @@ const MODULE_ID = "finance";
 const NS_CONNECTIONS = "finance.connections";
 const NS_ACCOUNTS = "finance.accounts";
 const NS_TRANSACTIONS = "finance.transactions";
+const NS_SNAPSHOTS = "finance.snapshots";
 const NS_BUDGETS = "finance.budgets";
 
 const ITEM_ID = "uat-item-first-platypus";
@@ -105,7 +106,28 @@ export async function seedFinanceChunk(
   // amountCents is spending-positive. "Blue Bottle Coffee" is the spec's
   // search target AND its recategorize target (categoryId null → picks
   // "dining" through the UI, proving the categorize-apply queue end-to-end).
+  // FIN-05 (#1150): a checking→savings transfer pair, ≤3 days apart with
+  // opposite amounts, for the auto-pairing heuristic. The checking side is
+  // "transfers" (already skipped by the envelope derivation) and the savings
+  // side is null (also skipped as uncategorized) — so FIN-03's budget UAT
+  // numbers are IDENTICAL pre/post pairing. The reports spec proves pairing
+  // happened by the savings leg NOT appearing in uncategorized spending
+  // (which stays coffee 675 + interest −1_250 = −575).
   const checkingTransactions = [
+    {
+      id: "uat-txn-transfer-out-1",
+      accountId: CHECKING_ID,
+      date: dayInMonth(month, 8),
+      amountCents: 50_000,
+      isoCurrency: "USD",
+      name: "ONLINE TRANSFER TO SAVINGS",
+      merchant: null,
+      plaidCategory: "TRANSFER_OUT_ACCOUNT_TRANSFER",
+      categoryId: "transfers",
+      pending: false,
+      pendingTransactionId: null,
+      categorizedBy: "plaid-map"
+    },
     {
       id: "uat-txn-grocer-2",
       accountId: CHECKING_ID,
@@ -152,6 +174,20 @@ export async function seedFinanceChunk(
 
   const savingsTransactions = [
     {
+      id: "uat-txn-transfer-in-1",
+      accountId: SAVINGS_ID,
+      date: dayInMonth(month, 9),
+      amountCents: -50_000,
+      isoCurrency: "USD",
+      name: "ONLINE TRANSFER FROM CHECKING",
+      merchant: null,
+      plaidCategory: null,
+      categoryId: null,
+      pending: false,
+      pendingTransactionId: null,
+      categorizedBy: null
+    },
+    {
       id: "uat-txn-interest-1",
       accountId: SAVINGS_ID,
       date: dayInMonth(month, 4),
@@ -185,6 +221,26 @@ export async function seedFinanceChunk(
     });
     await setModuleKvValue(scopedDb, userKey(NS_TRANSACTIONS, `${SAVINGS_ID}:${month}`), {
       transactions: savingsTransactions
+    });
+
+    // FIN-05 (#1150): balance snapshots for the net-worth report. Latest day
+    // per account equals the seeded balanceCents, so the derived headline is
+    // 254_317 + 1_200_000 = $14,543.17 — a number the spec can assert came
+    // from the snapshot series (gaps in the day sequence prove carry-forward,
+    // not a live-balance echo).
+    await setModuleKvValue(scopedDb, userKey(NS_SNAPSHOTS, `${CHECKING_ID}:${month}`), {
+      days: {
+        [dayInMonth(month, 2)]: 248_000,
+        [dayInMonth(month, 3)]: 250_500,
+        [dayInMonth(month, 6)]: 252_100,
+        [dayInMonth(month, 9)]: 254_317
+      }
+    });
+    await setModuleKvValue(scopedDb, userKey(NS_SNAPSHOTS, `${SAVINGS_ID}:${month}`), {
+      days: {
+        [dayInMonth(month, 2)]: 1_198_750,
+        [dayInMonth(month, 9)]: 1_200_000
+      }
     });
 
     // FIN-03 (#1148) Task 5: a PRIOR-month assignment ledger (BudgetLedger
