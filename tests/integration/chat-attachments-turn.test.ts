@@ -25,7 +25,7 @@ import {
   type StoredAttachmentMeta
 } from "../../packages/chat/src/attachments-service.js";
 import { PageContextStore } from "../../packages/chat/src/live/page-context-store.js";
-import { readAttachments } from "../../packages/chat/src/routes.js";
+import { readAttachments } from "../../packages/chat/src/attachments-routes.js";
 
 const PNG_BYTES = Buffer.concat([
   Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),

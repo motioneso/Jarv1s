@@ -103,3 +103,30 @@ export function registerChatAttachmentRoutes(
     }
   });
 }
+
+/**
+ * #1133 — shape-check the `attachments` display metadata stored on a user message's
+ * tool_metadata (see ChatRepository.recordCompletedTurn). Undefined when absent so
+ * fast-json-stringify simply omits the field for pre-attachment messages.
+ */
+export function readAttachments(value: unknown): ChatAttachmentDto[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const attachments = value.flatMap((item) => {
+    const record =
+      typeof item === "object" && item !== null ? (item as Record<string, unknown>) : {};
+    return typeof record.id === "string" &&
+      typeof record.fileName === "string" &&
+      typeof record.mimeType === "string" &&
+      typeof record.sizeBytes === "number"
+      ? [
+          {
+            id: record.id,
+            fileName: record.fileName,
+            mimeType: record.mimeType,
+            sizeBytes: record.sizeBytes
+          }
+        ]
+      : [];
+  });
+  return attachments.length > 0 ? attachments : undefined;
+}

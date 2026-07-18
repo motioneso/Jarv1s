@@ -95,6 +95,7 @@ import type {
   ListChatThreadMessagesResponse,
   ListChatThreadsResponse,
   SendChatTurnResponse,
+  UploadChatAttachmentResponse,
   ListConnectorAccountsResponse,
   ListMedicationsResponse,
   ListAdminModulesResponse,
@@ -832,11 +833,43 @@ export async function importChatSkill(file: File): Promise<ChatSkillResponse> {
   return response.json() as Promise<ChatSkillResponse>;
 }
 
-export async function sendChatTurn(text: string): Promise<SendChatTurnResponse> {
+export async function sendChatTurn(
+  text: string,
+  attachmentIds?: readonly string[]
+): Promise<SendChatTurnResponse> {
   return requestJson<SendChatTurnResponse>("/api/chat/turn", {
     method: "POST",
-    body: { text }
+    body: { text, ...(attachmentIds?.length ? { attachmentIds } : {}) }
   });
+}
+
+/**
+ * #1133 — stages a file for the next chat turn. Goes around `requestJson` like
+ * `transcribeAudio()`: the body is the raw bytes as application/octet-stream, with the
+ * declared mime in `x-jarvis-mime-type` and the display name percent-encoded in
+ * `x-jarvis-file-name` (header values must be ISO-8859-1; the server decodes).
+ */
+export async function uploadChatAttachment(
+  file: Blob,
+  fileName: string
+): Promise<UploadChatAttachmentResponse> {
+  const response = await fetch("/api/chat/attachments", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "content-type": "application/octet-stream",
+      "x-jarvis-mime-type": file.type || "application/octet-stream",
+      "x-jarvis-file-name": encodeURIComponent(fileName)
+    },
+    body: file
+  });
+
+  if (!response.ok) {
+    const { message, code } = await readErrorBody(response);
+    throw new ApiError(response.status, message, code);
+  }
+
+  return response.json() as Promise<UploadChatAttachmentResponse>;
 }
 
 /**

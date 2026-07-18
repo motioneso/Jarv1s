@@ -24,7 +24,6 @@ import {
   type AiModelCapability,
   type AnswerSourceSupportCard,
   type ChatActivityEventDto,
-  type ChatAttachmentDto,
   type ChatMessageDto,
   type ChatSelectedToolMetadataDto,
   type ChatThreadDto,
@@ -100,7 +99,7 @@ import { readStoredProvenance, provenanceCards } from "./live/answer-provenance.
 import { registerMcpTransportRoute, registerNativePermissionRoute } from "./mcp-transport.js";
 import { VaultContextRunner, getVaultBaseDir } from "@jarv1s/vault";
 
-import { registerChatAttachmentRoutes } from "./attachments-routes.js";
+import { readAttachments, registerChatAttachmentRoutes } from "./attachments-routes.js";
 import { ChatAttachmentsService } from "./attachments-service.js";
 import { ChatRepository } from "./repository.js";
 import { registerChatSkillsRoutes } from "./skills/routes.js";
@@ -963,32 +962,6 @@ function readTools(value: unknown): ChatSelectedToolMetadataDto[] {
       }
     ];
   });
-}
-
-/**
- * #1133 — shape-check the `attachments` display metadata stored on a user message's
- * tool_metadata (see ChatRepository.recordCompletedTurn). Undefined when absent so
- * fast-json-stringify simply omits the field for pre-attachment messages.
- */
-export function readAttachments(value: unknown): ChatAttachmentDto[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const attachments = value.flatMap((item) => {
-    const record = asRecord(item);
-    return typeof record.id === "string" &&
-      typeof record.fileName === "string" &&
-      typeof record.mimeType === "string" &&
-      typeof record.sizeBytes === "number"
-      ? [
-          {
-            id: record.id,
-            fileName: record.fileName,
-            mimeType: record.mimeType,
-            sizeBytes: record.sizeBytes
-          }
-        ]
-      : [];
-  });
-  return attachments.length > 0 ? attachments : undefined;
 }
 
 export function readSourceFreshness(value: unknown): SourceFreshnessV1 | null {
