@@ -237,7 +237,11 @@ export class CliChatEngineHost {
       // runtime (claude-scoped; only used by buildClaudeCommand, only if the file exists).
       credentialFile: this.deps.homeBase
         ? providerTokenPath(this.deps.homeBase, params.provider)
-        : undefined
+        : undefined,
+      // #1157: surface silently-discarded composer input (char count only — never content) so
+      // a stuck previous turn is visible in daemon logs instead of vanishing without a trace.
+      onDiagnostic: (event) =>
+        console.warn(`[engine-host] ${key} diagnostic ${event.kind} paneChars=${event.paneChars}`)
     });
     const neutralDir = deriveNeutralDir(this.deps.neutralBase, key);
 

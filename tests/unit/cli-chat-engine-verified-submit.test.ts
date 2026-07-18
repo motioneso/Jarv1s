@@ -4,6 +4,7 @@ import type { Multiplexer } from "../../packages/ai/src/adapters/multiplexer.js"
 import { CliChatEngineImpl } from "../../packages/chat/src/live/cli-chat-engine.js";
 import type { VerifiedSubmitError } from "../../packages/chat/src/live/cli-chat-engine.js";
 import { CODEX_IDENTITY_FILENAME } from "../../packages/chat/src/live/private-transcript-cleanup.js";
+import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
 
 function makeIo() {
   return {
@@ -277,5 +278,86 @@ describe("CliChatEngineImpl — verified interactive submit", () => {
       io.writeFile.mock.calls.some((call) => String(call[0]).includes(CODEX_IDENTITY_FILENAME))
     ).toBe(true);
     expect(io.run.mock.calls).not.toContainEqual(["rm", ["-rf", neutralDir]]);
+  });
+
+  it("reports composer_discarded when pre-clear composer holds stuck user input (#1157)", async () => {
+    // #1157: Ben's "try again" sat pasted-but-unsubmitted ~10min; the next turn's
+    // clearComposer silently discarded it. The pre-clear probe must surface the loss.
+    let transcript = "";
+    const mux = stateMachineMux({
+      // Pane order: pre-clear probe (STUCK text), post-clear empty check, echo check.
+      panes: ["❯ stuck earlier input\n", empty, "❯ next turn\n"],
+      onEnter: () => {
+        transcript += claudeUser("next turn");
+      }
+    });
+    const io = makeIo();
+    io.readFile.mockImplementation(async () => transcript);
+    const events: unknown[] = [];
+    const engine = new CliChatEngineImpl("anthropic", "diag-stuck", io, {
+      mux,
+      echoMs: 0,
+      onDiagnostic: (event) => events.push(event)
+    });
+    await engine.launch({ neutralDir: "/tmp/diag-stuck", personaPath: "/p.md" });
+
+    await engine.verifiedSubmit({
+      attemptId: "33333333-3333-4333-8333-333333333333",
+      text: "next turn",
+      signal: new AbortController().signal
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ kind: "composer_discarded" });
+    // Privacy: char count only — the discarded text may be private-session content.
+    expect(Object.keys(events[0] as object).sort()).toEqual(["kind", "paneChars"]);
+    expect((events[0] as { paneChars: number }).paneChars).toBeGreaterThan(0);
+  });
+
+  it("stays silent when the pre-clear composer is already empty (#1157)", async () => {
+    let transcript = "";
+    const mux = stateMachineMux({
+      panes: [empty, empty, "❯ next turn\n"],
+      onEnter: () => {
+        transcript += claudeUser("next turn");
+      }
+    });
+    const io = makeIo();
+    io.readFile.mockImplementation(async () => transcript);
+    const events: unknown[] = [];
+    const engine = new CliChatEngineImpl("anthropic", "diag-clean", io, {
+      mux,
+      echoMs: 0,
+      onDiagnostic: (event) => events.push(event)
+    });
+    await engine.launch({ neutralDir: "/tmp/diag-clean", personaPath: "/p.md" });
+
+    await engine.verifiedSubmit({
+      attemptId: "44444444-4444-4444-8444-444444444444",
+      text: "next turn",
+      signal: new AbortController().signal
+    });
+
+    expect(events).toHaveLength(0);
+  });
+});
+
+describe("CliChatEngineImpl — plain submit mux-failure classification (#1157)", () => {
+  it("maps a mux delivery failure to CliChatUnavailableError so runTurn can heal", async () => {
+    // #1157: engine terminal died out-of-band (pane_not_found from herdr). Pre-fix the
+    // in-process engine rethrew the raw transport Error, so chat-session-manager's heal
+    // branch (which keys on CliChatUnavailableError) never fired — only the RPC path got
+    // the typed classification from cli-runner. This pins the in-process parity mapping.
+    const mux = stateMachineMux({ panes: ["[1m❯[0m \n"] });
+    (mux.submit as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('herdr send-text failed (code 1): {"error":{"code":"pane_not_found"}}')
+    );
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "submit-dead-pane", io, { mux, echoMs: 0 });
+    // Launch first: without a live handle, requireHandle() throws before reaching the
+    // mux call and the assertion would false-pass on the wrong error.
+    await engine.launch({ neutralDir: "/tmp/submit-dead-pane", personaPath: "/p.md" });
+
+    await expect(engine.submit("hello")).rejects.toBeInstanceOf(CliChatUnavailableError);
   });
 });

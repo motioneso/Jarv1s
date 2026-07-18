@@ -50,6 +50,12 @@ import { CliChatUnavailableError } from "./errors.js";
 import { CodexExecSession } from "./codex-exec-session.js";
 import { modelOverrideFlag, redactCause, sanitizeInput, shellQuote } from "./cli-engine-helpers.js";
 import { composerHasExactEcho, isComposerEmpty } from "./composer-evidence.js";
+import {
+  VerifiedSubmitError,
+  type CliChatEngineDiagnostic,
+  type CliChatEngineOpts,
+  type VerifiedSubmitOpts
+} from "./cli-chat-engine-opts.js";
 import { killMuxSessionByName, SESSION_PREFIX } from "./cli-session-lifecycle.js";
 import { writeClaudePermissionHook } from "./claude-permission-hook.js";
 import {
@@ -81,6 +87,13 @@ export {
   type LoginMuxSessionAge
 } from "./login-mux-sessions.js";
 export { composerHasExactEcho, isComposerEmpty } from "./composer-evidence.js";
+// Split out for the 1000-line file cap (#1157); re-exported to keep import paths stable.
+export {
+  VerifiedSubmitError,
+  type CliChatEngineDiagnostic,
+  type CliChatEngineOpts,
+  type VerifiedSubmitOpts
+} from "./cli-chat-engine-opts.js";
 export {
   deriveNeutralDir,
   killMuxSessionByName,
@@ -98,49 +111,6 @@ export {
 const PERSONA_FILENAME = "persona.md";
 
 const CLAUDE_MCP_FILENAME = ".jarvis-claude-mcp.json";
-
-export interface CliChatEngineOpts {
-  /** Multiplexer backend; defaults to a TmuxMultiplexer over the same io (preserves legacy behavior). */
-  readonly mux?: Multiplexer;
-  /** Base dir whose `.claude`/`.codex`/`.gemini` hold CLI transcripts. */
-  readonly homeBase?: string;
-  /**
-   * (#363, claude-scoped) Path to the 0600 file holding the provider's captured OAuth token.
-   * When set AND present, `buildClaudeCommand` prefixes the launch with
-   * `CLAUDE_CODE_OAUTH_TOKEN="$(cat <file>)"` so claude is authenticated — the secret is read at
-   * runtime, NEVER in the tmux argv / pane-typed string. Ignored by codex/gemini launches.
-   */
-  readonly credentialFile?: string;
-  /** #342: true when cli-runner owns server-side replay submit+drain. */
-  readonly ownsDrain?: boolean;
-  /** #342: max wall-clock ms for server-side replay-drain. */
-  readonly drainMs?: number;
-  /** #342: poll interval (ms) used while draining the replay. Default 250ms. */
-  readonly drainPollMs?: number;
-  /** Max observation window for each ECHO attempt. Time can only fail; pane evidence succeeds. */
-  readonly echoMs?: number;
-  /** Failure-only bound for replay's verified submit. */
-  readonly verifiedSubmitMs?: number;
-  readonly executionMode?: AiProviderExecutionMode;
-}
-
-export interface VerifiedSubmitOpts {
-  readonly attemptId: string;
-  readonly text: string;
-  readonly signal: AbortSignal;
-}
-
-export class VerifiedSubmitError extends Error {
-  constructor(
-    readonly code: "unavailable" | "delivery_unknown",
-    readonly engineInvalidated = false
-  ) {
-    super(
-      code === "delivery_unknown" ? "chat input delivery is unknown" : "chat input unavailable"
-    );
-    this.name = "VerifiedSubmitError";
-  }
-}
 
 /** Result of a bounded server-side replay-drain (§4.1.2). */
 interface DrainOutcome {
@@ -179,6 +149,7 @@ export class CliChatEngineImpl implements CliChatEngine {
   private readonly echoMs: number;
   private readonly verifiedSubmitMs: number;
   private readonly executionMode: AiProviderExecutionMode;
+  private readonly onDiagnostic?: (event: CliChatEngineDiagnostic) => void;
   private codexExec: CodexExecSession | null = null;
   private codexExecLogicalAlive = false;
   private codexSessionUuid: string | null = null;
@@ -200,6 +171,7 @@ export class CliChatEngineImpl implements CliChatEngine {
     this.echoMs = opts.echoMs ?? 10_000;
     this.verifiedSubmitMs = opts.verifiedSubmitMs ?? 35_000;
     this.executionMode = opts.executionMode ?? "interactive";
+    this.onDiagnostic = opts.onDiagnostic;
   }
 
   // ─── lifecycle ─────────────────────────────────────────────────────────────
@@ -319,7 +291,17 @@ export class CliChatEngineImpl implements CliChatEngine {
       await this.codexExec.submit(sanitized);
       return;
     }
-    await this.mux.submit(this.requireHandle(), sanitized);
+    // #1157: mux delivery failure (pane gone — engine died out-of-band) = text verifiably
+    // never entered the engine. Classify as CliChatUnavailableError so runTurn's heal branch
+    // can relaunch + resubmit once; a plain Error would bypass it. RPC path already gets
+    // this typing from cli-runner (VerifiedSubmitError) — this is in-process parity.
+    try {
+      await this.mux.submit(this.requireHandle(), sanitized);
+    } catch (err) {
+      throw new CliChatUnavailableError("live chat engine terminal is gone", {
+        cause: redactCause(err)
+      });
+    }
     if (this.provider === "google") this.agyHasSubmitted = true;
   }
 
@@ -344,6 +326,24 @@ export class CliChatEngineImpl implements CliChatEngine {
       this.throwIfCanceled(opts.signal);
 
       for (let pasteAttempt = 0; pasteAttempt < 2; pasteAttempt += 1) {
+        // #1157: before wiping the composer, check whether a PREVIOUS turn's text is still
+        // sitting in it (pasted but never submitted — the prod "stuck 'try again'" failure).
+        // clearComposer below destroys that evidence, so this is the only place the loss is
+        // observable. Report a char count only (never content) and never let the probe itself
+        // break the submit path.
+        if (pasteAttempt === 0 && this.onDiagnostic) {
+          try {
+            const preClearPane = await this.mux.capturePane(handle);
+            if (!isComposerEmpty(this.provider, preClearPane)) {
+              this.onDiagnostic({
+                kind: "composer_discarded",
+                paneChars: preClearPane.trim().length
+              });
+            }
+          } catch {
+            // Diagnostic is best-effort; a capture failure must not block the turn.
+          }
+        }
         await this.mux.clearComposer(handle);
         this.throwIfCanceled(opts.signal);
         const empty = await this.observePane(

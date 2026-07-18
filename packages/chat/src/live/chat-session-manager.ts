@@ -2,10 +2,8 @@ import type { ProviderKind } from "@jarv1s/ai";
 import type {
   AnswerProvenanceMetadataV1,
   AiProviderExecutionMode,
-  ChatAttachmentDto,
   SourceFreshnessV1
 } from "@jarv1s/shared";
-import type { MemoryRecallItem } from "@jarv1s/memory";
 
 import type { StoredAttachmentMeta } from "../attachments-service.js";
 import type { RecallPort } from "../recall-port.js";
@@ -25,76 +23,17 @@ export {
   renderReplayBlock,
   renderSummaryBlock
 } from "./chat-context-blocks.js";
+// Split out for the 1000-line file cap (#1157); re-exported to keep import paths stable.
+export type {
+  ChatPersistencePort,
+  PassiveRetrievalPort,
+  PrivateThreadState
+} from "./chat-session-ports.js";
+import type { ChatPersistencePort, PassiveRetrievalPort } from "./chat-session-ports.js";
 
 /** Monotonic-ish wall clock, injected so idle reaping is testable. */
 export interface Clock {
   now(): number;
-}
-
-export interface ChatPersistencePort {
-  /** The active "chat" provider+model for this user (router-selected). */
-  resolveActiveProvider(
-    actorUserId: string
-  ): Promise<{ provider: ProviderKind; model: string; executionMode?: AiProviderExecutionMode }>;
-  /** Prior stored turns split into recent verbatim turns + older rolling summary. */
-  listPriorTurns(
-    actorUserId: string,
-    opts?: { readonly forceReplay?: boolean }
-  ): Promise<{
-    recent: readonly { role: "user" | "assistant"; content: string }[];
-    oldSummary: string | null;
-  }>;
-  /** Persist a completed turn (user text + assistant reply + executing provider/model). */
-  recordTurn(
-    actorUserId: string,
-    userText: string,
-    assistantReply: string,
-    executed: { provider: ProviderKind; model: string },
-    opts?: {
-      readonly invokedToolNames?: ReadonlySet<string>;
-      readonly answerProvenance?: AnswerProvenanceMetadataV1;
-      /** #1133 — display metadata for files sent with this turn (user-message tool_metadata). */
-      readonly attachments?: readonly ChatAttachmentDto[];
-    }
-  ): Promise<
-    | {
-        readonly userMessageId: string;
-        readonly assistantMessageId: string;
-        readonly sourceFreshness?: SourceFreshnessV1 | null;
-      }
-    | undefined
-  >;
-  /** Close the current conversation and open a fresh one (for /clear). */
-  openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void>;
-  getCurrentThreadState?(
-    actorUserId: string
-  ): Promise<{ readonly id: string; readonly incognito: boolean } | undefined>;
-  listIncognitoThreadStates?(): Promise<readonly PrivateThreadState[]>;
-  deleteThread?(actorUserId: string, threadId: string): Promise<void>;
-  /** Return the current thread title and the user's persisted timezone (null if unset). */
-  getThreadContext(
-    actorUserId: string
-  ): Promise<{ threadTitle: string | null; localTimezone: string | null }>;
-  /**
-   * Make threadId the current thread for actorUserId (for resume). Returns true if
-   * the thread was found and touched; false if it does not exist or belongs to another user.
-   */
-  touchExistingThread(actorUserId: string, threadId: string): Promise<boolean>;
-}
-
-export interface PassiveRetrievalPort {
-  retrieve(input: {
-    readonly actorUserId: string;
-    readonly userText: string;
-    readonly threadTitle: string | null;
-    readonly recentTurns: readonly { role: "user" | "assistant"; content: string }[];
-  }): Promise<string>;
-  retrieveWithItems?(input: {
-    readonly actorUserId: string;
-    readonly userText: string;
-    readonly threadTitle: string | null;
-    readonly recentTurns: readonly { role: "user" | "assistant"; content: string }[];
-  }): Promise<{ block: string; items: MemoryRecallItem[] }>;
 }
 
 export interface ChatSessionManagerDeps {
@@ -190,11 +129,6 @@ interface UserSession {
   lastActivity: number;
   transcriptOffset: number;
   incognito: boolean;
-}
-
-interface PrivateThreadState {
-  readonly actorUserId: string;
-  readonly threadId: string;
 }
 
 const MAX_SUBSCRIBERS_PER_ACTOR = 5;
@@ -394,6 +328,30 @@ export class ChatSessionManager {
   }
 
   /**
+   * #1157 self-heal: the engine behind this session is gone (the daemon killed it after a
+   * VerifiedSubmitError, the cli-runner restarted, or the tmux server died with the
+   * container). Evict the stale entry, revoke the per-session MCP token (a fresh one is
+   * minted on relaunch), force a conversation replay so the fresh engine has context, and
+   * relaunch. The caller retries the submit exactly once — a second failure surfaces.
+   */
+  private async healAndRelaunch(
+    actorUserId: string,
+    userName: string,
+    dead: UserSession
+  ): Promise<UserSession> {
+    if (this.sessions.get(actorUserId) === dead) this.sessions.delete(actorUserId);
+    this.deps.revokeMcpToken?.(actorUserId);
+    try {
+      await dead.engine.kill();
+    } catch {
+      // Already dead — kill is best-effort teardown of a stale handle.
+    }
+    this.pendingForcedReplay.add(actorUserId);
+    this.emit(actorUserId, { kind: "status", text: "Chat session was lost — reconnecting…" });
+    return this.ensureSession(actorUserId, userName);
+  }
+
+  /**
    * Submit one user turn: echo it to subscribers, send it to the engine, fan out
    * every new transcript record until the engine reports complete, persist the
    * completed turn, and return the assistant reply.
@@ -442,7 +400,16 @@ export class ChatSessionManager {
     assistantMessageId?: string;
     sourceFreshness?: SourceFreshnessV1 | null;
   }> {
-    const session = await this.ensureSession(actorUserId, userName);
+    // #1157: a failed launch (dead tmux server after a container restart, stale daemon
+    // state) gets exactly one retry with forced replay before surfacing.
+    let session: UserSession;
+    try {
+      session = await this.ensureSession(actorUserId, userName);
+    } catch (err) {
+      if (!(err instanceof CliChatUnavailableError)) throw err;
+      this.pendingForcedReplay.add(actorUserId);
+      session = await this.ensureSession(actorUserId, userName);
+    }
 
     // #456 — per-turn stop signal. stopTurn(actorUserId) aborts this; the poll loop checks
     // signal.aborted after every readNew and breaks cleanly (no error) when set.
@@ -470,10 +437,20 @@ export class ChatSessionManager {
         await session.engine.submit(engineText);
       } catch (err) {
         if (err instanceof CliChatDeliveryUnknownError) {
+          // Delivery MAY have happened — never resubmit (duplicate-turn risk). Evict so
+          // the next turn relaunches cleanly (pre-#1157 behavior, kept).
           if (this.sessions.get(actorUserId) === session) this.sessions.delete(actorUserId);
           this.deps.revokeMcpToken?.(actorUserId);
+          throw err;
         }
-        throw err;
+        if (err instanceof CliChatUnavailableError) {
+          // #1157: unavailable = the text verifiably never entered the engine (paste failed
+          // pre-entry, or the daemon has no live session). Safe to heal + resubmit ONCE.
+          session = await this.healAndRelaunch(actorUserId, userName, session);
+          await session.engine.submit(engineText);
+        } else {
+          throw err;
+        }
       }
 
       let reply = "";
