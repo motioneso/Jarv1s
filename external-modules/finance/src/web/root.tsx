@@ -1,8 +1,11 @@
 // external-modules/finance/src/web/root.tsx
 // FIN-02 (#1147) Task 11: module Root — chrome (eyebrow + heading), one polite
-// live region for the whole surface, and the transaction feed. Single nav path
-// ("/"), so no router; jds-* primitives + layout-only fnm-* styles.
+// live region for the whole surface. FIN-03 (#1148) Task 4 adds the in-module
+// router (job-search idiom): Feed at "/", Budget at "/budget"; jds-*
+// primitives + layout-only fnm-* styles.
+import { ModuleLink, useModulePath } from "./router";
 import { h, useSyncExternalStore, type ReactNodeLike } from "./runtime";
+import { BudgetScreen } from "./screens/budget";
 import { FeedScreen } from "./screens/feed";
 import { currentLiveMessage, subscribeLive } from "./states";
 import { MODULE_STYLES } from "./styles";
@@ -21,7 +24,13 @@ function LiveRegion(): ReactNodeLike {
   );
 }
 
+const TABS: ReadonlyArray<{ to: string; label: string }> = [
+  { to: "/", label: "Feed" },
+  { to: "/budget", label: "Budget" }
+];
+
 export function Root(props: { hostActions: HostActions }): ReactNodeLike {
+  const path = useModulePath();
   return (
     <div className="fnm-root" data-module="finance">
       <style>{MODULE_STYLES}</style>
@@ -30,7 +39,19 @@ export function Root(props: { hostActions: HostActions }): ReactNodeLike {
         <span className="jds-eyebrow">Module</span>
         <h1>Finance</h1>
       </header>
-      <FeedScreen hostActions={props.hostActions} />
+      <nav className="fnm-chips" aria-label="Finance sections">
+        {TABS.map((tab) => (
+          <ModuleLink
+            key={tab.to}
+            to={tab.to}
+            className={`jds-btn jds-btn--sm ${path === tab.to ? "jds-btn--secondary" : "jds-btn--ghost"}`}
+            aria-current={path === tab.to ? "page" : undefined}
+          >
+            {tab.label}
+          </ModuleLink>
+        ))}
+      </nav>
+      {path === "/budget" ? <BudgetScreen /> : <FeedScreen hostActions={props.hostActions} />}
     </div>
   );
 }

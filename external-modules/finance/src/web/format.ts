@@ -42,6 +42,29 @@ export function currentMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
+// Mirrors the finance.budget-apply manifest bound (±$1M in cents): anything
+// the parser lets through is guaranteed legal for the queue params gate.
+const MAX_ASSIGN_CENTS = 100_000_000;
+
+/**
+ * Parse a user-typed assignment amount ("1,234.56", "$50", "-20") into
+ * integer cents (FIN-03, #1148). Null — not an exception — for empty, garbage,
+ * sub-cent precision, or out-of-bounds input: the budget screen keeps the
+ * previous value rather than enqueueing a bad job.
+ */
+export function parseAmountToCents(text: string): number | null {
+  const cleaned = text.trim().replace(/[$,\s]/g, "");
+  if (!/^-?(\d+(\.\d{0,2})?|\.\d{1,2})$/.test(cleaned)) return null;
+  const cents = Math.round(Number(cleaned) * 100);
+  if (!Number.isInteger(cents) || Math.abs(cents) > MAX_ASSIGN_CENTS) return null;
+  return cents;
+}
+
+/** Integer cents → the plain "1234.56" form the assign input edits. */
+export function centsToAmountInput(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
 /** "2026-07-15" → "Wednesday · July 15" (date group heading). */
 export function dayLabel(date: string): string {
   const parsed = new Date(`${date}T00:00:00Z`);
