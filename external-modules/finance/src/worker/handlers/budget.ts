@@ -25,6 +25,7 @@
 
 import {
   deriveBudgetMonths,
+  effectiveTransferIds,
   NS,
   type BudgetLedger,
   type BudgetMonthState,
@@ -94,6 +95,17 @@ async function loadDerivationInput(kv: FinanceKv): Promise<{
     } | null;
     if (!chunk?.transactions?.length) continue;
     (transactionsByMonth[month] ??= []).push(...chunk.transactions);
+  }
+  // FIN-05 (#1150): drop the effective transfer set (auto-paired rows ∪
+  // transfers-categorized) BEFORE derivation. Pairing needs the full
+  // cross-month set, so it runs over the flattened months here, not per
+  // month. deriveBudgetMonths keeps its own transfers/null skip as defense
+  // in depth — this filter only ever removes MORE rows (paired legs whose
+  // category is not "transfers", e.g. a transfer-in miscategorized as
+  // income inflating TBB).
+  const excluded = effectiveTransferIds(Object.values(transactionsByMonth).flat());
+  for (const month of Object.keys(transactionsByMonth)) {
+    transactionsByMonth[month] = transactionsByMonth[month]!.filter((txn) => !excluded.has(txn.id));
   }
   return { ledgers, transactionsByMonth };
 }
