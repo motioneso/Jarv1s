@@ -82,8 +82,18 @@ a short per-slice spec update before build if its shape shifts — same pattern 
   - queue `finance.sync-run` (retryLimit 3, manual run allowed) — one job per user; the job
     iterates that user's Plaid items sequentially (serialization guarantee).
   - user-scoped schedule `finance.sync-sweep`, cron `41 */6 * * *` (off-minute per fleet
-    guidance) → enqueues `finance.sync-run` per enabled user.
-  - queue `finance.connect-poll` (retryLimit 5) — short-lived Hosted Link session polling.
+    guidance) → posts **directly onto queue `finance.sync-run`** per enabled user
+    (_amended 2026-07-18, D3: the reconciler registers per-user pg-boss schedules onto
+    `schedule.queue`; there is no sweep handler_). `finance.sync.run-now` shares handler
+    key `sync.run` with the queue.
+  - queue `finance.connect-poll` (retryLimit 5, manual run allowed) — short-lived Hosted
+    Link session polling (web run-now path; see Connect step 2).
+  - queue `finance.categorize-apply` (retryLimit 1, manual run allowed; FIN-02) — applies a
+    category change from the web feed. _Added 2026-07-18 (D4): the REST tool-invoke route
+    403s all non-read tools, so the web recategorize action runs as a manual-run job with
+    identifier-only params — the user's click is the confirmation (job-search run-now
+    precedent). Free-text notes are assistant-only via `finance.transaction.categorize`;
+    notes inside a job payload would violate the metadata-only invariant._
 - **Assistant tools** (`permissionId == tool name`, job-search ruling): read-risk
   `finance.accounts.list`, `finance.transactions.query`, `finance.budget.status` (FIN-03),
   `finance.reports.spending` (FIN-05); write-risk `finance.connect.start`,
@@ -96,24 +106,39 @@ a short per-slice spec update before build if its shape shifts — same pattern 
 ## Plaid integration (FIN-01)
 
 **Environment + credentials.** Admin enters client id/secret through the existing
-module-credential settings routes (#918). All Plaid calls are `ctx.fetch` POSTs with
-`PLAID-CLIENT-ID`/`PLAID-SECRET` headers read via `ctx.auth.getCredential` inside the handler —
-the D6 composition guard keeps them out of AI inputs, and `ctx.fetch` pins hosts.
+module-credential settings routes (#918). All Plaid calls are `ctx.fetch` POSTs whose JSON
+body carries `client_id`/`secret`/`access_token` as **body fields** (officially supported by
+Plaid), base64-encoded via `bodyBase64`, read via `ctx.auth.getCredential` inside the
+handler. _Amended 2026-07-18 (FIN-01 grounding, D1): the original header-based wording
+(`PLAID-CLIENT-ID`/`PLAID-SECRET`) is unimplementable — the FIN-00 transport secret guard
+(`worker-runtime.ts` `containsSecret`) rejects any child→host RPC whose params contain a
+resolved credential as a plaintext substring, which includes fetch headers and URLs;
+`bodyBase64` is the sanctioned channel._ The D6 composition guard keeps credentials out of
+AI inputs, and `ctx.fetch` pins hosts.
 
 **Connect (Hosted Link — no CSP change, no webhooks):**
 
 1. `finance.connect.start` (write tool): `POST /link/token/create` with
    `hosted_link: {}`, `products: ["transactions"]`, `client_user_id = actorUserId`,
    `transactions.days_requested: 730`. Store `{ linkToken, createdAt }` in
-   `finance.connections` under a pending key; return `hosted_link_url` for the web UI to open
-   in a new tab; enqueue `finance.connect-poll`.
-2. `finance.connect-poll` job: `POST /link/token/get`; while the session is open, re-enqueue
-   itself with backoff (30 s → 2 min, give up after 30 min — link tokens expire at 4 h for
-   hosted sessions, but abandoned connects should not poll for hours). On success:
+   `finance.connections` under a pending key; return `hosted_link_url` for the caller to
+   open in a new tab, with guidance to run `finance.connect.poll` after completing the flow.
+2. `finance.connect.poll` — **single-shot**, one handler shared by the write tool
+   (assistant path, inline) and queue `finance.connect-poll` (web path via manual run-now).
+   It takes no params: it scans all of the actor's pending link sessions, calls
+   `POST /link/token/get` for each, and returns `{ completed, pending, abandoned }` —
+   "still pending" is a normal result, not an error. Re-polling is **caller-driven**
+   (web re-poll interval ~30 s; assistant re-invokes). Sessions older than 30 min by their
+   `createdAt` are marked `abandoned` (link tokens expire at 4 h for hosted sessions, but
+   abandoned connects should not poll for hours). On success:
    `POST /item/public_token/exchange` per returned session → merge
    `{ itemId: { accessToken, institutionId } }` into the `finance.plaid-tokens` slot
    (FIN-00 `setCredential`), write item metadata to `finance.connections`, fetch
-   `/accounts/get` into `finance.accounts`, enqueue an initial `finance.sync-run`.
+   `/accounts/get` into `finance.accounts`; the result's `nextStep` directs the caller to
+   trigger `finance.sync.run-now`. _Amended 2026-07-18 (FIN-01 grounding, D2): the original
+   "re-enqueue itself with backoff / enqueue an initial sync" wording is unimplementable —
+   the worker context has no enqueue seam (input/auth/fetch/kv/ai only), and queue
+   declarations carry no retryDelay._
 3. Failure/expiry marks the pending connection `abandoned` (surfaced in UI, cleanable).
 
 **Sync (`finance.sync-run`, per user):** for each item in the tokens map:
