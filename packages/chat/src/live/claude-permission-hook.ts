@@ -6,7 +6,17 @@ export const CLAUDE_PERMISSION_SETTINGS_FILENAME = ".jarvis-claude-settings.json
 export const CLAUDE_PERMISSION_HOOK_FILENAME = ".jarvis-claude-permission-hook.mjs";
 export const CLAUDE_PERMISSION_TOKEN_FILENAME = ".jarvis-claude-permission-token";
 
-const HOOK_TIMEOUT_SECONDS = 160;
+// #1158 deadline ordering. The three deadlines around a native-tool confirmation MUST be
+// strictly ordered so a user timeout/deny always returns to claude as a STRUCTURED decision
+// (deny) and never as a fail-closed transport error (which claude treats as retryable,
+// starving the transcript until the #456 idle watchdog kills the engine — the 2026-07-18
+// prod outage, issue #1157):
+//   server confirm window < hook internal deadline < Claude Code hook timeout
+// routes.ts imports NATIVE_CONFIRM_TIMEOUT_MS so the server side cannot drift silently;
+// tests/unit/claude-permission-hook.test.ts asserts the ordering.
+export const NATIVE_CONFIRM_TIMEOUT_MS = 150_000;
+export const HOOK_INTERNAL_DEADLINE_S = 170;
+export const HOOK_TIMEOUT_SECONDS = 180;
 
 export interface ClaudePermissionHookOpts {
   readonly neutralDir: string;
@@ -33,6 +43,8 @@ export async function writeClaudePermissionHook(
   const tokenPath = join(opts.neutralDir, CLAUDE_PERMISSION_TOKEN_FILENAME);
   const permissionUrl = deriveClaudePermissionUrl(opts.mcpServerUrl);
   const command = [
+    // #1158: explicit deadline (was implicit 150s default == server confirm window → dead race).
+    `JARVIS_PERM_DEADLINE_S=${HOOK_INTERNAL_DEADLINE_S}`,
     `JARVIS_PERM_URL=${shellQuote(permissionUrl)}`,
     `JARVIS_PERM_TOKEN_FILE=${shellQuote(tokenPath)}`,
     "node",

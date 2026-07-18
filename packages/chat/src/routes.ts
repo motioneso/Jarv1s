@@ -77,6 +77,7 @@ import { buildEmailWriteService } from "./email-write-impl.js";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
 import { registerChatLiveRoutes, type EveningInterviewSeed } from "./live-routes.js";
 import { CliChatUnavailableError } from "./live/errors.js";
+import { NATIVE_CONFIRM_TIMEOUT_MS } from "./live/claude-permission-hook.js";
 import { createCurrentViewReadService, type CurrentViewReadService } from "./live/current-view.js";
 import { PageContextStore } from "./live/page-context-store.js";
 import type { PassiveMemoryGraphRecallPort } from "./live/passive-retrieval.js";
@@ -758,7 +759,9 @@ export function buildChatGatewayDependencies(args: {
     tokens: args.tokens,
     confirmations: args.confirmations,
     notifier: args.notifier,
-    confirmTimeoutMs: 150_000,
+    // #1158: MUST stay below the permission hook's internal deadline — see the deadline
+    // ordering comment in live/claude-permission-hook.ts (unit-tested invariant).
+    confirmTimeoutMs: NATIVE_CONFIRM_TIMEOUT_MS,
     agencyPrefs: buildAgencyPrefs({
       runner: args.runner,
       preferences: args.agencyPreferences

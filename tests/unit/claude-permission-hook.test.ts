@@ -10,6 +10,9 @@ import {
   CLAUDE_PERMISSION_HOOK_SOURCE,
   CLAUDE_PERMISSION_SETTINGS_FILENAME,
   CLAUDE_PERMISSION_TOKEN_FILENAME,
+  HOOK_INTERNAL_DEADLINE_S,
+  HOOK_TIMEOUT_SECONDS,
+  NATIVE_CONFIRM_TIMEOUT_MS,
   deriveClaudePermissionUrl,
   writeClaudePermissionHook
 } from "../../packages/chat/src/live/claude-permission-hook.js";
@@ -103,6 +106,32 @@ describe("Claude PreToolUse permission hook", () => {
       "chmod",
       ["600", `/tmp/session/${CLAUDE_PERMISSION_TOKEN_FILENAME}`]
     ]);
+  });
+
+  it("orders the three deadlines: server confirm < hook internal < Claude Code hook timeout (#1158)", () => {
+    // The 2026-07-18 prod deadlock: server confirm wait (150s) == hook deadline (150s), so
+    // the hook always lost the race and failed closed as a transport error, which claude
+    // treats as retryable → silent stall loop → #456 watchdog kill. Strict ordering
+    // guarantees a genuine timeout/deny returns to claude as a STRUCTURED decision.
+    expect(NATIVE_CONFIRM_TIMEOUT_MS).toBeLessThan(HOOK_INTERNAL_DEADLINE_S * 1000);
+    expect(HOOK_INTERNAL_DEADLINE_S).toBeLessThan(HOOK_TIMEOUT_SECONDS);
+  });
+
+  it("writes the hook command with an explicit JARVIS_PERM_DEADLINE_S and the ordered settings timeout (#1158)", async () => {
+    const io = fakeIo();
+
+    const settingsPath = await writeClaudePermissionHook(io, {
+      neutralDir: "/tmp/session",
+      mcpToken: "jst_secret",
+      mcpServerUrl: "http://api:3000/api/mcp"
+    });
+
+    const settings = JSON.parse(io.writes.get(settingsPath) ?? "{}") as {
+      hooks: { PreToolUse: Array<{ hooks: Array<{ command: string; timeout: number }> }> };
+    };
+    const hookEntry = settings.hooks.PreToolUse[0]?.hooks[0];
+    expect(hookEntry?.timeout).toBe(HOOK_TIMEOUT_SECONDS);
+    expect(hookEntry?.command).toContain(`JARVIS_PERM_DEADLINE_S=${HOOK_INTERNAL_DEADLINE_S}`);
   });
 
   it("allows configured vault reads without calling the gateway", async () => {
