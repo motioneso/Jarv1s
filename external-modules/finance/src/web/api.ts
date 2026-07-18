@@ -6,6 +6,8 @@
 // non-2xx bodies. Only risk:read tools are ever invoked here (D4: the REST
 // invoke route 403s non-read tools); every write goes through the module's
 // manual-run queue endpoint via runQueue below.
+import type { DirectoryUser } from "./household";
+
 export type ToolOutcome<T> =
   | { kind: "ok"; result: T }
   | { kind: "blocked"; reason: string }
@@ -55,6 +57,25 @@ export async function invokeTool<T extends Record<string, unknown>>(
     return { kind: "blocked", reason: invocation.blockedReason ?? "blocked" };
   }
   return { kind: "error", message: `Request failed (${response.status})` };
+}
+
+/**
+ * FIN-04 (#1149): resolve household owner ids to display names via the host's
+ * authenticated directory (GET /api/users/directory — id + name of ACTIVE
+ * users only; the route schema is the redaction enforcement, no emails).
+ * Returns null on ANY failure so callers fail closed: resolveSharedOwners
+ * drops every shared entry rather than render unattributed household data.
+ */
+export async function fetchUserDirectory(): Promise<DirectoryUser[] | null> {
+  let response: { ok: boolean; json: () => Promise<unknown> };
+  try {
+    response = await fetch("/api/users/directory", { credentials: "include" });
+  } catch {
+    return null;
+  }
+  if (!response.ok) return null;
+  const body = (await parseJson(response)) as { users?: DirectoryUser[] } | null;
+  return Array.isArray(body?.users) ? body.users : null;
 }
 
 export type RunOutcome =

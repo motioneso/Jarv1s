@@ -46,7 +46,10 @@ export function toSharedAccountMeta(
   };
 }
 
-function toSharedTransaction(transaction: TransactionRecord): TransactionRecord {
+// Exported for the merged household read (#1149 Task 5): transactions.query
+// re-applies this allowlist when copying mirror rows into a response, so a
+// malformed mirror write can never leak extra fields to another user.
+export function toSharedTransaction(transaction: TransactionRecord): TransactionRecord {
   // Allowlist copy — deliberately NOT `{ ...transaction }` minus `notes`;
   // a field added to TransactionRecord later must be shared on purpose.
   return {

@@ -2,13 +2,25 @@
 import { describe, expect, it } from "vitest";
 
 import { NS } from "../../external-modules/finance/src/domain/index.js";
-import type { FinanceKv } from "../../external-modules/finance/src/domain/index.js";
+import type { FinanceKv, SharedMirrorKv } from "../../external-modules/finance/src/domain/index.js";
+import {
+  sharedMetaKey,
+  sharedMonthKey
+} from "../../external-modules/finance/src/domain/shared-pool.js";
 import { accountsListHandler } from "../../external-modules/finance/src/worker/handlers/accounts.js";
 import type { WorkerPorts } from "../../external-modules/finance/src/worker/ports.js";
 
 // FIN-01 (#1146) Task 7: accounts.list — the read tool the assistant uses to
 // answer "what are my balances". Pure KV read: joins NS.accounts records with
 // their item's status/institution; never touches Plaid or the token map.
+// FIN-04 (#1149) Task 5: the same read additionally merges OTHER owners'
+// entries from the finance.shared mirror, tagged { ownerUserId, shared: true },
+// skipping the actor's own mirror prefix (the user-scoped records above are
+// the authoritative copy). Read tools cannot write (forbidden_kv_mutation),
+// so the mirror port here permits list/get and throws on set/delete.
+
+const ACTOR = "00000000-0000-4000-8000-0000000000aa";
+const OTHER = "00000000-0000-4000-8000-0000000000bb";
 
 function fakeKv(): FinanceKv {
   const store = new Map<string, Map<string, Record<string, unknown>>>();
@@ -30,24 +42,27 @@ function fakeKv(): FinanceKv {
   };
 }
 
-function ports(kv: FinanceKv): WorkerPorts {
+// FIN-04 (#1149): read handlers may LIST/GET the mirror (that's the merged
+// household read) but must never mutate it — the host would reject the rpc
+// with forbidden_kv_mutation anyway; throwing here keeps the contract local.
+function readOnlyMirror(seed?: Record<string, Record<string, unknown>>): SharedMirrorKv {
+  const store = new Map(Object.entries(seed ?? {}));
+  return {
+    get: async (key) => structuredClone(store.get(key) ?? null),
+    set: async () => {
+      throw new Error("accounts.list must not write the household mirror");
+    },
+    delete: async () => {
+      throw new Error("accounts.list must not delete from the household mirror");
+    },
+    list: async () => [...store.keys()]
+  };
+}
+
+function ports(kv: FinanceKv, mirror: SharedMirrorKv = readOnlyMirror()): WorkerPorts {
   return {
     kv,
-    // FIN-04 (#1149): mirror writes are share/sync-handler territory only.
-    mirror: {
-      get: async () => {
-        throw new Error("accounts.list must not read the household mirror");
-      },
-      set: async () => {
-        throw new Error("accounts.list must not write the household mirror");
-      },
-      delete: async () => {
-        throw new Error("accounts.list must not delete from the household mirror");
-      },
-      list: async () => {
-        throw new Error("accounts.list must not list the household mirror");
-      }
-    },
+    mirror,
     ai: null,
     // Read tool: reaching for Plaid or credentials would be a design break.
     plaid: () => {
@@ -114,17 +129,25 @@ async function seed(kv: FinanceKv) {
 
 describe("finance.accounts.list (#1146)", () => {
   it("returns the connect nextStep when no accounts exist", async () => {
-    const result = await accountsListHandler(ports(fakeKv()))({});
+    const result = await accountsListHandler(ports(fakeKv()))({ actorUserId: ACTOR });
     expect(result).toEqual({
       accounts: [],
       nextStep: "connect a bank with finance.connect.start"
     });
   });
 
+  it("requires the host-injected actorUserId (#1149 spoof defense)", async () => {
+    // The host spreads actorUserId LAST into tool input (#1149); a missing
+    // value means the handler is being driven outside the dispatch chokepoint.
+    await expect(accountsListHandler(ports(fakeKv()))({})).rejects.toThrow(
+      /actorUserId is required/
+    );
+  });
+
   it("lists accounts joined with their item's status and institution", async () => {
     const kv = fakeKv();
     await seed(kv);
-    const result = (await accountsListHandler(ports(kv))({})) as {
+    const result = (await accountsListHandler(ports(kv))({ actorUserId: ACTOR })) as {
       accounts: Record<string, unknown>[];
     };
     // Stable order: accountId asc (kv.list order is storage-dependent).
@@ -139,7 +162,9 @@ describe("finance.accounts.list (#1146)", () => {
       isoCurrency: "USD",
       institutionId: "ins_1",
       itemStatus: "connected",
-      updatedAt: "2026-07-18T06:00:00Z"
+      updatedAt: "2026-07-18T06:00:00Z",
+      // FIN-04 (#1149): the web share toggle needs the current flag.
+      sharedToHousehold: false
     });
     expect(result.accounts[1]).toMatchObject({
       accountId: "acc-2",
@@ -163,7 +188,7 @@ describe("finance.accounts.list (#1146)", () => {
       isoCurrency: "USD",
       updatedAt: "2026-07-01T00:00:00Z"
     });
-    const result = (await accountsListHandler(ports(kv))({})) as {
+    const result = (await accountsListHandler(ports(kv))({ actorUserId: ACTOR })) as {
       accounts: Record<string, unknown>[];
     };
     expect(result.accounts).toHaveLength(1);
@@ -172,5 +197,95 @@ describe("finance.accounts.list (#1146)", () => {
       institutionId: null,
       itemStatus: "error"
     });
+  });
+});
+
+// FIN-04 (#1149) Task 5: merged household read. Foreign owners' shared
+// accounts come from the finance.shared mirror, appended after own accounts
+// and tagged { ownerUserId, shared: true }; the actor's own mirror prefix is
+// skipped (their user-scoped records above are authoritative).
+describe("finance.accounts.list household merge (#1149)", () => {
+  // Shape = SharedAccountMeta (shared-pool.ts): no itemStatus/institutionId —
+  // Plaid plumbing deliberately never enters the mirror.
+  const otherMeta = {
+    ownerUserId: OTHER,
+    accountId: "acc-x",
+    name: "Joint Checking",
+    officialName: null,
+    type: "depository",
+    subtype: "checking",
+    mask: "4444",
+    balanceCents: 300000,
+    isoCurrency: "USD",
+    updatedAt: "2026-07-18T05:00:00Z"
+  };
+
+  it("appends foreign shared accounts after own accounts, tagged shared", async () => {
+    const kv = fakeKv();
+    await seed(kv);
+    const mirror = readOnlyMirror({
+      [sharedMetaKey(OTHER, "acc-x")]: otherMeta,
+      // Own-prefix mirror entry — MUST be skipped, not duplicated.
+      [sharedMetaKey(ACTOR, "acc-1")]: {
+        ownerUserId: ACTOR,
+        accountId: "acc-1",
+        name: "Checking",
+        officialName: null,
+        type: "depository",
+        subtype: "checking",
+        mask: "0000",
+        balanceCents: 500000,
+        isoCurrency: "USD",
+        updatedAt: "2026-07-18T06:00:00Z"
+      },
+      // Month chunks under the mirror are not accounts — meta suffix only.
+      [sharedMonthKey(OTHER, "acc-x", "2026-07")]: { transactions: [] }
+    });
+    const result = (await accountsListHandler(ports(kv, mirror))({ actorUserId: ACTOR })) as {
+      accounts: Record<string, unknown>[];
+    };
+    expect(result.accounts.map((a) => a.accountId)).toEqual(["acc-1", "acc-2", "acc-x"]);
+    // Read-side allowlist copy of the mirror meta: no itemStatus, no
+    // institutionId (never mirrored), no officialName (own views drop it too).
+    expect(result.accounts[2]).toEqual({
+      accountId: "acc-x",
+      name: "Joint Checking",
+      mask: "4444",
+      type: "depository",
+      subtype: "checking",
+      balanceCents: 300000,
+      isoCurrency: "USD",
+      updatedAt: "2026-07-18T05:00:00Z",
+      ownerUserId: OTHER,
+      shared: true
+    });
+    // Own accounts are NOT tagged shared and never carry ownerUserId.
+    expect(result.accounts[0]).not.toHaveProperty("ownerUserId");
+  });
+
+  it("shows shared accounts to a member with no own accounts, keeping nextStep", async () => {
+    const mirror = readOnlyMirror({ [sharedMetaKey(OTHER, "acc-x")]: otherMeta });
+    const result = (await accountsListHandler(ports(fakeKv(), mirror))({
+      actorUserId: ACTOR
+    })) as Record<string, unknown>;
+    expect((result.accounts as Record<string, unknown>[]).map((a) => a.accountId)).toEqual([
+      "acc-x"
+    ]);
+    // nextStep keys off OWN accounts: this member still hasn't connected a bank.
+    expect(result.nextStep).toBe("connect a bank with finance.connect.start");
+  });
+
+  it("tolerates malformed mirror keys and non-record meta values", async () => {
+    const kv = fakeKv();
+    await seed(kv);
+    const mirror = readOnlyMirror({
+      "no-colons-here": { ownerUserId: OTHER },
+      [`${OTHER}:acc-y:meta`]: null as unknown as Record<string, unknown>,
+      [sharedMetaKey(OTHER, "acc-x")]: otherMeta
+    });
+    const result = (await accountsListHandler(ports(kv, mirror))({ actorUserId: ACTOR })) as {
+      accounts: Record<string, unknown>[];
+    };
+    expect(result.accounts.map((a) => a.accountId)).toEqual(["acc-1", "acc-2", "acc-x"]);
   });
 });

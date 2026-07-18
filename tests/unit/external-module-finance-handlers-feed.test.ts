@@ -12,8 +12,13 @@ import {
 import type {
   FinanceKv,
   Rule,
+  SharedMirrorKv,
   TransactionRecord
 } from "../../external-modules/finance/src/domain/index.js";
+import {
+  sharedMetaKey,
+  sharedMonthKey
+} from "../../external-modules/finance/src/domain/shared-pool.js";
 import {
   categorizeApplyHandler,
   transactionCategorizeHandler,
@@ -29,6 +34,8 @@ import type { WorkerPorts } from "../../external-modules/finance/src/worker/port
 // four identifier ids only — notes stay off job payloads (D6).
 
 const NOW = new Date("2026-07-18T12:00:00Z");
+const ACTOR = "00000000-0000-4000-8000-0000000000aa";
+const OTHER = "00000000-0000-4000-8000-0000000000bb";
 
 function fakeKv(): FinanceKv & { ops: { namespace: string; key: string }[] } {
   const store = new Map<string, Map<string, Record<string, unknown>>>();
@@ -53,14 +60,31 @@ function fakeKv(): FinanceKv & { ops: { namespace: string; key: string }[] } {
   };
 }
 
+// FIN-04 (#1149): transactions.query LISTS/GETS the mirror (merged household
+// read) but must never mutate it. Categorize handlers must not touch it at
+// all — they keep the default throwing mirror below.
+function readOnlyMirror(seed?: Record<string, Record<string, unknown>>): SharedMirrorKv {
+  const store = new Map(Object.entries(seed ?? {}));
+  return {
+    get: async (key) => structuredClone(store.get(key) ?? null),
+    set: async () => {
+      throw new Error("feed reads must not write the household mirror");
+    },
+    delete: async () => {
+      throw new Error("feed reads must not delete from the household mirror");
+    },
+    list: async () => [...store.keys()]
+  };
+}
+
 // Feed handlers are pure KV reads/writes: any touch of Plaid credentials,
 // the token map, or instance settings is a contract violation, so every
 // non-kv port throws on use.
-function fakePorts(kv: FinanceKv): WorkerPorts {
+function fakePorts(kv: FinanceKv, mirror?: SharedMirrorKv): WorkerPorts {
   return {
     kv,
-    // FIN-04 (#1149): mirror writes are share/sync-handler territory only.
-    mirror: {
+    // Default: categorize handlers are mirror-blind (share/sync territory).
+    mirror: mirror ?? {
       get: async () => {
         throw new Error("feed handlers must not read the household mirror");
       },
@@ -165,7 +189,9 @@ describe("finance feed handlers (#1147)", () => {
     const kv = fakeKv();
     await seedFeed(kv);
     const writesBefore = kv.ops.length;
-    const result = await transactionsQueryHandler(fakePorts(kv))({});
+    const result = await transactionsQueryHandler(fakePorts(kv, readOnlyMirror()))({
+      actorUserId: ACTOR
+    });
     // Cross-account merge, date desc then id asc; June stays out.
     expect(ids(result)).toEqual(["t-a", "t-c", "t-b"]);
     // One-call feed: categories + accounts ride along.
@@ -182,7 +208,8 @@ describe("finance feed handlers (#1147)", () => {
   it("query filters by month, account, category, search, and pending", async () => {
     const kv = fakeKv();
     await seedFeed(kv);
-    const handler = transactionsQueryHandler(fakePorts(kv));
+    const query = transactionsQueryHandler(fakePorts(kv, readOnlyMirror()));
+    const handler = (input: Record<string, unknown>) => query({ actorUserId: ACTOR, ...input });
     expect(ids(await handler({ month: "2026-06" }))).toEqual(["t-old"]);
     expect(ids(await handler({ accountId: "acc-1" }))).toEqual(["t-a", "t-b"]);
     expect(ids(await handler({ categoryId: "dining" }))).toEqual(["t-b"]);
@@ -190,6 +217,14 @@ describe("finance feed handlers (#1147)", () => {
     expect(ids(await handler({ search: "DINER" }))).toEqual(["t-a"]);
     expect(ids(await handler({ search: "coffee" }))).toEqual(["t-c"]);
     expect(ids(await handler({ pendingOnly: true }))).toEqual(["t-b"]);
+  });
+
+  it("query requires the host-injected actorUserId (#1149 spoof defense)", async () => {
+    const kv = fakeKv();
+    await seedFeed(kv);
+    await expect(transactionsQueryHandler(fakePorts(kv, readOnlyMirror()))({})).rejects.toThrow(
+      /actorUserId is required/
+    );
   });
 
   it("query defaults limit to 50, allows up to 200, rejects beyond", async () => {
@@ -200,7 +235,8 @@ describe("finance feed handlers (#1147)", () => {
         txRecord({ id: `t-${String(index).padStart(2, "0")}` })
       )
     });
-    const handler = transactionsQueryHandler(fakePorts(kv));
+    const query = transactionsQueryHandler(fakePorts(kv, readOnlyMirror()));
+    const handler = (input: Record<string, unknown>) => query({ actorUserId: ACTOR, ...input });
     expect(ids(await handler({})).length).toBe(50);
     expect(ids(await handler({ limit: 200 })).length).toBe(60);
     await expect(handler({ limit: 201 })).rejects.toThrow("at most 200");
@@ -322,5 +358,93 @@ describe("finance feed handlers (#1147)", () => {
     expect(updated).toMatchObject({ categoryId: "transport", categorizedBy: "user" });
     expect(updated.notes).toBeUndefined();
     expect(await kv.list(NS.rules)).toEqual([]);
+  });
+});
+
+// FIN-04 (#1149) Task 5: transactions.query merges OTHER owners' shared
+// month chunks from the finance.shared mirror BEFORE filters/sort/limit, so
+// category/search/pending filters treat shared rows exactly like own rows.
+// Own-prefix mirror chunks are skipped (own user-scoped records are
+// authoritative); merged rows are tagged { ownerUserId, shared: true }.
+describe("finance transactions.query household merge (#1149)", () => {
+  function sharedMirror(): SharedMirrorKv {
+    return readOnlyMirror({
+      // Shape = SharedAccountMeta: Plaid plumbing never enters the mirror.
+      [sharedMetaKey(OTHER, "acc-x")]: {
+        ownerUserId: OTHER,
+        accountId: "acc-x",
+        name: "Joint Checking",
+        officialName: null,
+        type: "depository",
+        subtype: "checking",
+        mask: "4444",
+        balanceCents: 300000,
+        isoCurrency: "USD",
+        updatedAt: "2026-07-18T05:00:00Z"
+      },
+      [sharedMonthKey(OTHER, "acc-x", "2026-07")]: {
+        transactions: [
+          txRecord({ id: "t-x1", accountId: "acc-x", date: "2026-07-14", name: "Joint Diner" }),
+          txRecord({
+            id: "t-x2",
+            accountId: "acc-x",
+            date: "2026-07-11",
+            categoryId: "dining",
+            pending: true
+          })
+        ]
+      },
+      [sharedMonthKey(OTHER, "acc-x", "2026-06")]: {
+        transactions: [txRecord({ id: "t-x-old", accountId: "acc-x", date: "2026-06-05" })]
+      },
+      // Own-prefix mirror chunk duplicating t-a — MUST be skipped.
+      [sharedMonthKey(ACTOR, "acc-1", "2026-07")]: {
+        transactions: [txRecord({ id: "t-a", date: "2026-07-15" })]
+      }
+    });
+  }
+
+  it("merges shared rows into date order, tagged with their owner", async () => {
+    const kv = fakeKv();
+    await seedFeed(kv);
+    const writesBefore = (kv as ReturnType<typeof fakeKv>).ops.length;
+    const result = await transactionsQueryHandler(fakePorts(kv, sharedMirror()))({
+      actorUserId: ACTOR,
+      limit: 200
+    });
+    expect(ids(result)).toEqual(["t-a", "t-x1", "t-c", "t-x2", "t-b"]);
+    const rows = result.transactions as Record<string, unknown>[];
+    expect(rows.find((row) => row.id === "t-x1")).toMatchObject({
+      ownerUserId: OTHER,
+      shared: true
+    });
+    // Own rows never carry the tag.
+    expect(rows.find((row) => row.id === "t-a")).not.toHaveProperty("ownerUserId");
+    // The shared account rides along in the one-call accounts list.
+    const accounts = result.accounts as { accountId: string }[];
+    expect(accounts.map((account) => account.accountId)).toEqual(["acc-1", "acc-2", "acc-x"]);
+    // Merged reads stay pure — no cache warming, no GC-on-read.
+    expect((kv as ReturnType<typeof fakeKv>).ops.length).toBe(writesBefore);
+  });
+
+  it("applies category, search, and pending filters to shared rows too", async () => {
+    const kv = fakeKv();
+    await seedFeed(kv);
+    const query = transactionsQueryHandler(fakePorts(kv, sharedMirror()));
+    const handler = (input: Record<string, unknown>) => query({ actorUserId: ACTOR, ...input });
+    expect(ids(await handler({ categoryId: "dining" }))).toEqual(["t-x2", "t-b"]);
+    expect(ids(await handler({ search: "joint" }))).toEqual(["t-x1"]);
+    expect(ids(await handler({ pendingOnly: true }))).toEqual(["t-x2", "t-b"]);
+    expect(ids(await handler({ month: "2026-06" }))).toEqual(["t-old", "t-x-old"]);
+  });
+
+  it("honors an accountId filter that targets a shared account", async () => {
+    const kv = fakeKv();
+    await seedFeed(kv);
+    const result = await transactionsQueryHandler(fakePorts(kv, sharedMirror()))({
+      actorUserId: ACTOR,
+      accountId: "acc-x"
+    });
+    expect(ids(result)).toEqual(["t-x1", "t-x2"]);
   });
 });

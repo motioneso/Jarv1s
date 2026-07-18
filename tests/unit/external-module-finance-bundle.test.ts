@@ -87,14 +87,18 @@ describe("finance bundle hygiene (#1146)", () => {
   it("answers a declared handler through dispatch", async () => {
     // accounts.list is real as of Task 7 (#1146): dispatch, the wrap.ts
     // envelope, AND the kv RPC bridge must all survive bundling — the empty
-    // store answer proves the full round trip.
+    // store answer proves the full round trip. actorUserId mimics the host,
+    // which injects it on every invoke (#1149 requires it on reads).
     const messages = await runWorker(
       [
         {
           jsonrpc: "2.0",
           id: "t1",
           method: "module.invoke",
-          params: { handler: "accounts.list", input: {} }
+          params: {
+            handler: "accounts.list",
+            input: { actorUserId: "00000000-0000-4000-8000-0000000000aa" }
+          }
         }
       ],
       (m) => m.id === "t1"

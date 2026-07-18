@@ -8,7 +8,14 @@
 // finance.categorize-apply queue — the web path, which per D4/D6 carries the
 // four identifier ids only. Notes never ride a job payload.
 import type { Category, Rule, TransactionChunk, TransactionRecord } from "../../domain/index.js";
-import { contentHash, DEFAULT_CATEGORIES, normalizePayee, NS } from "../../domain/index.js";
+import {
+  contentHash,
+  DEFAULT_CATEGORIES,
+  normalizePayee,
+  NS,
+  parseSharedKey,
+  toSharedTransaction
+} from "../../domain/index.js";
 import type { WorkerPorts } from "../ports.js";
 import type { ToolFactory } from "../registry.js";
 import { InputError, readBool, readInt, readString } from "../validate.js";
@@ -35,7 +42,14 @@ export async function loadCategories(ports: WorkerPorts): Promise<Category[]> {
   return stored?.categories ?? [...DEFAULT_CATEGORIES];
 }
 
+// A feed row: own rows are plain records; rows merged from the household
+// mirror carry their owner's id and a shared marker for the web layer.
+type FeedRow = TransactionRecord & { ownerUserId?: string; shared?: true };
+
 export const transactionsQueryHandler: ToolFactory = (ports) => async (input) => {
+  // Host-injected at the dispatch chokepoint (spread LAST over tool input)
+  // and host-bound on queue envelopes — never caller-controlled (#1149).
+  const actorUserId = readString(input, "actorUserId", { required: true });
   const month = readMonth(input, ports);
   const accountId = readString(input, "accountId");
   const categoryId = readString(input, "categoryId");
@@ -49,10 +63,31 @@ export const transactionsQueryHandler: ToolFactory = (ports) => async (input) =>
     ? [`${accountId}:${month}`]
     : (await ports.kv.list(NS.transactions)).filter((key) => key.endsWith(`:${month}`));
 
-  let transactions: TransactionRecord[] = [];
+  let transactions: FeedRow[] = [];
   for (const key of keys) {
     const chunk = (await ports.kv.get(NS.transactions, key)) as TransactionChunk | null;
     if (chunk) transactions.push(...chunk.transactions);
+  }
+  // FIN-04 (#1149): merge OTHER owners' shared month chunks BEFORE the
+  // filters below, so category/search/pending treat shared rows exactly like
+  // own rows. Own-prefix mirror chunks are skipped (own records above are
+  // authoritative); this read stays pure — no mirror writes, no GC-on-read.
+  for (const key of await ports.mirror.list()) {
+    const parsed = parseSharedKey(key);
+    if (!parsed || parsed.suffix !== month) continue;
+    if (parsed.ownerUserId === actorUserId) continue;
+    if (accountId !== undefined && parsed.accountId !== accountId) continue;
+    const chunk = (await ports.mirror.get(key)) as TransactionChunk | null;
+    if (!chunk || !Array.isArray(chunk.transactions)) continue;
+    for (const record of chunk.transactions) {
+      // Re-apply the write-side allowlist on read, then tag with the KEY's
+      // owner (not anything stored in the value).
+      transactions.push({
+        ...toSharedTransaction(record),
+        ownerUserId: parsed.ownerUserId,
+        shared: true
+      });
+    }
   }
   if (categoryId !== undefined) {
     transactions = transactions.filter((record) => record.categoryId === categoryId);
@@ -72,7 +107,7 @@ export const transactionsQueryHandler: ToolFactory = (ports) => async (input) =>
   );
   transactions = transactions.slice(0, limit);
 
-  const accounts = await accountsListHandler(ports)({});
+  const accounts = await accountsListHandler(ports)({ actorUserId });
   return {
     month,
     transactions,

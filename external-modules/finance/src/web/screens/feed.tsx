@@ -9,8 +9,19 @@
 // delayed invalidate-and-refetch; the connect loop's stop signal is the
 // refetched account set changing (no read tool exposes link sessions — the
 // worker marks them completed/abandoned server-side).
-import { runQueue, type RunOutcome } from "../api";
+//
+// FIN-04 (#1149) Task 5: household layer. The same query now returns other
+// members' shared accounts/transactions tagged { shared, ownerUserId }; the
+// web side resolves owner ids to display names against the host directory
+// (fail closed — no directory, no shared rows) and every OWN account pill
+// gets a Share/Shared toggle riding the finance.share-apply queue with
+// metadata-only params ({ accountId, shared }, D6). Totals and the connect
+// fingerprint stay own-accounts-only: household balances are context, not
+// the user's money, and a member sharing/unsharing must never stop a
+// connect poll.
+import { fetchUserDirectory, runQueue, type RunOutcome } from "../api";
 import { currentMonth, dayLabel, formatCents, monthLabel, shiftMonth } from "../format";
+import { resolveSharedOwners, type DirectoryUser } from "../household";
 import { h, useEffect, useRef, useState, type ReactNodeLike } from "../runtime";
 import { announce, EmptyState, outcomeGate } from "../states";
 import { invalidateQueries, useToolQuery } from "../store";
@@ -22,9 +33,18 @@ interface FeedAccount {
   mask: string | null;
   balanceCents: number;
   isoCurrency: string;
-  itemStatus: string;
+  // Own accounts only — shared views deliberately omit Plaid plumbing (#1149).
+  itemStatus?: string;
   updatedAt: string;
+  sharedToHousehold?: boolean;
+  shared?: boolean;
+  ownerUserId?: string;
 }
+
+// After resolveSharedOwners: surviving shared entries carry their owner's
+// display name; own entries pass through without one.
+type ResolvedAccount = FeedAccount & { ownerName?: string };
+type ResolvedTransaction = FeedTransaction & { ownerName?: string };
 
 interface FeedCategory {
   id: string;
@@ -42,6 +62,8 @@ interface FeedTransaction {
   merchant: string | null;
   categoryId: string | null;
   pending: boolean;
+  shared?: boolean;
+  ownerUserId?: string;
 }
 
 interface FeedResult extends Record<string, unknown> {
@@ -74,23 +96,52 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   error: { label: "Connection error", className: "jds-badge jds-badge--amber" }
 };
 
-function AccountPill(props: { account: FeedAccount; key?: string }): ReactNodeLike {
-  const badge = STATUS_BADGE[props.account.itemStatus] ?? STATUS_BADGE.error;
+function AccountPill(props: {
+  account: ResolvedAccount;
+  // Own accounts only: effective shared state (optimistic override applied)
+  // and the toggle handler. Shared (foreign) pills render neither.
+  sharedNow?: boolean;
+  onToggleShare?: (account: ResolvedAccount) => void;
+  key?: string;
+}): ReactNodeLike {
+  const account = props.account;
+  const label = account.mask ? `${account.name} ··${account.mask}` : account.name;
+  if (account.shared) {
+    // A household member's account: owner attribution instead of a status
+    // badge (shared views carry no itemStatus — Plaid plumbing stays with
+    // the owner), and no Share toggle (only the owner may unshare, #1149).
+    return (
+      <span className="jds-card jds-card--flush fnm-pill">
+        <span>{label}</span>
+        <span className="fnm-amount">{formatCents(account.balanceCents, account.isoCurrency)}</span>
+        <span className="jds-badge jds-badge--outline">
+          {account.ownerName ?? "Household member"}
+        </span>
+      </span>
+    );
+  }
+  const badge = STATUS_BADGE[account.itemStatus ?? "error"] ?? STATUS_BADGE.error;
   return (
     <span className="jds-card jds-card--flush fnm-pill">
-      <span>
-        {props.account.mask ? `${props.account.name} ··${props.account.mask}` : props.account.name}
-      </span>
-      <span className="fnm-amount">
-        {formatCents(props.account.balanceCents, props.account.isoCurrency)}
-      </span>
+      <span>{label}</span>
+      <span className="fnm-amount">{formatCents(account.balanceCents, account.isoCurrency)}</span>
       <span className={badge.className}>{badge.label}</span>
+      {props.onToggleShare ? (
+        <button
+          type="button"
+          className="jds-btn jds-btn--ghost jds-btn--sm"
+          aria-pressed={props.sharedNow === true}
+          onClick={() => props.onToggleShare?.(account)}
+        >
+          {props.sharedNow ? "Shared" : "Share"}
+        </button>
+      ) : null}
     </span>
   );
 }
 
 function TransactionRow(props: {
-  record: FeedTransaction;
+  record: ResolvedTransaction;
   month: string;
   categories: FeedCategory[];
   overrideCategoryId?: string;
@@ -100,6 +151,29 @@ function TransactionRow(props: {
   const record = props.record;
   const categoryId = props.overrideCategoryId ?? record.categoryId;
   const category = props.categories.find((entry) => entry.id === categoryId);
+  // Household rows are read-only (#1149): owner attribution plus a plain
+  // category label — recategorize would enqueue against the VIEWER's chunks
+  // and fail not_found; only the owner writes their records.
+  if (record.shared) {
+    return (
+      <li className="fnm-txrow">
+        <div className="fnm-txmain">
+          <span>{record.name}</span>
+          {record.merchant && record.merchant !== record.name ? (
+            <span className="jds-eyebrow">{record.merchant}</span>
+          ) : null}
+        </div>
+        <span className="fnm-txtags">
+          {record.pending ? <span className="jds-badge jds-badge--amber">Pending</span> : null}
+          <span className="jds-badge jds-badge--outline">
+            {record.ownerName ?? "Household member"}
+          </span>
+          <span className="jds-eyebrow">{category ? category.name : "Uncategorized"}</span>
+        </span>
+        <span className="fnm-amount">{formatCents(record.amountCents, record.isoCurrency)}</span>
+      </li>
+    );
+  }
   return (
     <li className="fnm-txrow">
       <div className="fnm-txmain">
@@ -136,16 +210,19 @@ function TransactionRow(props: {
 }
 
 function FeedBody(props: {
-  result: FeedResult;
+  // Post-resolution arrays (#1149): the screen resolves owner names before
+  // rendering, so unattributable shared entries are already dropped here.
+  accounts: ResolvedAccount[];
+  transactions: ResolvedTransaction[];
+  categories: FeedCategory[];
   month: string;
   hostActions: HostActions;
-  accountId: string | null;
   overrides: Record<string, string>;
   onRecategorize: (record: FeedTransaction, categoryId: string) => void;
 }): ReactNodeLike {
-  const transactions = props.result.transactions ?? [];
-  const accounts = props.result.accounts ?? [];
-  const live = (props.result.categories ?? []).filter((category) => !category.archived);
+  const transactions = props.transactions;
+  const accounts = props.accounts;
+  const live = props.categories.filter((category) => !category.archived);
   if (accounts.length === 0) {
     return (
       <EmptyState
@@ -173,7 +250,7 @@ function FeedBody(props: {
       />
     );
   }
-  const byDay: Array<{ date: string; rows: FeedTransaction[] }> = [];
+  const byDay: Array<{ date: string; rows: ResolvedTransaction[] }> = [];
   for (const record of transactions) {
     const group = byDay.at(-1);
     if (group && group.date === record.date) group.rows.push(record);
@@ -215,6 +292,21 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
   // Connect re-poll loop: null = idle; a number = rounds completed so far.
   const [pollRound, setPollRound] = useState<number | null>(null);
   const pollBaseline = useRef<string | null>(null);
+  // Optimistic share toggles (#1149), keyed by accountId — applied over the
+  // server's sharedToHousehold until a refetch reflects the queued job.
+  const [shareOverrides, setShareOverrides] = useState<Record<string, boolean>>({});
+  // Owner directory for household attribution; null = not loaded / failed,
+  // in which case resolveSharedOwners drops every shared entry (fail closed).
+  const [directory, setDirectory] = useState<DirectoryUser[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchUserDirectory().then((users) => {
+      if (!cancelled) setDirectory(users);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const feed = useToolQuery<FeedResult>("finance.transactions.query", {
     month,
@@ -226,9 +318,19 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
   });
   const settled =
     feed.status === "settled" && feed.outcome.kind === "ok" ? feed.outcome.result : null;
-  const accounts = settled?.accounts ?? [];
+  const resolvedAccounts: ResolvedAccount[] = resolveSharedOwners(
+    settled?.accounts ?? [],
+    directory
+  );
+  const resolvedTransactions: ResolvedTransaction[] = resolveSharedOwners(
+    settled?.transactions ?? [],
+    directory
+  );
+  const ownAccounts = resolvedAccounts.filter((account) => account.shared !== true);
+  // Own accounts only: a household member sharing/unsharing mid-poll must
+  // never read as "my connection finished" (#1149).
   const fingerprint = JSON.stringify(
-    accounts.map((account) => `${account.accountId}:${account.itemStatus}`)
+    ownAccounts.map((account) => `${account.accountId}:${account.itemStatus}`)
   );
 
   // Drive the connect re-poll (D2: caller-driven, ~30s, bounded). Each round
@@ -285,8 +387,23 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
     }).then((outcome) => afterRun(outcome, "Category update queued."));
   };
 
+  const toggleShare = (account: ResolvedAccount): void => {
+    const next = !(shareOverrides[account.accountId] ?? account.sharedToHousehold === true);
+    setShareOverrides((previous) => ({ ...previous, [account.accountId]: next }));
+    // Metadata-only params (D6): accountId + the desired flag, nothing else.
+    // The worker's share.apply job mirrors or wipes the account server-side.
+    void runQueue("finance.share-apply", "finance.share-apply", {
+      accountId: account.accountId,
+      shared: next
+    }).then((outcome) =>
+      afterRun(outcome, next ? "Sharing with your household…" : "Stopping sharing…")
+    );
+  };
+
+  // Totals stay own-accounts-only: household balances are context on the
+  // pills, not part of the user's net position (#1149).
   const totalsByCurrency = new Map<string, number>();
-  for (const account of accounts) {
+  for (const account of ownAccounts) {
     totalsByCurrency.set(
       account.isoCurrency,
       (totalsByCurrency.get(account.isoCurrency) ?? 0) + account.balanceCents
@@ -297,8 +414,19 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
     <section className="fnm-stack" aria-label="Transaction feed">
       <div className="fnm-row">
         <div className="fnm-chips" aria-label="Connected accounts">
-          {accounts.map((account) => (
-            <AccountPill key={account.accountId} account={account} />
+          {resolvedAccounts.map((account) => (
+            <AccountPill
+              key={
+                account.shared ? `${account.ownerUserId}:${account.accountId}` : account.accountId
+              }
+              account={account}
+              sharedNow={
+                account.shared
+                  ? undefined
+                  : (shareOverrides[account.accountId] ?? account.sharedToHousehold === true)
+              }
+              onToggleShare={account.shared ? undefined : toggleShare}
+            />
           ))}
           {[...totalsByCurrency].map(([currency, cents]) => (
             <span key={currency} className="jds-badge jds-badge--outline fnm-amount">
@@ -381,9 +509,9 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
         >
           All accounts
         </button>
-        {accounts.map((account) => (
+        {resolvedAccounts.map((account) => (
           <button
-            key={account.accountId}
+            key={account.shared ? `${account.ownerUserId}:${account.accountId}` : account.accountId}
             type="button"
             className={`jds-btn jds-btn--ghost jds-btn--sm${accountId === account.accountId ? " jds-btn--secondary" : ""}`}
             aria-pressed={accountId === account.accountId}
@@ -424,10 +552,11 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
         feed,
         (result) => (
           <FeedBody
-            result={result}
+            accounts={resolvedAccounts}
+            transactions={resolvedTransactions}
+            categories={result.categories ?? []}
             month={month}
             hostActions={props.hostActions}
-            accountId={accountId}
             overrides={overrides}
             onRecategorize={recategorize}
           />
