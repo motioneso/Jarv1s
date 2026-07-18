@@ -99,6 +99,19 @@ const PERSONA_FILENAME = "persona.md";
 
 const CLAUDE_MCP_FILENAME = ".jarvis-claude-mcp.json";
 
+/**
+ * #1157: out-of-band observability signal from the engine. `composer_discarded` fires when a
+ * verified submit finds NON-empty composer content just before it clears the pane — meaning a
+ * previous turn's text sat pasted-but-unsubmitted and is about to be silently thrown away
+ * (exactly the failure Ben hit: "try again" stuck in the prod composer for ~10 minutes).
+ * Privacy: carries a char count ONLY, never the discarded text — private-session content must
+ * not leak into host logs.
+ */
+export type CliChatEngineDiagnostic = {
+  readonly kind: "composer_discarded";
+  readonly paneChars: number;
+};
+
 export interface CliChatEngineOpts {
   /** Multiplexer backend; defaults to a TmuxMultiplexer over the same io (preserves legacy behavior). */
   readonly mux?: Multiplexer;
@@ -122,6 +135,8 @@ export interface CliChatEngineOpts {
   /** Failure-only bound for replay's verified submit. */
   readonly verifiedSubmitMs?: number;
   readonly executionMode?: AiProviderExecutionMode;
+  /** #1157: best-effort diagnostic sink (see CliChatEngineDiagnostic). Must never throw into the submit path. */
+  readonly onDiagnostic?: (event: CliChatEngineDiagnostic) => void;
 }
 
 export interface VerifiedSubmitOpts {
@@ -179,6 +194,7 @@ export class CliChatEngineImpl implements CliChatEngine {
   private readonly echoMs: number;
   private readonly verifiedSubmitMs: number;
   private readonly executionMode: AiProviderExecutionMode;
+  private readonly onDiagnostic?: (event: CliChatEngineDiagnostic) => void;
   private codexExec: CodexExecSession | null = null;
   private codexExecLogicalAlive = false;
   private codexSessionUuid: string | null = null;
@@ -200,6 +216,7 @@ export class CliChatEngineImpl implements CliChatEngine {
     this.echoMs = opts.echoMs ?? 10_000;
     this.verifiedSubmitMs = opts.verifiedSubmitMs ?? 35_000;
     this.executionMode = opts.executionMode ?? "interactive";
+    this.onDiagnostic = opts.onDiagnostic;
   }
 
   // ─── lifecycle ─────────────────────────────────────────────────────────────
@@ -344,6 +361,24 @@ export class CliChatEngineImpl implements CliChatEngine {
       this.throwIfCanceled(opts.signal);
 
       for (let pasteAttempt = 0; pasteAttempt < 2; pasteAttempt += 1) {
+        // #1157: before wiping the composer, check whether a PREVIOUS turn's text is still
+        // sitting in it (pasted but never submitted — the prod "stuck 'try again'" failure).
+        // clearComposer below destroys that evidence, so this is the only place the loss is
+        // observable. Report a char count only (never content) and never let the probe itself
+        // break the submit path.
+        if (pasteAttempt === 0 && this.onDiagnostic) {
+          try {
+            const preClearPane = await this.mux.capturePane(handle);
+            if (!isComposerEmpty(this.provider, preClearPane)) {
+              this.onDiagnostic({
+                kind: "composer_discarded",
+                paneChars: preClearPane.trim().length
+              });
+            }
+          } catch {
+            // Diagnostic is best-effort; a capture failure must not block the turn.
+          }
+        }
         await this.mux.clearComposer(handle);
         this.throwIfCanceled(opts.signal);
         const empty = await this.observePane(

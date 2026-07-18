@@ -109,7 +109,12 @@ export function createRealEngineFactory(opts: { mux?: Multiplexer } = {}): ChatE
     return new CliChatEngineImpl(provider, sessionKey, createRealTmuxIo(), {
       mux: opts.mux,
       homeBase,
-      executionMode: engineOpts?.executionMode
+      executionMode: engineOpts?.executionMode,
+      // #1157: surface silently-discarded composer input (char count only — never content).
+      onDiagnostic: (event) =>
+        console.warn(
+          `[chat-runtime] ${sessionKey} diagnostic ${event.kind} paneChars=${event.paneChars}`
+        )
     });
   };
 }

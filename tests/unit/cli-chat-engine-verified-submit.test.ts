@@ -278,4 +278,65 @@ describe("CliChatEngineImpl — verified interactive submit", () => {
     ).toBe(true);
     expect(io.run.mock.calls).not.toContainEqual(["rm", ["-rf", neutralDir]]);
   });
+
+  it("reports composer_discarded when pre-clear composer holds stuck user input (#1157)", async () => {
+    // #1157: Ben's "try again" sat pasted-but-unsubmitted ~10min; the next turn's
+    // clearComposer silently discarded it. The pre-clear probe must surface the loss.
+    let transcript = "";
+    const mux = stateMachineMux({
+      // Pane order: pre-clear probe (STUCK text), post-clear empty check, echo check.
+      panes: ["❯ stuck earlier input\n", empty, "❯ next turn\n"],
+      onEnter: () => {
+        transcript += claudeUser("next turn");
+      }
+    });
+    const io = makeIo();
+    io.readFile.mockImplementation(async () => transcript);
+    const events: unknown[] = [];
+    const engine = new CliChatEngineImpl("anthropic", "diag-stuck", io, {
+      mux,
+      echoMs: 0,
+      onDiagnostic: (event) => events.push(event)
+    });
+    await engine.launch({ neutralDir: "/tmp/diag-stuck", personaPath: "/p.md" });
+
+    await engine.verifiedSubmit({
+      attemptId: "33333333-3333-4333-8333-333333333333",
+      text: "next turn",
+      signal: new AbortController().signal
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ kind: "composer_discarded" });
+    // Privacy: char count only — the discarded text may be private-session content.
+    expect(Object.keys(events[0] as object).sort()).toEqual(["kind", "paneChars"]);
+    expect((events[0] as { paneChars: number }).paneChars).toBeGreaterThan(0);
+  });
+
+  it("stays silent when the pre-clear composer is already empty (#1157)", async () => {
+    let transcript = "";
+    const mux = stateMachineMux({
+      panes: [empty, empty, "❯ next turn\n"],
+      onEnter: () => {
+        transcript += claudeUser("next turn");
+      }
+    });
+    const io = makeIo();
+    io.readFile.mockImplementation(async () => transcript);
+    const events: unknown[] = [];
+    const engine = new CliChatEngineImpl("anthropic", "diag-clean", io, {
+      mux,
+      echoMs: 0,
+      onDiagnostic: (event) => events.push(event)
+    });
+    await engine.launch({ neutralDir: "/tmp/diag-clean", personaPath: "/p.md" });
+
+    await engine.verifiedSubmit({
+      attemptId: "44444444-4444-4444-8444-444444444444",
+      text: "next turn",
+      signal: new AbortController().signal
+    });
+
+    expect(events).toHaveLength(0);
+  });
 });
