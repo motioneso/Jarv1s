@@ -1,7 +1,7 @@
 import type { SourceFreshnessV1 } from "@jarv1s/shared";
 import { useCallback, useEffect, useState } from "react";
 
-import type { AnswerSourceSupportCard } from "@jarv1s/shared";
+import type { AnswerSourceSupportCard, ChatAttachmentDto } from "@jarv1s/shared";
 
 import { chatStreamUrl } from "../api/client.js";
 
@@ -38,6 +38,8 @@ export interface TranscriptRecord {
   readonly answerProvenanceCitedIds?: readonly string[];
   readonly sourceFreshness?: SourceFreshnessV1 | null;
   readonly preview?: ActionRequestPreview;
+  /** #1133: chips shown on a sent user message (optimistic, post-response, and history rows). */
+  readonly attachments?: readonly ChatAttachmentDto[];
 }
 
 function parsePreview(value: unknown): ActionRequestPreview | undefined {

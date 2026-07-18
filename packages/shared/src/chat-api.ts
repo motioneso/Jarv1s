@@ -37,6 +37,24 @@ export interface ChatSelectedToolMetadataDto {
   readonly risk: "read" | "write" | "destructive";
 }
 
+/**
+ * #1133 — metadata for a file the user attached to a chat turn. Bytes live in the user's
+ * vault (`attachments/<id>/blob`), never on the wire in chat DTOs; this is the display
+ * metadata persisted on the user message (`tool_metadata.attachments`) and echoed by the
+ * upload route. `fileName` is an opaque display string, never a path component.
+ */
+export interface ChatAttachmentDto {
+  readonly id: string;
+  readonly fileName: string;
+  readonly mimeType: string;
+  readonly sizeBytes: number;
+}
+
+/** #1133 — response of POST /api/chat/attachments (raw-body upload). */
+export interface UploadChatAttachmentResponse {
+  readonly attachment: ChatAttachmentDto;
+}
+
 export interface ChatMessageDto {
   readonly id: string;
   readonly threadId: string;
@@ -52,6 +70,8 @@ export interface ChatMessageDto {
   readonly updatedAt: string;
   readonly answerProvenance?: readonly AnswerSourceSupportCard[];
   readonly answerProvenanceCitedIds?: readonly string[];
+  /** #1133 — attachments the user sent with this message (user messages only). */
+  readonly attachments?: readonly ChatAttachmentDto[];
 }
 
 export interface ListChatThreadsResponse {
@@ -132,6 +152,8 @@ export interface PageContextSnapshotDto {
 
 export interface SendChatTurnRequest {
   readonly text: string;
+  /** #1133 — ids of previously uploaded attachments to include with this turn (max 5). */
+  readonly attachmentIds?: readonly string[];
 }
 
 /** #1109 — PUT /api/chat/page-context body: the actor's current client-reported view. */
@@ -272,6 +294,22 @@ const chatSelectedToolMetadataSchema = {
   }
 } as const;
 
+/**
+ * #1133 — display metadata for a file attached to a user message. Must stay declared
+ * in chatMessageSchema or fast-json-stringify silently strips it from responses.
+ */
+const chatAttachmentSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["id", "fileName", "mimeType", "sizeBytes"],
+  properties: {
+    id: { type: "string" },
+    fileName: { type: "string" },
+    mimeType: { type: "string" },
+    sizeBytes: { type: "number" }
+  }
+} as const;
+
 const chatModelRouteSchema = {
   type: "object",
   additionalProperties: false,
@@ -313,6 +351,7 @@ const chatMessageSchema = {
     modelRoute: { anyOf: [chatModelRouteSchema, { type: "null" }] },
     tools: { type: "array", items: chatSelectedToolMetadataSchema },
     activity: { type: "array", items: chatActivityEventSchema },
+    attachments: { type: "array", items: chatAttachmentSchema },
     sourceFreshness: {
       anyOf: [
         {

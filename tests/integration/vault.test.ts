@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { chmod, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
@@ -8,14 +8,17 @@ import {
   VaultContextError,
   VaultContextRunner,
   VaultPathError,
+  deleteVaultDir,
   deleteVaultFile,
   listVaultDirectories,
   listVaultFiles,
   makeVaultDir,
   readVaultFile,
+  readVaultFileBytes,
   resolveVaultPath,
   vaultFileExists,
-  writeVaultFile
+  writeVaultFile,
+  writeVaultFileBytes
 } from "@jarv1s/vault";
 
 // ── resolveVaultPath ──────────────────────────────────────────────────────────
@@ -133,6 +136,47 @@ describe("vault file operations", () => {
       await writeVaultFile(ctx, "notes/hello.md", "# Hello");
       const content = await readVaultFile(ctx, "notes/hello.md");
       expect(content).toBe("# Hello");
+    });
+  });
+
+  // #1133 — chat attachments store raw bytes (images/PDFs) in the vault; the byte variants
+  // must preserve non-UTF8 content exactly and keep the same 0600/traversal discipline.
+  it("writeVaultFileBytes + readVaultFileBytes round-trips binary bytes (mode 0600)", async () => {
+    await opsRunner.withVaultContext({ actorUserId: opsUserId }, async (ctx) => {
+      // 0x89 0x50... = PNG magic; 0xFF/0xFE are invalid UTF-8 lead bytes — a utf8
+      // string roundtrip would corrupt them, which is exactly what this guards against.
+      const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe, 0x00, 0x01]);
+      await writeVaultFileBytes(ctx, "attachments/blob-test/blob", bytes);
+      const readBack = await readVaultFileBytes(ctx, "attachments/blob-test/blob");
+      expect(Buffer.compare(readBack, bytes)).toBe(0);
+      const s = await stat(join(ctx.vaultRoot, "attachments/blob-test/blob"));
+      expect(s.mode & 0o777).toBe(0o600);
+    });
+  });
+
+  it("writeVaultFileBytes throws VaultPathError on traversal", async () => {
+    await opsRunner.withVaultContext({ actorUserId: opsUserId }, async (ctx) => {
+      await expect(
+        writeVaultFileBytes(ctx, "../outside/evil.bin", Buffer.from([1]))
+      ).rejects.toThrow(VaultPathError);
+      await expect(readVaultFileBytes(ctx, "../outside/evil.bin")).rejects.toThrow(VaultPathError);
+    });
+  });
+
+  // #1133 — attachment GC deletes one `attachments/<id>/` dir at a time; the helper must
+  // remove nested content, stay idempotent, and never be able to target the vault root.
+  it("deleteVaultDir removes a nested dir, is idempotent, and refuses the vault root", async () => {
+    await opsRunner.withVaultContext({ actorUserId: opsUserId }, async (ctx) => {
+      await writeVaultFileBytes(ctx, "attachments/gc-test/blob", Buffer.from([1, 2, 3]));
+      await writeVaultFile(ctx, "attachments/gc-test/meta.json", "{}");
+      await deleteVaultDir(ctx, "attachments/gc-test");
+      expect(await vaultFileExists(ctx, "attachments/gc-test/blob")).toBe(false);
+      // Idempotent: deleting again (or a never-created dir) is a no-op, not an error.
+      await deleteVaultDir(ctx, "attachments/gc-test");
+      await deleteVaultDir(ctx, "attachments/never-existed");
+      // The vault root itself is off-limits through this helper.
+      await expect(deleteVaultDir(ctx, ".")).rejects.toThrow(VaultPathError);
+      await expect(deleteVaultDir(ctx, "../other-user")).rejects.toThrow(VaultPathError);
     });
   });
 

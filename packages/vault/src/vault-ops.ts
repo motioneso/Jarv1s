@@ -61,6 +61,30 @@ export async function writeVaultFile(
   await chmod(fullPath, VAULT_FILE_MODE);
 }
 
+// #1133 — byte variants for chat attachments (images/PDFs). Same containment discipline as
+// the string helpers (resolveVaultPath + assertNoSymlinkEscape + 0600/0700); only the
+// encoding differs: Buffers in/out so binary content is never corrupted by a utf8 decode.
+export async function readVaultFileBytes(ctx: VaultContext, relativePath: string): Promise<Buffer> {
+  assertVaultContext(ctx);
+  const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
+  await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
+  return readFile(fullPath);
+}
+
+export async function writeVaultFileBytes(
+  ctx: VaultContext,
+  relativePath: string,
+  content: Buffer
+): Promise<void> {
+  assertVaultContext(ctx);
+  const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
+  await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
+  await mkdir(dirname(fullPath), { recursive: true, mode: VAULT_DIR_MODE });
+  // chmod after write for the same overwrite-hardening reason as writeVaultFile.
+  await writeFile(fullPath, content, { mode: VAULT_FILE_MODE });
+  await chmod(fullPath, VAULT_FILE_MODE);
+}
+
 export async function listVaultFiles(ctx: VaultContext, relativeDir: string): Promise<string[]> {
   assertVaultContext(ctx);
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
@@ -99,6 +123,22 @@ export async function deleteVaultFile(ctx: VaultContext, relativePath: string): 
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
   await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
   await rm(fullPath);
+}
+
+/**
+ * #1133 — recursive delete of a directory INSIDE the vault (e.g. one attachment's
+ * `attachments/<id>/` folder during lazy GC). Refuses the vault root itself so a bug can
+ * never wipe a whole vault through this path; account deletion uses deleteUserVaultDir.
+ * Idempotent (`force: true`) because GC may race a concurrent sweep.
+ */
+export async function deleteVaultDir(ctx: VaultContext, relativeDir: string): Promise<void> {
+  assertVaultContext(ctx);
+  const fullPath = resolveVaultPath(ctx.vaultRoot, relativeDir);
+  await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);
+  if (resolve(fullPath) === resolve(ctx.vaultRoot)) {
+    throw new VaultPathError(relativeDir);
+  }
+  await rm(fullPath, { recursive: true, force: true });
 }
 
 export async function vaultFileExists(ctx: VaultContext, relativePath: string): Promise<boolean> {

@@ -36,6 +36,12 @@ import {
 } from "@jarv1s/shared";
 
 import {
+  type ChatAttachmentsService,
+  isAttachmentId,
+  MAX_ATTACHMENTS_PER_TURN,
+  type StoredAttachmentMeta
+} from "./attachments-service.js";
+import {
   ChatStreamLimitError,
   ChatThreadNotFoundError,
   ChatTurnInFlightError
@@ -70,6 +76,12 @@ export interface ChatLiveRoutesDependencies {
   };
   /** #1109 — TTL-backed store the pull-based chat.getCurrentView tool reads from. */
   readonly pageContextStore: PageContextStore;
+  /**
+   * #1133 — resolves uploaded attachment ids to vault-backed metadata for /turn.
+   * Optional so existing structural runtime stubs in tests keep compiling; when
+   * absent, any turn carrying attachmentIds is rejected with a 400.
+   */
+  readonly attachmentsService?: ChatAttachmentsService;
 }
 
 export function registerChatLiveRoutes(
@@ -93,20 +105,59 @@ export function registerChatLiveRoutes(
       const access = await resolveOr401(dependencies, request, reply);
       if (!access) return reply;
 
-      const textResult = readText(request.body);
-      if ("error" in textResult) {
-        return reply.code(400).send({ error: textResult.error });
+      const bodyResult = readTurnBody(request.body);
+      if ("error" in bodyResult) {
+        return reply.code(400).send({ error: bodyResult.error });
       }
-      const { text } = textResult;
+      const { text, attachmentIds } = bodyResult;
 
       try {
+        // #1133 — resolve attachment ids to vault-backed metadata before the turn
+        // starts. Ownership is structural (the service reads the caller's own vault),
+        // so an id belonging to another user simply fails to resolve → 400.
+        let attachments: StoredAttachmentMeta[] | undefined;
+        if (attachmentIds.length > 0) {
+          const service = dependencies.attachmentsService;
+          if (!service) {
+            return reply.code(400).send({ error: "Attachments are not available." });
+          }
+          // Server-side guard mirroring the hidden composer button: private/incognito
+          // turns must never reference vault files (the thread leaves no record that
+          // could explain the attachment later).
+          const privacy = await runtime.manager.getPrivacyState(access.actorUserId);
+          if (privacy.incognito) {
+            return reply
+              .code(400)
+              .send({ error: "Attachments are not available in private chat." });
+          }
+          const metas: StoredAttachmentMeta[] = [];
+          for (const id of attachmentIds) {
+            const meta = await service.getMeta(access, id);
+            if (!meta) {
+              return reply
+                .code(400)
+                .send({ error: "Attachment not found. Please re-attach the file." });
+            }
+            metas.push(meta);
+          }
+          // Stamp sentAt before submitting so the lazy GC never reaps a file the
+          // engine may still read mid-turn.
+          await service.markSent(access, attachmentIds);
+          attachments = metas;
+        }
+
         const userName = await runtime.resolveUserName(access.actorUserId);
         const {
           reply: assistantReply,
           userMessageId,
           assistantMessageId,
           sourceFreshness
-        } = await runtime.manager.submitTurn(access.actorUserId, userName, text);
+        } = await runtime.manager.submitTurn(
+          access.actorUserId,
+          userName,
+          text,
+          attachments ? { attachments } : undefined
+        );
 
         return reply.send({
           reply: assistantReply,
@@ -470,14 +521,47 @@ function handleLiveRouteError(error: unknown, reply: FastifyReply) {
   return reply.code(500).send({ error: "Live chat is temporarily unavailable." });
 }
 
-function readText(body: unknown): { text: string } | { error: string } {
+/**
+ * Parse a /turn body: `text` plus the optional #1133 `attachmentIds` list. Text may
+ * be empty ONLY when at least one attachment id rides along (an image-only turn —
+ * the engine still receives the server-composed attachments manifest). Ids are
+ * shape-checked as UUIDs here so nothing unvalidated ever reaches a vault path.
+ */
+function readTurnBody(
+  body: unknown
+): { text: string; attachmentIds: readonly string[] } | { error: string } {
   if (!body || typeof body !== "object" || Array.isArray(body))
     return { error: "text is required" };
-  const value = (body as Record<string, unknown>).text;
-  if (typeof value !== "string") return { error: "text is required" };
+  const record = body as Record<string, unknown>;
+
+  let attachmentIds: string[] = [];
+  const rawIds = record.attachmentIds;
+  if (rawIds !== undefined) {
+    if (!Array.isArray(rawIds)) return { error: "attachmentIds must be an array" };
+    if (rawIds.length > MAX_ATTACHMENTS_PER_TURN) {
+      return {
+        error: `attachmentIds must have ${MAX_ATTACHMENTS_PER_TURN} entries or fewer`
+      };
+    }
+    for (const id of rawIds) {
+      if (typeof id !== "string" || !isAttachmentId(id)) {
+        return { error: "attachmentIds must contain valid attachment ids" };
+      }
+    }
+    // Dedupe so a repeated id can't double-render in the engine manifest.
+    attachmentIds = [...new Set(rawIds as string[])];
+  }
+
+  const value = record.text;
+  const hasAttachments = attachmentIds.length > 0;
+  if (typeof value !== "string") {
+    if (value === undefined && hasAttachments) return { text: "", attachmentIds };
+    return { error: "text is required" };
+  }
   if (value.length > MAX_CHAT_TURN_TEXT_LENGTH) {
     return { error: `text must be ${MAX_CHAT_TURN_TEXT_LENGTH} characters or fewer` };
   }
   const trimmed = value.trim();
-  return trimmed.length > 0 ? { text: trimmed } : { error: "text is required" };
+  if (trimmed.length === 0 && !hasAttachments) return { error: "text is required" };
+  return { text: trimmed, attachmentIds };
 }

@@ -415,7 +415,12 @@ export class AssistantToolGateway {
           // Internal tools whose output Jarvis controls must not be wrapped (PR #435 sets
           // externalContent: true on web.search + web.read; all others leave it unset).
           found.tool.externalContent ? found.tool.name : undefined
-        )
+        ),
+        // #1133 — media (image bytes) bypasses renderAndCap on purpose: sanitize's schema
+        // projection would drop the field and the 16k text cap would truncate base64. Size
+        // is already bounded at upload (attachment caps), and the payload flows only over
+        // the engine's MCP stdio channel — never into logs, DB, or job payloads.
+        ...(result.media ? { media: result.media } : {})
       };
     } catch {
       // never leak internals/secrets from a handler throw

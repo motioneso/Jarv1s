@@ -9,7 +9,11 @@ import {
   type ChatThread,
   type DataContextDb
 } from "@jarv1s/db";
-import type { AnswerProvenanceMetadataV1, SourceFreshnessV1 } from "@jarv1s/shared";
+import type {
+  AnswerProvenanceMetadataV1,
+  ChatAttachmentDto,
+  SourceFreshnessV1
+} from "@jarv1s/shared";
 
 export interface CreateChatThreadInput {
   readonly title: string;
@@ -180,6 +184,8 @@ export class ChatRepository {
     opts?: {
       readonly sourceFreshness?: SourceFreshnessV1 | null;
       readonly answerProvenance?: AnswerProvenanceMetadataV1;
+      /** #1133 — attachment display metadata (id/name/mime/size) — never bytes. */
+      readonly attachments?: readonly ChatAttachmentDto[];
     }
   ): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage } | undefined> {
     assertDataContextDb(scopedDb);
@@ -200,7 +206,11 @@ export class ChatRepository {
       status: "stored",
       body: userText,
       modelMetadata: {},
-      toolMetadata: { selectedTools: [] },
+      toolMetadata: {
+        selectedTools: [],
+        // #1133 — chip rendering in history; JSONB metadata only, bytes stay in the vault.
+        ...(opts?.attachments?.length ? { attachments: opts.attachments } : {})
+      },
       now
     });
     const assistantMessage = await this.insertMessage(scopedDb, {
