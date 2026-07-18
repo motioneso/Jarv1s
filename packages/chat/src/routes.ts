@@ -97,6 +97,10 @@ import {
 } from "./memory-serializers.js";
 import { readStoredProvenance, provenanceCards } from "./live/answer-provenance.js";
 import { registerMcpTransportRoute, registerNativePermissionRoute } from "./mcp-transport.js";
+import { VaultContextRunner, getVaultBaseDir } from "@jarv1s/vault";
+
+import { registerChatAttachmentRoutes } from "./attachments-routes.js";
+import { ChatAttachmentsService } from "./attachments-service.js";
 import { ChatRepository } from "./repository.js";
 import { registerChatSkillsRoutes } from "./skills/routes.js";
 import { ChatSkillsRepository } from "./skills/repository.js";
@@ -114,6 +118,8 @@ export interface ChatRoutesDependencies {
   readonly chatEngineFactory?: ChatEngineFactory;
   readonly resolveActiveModules?: ActiveModulesResolver;
   readonly mcpServerUrl?: string;
+  /** #1133 — override the attachment store (tests use a tmpdir vault base). */
+  readonly attachmentsService?: ChatAttachmentsService;
   /** pg-boss for enqueueing embed/extract-facts jobs after each completed turn. */
   readonly boss?: PgBoss;
   readonly passiveMemoryRecall?: PassiveMemoryGraphRecallPort;
@@ -200,6 +206,15 @@ export function registerChatRoutes(
 
   const repository = dependencies.repository ?? new ChatRepository();
   const skillsRepository = dependencies.skillsRepository ?? new ChatSkillsRepository();
+  // #1133 — attachment bytes live in the actor's vault, so the service needs only the
+  // vault base dir; shared by the upload route, turn wiring, and chat.readAttachment.
+  const attachmentsService =
+    dependencies.attachmentsService ??
+    new ChatAttachmentsService(new VaultContextRunner(getVaultBaseDir()));
+  registerChatAttachmentRoutes(server, {
+    resolveAccessContext: dependencies.resolveAccessContext,
+    attachmentsService
+  });
   const chatSettingsRepo = new PreferencesRepository();
   const memorySettingsRepo = new ChatUserMemorySettingsRepository();
   const factsRepo = new ChatMemoryFactsRepository();

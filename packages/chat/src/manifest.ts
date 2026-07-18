@@ -109,6 +109,9 @@ export const chatModuleManifest = {
       permissionId: "chat.view"
     },
     { method: "POST", path: "/api/chat/turn", permissionId: "chat.message" },
+    // #1133 — file/image upload staged for the next turn; sending is what needs the
+    // message permission, so the upload shares it.
+    { method: "POST", path: "/api/chat/attachments", permissionId: "chat.message" },
     { method: "POST", path: "/api/chat/evening-interview", permissionId: "chat.message" },
     { method: "POST", path: "/api/chat/turn/cancel", permissionId: "chat.message" },
     { method: "GET", path: "/api/chat/stream", permissionId: "chat.view" },
