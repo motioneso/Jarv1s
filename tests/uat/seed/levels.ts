@@ -97,7 +97,12 @@ export async function seedLevel(options: SeedOptions): Promise<void> {
       // #1087 finding 3: job-search is no longer in ADMIN_DATA_CHUNKS at all (see
       // above), so there is nothing instance-level to re-exclude here for the
       // second owner — `exclude` alone is already correct for seedDataChunks.
-      await seedDataChunks(runner, secondOwnerUserId, exclude);
+      //
+      // FIN-04 (#1149): finance stays ADMIN-ONLY at multi-user. The shared-pool
+      // UAT needs an asymmetric household — the chunk uses fixed account ids, so
+      // seeding it for owner2 would give them identical accounts of their OWN and
+      // make "member does NOT see the unshared account" unfalsifiable.
+      await seedDataChunks(runner, secondOwnerUserId, new Set([...exclude, "finance"]));
 
       // SECURITY: grant under the resource owner's own context. The shares INSERT
       // policy rejects forged owner_user_id values; owner2 receives only this task.

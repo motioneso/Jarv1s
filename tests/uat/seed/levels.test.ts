@@ -139,6 +139,22 @@ describe("seedLevel", () => {
           id: adminShared.id
         });
       });
+
+      // FIN-04 (#1149): finance is ADMIN-ONLY at multi-user — the chunk's fixed
+      // account ids would otherwise exist as owner2's OWN accounts and break the
+      // shared-pool UAT's "member does NOT see the unshared account" assertion.
+      const financeKvCount = (userId: string) =>
+        runner.withDataContext({ actorUserId: userId }, async (scopedDb) => {
+          const rows = await scopedDb.db
+            .selectFrom("app.module_kv")
+            .select("id")
+            .where("module_id", "=", "finance")
+            .where("owner_user_id", "=", userId)
+            .execute();
+          return rows.length;
+        });
+      expect(await financeKvCount(admin.id)).toBeGreaterThan(0);
+      expect(await financeKvCount(owner2.id)).toBe(0);
     } finally {
       await runner.destroy();
     }
