@@ -55,3 +55,45 @@ export function kvFromWorkerContext(kv: UserScopedWorkerKv): FinanceKv {
     list: (namespace) => kv.list("user", namespace)
   };
 }
+
+// ---------------------------------------------------------------------------
+// FIN-04 (#1149): the household mirror port. `finance.shared` is the module's
+// only instance-scoped writable namespace (instanceWritePolicy: "module");
+// this port pins BOTH the scope and the namespace, so the mirror writer is
+// structurally incapable of touching any other namespace — that construction
+// is half of the "share handlers never read tokens/rules/budgets" guarantee
+// (the throwing-port unit tests are the other half).
+
+export const SHARED_NS = "finance.shared";
+
+/** Keyed access to the `finance.shared` instance namespace, nothing else. */
+export interface SharedMirrorKv {
+  get(key: string): Promise<Record<string, unknown> | null>;
+  set(key: string, value: Record<string, unknown>): Promise<void>;
+  delete(key: string): Promise<boolean>;
+  list(): Promise<readonly string[]>;
+}
+
+// Structural mirror of ModuleWorkerContext["kv"] with scope pinned to
+// "instance" — same not-an-SDK-import rationale as UserScopedWorkerKv above.
+interface InstanceScopedWorkerKv {
+  get(scope: "instance", namespace: string, key: string): Promise<Record<string, unknown> | null>;
+  set(
+    scope: "instance",
+    namespace: string,
+    key: string,
+    value: Record<string, unknown>
+  ): Promise<void>;
+  delete(scope: "instance", namespace: string, key: string): Promise<boolean>;
+  list(scope: "instance", namespace: string): Promise<readonly string[]>;
+}
+
+/** Adapt a worker context's kv to the mirror port, pinning scope + namespace. */
+export function mirrorFromWorkerContext(kv: InstanceScopedWorkerKv): SharedMirrorKv {
+  return {
+    get: (key) => kv.get("instance", SHARED_NS, key),
+    set: (key, value) => kv.set("instance", SHARED_NS, key, value),
+    delete: (key) => kv.delete("instance", SHARED_NS, key),
+    list: () => kv.list("instance", SHARED_NS)
+  };
+}

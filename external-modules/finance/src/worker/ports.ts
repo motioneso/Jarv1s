@@ -6,7 +6,7 @@
 // and the domain/worker layers stay bundler-independent.
 import type { PlaidClient, PlaidCreds } from "../adapters/plaid.js";
 import type { PlaidEnv } from "../adapters/types.js";
-import type { FinanceKv } from "../domain/index.js";
+import type { FinanceKv, SharedMirrorKv } from "../domain/index.js";
 
 export type FinanceAiResult =
   | { readonly ok: true; readonly object: unknown }
@@ -62,6 +62,12 @@ export interface InstanceSettingsPort {
 /** The per-invocation dependencies every tool handler is written against. */
 export interface WorkerPorts {
   readonly kv: FinanceKv;
+  /**
+   * FIN-04 (#1149): the `finance.shared` household mirror — the module's only
+   * instance-scope writable namespace. Scope AND namespace are pinned inside
+   * the port, so mirror writers structurally cannot reach any other namespace.
+   */
+  readonly mirror: SharedMirrorKv;
   /**
    * Plaid client factory over the module fetch port (env/creds resolved per
    * invocation — the admin can rotate keys or flip sandbox without a worker

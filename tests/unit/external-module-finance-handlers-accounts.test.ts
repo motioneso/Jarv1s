@@ -33,6 +33,21 @@ function fakeKv(): FinanceKv {
 function ports(kv: FinanceKv): WorkerPorts {
   return {
     kv,
+    // FIN-04 (#1149): mirror writes are share/sync-handler territory only.
+    mirror: {
+      get: async () => {
+        throw new Error("accounts.list must not read the household mirror");
+      },
+      set: async () => {
+        throw new Error("accounts.list must not write the household mirror");
+      },
+      delete: async () => {
+        throw new Error("accounts.list must not delete from the household mirror");
+      },
+      list: async () => {
+        throw new Error("accounts.list must not list the household mirror");
+      }
+    },
     ai: null,
     // Read tool: reaching for Plaid or credentials would be a design break.
     plaid: () => {

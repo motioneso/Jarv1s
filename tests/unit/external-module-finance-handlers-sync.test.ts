@@ -127,8 +127,20 @@ function fakePlaid(overrides: PlaidOverrides = {}) {
 function fakePorts(opts: { kv?: FinanceKv; plaid?: PlaidClient | null; tokens?: TokenMap | null }) {
   const kv = opts.kv ?? fakeKv();
   const plaidFactoryCalls: { env: string }[] = [];
+  // FIN-04 (#1149): sync now reconciles its own mirror prefix on every run,
+  // so the mirror port must be functional (in-memory) — the dedicated
+  // handlers-shared suite owns the behavioral assertions.
+  const mirrorStore = new Map<string, Record<string, unknown>>();
   const ports: WorkerPorts = {
     kv,
+    mirror: {
+      get: async (key) => structuredClone(mirrorStore.get(key) ?? null),
+      set: async (key, value) => {
+        mirrorStore.set(key, structuredClone(value));
+      },
+      delete: async (key) => mirrorStore.delete(key),
+      list: async () => [...mirrorStore.keys()]
+    },
     ai: null,
     plaid:
       opts.plaid === null || opts.plaid === undefined
@@ -169,7 +181,9 @@ const TOKENS: TokenMap = { "item-1": { accessToken: "access-1", institutionId: "
 describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
   it("returns ok with no items and never builds a Plaid client", async () => {
     const { ports, plaidFactoryCalls } = fakePorts({ plaid: fakePlaid().client, tokens: null });
-    const result = await syncRunHandler(ports)({});
+    const result = await syncRunHandler(ports)({
+      actorUserId: "00000000-0000-4000-8000-0000000000aa"
+    });
     expect(result).toEqual({ status: "ok", items: [] });
     expect(plaidFactoryCalls).toHaveLength(0);
   });
@@ -178,7 +192,9 @@ describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
     const kv = fakeKv();
     await seedItem(kv, "item-1");
     const { ports } = fakePorts({ kv, plaid: fakePlaid().client, tokens: null });
-    const error = await syncRunHandler(ports)({}).then(
+    const error = await syncRunHandler(ports)({
+      actorUserId: "00000000-0000-4000-8000-0000000000aa"
+    }).then(
       () => null,
       (e: unknown) => e
     );
@@ -211,7 +227,9 @@ describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
     const plaid = fakePlaid({ transactionsSync: async () => pages[call++]! });
     const { ports } = fakePorts({ kv, plaid: plaid.client, tokens: TOKENS });
 
-    const result = await syncRunHandler(ports)({});
+    const result = await syncRunHandler(ports)({
+      actorUserId: "00000000-0000-4000-8000-0000000000aa"
+    });
     expect(result).toEqual({
       status: "ok",
       items: [
@@ -265,7 +283,7 @@ describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
     await kv.set(NS.connections, "cursor:item-1", { cursor: "c-stored" });
     const plaid = fakePlaid();
     const { ports } = fakePorts({ kv, plaid: plaid.client, tokens: TOKENS });
-    await syncRunHandler(ports)({});
+    await syncRunHandler(ports)({ actorUserId: "00000000-0000-4000-8000-0000000000aa" });
     expect(plaid.callsTo("transactionsSync")[0]!.args[1]).toBe("c-stored");
   });
 
@@ -275,7 +293,7 @@ describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
     await kv.set(NS.snapshots, "acc-1:2026-07", { days: { [TODAY]: 123 } });
     const seedOps = kv.ops.length;
     const { ports } = fakePorts({ kv, plaid: fakePlaid().client, tokens: TOKENS });
-    await syncRunHandler(ports)({});
+    await syncRunHandler(ports)({ actorUserId: "00000000-0000-4000-8000-0000000000aa" });
     const snapshotWrites = kv.ops.slice(seedOps).filter((op) => op.namespace === NS.snapshots);
     expect(snapshotWrites).toHaveLength(0);
     // The stale value survives — today's balance was already recorded.
@@ -301,7 +319,9 @@ describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
       }
     });
 
-    const result = await syncRunHandler(ports)({});
+    const result = await syncRunHandler(ports)({
+      actorUserId: "00000000-0000-4000-8000-0000000000aa"
+    });
     expect(result.items).toEqual([
       { itemId: "item-1", status: "reauth-required", added: 0, modified: 0, removed: 0, pages: 0 },
       { itemId: "item-2", status: "connected", added: 0, modified: 0, removed: 0, pages: 1 }
@@ -325,7 +345,9 @@ describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
       }
     });
     const { ports } = fakePorts({ kv, plaid: plaid.client, tokens: TOKENS });
-    const result = await syncRunHandler(ports)({});
+    const result = await syncRunHandler(ports)({
+      actorUserId: "00000000-0000-4000-8000-0000000000aa"
+    });
     expect(result.items).toEqual([
       { itemId: "item-1", status: "error", added: 0, modified: 0, removed: 0, pages: 0 }
     ]);
@@ -345,7 +367,9 @@ describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
       plaid: plaid.client,
       tokens: { "item-2": { accessToken: "access-2", institutionId: "ins_2" } }
     });
-    const result = await syncRunHandler(ports)({});
+    const result = await syncRunHandler(ports)({
+      actorUserId: "00000000-0000-4000-8000-0000000000aa"
+    });
     expect(result.items).toEqual([
       { itemId: "item-1", status: "error", added: 0, modified: 0, removed: 0, pages: 0 },
       { itemId: "item-2", status: "connected", added: 0, modified: 0, removed: 0, pages: 1 }
@@ -366,7 +390,9 @@ describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
       lastError: "ITEM_LOGIN_REQUIRED"
     });
     const { ports } = fakePorts({ kv, plaid: fakePlaid().client, tokens: TOKENS });
-    const result = (await syncRunHandler(ports)({})) as {
+    const result = (await syncRunHandler(ports)({
+      actorUserId: "00000000-0000-4000-8000-0000000000aa"
+    })) as {
       items: Record<string, unknown>[];
     };
     expect(result.items[0]).toMatchObject({ itemId: "item-1", status: "connected" });
@@ -403,7 +429,7 @@ describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
         })
     });
     const { ports } = fakePorts({ kv, plaid: plaid.client, tokens: TOKENS });
-    await syncRunHandler(ports)({});
+    await syncRunHandler(ports)({ actorUserId: "00000000-0000-4000-8000-0000000000aa" });
 
     const chunk = (await kv.get(NS.transactions, "acc-1:2026-07")) as {
       transactions: Record<string, unknown>[];
@@ -436,7 +462,9 @@ describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
         })
     });
     const { ports } = fakePorts({ kv, plaid: plaid.client, tokens: TOKENS });
-    const result = (await syncRunHandler(ports)({})) as {
+    const result = (await syncRunHandler(ports)({
+      actorUserId: "00000000-0000-4000-8000-0000000000aa"
+    })) as {
       items: Record<string, unknown>[];
     };
     expect(plaid.callsTo("transactionsSync")).toHaveLength(20);

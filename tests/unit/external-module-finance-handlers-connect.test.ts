@@ -117,6 +117,21 @@ function fakePorts(opts: {
   const plaidFactoryCalls: { env: string; creds: { clientId: string; secret: string } }[] = [];
   const ports: WorkerPorts = {
     kv,
+    // FIN-04 (#1149): mirror writes are share/sync-handler territory only.
+    mirror: {
+      get: async () => {
+        throw new Error("connect handlers must not read the household mirror");
+      },
+      set: async () => {
+        throw new Error("connect handlers must not write the household mirror");
+      },
+      delete: async () => {
+        throw new Error("connect handlers must not delete from the household mirror");
+      },
+      list: async () => {
+        throw new Error("connect handlers must not list the household mirror");
+      }
+    },
     ai: null,
     plaid:
       opts.plaid === null

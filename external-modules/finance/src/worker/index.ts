@@ -11,7 +11,7 @@ import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
 
 import { fetchFromWorkerContext } from "../adapters/index.js";
 import { createPlaid } from "../adapters/plaid.js";
-import { kvFromWorkerContext, NS } from "../domain/index.js";
+import { kvFromWorkerContext, mirrorFromWorkerContext, NS } from "../domain/index.js";
 import { credsFromWorkerContext, tokensFromWorkerContext } from "./auth-port.js";
 import type { FinanceAi, WorkerPorts } from "./ports.js";
 import { aiFromWorkerContext } from "./ports.js";
@@ -27,6 +27,9 @@ function ports(ctx: ModuleWorkerContext): WorkerPorts {
   const ai = (ctx as MaybeAiContext).ai;
   return {
     kv: kvFromWorkerContext(ctx.kv),
+    // FIN-04 (#1149): the household mirror, pinned to instance-scope
+    // finance.shared inside the adapter (structural namespace isolation).
+    mirror: mirrorFromWorkerContext(ctx.kv),
     ai: ai ? aiFromWorkerContext(ai) : null,
     // ctx.fetch is typed required on ModuleWorkerContext, but guard anyway:
     // an older host omitting it must degrade to a structured fetch error,
