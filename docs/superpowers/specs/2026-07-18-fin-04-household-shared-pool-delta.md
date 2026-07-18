@@ -96,7 +96,7 @@ Projection rules (binding):
   `deriveBudgetMonths` inputs, the budget screen, or `state:` caches. A joint budget
   stays a named later candidate.
 
-## Host change: user directory route (the one host delta in FIN-04)
+## Host change 1: user directory route
 
 **Problem.** The epic spec requires "every mirrored row carries the owner's display name
 — resolution client-side (ids only in storage)", but no non-admin surface can resolve
@@ -125,6 +125,37 @@ may see co-members' display names. Any household sharing UX requires exactly thi
 `app.shares` grantee picker will too), it exposes name-or-null and id only, and it keeps
 the module honoring "ids only in storage". `name` may be null — the client falls back to
 a neutral label, never to the email.
+
+## Host change 2 (amendment, Task 4): host-bound actor identity at tool dispatch
+
+**Problem (found during Task 4 grounding — corrects an assumption above).**
+`ModuleWorkerContext` does NOT expose `actorUserId`: workers see only
+`input/auth/fetch/kv/ai` (`packages/module-sdk/src/worker.ts`), and the worker RPC host
+has no identity method. Queue jobs are fine — the host job envelope
+`{ actorUserId, jobKind, idempotencyKey, params }` is built by the worker host
+(`apps/worker/src/external-module-job-handler.ts`). But assistant-TOOL invocations pass
+the validated caller input verbatim (`apps/api/src/external-module-tools.ts`), so the
+tool paths of `finance.account.set-shared` and `finance.sync.run-now` (mirror writes)
+and the merged read tools (own-prefix skip) have no way to learn whose keys are "own".
+
+**Decision.** The API host injects the actor's identity into tool input at the single
+dispatch chokepoint in `apps/api/src/external-module-tools.ts`:
+`runtime.invoke(module, tool.handler, { ...toolInput, actorUserId: context.actorUserId }, rpc)`.
+Handlers on both paths read the SAME top-level field: queue envelopes already carry
+host-bound `actorUserId`, so `input.actorUserId` is uniform.
+
+**Spoof resistance.** `validateToolInput` (the REST/gateway input chokepoint,
+`packages/ai/src/gateway/input-validation.ts`) deliberately does not enforce
+`additionalProperties`, so a caller CAN smuggle an `actorUserId` key through schema
+validation. The host value is therefore spread LAST — spread order, not schema
+rejection, is the binding defense, and the injection-site comment must say so. The
+generic injection is safe for existing modules: finance and job-search handlers read
+named keys only (`validate.ts` readers ignore unknown input keys).
+
+**Scope note.** This supersedes "the one host delta" phrasing: FIN-04 carries two host
+deltas, both small and generic (a name directory; identity plumbing every future
+sharing-capable module needs). No SDK/RPC surface change — identity rides the existing
+input channel, matching the queue envelope shape.
 
 ## Deleted-owner mirror keys (bounded deferral)
 
