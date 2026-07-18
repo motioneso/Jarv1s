@@ -49,7 +49,10 @@ describe("finance manifest contract (#1146)", () => {
         ["finance.transaction.categorize", "transaction.categorize"],
         ["finance.budget.status", "budget.status"],
         ["finance.budget.assign", "budget.assign"],
-        ["finance.account.set-shared", "account.set-shared"]
+        ["finance.account.set-shared", "account.set-shared"],
+        // FIN-05 (#1150): read-only report tools.
+        ["finance.reports.spending", "reports.spending"],
+        ["finance.reports.net-worth", "reports.net-worth"]
       ]
     );
     for (const tool of result.manifest.assistantTools ?? []) {
@@ -74,6 +77,10 @@ describe("finance manifest contract (#1146)", () => {
     // FIN-04 (#1149): flipping the household share writes the mirror, so the
     // assistant path must confirm (D4) exactly like every other mutation.
     expect(riskOf["finance.account.set-shared"]).toBe("write");
+    // FIN-05 (#1150): reports are pure aggregation — read risk, and the host
+    // rpc layer rejects any kv.set from them (forbidden_kv_mutation).
+    expect(riskOf["finance.reports.spending"]).toBe("read");
+    expect(riskOf["finance.reports.net-worth"]).toBe("read");
 
     // Credential slots: instance Plaid keys (admin-entered at runtime) + the
     // per-user token map. Tokens live ONLY in app.module_credentials — no KV
@@ -243,6 +250,25 @@ describe("finance manifest contract (#1146)", () => {
       "month",
       "categoryId"
     ]);
+
+    // FIN-05 (#1150): both report tools take ONLY an optional bounded months
+    // count (default 6 handler-side) — no free text can reach a report call.
+    for (const name of ["finance.reports.spending", "finance.reports.net-worth"]) {
+      const tool = tools.find((entry) => entry.name === name)!;
+      const schema = tool.inputSchema as {
+        properties: Record<string, Record<string, unknown>>;
+        additionalProperties?: unknown;
+        required?: unknown;
+      };
+      expect(Object.keys(schema.properties), name).toEqual(["months"]);
+      expect(schema.additionalProperties, name).toBe(false);
+      expect(schema.required, name).toBeUndefined();
+      expect(schema.properties.months, name).toEqual({
+        type: "integer",
+        minimum: 1,
+        maximum: 24
+      });
+    }
   });
 
   it("payloads pass the platform metadata-only gate and reject undeclared params", () => {

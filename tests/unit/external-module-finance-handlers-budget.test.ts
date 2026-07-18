@@ -179,6 +179,34 @@ describe("finance budget.status (#1148)", () => {
       "month must be YYYY-MM"
     );
   });
+
+  it("excludes auto-paired transfers from derivation (FIN-05 pre-filter)", async () => {
+    const kv = fakeKv();
+    await kv.set(NS.transactions, "acc-1:2026-07", {
+      transactions: [
+        txRecord({ categoryId: "income", amountCents: -200_000 }),
+        // transfer-in miscategorized as income: its pair (below, categorized
+        // transfers on ANOTHER account) must pull it out of derivation, so
+        // TBB stays 2000.00 instead of inflating by 500.00 (spec delta
+        // §"Transfer auto-pairing", the deliberate-TBB-shift consequence).
+        txRecord({ id: "pair-in", categoryId: "income", amountCents: -50_000, date: "2026-07-11" })
+      ]
+    });
+    await kv.set(NS.transactions, "acc-2:2026-07", {
+      transactions: [
+        txRecord({
+          id: "pair-out",
+          accountId: "acc-2",
+          categoryId: "transfers",
+          amountCents: 50_000,
+          date: "2026-07-10"
+        })
+      ]
+    });
+
+    const result = await budgetStatusHandler(fakePorts(kv))({ month: "2026-07" });
+    expect((result.state as { tbbCents: number }).tbbCents).toBe(200_000);
+  });
 });
 
 describe("finance budget.assign — tool path (#1148)", () => {

@@ -14,6 +14,7 @@ import {
   transactionCategorizeHandler,
   transactionsQueryHandler
 } from "./handlers/feed.js";
+import { reportsNetWorthHandler, reportsSpendingHandler } from "./handlers/reports.js";
 import { accountSetSharedHandler, shareApplyHandler } from "./handlers/shared.js";
 import { syncRunHandler } from "./handlers/sync.js";
 import type { WorkerPorts } from "./ports.js";
@@ -38,5 +39,8 @@ export const HANDLERS: Readonly<Record<string, ToolFactory>> = {
   "budget.apply": budgetApplyHandler,
   // FIN-04 (#1149) Task 4: the household-sharing surface of manifest v0.3.0.
   "account.set-shared": accountSetSharedHandler,
-  "share.apply": shareApplyHandler
+  "share.apply": shareApplyHandler,
+  // FIN-05 (#1150) Task 4: the read-only reports surface of manifest v0.4.0.
+  "reports.spending": reportsSpendingHandler,
+  "reports.net-worth": reportsNetWorthHandler
 };
