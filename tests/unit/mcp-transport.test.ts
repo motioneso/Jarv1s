@@ -12,21 +12,22 @@ describe("gatewayResponseToMcp", () => {
     const res: GatewayToolResponse = { ok: true, data: { text: '{"result":"hello"}' } };
     const mcp = gatewayResponseToMcp(res);
     expect(mcp.isError).toBe(false);
-    expect(mcp.content[0]!.text).toBe('{"result":"hello"}');
+    // #1133 widened content blocks to a text|image union — assert the whole block shape.
+    expect(mcp.content[0]).toEqual({ type: "text", text: '{"result":"hello"}' });
   });
 
   it("maps denied response to isError=true with reason", () => {
     const res: GatewayToolResponse = { ok: false, denied: true, reason: "Denied by user." };
     const mcp = gatewayResponseToMcp(res);
     expect(mcp.isError).toBe(true);
-    expect(mcp.content[0]!.text).toBe("Denied by user.");
+    expect(mcp.content[0]).toEqual({ type: "text", text: "Denied by user." });
   });
 
   it("maps error response to isError=true with error message", () => {
     const res: GatewayToolResponse = { ok: false, error: "Tool failed" };
     const mcp = gatewayResponseToMcp(res);
     expect(mcp.isError).toBe(true);
-    expect(mcp.content[0]!.text).toBe("Tool failed");
+    expect(mcp.content[0]).toEqual({ type: "text", text: "Tool failed" });
   });
 });
 
