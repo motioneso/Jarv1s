@@ -268,10 +268,13 @@ describe("finance job reconciliation (#1146)", () => {
       "create:finance.sync-run",
       'update:finance.sync-run:{"retryLimit":3}',
       "create:finance.connect-poll",
-      'update:finance.connect-poll:{"retryLimit":5}'
+      'update:finance.connect-poll:{"retryLimit":5}',
+      "create:finance.categorize-apply",
+      'update:finance.categorize-apply:{"retryLimit":1}'
     ]);
     // One schedule per active user; payload is metadata-only (D6) and the
-    // key is the reconciler's module:schedule:user triple.
+    // key is the reconciler's module/schedule/user triple ("/"-separated —
+    // pg-boss v12's assertKey rejects ":", see job-reconciler.ts / #1147).
     expect(schedules).toEqual([
       {
         name: "finance.sync-run",
@@ -282,7 +285,7 @@ describe("finance job reconciliation (#1146)", () => {
           jobKind: "finance.sync-sweep",
           manifestHash: module.manifestHash
         },
-        options: { tz: "UTC", key: `finance:finance.sync-sweep:${adminUserId}` }
+        options: { tz: "UTC", key: `finance/finance.sync-sweep/${adminUserId}` }
       }
     ]);
   });
