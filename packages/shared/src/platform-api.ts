@@ -89,6 +89,21 @@ export interface ListUsersResponse {
   readonly users: readonly UserDto[];
 }
 
+/**
+ * FIN-04 (#1149): one row of the authenticated (non-admin) user directory.
+ * Deliberately id + name ONLY — no email, admin flag, status, or timestamps.
+ * `name` may be null upstream; clients fall back to a neutral label, never to
+ * the email (the email must not reach this surface at all).
+ */
+export interface UserDirectoryEntryDto {
+  readonly id: string;
+  readonly name: string | null;
+}
+
+export interface ListUserDirectoryResponse {
+  readonly users: readonly UserDirectoryEntryDto[];
+}
+
 export interface ListInstanceSettingsResponse {
   readonly settings: readonly InstanceSettingDto[];
 }
@@ -346,6 +361,38 @@ export const listUsersRouteSchema = {
       required: ["users"],
       properties: {
         users: { type: "array", items: userSchema }
+      }
+    },
+    401: errorResponseSchema,
+    403: errorResponseSchema
+  }
+} as const;
+
+/**
+ * FIN-04 (#1149) directory schema. fast-json-stringify DROPS every field not
+ * declared here (additionalProperties: false + explicit properties), so this
+ * schema IS the redaction enforcement for the non-admin directory — a
+ * serializer bug upstream cannot leak emails through this response.
+ */
+export const listUserDirectoryRouteSchema = {
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: ["users"],
+      properties: {
+        users: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["id", "name"],
+            properties: {
+              id: { type: "string" },
+              name: { type: ["string", "null"] }
+            }
+          }
+        }
       }
     },
     401: errorResponseSchema,

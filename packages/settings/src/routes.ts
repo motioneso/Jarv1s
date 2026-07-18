@@ -19,6 +19,7 @@ import {
   listAdminAuditEventsRouteSchema,
   listAuthProviderStatusesRouteSchema,
   listInstanceSettingsRouteSchema,
+  listUserDirectoryRouteSchema,
   listUsersRouteSchema,
   meRouteSchema,
   patchMeProfileRouteSchema,
@@ -405,6 +406,43 @@ export function registerSettingsRoutes(
 
         return {
           providers: dependencies.listConfiguredAuthProviders?.() ?? []
+        };
+      } catch (error) {
+        return handleRouteError(error, reply);
+      }
+    }
+  );
+
+  // FIN-04 (#1149): authenticated NON-admin directory — id + name of active
+  // members only. Deliberate, narrow product surface relative to #75 /
+  // migration 0047 (which stopped GUC-less enumeration of full user rows
+  // including emails): household sharing UX needs co-member display names, and
+  // the alternative — persisting names into module storage — violates "ids
+  // only in storage" and goes stale on rename. The DB read rides the same
+  // SECURITY DEFINER app.list_all_users() the admin route uses (the admin gate
+  // was always route-level, not DB-level); redaction to { id, name } is
+  // enforced by the response schema (fast-json-stringify drops undeclared
+  // fields) in addition to the serializer below.
+  server.get(
+    "/api/users/directory",
+    { schema: listUserDirectoryRouteSchema },
+    async (request, reply) => {
+      try {
+        const accessContext = await dependencies.resolveAccessContext(request);
+        const users = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
+            // Any known (active) member may resolve names — requireKnownUser
+            // is the /api/me idiom, not assertAdminUser.
+            await requireKnownUser(repository, scopedDb, accessContext.actorUserId);
+            return repository.listUsers(scopedDb);
+          }
+        );
+
+        return {
+          users: users
+            .filter((user) => user.status === "active")
+            .map((user) => ({ id: user.id, name: user.name ?? null }))
         };
       } catch (error) {
         return handleRouteError(error, reply);
