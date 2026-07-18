@@ -1,4 +1,12 @@
-# FIN-02 checkpoint — Tasks 8–9 committed, resume at Task 10 (#1147)
+# FIN-02 checkpoint — Tasks 8–10 committed, resume at Task 11 (#1147)
+
+**UPDATE (same session):** Task 10 is DONE — commit `cc5060c0` (feed.ts: transactionsQueryHandler
+one-call feed with month-default/account/category/search/pending/limit≤200 filters, side-effect-free
+taxonomy read falling back to DEFAULT_CATEGORIES; shared applyCategory validates live category →
+`invalid_category`, missing tx → `not_found`; assistant tool adds notes (maxBytes 2000) + createRule
+upsert at `contentHash(normalizePayee(name))`; queue path = 4 ids only, notes ignored; 3 registry
+keys wired; 7 new tests, 86 finance unit tests green; `pnpm build:external:finance` clean).
+**Resume at Task 11 (web feed) — section below.** The Task 10 section is historical.
 
 Pointer handoff for the successor session on epic #1144. Worktree
 `~/Jarv1s/.claude/worktrees/finance-module`, branch `worktree-finance-module` (owned by PR #1151 —
