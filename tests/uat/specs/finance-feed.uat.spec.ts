@@ -29,7 +29,7 @@ export const uatLevel = { level: "admin+data", without: [] } as const;
 // logs are unrecoverable after a failure (learned the hard way on this spec's
 // first run: a silently-failing queue job left no evidence). Dump them into the
 // run log BEFORE teardown whenever the test didn't pass.
-test.afterEach(async ({}, testInfo) => {
+test.afterEach(async (_fixtures, testInfo) => {
   const projectName = process.env.JARVIS_UAT_PROJECT_NAME;
   if (testInfo.status === testInfo.expectedStatus || !projectName) return;
   // The reload-poll loop at the end of the test spams ~40 request-log lines per

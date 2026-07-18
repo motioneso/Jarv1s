@@ -29,8 +29,8 @@ params}` — ids live in `input.params` (a6023cb7).
       determinism (same inputs → same output, no clock).
 - [ ] **Green:** `external-modules/finance/src/domain/envelope.ts` — pure
       `deriveBudgetMonths(input: { ledgers: Record<string, Ledger>; chunks:
-    TransactionChunk[][ per month ]; months: string[] }) → Record<string,
-    BudgetMonthStateCore>` (no `computedAt` in the pure layer — the handler stamps it
+  TransactionChunk[][ per month ]; months: string[] }) → Record<string,
+  BudgetMonthStateCore>` (no `computedAt` in the pure layer — the handler stamps it
       from ctx clock). Export `BudgetLedger`, `BudgetMonthState` types from
       `domain/records.ts` or `envelope.ts` per file-size fit. Month iteration = sorted
       union of ledger + chunk months (delta §envelope math).
@@ -79,7 +79,7 @@ params}` — ids live in `input.params` (a6023cb7).
 - [ ] `screens/budget.tsx` per delta: month nav, TBB headline, taxonomy-group rows
       (category / assigned inline-edit / activity / available), assign →
       `runQueue("finance.budget-apply", "finance.budget-apply", { month, categoryId,
-    amountCents })` with optimistic override; reads via `finance.budget.status`.
+  amountCents })` with optimistic override; reads via `finance.budget.status`.
       `tabular-nums` amounts; existing authored empty/danger states only.
 - [ ] Verify: `pnpm build:external:finance`; apps/web tsc unaffected; targeted unit tests
       for any new pure web helpers (amount parsing → cents); prettier.
