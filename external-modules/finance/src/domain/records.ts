@@ -42,6 +42,11 @@ export type AccountRecord = {
   balanceCents: number;
   isoCurrency: string;
   updatedAt: string;
+  /**
+   * FIN-04 (#1149) household opt-in. Absent = false: every account stays
+   * private until its owner explicitly shares it (Private by default).
+   */
+  sharedToHousehold?: boolean;
 };
 
 export type ItemRecord = {
