@@ -64,10 +64,7 @@ export async function writeVaultFile(
 // #1133 — byte variants for chat attachments (images/PDFs). Same containment discipline as
 // the string helpers (resolveVaultPath + assertNoSymlinkEscape + 0600/0700); only the
 // encoding differs: Buffers in/out so binary content is never corrupted by a utf8 decode.
-export async function readVaultFileBytes(
-  ctx: VaultContext,
-  relativePath: string
-): Promise<Buffer> {
+export async function readVaultFileBytes(ctx: VaultContext, relativePath: string): Promise<Buffer> {
   assertVaultContext(ctx);
   const fullPath = resolveVaultPath(ctx.vaultRoot, relativePath);
   await assertNoSymlinkEscape(fullPath, ctx.vaultRoot);

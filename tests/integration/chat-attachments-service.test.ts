@@ -240,9 +240,7 @@ describe("ChatAttachmentsService (#1133)", () => {
         bytes: Buffer.from("nope")
       })
     ).rejects.toMatchObject({ statusCode: 429 });
-    expect(
-      new ChatAttachmentUploadError(429, "x") instanceof ChatAttachmentUploadError
-    ).toBe(true);
+    expect(new ChatAttachmentUploadError(429, "x") instanceof ChatAttachmentUploadError).toBe(true);
   });
 
   it("sanitizes filenames to safe display strings", () => {

@@ -149,7 +149,10 @@ function parseMeta(rawJson: string): StoredAttachmentMeta | undefined {
   }
 }
 
-async function readMetaInCtx(ctx: VaultContext, id: string): Promise<StoredAttachmentMeta | undefined> {
+async function readMetaInCtx(
+  ctx: VaultContext,
+  id: string
+): Promise<StoredAttachmentMeta | undefined> {
   try {
     return parseMeta(await readVaultFile(ctx, metaPath(id)));
   } catch {

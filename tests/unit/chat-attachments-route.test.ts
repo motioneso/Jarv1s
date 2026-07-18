@@ -46,12 +46,7 @@ describe("POST /api/chat/attachments (#1133)", () => {
     await rm(vaultBase, { recursive: true, force: true });
   });
 
-  function upload(opts: {
-    body?: Buffer;
-    mime?: string;
-    fileName?: string;
-    contentType?: string;
-  }) {
+  function upload(opts: { body?: Buffer; mime?: string; fileName?: string; contentType?: string }) {
     const headers: Record<string, string> = {
       "content-type": opts.contentType ?? "application/octet-stream"
     };
