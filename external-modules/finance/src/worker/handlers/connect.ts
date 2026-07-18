@@ -28,7 +28,9 @@ const CLIENT_USER_ID_KEY = "client-user-id";
 /** Hosted Link sessions the user never finished are dropped after 30 min. */
 const ABANDON_AFTER_MS = 30 * 60_000;
 
-async function buildPlaid(ports: WorkerPorts, envOverride?: "production" | "sandbox") {
+// Shared with handlers/sync.ts (Task 6) — one definition of "how a handler
+// gets a Plaid client" keeps the needs_config/fetch-degradation story single.
+export async function buildPlaid(ports: WorkerPorts, envOverride?: "production" | "sandbox") {
   if (ports.plaid === null) {
     // Older host without ctx.fetch: degrade to a structured error.
     throw new FinanceFetchError("fetch_failed", "network access is unavailable on this host");
@@ -52,7 +54,8 @@ async function ensureClientUserId(kv: FinanceKv): Promise<string> {
   return id;
 }
 
-async function loadItems(kv: FinanceKv): Promise<ItemRecord[]> {
+// Shared with handlers/sync.ts (Task 6).
+export async function loadItems(kv: FinanceKv): Promise<ItemRecord[]> {
   const keys = await kv.list(NS.connections);
   const items: ItemRecord[] = [];
   for (const key of keys) {

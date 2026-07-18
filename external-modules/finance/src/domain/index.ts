@@ -6,3 +6,4 @@ export * from "./errors.js";
 export * from "./keys.js";
 export * from "./kv-port.js";
 export * from "./records.js";
+export * from "./reduce.js";
