@@ -284,7 +284,7 @@ export class CliChatEngineHost {
       // session by canonical name BEFORE removing the dir, §6.5). For a TIMEOUT the engine
       // may still be mid-create; best-effort kill the canonical name + remove the dir so a
       // late orphan can't enter liveKeys and block the gate (§4.1.0a).
-      await killMuxSessionByName(this.deps.io, key).catch(() => undefined);
+      await killMuxSessionByName(this.deps.io, key, this.deps.homeBase).catch(() => undefined);
       await removeNeutralDir(this.deps.io, this.deps.neutralBase, key).catch(() => undefined);
       this.engines.delete(key);
       // LATE-SUCCESS ORPHAN REAP (§4.1.0a, ~the 144-147 race): when we timed out, the raw
@@ -300,7 +300,9 @@ export class CliChatEngineHost {
           )
           .then(async (resolvedLate) => {
             if (!resolvedLate) return;
-            await killMuxSessionByName(this.deps.io, key).catch(() => undefined);
+            await killMuxSessionByName(this.deps.io, key, this.deps.homeBase).catch(
+              () => undefined
+            );
             await removeNeutralDir(this.deps.io, this.deps.neutralBase, key).catch(() => undefined);
             this.engines.delete(key);
           });
@@ -314,7 +316,7 @@ export class CliChatEngineHost {
 
   /** §4.1.0a: liveKeys = listLiveSessions-by-mux (§4.6) ∪ the reservation set. */
   private async currentLiveKeys(): Promise<Set<string>> {
-    const byMux = await listLiveMuxSessions(this.deps.io);
+    const byMux = await listLiveMuxSessions(this.deps.io, this.deps.homeBase);
     const set = new Set<string>(byMux);
     for (const r of this.reservations) set.add(r);
     return set;
@@ -436,7 +438,7 @@ export class CliChatEngineHost {
       }
       // Post-restart orphan: no engine object, but a live jarv1s-live-<key> mux session
       // may still exist. Kill by canonical name; preserve a failed-purge marker when requested.
-      await killMuxSessionByName(this.deps.io, key);
+      await killMuxSessionByName(this.deps.io, key, this.deps.homeBase);
       if (!opts.preserveNeutralDir) {
         await removeNeutralDir(this.deps.io, this.deps.neutralBase, key);
       }
@@ -465,7 +467,7 @@ export class CliChatEngineHost {
   // ─── listLiveSessions (§4.6) — by mux, NOT the engine Map ──────────────────────
 
   async listLiveSessions(): Promise<string[]> {
-    return listLiveMuxSessions(this.deps.io);
+    return listLiveMuxSessions(this.deps.io, this.deps.homeBase);
   }
 
   // ─── probeProvider (§4.8) — no token, no replay ───────────────────────────────
@@ -585,9 +587,11 @@ export class CliChatEngineHost {
   async startupSweep(): Promise<void> {
     // (a) kill any surviving mux sessions (rare after a container restart, but a fast
     // in-place restart can leave them).
-    const live = await listLiveMuxSessions(this.deps.io).catch(() => [] as string[]);
+    const live = await listLiveMuxSessions(this.deps.io, this.deps.homeBase).catch(
+      () => [] as string[]
+    );
     for (const key of live) {
-      await killMuxSessionByName(this.deps.io, key).catch(() => undefined);
+      await killMuxSessionByName(this.deps.io, key, this.deps.homeBase).catch(() => undefined);
     }
     // (b) purge every marker-backed private transcript before the neutral dirs are erased.
     const purged = await purgePrivateTranscriptMarkers(

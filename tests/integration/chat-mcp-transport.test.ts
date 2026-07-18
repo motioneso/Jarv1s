@@ -19,6 +19,7 @@ import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/
 import { SettingsRepository } from "@jarv1s/settings";
 import { PreferencesRepository } from "@jarv1s/structured-state";
 import {
+  gatewayResponseToMcp,
   registerMcpTransportRoute,
   registerNativePermissionRoute
 } from "../../packages/chat/src/mcp-transport.js";
@@ -724,5 +725,29 @@ describe("native permission YOLO", () => {
     } finally {
       await app.close();
     }
+  });
+});
+
+// #1133 — attachments: image tool results carry `media` past the gateway's text render;
+// the transport must emit a native MCP image content block so engines with MCP-image
+// support (e.g. Claude) see the picture, while the text block still names the file for
+// engines that ignore image blocks (documented degradation, no hard failure).
+describe("gatewayResponseToMcp media pass-through (#1133)", () => {
+  it("emits an MCP image content block plus the rendered text block", () => {
+    const res = gatewayResponseToMcp({
+      ok: true,
+      data: { text: "fileName: screenshot.png" },
+      media: { kind: "image", base64: "aGVsbG8=", mimeType: "image/png" }
+    });
+    expect(res.isError).toBe(false);
+    expect(res.content).toEqual([
+      { type: "image", data: "aGVsbG8=", mimeType: "image/png" },
+      { type: "text", text: "fileName: screenshot.png" }
+    ]);
+  });
+
+  it("stays text-only when no media is present", () => {
+    const res = gatewayResponseToMcp({ ok: true, data: { text: "plain" } });
+    expect(res.content).toEqual([{ type: "text", text: "plain" }]);
   });
 });

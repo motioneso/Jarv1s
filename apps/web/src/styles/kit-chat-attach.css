@@ -1,0 +1,117 @@
+/* #1133 chat attachments — composer pending chips + sent-message chips.
+   Own file (like kit-chat-skills.css) because kit-chat.css sits at the
+   1000-line file-size gate. Tokens only; raw colors live in tokens.css. */
+
+.chatd-attach__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.chatd-attach__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 240px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.3;
+  padding: 3px 6px 3px 8px;
+}
+
+.chatd-attach__chip.is-uploading {
+  opacity: 0.65;
+}
+
+.chatd-attach__chip.is-error {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* read-only variant on a sent user message (right-aligned column) */
+.chatd-attach__sent {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.chatd-attach__chip.is-sent {
+  padding-right: 8px;
+}
+
+.chatd-attach__name {
+  min-width: 0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.chatd-attach__chip.is-error .chatd-attach__name {
+  color: inherit;
+}
+
+.chatd-attach__meta {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.chatd-attach__x {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.chatd-attach__x:hover {
+  color: var(--danger);
+}
+
+/* attach trigger sits beside the mic; same control language as .chatd-mic */
+.chatd-attach__btn {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  transition: var(--transition-control);
+}
+
+.chatd-attach__btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* hidden file input — display:none breaks some browsers' picker focus return */
+.chatd-attach__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

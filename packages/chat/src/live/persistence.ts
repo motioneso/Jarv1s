@@ -21,6 +21,7 @@ import {
 import type {
   AnswerProvenanceMetadataV1,
   AiProviderExecutionMode,
+  ChatAttachmentDto,
   SourceFreshnessEntry,
   SourceFreshnessV1
 } from "@jarv1s/shared";
@@ -187,6 +188,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     opts?: {
       readonly invokedToolNames?: ReadonlySet<string>;
       readonly answerProvenance?: AnswerProvenanceMetadataV1;
+      readonly attachments?: readonly ChatAttachmentDto[];
     }
   ): Promise<{ readonly userMessageId: string; readonly assistantMessageId: string } | undefined> {
     return this.run(actorUserId, "record-turn", async (scopedDb) => {
@@ -209,7 +211,11 @@ export class DataContextChatPersistence implements ChatPersistencePort {
             userText,
             assistantReply,
             executed,
-            { sourceFreshness, answerProvenance: opts?.answerProvenance }
+            {
+              sourceFreshness,
+              answerProvenance: opts?.answerProvenance,
+              attachments: opts?.attachments
+            }
           );
       await this.chat.touchThread(scopedDb, thread.id);
 

@@ -1,9 +1,38 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUp, Mic, Square, X } from "lucide-react";
-import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { ArrowUp, Mic, Paperclip, Square, X } from "lucide-react";
+import {
+  type ChangeEvent,
+  type ClipboardEvent,
+  type KeyboardEvent,
+  useEffect,
+  useRef,
+  useState
+} from "react";
 
-import { ApiError, listChatSkills, lookupAiCapabilityRoute, transcribeAudio } from "../api/client";
+import type { ChatAttachmentDto } from "@jarv1s/shared";
+
+import {
+  ApiError,
+  listChatSkills,
+  lookupAiCapabilityRoute,
+  transcribeAudio,
+  uploadChatAttachment
+} from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import {
+  ATTACHMENT_ACCEPT,
+  CLIENT_MAX_ATTACHMENTS_PER_TURN,
+  addPendingAttachment,
+  attachmentValidationError,
+  formatAttachmentSize,
+  hasUploadingAttachment,
+  markAttachmentError,
+  markAttachmentReady,
+  pastedImageFiles,
+  readyAttachmentDtos,
+  removePendingAttachment,
+  type PendingAttachment
+} from "./attachments";
 import { ConnectProviderEmpty } from "./connect-provider-empty";
 import {
   activeSlashQuery,
@@ -37,7 +66,9 @@ export function Composer(props: {
   readonly sendError: string | null;
   readonly needsProvider: boolean;
   readonly lockedModelUnavailable: boolean;
-  readonly onSend: (text: string) => void;
+  /** #1133 — attach UI is hidden and pending chips are dropped in private/incognito chat. */
+  readonly privateMode: boolean;
+  readonly onSend: (text: string, attachments?: readonly ChatAttachmentDto[]) => void;
   readonly onStop: (queuedText: string | null) => void;
 }) {
   // Lazy initializer: the starter seeds the input on mount only. After that, the user owns the
@@ -69,6 +100,76 @@ export function Composer(props: {
   const [micError, setMicError] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+
+  // #1133 — files staged for the next turn. Uploads start immediately on pick/paste so the
+  // server id is usually ready by the time the user hits send; chips reflect per-file status.
+  const [pending, setPending] = useState<readonly PendingAttachment[]>([]);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Attachments are rejected server-side in private chat (nothing persists there to clean
+  // up); drop any staged chips the moment the user flips to private so the composer can't
+  // submit ids the server would refuse.
+  useEffect(() => {
+    if (props.privateMode) {
+      setPending([]);
+      setAttachError(null);
+    }
+  }, [props.privateMode]);
+
+  const attachFiles = (files: readonly File[]) => {
+    if (props.privateMode || files.length === 0) return;
+    setAttachError(null);
+    let current = pending;
+    for (const file of files) {
+      if (current.length >= CLIENT_MAX_ATTACHMENTS_PER_TURN) {
+        setAttachError(
+          `You can attach up to ${CLIENT_MAX_ATTACHMENTS_PER_TURN} files per message.`
+        );
+        break;
+      }
+      const rejection = attachmentValidationError(file);
+      if (rejection) {
+        setAttachError(rejection);
+        continue;
+      }
+      const localId = crypto.randomUUID();
+      const fileName = file.name || "pasted-image.png";
+      current = addPendingAttachment(current, {
+        localId,
+        fileName,
+        sizeBytes: file.size,
+        mimeType: file.type
+      });
+      void uploadChatAttachment(file, fileName)
+        .then(({ attachment }) => {
+          setPending((list) => markAttachmentReady(list, localId, attachment.id));
+        })
+        .catch((error: unknown) => {
+          setPending((list) =>
+            markAttachmentError(
+              list,
+              localId,
+              error instanceof ApiError ? error.message : "Upload failed. Please try again."
+            )
+          );
+        });
+    }
+    setPending(current);
+  };
+
+  const onFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    attachFiles(Array.from(event.target.files ?? []));
+    // Reset so picking the same file again re-fires change.
+    event.target.value = "";
+  };
+
+  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const images = pastedImageFiles(event.clipboardData?.items ?? []);
+    if (images.length === 0) return;
+    event.preventDefault();
+    attachFiles(images);
+  };
 
   const transcriptionRouteQuery = useQuery({
     queryKey: queryKeys.ai.capability("transcription"),
@@ -112,18 +213,28 @@ export function Composer(props: {
 
   const clearBoundSkill = () => setBoundSkillId(null);
 
+  const readyAttachments = readyAttachmentDtos(pending);
+
   const send = () => {
     if (props.readOnly) return;
-    if (!composedText) return;
+    // #1133 — a turn can be attachment-only, but never truly empty; and never send while a
+    // chip is still uploading (its server id doesn't exist yet — it would be silently lost).
+    if (!composedText && readyAttachments.length === 0) return;
+    if (hasUploadingAttachment(pending)) return;
     if (props.isSending) {
+      // Queued sends stay text-only (the drain path replays just the text); chips stay
+      // staged for the next manual send rather than riding along invisibly.
+      if (!composedText) return;
       setQueuedText(composedText);
       setText("");
       setBoundSkillId(null);
       return;
     }
-    props.onSend(composedText);
+    props.onSend(composedText, readyAttachments.length > 0 ? readyAttachments : undefined);
     setText("");
     setBoundSkillId(null);
+    setPending([]);
+    setAttachError(null);
   };
 
   const restoreQueuedText = () => {
@@ -237,6 +348,38 @@ export function Composer(props: {
       ) : null}
       {props.sendError ? <p className="form-error">{props.sendError}</p> : null}
       {micError ? <p className="form-error">{micError}</p> : null}
+      {attachError ? <p className="form-error">{attachError}</p> : null}
+      {pending.length > 0 ? (
+        <div className="chatd-attach__row" aria-label="Pending attachments">
+          {pending.map((item) => (
+            <span
+              className={`chatd-attach__chip${item.status === "error" ? " is-error" : ""}${
+                item.status === "uploading" ? " is-uploading" : ""
+              }`}
+              key={item.localId}
+              title={item.status === "error" ? item.error : item.fileName}
+            >
+              <Paperclip size={12} aria-hidden="true" />
+              <span className="chatd-attach__name">{item.fileName}</span>
+              <span className="chatd-attach__meta">
+                {item.status === "uploading"
+                  ? "uploading…"
+                  : item.status === "error"
+                    ? "failed"
+                    : formatAttachmentSize(item.sizeBytes)}
+              </span>
+              <button
+                aria-label={`Remove ${item.fileName}`}
+                className="chatd-attach__x"
+                type="button"
+                onClick={() => setPending((list) => removePendingAttachment(list, item.localId))}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
       {boundSkill ? (
         <div className="chatd-skillac__bound">
           <span>/{skillCommandName(boundSkill.name)}</span>
@@ -274,6 +417,7 @@ export function Composer(props: {
           disabled={props.readOnly || props.lockedModelUnavailable}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
           placeholder={
             props.lockedModelUnavailable
               ? "Chat locked — model unavailable"
@@ -284,6 +428,30 @@ export function Composer(props: {
           rows={1}
           value={text}
         />
+        {!props.privateMode ? (
+          <>
+            <input
+              ref={fileInputRef}
+              accept={ATTACHMENT_ACCEPT}
+              aria-hidden="true"
+              className="chatd-attach__input"
+              multiple
+              tabIndex={-1}
+              type="file"
+              onChange={onFileInputChange}
+            />
+            <button
+              aria-label="Attach files"
+              className="chatd-attach__btn"
+              disabled={props.readOnly || props.lockedModelUnavailable}
+              title="Attach files (or paste an image)"
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Paperclip size={16} aria-hidden="true" />
+            </button>
+          </>
+        ) : null}
         <button
           aria-label={recording ? "Stop recording" : "Record voice message"}
           className={`chatd-mic${recording ? " is-recording" : ""}`}
@@ -302,7 +470,10 @@ export function Composer(props: {
           aria-label={props.isSending ? "Stop generating" : "Send"}
           className="chatd-send"
           disabled={
-            props.readOnly || props.lockedModelUnavailable || (!props.isSending && !composedText)
+            props.readOnly ||
+            props.lockedModelUnavailable ||
+            (!props.isSending &&
+              ((!composedText && readyAttachments.length === 0) || hasUploadingAttachment(pending)))
           }
           title={props.isSending ? "Stop" : "Send"}
           type="button"

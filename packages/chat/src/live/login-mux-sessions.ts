@@ -6,7 +6,17 @@
  * `TmuxIo` run seam — no engine state — so they live cleanly on their own. cli-chat-engine.ts
  * re-exports them, so every existing import site is unchanged.
  */
-import type { TmuxIo } from "@jarv1s/ai";
+import { resolveTmuxSocketPath, type TmuxIo } from "@jarv1s/ai";
+
+/**
+ * Every raw tmux verb here MUST target the same private `-S` socket that
+ * `TmuxMultiplexer.open()` used for this `homeBase` (#1142) — otherwise these
+ * list/kill helpers silently query the shared default server and never see (or
+ * reap) sessions the multiplexer actually created.
+ */
+function socketArgs(homeBase: string | undefined): string[] {
+  return ["-S", resolveTmuxSocketPath(homeBase)];
+}
 
 /**
  * Session name prefix for Jarv1s LOGIN sessions (login-contract §L.6.1). DISTINCT from the chat
@@ -27,10 +37,11 @@ export const LOGIN_SESSION_PREFIX = "jarv1s-login-";
  */
 export async function killLoginMuxSession(
   io: Pick<TmuxIo, "run">,
-  provider: string
+  provider: string,
+  homeBase?: string
 ): Promise<void> {
   const name = `${LOGIN_SESSION_PREFIX}${provider}`;
-  await io.run("tmux", ["kill-session", "-t", `=${name}`]);
+  await io.run("tmux", [...socketArgs(homeBase), "kill-session", "-t", `=${name}`]);
 }
 
 /**
@@ -40,8 +51,16 @@ export async function killLoginMuxSession(
  * per the base D13/D14 lesson). Strips the LOGIN prefix to recover each provider. Tolerates "no
  * server running" (nonzero exit → empty list).
  */
-export async function listLoginMuxSessions(io: Pick<TmuxIo, "run">): Promise<string[]> {
-  const listed = await io.run("tmux", ["list-sessions", "-F", "#{session_name}"]);
+export async function listLoginMuxSessions(
+  io: Pick<TmuxIo, "run">,
+  homeBase?: string
+): Promise<string[]> {
+  const listed = await io.run("tmux", [
+    ...socketArgs(homeBase),
+    "list-sessions",
+    "-F",
+    "#{session_name}"
+  ]);
   if (listed.code !== 0) return [];
   return listed.stdout
     .split("\n")
@@ -67,9 +86,11 @@ export interface LoginMuxSessionAge {
  */
 export async function listLoginMuxSessionsWithAge(
   io: Pick<TmuxIo, "run">,
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
+  homeBase?: string
 ): Promise<LoginMuxSessionAge[]> {
   const listed = await io.run("tmux", [
+    ...socketArgs(homeBase),
     "list-sessions",
     "-F",
     "#{session_name} #{session_created}"

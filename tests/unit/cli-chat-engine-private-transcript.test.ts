@@ -21,7 +21,7 @@ const AGY_TEST_UUID = "e099f770-a55c-432f-a9be-8cf254fd2d54";
 function makeAgyIo() {
   const io = makeIo();
   io.run.mockImplementation(async (cmd: string, args: string[]) =>
-    cmd === "tmux" && args[0] === "capture-pane"
+    cmd === "tmux" && args.includes("capture-pane")
       ? { code: 0, stdout: ">\n? for shortcuts\n", stderr: "" }
       : { code: 0, stdout: "", stderr: "" }
   );
@@ -42,7 +42,7 @@ function makeCodexIo(uuid = CODEX_TEST_UUID) {
   ];
   let captures = 0;
   io.run.mockImplementation(async (cmd: string, args: string[]) =>
-    cmd === "tmux" && args[0] === "capture-pane"
+    cmd === "tmux" && args.includes("capture-pane")
       ? { code: 0, stdout: panes[captures++] ?? panes.at(-1)!, stderr: "" }
       : { code: 0, stdout: "", stderr: "" }
   );
@@ -65,10 +65,13 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     expect(launched).toEqual({ offset: 0 });
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
     expect(sendKeysCall).toBeDefined();
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     expect(launchLine).toContain("--allowedTools");
     expect(launchLine).toContain("mcp__jarvis__*");
     expect(launchLine).not.toContain('--tools ""');
@@ -182,9 +185,12 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     });
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     expect(launchLine).toContain("--model 'sonnet'");
   });
 
@@ -198,9 +204,12 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     });
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     expect(launchLine).not.toContain("--model");
   });
 
@@ -210,9 +219,12 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     await engine.launch({ neutralDir: "/tmp/neutral", personaPath: "/tmp/persona.txt" });
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     expect(launchLine).not.toContain("--model");
   });
 
@@ -229,9 +241,12 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
       });
 
       const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-        (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+        (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
       );
-      const launchLine = (sendKeysCall![1] as string[])[3];
+      const launchLine = (() => {
+        const a = sendKeysCall![1] as string[];
+        return a[a.indexOf("-t") + 2];
+      })();
       expect(launchLine).toContain("--model 'some-concrete-model'");
     }
   );
@@ -248,9 +263,12 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
       });
 
       const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-        (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+        (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
       );
-      const launchLine = (sendKeysCall![1] as string[])[3];
+      const launchLine = (() => {
+        const a = sendKeysCall![1] as string[];
+        return a[a.indexOf("-t") + 2];
+      })();
       expect(launchLine).not.toContain("--model");
     }
   );
@@ -261,9 +279,12 @@ describe("CliChatEngineImpl — Claude MCP lockdown", () => {
     await engine.launch({ neutralDir: "/tmp/neutral", personaPath: "/tmp/persona.txt" });
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     expect(launchLine).toContain('--tools ""');
     expect(launchLine).not.toContain("--allowedTools");
     // #1071 (revert of #1068): default mode. Seeding + correct HOME suppress the trust wizard;

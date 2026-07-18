@@ -179,12 +179,23 @@ function dtoToMcpTool(dto: AiAssistantToolDto) {
   };
 }
 
+// #1133 — MCP tool-result content is no longer text-only: image attachments surface as
+// native image blocks. Exported so tests and future block kinds share one definition.
+export type McpContentBlock =
+  | { readonly type: "text"; readonly text: string }
+  | { readonly type: "image"; readonly data: string; readonly mimeType: string };
+
 export function gatewayResponseToMcp(res: GatewayToolResponse) {
   if (res.ok) {
-    return {
-      content: [{ type: "text", text: (res.data as { text: string }).text }],
-      isError: false
-    };
+    // #1133 — image tool results (chat.readAttachment) carry `media` past the gateway's
+    // text render; emit a native MCP image content block first so image-capable engines
+    // render it, with the text block after it naming the file for engines that ignore
+    // image blocks (documented degradation, never a hard failure).
+    const textBlock: McpContentBlock = { type: "text", text: (res.data as { text: string }).text };
+    const content: McpContentBlock[] = res.media
+      ? [{ type: "image", data: res.media.base64, mimeType: res.media.mimeType }, textBlock]
+      : [textBlock];
+    return { content, isError: false };
   }
   if ("denied" in res) {
     return {

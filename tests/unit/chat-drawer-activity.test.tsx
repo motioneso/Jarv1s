@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { ActivityPeek, activityVerb } from "../../apps/web/src/chat/chat-drawer.js";
+import { ActivityPeek, activityVerb } from "../../apps/web/src/chat/message-row.js";
 
 const allowedRecord = {
   kind: "action_result" as const,

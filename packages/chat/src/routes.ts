@@ -97,6 +97,10 @@ import {
 } from "./memory-serializers.js";
 import { readStoredProvenance, provenanceCards } from "./live/answer-provenance.js";
 import { registerMcpTransportRoute, registerNativePermissionRoute } from "./mcp-transport.js";
+import { VaultContextRunner, getVaultBaseDir } from "@jarv1s/vault";
+
+import { readAttachments, registerChatAttachmentRoutes } from "./attachments-routes.js";
+import { ChatAttachmentsService } from "./attachments-service.js";
 import { ChatRepository } from "./repository.js";
 import { registerChatSkillsRoutes } from "./skills/routes.js";
 import { ChatSkillsRepository } from "./skills/repository.js";
@@ -114,6 +118,8 @@ export interface ChatRoutesDependencies {
   readonly chatEngineFactory?: ChatEngineFactory;
   readonly resolveActiveModules?: ActiveModulesResolver;
   readonly mcpServerUrl?: string;
+  /** #1133 — override the attachment store (tests use a tmpdir vault base). */
+  readonly attachmentsService?: ChatAttachmentsService;
   /** pg-boss for enqueueing embed/extract-facts jobs after each completed turn. */
   readonly boss?: PgBoss;
   readonly passiveMemoryRecall?: PassiveMemoryGraphRecallPort;
@@ -200,6 +206,15 @@ export function registerChatRoutes(
 
   const repository = dependencies.repository ?? new ChatRepository();
   const skillsRepository = dependencies.skillsRepository ?? new ChatSkillsRepository();
+  // #1133 — attachment bytes live in the actor's vault, so the service needs only the
+  // vault base dir; shared by the upload route, turn wiring, and chat.readAttachment.
+  const attachmentsService =
+    dependencies.attachmentsService ??
+    new ChatAttachmentsService(new VaultContextRunner(getVaultBaseDir()));
+  registerChatAttachmentRoutes(server, {
+    resolveAccessContext: dependencies.resolveAccessContext,
+    attachmentsService
+  });
   const chatSettingsRepo = new PreferencesRepository();
   const memorySettingsRepo = new ChatUserMemorySettingsRepository();
   const factsRepo = new ChatMemoryFactsRepository();
@@ -238,7 +253,9 @@ export function registerChatRoutes(
                 boss: dependencies.boss,
                 featureGrantService: dependencies.featureGrantService,
                 sourceContextService: dependencies.sourceContextService,
-                currentViewService
+                currentViewService,
+                // #1133 — lets the engine pull attachment bytes via chat.readAttachment.
+                attachmentsService
               },
               appMapService: dependencies.appMapService,
               agencyPreferences: dependencies.agencyPreferences,
@@ -377,7 +394,9 @@ export function registerChatRoutes(
       ...runtime,
       resolveEveningInterviewSeed: dependencies.resolveEveningInterviewSeed
     },
-    pageContextStore
+    pageContextStore,
+    // #1133 — lets /turn resolve uploaded attachment ids to vault metadata.
+    attachmentsService
   });
 
   registerChatSkillsRoutes(
@@ -728,6 +747,8 @@ export function buildChatGatewayDependencies(args: {
     featureGrantService?: FeatureGrantService;
     sourceContextService?: SourceContextService;
     currentViewService?: CurrentViewReadService;
+    /** #1133 — read-only vault-backed attachment reads for chat.readAttachment. */
+    attachmentsService?: ChatAttachmentsService;
   };
 }): AssistantToolGatewayDependencies {
   return {
@@ -758,6 +779,7 @@ export function buildChatGatewayDependencies(args: {
       args.collaborators.featureGrantService ||
       args.collaborators.sourceContextService ||
       args.collaborators.currentViewService ||
+      args.collaborators.attachmentsService ||
       args.appMapService
         ? {
             ...(args.collaborators.featureGrantService
@@ -768,6 +790,11 @@ export function buildChatGatewayDependencies(args: {
               : {}),
             ...(args.collaborators.currentViewService
               ? { currentView: args.collaborators.currentViewService }
+              : {}),
+            // #1133 — readContent only; belongs in the read registry so the write→confirm
+            // floor stays structurally intact (read tools never see toolServices).
+            ...(args.collaborators.attachmentsService
+              ? { chatAttachments: args.collaborators.attachmentsService }
               : {}),
             ...(args.appMapService ? { appMap: args.appMapService } : {})
           }
@@ -886,6 +913,7 @@ function serializeMessage(message: ChatMessage): ChatMessageDto {
     modelRoute: null,
     tools: readTools(toolMetadata.selectedTools),
     activity: readActivity(toolMetadata.activity),
+    attachments: readAttachments(toolMetadata.attachments),
     sourceFreshness: readSourceFreshness(toolMetadata.sourceFreshness),
     createdAt: toIsoString(message.created_at),
     updatedAt: toIsoString(message.updated_at),

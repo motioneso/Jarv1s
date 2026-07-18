@@ -1,4 +1,8 @@
-import type { ActionRequestPreview, JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type {
+  ActionRequestPreview,
+  JarvisModuleManifest,
+  ToolResultMedia
+} from "@jarv1s/module-sdk";
 
 /**
  * Resolves the modules whose tools are exposed for a user. The enablement SEAM
@@ -43,6 +47,13 @@ export interface SessionNotifier {
 }
 
 export type GatewayToolResponse =
-  | { readonly ok: true; readonly data: Record<string, unknown> }
+  // #1133 — `media` is an optional verbatim pass-through from ToolResult.media (image
+  // bytes for MCP image content blocks). It deliberately does NOT flow through
+  // renderAndCap; see AssistantToolGateway.runHandler.
+  | {
+      readonly ok: true;
+      readonly data: Record<string, unknown>;
+      readonly media?: ToolResultMedia;
+    }
   | { readonly ok: false; readonly denied: true; readonly reason: string }
   | { readonly ok: false; readonly error: string };

@@ -70,7 +70,7 @@ function makeFakeIo(opts: { newSessionGate?: Promise<void> } = {}): {
 
   const run = vi.fn(async (cmd: string, args: readonly string[]) => {
     if (cmd === "tmux") {
-      const verb = args[0];
+      const verb = args[0] === "-S" ? args[2] : args[0];
       if (verb === "new-session") {
         if (opts.newSessionGate) await opts.newSessionGate;
         const name = args[args.indexOf("-s") + 1]!;
@@ -425,7 +425,7 @@ describe("§6.5 startup CLEAN-SLATE sweep", () => {
     (io.run as ReturnType<typeof vi.fn>).mockImplementation(
       async (cmd: string, args: readonly string[]) => {
         if (cmd === "tmux") {
-          const verb = args[0];
+          const verb = args[0] === "-S" ? args[2] : args[0];
           if (verb === "list-sessions")
             return { code: 0, stdout: [...live].join("\n"), stderr: "" };
           if (verb === "kill-session") {
@@ -569,7 +569,7 @@ function makeGatedIo(opts: { gatedName: string; gate: Promise<void> }): {
 
   const run = vi.fn(async (cmd: string, args: readonly string[]) => {
     if (cmd === "tmux") {
-      const verb = args[0];
+      const verb = args[0] === "-S" ? args[2] : args[0];
       if (verb === "new-session") {
         const name = args[args.indexOf("-s") + 1]!;
         if (name === opts.gatedName) await opts.gate; // wedge ONLY the gated key

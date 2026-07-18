@@ -41,9 +41,23 @@ export interface ToolContext {
   readonly localTimezone?: string;
 }
 
+/**
+ * #1133 — non-text payload a tool can attach to its result. The gateway passes `media`
+ * through VERBATIM (it must NOT go through renderAndCap: schema projection would drop it
+ * and the 16k text cap would corrupt base64), and the MCP transport emits it as a native
+ * MCP content block (e.g. an image block) alongside the rendered text. Used by
+ * chat.readAttachment to hand images to engines with MCP-image support.
+ */
+export interface ToolResultMedia {
+  readonly kind: "image";
+  readonly base64: string;
+  readonly mimeType: string;
+}
+
 export interface ToolResult {
   readonly data: Record<string, unknown>;
   readonly columnOrder?: readonly string[];
+  readonly media?: ToolResultMedia;
 }
 
 /**

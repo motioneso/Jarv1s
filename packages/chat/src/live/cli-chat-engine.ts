@@ -191,7 +191,7 @@ export class CliChatEngineImpl implements CliChatEngine {
     private readonly io: TmuxIo,
     opts: CliChatEngineOpts = {}
   ) {
-    this.mux = opts.mux ?? new TmuxMultiplexer(io);
+    this.mux = opts.mux ?? new TmuxMultiplexer(io, { homeBase: opts.homeBase });
     this.homeBase = opts.homeBase;
     this.credentialFile = opts.credentialFile;
     this.ownsDrain = opts.ownsDrain ?? false;
@@ -449,7 +449,7 @@ export class CliChatEngineImpl implements CliChatEngine {
         // No engine-stored handle (e.g. a relaunch raced a restart): still kill by
         // the canonical mux name so a live `jarv1s-live-<key>` session can't survive
         // a kill (§4.5). Idempotent — killing an absent session is not an error.
-        await killMuxSessionByName(this.io, this.threadKey);
+        await killMuxSessionByName(this.io, this.threadKey, this.homeBase);
       }
     } finally {
       this.handle = null;

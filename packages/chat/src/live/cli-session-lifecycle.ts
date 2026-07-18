@@ -1,21 +1,40 @@
 import { join } from "node:path";
 
-import type { TmuxIo } from "@jarv1s/ai";
+import { resolveTmuxSocketPath, type TmuxIo } from "@jarv1s/ai";
 
 export const SESSION_PREFIX = "jarv1s-live-";
+
+/**
+ * Every raw tmux verb here MUST target the same private `-S` socket that
+ * `TmuxMultiplexer.open()` used for this `homeBase` (#1142) — otherwise these
+ * list/kill helpers silently query the shared default server and never see (or
+ * reap) sessions the multiplexer actually created.
+ */
+function socketArgs(homeBase: string | undefined): string[] {
+  return ["-S", resolveTmuxSocketPath(homeBase)];
+}
 
 /** Kill only the exact canonical mux session, even when no engine object survives. */
 export async function killMuxSessionByName(
   io: Pick<TmuxIo, "run">,
-  sessionKey: string
+  sessionKey: string,
+  homeBase?: string
 ): Promise<void> {
   const name = `${SESSION_PREFIX}${sanitizeSessionKey(sessionKey)}`;
-  await io.run("tmux", ["kill-session", "-t", `=${name}`]);
+  await io.run("tmux", [...socketArgs(homeBase), "kill-session", "-t", `=${name}`]);
 }
 
 /** Enumerate live canonical session keys from the multiplexer. */
-export async function listLiveMuxSessions(io: Pick<TmuxIo, "run">): Promise<string[]> {
-  const listed = await io.run("tmux", ["list-sessions", "-F", "#{session_name}"]);
+export async function listLiveMuxSessions(
+  io: Pick<TmuxIo, "run">,
+  homeBase?: string
+): Promise<string[]> {
+  const listed = await io.run("tmux", [
+    ...socketArgs(homeBase),
+    "list-sessions",
+    "-F",
+    "#{session_name}"
+  ]);
   if (listed.code !== 0) return [];
   return listed.stdout
     .split("\n")

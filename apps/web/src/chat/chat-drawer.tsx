@@ -1,18 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ChevronDown,
-  Clock,
-  BookmarkPlus,
-  GitCommitHorizontal,
-  MessageSquareText,
-  MoreHorizontal,
-  ShieldOff,
-  SquarePen,
-  ThumbsDown,
-  ThumbsUp,
-  Undo2,
-  X
-} from "lucide-react";
+import { ChevronDown, Clock, MessageSquareText, ShieldOff, SquarePen, X } from "lucide-react";
 import { type UIEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { BrandMark } from "../shell/brand-mark";
@@ -33,31 +20,21 @@ import {
   sendChatTurn
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import {
-  createUsefulnessFeedback,
-  undoUsefulnessFeedback
-} from "../api/usefulness-feedback-client";
-import type {
-  ChatMessageDto,
-  LocaleSettingsDto,
-  UsefulnessFeedbackDto,
-  UsefulnessFeedbackKind
-} from "@jarv1s/shared";
+import type { ChatAttachmentDto, ChatMessageDto, LocaleSettingsDto } from "@jarv1s/shared";
 import { formatDate, useUserLocale } from "../locale/locale-format";
-import { ActionRequestCard } from "./action-request-card";
 import { ChatModelPill } from "./chat-model-pill";
 import { Composer } from "./composer";
 import { ConnectProviderEmpty } from "./connect-provider-empty";
-import { MarkdownMessage } from "./markdown-message";
+import { Thread } from "./message-row";
 import { buildChatSeeds } from "./seeds";
 import { hasConnectedProvider, isNoActiveChatModelError } from "../onboarding/chat-availability";
-import type { SourceFreshnessEntry, SourceFreshnessV1 } from "@jarv1s/shared";
 import {
   shouldEndPrivateChatOnStreamDisconnect,
   type ChatRecordKind,
   type TranscriptRecord
 } from "./use-chat-stream";
 import "../styles/kit-chat.css";
+import "../styles/kit-chat-attach.css";
 import "../styles/kit-chat-skills.css";
 
 export function ChatDrawer(props: {
@@ -140,7 +117,12 @@ export function ChatDrawer(props: {
   const [needsProvider, setNeedsProvider] = useState(false);
   const [drainAfterStopText, setDrainAfterStopText] = useState<string | null>(null);
 
-  const [pendingUserText, setPendingUserText] = useState<string | null>(null);
+  // #1133: object (not bare string) so an attachment-only send — empty text, chips only —
+  // still renders an optimistic user row while the turn is in flight.
+  const [pendingUser, setPendingUser] = useState<{
+    readonly text: string;
+    readonly attachments?: readonly ChatAttachmentDto[];
+  } | null>(null);
   const [fallbackRecords, setFallbackRecords] = useState<readonly TranscriptRecord[]>([]);
 
   useEffect(() => {
@@ -154,12 +136,12 @@ export function ChatDrawer(props: {
   // check handles SSE pre-arriving before send). Safe to double-fire in StrictMode — idempotent.
   useEffect(() => {
     if (
-      pendingUserText !== null &&
-      props.records.some((r) => r.kind === "user" && r.text === pendingUserText)
+      pendingUser !== null &&
+      props.records.some((r) => r.kind === "user" && r.text === pendingUser.text)
     ) {
-      setPendingUserText(null);
+      setPendingUser(null);
     }
-  }, [props.records, pendingUserText]);
+  }, [props.records, pendingUser]);
 
   useEffect(() => {
     setFallbackRecords((current) =>
@@ -206,9 +188,16 @@ export function ChatDrawer(props: {
    * try/finally guarantees isSending is ALWAYS cleared — this is the core wedge fix.
    */
   const sendMessage = useCallback(
-    (text: string): void => {
+    (text: string, attachments?: readonly ChatAttachmentDto[]): void => {
       const trimmed = text.trim();
-      if (!trimmed || isSending || privateEnded || activatingPrivate || historyActivationPending) {
+      // #1133: attachment-only turns (chips, no text) are legal — block only when BOTH are empty.
+      if (
+        (!trimmed && !attachments?.length) ||
+        isSending ||
+        privateEnded ||
+        activatingPrivate ||
+        historyActivationPending
+      ) {
         return;
       }
       if (reviewThreadId !== null) {
@@ -218,13 +207,16 @@ export function ChatDrawer(props: {
       setSendError(null);
       setNeedsProvider(false);
       setIsSending(true);
-      setPendingUserText(trimmed);
+      setPendingUser({ text: trimmed, attachments });
       void (async () => {
         try {
-          const result = await sendChatTurn(trimmed);
-          setPendingUserText(null);
+          const result = await sendChatTurn(
+            trimmed,
+            attachments?.map((attachment) => attachment.id)
+          );
+          setPendingUser(null);
           const postResponseRecords: readonly TranscriptRecord[] = [
-            { kind: "user", text: trimmed, messageId: result.userMessageId },
+            { kind: "user", text: trimmed, messageId: result.userMessageId, attachments },
             {
               kind: "reply",
               text: result.reply,
@@ -239,7 +231,7 @@ export function ChatDrawer(props: {
           );
           void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
         } catch (caught) {
-          setPendingUserText(null);
+          setPendingUser(null);
           if (isNoActiveChatModelError(caught)) {
             setNeedsProvider(true);
             return;
@@ -285,10 +277,18 @@ export function ChatDrawer(props: {
     : [
         ...displayRecords,
         ...visibleFallbackRecords,
-        ...(pendingUserText ? [{ kind: "user" as const, text: pendingUserText }] : [])
+        ...(pendingUser
+          ? [
+              {
+                kind: "user" as const,
+                text: pendingUser.text,
+                attachments: pendingUser.attachments
+              }
+            ]
+          : [])
       ];
 
-  const isWaiting = !reviewing && (isSending || pendingUserText !== null);
+  const isWaiting = !reviewing && (isSending || pendingUser !== null);
 
   useEffect(() => {
     if (
@@ -300,7 +300,7 @@ export function ChatDrawer(props: {
     ) {
       setPrivateEnded(true);
       setIsSending(false);
-      setPendingUserText(null);
+      setPendingUser(null);
       setDrainAfterStopText(null);
     }
   }, [privateEnded, privateMode, props.streamErrorCount]);
@@ -334,7 +334,7 @@ export function ChatDrawer(props: {
     setSendError(null);
     setNeedsProvider(false);
     setDrainAfterStopText(null);
-    setPendingUserText(null);
+    setPendingUser(null);
     setFallbackRecords([]);
     setPrivateMode(false);
     setPrivateEnded(false);
@@ -354,7 +354,7 @@ export function ChatDrawer(props: {
     setSendError(null);
     setNeedsProvider(false);
     setDrainAfterStopText(null);
-    setPendingUserText(null);
+    setPendingUser(null);
     setPrivateEnded(false);
     setPrivateActivationError(null);
     setActivatingPrivate(true);
@@ -579,6 +579,7 @@ export function ChatDrawer(props: {
         sendError={privateEnded ? "Private chat ended. Start a new chat to continue." : sendError}
         needsProvider={needsProvider}
         lockedModelUnavailable={lockedModelUnavailable}
+        privateMode={privateMode}
         onSend={sendMessage}
         onStop={stopSending}
       />
@@ -624,156 +625,8 @@ function HistoryList(props: {
   );
 }
 
-function Thread(props: {
-  readonly records: readonly TranscriptRecord[];
-  readonly focusActionRequestId?: string | null;
-  readonly onActionRequestFocused?: () => void;
-}) {
-  return (
-    <div className="chatd-thread" aria-live="polite">
-      {groupRecords(props.records).map((item, index) =>
-        item.type === "activity" ? (
-          <ActivityPeek key={index} records={item.records} />
-        ) : (
-          <RecordRow
-            key={index}
-            record={item.record}
-            focusActionRequestId={props.focusActionRequestId}
-            onActionRequestFocused={props.onActionRequestFocused}
-          />
-        )
-      )}
-    </div>
-  );
-}
-
-const ACTIVITY_KINDS: ReadonlySet<ChatRecordKind> = new Set<ChatRecordKind>([
-  "thinking",
-  "tool",
-  "status",
-  "action_result"
-]);
-
-type RenderItem =
-  | { readonly type: "record"; readonly record: TranscriptRecord }
-  | { readonly type: "activity"; readonly records: readonly TranscriptRecord[] };
-
-function groupRecords(records: readonly TranscriptRecord[]): RenderItem[] {
-  const items: RenderItem[] = [];
-  let buffer: TranscriptRecord[] = [];
-
-  const flush = () => {
-    if (buffer.length > 0) {
-      items.push({ type: "activity", records: buffer });
-      buffer = [];
-    }
-  };
-
-  for (const record of records) {
-    if (ACTIVITY_KINDS.has(record.kind) && record.kind !== "action_request") {
-      buffer.push(record);
-    } else {
-      flush();
-      items.push({ type: "record", record });
-    }
-  }
-  flush();
-  return items;
-}
-
 function sameTranscriptRecord(a: TranscriptRecord, b: TranscriptRecord): boolean {
   return a.kind === b.kind && a.text === b.text;
-}
-
-export function ActivityPeek(props: { readonly records: readonly TranscriptRecord[] }) {
-  const count = props.records.length;
-  return (
-    <details className="chatd-peek">
-      <summary className="chatd-peek__summary">
-        <GitCommitHorizontal size={13} aria-hidden="true" />
-        <span className="chatd-peek__label">Behind the scenes</span>
-        <span className="chatd-peek__count">
-          {count} {count === 1 ? "step" : "steps"}
-        </span>
-        <ChevronDown className="chatd-peek__chev" size={14} aria-hidden="true" />
-      </summary>
-      <div className="chatd-peek__body">
-        {props.records.map((record, index) => (
-          <div className="chatd-peek__line" key={index}>
-            <span className="chatd-peek__kind">{activityVerb(record)}</span>
-            {record.text}
-          </div>
-        ))}
-      </div>
-    </details>
-  );
-}
-
-export function activityVerb(record: TranscriptRecord): string {
-  if (record.kind === "action_result") {
-    return record.outcome === "allowed"
-      ? "Allowed by YOLO"
-      : record.outcome === "executed"
-        ? "Executed"
-        : "Denied";
-  }
-  return `${record.kind} ·`;
-}
-
-function RecordRow(props: {
-  readonly record: TranscriptRecord;
-  readonly focusActionRequestId?: string | null;
-  readonly onActionRequestFocused?: () => void;
-}) {
-  const { kind, text } = props.record;
-
-  if (kind === "action_request" && props.record.actionRequestId) {
-    return (
-      <ActionRequestCard
-        actionRequestId={props.record.actionRequestId}
-        summary={props.record.summary ?? text}
-        toolName={props.record.toolName ?? kind}
-        preview={props.record.preview}
-        focusRequested={props.record.actionRequestId === props.focusActionRequestId}
-        onFocusComplete={props.onActionRequestFocused}
-      />
-    );
-  }
-
-  if (kind === "user") {
-    return (
-      <div className="chatd-msg chatd-msg--me">
-        <div className="chatd-bubble">{text}</div>
-        {props.record.messageId ? (
-          <ChatFeedbackMenu messageId={props.record.messageId} canRemember />
-        ) : null}
-      </div>
-    );
-  }
-
-  if (kind === "error") {
-    return <p className="form-error">{text}</p>;
-  }
-
-  // reply (and any unforeseen non-activity kind) — assistant bubble, rendered as markdown.
-  return (
-    <div className="chatd-msg">
-      <span className="chatd-msg__av">
-        <BrandMark size={14} />
-      </span>
-      <div className="chatd-bubble">
-        <MarkdownMessage
-          text={text}
-          answerProvenance={props.record.answerProvenance}
-          answerProvenanceCitedIds={props.record.answerProvenanceCitedIds}
-        />
-      </div>
-      <ChatFreshnessFooter sourceFreshness={props.record.sourceFreshness} />
-      {props.record.messageId ? (
-        <ChatFeedbackMenu messageId={props.record.messageId} canRemember={false} />
-      ) : null}
-    </div>
-  );
 }
 
 function recordsFromMessages(messages: readonly ChatMessageDto[]): TranscriptRecord[] {
@@ -795,150 +648,13 @@ function recordsFromMessages(messages: readonly ChatMessageDto[]): TranscriptRec
             : ("reply" as const),
       text: message.body,
       messageId: message.id,
+      // #1133: history user rows re-show the chips saved in tool_metadata.attachments.
+      attachments: message.role === "user" ? message.attachments : undefined,
       answerProvenance: message.answerProvenance,
       answerProvenanceCitedIds: message.answerProvenanceCitedIds,
       sourceFreshness: message.role === "assistant" ? message.sourceFreshness : undefined
     }
   ]);
-}
-
-function chatFreshnessLabel(entry: SourceFreshnessEntry, capturedAt: string): string {
-  if (entry.freshnessKind === "realtime") return "live";
-  if (!entry.asOf) return "unknown";
-  const ageMs = new Date(capturedAt).getTime() - new Date(entry.asOf).getTime();
-  if (ageMs < 60_000) return "just now";
-  if (ageMs < 3_600_000) return `${Math.round(ageMs / 60_000)}m ago`;
-  if (ageMs < 86_400_000) return `${Math.round(ageMs / 3_600_000)}h ago`;
-  return `${Math.round(ageMs / 86_400_000)}d ago`;
-}
-
-const CHAT_SOURCE_LABEL: Record<string, string> = {
-  email: "Email",
-  calendar: "Calendar",
-  vault: "Notes",
-  tasks: "Tasks",
-  commitments: "Commitments",
-  chats: "Chats",
-  goals: "Goals"
-};
-
-export function ChatFreshnessFooter({
-  sourceFreshness
-}: {
-  readonly sourceFreshness?: SourceFreshnessV1 | null;
-}) {
-  if (!sourceFreshness) return null;
-  const summaryNames = sourceFreshness.sources
-    .map((e) => CHAT_SOURCE_LABEL[e.source] ?? e.source)
-    .join(", ");
-  return (
-    <details className="chatd-freshness chatd-peek">
-      <summary className="chatd-peek__summary">
-        <span className="chatd-peek__label">Sources</span>
-        <span className="chatd-peek__count">{summaryNames}</span>
-        <svg
-          className="chatd-peek__chev"
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          aria-hidden="true"
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </summary>
-      <ul className="chatd-freshness__list chatd-peek__body">
-        {sourceFreshness.sources.map((entry) => (
-          <li key={entry.source} className="chatd-freshness__item chatd-peek__line">
-            <span className="chatd-freshness__source">
-              {CHAT_SOURCE_LABEL[entry.source] ?? entry.source}
-            </span>
-            <span className="chatd-freshness__age" title={entry.asOf ?? undefined}>
-              {chatFreshnessLabel(entry, sourceFreshness.capturedAt)}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </details>
-  );
-}
-
-function ChatFeedbackMenu(props: { readonly messageId: string; readonly canRemember: boolean }) {
-  const queryClient = useQueryClient();
-  const [last, setLast] = useState<UsefulnessFeedbackDto | null>(null);
-  const createMutation = useMutation({
-    mutationFn: (kind: UsefulnessFeedbackKind) =>
-      createUsefulnessFeedback({
-        targetKind: "chat_message",
-        targetRef: props.messageId,
-        surface: "chat",
-        kind
-      }),
-    onSuccess: (response) => {
-      setLast(response.feedback);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.usefulnessFeedback.list });
-    }
-  });
-  const undoMutation = useMutation({
-    mutationFn: (id: string) => undoUsefulnessFeedback(id),
-    onSuccess: () => {
-      setLast(null);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.usefulnessFeedback.list });
-    }
-  });
-
-  return (
-    <div className="feedback-menu">
-      <details className="feedback-menu__details">
-        <summary className="feedback-menu__trigger" aria-label="Feedback" title="Feedback">
-          <MoreHorizontal size={14} aria-hidden="true" />
-        </summary>
-        <div className="feedback-menu__list">
-          <button
-            type="button"
-            onClick={() => createMutation.mutate("more_like_this")}
-            disabled={createMutation.isPending}
-          >
-            <ThumbsUp size={13} aria-hidden="true" />
-            More like this
-          </button>
-          <button
-            type="button"
-            onClick={() => createMutation.mutate("not_useful")}
-            disabled={createMutation.isPending}
-          >
-            <ThumbsDown size={13} aria-hidden="true" />
-            Not useful
-          </button>
-          {props.canRemember ? (
-            <button
-              type="button"
-              onClick={() => createMutation.mutate("remember_this")}
-              disabled={createMutation.isPending}
-            >
-              <BookmarkPlus size={13} aria-hidden="true" />
-              Remember this
-            </button>
-          ) : null}
-        </div>
-      </details>
-      {last ? (
-        <span className="feedback-menu__status">
-          Saved
-          <button
-            type="button"
-            onClick={() => undoMutation.mutate(last.id)}
-            disabled={undoMutation.isPending}
-          >
-            <Undo2 size={12} aria-hidden="true" />
-            Undo
-          </button>
-        </span>
-      ) : null}
-    </div>
-  );
 }
 
 function safeActivityKind(kind: string): ChatRecordKind {

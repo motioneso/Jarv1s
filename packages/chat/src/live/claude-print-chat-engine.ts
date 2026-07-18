@@ -47,7 +47,7 @@ export class ClaudePrintChatEngine implements CliChatEngine {
     private readonly io: TmuxIo,
     opts: ClaudePrintChatEngineOpts = {}
   ) {
-    this.mux = opts.mux ?? new TmuxMultiplexer(io);
+    this.mux = opts.mux ?? new TmuxMultiplexer(io, { homeBase: opts.homeBase });
     this.homeBase = opts.homeBase;
     this.credentialFile = opts.credentialFile;
     this.sessionId = opts.sessionId ?? randomUUID();
