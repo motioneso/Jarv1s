@@ -24,9 +24,14 @@ describe("finance manifest contract (#1146)", () => {
     expect(result.ok, JSON.stringify(!result.ok ? result.errors : [])).toBe(true);
     if (!result.ok) return;
     expect(result.manifest.id).toBe("finance");
-    // FIN-01 is worker-only; the web surface lands in FIN-02 (#1147).
-    expect(result.manifest.web).toBeUndefined();
-    expect(result.manifest.navigation).toBeUndefined();
+    // FIN-02 (#1147): the module now declares its web surface. `path` is
+    // module-relative — apps/api serializeExternalModule prefixes /m/finance,
+    // so "/" is the plan's "/finance" route. `landmark` is not in the web
+    // iconMap yet (falls back to Layers3); Task 11 adds it.
+    expect(result.manifest.web).toEqual({ entrypoint: "dist/web/index.js", contractVersion: 1 });
+    expect(result.manifest.navigation).toEqual([
+      { id: "finance", label: "Finance", path: "/", icon: "landmark" }
+    ]);
     expect(result.manifest.runtime).toEqual({
       workerEntrypoint: "dist/worker.js",
       workerContractVersion: 1
@@ -39,7 +44,9 @@ describe("finance manifest contract (#1146)", () => {
         ["finance.accounts.list", "accounts.list"],
         ["finance.connect.start", "connect.start"],
         ["finance.connect.poll", "connect.poll"],
-        ["finance.sync.run-now", "sync.run"]
+        ["finance.sync.run-now", "sync.run"],
+        ["finance.transactions.query", "transactions.query"],
+        ["finance.transaction.categorize", "transaction.categorize"]
       ]
     );
     for (const tool of result.manifest.assistantTools ?? []) {
@@ -52,6 +59,10 @@ describe("finance manifest contract (#1146)", () => {
     expect(riskOf["finance.connect.start"]).toBe("write");
     expect(riskOf["finance.connect.poll"]).toBe("write");
     expect(riskOf["finance.sync.run-now"]).toBe("write");
+    expect(riskOf["finance.transactions.query"]).toBe("read");
+    // Categorizing rewrites a stored record → write risk, so the assistant
+    // path goes through confirmation (D4) like every other mutation.
+    expect(riskOf["finance.transaction.categorize"]).toBe("write");
 
     // Credential slots: instance Plaid keys (admin-entered at runtime) + the
     // per-user token map. Tokens live ONLY in app.module_credentials — no KV
@@ -93,7 +104,29 @@ describe("finance manifest contract (#1146)", () => {
     // posts directly onto finance.sync-run (no sweep handler exists).
     expect(result.manifest.worker?.queues).toEqual([
       { name: "finance.sync-run", handler: "sync.run", retryLimit: 3, allowManualRun: true },
-      { name: "finance.connect-poll", handler: "connect.poll", retryLimit: 5, allowManualRun: true }
+      {
+        name: "finance.connect-poll",
+        handler: "connect.poll",
+        retryLimit: 5,
+        allowManualRun: true
+      },
+      {
+        name: "finance.categorize-apply",
+        handler: "categorize.apply",
+        // No retry: the web feed shows the failure and the user just clicks
+        // again — retrying a category write hours later would surprise them.
+        retryLimit: 1,
+        allowManualRun: true,
+        paramsSchema: {
+          type: "object",
+          fields: {
+            accountId: { type: "identifier" },
+            month: { type: "identifier" },
+            transactionId: { type: "identifier" },
+            categoryId: { type: "identifier" }
+          }
+        }
+      }
     ]);
     expect(result.manifest.worker?.schedules).toEqual([
       {
@@ -121,6 +154,44 @@ describe("finance manifest contract (#1146)", () => {
     expect(Object.keys(props)).toEqual(["environment"]);
     expect(props.environment?.enum).toEqual(["production", "sandbox"]);
     expect((start.inputSchema as Record<string, unknown>).required).toBeUndefined();
+
+    // FIN-02 (#1147): feed tools. Query is all-optional (defaults to the
+    // current month); categorize pins the four ids and only the assistant
+    // path may carry createRule/notes — the queue twin (paramsSchema above)
+    // deliberately has no place for either.
+    const query = tools.find((tool) => tool.name === "finance.transactions.query")!;
+    const querySchema = query.inputSchema as {
+      properties: Record<string, unknown>;
+      required?: unknown;
+    };
+    expect(Object.keys(querySchema.properties)).toEqual([
+      "month",
+      "accountId",
+      "categoryId",
+      "search",
+      "pendingOnly",
+      "limit"
+    ]);
+    expect(querySchema.required).toBeUndefined();
+    const categorize = tools.find((tool) => tool.name === "finance.transaction.categorize")!;
+    const categorizeSchema = categorize.inputSchema as {
+      properties: Record<string, unknown>;
+      required?: unknown;
+    };
+    expect(Object.keys(categorizeSchema.properties)).toEqual([
+      "transactionId",
+      "accountId",
+      "month",
+      "categoryId",
+      "createRule",
+      "notes"
+    ]);
+    expect(categorizeSchema.required).toEqual([
+      "transactionId",
+      "accountId",
+      "month",
+      "categoryId"
+    ]);
   });
 
   it("payloads pass the platform metadata-only gate and reject undeclared params", () => {
@@ -143,6 +214,31 @@ describe("finance manifest contract (#1146)", () => {
         ...base,
         jobKind: "finance.sync-run-now",
         params: { payee: "ACME GROCERY #42" }
+      })
+    ).toThrow();
+
+    // FIN-02 (#1147): categorize-apply is the ONLY finance queue with params —
+    // four identifier-typed ids, nothing else. Free text (notes, payee names)
+    // must never ride pg-boss (D6): an undeclared key fails closed.
+    const applyQueue = result.manifest.worker!.queues![2]!;
+    const applyParams = {
+      accountId: "acc-1",
+      month: "2026-07",
+      transactionId: "tx-plaid-001",
+      categoryId: "dining"
+    };
+    expect(() =>
+      assertModuleJobPayload(applyQueue, {
+        ...base,
+        jobKind: "finance.categorize-apply",
+        params: applyParams
+      })
+    ).not.toThrow();
+    expect(() =>
+      assertModuleJobPayload(applyQueue, {
+        ...base,
+        jobKind: "finance.categorize-apply",
+        params: { ...applyParams, notes: "lunch with sam" }
       })
     ).toThrow();
   });

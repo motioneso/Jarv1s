@@ -20,5 +20,10 @@ export const HANDLERS: Readonly<Record<string, ToolFactory>> = {
   "accounts.list": accountsListHandler,
   "connect.start": connectStartHandler,
   "connect.poll": connectPollHandler,
-  "sync.run": syncRunHandler
+  "sync.run": syncRunHandler,
+  // FIN-02 (#1147) Task 8: manifest v2 declares the feed surface up front;
+  // real handlers land in Tasks 9–10.
+  "transactions.query": notImplemented,
+  "transaction.categorize": notImplemented,
+  "categorize.apply": notImplemented
 };

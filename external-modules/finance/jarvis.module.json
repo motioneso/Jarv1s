@@ -54,9 +54,7 @@
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,
-        "properties": {
-          "environment": { "type": "string", "enum": ["production", "sandbox"] }
-        }
+        "properties": { "environment": { "type": "string", "enum": ["production", "sandbox"] } }
       },
       "handler": "connect.start"
     },
@@ -75,6 +73,45 @@
       "risk": "write",
       "inputSchema": { "type": "object", "additionalProperties": false },
       "handler": "sync.run"
+    },
+    {
+      "name": "finance.transactions.query",
+      "permissionId": "finance.transactions.query",
+      "description": "Query synced transactions by month, account, category, or text.",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "month": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}$" },
+          "accountId": { "type": "string" },
+          "categoryId": { "type": "string" },
+          "search": { "type": "string" },
+          "pendingOnly": { "type": "boolean" },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 200 }
+        }
+      },
+      "handler": "transactions.query"
+    },
+    {
+      "name": "finance.transaction.categorize",
+      "permissionId": "finance.transaction.categorize",
+      "description": "Set a transaction's category, optionally creating a payee rule.",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "transactionId": { "type": "string" },
+          "accountId": { "type": "string" },
+          "month": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}$" },
+          "categoryId": { "type": "string" },
+          "createRule": { "type": "boolean" },
+          "notes": { "type": "string", "maxLength": 500 }
+        },
+        "required": ["transactionId", "accountId", "month", "categoryId"]
+      },
+      "handler": "transaction.categorize"
     }
   ],
   "worker": {
@@ -90,6 +127,21 @@
         "handler": "connect.poll",
         "retryLimit": 5,
         "allowManualRun": true
+      },
+      {
+        "name": "finance.categorize-apply",
+        "handler": "categorize.apply",
+        "retryLimit": 1,
+        "allowManualRun": true,
+        "paramsSchema": {
+          "type": "object",
+          "fields": {
+            "accountId": { "type": "identifier" },
+            "month": { "type": "identifier" },
+            "transactionId": { "type": "identifier" },
+            "categoryId": { "type": "identifier" }
+          }
+        }
       }
     ],
     "schedules": [
@@ -102,5 +154,7 @@
       }
     ]
   },
-  "fetchHosts": ["production.plaid.com", "sandbox.plaid.com"]
+  "fetchHosts": ["production.plaid.com", "sandbox.plaid.com"],
+  "web": { "entrypoint": "dist/web/index.js", "contractVersion": 1 },
+  "navigation": [{ "id": "finance", "label": "Finance", "path": "/", "icon": "landmark" }]
 }

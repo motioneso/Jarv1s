@@ -10,13 +10,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { buildExternalModule } from "../../scripts/build-external-module.js";
 
-// FIN-01 (#1146): worker-bundle hygiene for the finance module, mirroring the
-// job-search bundle suite — but worker-only: FIN-01 declares no web surface,
-// so the build must SKIP the web bundle (optional-entrypoint guard in
-// scripts/build-external-module.ts) instead of throwing on the missing
-// src/web/index.ts. The worker bundle must be self-contained CJS that boots
-// under plain `node` in a bare temp dir (no node_modules), speaks worker
-// contract v1, and answers -32601 handler_not_found for undeclared handlers.
+// FIN-01 (#1146) / FIN-02 (#1147): bundle hygiene for the finance module,
+// mirroring the job-search bundle suite. Since Task 8 the module declares a
+// web surface, so the build must emit BOTH bundles: a browser-only ESM web
+// bundle that borrows the host React runtime, and a self-contained CJS worker
+// bundle that boots under plain `node` in a bare temp dir (no node_modules),
+// speaks worker contract v1, and answers -32601 handler_not_found for
+// undeclared handlers.
 const moduleDir = fileURLToPath(new URL("../../external-modules/finance", import.meta.url));
 
 let bareDir: string;
@@ -66,11 +66,17 @@ async function runWorker(sends: readonly object[], until: (m: Rpc) => boolean): 
 }
 
 describe("finance bundle hygiene (#1146)", () => {
-  it("worker-only module builds without emitting a web bundle", () => {
-    // The optional-web guard must skip, not fail — and must not leave a stale
-    // or empty dist/web behind that the manifest never declares.
+  it("web bundle is browser-only ESM using the host React runtime", () => {
+    // FIN-02 (#1147) Task 8: the web surface exists now, so both bundles must
+    // be emitted, and the web one may never carry its own React or Node code
+    // (job-search bundle-hygiene precedent).
     expect(existsSync(join(moduleDir, "dist/worker.js"))).toBe(true);
-    expect(existsSync(join(moduleDir, "dist/web"))).toBe(false);
+    const source = readFileSync(join(moduleDir, "dist/web/index.js"), "utf8");
+    expect(source).toContain("__JARVIS_MODULE_RUNTIME__");
+    expect(source).toContain("export"); // ESM output
+    expect(source).not.toContain("node:"); // no Node/server code
+    expect(source).not.toContain("require("); // no CJS/react bundled in
+    expect(source).not.toMatch(/react[./-]dom|react\.development|react\.production/);
   });
 
   it("worker bundle boots without node_modules and reports contract v1", async () => {
