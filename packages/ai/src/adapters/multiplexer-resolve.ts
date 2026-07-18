@@ -97,6 +97,6 @@ export function resolveMultiplexer(input: MultiplexerResolutionInput): Multiplex
   const mux =
     decision.kind === "herdr"
       ? new HerdrMultiplexer(input.io, { env: input.env })
-      : new TmuxMultiplexer(input.io);
+      : new TmuxMultiplexer(input.io, { homeBase: input.env.JARVIS_CLI_HOME_BASE });
   return { ok: true, mux, source: decision.source };
 }

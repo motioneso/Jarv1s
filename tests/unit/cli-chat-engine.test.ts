@@ -32,7 +32,7 @@ const AGY_TEST_UUID = "e099f770-a55c-432f-a9be-8cf254fd2d54";
 function makeAgyIo() {
   const io = makeIo();
   io.run.mockImplementation(async (cmd: string, args: string[]) =>
-    cmd === "tmux" && args[0] === "capture-pane"
+    cmd === "tmux" && args.includes("capture-pane")
       ? { code: 0, stdout: ">\n? for shortcuts\n", stderr: "" }
       : { code: 0, stdout: "", stderr: "" }
   );
@@ -53,7 +53,7 @@ function makeCodexIo(uuid = CODEX_TEST_UUID) {
   ];
   let captures = 0;
   io.run.mockImplementation(async (cmd: string, args: string[]) =>
-    cmd === "tmux" && args[0] === "capture-pane"
+    cmd === "tmux" && args.includes("capture-pane")
       ? { code: 0, stdout: panes[captures++] ?? panes.at(-1)!, stderr: "" }
       : { code: 0, stdout: "", stderr: "" }
   );
@@ -213,9 +213,12 @@ describe("CliChatEngineImpl — vault read-only allowlist (#634)", () => {
     });
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     expect(launchLine).toContain("Read(/data/external-notes/**)");
     expect(launchLine).toContain("Glob(/data/external-notes/**)");
     expect(launchLine).toContain("Grep(/data/external-notes/**)");
@@ -234,9 +237,12 @@ describe("CliChatEngineImpl — vault read-only allowlist (#634)", () => {
     });
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     // No blanket grant — only the configured root is scoped in, e.g. not "/etc" or "/" or home.
     expect(launchLine).not.toContain("Read(/**)");
     expect(launchLine).not.toContain("Read(/etc");
@@ -255,9 +261,12 @@ describe("CliChatEngineImpl — vault read-only allowlist (#634)", () => {
     });
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     expect(launchLine).not.toContain("Read(");
     expect(launchLine).not.toContain("Glob(");
     expect(launchLine).not.toContain("Grep(");
@@ -276,9 +285,12 @@ describe("CliChatEngineImpl — vault read-only allowlist (#634)", () => {
     });
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     expect(launchLine).not.toContain("Write(");
     expect(launchLine).not.toContain("Edit(");
     expect(launchLine).not.toContain("Bash(");
@@ -299,9 +311,12 @@ describe("CliChatEngineImpl — vault read-only allowlist (#634)", () => {
     });
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     expect(launchLine).not.toMatch(/\bBash\b/);
     expect(launchLine).not.toContain("Read(/vault)");
     expect(launchLine).toContain("mcp__jarvis__*");
@@ -319,9 +334,12 @@ describe("CliChatEngineImpl — vault read-only allowlist (#634)", () => {
     });
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     expect(launchLine).not.toContain("Read(");
     expect(launchLine).not.toContain("Glob(");
     expect(launchLine).not.toContain("Grep(");
@@ -340,9 +358,12 @@ describe("CliChatEngineImpl — claude OAuth token injection (#363)", () => {
       const engine = new CliChatEngineImpl("anthropic", "cred-session", io, { credentialFile });
       await engine.launch({ neutralDir: "/tmp/neutral", personaPath: "/tmp/persona.txt" });
       const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-        (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+        (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
       );
-      const launchLine = (sendKeysCall![1] as string[])[3];
+      const launchLine = (() => {
+        const a = sendKeysCall![1] as string[];
+        return a[a.indexOf("-t") + 2];
+      })();
       expect(launchLine).toContain(`CLAUDE_CODE_OAUTH_TOKEN="$(cat '${credentialFile}')"`);
       // The secret value itself is read at runtime — NEVER in the tmux argv / pane-typed line.
       expect(launchLine).not.toContain(TOKEN);
@@ -356,9 +377,12 @@ describe("CliChatEngineImpl — claude OAuth token injection (#363)", () => {
     const engine = new CliChatEngineImpl("anthropic", "no-cred-session", io);
     await engine.launch({ neutralDir: "/tmp/neutral", personaPath: "/tmp/persona.txt" });
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     expect(launchLine).not.toContain("CLAUDE_CODE_OAUTH_TOKEN");
   });
 });
@@ -375,9 +399,12 @@ describe("CliChatEngineImpl — Codex launch", () => {
     });
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     expect(launchLine).toContain("codex");
     expect(launchLine).toContain(".jarvis-mcp-token.env");
     expect(launchLine).toContain('bearer_token_env_var="JARVIS_MCP_TOKEN"');
@@ -413,9 +440,12 @@ describe("CliChatEngineImpl — Codex launch", () => {
     await engine.launch({ neutralDir: "/tmp/neutral", personaPath: "/tmp/persona.txt" });
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     // Previously these flags were only pushed inside the `mcpToken && mcpServerUrl` branch, so a
     // codex launch with no gateway configured got codex's native (enabled) shell/apply-patch
     // tools by default. They must be unconditional — every codex launch denies them.
@@ -445,9 +475,12 @@ describe("CliChatEngineImpl — Gemini launch", () => {
     expect(settingsContent.mcpServers.jarvis.headers.Authorization).toBe("Bearer jst_gemini");
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     expect(launchLine).toContain("agy");
     expect(launchLine).not.toContain("gemini");
     expect(launchLine).toContain("--sandbox");
@@ -630,9 +663,12 @@ describe("CliChatEngineImpl — #342 personaText + server-owned drain", () => {
     expect(io.run).toHaveBeenCalledWith("chmod", ["600", "/data/cli-auth/chat/user-1/persona.md"]);
 
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
-    const launchLine = (sendKeysCall![1] as string[])[3];
+    const launchLine = (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })();
     expect(launchLine).toContain("--append-system-prompt-file");
     expect(launchLine).toContain("/data/cli-auth/chat/user-1/persona.md");
   });
@@ -730,7 +766,12 @@ describe("cli-runner mux-name helpers", () => {
     await killMuxSessionByName({ run }, "user-42");
     // SECURITY: the leading `=` forces tmux to match the EXACT session name, not a
     // prefix — without it `jarv1s-live-user-4` could also reap `jarv1s-live-user-42`.
-    expect(run).toHaveBeenCalledWith("tmux", ["kill-session", "-t", `=${SESSION_PREFIX}user-42`]);
+    // #1142: raw tmux verbs are now pinned to a private `-S <socket>` server, so the
+    // verb/target follow the socket flag — assert positionally, not the whole array.
+    const [cmd, args] = run.mock.calls[0]! as [string, string[]];
+    expect(cmd).toBe("tmux");
+    expect(args.slice(0, 2)).toEqual(["-S", expect.any(String)]);
+    expect(args.slice(2)).toEqual(["kill-session", "-t", `=${SESSION_PREFIX}user-42`]);
   });
 
   it("killMuxSessionByName uses the `=` EXACT-name target so a prefix key never over-reaps (§4.5 security)", async () => {
@@ -738,7 +779,9 @@ describe("cli-runner mux-name helpers", () => {
     // `bob` is a strict prefix of `bobby`. The kill for `bob` must target ONLY
     // `jarv1s-live-bob`, never the longer `jarv1s-live-bobby`.
     await killMuxSessionByName({ run }, "bob");
-    const target = (run.mock.calls[0]![1] as string[])[2]!;
+    // #1142: `-t` target now follows the `-S <socket>` prefix, so locate it by flag.
+    const killArgs = run.mock.calls[0]![1] as string[];
+    const target = killArgs[killArgs.indexOf("-t") + 1]!;
     expect(target).toBe(`=${SESSION_PREFIX}bob`);
     // The `=` prefix is what tmux requires for exact (non-prefix) target resolution.
     expect(target.startsWith("=")).toBe(true);

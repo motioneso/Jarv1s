@@ -217,7 +217,7 @@ describe("CliChatEngineImpl — submit + readNew", () => {
     await engine.submit("hello");
 
     const tmux = io.runCalls.filter((c) => c.cmd === "tmux").map((c) => c.args.join(" "));
-    const pasteIdx = tmux.findIndex((a) => a.startsWith("paste-buffer"));
+    const pasteIdx = tmux.findIndex((a) => a.includes("paste-buffer"));
     const enterIdx = tmux.findIndex((a) => a.includes("send-keys") && a.includes("Enter"));
     expect(pasteIdx).toBeGreaterThanOrEqual(0);
     expect(enterIdx).toBeGreaterThan(pasteIdx);

@@ -38,7 +38,7 @@ export class AgyPrintChatEngine implements CliChatEngine {
     private readonly io: TmuxIo,
     opts: AgyPrintChatEngineOpts = {}
   ) {
-    this.mux = opts.mux ?? new TmuxMultiplexer(io);
+    this.mux = opts.mux ?? new TmuxMultiplexer(io, { homeBase: opts.homeBase });
     this.homeBase = opts.homeBase;
   }
 

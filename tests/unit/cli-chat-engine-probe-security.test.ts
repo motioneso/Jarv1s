@@ -22,7 +22,7 @@ function makeIo() {
 function makeAgyIo() {
   const io = makeIo();
   io.run.mockImplementation(async (cmd: string, args: string[]) =>
-    cmd === "tmux" && args[0] === "capture-pane"
+    cmd === "tmux" && args.includes("capture-pane")
       ? { code: 0, stdout: ">\n? for shortcuts\n", stderr: "" }
       : { code: 0, stdout: "", stderr: "" }
   );
@@ -66,7 +66,7 @@ function makeCodexIo() {
   ];
   let captures = 0;
   io.run.mockImplementation(async (cmd: string, args: string[]) =>
-    cmd === "tmux" && args[0] === "capture-pane"
+    cmd === "tmux" && args.includes("capture-pane")
       ? { code: 0, stdout: panes[captures++] ?? panes.at(-1)!, stderr: "" }
       : { code: 0, stdout: "", stderr: "" }
   );
@@ -184,10 +184,13 @@ describe("#342 §13 same-UID token-file readability (DOCUMENTING — not a regre
 describe("CliChatEngineImpl — §6.7 no secret on launch line / argv / tmux env", () => {
   function launchLineFrom(io: ReturnType<typeof makeIo>): string {
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
     expect(sendKeysCall).toBeDefined();
-    return (sendKeysCall![1] as string[])[3]!;
+    return (() => {
+      const a = sendKeysCall![1] as string[];
+      return a[a.indexOf("-t") + 2];
+    })()!;
   }
 
   function assertNoTmuxEnvCarriesSecret(io: ReturnType<typeof makeIo>): void {
@@ -195,7 +198,8 @@ describe("CliChatEngineImpl — §6.7 no secret on launch line / argv / tmux env
     // ever issued at launch — the token reaches the CLI ONLY via the per-session 0600 file.
     const envCalls = (io.run as ReturnType<typeof vi.fn>).mock.calls.filter((c: unknown[]) => {
       if (c[0] !== "tmux") return false;
-      const verb = (c[1] as string[])[0] ?? "";
+      const rawArgs = c[1] as string[];
+      const verb = (rawArgs[0] === "-S" ? rawArgs[2] : rawArgs[0]) ?? "";
       return verb === "set-environment" || verb === "set-env" || verb === "setenv";
     });
     expect(envCalls).toEqual([]);
@@ -295,7 +299,7 @@ describe("CliChatEngineImpl — Gemini settings chmod failure cleanup", () => {
     expect(io.run).toHaveBeenCalledWith("rm", ["-rf", "/tmp/neutral-gem"]);
     // The mux session was NEVER opened (pre-mux-create failure) — no orphan to reap.
     const sendKeysCall = (io.run as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[])[0] === "send-keys"
+      (c: unknown[]) => c[0] === "tmux" && (c[1] as string[]).includes("send-keys")
     );
     expect(sendKeysCall).toBeUndefined();
   });
