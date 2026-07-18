@@ -47,7 +47,7 @@ export class ExternalModuleJobReconciler {
     }
     if (this.deps.reservedQueueNames) {
       for (const schedule of await this.deps.boss.getSchedules()) {
-        const moduleId = schedule.key.split(":", 1)[0];
+        const moduleId = schedule.key.split("/", 1)[0];
         if (
           moduleId &&
           !discoveredIds.has(moduleId) &&
@@ -127,7 +127,13 @@ export class ExternalModuleJobReconciler {
       const queue = queueByName.get(schedule.queue);
       if (!queue) continue;
       for (const actorUserId of users) {
-        const key = `${moduleId}:${schedule.id}:${actorUserId}`;
+        // "/" separator, NOT ":" — pg-boss v12's assertKey restricts schedule
+        // keys to [\w.\-/], and a rejected key here threw AssertionError out of
+        // reconcileModule, whose caller then stopModule'd every queue worker
+        // for the module (finance UAT #1147: jobs sat in "created" forever).
+        // moduleId's charset ([a-z0-9-]) cannot contain "/", so the prefix
+        // parse in reconcileAll/stopModule stays unambiguous.
+        const key = `${moduleId}/${schedule.id}/${actorUserId}`;
         const payload: ExternalModuleJobPayload = {
           actorUserId,
           moduleId,
@@ -145,7 +151,7 @@ export class ExternalModuleJobReconciler {
     }
     for (const schedule of await this.deps.boss.getSchedules()) {
       if (
-        schedule.key.startsWith(`${moduleId}:`) &&
+        schedule.key.startsWith(`${moduleId}/`) &&
         schedule.name.startsWith(`${moduleId}.`) &&
         !desiredScheduleKeys.has(schedule.key)
       ) {
@@ -180,7 +186,7 @@ export class ExternalModuleJobReconciler {
       this.registrations.delete(moduleId);
     }
     for (const schedule of await this.deps.boss.getSchedules()) {
-      if (schedule.key.startsWith(`${moduleId}:`) && schedule.name.startsWith(`${moduleId}.`)) {
+      if (schedule.key.startsWith(`${moduleId}/`) && schedule.name.startsWith(`${moduleId}.`)) {
         await this.deps.boss.unschedule(schedule.name, schedule.key);
       }
     }

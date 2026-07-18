@@ -586,6 +586,13 @@ export interface ModuleAuthDeclaration {
 export interface ModuleStorageDeclaration {
   readonly namespace: string;
   readonly scopes: readonly ("instance" | "user")[];
+  /**
+   * FIN-00 #1145: who may write instance-scoped rows from module handlers.
+   * Default "admin" (today's behavior). "module" opts declared namespaces into
+   * handler writes regardless of the acting user's admin status — part of what
+   * the admin approves at enable time (manifest hash pins it).
+   */
+  readonly instanceWritePolicy?: "admin" | "module";
 }
 
 /**

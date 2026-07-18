@@ -12,7 +12,8 @@ const CHUNKS = new Set<UatSeedChunk>([
   "tasks",
   "calendar",
   "notes",
-  "job-search"
+  "job-search",
+  "finance"
 ]);
 
 async function resolveSpecPaths(filters: readonly string[]): Promise<string[]> {

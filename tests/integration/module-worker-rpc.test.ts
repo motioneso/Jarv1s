@@ -66,6 +66,14 @@ const moduleA = {
         displayName: "Shared",
         kind: "api-key" as const,
         scope: "instance" as const
+      },
+      // FIN-00 #1145: user-scope slot for auth.setCredential coverage — matches
+      // the seeded acme-a.user row so getCredential can read the write back.
+      {
+        id: "acme-a.user",
+        displayName: "User token",
+        kind: "api-key" as const,
+        scope: "user" as const
       }
     ],
     storage: [{ namespace: "acme-a.state", scopes: ["instance", "user"] as const }],
@@ -162,6 +170,110 @@ describe("external module worker RLS", () => {
     await expect(
       rpc("auth.getCredential", { authId: "acme-a.shared" }, () => undefined)
     ).rejects.toMatchObject({ code: "credential_missing" });
+  });
+
+  it("persists a declared user-scope credential via auth.setCredential", async () => {
+    const base = {
+      module: moduleA,
+      actorUserId: ids.userA,
+      requestId: "rpc-setcred",
+      workerDataContext: new DataContextRunner(workerDb),
+      cipher: createModuleCredentialSecretCipher(),
+      isActorAdmin: async () => false
+    };
+    const write = createExternalModuleRpcHandler({ ...base, toolRisk: "write" });
+
+    // guards: undeclared slot, instance-scope slot, read-risk tool, bad values
+    await expect(
+      write("auth.setCredential", { authId: "acme-a.nope", value: "x" }, () => undefined)
+    ).rejects.toMatchObject({ code: "undeclared_auth" });
+    await expect(
+      write("auth.setCredential", { authId: "acme-a.shared", value: "x" }, () => undefined)
+    ).rejects.toMatchObject({ code: "forbidden_instance_credential_write" });
+    const read = createExternalModuleRpcHandler({ ...base, toolRisk: "read" });
+    await expect(
+      read("auth.setCredential", { authId: "acme-a.user", value: "x" }, () => undefined)
+    ).rejects.toMatchObject({ code: "forbidden_credential_write" });
+    await expect(
+      write("auth.setCredential", { authId: "acme-a.user", value: "" }, () => undefined)
+    ).rejects.toMatchObject({ code: "credential_value_invalid" });
+    await expect(
+      write(
+        "auth.setCredential",
+        { authId: "acme-a.user", value: "x".repeat(32 * 1024 + 1) },
+        () => undefined
+      )
+    ).rejects.toMatchObject({ code: "credential_value_invalid" });
+
+    // happy path: persists, redacts, reads back in a second invocation
+    const remembered: string[] = [];
+    await expect(
+      write("auth.setCredential", { authId: "acme-a.user", value: "minted-token-1" }, (value) =>
+        remembered.push(value)
+      )
+    ).resolves.toBeUndefined();
+    expect(remembered).toEqual(["minted-token-1"]);
+    const second = createExternalModuleRpcHandler({ ...base, toolRisk: "read" });
+    await expect(
+      second("auth.getCredential", { authId: "acme-a.user" }, () => undefined)
+    ).resolves.toBe("minted-token-1");
+
+    // audit: metadata-only worker-set event, never the value
+    const audit = await bootstrap.query(
+      `SELECT metadata::text AS metadata FROM app.admin_audit_events
+       WHERE action = 'module.credential.worker-set'`
+    );
+    expect(audit.rows).toHaveLength(1);
+    expect(audit.rows[0].metadata).not.toContain("minted-token-1");
+  });
+
+  it("allows non-admin instance kv writes when the namespace declares instanceWritePolicy module", async () => {
+    const optedIn = {
+      ...moduleA,
+      manifest: {
+        ...moduleA.manifest,
+        storage: [
+          {
+            namespace: "acme-a.state",
+            scopes: ["instance", "user"] as const,
+            instanceWritePolicy: "module" as const
+          }
+        ]
+      }
+    };
+    const write = createExternalModuleRpcHandler({
+      module: optedIn,
+      toolRisk: "write",
+      actorUserId: ids.userA,
+      requestId: "rpc-kv-policy",
+      workerDataContext: new DataContextRunner(workerDb),
+      cipher: createModuleCredentialSecretCipher(),
+      isActorAdmin: async () => false
+    });
+    await expect(
+      write(
+        "kv.set",
+        { scope: "instance", namespace: "acme-a.state", key: "pooled", value: { v: 9 } },
+        () => undefined
+      )
+    ).resolves.toBeUndefined();
+    // read-risk tools still cannot mutate, policy or not
+    const read = createExternalModuleRpcHandler({
+      module: optedIn,
+      toolRisk: "read",
+      actorUserId: ids.userA,
+      requestId: "rpc-kv-policy-read",
+      workerDataContext: new DataContextRunner(workerDb),
+      cipher: createModuleCredentialSecretCipher(),
+      isActorAdmin: async () => false
+    });
+    await expect(
+      read(
+        "kv.set",
+        { scope: "instance", namespace: "acme-a.state", key: "pooled", value: { v: 9 } },
+        () => undefined
+      )
+    ).rejects.toMatchObject({ code: "forbidden_kv_mutation" });
   });
 
   it("allows declared KV reads but denies read-tool and non-admin instance mutations", async () => {
@@ -375,6 +487,24 @@ describe("ai.generateStructured", () => {
       rpc("ai.generateStructured", { schema: { type: "object" }, prompt: "clean" }, noSecret)
     ).resolves.toEqual({ ok: true, object: {} });
     expect(calls).toBe(1);
+  });
+
+  it("rejects ai prompts containing a credential written via auth.setCredential this invocation", async () => {
+    // FIN-00 #1145: a value the worker just WROTE is as secret as one it read —
+    // the composition guard must cover both directions.
+    const rpc = createExternalModuleRpcHandler({
+      ...base(),
+      toolRisk: "write",
+      ai: async () => ({ ok: true, object: {} })
+    });
+    await rpc("auth.setCredential", { authId: "acme-a.user", value: "freshly-minted" }, noSecret);
+    await expect(
+      rpc(
+        "ai.generateStructured",
+        { schema: { type: "object" }, prompt: "token is freshly-minted" },
+        noSecret
+      )
+    ).rejects.toMatchObject({ code: "forbidden_secret_in_ai_input" });
   });
 
   it("caps calls per invocation with a typed usage_limited error", async () => {

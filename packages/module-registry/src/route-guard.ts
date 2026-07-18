@@ -49,6 +49,10 @@ export const PLATFORM_UNGUARDED_ROUTES: ReadonlySet<RouteKey> = new Set<RouteKey
   // settings: pre-auth bootstrap + own profile
   routeKey("GET", "/api/bootstrap/status"),
   routeKey("GET", "/api/me"),
+  // FIN-04 (#1149): authenticated member directory (id+name of active users),
+  // platform-owned like /api/me — module sharing UX resolves owner names here,
+  // so it must not be gated on any one module's enablement.
+  routeKey("GET", "/api/users/directory"),
   // settings admin surface (gated by assertAdminUser, not by module enablement)
   routeKey("GET", "/api/admin/auth/providers"),
   routeKey("GET", "/api/admin/users"),

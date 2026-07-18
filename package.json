@@ -13,6 +13,7 @@
     "check:no-ambient-dates": "tsx scripts/check-no-ambient-dates.ts",
     "check:package-deps": "tsx scripts/check-package-deps.ts",
     "check:external-modules": "tsc -p external-modules/job-search --noEmit",
+    "build:external:finance": "tsx scripts/build-external-module.ts external-modules/finance",
     "build:external:job-search": "tsx scripts/build-external-module.ts external-modules/job-search",
     "publish:module-registry": "tsx scripts/publish-module-registry.ts --out dist/registry",
     "turbo:typecheck": "turbo run typecheck",

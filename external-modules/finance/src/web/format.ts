@@ -1,0 +1,81 @@
+// external-modules/finance/src/web/format.ts
+// FIN-02 (#1147) Task 11: pure display helpers. Amounts are stored in cents
+// with Plaid sign convention (positive = money out); formatting keeps the
+// stored sign — the feed is a ledger, not a budget view (that's FIN-03).
+const currencyFormatters = new Map<string, Intl.NumberFormat>();
+
+export function formatCents(amountCents: number, isoCurrency: string): string {
+  let formatter = currencyFormatters.get(isoCurrency);
+  if (!formatter) {
+    try {
+      formatter = new Intl.NumberFormat(undefined, { style: "currency", currency: isoCurrency });
+    } catch {
+      // Unknown/absent currency code from an upstream record: fall back to a
+      // plain decimal rather than throwing mid-render.
+      formatter = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2 });
+    }
+    currencyFormatters.set(isoCurrency, formatter);
+  }
+  return formatter.format(amountCents / 100);
+}
+
+/** "2026-07" → "July 2026" (feed month heading). */
+export function monthLabel(month: string): string {
+  // Defaults satisfy noUncheckedIndexedAccess in the root test program;
+  // callers always pass validated "YYYY-MM".
+  const [year = 0, monthIndex = 1] = month.split("-").map(Number);
+  return new Date(Date.UTC(year, monthIndex - 1, 1)).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC"
+  });
+}
+
+/** Shift a "YYYY-MM" month by delta months (prev/next picker). */
+export function shiftMonth(month: string, delta: number): string {
+  const [year = 0, monthIndex = 1] = month.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, monthIndex - 1 + delta, 1));
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/** The browser's current "YYYY-MM" (initial feed month). */
+export function currentMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+// Mirrors the finance.budget-apply manifest bound (±$1M in cents): anything
+// the parser lets through is guaranteed legal for the queue params gate.
+const MAX_ASSIGN_CENTS = 100_000_000;
+
+/**
+ * Parse a user-typed assignment amount ("1,234.56", "$50", "-20") into
+ * integer cents (FIN-03, #1148). Null — not an exception — for empty, garbage,
+ * sub-cent precision, or out-of-bounds input: the budget screen keeps the
+ * previous value rather than enqueueing a bad job.
+ */
+export function parseAmountToCents(text: string): number | null {
+  const cleaned = text.trim().replace(/[$,\s]/g, "");
+  if (!/^-?(\d+(\.\d{0,2})?|\.\d{1,2})$/.test(cleaned)) return null;
+  const cents = Math.round(Number(cleaned) * 100);
+  if (!Number.isInteger(cents) || Math.abs(cents) > MAX_ASSIGN_CENTS) return null;
+  return cents;
+}
+
+/** Integer cents → the plain "1234.56" form the assign input edits. */
+export function centsToAmountInput(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
+/** "2026-07-15" → "Wednesday · July 15" (date group heading). */
+export function dayLabel(date: string): string {
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  const weekday = parsed.toLocaleDateString(undefined, { weekday: "long", timeZone: "UTC" });
+  const day = parsed.toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC"
+  });
+  return `${weekday} · ${day}`;
+}

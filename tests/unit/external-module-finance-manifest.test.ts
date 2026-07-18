@@ -1,0 +1,397 @@
+// tests/unit/external-module-finance-manifest.test.ts
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import { describe, expect, it } from "vitest";
+
+import { assertModuleJobPayload } from "@jarv1s/jobs";
+import { validateExternalModuleManifest } from "@jarv1s/module-registry";
+
+// FIN-01 (#1146): the REAL shipped finance manifest must pass the merged external
+// ABI, and targeted mutations must fail closed. Slice deltas vs the design spec
+// (grounded-decisions D1–D4): Plaid creds are declared auth slots resolved at
+// runtime (never in the manifest), the connect poll is a shared tool+queue
+// handler, and the sweep schedule posts directly onto finance.sync-run.
+const manifestPath = fileURLToPath(
+  new URL("../../external-modules/finance/jarvis.module.json", import.meta.url)
+);
+const loadManifest = (): Record<string, unknown> =>
+  JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
+
+describe("finance manifest contract (#1146)", () => {
+  it("accepts the shipped manifest against the merged ABI", () => {
+    const result = validateExternalModuleManifest(loadManifest(), "finance", "0.1.0");
+    expect(result.ok, JSON.stringify(!result.ok ? result.errors : [])).toBe(true);
+    if (!result.ok) return;
+    expect(result.manifest.id).toBe("finance");
+    // FIN-02 (#1147): the module now declares its web surface. `path` is
+    // module-relative — apps/api serializeExternalModule prefixes /m/finance,
+    // so "/" is the plan's "/finance" route. `landmark` is not in the web
+    // iconMap yet (falls back to Layers3); Task 11 adds it.
+    expect(result.manifest.web).toEqual({ entrypoint: "dist/web/index.js", contractVersion: 1 });
+    expect(result.manifest.navigation).toEqual([
+      { id: "finance", label: "Finance", path: "/", icon: "landmark" }
+    ]);
+    expect(result.manifest.runtime).toEqual({
+      workerEntrypoint: "dist/worker.js",
+      workerContractVersion: 1
+    });
+
+    // Tool surface: name === permissionId (one permission per tool), and the
+    // run-now tool shares its handler with the finance.sync-run queue (D3).
+    expect((result.manifest.assistantTools ?? []).map((tool) => [tool.name, tool.handler])).toEqual(
+      [
+        ["finance.accounts.list", "accounts.list"],
+        ["finance.connect.start", "connect.start"],
+        ["finance.connect.poll", "connect.poll"],
+        ["finance.sync.run-now", "sync.run"],
+        ["finance.transactions.query", "transactions.query"],
+        ["finance.transaction.categorize", "transaction.categorize"],
+        ["finance.budget.status", "budget.status"],
+        ["finance.budget.assign", "budget.assign"],
+        ["finance.account.set-shared", "account.set-shared"]
+      ]
+    );
+    for (const tool of result.manifest.assistantTools ?? []) {
+      expect(tool.permissionId).toBe(tool.name);
+    }
+    const riskOf = Object.fromEntries(
+      (result.manifest.assistantTools ?? []).map((tool) => [tool.name, tool.risk])
+    );
+    expect(riskOf["finance.accounts.list"]).toBe("read");
+    expect(riskOf["finance.connect.start"]).toBe("write");
+    expect(riskOf["finance.connect.poll"]).toBe("write");
+    expect(riskOf["finance.sync.run-now"]).toBe("write");
+    expect(riskOf["finance.transactions.query"]).toBe("read");
+    // Categorizing rewrites a stored record → write risk, so the assistant
+    // path goes through confirmation (D4) like every other mutation.
+    expect(riskOf["finance.transaction.categorize"]).toBe("write");
+    // FIN-03 (#1148): budget reads are free; assigning money is a mutation,
+    // so the assistant path confirms (D4) while the web path enqueues
+    // finance.budget-apply instead (D3).
+    expect(riskOf["finance.budget.status"]).toBe("read");
+    expect(riskOf["finance.budget.assign"]).toBe("write");
+    // FIN-04 (#1149): flipping the household share writes the mirror, so the
+    // assistant path must confirm (D4) exactly like every other mutation.
+    expect(riskOf["finance.account.set-shared"]).toBe("write");
+
+    // Credential slots: instance Plaid keys (admin-entered at runtime) + the
+    // per-user token map. Tokens live ONLY in app.module_credentials — no KV
+    // namespace below may ever hold them.
+    expect(result.manifest.auth).toEqual([
+      {
+        id: "finance.plaid-client-id",
+        displayName: "Plaid client id",
+        kind: "api-key",
+        scope: "instance"
+      },
+      {
+        id: "finance.plaid-secret",
+        displayName: "Plaid secret",
+        kind: "api-key",
+        scope: "instance"
+      },
+      {
+        id: "finance.plaid-tokens",
+        displayName: "Plaid access tokens",
+        kind: "api-key",
+        scope: "user"
+      }
+    ]);
+
+    // Per-user namespaces from the design spec; settings alone carries an
+    // instance scope (admin-gated `plaid` → {environment} key, default write
+    // policy). FIN-04 (#1149) adds finance.shared: instance-only with
+    // instanceWritePolicy "module" — the FIN-00 D2 seam that lets worker
+    // handlers (not just admins) write the household mirror.
+    expect(result.manifest.storage).toEqual([
+      { namespace: "finance.connections", scopes: ["user"] },
+      { namespace: "finance.accounts", scopes: ["user"] },
+      { namespace: "finance.transactions", scopes: ["user"] },
+      { namespace: "finance.categories", scopes: ["user"] },
+      { namespace: "finance.rules", scopes: ["user"] },
+      { namespace: "finance.snapshots", scopes: ["user"] },
+      { namespace: "finance.budgets", scopes: ["user"] },
+      { namespace: "finance.shared", scopes: ["instance"], instanceWritePolicy: "module" },
+      { namespace: "finance.settings", scopes: ["user", "instance"] }
+    ]);
+
+    // D2/D3: connect-poll queue shares the tool handler; the six-hourly sweep
+    // posts directly onto finance.sync-run (no sweep handler exists).
+    expect(result.manifest.worker?.queues).toEqual([
+      { name: "finance.sync-run", handler: "sync.run", retryLimit: 3, allowManualRun: true },
+      {
+        name: "finance.connect-poll",
+        handler: "connect.poll",
+        retryLimit: 5,
+        allowManualRun: true
+      },
+      {
+        name: "finance.categorize-apply",
+        handler: "categorize.apply",
+        // No retry: the web feed shows the failure and the user just clicks
+        // again — retrying a category write hours later would surprise them.
+        retryLimit: 1,
+        allowManualRun: true,
+        paramsSchema: {
+          type: "object",
+          fields: {
+            accountId: { type: "identifier" },
+            month: { type: "identifier" },
+            transactionId: { type: "identifier" },
+            categoryId: { type: "identifier" }
+          }
+        }
+      },
+      {
+        name: "finance.budget-apply",
+        handler: "budget.apply",
+        // Assign sets a total (never increments), so a duplicate apply is
+        // harmless — but like categorize-apply, a retry hours later would
+        // surprise the user, so fail once and let the UI surface it.
+        retryLimit: 1,
+        allowManualRun: true,
+        paramsSchema: {
+          type: "object",
+          fields: {
+            month: { type: "identifier" },
+            categoryId: { type: "identifier" },
+            // The bounded-integer param type (module-params.ts) is what makes
+            // an amount a legal queue param under D6's command-param carve-out.
+            amountCents: { type: "integer", min: -100000000, max: 100000000 }
+          }
+        }
+      },
+      {
+        name: "finance.share-apply",
+        handler: "share.apply",
+        // FIN-04 (#1149): the flag write is an idempotent SET (share ON
+        // mirrors, OFF deletes the prefix), so a stale retry could silently
+        // undo a newer user decision — fail once and let the UI surface it.
+        retryLimit: 1,
+        allowManualRun: true,
+        paramsSchema: {
+          type: "object",
+          fields: {
+            accountId: { type: "identifier" },
+            shared: { type: "boolean" }
+          }
+        }
+      }
+    ]);
+    expect(result.manifest.worker?.schedules).toEqual([
+      {
+        id: "finance.sync-sweep",
+        cron: "41 */6 * * *",
+        scope: "user",
+        jobKind: "finance.sync-sweep",
+        queue: "finance.sync-run"
+      }
+    ]);
+
+    expect(result.manifest.fetchHosts).toEqual(["production.plaid.com", "sandbox.plaid.com"]);
+  });
+
+  it("every tool declares a strict input schema; connect.start allows only environment", () => {
+    const tools = loadManifest().assistantTools as Array<Record<string, unknown>>;
+    for (const tool of tools) {
+      const schema = tool.inputSchema as Record<string, unknown>;
+      expect(schema.type, String(tool.name)).toBe("object");
+      expect(schema.additionalProperties, String(tool.name)).toBe(false);
+    }
+    const start = tools.find((tool) => tool.name === "finance.connect.start")!;
+    const props = (start.inputSchema as { properties: Record<string, Record<string, unknown>> })
+      .properties;
+    expect(Object.keys(props)).toEqual(["environment"]);
+    expect(props.environment?.enum).toEqual(["production", "sandbox"]);
+    expect((start.inputSchema as Record<string, unknown>).required).toBeUndefined();
+
+    // FIN-02 (#1147): feed tools. Query is all-optional (defaults to the
+    // current month); categorize pins the four ids and only the assistant
+    // path may carry createRule/notes — the queue twin (paramsSchema above)
+    // deliberately has no place for either.
+    const query = tools.find((tool) => tool.name === "finance.transactions.query")!;
+    const querySchema = query.inputSchema as {
+      properties: Record<string, unknown>;
+      required?: unknown;
+    };
+    expect(Object.keys(querySchema.properties)).toEqual([
+      "month",
+      "accountId",
+      "categoryId",
+      "search",
+      "pendingOnly",
+      "limit"
+    ]);
+    expect(querySchema.required).toBeUndefined();
+    const categorize = tools.find((tool) => tool.name === "finance.transaction.categorize")!;
+    const categorizeSchema = categorize.inputSchema as {
+      properties: Record<string, unknown>;
+      required?: unknown;
+    };
+    expect(Object.keys(categorizeSchema.properties)).toEqual([
+      "transactionId",
+      "accountId",
+      "month",
+      "categoryId",
+      "createRule",
+      "notes"
+    ]);
+    expect(categorizeSchema.required).toEqual([
+      "transactionId",
+      "accountId",
+      "month",
+      "categoryId"
+    ]);
+  });
+
+  it("payloads pass the platform metadata-only gate and reject undeclared params", () => {
+    const result = validateExternalModuleManifest(loadManifest(), "finance", "0.1.0");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const syncQueue = result.manifest.worker!.queues![0]!;
+    const base = {
+      actorUserId: "11111111-1111-4111-8111-111111111111",
+      moduleId: "finance",
+      manifestHash: `sha256:${"a".repeat(64)}`
+    };
+    expect(() =>
+      assertModuleJobPayload(syncQueue, { ...base, jobKind: "finance.sync-sweep" })
+    ).not.toThrow();
+    // No paramsSchema declared → ANY params object is rejected, which is the
+    // fail-closed gate keeping account/transaction content out of pg-boss.
+    expect(() =>
+      assertModuleJobPayload(syncQueue, {
+        ...base,
+        jobKind: "finance.sync-run-now",
+        params: { payee: "ACME GROCERY #42" }
+      })
+    ).toThrow();
+
+    // FIN-02 (#1147): categorize-apply carries exactly four identifier-typed
+    // ids, nothing else. Free text (notes, payee names) must never ride
+    // pg-boss (D6): an undeclared key fails closed.
+    const applyQueue = result.manifest.worker!.queues![2]!;
+    const applyParams = {
+      accountId: "acc-1",
+      month: "2026-07",
+      transactionId: "tx-plaid-001",
+      categoryId: "dining"
+    };
+    expect(() =>
+      assertModuleJobPayload(applyQueue, {
+        ...base,
+        jobKind: "finance.categorize-apply",
+        params: applyParams
+      })
+    ).not.toThrow();
+    expect(() =>
+      assertModuleJobPayload(applyQueue, {
+        ...base,
+        jobKind: "finance.categorize-apply",
+        params: { ...applyParams, notes: "lunch with sam" }
+      })
+    ).toThrow();
+
+    // FIN-03 (#1148): budget-apply carries a bounded integer command param
+    // (the new assignment total). In-range integers pass; floats, strings,
+    // and out-of-range values fail closed at the platform gate.
+    const budgetQueue = result.manifest.worker!.queues![3]!;
+    const budgetParams = { month: "2026-07", categoryId: "groceries", amountCents: 50000 };
+    expect(() =>
+      assertModuleJobPayload(budgetQueue, {
+        ...base,
+        jobKind: "finance.budget-apply",
+        params: budgetParams
+      })
+    ).not.toThrow();
+    for (const bad of [50000.5, "50000", 100000001, -100000001]) {
+      expect(() =>
+        assertModuleJobPayload(budgetQueue, {
+          ...base,
+          jobKind: "finance.budget-apply",
+          params: { ...budgetParams, amountCents: bad }
+        })
+      ).toThrow();
+    }
+
+    // FIN-04 (#1149): share-apply carries the account id plus a boolean flag —
+    // the flag is a command param (D6 carve-out), never account content.
+    // Non-boolean shapes and undeclared keys fail closed at the platform gate.
+    const shareQueue = result.manifest.worker!.queues![4]!;
+    const shareParams = { accountId: "acc-1", shared: true };
+    expect(() =>
+      assertModuleJobPayload(shareQueue, {
+        ...base,
+        jobKind: "finance.share-apply",
+        params: shareParams
+      })
+    ).not.toThrow();
+    expect(() =>
+      assertModuleJobPayload(shareQueue, {
+        ...base,
+        jobKind: "finance.share-apply",
+        params: { ...shareParams, shared: "true" }
+      })
+    ).toThrow();
+    expect(() =>
+      assertModuleJobPayload(shareQueue, {
+        ...base,
+        jobKind: "finance.share-apply",
+        params: { ...shareParams, accountName: "Everyday Checking" }
+      })
+    ).toThrow();
+  });
+
+  it("rejects a token-bearing KV namespace outside the finance prefix", () => {
+    const manifest = loadManifest();
+    const storage = manifest.storage as Array<Record<string, unknown>>;
+    const mutated = {
+      ...manifest,
+      storage: [...storage, { namespace: "job-search.feed", scopes: ["user"] }]
+    };
+    const result = validateExternalModuleManifest(mutated, "finance", "0.1.0");
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects duplicated permission ids", () => {
+    const manifest = loadManifest();
+    const tools = manifest.assistantTools as Array<Record<string, unknown>>;
+    const mutated = {
+      ...manifest,
+      assistantTools: [
+        { ...tools[0], permissionId: "finance.read" },
+        { ...tools[1], permissionId: "finance.read" }
+      ]
+    };
+    const result = validateExternalModuleManifest(mutated, "finance", "0.1.0");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.join(" ")).toContain("unique");
+  });
+
+  it("rejects a non-api-key auth kind (fail closed on future credential kinds)", () => {
+    const manifest = loadManifest();
+    const auth = manifest.auth as Array<Record<string, unknown>>;
+    const mutated = { ...manifest, auth: [{ ...auth[0], kind: "oauth" }] };
+    const result = validateExternalModuleManifest(mutated, "finance", "0.1.0");
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects forbidden executable-surface fields", () => {
+    const result = validateExternalModuleManifest(
+      { ...loadManifest(), permissions: [] },
+      "finance",
+      "0.1.0"
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("fails closed on a compound compatibility range", () => {
+    const result = validateExternalModuleManifest(
+      { ...loadManifest(), compatibility: { jarv1s: ">=0.1.0 <0.2.0" } },
+      "finance",
+      "0.1.0"
+    );
+    expect(result.ok).toBe(false);
+  });
+});

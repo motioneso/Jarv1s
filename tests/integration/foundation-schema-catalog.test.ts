@@ -292,7 +292,10 @@ describe("MVP foundation schema catalog", () => {
         { version: "0169", name: "0169_worker_audit_log_grant.sql" },
         // #1077 follow-up — 0166 must never be edited post-apply, so the COMMENT ON POLICY
         // it dropped (via DROP POLICY/CREATE POLICY) is restated in its own migration.
-        { version: "0170", name: "0170_notification_reads_worker_policy_comment.sql" }
+        { version: "0170", name: "0170_notification_reads_worker_policy_comment.sql" },
+        // FIN-00 #1145 — worker-written user-scope credentials (auth.setCredential RPC):
+        // INSERT+UPDATE grants for jarvis_worker_runtime, RLS owner+module-bound, user scope only.
+        { version: "0171", name: "0171_module_credentials_worker_write.sql" }
       ]);
     } finally {
       await client.end();

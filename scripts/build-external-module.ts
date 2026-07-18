@@ -4,6 +4,7 @@
 // and the SDK source path; the core image never runs it (external-modules/ is
 // dockerignored and this script is only wired to explicit build:external:*
 // package scripts).
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 
@@ -29,8 +30,13 @@ export async function buildExternalModule(moduleDir: string): Promise<void> {
   // Web: browser ESM; must stay react-free (JSX compiles to the module's own
   // `h`/`Fragment` from src/web/runtime.ts, which delegate to the host React
   // on the frozen runtime global — asserted by the bundle-hygiene test).
+  // Optional: worker-only modules (finance FIN-01, #1146) have no web surface
+  // yet — `web` is an optional manifest section, so the build must not demand
+  // an entrypoint the manifest never declares.
+  const webEntry = join(dir, "src/web/index.ts");
+  if (!existsSync(webEntry)) return;
   await build({
-    entryPoints: [join(dir, "src/web/index.ts")],
+    entryPoints: [webEntry],
     outfile: join(dir, "dist/web/index.js"),
     bundle: true,
     platform: "browser",

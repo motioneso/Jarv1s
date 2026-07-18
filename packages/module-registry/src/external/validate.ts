@@ -325,6 +325,16 @@ export function validateExternalModuleManifest(
         ) {
           errors.push('storage scopes must be a non-empty array of "instance" | "user"');
         }
+        // FIN-00 #1145: instance-write opt-in is only meaningful (and only
+        // approved by the admin) for namespaces that actually have instance scope.
+        const { instanceWritePolicy } = entry as Record<string, unknown>;
+        if (instanceWritePolicy !== undefined) {
+          if (instanceWritePolicy !== "admin" && instanceWritePolicy !== "module") {
+            errors.push('storage instanceWritePolicy must be "admin" or "module"');
+          } else if (!Array.isArray(scopes) || !scopes.includes("instance")) {
+            errors.push('storage instanceWritePolicy requires "instance" in scopes');
+          }
+        }
       }
     }
   }

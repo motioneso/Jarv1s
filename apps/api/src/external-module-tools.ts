@@ -56,7 +56,20 @@ export function createExternalModuleTools(input: {
         // still enforces risk gating, the composition guard, and the call cap.
         ...(input.ai ? { ai: (db, req) => input.ai!(db, module.id, req) } : {})
       });
-      return externalToolResult(await runtime.invoke(module, tool.handler, toolInput, rpc));
+      // FIN-04 (#1149, spec delta "Host change 2"): hand the worker the
+      // host-resolved actor identity in tool input, matching the queue job
+      // envelope's actorUserId field. The host value MUST stay spread LAST:
+      // validateToolInput deliberately does not enforce additionalProperties
+      // (#133), so a caller CAN smuggle an `actorUserId` key through schema
+      // validation — spread order, not schema rejection, is the spoof defense.
+      return externalToolResult(
+        await runtime.invoke(
+          module,
+          tool.handler,
+          { ...toolInput, actorUserId: context.actorUserId },
+          rpc
+        )
+      );
     }
   );
   return { runtime, manifests };
