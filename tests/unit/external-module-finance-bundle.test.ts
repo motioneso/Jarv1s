@@ -48,6 +48,12 @@ async function runWorker(sends: readonly object[], until: (m: Rpc) => boolean): 
         if (message.method === "worker.ready") {
           for (const send of sends) child.stdin.write(`${JSON.stringify(send)}\n`);
         }
+        // Minimal kv-answering parent: real handlers (Task 7 made all four
+        // registry keys live) issue kv RPCs upward; an empty store keeps the
+        // suite hermetic while proving the bridge round-trips in the bundle.
+        if (message.method === "kv.list") {
+          child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: message.id, result: [] })}\n`);
+        }
         if (until(message)) {
           clearTimeout(timer);
           resolve(seen);
@@ -73,9 +79,9 @@ describe("finance bundle hygiene (#1146)", () => {
   });
 
   it("answers a declared handler through dispatch", async () => {
-    // All four registry keys are notImplemented until Tasks 5–7 (#1146), so a
-    // declared handler with empty input proves dispatch + the wrap.ts
-    // envelope survive bundling without needing a kv-answering parent.
+    // accounts.list is real as of Task 7 (#1146): dispatch, the wrap.ts
+    // envelope, AND the kv RPC bridge must all survive bundling — the empty
+    // store answer proves the full round trip.
     const messages = await runWorker(
       [
         {
@@ -89,7 +95,7 @@ describe("finance bundle hygiene (#1146)", () => {
     );
     expect(messages.at(-1)).toMatchObject({
       id: "t1",
-      result: { status: "not-implemented" }
+      result: { accounts: [], nextStep: "connect a bank with finance.connect.start" }
     });
   });
 

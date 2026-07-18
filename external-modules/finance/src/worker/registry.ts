@@ -4,8 +4,9 @@
 // because defineModuleWorker attaches a readline on process.stdin at import
 // time — tests must be able to pin the full registry (all manifest handler
 // keys) without triggering that side effect. index.ts stays a thin dispatch
-// shell over this table. The remaining notImplemented key is wired by
-// Task 7 (#1146).
+// shell over this table. All four FIN-01 manifest handler keys are real as
+// of Task 7 (#1146); notImplemented stays exported for FIN-02's Task 8 keys.
+import { accountsListHandler } from "./handlers/accounts.js";
 import { connectPollHandler, connectStartHandler } from "./handlers/connect.js";
 import { syncRunHandler } from "./handlers/sync.js";
 import type { WorkerPorts } from "./ports.js";
@@ -16,7 +17,7 @@ export type ToolFactory = (ports: WorkerPorts) => ToolHandler;
 export const notImplemented: ToolFactory = () => async () => ({ status: "not-implemented" });
 
 export const HANDLERS: Readonly<Record<string, ToolFactory>> = {
-  "accounts.list": notImplemented,
+  "accounts.list": accountsListHandler,
   "connect.start": connectStartHandler,
   "connect.poll": connectPollHandler,
   "sync.run": syncRunHandler

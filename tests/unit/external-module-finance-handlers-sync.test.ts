@@ -358,7 +358,9 @@ describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
       lastError: "ITEM_LOGIN_REQUIRED"
     });
     const { ports } = fakePorts({ kv, plaid: fakePlaid().client, tokens: TOKENS });
-    const result = await syncRunHandler(ports)({});
+    const result = (await syncRunHandler(ports)({})) as {
+      items: Record<string, unknown>[];
+    };
     expect(result.items[0]).toMatchObject({ itemId: "item-1", status: "connected" });
     const item = await kv.get(NS.connections, "item:item-1");
     expect(item).toMatchObject({ status: "connected", lastSyncAt: NOW.toISOString() });
@@ -378,7 +380,9 @@ describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
         })
     });
     const { ports } = fakePorts({ kv, plaid: plaid.client, tokens: TOKENS });
-    const result = await syncRunHandler(ports)({});
+    const result = (await syncRunHandler(ports)({})) as {
+      items: Record<string, unknown>[];
+    };
     expect(plaid.callsTo("transactionsSync")).toHaveLength(20);
     expect(result.items[0]).toMatchObject({ status: "connected", pages: 20, added: 20 });
     // Progress is durable: the 20th cursor is persisted, the next run resumes.
