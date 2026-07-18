@@ -2,10 +2,8 @@ import type { ProviderKind } from "@jarv1s/ai";
 import type {
   AnswerProvenanceMetadataV1,
   AiProviderExecutionMode,
-  ChatAttachmentDto,
   SourceFreshnessV1
 } from "@jarv1s/shared";
-import type { MemoryRecallItem } from "@jarv1s/memory";
 
 import type { StoredAttachmentMeta } from "../attachments-service.js";
 import type { RecallPort } from "../recall-port.js";
@@ -25,76 +23,17 @@ export {
   renderReplayBlock,
   renderSummaryBlock
 } from "./chat-context-blocks.js";
+// Split out for the 1000-line file cap (#1157); re-exported to keep import paths stable.
+export type {
+  ChatPersistencePort,
+  PassiveRetrievalPort,
+  PrivateThreadState
+} from "./chat-session-ports.js";
+import type { ChatPersistencePort, PassiveRetrievalPort } from "./chat-session-ports.js";
 
 /** Monotonic-ish wall clock, injected so idle reaping is testable. */
 export interface Clock {
   now(): number;
-}
-
-export interface ChatPersistencePort {
-  /** The active "chat" provider+model for this user (router-selected). */
-  resolveActiveProvider(
-    actorUserId: string
-  ): Promise<{ provider: ProviderKind; model: string; executionMode?: AiProviderExecutionMode }>;
-  /** Prior stored turns split into recent verbatim turns + older rolling summary. */
-  listPriorTurns(
-    actorUserId: string,
-    opts?: { readonly forceReplay?: boolean }
-  ): Promise<{
-    recent: readonly { role: "user" | "assistant"; content: string }[];
-    oldSummary: string | null;
-  }>;
-  /** Persist a completed turn (user text + assistant reply + executing provider/model). */
-  recordTurn(
-    actorUserId: string,
-    userText: string,
-    assistantReply: string,
-    executed: { provider: ProviderKind; model: string },
-    opts?: {
-      readonly invokedToolNames?: ReadonlySet<string>;
-      readonly answerProvenance?: AnswerProvenanceMetadataV1;
-      /** #1133 — display metadata for files sent with this turn (user-message tool_metadata). */
-      readonly attachments?: readonly ChatAttachmentDto[];
-    }
-  ): Promise<
-    | {
-        readonly userMessageId: string;
-        readonly assistantMessageId: string;
-        readonly sourceFreshness?: SourceFreshnessV1 | null;
-      }
-    | undefined
-  >;
-  /** Close the current conversation and open a fresh one (for /clear). */
-  openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void>;
-  getCurrentThreadState?(
-    actorUserId: string
-  ): Promise<{ readonly id: string; readonly incognito: boolean } | undefined>;
-  listIncognitoThreadStates?(): Promise<readonly PrivateThreadState[]>;
-  deleteThread?(actorUserId: string, threadId: string): Promise<void>;
-  /** Return the current thread title and the user's persisted timezone (null if unset). */
-  getThreadContext(
-    actorUserId: string
-  ): Promise<{ threadTitle: string | null; localTimezone: string | null }>;
-  /**
-   * Make threadId the current thread for actorUserId (for resume). Returns true if
-   * the thread was found and touched; false if it does not exist or belongs to another user.
-   */
-  touchExistingThread(actorUserId: string, threadId: string): Promise<boolean>;
-}
-
-export interface PassiveRetrievalPort {
-  retrieve(input: {
-    readonly actorUserId: string;
-    readonly userText: string;
-    readonly threadTitle: string | null;
-    readonly recentTurns: readonly { role: "user" | "assistant"; content: string }[];
-  }): Promise<string>;
-  retrieveWithItems?(input: {
-    readonly actorUserId: string;
-    readonly userText: string;
-    readonly threadTitle: string | null;
-    readonly recentTurns: readonly { role: "user" | "assistant"; content: string }[];
-  }): Promise<{ block: string; items: MemoryRecallItem[] }>;
 }
 
 export interface ChatSessionManagerDeps {
@@ -190,11 +129,6 @@ interface UserSession {
   lastActivity: number;
   transcriptOffset: number;
   incognito: boolean;
-}
-
-interface PrivateThreadState {
-  readonly actorUserId: string;
-  readonly threadId: string;
 }
 
 const MAX_SUBSCRIBERS_PER_ACTOR = 5;

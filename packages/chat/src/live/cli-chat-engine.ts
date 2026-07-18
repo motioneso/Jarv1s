@@ -50,6 +50,12 @@ import { CliChatUnavailableError } from "./errors.js";
 import { CodexExecSession } from "./codex-exec-session.js";
 import { modelOverrideFlag, redactCause, sanitizeInput, shellQuote } from "./cli-engine-helpers.js";
 import { composerHasExactEcho, isComposerEmpty } from "./composer-evidence.js";
+import {
+  VerifiedSubmitError,
+  type CliChatEngineDiagnostic,
+  type CliChatEngineOpts,
+  type VerifiedSubmitOpts
+} from "./cli-chat-engine-opts.js";
 import { killMuxSessionByName, SESSION_PREFIX } from "./cli-session-lifecycle.js";
 import { writeClaudePermissionHook } from "./claude-permission-hook.js";
 import {
@@ -81,6 +87,13 @@ export {
   type LoginMuxSessionAge
 } from "./login-mux-sessions.js";
 export { composerHasExactEcho, isComposerEmpty } from "./composer-evidence.js";
+// Split out for the 1000-line file cap (#1157); re-exported to keep import paths stable.
+export {
+  VerifiedSubmitError,
+  type CliChatEngineDiagnostic,
+  type CliChatEngineOpts,
+  type VerifiedSubmitOpts
+} from "./cli-chat-engine-opts.js";
 export {
   deriveNeutralDir,
   killMuxSessionByName,
@@ -98,64 +111,6 @@ export {
 const PERSONA_FILENAME = "persona.md";
 
 const CLAUDE_MCP_FILENAME = ".jarvis-claude-mcp.json";
-
-/**
- * #1157: out-of-band observability signal from the engine. `composer_discarded` fires when a
- * verified submit finds NON-empty composer content just before it clears the pane — meaning a
- * previous turn's text sat pasted-but-unsubmitted and is about to be silently thrown away
- * (exactly the failure Ben hit: "try again" stuck in the prod composer for ~10 minutes).
- * Privacy: carries a char count ONLY, never the discarded text — private-session content must
- * not leak into host logs.
- */
-export type CliChatEngineDiagnostic = {
-  readonly kind: "composer_discarded";
-  readonly paneChars: number;
-};
-
-export interface CliChatEngineOpts {
-  /** Multiplexer backend; defaults to a TmuxMultiplexer over the same io (preserves legacy behavior). */
-  readonly mux?: Multiplexer;
-  /** Base dir whose `.claude`/`.codex`/`.gemini` hold CLI transcripts. */
-  readonly homeBase?: string;
-  /**
-   * (#363, claude-scoped) Path to the 0600 file holding the provider's captured OAuth token.
-   * When set AND present, `buildClaudeCommand` prefixes the launch with
-   * `CLAUDE_CODE_OAUTH_TOKEN="$(cat <file>)"` so claude is authenticated — the secret is read at
-   * runtime, NEVER in the tmux argv / pane-typed string. Ignored by codex/gemini launches.
-   */
-  readonly credentialFile?: string;
-  /** #342: true when cli-runner owns server-side replay submit+drain. */
-  readonly ownsDrain?: boolean;
-  /** #342: max wall-clock ms for server-side replay-drain. */
-  readonly drainMs?: number;
-  /** #342: poll interval (ms) used while draining the replay. Default 250ms. */
-  readonly drainPollMs?: number;
-  /** Max observation window for each ECHO attempt. Time can only fail; pane evidence succeeds. */
-  readonly echoMs?: number;
-  /** Failure-only bound for replay's verified submit. */
-  readonly verifiedSubmitMs?: number;
-  readonly executionMode?: AiProviderExecutionMode;
-  /** #1157: best-effort diagnostic sink (see CliChatEngineDiagnostic). Must never throw into the submit path. */
-  readonly onDiagnostic?: (event: CliChatEngineDiagnostic) => void;
-}
-
-export interface VerifiedSubmitOpts {
-  readonly attemptId: string;
-  readonly text: string;
-  readonly signal: AbortSignal;
-}
-
-export class VerifiedSubmitError extends Error {
-  constructor(
-    readonly code: "unavailable" | "delivery_unknown",
-    readonly engineInvalidated = false
-  ) {
-    super(
-      code === "delivery_unknown" ? "chat input delivery is unknown" : "chat input unavailable"
-    );
-    this.name = "VerifiedSubmitError";
-  }
-}
 
 /** Result of a bounded server-side replay-drain (§4.1.2). */
 interface DrainOutcome {
