@@ -367,6 +367,54 @@ describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
     expect(item).not.toHaveProperty("lastError");
   });
 
+  it("categorizes newly-synced transactions and seeds the taxonomy (#1147)", async () => {
+    // FIN-02 Task 9: the identity seam is gone — sync now loads rules +
+    // categories (seeding DEFAULT_CATEGORIES on first read) and runs the
+    // pipeline over each page's chunks. With ai:null, only rules and the PFC
+    // map apply; everything else stays uncategorized (never blocks sync).
+    const kv = fakeKv();
+    await seedItem(kv, "item-1");
+    // A stored payee rule must beat the PFC map for its transaction.
+    await kv.set(NS.rules, "rule-1", {
+      payeeKey: "coffee shop",
+      categoryId: "subscriptions",
+      createdAt: "2026-07-01T00:00:00Z"
+    });
+    const plaid = fakePlaid({
+      transactionsSync: async () =>
+        syncPage({
+          added: [
+            tx({ transaction_id: "t-rule", name: "COFFEE SHOP #42" }),
+            tx({ transaction_id: "t-pfc", name: "Some Diner" }),
+            tx({
+              transaction_id: "t-none",
+              name: "Mystery Vendor",
+              personal_finance_category: null
+            })
+          ]
+        })
+    });
+    const { ports } = fakePorts({ kv, plaid: plaid.client, tokens: TOKENS });
+    await syncRunHandler(ports)({});
+
+    const chunk = (await kv.get(NS.transactions, "acc-1:2026-07")) as {
+      transactions: Record<string, unknown>[];
+    };
+    const byId = Object.fromEntries(
+      chunk.transactions.map((record) => [record.id as string, record])
+    );
+    expect(byId["t-rule"]).toMatchObject({ categoryId: "subscriptions", categorizedBy: "rule" });
+    expect(byId["t-pfc"]).toMatchObject({ categoryId: "dining", categorizedBy: "plaid-map" });
+    expect(byId["t-none"]).toMatchObject({ categoryId: null, categorizedBy: null });
+
+    // First read seeds the default taxonomy so the feed and rules always
+    // have a category list to resolve against.
+    const taxonomy = (await kv.get(NS.categories, "taxonomy")) as {
+      categories: { id: string }[];
+    };
+    expect(taxonomy.categories.map((category) => category.id)).toContain("dining");
+  });
+
   it("bounds a runaway sync at 20 pages per item per run", async () => {
     const kv = fakeKv();
     await seedItem(kv, "item-1");

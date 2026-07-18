@@ -11,15 +11,26 @@
 // only AFTER that page's chunks are written. A crash between the two writes
 // replays the page on the next run; the reducer makes the replay a no-op.
 import { PlaidError } from "../../adapters/plaid.js";
-import type { ChunkMap, FinanceKv, ItemRecord, TransactionChunk } from "../../domain/index.js";
+import type {
+  Category,
+  CategorizeAi,
+  ChunkMap,
+  FinanceKv,
+  ItemRecord,
+  Rule,
+  TransactionChunk
+} from "../../domain/index.js";
 import {
+  categorize,
   cursorKey,
+  DEFAULT_CATEGORIES,
   itemKey,
   monthKey,
   NS,
   prevMonthKey,
   reduceSyncPage
 } from "../../domain/index.js";
+import { buildCategorizeAi } from "../ai-port.js";
 import type { WorkerPorts } from "../ports.js";
 import type { ToolFactory } from "../registry.js";
 import { InputError } from "../validate.js";
@@ -40,13 +51,51 @@ type ItemResult = {
   pages: number;
 };
 
+/** Loaded once per run and shared across items/pages. */
+type CategorizeCtx = { rules: Rule[]; categories: Category[]; ai: CategorizeAi | null };
+
 /**
- * FIN-02 Task 9 seam: newly reduced records flow through here before being
- * written. Identity in FIN-01 — the real pipeline (rules → plaid-map → AI)
- * replaces this without touching the sync loop.
+ * FIN-02 (#1147) Task 9: load the categorization inputs, seeding the default
+ * taxonomy on first read — the feed and rules always need a category list to
+ * resolve against, and seeding here (the only writer besides the user's own
+ * edits) keeps the read path elsewhere side-effect free.
  */
-function categorize(chunks: ChunkMap): ChunkMap {
-  return chunks;
+async function loadCategorizeCtx(ports: WorkerPorts): Promise<CategorizeCtx> {
+  let stored = (await ports.kv.get(NS.categories, "taxonomy")) as {
+    categories: Category[];
+  } | null;
+  if (stored === null) {
+    stored = { categories: [...DEFAULT_CATEGORIES] };
+    await ports.kv.set(NS.categories, "taxonomy", stored);
+  }
+  const rules: Rule[] = [];
+  for (const key of await ports.kv.list(NS.rules)) {
+    const rule = await ports.kv.get(NS.rules, key);
+    if (rule) rules.push(rule as Rule);
+  }
+  return { rules, categories: stored.categories, ai: buildCategorizeAi(ports.ai) };
+}
+
+/**
+ * Run the pipeline over every record in this page's touched chunks. Settled
+ * records (user/prior-run) pass through untouched, so replaying a page stays
+ * idempotent; AI failure leaves records uncategorized without blocking sync.
+ */
+async function categorizeChunks(
+  chunks: ChunkMap,
+  touched: readonly string[],
+  ctx: CategorizeCtx
+): Promise<ChunkMap> {
+  const records = touched.flatMap((key) => chunks[key]?.transactions ?? []);
+  const updated = await categorize(records, ctx.rules, ctx.categories, ctx.ai);
+  const byId = new Map(updated.map((record) => [record.id, record]));
+  const next: ChunkMap = { ...chunks };
+  for (const key of touched) {
+    next[key] = {
+      transactions: (chunks[key]?.transactions ?? []).map((record) => byId.get(record.id) ?? record)
+    };
+  }
+  return next;
 }
 
 async function readCursor(kv: FinanceKv, itemId: string): Promise<string | null> {
@@ -77,7 +126,8 @@ async function syncItem(
   ports: WorkerPorts,
   plaid: Awaited<ReturnType<typeof buildPlaid>>,
   item: ItemRecord,
-  accessToken: string
+  accessToken: string,
+  categorizeCtx: CategorizeCtx
 ): Promise<Omit<ItemResult, "itemId" | "status">> {
   const nowIso = ports.now().toISOString();
   const today = nowIso.slice(0, 10);
@@ -115,7 +165,7 @@ async function syncItem(
     }
 
     const reduced = reduceSyncPage(chunks, page);
-    const next = categorize(reduced.chunks);
+    const next = await categorizeChunks(reduced.chunks, reduced.touched, categorizeCtx);
     for (const key of reduced.touched) {
       await ports.kv.set(NS.transactions, key, next[key]!);
     }
@@ -144,6 +194,7 @@ export const syncRunHandler: ToolFactory = (ports) => async () => {
   }
 
   const plaid = await buildPlaid(ports);
+  const categorizeCtx = await loadCategorizeCtx(ports);
   const results: ItemResult[] = [];
   for (const item of items) {
     const entry = tokens[item.itemId];
@@ -166,7 +217,7 @@ export const syncRunHandler: ToolFactory = (ports) => async () => {
       continue;
     }
     try {
-      const counts = await syncItem(ports, plaid, item, entry.accessToken);
+      const counts = await syncItem(ports, plaid, item, entry.accessToken, categorizeCtx);
       // Success clears any prior failure state — this is also how a
       // reauth-required item returns to connected after Hosted Link update.
       const { lastError: _cleared, ...rest } = item;
