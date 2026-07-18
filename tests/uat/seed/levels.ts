@@ -8,6 +8,7 @@ import { seedSportsChunk } from "./chunks/sports.js";
 import { seedTasksChunk } from "./chunks/tasks.js";
 import { seedCalendarChunk } from "./chunks/calendar.js";
 import { seedNotesChunk } from "./chunks/notes.js";
+import { seedFinanceChunk } from "./chunks/finance.js";
 import { UAT_SEED_BASE_TIMESTAMP } from "./timestamps.js";
 import type { SeedOptions, UatSeedChunk } from "./types.js";
 
@@ -31,7 +32,14 @@ const ADMIN_DATA_CHUNKS: ReadonlyArray<{
   { key: "sports", run: (runner, actorUserId) => seedSportsChunk(runner, actorUserId) },
   { key: "tasks", run: (runner, actorUserId) => seedTasksChunk(runner, actorUserId) },
   { key: "calendar", run: (runner, actorUserId) => seedCalendarChunk(runner, actorUserId) },
-  { key: "notes", run: (runner, actorUserId) => seedNotesChunk(runner, actorUserId) }
+  { key: "notes", run: (runner, actorUserId) => seedNotesChunk(runner, actorUserId) },
+  // FIN-02 (#1147): unlike job-search (see above), finance IS safe in the
+  // always-on ladder — its chunk writes only user-scoped module_kv DATA rows and
+  // never installs the module (no external_modules row), so the #1087/#1026
+  // "not installed by default" ruling still holds; the rows are invisible until
+  // a spec activates the module itself (the finance-feed spec's D7 docker-cp +
+  // admin-enable flow).
+  { key: "finance", run: (runner, actorUserId) => seedFinanceChunk(runner, actorUserId) }
 ];
 
 async function seedDataChunks(

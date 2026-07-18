@@ -17,7 +17,14 @@ export const UAT_SEED_LEVELS: readonly UatSeedLevel[] = [
 ];
 
 /** #1025 spec §4.4: per-feature chunk list seeded at admin+data and above. */
-export type UatSeedChunk = "news" | "sports" | "tasks" | "calendar" | "notes" | "job-search";
+export type UatSeedChunk =
+  | "news"
+  | "sports"
+  | "tasks"
+  | "calendar"
+  | "notes"
+  | "job-search"
+  | "finance";
 
 // #1087 finding 5: canonical chunk names accepted in excludeChunks — see
 // UAT_SEED_LEVELS above for why this lives beside the type.
@@ -27,7 +34,8 @@ export const UAT_SEED_CHUNKS: readonly UatSeedChunk[] = [
   "tasks",
   "calendar",
   "notes",
-  "job-search"
+  "job-search",
+  "finance"
 ];
 
 export interface SeedOptions {
