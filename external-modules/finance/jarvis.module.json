@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "finance",
   "name": "Finance",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "Jarvis Project",
   "lifecycle": "optional",
   "compatibility": { "jarv1s": ">=0.1.0" },
@@ -34,6 +34,7 @@
     { "namespace": "finance.categories", "scopes": ["user"] },
     { "namespace": "finance.rules", "scopes": ["user"] },
     { "namespace": "finance.snapshots", "scopes": ["user"] },
+    { "namespace": "finance.budgets", "scopes": ["user"] },
     { "namespace": "finance.settings", "scopes": ["user", "instance"] }
   ],
   "runtime": { "workerEntrypoint": "dist/worker.js", "workerContractVersion": 1 },
@@ -112,6 +113,36 @@
         "required": ["transactionId", "accountId", "month", "categoryId"]
       },
       "handler": "transaction.categorize"
+    },
+    {
+      "name": "finance.budget.status",
+      "permissionId": "finance.budget.status",
+      "description": "Show the envelope budget for a month: to-be-budgeted, assigned, activity, and available per category.",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "month": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}$" } },
+        "required": ["month"]
+      },
+      "handler": "budget.status"
+    },
+    {
+      "name": "finance.budget.assign",
+      "permissionId": "finance.budget.assign",
+      "description": "Set a category's assigned amount for a month (envelope budgeting).",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "month": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}$" },
+          "categoryId": { "type": "string" },
+          "amountCents": { "type": "integer", "minimum": -100000000, "maximum": 100000000 }
+        },
+        "required": ["month", "categoryId", "amountCents"]
+      },
+      "handler": "budget.assign"
     }
   ],
   "worker": {
@@ -140,6 +171,20 @@
             "month": { "type": "identifier" },
             "transactionId": { "type": "identifier" },
             "categoryId": { "type": "identifier" }
+          }
+        }
+      },
+      {
+        "name": "finance.budget-apply",
+        "handler": "budget.apply",
+        "retryLimit": 1,
+        "allowManualRun": true,
+        "paramsSchema": {
+          "type": "object",
+          "fields": {
+            "month": { "type": "identifier" },
+            "categoryId": { "type": "identifier" },
+            "amountCents": { "type": "integer", "min": -100000000, "max": 100000000 }
           }
         }
       }

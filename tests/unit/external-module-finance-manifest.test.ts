@@ -46,7 +46,9 @@ describe("finance manifest contract (#1146)", () => {
         ["finance.connect.poll", "connect.poll"],
         ["finance.sync.run-now", "sync.run"],
         ["finance.transactions.query", "transactions.query"],
-        ["finance.transaction.categorize", "transaction.categorize"]
+        ["finance.transaction.categorize", "transaction.categorize"],
+        ["finance.budget.status", "budget.status"],
+        ["finance.budget.assign", "budget.assign"]
       ]
     );
     for (const tool of result.manifest.assistantTools ?? []) {
@@ -63,6 +65,11 @@ describe("finance manifest contract (#1146)", () => {
     // Categorizing rewrites a stored record → write risk, so the assistant
     // path goes through confirmation (D4) like every other mutation.
     expect(riskOf["finance.transaction.categorize"]).toBe("write");
+    // FIN-03 (#1148): budget reads are free; assigning money is a mutation,
+    // so the assistant path confirms (D4) while the web path enqueues
+    // finance.budget-apply instead (D3).
+    expect(riskOf["finance.budget.status"]).toBe("read");
+    expect(riskOf["finance.budget.assign"]).toBe("write");
 
     // Credential slots: instance Plaid keys (admin-entered at runtime) + the
     // per-user token map. Tokens live ONLY in app.module_credentials — no KV
@@ -97,6 +104,7 @@ describe("finance manifest contract (#1146)", () => {
       { namespace: "finance.categories", scopes: ["user"] },
       { namespace: "finance.rules", scopes: ["user"] },
       { namespace: "finance.snapshots", scopes: ["user"] },
+      { namespace: "finance.budgets", scopes: ["user"] },
       { namespace: "finance.settings", scopes: ["user", "instance"] }
     ]);
 
@@ -124,6 +132,25 @@ describe("finance manifest contract (#1146)", () => {
             month: { type: "identifier" },
             transactionId: { type: "identifier" },
             categoryId: { type: "identifier" }
+          }
+        }
+      },
+      {
+        name: "finance.budget-apply",
+        handler: "budget.apply",
+        // Assign sets a total (never increments), so a duplicate apply is
+        // harmless — but like categorize-apply, a retry hours later would
+        // surprise the user, so fail once and let the UI surface it.
+        retryLimit: 1,
+        allowManualRun: true,
+        paramsSchema: {
+          type: "object",
+          fields: {
+            month: { type: "identifier" },
+            categoryId: { type: "identifier" },
+            // The bounded-integer param type (module-params.ts) is what makes
+            // an amount a legal queue param under D6's command-param carve-out.
+            amountCents: { type: "integer", min: -100000000, max: 100000000 }
           }
         }
       }
@@ -241,6 +268,28 @@ describe("finance manifest contract (#1146)", () => {
         params: { ...applyParams, notes: "lunch with sam" }
       })
     ).toThrow();
+
+    // FIN-03 (#1148): budget-apply carries a bounded integer command param
+    // (the new assignment total). In-range integers pass; floats, strings,
+    // and out-of-range values fail closed at the platform gate.
+    const budgetQueue = result.manifest.worker!.queues![3]!;
+    const budgetParams = { month: "2026-07", categoryId: "groceries", amountCents: 50000 };
+    expect(() =>
+      assertModuleJobPayload(budgetQueue, {
+        ...base,
+        jobKind: "finance.budget-apply",
+        params: budgetParams
+      })
+    ).not.toThrow();
+    for (const bad of [50000.5, "50000", 100000001, -100000001]) {
+      expect(() =>
+        assertModuleJobPayload(budgetQueue, {
+          ...base,
+          jobKind: "finance.budget-apply",
+          params: { ...budgetParams, amountCents: bad }
+        })
+      ).toThrow();
+    }
   });
 
   it("rejects a token-bearing KV namespace outside the finance prefix", () => {
