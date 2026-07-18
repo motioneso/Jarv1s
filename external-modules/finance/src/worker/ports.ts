@@ -4,7 +4,8 @@
 // written against (job-search ai-port.ts pattern). All ports are structural —
 // no SDK imports — so handler logic stays testable without the SDK runtime
 // and the domain/worker layers stay bundler-independent.
-import type { FinanceFetch, PlaidEnv } from "../adapters/types.js";
+import type { PlaidClient, PlaidCreds } from "../adapters/plaid.js";
+import type { PlaidEnv } from "../adapters/types.js";
 import type { FinanceKv } from "../domain/index.js";
 
 export type FinanceAiResult =
@@ -43,6 +44,16 @@ export interface TokensPort {
   write(map: TokenMap): Promise<void>;
 }
 
+/**
+ * Instance Plaid API keys (auth slots finance.plaid-client-id/-secret, Ben's
+ * keys entered by the admin). get() throws InputError("needs_config", ...)
+ * when either credential is unreadable — the caller-facing remediation is
+ * always "an admin must enter Plaid keys", so no distinction is surfaced.
+ */
+export interface CredsPort {
+  get(): Promise<PlaidCreds>;
+}
+
 /** finance.settings instance key "plaid" → { environment }, default production. */
 export interface InstanceSettingsPort {
   getEnvironment(): Promise<PlaidEnv>;
@@ -51,11 +62,17 @@ export interface InstanceSettingsPort {
 /** The per-invocation dependencies every tool handler is written against. */
 export interface WorkerPorts {
   readonly kv: FinanceKv;
-  /** Nullable: an older host omitting ctx.fetch degrades to a structured error, never a crash. */
-  readonly fetch: FinanceFetch | null;
+  /**
+   * Plaid client factory over the module fetch port (env/creds resolved per
+   * invocation — the admin can rotate keys or flip sandbox without a worker
+   * restart). Nullable: an older host omitting ctx.fetch degrades to a
+   * structured error, never a crash.
+   */
+  readonly plaid: ((env: PlaidEnv, creds: PlaidCreds) => PlaidClient) | null;
   /** Nullable: categorization (FIN-02) degrades gracefully when no AI bridge exists. */
   readonly ai: FinanceAi | null;
   readonly tokens: TokensPort;
+  readonly creds: CredsPort;
   readonly settings: InstanceSettingsPort;
   /** Admin-gated inputs (connect.start environment override) are dropped when false. */
   readonly isAdmin: boolean;

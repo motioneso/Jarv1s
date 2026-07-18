@@ -10,7 +10,9 @@ import { defineModuleWorker } from "@jarv1s/module-sdk/worker";
 import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
 
 import { fetchFromWorkerContext } from "../adapters/index.js";
-import { kvFromWorkerContext } from "../domain/index.js";
+import { createPlaid } from "../adapters/plaid.js";
+import { kvFromWorkerContext, NS } from "../domain/index.js";
+import { credsFromWorkerContext, tokensFromWorkerContext } from "./auth-port.js";
 import type { FinanceAi, WorkerPorts } from "./ports.js";
 import { aiFromWorkerContext } from "./ports.js";
 import type { ToolFactory } from "./registry.js";
@@ -29,21 +31,27 @@ function ports(ctx: ModuleWorkerContext): WorkerPorts {
     // ctx.fetch is typed required on ModuleWorkerContext, but guard anyway:
     // an older host omitting it must degrade to a structured fetch error,
     // never a worker crash.
-    fetch: ctx.fetch ? fetchFromWorkerContext(ctx.fetch) : null,
-    // Stubs until Task 5 (#1146) lands auth-port.ts — the ONLY code allowed
-    // to touch ctx.auth. read() → null mirrors the real port's error
-    // collapse; write() throws so a mis-wired early handler can never
-    // silently drop a token map.
-    tokens: {
-      read: async () => null,
-      write: async () => {
-        throw new Error("tokens_port_not_wired");
+    plaid: ctx.fetch
+      ? (env, creds) => createPlaid(fetchFromWorkerContext(ctx.fetch), env, creds)
+      : null,
+    // auth-port.ts is the ONLY code allowed to touch ctx.auth (Task 5, #1146).
+    tokens: tokensFromWorkerContext(ctx.auth),
+    creds: credsFromWorkerContext(ctx.auth),
+    settings: {
+      // Instance-scoped finance.settings key "plaid" → { environment } —
+      // admin-configured; anything unreadable or unexpected means production.
+      getEnvironment: async () => {
+        try {
+          const record = await ctx.kv.get("instance", NS.settings, "plaid");
+          return record?.environment === "sandbox" ? "sandbox" : "production";
+        } catch {
+          return "production";
+        }
       }
     },
-    settings: { getEnvironment: async () => "production" },
-    // ModuleWorkerContext exposes no admin flag today — admin-gated inputs
-    // (connect.start environment override) stay dropped until it does
-    // (re-checked in Task 5, #1146).
+    // ModuleWorkerContext exposes no admin flag (re-checked at Task 5, #1146:
+    // worker.ts ctx = input/auth/fetch/kv/ai only) — admin-gated inputs
+    // (connect.start environment override) stay dropped until the SDK adds one.
     isAdmin: false,
     now: () => new Date()
   };

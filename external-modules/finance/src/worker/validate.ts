@@ -6,11 +6,17 @@
 // content would leak (same discipline as FinanceKvError).
 
 export class InputError extends Error {
-  readonly code = "invalid_input";
+  readonly code: string;
 
-  constructor(message: string) {
-    super(message);
+  /**
+   * One-arg form keeps the classic validation code ("invalid_input");
+   * two-arg form names a handler-level condition (Task 5, #1146:
+   * "needs_config", "token_read_failed") that callers key remediation on.
+   */
+  constructor(codeOrMessage: string, message?: string) {
+    super(message ?? codeOrMessage);
     this.name = "InputError";
+    this.code = message === undefined ? "invalid_input" : codeOrMessage;
   }
 }
 
