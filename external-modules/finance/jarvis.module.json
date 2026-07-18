@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "id": "finance",
+  "name": "Finance",
+  "version": "0.1.0",
+  "publisher": "Jarvis Project",
+  "lifecycle": "optional",
+  "compatibility": { "jarv1s": ">=0.1.0" },
+  "description": "Bank accounts, transactions, and budgets via Plaid.",
+  "auth": [
+    {
+      "id": "finance.plaid-client-id",
+      "displayName": "Plaid client id",
+      "kind": "api-key",
+      "scope": "instance"
+    },
+    {
+      "id": "finance.plaid-secret",
+      "displayName": "Plaid secret",
+      "kind": "api-key",
+      "scope": "instance"
+    },
+    {
+      "id": "finance.plaid-tokens",
+      "displayName": "Plaid access tokens",
+      "kind": "api-key",
+      "scope": "user"
+    }
+  ],
+  "storage": [
+    { "namespace": "finance.connections", "scopes": ["user"] },
+    { "namespace": "finance.accounts", "scopes": ["user"] },
+    { "namespace": "finance.transactions", "scopes": ["user"] },
+    { "namespace": "finance.categories", "scopes": ["user"] },
+    { "namespace": "finance.rules", "scopes": ["user"] },
+    { "namespace": "finance.snapshots", "scopes": ["user"] },
+    { "namespace": "finance.settings", "scopes": ["user", "instance"] }
+  ],
+  "runtime": { "workerEntrypoint": "dist/worker.js", "workerContractVersion": 1 },
+  "assistantTools": [
+    {
+      "name": "finance.accounts.list",
+      "permissionId": "finance.accounts.list",
+      "description": "List connected bank accounts with live balances.",
+      "risk": "read",
+      "inputSchema": { "type": "object", "additionalProperties": false },
+      "handler": "accounts.list"
+    },
+    {
+      "name": "finance.connect.start",
+      "permissionId": "finance.connect.start",
+      "description": "Start connecting a bank via Plaid Hosted Link; returns a link URL to open.",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "environment": { "type": "string", "enum": ["production", "sandbox"] }
+        }
+      },
+      "handler": "connect.start"
+    },
+    {
+      "name": "finance.connect.poll",
+      "permissionId": "finance.connect.poll",
+      "description": "Check pending bank connections and finish token exchange.",
+      "risk": "write",
+      "inputSchema": { "type": "object", "additionalProperties": false },
+      "handler": "connect.poll"
+    },
+    {
+      "name": "finance.sync.run-now",
+      "permissionId": "finance.sync.run-now",
+      "description": "Sync accounts and transactions from Plaid now.",
+      "risk": "write",
+      "inputSchema": { "type": "object", "additionalProperties": false },
+      "handler": "sync.run"
+    }
+  ],
+  "worker": {
+    "queues": [
+      {
+        "name": "finance.sync-run",
+        "handler": "sync.run",
+        "retryLimit": 3,
+        "allowManualRun": true
+      },
+      {
+        "name": "finance.connect-poll",
+        "handler": "connect.poll",
+        "retryLimit": 5,
+        "allowManualRun": true
+      }
+    ],
+    "schedules": [
+      {
+        "id": "finance.sync-sweep",
+        "cron": "41 */6 * * *",
+        "scope": "user",
+        "jobKind": "finance.sync-sweep",
+        "queue": "finance.sync-run"
+      }
+    ]
+  },
+  "fetchHosts": ["production.plaid.com", "sandbox.plaid.com"]
+}
