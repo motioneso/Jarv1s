@@ -21,7 +21,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { redactExact, redactSecrets, type TmuxIo } from "@jarv1s/ai";
+import { redactExact, redactSecrets, resolveTmuxSocketPath, type TmuxIo } from "@jarv1s/ai";
 
 import { persistProviderToken } from "./provider-token-store.js";
 
@@ -117,6 +117,16 @@ export class LoginService {
     this.startTimeoutMs = deps.startTimeoutMs ?? DEFAULT_START_TIMEOUT_MS;
     this.settleMs = deps.settleMs ?? DEFAULT_SETTLE_MS;
     this.surfaceTimeoutMs = deps.surfaceTimeoutMs ?? DEFAULT_SURFACE_TIMEOUT_MS;
+  }
+
+  /**
+   * Every raw tmux verb this service issues MUST target the same private `-S` socket that
+   * `killLoginMuxSession`/`listLoginMuxSessions` reap on for this `homeBase` (#1142/#1143) —
+   * otherwise create and reap disagree and login sessions (which carry the OAuth-token paste
+   * and captured credential) orphan on the shared default tmux server.
+   */
+  private withSocket(args: readonly string[]): string[] {
+    return ["-S", resolveTmuxSocketPath(this.homeBase), ...args];
   }
 
   /** True iff `provider` has a login adapter (login-supported, §L.1). */
@@ -241,10 +251,13 @@ export class LoginService {
       tmpDir = await mkdtemp(path.join(this.homeBase, ".login-"));
       const tokenFile = path.join(tmpDir, "code");
       await writeFile(tokenFile, token, { encoding: "utf8", mode: 0o600 });
-      await this.deps.io.run("tmux", ["load-buffer", "-b", session, tokenFile]);
-      await this.deps.io.run("tmux", ["paste-buffer", "-b", session, "-t", `=${session}:`]);
+      await this.deps.io.run("tmux", this.withSocket(["load-buffer", "-b", session, tokenFile]));
+      await this.deps.io.run(
+        "tmux",
+        this.withSocket(["paste-buffer", "-b", session, "-t", `=${session}:`])
+      );
       await this.deps.io.sleep(200);
-      await this.deps.io.run("tmux", ["send-keys", "-t", `=${session}:`, "Enter"]);
+      await this.deps.io.run("tmux", this.withSocket(["send-keys", "-t", `=${session}:`, "Enter"]));
       // Phase-4 Obs 1-A (same-UID token-lifetime gap): `load-buffer -b <name>` placed the pasted
       // code in the tmux SERVER-global buffer set, which SURVIVES killing the login session — a
       // same-UID reader could `show-buffer -b <name>` it afterwards. Delete the named buffer the
@@ -290,14 +303,16 @@ export class LoginService {
     // BETWEEN load-buffer and the explicit delete can strand one even when its session is already
     // gone — buffers outlive sessions). Enumerate + delete by the login-name prefix.
     const buffers = await this.deps.io
-      .run("tmux", ["list-buffers", "-F", "#{buffer_name}"])
+      .run("tmux", this.withSocket(["list-buffers", "-F", "#{buffer_name}"]))
       .catch(() => ({ code: 1, stdout: "" }));
     if (buffers.code === 0) {
       for (const name of buffers.stdout
         .split("\n")
         .map((s) => s.trim())
         .filter((s) => s.startsWith(LOGIN_SESSION_PREFIX))) {
-        await this.deps.io.run("tmux", ["delete-buffer", "-b", name]).catch(() => undefined);
+        await this.deps.io
+          .run("tmux", this.withSocket(["delete-buffer", "-b", name]))
+          .catch(() => undefined);
       }
     }
     this.flow = null;
@@ -393,7 +408,7 @@ export class LoginService {
     for (let i = 0; i < attempts; i++) {
       await this.deps.io.sleep(this.settleMs);
       const pane = await this.deps.io
-        .run("tmux", ["capture-pane", "-p", "-J", "-t", `=${session}:`])
+        .run("tmux", this.withSocket(["capture-pane", "-p", "-J", "-t", `=${session}:`]))
         .catch(() => ({ code: 1, stdout: "" }));
       if (pane.code !== 0) continue;
       const match = pane.stdout.match(pattern);
@@ -410,7 +425,7 @@ export class LoginService {
     // -J joins any soft-wrapped lines (belt-and-suspenders alongside the wide login pane,
     // which prevents the hard-wrap that -J cannot rejoin) so a long URL is captured whole.
     const pane = await this.deps.io
-      .run("tmux", ["capture-pane", "-p", "-J", "-t", `=${session}:`])
+      .run("tmux", this.withSocket(["capture-pane", "-p", "-J", "-t", `=${session}:`]))
       .catch(() => ({ code: 1, stdout: "" }));
     if (pane.code !== 0) return {};
     const raw = flow.adapter.extractSurface(pane.stdout);
@@ -432,16 +447,10 @@ export class LoginService {
     // HARD-wraps at the pane width — a narrow pane splits the URL across lines (a literal
     // newline mid-URL that capture-pane -J can't rejoin), so the surfaced URL was truncated
     // (#342). 1000 cols comfortably fits an OAuth URL (PKCE + state ≈ 350 chars).
-    const created = await this.deps.io.run("tmux", [
-      "new-session",
-      "-d",
-      "-s",
-      session,
-      "-x",
-      "1000",
-      "-y",
-      "50"
-    ]);
+    const created = await this.deps.io.run(
+      "tmux",
+      this.withSocket(["new-session", "-d", "-s", session, "-x", "1000", "-y", "50"])
+    );
     if (created.code !== 0) {
       throw new Error(`login session create failed: ${redactSecrets(created.stderr)}`);
     }
@@ -450,13 +459,10 @@ export class LoginService {
     // REQUIRED: in a target-pane context (send-keys/paste-buffer/capture-pane) tmux 3.3a
     // parses a bare `=<session>` as a PANE name and fails with "can't find pane", which
     // broke every login. The `:` scopes it to the session so the active pane resolves.
-    const sent = await this.deps.io.run("tmux", [
-      "send-keys",
-      "-t",
-      `=${session}:`,
-      launchLine,
-      "Enter"
-    ]);
+    const sent = await this.deps.io.run(
+      "tmux",
+      this.withSocket(["send-keys", "-t", `=${session}:`, launchLine, "Enter"])
+    );
     if (sent.code !== 0) {
       await killLoginMuxSession(this.deps.io, sessionProvider(session), this.homeBase).catch(
         () => undefined
@@ -487,7 +493,9 @@ export class LoginService {
   /** Phase-4 Obs 1-A: remove the `<jarv1s-login-provider>` server-global tmux paste buffer. */
   private async deleteLoginBuffer(provider: RpcProviderKind): Promise<void> {
     const session = `${LOGIN_SESSION_PREFIX}${provider}`;
-    await this.deps.io.run("tmux", ["delete-buffer", "-b", session]).catch(() => undefined);
+    await this.deps.io
+      .run("tmux", this.withSocket(["delete-buffer", "-b", session]))
+      .catch(() => undefined);
   }
 
   private armDeadline(flow: LoginFlow): void {
