@@ -32,12 +32,50 @@ export const uatLevel = { level: "admin+data", without: [] } as const;
 test.afterEach(async ({}, testInfo) => {
   const projectName = process.env.JARVIS_UAT_PROJECT_NAME;
   if (testInfo.status === testInfo.expectedStatus || !projectName) return;
+  // The reload-poll loop at the end of the test spams ~40 request-log lines per
+  // reload, which scrolled the one interesting worker line out of a plain
+  // --tail window on run 2 — filter the api request noise out and keep the rest.
   try {
-    execFileSync("docker", buildUatComposeArgs(projectName, ["logs", "--tail", "400", "jarv1s"]), {
-      stdio: "inherit"
-    });
+    const logs = execFileSync(
+      "docker",
+      buildUatComposeArgs(projectName, ["logs", "--tail", "5000", "jarv1s"]),
+      { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }
+    );
+    console.log(
+      logs
+        .split("\n")
+        .filter(
+          (line) =>
+            !line.includes('"msg":"incoming request"') &&
+            !line.includes('"msg":"request completed"')
+        )
+        .join("\n")
+    );
   } catch {
     // Diagnostics only — never mask the real test failure with a logs error.
+  }
+  // The ground truth for "did the queue job run and how did it end": pg-boss
+  // keeps the job row (state, retry_count, output with the handler's error)
+  // in pgboss.job. POSTGRES_* values are fixed in infra/docker-compose.prod.yml.
+  try {
+    execFileSync(
+      "docker",
+      buildUatComposeArgs(projectName, [
+        "exec",
+        "-T",
+        "postgres",
+        "psql",
+        "-U",
+        "postgres",
+        "-d",
+        "jarv1s",
+        "-c",
+        "SELECT name, state, retry_count, started_on, completed_on, output FROM pgboss.job WHERE name LIKE 'finance%' ORDER BY created_on"
+      ]),
+      { stdio: "inherit" }
+    );
+  } catch {
+    // Same: diagnostics only.
   }
 });
 

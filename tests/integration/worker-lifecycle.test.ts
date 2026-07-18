@@ -288,7 +288,7 @@ describe("external module job reconciliation (#996, #860)", () => {
     const boss = {
       getQueue: async () => ({ name: "fixture.main" }),
       getSchedules: async () => [
-        { name: "fixture.main", key: "fixture:old:00000000-0000-4000-8000-000000000002" },
+        { name: "fixture.main", key: "fixture/old/00000000-0000-4000-8000-000000000002" },
         { name: "notes.sync", key: actorUserId }
       ],
       schedule: async (name: string, _cron: string, data: unknown, options: { key?: string }) => {
@@ -306,9 +306,15 @@ describe("external module job reconciliation (#996, #860)", () => {
     await reconciler.reconcileUser(actorUserId);
 
     expect(calls).toEqual([
-      `schedule:fixture.main:fixture:daily:${actorUserId}:${JSON.stringify({ actorUserId, moduleId: "fixture", jobKind: "daily", manifestHash: module.manifestHash })}`,
-      "unschedule:fixture.main:fixture:old:00000000-0000-4000-8000-000000000002"
+      `schedule:fixture.main:fixture/daily/${actorUserId}:${JSON.stringify({ actorUserId, moduleId: "fixture", jobKind: "daily", manifestHash: module.manifestHash })}`,
+      "unschedule:fixture.main:fixture/old/00000000-0000-4000-8000-000000000002"
     ]);
+    // Regression (#1147 UAT): pg-boss v12 assertKey only allows [\w.\-/] in
+    // schedule keys — a ":"-separated key made boss.schedule throw
+    // AssertionError, reconcileAll's catch ran stopModule, and every queue
+    // worker for the module was silently unregistered (jobs stuck "created").
+    const scheduledKey = calls[0]?.split(":")[2] ?? "";
+    expect(scheduledKey).toMatch(/^[\w.\-/]+$/);
   });
 
   it("stops workers and schedules on disable without deleting queues", async () => {
@@ -345,7 +351,7 @@ describe("external module job reconciliation (#996, #860)", () => {
     } as ExternalModuleDiscovery;
     const boss = {
       getQueue: async () => ({ name: "fixture.main" }),
-      getSchedules: async () => [{ name: "fixture.main", key: `fixture:daily:${actorUserId}` }],
+      getSchedules: async () => [{ name: "fixture.main", key: `fixture/daily/${actorUserId}` }],
       schedule: async () => undefined,
       offWork: async (name: string) => calls.push(`off:${name}`),
       unschedule: async (name: string, key: string) => calls.push(`unschedule:${name}:${key}`),
@@ -365,7 +371,7 @@ describe("external module job reconciliation (#996, #860)", () => {
 
     expect(calls).toEqual([
       "off:fixture.main",
-      `unschedule:fixture.main:fixture:daily:${actorUserId}`
+      `unschedule:fixture.main:fixture/daily/${actorUserId}`
     ]);
   });
 
@@ -392,7 +398,7 @@ describe("external module job reconciliation (#996, #860)", () => {
     ];
     const boss = {
       getQueue: async () => ({ name: "fixture.main" }),
-      getSchedules: async () => [{ name: "fixture.main", key: "fixture:old:user" }],
+      getSchedules: async () => [{ name: "fixture.main", key: "fixture/old/user" }],
       offWork: async (name: string) => calls.push(`off:${name}`),
       unschedule: async (name: string, key: string) => calls.push(`unschedule:${name}:${key}`),
       deleteQueue: async (name: string) => calls.push(`delete:${name}`)
@@ -412,7 +418,7 @@ describe("external module job reconciliation (#996, #860)", () => {
 
     expect(calls).toEqual([
       "off:fixture.main",
-      "unschedule:fixture.main:fixture:old:user",
+      "unschedule:fixture.main:fixture/old/user",
       "delete:fixture.main"
     ]);
   });
@@ -476,7 +482,7 @@ describe("external module job reconciliation (#996, #860)", () => {
         if (failing && name === "bad.main") throw new TypeError("private detail");
         return { name };
       },
-      getSchedules: async () => (failing ? [{ name: "bad.main", key: "bad:daily:user" }] : []),
+      getSchedules: async () => (failing ? [{ name: "bad.main", key: "bad/daily/user" }] : []),
       offWork: async (name: string) => calls.push(`off:${name}`),
       unschedule: async (name: string, key: string) => calls.push(`unschedule:${name}:${key}`)
     } as unknown as PgBoss;
@@ -499,7 +505,7 @@ describe("external module job reconciliation (#996, #860)", () => {
 
     expect(calls).toEqual([
       "off:bad.main",
-      "unschedule:bad.main:bad:daily:user",
+      "unschedule:bad.main:bad/daily/user",
       "off:good.main",
       "work:good.main"
     ]);
@@ -509,7 +515,7 @@ describe("external module job reconciliation (#996, #860)", () => {
   it("purges cold-start orphan schedules and queues but preserves reserved queues", async () => {
     const calls: string[] = [];
     const boss = {
-      getSchedules: async () => [{ name: "orphan.main", key: "orphan:daily:user" }],
+      getSchedules: async () => [{ name: "orphan.main", key: "orphan/daily/user" }],
       getQueues: async () => [{ name: "platform.module-control" }, { name: "orphan.main" }],
       unschedule: async (name: string, key: string) => calls.push(`unschedule:${name}:${key}`),
       deleteQueue: async (name: string) => calls.push(`delete:${name}`)
@@ -524,6 +530,6 @@ describe("external module job reconciliation (#996, #860)", () => {
 
     await reconciler.reconcileAll();
 
-    expect(calls).toEqual(["unschedule:orphan.main:orphan:daily:user", "delete:orphan.main"]);
+    expect(calls).toEqual(["unschedule:orphan.main:orphan/daily/user", "delete:orphan.main"]);
   });
 });
