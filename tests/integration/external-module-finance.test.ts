@@ -210,7 +210,10 @@ describe("finance module surface (#1146)", () => {
         isoCurrency: "USD",
         institutionId: "ins_1",
         itemStatus: "connected",
-        updatedAt: "2026-07-18T06:00:00Z"
+        updatedAt: "2026-07-18T06:00:00Z",
+        // FIN-04 (#1149): accounts.list now reports the household-share flag; an
+        // unshared account defaults to false (flag key absent in KV).
+        sharedToHousehold: false
       }
     ]);
   });
