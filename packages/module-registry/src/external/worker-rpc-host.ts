@@ -9,7 +9,9 @@ import {
   getModuleKvValue,
   listModuleKvKeys,
   readModuleCredentialSecret,
+  recordAuditEvent,
   setModuleKvValue,
+  upsertModuleCredential,
   type ModuleCredentialCipher
 } from "@jarv1s/settings";
 
@@ -23,6 +25,9 @@ export class ExternalModuleRpcError extends Error {
       | "undeclared_namespace"
       | "forbidden_kv_mutation"
       | "forbidden_instance_kv_write"
+      | "forbidden_instance_credential_write"
+      | "forbidden_credential_write"
+      | "credential_value_invalid"
       | "forbidden_ai_call"
       | "forbidden_secret_in_ai_input"
       | "invalid_rpc"
@@ -165,6 +170,53 @@ export function createExternalModuleRpcHandler(input: {
           rememberSecret(value);
           resolvedSecrets.add(value);
           return value;
+        }
+
+        if (method === "auth.setCredential") {
+          // FIN-00 #1145: workers may persist runtime-minted secrets (e.g. an
+          // OAuth-style token exchange) into DECLARED, USER-scope slots only.
+          // Instance slots stay human-written via admin settings routes, and
+          // migration 0171 enforces the same rule at the database.
+          const authId = stringParam(params, "authId");
+          const declaration = declarations.get(authId);
+          if (!declaration) throw new ExternalModuleRpcError("undeclared_auth");
+          if (declaration.scope !== "user") {
+            throw new ExternalModuleRpcError("forbidden_instance_credential_write");
+          }
+          if (input.toolRisk === "read") {
+            throw new ExternalModuleRpcError("forbidden_credential_write");
+          }
+          const value = params.value;
+          if (
+            typeof value !== "string" ||
+            value.length === 0 ||
+            Buffer.byteLength(value, "utf8") > 32 * 1024
+          ) {
+            throw new ExternalModuleRpcError("credential_value_invalid");
+          }
+          await upsertModuleCredential(
+            scopedDb,
+            {
+              moduleId: input.module.id,
+              credentialId: authId,
+              scope: "user",
+              ownerUserId: input.actorUserId,
+              displayName: declaration.displayName,
+              encryptedSecret: input.cipher.encryptJson({ value }),
+              actorUserId: input.actorUserId,
+              requestId: input.requestId
+            },
+            // Metadata-only audit via the sanctioned cross-module API; override
+            // the repository's default action so worker writes are distinguishable
+            // from owner-PUT writes in the audit trail (spec D1).
+            (event) =>
+              recordAuditEvent(scopedDb, { ...event, action: "module.credential.worker-set" })
+          );
+          // Same redaction posture as getCredential: the just-written value must
+          // never appear in ai/fetch inputs or worker stdout for this invocation.
+          rememberSecret(value);
+          resolvedSecrets.add(value);
+          return undefined;
         }
 
         const scope = scopeParam(params);
