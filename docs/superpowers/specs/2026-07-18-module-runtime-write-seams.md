@@ -75,10 +75,20 @@ Host side (`createExternalModuleRpcHandler` in `worker-rpc-host.ts`), mirroring 
   set (same as `getCredential`'s `rememberSecret`) so the D6 composition guard rejects any
   subsequent `ctx.ai` / `ctx.fetch` input containing it, and stdout/stderr best-effort
   redaction covers it.
-- **Audit:** both RPC call sites (`apps/api/src/external-module-tools.ts`,
-  `apps/worker/src/external-module-job-handler.ts`) pass an `ExternalModuleAuditWriter` dep;
-  the host writes one metadata-only audit event per successful set
-  (`module_credential_worker_write`: moduleId, authId, actorUserId, timestamp — never the value).
+- **Audit:** `upsertModuleCredential` already requires an `ExternalModuleAuditWriter`; the host
+  satisfies it with the sanctioned cross-module `recordAuditEvent` API
+  (`packages/settings/src/repository.ts`, the path wellness's worker export job already uses),
+  bound to the invocation's scoped db — no new dep threads through the two RPC call sites. One
+  metadata-only event per successful set (`action: "module.credential.worker-set"`: moduleId,
+  authId, scope — never the value). `jarvis_worker_runtime` already holds
+  `admin_audit_events` INSERT (migration 0136).
+- **Migration (one, additive):** `jarvis_worker_runtime` currently holds only SELECT on
+  `app.module_credentials` (migration 0157). A new settings-owned migration grants
+  INSERT + UPDATE to `jarvis_worker_runtime` with RLS policies restricted to
+  `scope = 'user' AND owner_user_id = app.current_actor_user_id()` plus the existing
+  module-binding predicate (`module_id = app.current_module_id()`, module enabled) — DB-level
+  defense in depth mirroring the app-level user-scope-only rule above. Instance-scope
+  credential writes remain impossible for the worker role at the database itself.
 
 Concurrency: last-writer-wins at the row level, same as the owner PUT route today. Modules that
 store JSON maps must serialize their own read-modify-write (the finance module runs per-user
@@ -130,5 +140,7 @@ fail closed with `invalid_rpc` on old hosts, and a module declaring a minimum ho
 
 ## Rollout
 
-One PR, no migration (no schema change). Module developer guide gains a "runtime credential
-write" subsection with the JSON-map-slot pattern and the serialize-your-own-RMW rule.
+One PR with one additive migration (worker-role grants/policies on `app.module_credentials`
+only — no schema change; `foundation.test.ts`'s full migration list gains the new row). Module
+developer guide gains a "runtime credential write" subsection with the JSON-map-slot pattern
+and the serialize-your-own-RMW rule.
