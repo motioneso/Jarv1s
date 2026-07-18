@@ -489,6 +489,24 @@ describe("ai.generateStructured", () => {
     expect(calls).toBe(1);
   });
 
+  it("rejects ai prompts containing a credential written via auth.setCredential this invocation", async () => {
+    // FIN-00 #1145: a value the worker just WROTE is as secret as one it read —
+    // the composition guard must cover both directions.
+    const rpc = createExternalModuleRpcHandler({
+      ...base(),
+      toolRisk: "write",
+      ai: async () => ({ ok: true, object: {} })
+    });
+    await rpc("auth.setCredential", { authId: "acme-a.user", value: "freshly-minted" }, noSecret);
+    await expect(
+      rpc(
+        "ai.generateStructured",
+        { schema: { type: "object" }, prompt: "token is freshly-minted" },
+        noSecret
+      )
+    ).rejects.toMatchObject({ code: "forbidden_secret_in_ai_input" });
+  });
+
   it("caps calls per invocation with a typed usage_limited error", async () => {
     let calls = 0;
     const rpc = createExternalModuleRpcHandler({

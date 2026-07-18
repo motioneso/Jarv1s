@@ -409,6 +409,30 @@ present, applying migrations as it would for an admin-triggered install.
 pass boot uses, against your local registry and `JARVIS_MODULES_ENSURE` — use it to test an
 install/update/purge cycle without restarting the whole server.
 
+### Runtime credential writes (`ctx.auth.setCredential`)
+
+Workers may persist runtime-minted secrets (e.g. the access token from an
+OAuth-style exchange) with `await ctx.auth.setCredential(authId, value)`:
+
+- `authId` must be a declared `auth` entry with `scope: "user"`. Instance-scope
+  credentials are always human-entered via admin settings.
+- Only write-risk tool invocations may call it; the value must be a non-empty
+  string of at most 32 KiB.
+- One slot holds one string. Modules needing per-item tokens store a JSON map
+  inside a single declared slot — and must serialize their own
+  read-modify-write (run token-touching work on a single per-user queue;
+  concurrent writers are last-writer-wins and will drop each other's entries).
+- The written value is treated like a resolved secret for the rest of the
+  invocation: it is redacted from worker output and rejected from `ctx.ai` /
+  `ctx.fetch` inputs.
+
+### Instance KV write policy (`instanceWritePolicy`)
+
+Instance-scoped KV writes from handlers are admin-gated by default. A storage
+declaration with `"instanceWritePolicy": "module"` opts that namespace into
+handler writes for any acting user — use it for module-managed shared pools.
+The admin approves this as part of the reviewed, hash-pinned manifest.
+
 ## 14. Pre-flight checklist
 
 Before opening a PR:
