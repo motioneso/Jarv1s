@@ -48,7 +48,8 @@ describe("finance manifest contract (#1146)", () => {
         ["finance.transactions.query", "transactions.query"],
         ["finance.transaction.categorize", "transaction.categorize"],
         ["finance.budget.status", "budget.status"],
-        ["finance.budget.assign", "budget.assign"]
+        ["finance.budget.assign", "budget.assign"],
+        ["finance.account.set-shared", "account.set-shared"]
       ]
     );
     for (const tool of result.manifest.assistantTools ?? []) {
@@ -70,6 +71,9 @@ describe("finance manifest contract (#1146)", () => {
     // finance.budget-apply instead (D3).
     expect(riskOf["finance.budget.status"]).toBe("read");
     expect(riskOf["finance.budget.assign"]).toBe("write");
+    // FIN-04 (#1149): flipping the household share writes the mirror, so the
+    // assistant path must confirm (D4) exactly like every other mutation.
+    expect(riskOf["finance.account.set-shared"]).toBe("write");
 
     // Credential slots: instance Plaid keys (admin-entered at runtime) + the
     // per-user token map. Tokens live ONLY in app.module_credentials — no KV
@@ -95,8 +99,11 @@ describe("finance manifest contract (#1146)", () => {
       }
     ]);
 
-    // Seven namespaces from the design spec; settings alone carries an instance
-    // scope (admin-gated `plaid` → {environment} key, default write policy).
+    // Per-user namespaces from the design spec; settings alone carries an
+    // instance scope (admin-gated `plaid` → {environment} key, default write
+    // policy). FIN-04 (#1149) adds finance.shared: instance-only with
+    // instanceWritePolicy "module" — the FIN-00 D2 seam that lets worker
+    // handlers (not just admins) write the household mirror.
     expect(result.manifest.storage).toEqual([
       { namespace: "finance.connections", scopes: ["user"] },
       { namespace: "finance.accounts", scopes: ["user"] },
@@ -105,6 +112,7 @@ describe("finance manifest contract (#1146)", () => {
       { namespace: "finance.rules", scopes: ["user"] },
       { namespace: "finance.snapshots", scopes: ["user"] },
       { namespace: "finance.budgets", scopes: ["user"] },
+      { namespace: "finance.shared", scopes: ["instance"], instanceWritePolicy: "module" },
       { namespace: "finance.settings", scopes: ["user", "instance"] }
     ]);
 
@@ -151,6 +159,22 @@ describe("finance manifest contract (#1146)", () => {
             // The bounded-integer param type (module-params.ts) is what makes
             // an amount a legal queue param under D6's command-param carve-out.
             amountCents: { type: "integer", min: -100000000, max: 100000000 }
+          }
+        }
+      },
+      {
+        name: "finance.share-apply",
+        handler: "share.apply",
+        // FIN-04 (#1149): the flag write is an idempotent SET (share ON
+        // mirrors, OFF deletes the prefix), so a stale retry could silently
+        // undo a newer user decision — fail once and let the UI surface it.
+        retryLimit: 1,
+        allowManualRun: true,
+        paramsSchema: {
+          type: "object",
+          fields: {
+            accountId: { type: "identifier" },
+            shared: { type: "boolean" }
           }
         }
       }
@@ -244,9 +268,9 @@ describe("finance manifest contract (#1146)", () => {
       })
     ).toThrow();
 
-    // FIN-02 (#1147): categorize-apply is the ONLY finance queue with params —
-    // four identifier-typed ids, nothing else. Free text (notes, payee names)
-    // must never ride pg-boss (D6): an undeclared key fails closed.
+    // FIN-02 (#1147): categorize-apply carries exactly four identifier-typed
+    // ids, nothing else. Free text (notes, payee names) must never ride
+    // pg-boss (D6): an undeclared key fails closed.
     const applyQueue = result.manifest.worker!.queues![2]!;
     const applyParams = {
       accountId: "acc-1",
@@ -290,6 +314,33 @@ describe("finance manifest contract (#1146)", () => {
         })
       ).toThrow();
     }
+
+    // FIN-04 (#1149): share-apply carries the account id plus a boolean flag —
+    // the flag is a command param (D6 carve-out), never account content.
+    // Non-boolean shapes and undeclared keys fail closed at the platform gate.
+    const shareQueue = result.manifest.worker!.queues![4]!;
+    const shareParams = { accountId: "acc-1", shared: true };
+    expect(() =>
+      assertModuleJobPayload(shareQueue, {
+        ...base,
+        jobKind: "finance.share-apply",
+        params: shareParams
+      })
+    ).not.toThrow();
+    expect(() =>
+      assertModuleJobPayload(shareQueue, {
+        ...base,
+        jobKind: "finance.share-apply",
+        params: { ...shareParams, shared: "true" }
+      })
+    ).toThrow();
+    expect(() =>
+      assertModuleJobPayload(shareQueue, {
+        ...base,
+        jobKind: "finance.share-apply",
+        params: { ...shareParams, accountName: "Everyday Checking" }
+      })
+    ).toThrow();
   });
 
   it("rejects a token-bearing KV namespace outside the finance prefix", () => {

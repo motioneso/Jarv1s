@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "finance",
   "name": "Finance",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "Jarvis Project",
   "lifecycle": "optional",
   "compatibility": { "jarv1s": ">=0.1.0" },
@@ -35,6 +35,7 @@
     { "namespace": "finance.rules", "scopes": ["user"] },
     { "namespace": "finance.snapshots", "scopes": ["user"] },
     { "namespace": "finance.budgets", "scopes": ["user"] },
+    { "namespace": "finance.shared", "scopes": ["instance"], "instanceWritePolicy": "module" },
     { "namespace": "finance.settings", "scopes": ["user", "instance"] }
   ],
   "runtime": { "workerEntrypoint": "dist/worker.js", "workerContractVersion": 1 },
@@ -143,6 +144,22 @@
         "required": ["month", "categoryId", "amountCents"]
       },
       "handler": "budget.assign"
+    },
+    {
+      "name": "finance.account.set-shared",
+      "permissionId": "finance.account.set-shared",
+      "description": "Share or unshare one of your bank accounts with the household.",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "accountId": { "type": "string" },
+          "shared": { "type": "boolean" }
+        },
+        "required": ["accountId", "shared"]
+      },
+      "handler": "account.set-shared"
     }
   ],
   "worker": {
@@ -185,6 +202,19 @@
             "month": { "type": "identifier" },
             "categoryId": { "type": "identifier" },
             "amountCents": { "type": "integer", "min": -100000000, "max": 100000000 }
+          }
+        }
+      },
+      {
+        "name": "finance.share-apply",
+        "handler": "share.apply",
+        "retryLimit": 1,
+        "allowManualRun": true,
+        "paramsSchema": {
+          "type": "object",
+          "fields": {
+            "accountId": { "type": "identifier" },
+            "shared": { "type": "boolean" }
           }
         }
       }
