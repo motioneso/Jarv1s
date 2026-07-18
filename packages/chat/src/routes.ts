@@ -254,7 +254,9 @@ export function registerChatRoutes(
                 boss: dependencies.boss,
                 featureGrantService: dependencies.featureGrantService,
                 sourceContextService: dependencies.sourceContextService,
-                currentViewService
+                currentViewService,
+                // #1133 — lets the engine pull attachment bytes via chat.readAttachment.
+                attachmentsService
               },
               appMapService: dependencies.appMapService,
               agencyPreferences: dependencies.agencyPreferences,
@@ -746,6 +748,8 @@ export function buildChatGatewayDependencies(args: {
     featureGrantService?: FeatureGrantService;
     sourceContextService?: SourceContextService;
     currentViewService?: CurrentViewReadService;
+    /** #1133 — read-only vault-backed attachment reads for chat.readAttachment. */
+    attachmentsService?: ChatAttachmentsService;
   };
 }): AssistantToolGatewayDependencies {
   return {
@@ -776,6 +780,7 @@ export function buildChatGatewayDependencies(args: {
       args.collaborators.featureGrantService ||
       args.collaborators.sourceContextService ||
       args.collaborators.currentViewService ||
+      args.collaborators.attachmentsService ||
       args.appMapService
         ? {
             ...(args.collaborators.featureGrantService
@@ -786,6 +791,11 @@ export function buildChatGatewayDependencies(args: {
               : {}),
             ...(args.collaborators.currentViewService
               ? { currentView: args.collaborators.currentViewService }
+              : {}),
+            // #1133 — readContent only; belongs in the read registry so the write→confirm
+            // floor stays structurally intact (read tools never see toolServices).
+            ...(args.collaborators.attachmentsService
+              ? { chatAttachments: args.collaborators.attachmentsService }
               : {}),
             ...(args.appMapService ? { appMap: args.appMapService } : {})
           }

@@ -10,6 +10,7 @@ import {
 
 import { chatListTodaysTurnsExecute } from "./tools.js";
 import { chatGetCurrentViewExecute, chatGetCurrentViewOutputSchema } from "./current-view-tool.js";
+import { chatReadAttachmentExecute } from "./attachment-tool.js";
 
 const CHAT_MODULE_ID = "chat";
 export const chatModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
@@ -184,6 +185,22 @@ export const chatModuleManifest = {
       inputSchema: { type: "object", additionalProperties: false, properties: {} },
       outputSchema: chatGetCurrentViewOutputSchema,
       execute: chatGetCurrentViewExecute
+    },
+    {
+      name: "chat.readAttachment",
+      description:
+        "Read a file the user attached to the current chat turn, by attachmentId from the turn's <attachments> manifest. Images return as viewable images; PDFs and text files return extracted text.",
+      permissionId: "chat.view",
+      risk: "read",
+      // #1133 — no outputSchema: the image case returns a `media` payload that schema
+      // projection would drop (see gateway.runHandler media pass-through).
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["attachmentId"],
+        properties: { attachmentId: { type: "string" } }
+      },
+      execute: chatReadAttachmentExecute
     }
   ]
 } satisfies JarvisModuleManifest;
