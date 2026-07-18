@@ -3690,3 +3690,15 @@ resume from this note before taking any merge-sensitive action.
   `https://motioneso.github.io/Jarv1s/` serves the report (not 404), and verify the in-app link target.
 - Preserve unrelated UX-tree changes, parked review lanes E/F/G, primary Coordinator lanes, evidence
   branches/worktrees, and the clean fix worktree until final verification is durable.
+
+## Continuation note — 2026-07-17 weekly deployment verified
+
+- Delegated `UX Coordinator` authority remains immutable Codex session
+  `019f7284-cbf2-7210-b3e6-9127c9b1c85e`; `merges_since_relay` remains `0`.
+- Manual `main` dispatch `29622135828` ran at #1132 merge SHA
+  `be2ae0094ee96110fd46897d2bd798259254c9d9`; both `generate` and `deploy` completed successfully.
+- `https://motioneso.github.io/Jarv1s/` returns HTTP 200 and links to the latest weekly report;
+  `https://motioneso.github.io/Jarv1s/2026-07-17-weekly/` also returns HTTP 200 with the generated
+  Jarv1s Weekly report.
+- Current `origin/main` `654ba3dc` retains the in-app `Weekly releases` target exactly as
+  `https://motioneso.github.io/Jarv1s/`. Post-#1132 deployment verification is complete.
