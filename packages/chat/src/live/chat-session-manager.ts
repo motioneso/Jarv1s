@@ -2,7 +2,6 @@ import type { ProviderKind } from "@jarv1s/ai";
 import type {
   AnswerProvenanceMetadataV1,
   AiProviderExecutionMode,
-  PageContextSnapshotDto,
   SourceFreshnessV1
 } from "@jarv1s/shared";
 import type { MemoryRecallItem } from "@jarv1s/memory";
@@ -13,7 +12,6 @@ import { renderReplayBlock, renderSummaryBlock } from "./chat-context-blocks.js"
 import type { CrossToolReadRunner } from "./cross-tool-reasoning.js";
 import { buildEngineText } from "./engine-text.js";
 import { CliChatDeliveryUnknownError, CliChatUnavailableError } from "./errors.js";
-import { resolveCachedPageContext, type CachedPageContext } from "./page-context.js";
 import { renderPersona, type PersonaFs } from "./persona.js";
 import { renderMemorySeedBlock } from "./recall-seed.js";
 import type { CliChatEngine, EngineKillOpts, TranscriptRecord } from "./types.js";
@@ -187,9 +185,6 @@ interface UserSession {
   lastActivity: number;
   transcriptOffset: number;
   incognito: boolean;
-  /** #679 — last attached page-context snapshot; volatile (deleted with this object on
-   *  clear()/resumeThread()/switchProvider()/reapIdle()), reused within PAGE_CONTEXT_TTL_MS. */
-  lastPageContext?: CachedPageContext;
 }
 
 interface PrivateThreadState {
@@ -199,9 +194,6 @@ interface PrivateThreadState {
 
 const MAX_SUBSCRIBERS_PER_ACTOR = 5;
 const PRIVATE_DETACH_GRACE_MS = 30_000;
-/** #679 — a session-held page-context snapshot is reusable for a follow-up turn only
- *  within this window; past it, resolvePageContext treats it as stale and drops it. */
-const PAGE_CONTEXT_TTL_MS = 5 * 60_000;
 
 /**
  * Thrown by submitTurn when a turn is already in flight for the same user. The
@@ -404,8 +396,7 @@ export class ChatSessionManager {
   async submitTurn(
     actorUserId: string,
     userName: string,
-    text: string,
-    pageContext?: PageContextSnapshotDto
+    text: string
   ): Promise<{
     reply: string;
     userMessageId?: string;
@@ -420,7 +411,7 @@ export class ChatSessionManager {
     }
     this.turnsInFlight.add(actorUserId);
     try {
-      return await this.runTurn(actorUserId, userName, text, pageContext);
+      return await this.runTurn(actorUserId, userName, text);
     } finally {
       this.turnsInFlight.delete(actorUserId);
     }
@@ -437,8 +428,7 @@ export class ChatSessionManager {
   private async runTurn(
     actorUserId: string,
     userName: string,
-    text: string,
-    pageContext?: PageContextSnapshotDto
+    text: string
   ): Promise<{
     reply: string;
     userMessageId?: string;
@@ -453,9 +443,6 @@ export class ChatSessionManager {
     this.turnControllers.set(actorUserId, controller);
 
     try {
-      // #679 — resolved BEFORE engineText so it folds into the engine-bound text only —
-      // never into `text`, which is what recordTurn persists below.
-      const resolvedPageContext = this.resolvePageContext(session, pageContext);
       const { text: engineText, pendingItems } = await buildEngineText(
         {
           persistence: this.deps.persistence,
@@ -464,8 +451,7 @@ export class ChatSessionManager {
           priorityModel: this.deps.priorityModel
         },
         actorUserId,
-        text,
-        resolvedPageContext
+        text
       );
       this.emit(actorUserId, { kind: "user", text });
       try {
@@ -602,22 +588,6 @@ export class ChatSessionManager {
     } finally {
       this.turnControllers.delete(actorUserId);
     }
-  }
-
-  /** #679 — TTL/reuse policy lives in {@link resolveCachedPageContext} (pure, unit-tested);
-   *  this just wires it to the session's mutable cache. Never touches `persistence`. */
-  private resolvePageContext(
-    session: UserSession,
-    incoming: PageContextSnapshotDto | undefined
-  ): PageContextSnapshotDto | undefined {
-    const { resolved, nextCached } = resolveCachedPageContext(
-      session.lastPageContext,
-      incoming,
-      this.deps.clock.now(),
-      PAGE_CONTEXT_TTL_MS
-    );
-    session.lastPageContext = nextCached;
-    return resolved;
   }
 
   /**

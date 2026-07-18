@@ -13,6 +13,7 @@ import Fastify from "fastify";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { ChatRepository, CliChatUnavailableError, registerChatLiveRoutes } from "@jarv1s/chat";
+import { PageContextStore } from "../../packages/chat/src/live/page-context-store.js";
 import type { ChatEngineFactory } from "@jarv1s/module-registry";
 import {
   DataContextRunner,
@@ -244,6 +245,23 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     expect(defaultMetadata.executed?.model).toBe("claude-live");
   });
 
+  it("POST /api/chat/turn ignores an attached pageContext field — the turn contract is text-only (#1109)", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/chat/turn",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: {
+        text: "hello text-only",
+        pageContext: { route: "/forged", pageTitle: "Forged" }
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    // The fake engine echoes back exactly what it received as engine text (§FakeLiveEngine.submit
+    // above); a bare, unmodified echo proves no <page_context> block was folded in server-side.
+    expect(response.json<{ reply: string }>().reply).toBe("echo:hello text-only");
+  });
+
   it("POST /api/chat/turn without a session returns 401", async () => {
     const response = await server.inject({
       method: "POST",
@@ -383,7 +401,8 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
             throw new ChatStreamLimitError();
           }
         }
-      } as never
+      } as never,
+      pageContextStore: newTestPageContextStore()
     });
     await app.ready();
 
@@ -405,7 +424,8 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
       runtime: {
         resolveUserName: async () => "User A",
         manager: { endPrivateSession }
-      } as never
+      } as never,
+      pageContextStore: newTestPageContextStore()
     });
     await app.ready();
 
@@ -432,7 +452,8 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
       runtime: {
         resolveUserName: async () => "User A",
         manager: { getPrivacyState }
-      } as never
+      } as never,
+      pageContextStore: newTestPageContextStore()
     });
     await app.ready();
 
@@ -471,7 +492,8 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
             return { reply: "started" };
           }
         }
-      } as never
+      } as never,
+      pageContextStore: newTestPageContextStore()
     });
     await app.ready();
 
@@ -517,7 +539,8 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
             return () => undefined;
           }
         }
-      } as never
+      } as never,
+      pageContextStore: newTestPageContextStore()
     });
     await app.ready();
 
@@ -594,6 +617,66 @@ describe("Chat live API — no multiplexer available", () => {
     });
     expect(res.statusCode).toBe(503);
   });
+
+  it("PUT /api/chat/page-context stores the actor's view, isolated from other actors (#1109)", async () => {
+    const store = newTestPageContextStore();
+    const app = Fastify({ logger: false });
+    let resolveAs = userAContext();
+    registerChatLiveRoutes(app, {
+      resolveAccessContext: async () => resolveAs,
+      runtime: { resolveUserName: async () => "User A", manager: {} } as never,
+      pageContextStore: store
+    });
+    await app.ready();
+    try {
+      const putRes = await app.inject({
+        method: "PUT",
+        url: "/api/chat/page-context",
+        payload: {
+          snapshot: {
+            route: "/news",
+            pageTitle: "News",
+            headings: [],
+            buttons: [],
+            labels: [],
+            visibleText: ["Unavailable"],
+            focused: null,
+            selectedText: null,
+            errors: [],
+            capturedAt: "2026-07-16T00:00:00.000Z"
+          }
+        }
+      });
+      expect(putRes.statusCode).toBe(204);
+      expect(store.get(ids.userA)).toMatchObject({ snapshot: { route: "/news" } });
+
+      // A different actor never sees user A's stored view.
+      resolveAs = userBContext();
+      expect(store.get(ids.userB)).toBeUndefined();
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("PUT /api/chat/page-context 400s on a malformed snapshot", async () => {
+    const app = Fastify({ logger: false });
+    registerChatLiveRoutes(app, {
+      resolveAccessContext: async () => userAContext(),
+      runtime: { resolveUserName: async () => "User A", manager: {} } as never,
+      pageContextStore: newTestPageContextStore()
+    });
+    await app.ready();
+    try {
+      const res = await app.inject({
+        method: "PUT",
+        url: "/api/chat/page-context",
+        payload: { snapshot: { route: 123 } }
+      });
+      expect(res.statusCode).toBe(400);
+    } finally {
+      await app.close();
+    }
+  });
 });
 
 describe("Chat live API — engine factory selection (RPC vs in-process)", () => {
@@ -626,4 +709,12 @@ describe("Chat live API — engine factory selection (RPC vs in-process)", () =>
 
 function userAContext(): AccessContext {
   return { actorUserId: ids.userA, requestId: "request:chat-live-api-a" };
+}
+
+function userBContext(): AccessContext {
+  return { actorUserId: ids.userB, requestId: "request:chat-live-api-b" };
+}
+
+function newTestPageContextStore(): PageContextStore {
+  return new PageContextStore({ now: () => Date.now(), ttlMs: 300_000 });
 }

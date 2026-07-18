@@ -1,11 +1,9 @@
 /**
- * #679 — "Jarvis can see what page I'm on."
+ * #679/#1109 — "Jarvis can see what page I'm on."
  *
- * Captures a bounded, redacted snapshot of the current page ONLY when the user's
- * message appears to be asking about it (see {@link asksAboutCurrentPage}), and only
- * for that one turn — see `sendChatTurn` in ../api/client.ts and
- * ChatSessionManager.engineText in packages/chat, which folds the snapshot into the
- * engine-bound prompt but never into the persisted message text.
+ * Captures a bounded, redacted snapshot of the current page. Pushed to the server via
+ * `updatePageContext` (../api/client.ts) on navigation/DOM changes and read on demand by
+ * the `chat.getCurrentView` pull tool (packages/chat) — never attached to a chat turn.
  *
  * Design choices, in order of how much privacy weight they carry:
  *
@@ -30,7 +28,12 @@
  * (`capturePageContextSnapshot`, `elementPrivacySignals`, `collectPageContextCandidates`)
  * touches real browser APIs.
  */
-import type { PageContextFocusedElementDto, PageContextSnapshotDto } from "@jarv1s/shared";
+import type {
+  JarvisError,
+  JarvisErrorClass,
+  PageContextFocusedElementDto,
+  PageContextSnapshotDto
+} from "@jarv1s/shared";
 
 import { resolvePageHeading } from "../app-route-metadata.js";
 
@@ -42,6 +45,15 @@ const MAX_TEXT_LENGTH = 200;
 const MAX_ROUTE_LENGTH = 200;
 const MAX_TITLE_LENGTH = 200;
 const MAX_SELECTED_TEXT_LENGTH = 500;
+const MAX_CONTEXT_ERRORS = 10;
+
+const ERROR_CLASSES = new Set<JarvisErrorClass>([
+  "prerequisite",
+  "transient",
+  "validation",
+  "permission",
+  "bug"
+]);
 
 // ─── Pure redaction decisions (DOM-independent, unit-tested directly) ──────────────
 
@@ -112,6 +124,7 @@ export interface PageContextRawInput {
   readonly candidates: readonly PageContextCandidate[];
   readonly focused: PageContextFocusInfo | null;
   readonly selectedText: string | null;
+  readonly errors?: readonly JarvisError[];
 }
 
 /**
@@ -164,31 +177,57 @@ export function buildPageContextSnapshot(input: PageContextRawInput): PageContex
     visibleText,
     focused,
     selectedText,
+    errors: input.errors ?? [],
     capturedAt: new Date().toISOString()
   };
 }
 
-function truncate(value: string, maxLength: number): string {
-  return value.length > maxLength ? value.slice(0, maxLength) : value;
+/**
+ * Project one candidate `data-jarvis-error-*` attribute triple into a {@link JarvisError},
+ * or `null` when it's structurally invalid. A `prerequisite` error without a
+ * `remediationRef` is dropped rather than surfaced without a fix (the map/tool contract
+ * requires `class:"prerequisite"` to resolve to a named remediation).
+ */
+export function projectPageContextErrorAttributes(input: {
+  readonly code: string | null;
+  readonly errorClass: string | null;
+  readonly remediationRef: string | null;
+}): JarvisError | null {
+  const code = input.code?.trim().slice(0, 160);
+  const errorClass = input.errorClass as JarvisErrorClass | null;
+  const remediationRef = input.remediationRef?.trim().slice(0, 160);
+  if (!code || !errorClass || !ERROR_CLASSES.has(errorClass)) return null;
+  if (errorClass === "prerequisite") {
+    return remediationRef ? { code, class: errorClass, remediationRef } : null;
+  }
+  return { code, class: errorClass };
 }
 
-// ─── Intent heuristic (pure, unit-tested directly) ─────────────────────────────────
-
-// Deliberately broad rather than narrow: a false positive costs one extra (redacted,
-// capped) block in the prompt; a false negative means the user's "what does this
-// button do?" question gets no page context at all. Kept as a standalone exported
-// function so its judgment calls are easy to test and adjust independently of the
-// capture/redaction logic above.
-const CURRENT_PAGE_PATTERN =
-  /\b(this page|this screen|this view|this tab|current page|what am i (looking at|on)|where am i|this button|this field|this form|this section|this list|this card|what does this|what is this|explain this|what('?s| is) (going on|here|on (my|the) screen)|on (my|this) screen)\b/i;
-
 /**
- * Heuristic: does this user message plausibly ask about what is currently on screen?
- * Used to gate whether a page-context snapshot is captured and attached at all — page
- * context is opt-in-by-content, never sent by default (see chat-drawer.tsx sendMessage).
+ * Collect declared `[data-jarvis-error-code][data-jarvis-error-class]` markers under
+ * `root` — the structured-error analogue of the text candidates above. Modules opt a
+ * visible error surface into page context by setting those attributes; nothing here
+ * infers an error from visible prose.
  */
-export function asksAboutCurrentPage(text: string): boolean {
-  return CURRENT_PAGE_PATTERN.test(text);
+export function collectPageContextErrors(root: ParentNode): readonly JarvisError[] {
+  const errors: JarvisError[] = [];
+  const nodes = root.querySelectorAll<HTMLElement>(
+    "[data-jarvis-error-code][data-jarvis-error-class]"
+  );
+  for (const node of nodes) {
+    if (errors.length === MAX_CONTEXT_ERRORS) break;
+    const projected = projectPageContextErrorAttributes({
+      code: node.dataset.jarvisErrorCode ?? null,
+      errorClass: node.dataset.jarvisErrorClass ?? null,
+      remediationRef: node.dataset.jarvisErrorRemediationRef ?? null
+    });
+    if (projected) errors.push(projected);
+  }
+  return errors;
+}
+
+function truncate(value: string, maxLength: number): string {
+  return value.length > maxLength ? value.slice(0, maxLength) : value;
 }
 
 // ─── Real-DOM adapter (thin, mechanical, not unit-tested directly) ─────────────────
@@ -248,6 +287,7 @@ function collectPageContextCandidates(root: ParentNode): {
   candidates: PageContextCandidate[];
   focused: PageContextFocusInfo | null;
   selectedText: string | null;
+  errors: readonly JarvisError[];
 } {
   const candidates: PageContextCandidate[] = [];
   const elements = root.querySelectorAll(CAPTURE_SELECTOR);
@@ -265,7 +305,12 @@ function collectPageContextCandidates(root: ParentNode): {
   const focused =
     active && active instanceof Element && active !== document.body ? focusInfo(active) : null;
 
-  return { candidates, focused, selectedText: readSelectedText() };
+  return {
+    candidates,
+    focused,
+    selectedText: readSelectedText(),
+    errors: collectPageContextErrors(root)
+  };
 }
 
 function readSelectedText(): string | null {
@@ -291,24 +336,25 @@ export function capturePageContextSnapshot(): PageContextSnapshotDto {
   }
 
   try {
-    const { candidates, focused, selectedText } = collectPageContextCandidates(document.body);
-    return buildPageContextSnapshot({ route, pageTitle, candidates, focused, selectedText });
+    const { candidates, focused, selectedText, errors } = collectPageContextCandidates(
+      document.body
+    );
+    return buildPageContextSnapshot({
+      route,
+      pageTitle,
+      candidates,
+      focused,
+      selectedText,
+      errors
+    });
   } catch {
     return buildPageContextSnapshot({
       route,
       pageTitle,
       candidates: [],
       focused: null,
-      selectedText: null
+      selectedText: null,
+      errors: []
     });
   }
-}
-
-/**
- * #679 — capture a page-context snapshot only when the message itself appears to ask
- * about the current page; returns undefined otherwise so page context is never attached
- * by default (on-demand-only capture is the whole point of the feature).
- */
-export function maybeCapturePageContext(userText: string): PageContextSnapshotDto | undefined {
-  return asksAboutCurrentPage(userText) ? capturePageContextSnapshot() : undefined;
 }

@@ -15,7 +15,7 @@ jobs:
   verify:
     name: Verify foundation and app
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35 # stopgap: branch VF runs ~+75% vs main, no hang confirmed (see #1127)
 
     steps:
       - name: Check out repository

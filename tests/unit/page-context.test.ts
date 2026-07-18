@@ -2,10 +2,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  asksAboutCurrentPage,
   buildPageContextSnapshot,
   isHiddenElementSignals,
   isSensitiveElementSignals,
+  projectPageContextErrorAttributes,
   type ElementPrivacySignals
 } from "../../apps/web/src/chat/page-context.js";
 
@@ -199,25 +199,46 @@ describe("buildPageContextSnapshot", () => {
   });
 });
 
-describe("asksAboutCurrentPage (#679 on-demand-only heuristic)", () => {
-  it.each([
-    "what does this button do?",
-    "What is this page for?",
-    "explain this screen",
-    "where am i right now",
-    "what's on my screen",
-    "what am I looking at"
-  ])("recognizes %s as asking about the current page", (text) => {
-    expect(asksAboutCurrentPage(text)).toBe(true);
+describe("projectPageContextErrorAttributes (#1109 structured UI errors)", () => {
+  it("projects declared data-jarvis attributes without visible prose inference", () => {
+    expect(
+      projectPageContextErrorAttributes({
+        code: "news.add_source.no_json_model",
+        errorClass: "prerequisite",
+        remediationRef: "news.add_source.configure_json_model"
+      })
+    ).toEqual({
+      code: "news.add_source.no_json_model",
+      class: "prerequisite",
+      remediationRef: "news.add_source.configure_json_model"
+    });
+    expect(
+      projectPageContextErrorAttributes({
+        code: "news.add_source.discovery_unavailable",
+        errorClass: "transient",
+        remediationRef: null
+      })
+    ).toEqual({
+      code: "news.add_source.discovery_unavailable",
+      class: "transient"
+    });
   });
 
-  it.each([
-    "what's the weather tomorrow",
-    "add a task called buy milk",
-    "remind me to call mom",
-    "how do I reset my password"
-  ])("does not treat %s as asking about the current page", (text) => {
-    expect(asksAboutCurrentPage(text)).toBe(false);
+  it("drops malformed error classes and prerequisite errors without remediation", () => {
+    expect(
+      projectPageContextErrorAttributes({
+        code: "bad.one",
+        errorClass: "other",
+        remediationRef: null
+      })
+    ).toBeNull();
+    expect(
+      projectPageContextErrorAttributes({
+        code: "bad.two",
+        errorClass: "prerequisite",
+        remediationRef: null
+      })
+    ).toBeNull();
   });
 });
 
@@ -231,5 +252,18 @@ describe("page-context.ts never reads raw form-control values (#679 structural g
     // Guards the hard invariant documented at the top of the module: no code path may
     // ever read `.value` off a DOM node (that would capture raw input/textarea content).
     expect(withoutBacktickedRefs).not.toMatch(/\.value\b/);
+  });
+});
+
+describe("page-context.ts stays Tier-1 only (#1109 privacy boundary)", () => {
+  it("contains no field-value, raw-HTML, or src reads", () => {
+    const path = fileURLToPath(new URL("../../apps/web/src/chat/page-context.ts", import.meta.url));
+    const source = readFileSync(path, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "")
+      .replace(/`[^`]*`/g, "");
+    expect(source).not.toMatch(/\.value\b/);
+    expect(source).not.toMatch(/\.innerHTML\b/);
+    expect(source).not.toMatch(/\.src\b/);
   });
 });

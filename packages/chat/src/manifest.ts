@@ -9,6 +9,7 @@ import {
 } from "@jarv1s/shared";
 
 import { chatListTodaysTurnsExecute } from "./tools.js";
+import { chatGetCurrentViewExecute, chatGetCurrentViewOutputSchema } from "./current-view-tool.js";
 
 const CHAT_MODULE_ID = "chat";
 export const chatModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
@@ -120,6 +121,7 @@ export const chatModuleManifest = {
       permissionId: "chat.view"
     },
     { method: "POST", path: "/api/chat/switch", permissionId: "chat.message" },
+    { method: "PUT", path: "/api/chat/page-context", permissionId: "chat.message" },
     { method: "POST", path: "/api/chat/threads/:id/resume", permissionId: "chat.message" },
     { method: "GET", path: "/api/chat/settings", permissionId: "chat.view" },
     { method: "PUT", path: "/api/chat/settings", permissionId: "chat.message" },
@@ -169,6 +171,16 @@ export const chatModuleManifest = {
       risk: "read",
       inputSchema: { type: "object", properties: {} },
       execute: chatListTodaysTurnsExecute
+    },
+    {
+      name: "chat.getCurrentView",
+      description:
+        "Read the active actor's latest bounded, redacted Jarvis web view and capability-level server facts.",
+      permissionId: "chat.view",
+      risk: "read",
+      inputSchema: { type: "object", additionalProperties: false, properties: {} },
+      outputSchema: chatGetCurrentViewOutputSchema,
+      execute: chatGetCurrentViewExecute
     }
   ]
 } satisfies JarvisModuleManifest;

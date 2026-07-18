@@ -16,6 +16,11 @@ describe("DEFAULT_JARVIS_PERSONA", () => {
     expect(DEFAULT_JARVIS_PERSONA).toContain("I don't know");
     expect(DEFAULT_JARVIS_PERSONA).toContain("non-prerequisite");
   });
+
+  it("asks for pasted text rather than model-initiated capture", () => {
+    expect(DEFAULT_JARVIS_PERSONA).toContain("ask the user to paste the exact text");
+    expect(DEFAULT_JARVIS_PERSONA).toContain("never request or initiate a screenshot");
+  });
 });
 
 function dataContext(): DataContextRunner {

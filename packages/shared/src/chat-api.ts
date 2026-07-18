@@ -2,6 +2,9 @@ import type { AiCapabilityRouteReason, AiConfiguredModelDto, AiModelCapability }
 import type { SourceFreshnessV1 } from "./freshness-types.js";
 import { errorResponseSchema } from "./schema-fragments.js";
 
+export type { JarvisError, JarvisErrorClass } from "@jarv1s/module-sdk/errors";
+import type { JarvisError } from "@jarv1s/module-sdk/errors";
+
 export type ChatMessageRole = "user" | "assistant";
 export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model" | "working" | "error";
 
@@ -123,12 +126,38 @@ export interface PageContextSnapshotDto {
   readonly visibleText: readonly string[];
   readonly focused: PageContextFocusedElementDto | null;
   readonly selectedText: string | null;
+  readonly errors: readonly JarvisError[];
   readonly capturedAt: string;
 }
 
 export interface SendChatTurnRequest {
   readonly text: string;
-  readonly pageContext?: PageContextSnapshotDto;
+}
+
+/** #1109 — PUT /api/chat/page-context body: the actor's current client-reported view. */
+export interface UpdatePageContextRequest {
+  readonly snapshot: PageContextSnapshotDto;
+}
+
+export interface AppBuildInfo {
+  readonly version: string;
+  readonly buildId: string;
+}
+
+export interface CurrentViewServerFactsDto {
+  readonly appVersion: string;
+  readonly buildId: string;
+  readonly platform: "web";
+  readonly modelCapabilities: readonly AiModelCapability[];
+}
+
+/** #1109 — output of the `chat.getCurrentView` read tool: the actor's synced page view, if any is
+ * on file and unexpired, plus server-authoritative facts the model cannot know on its own
+ * (build/version, and what the currently-selected chat model can actually do). */
+export interface CurrentViewSnapshotDto {
+  readonly available: boolean;
+  readonly view: PageContextSnapshotDto | null;
+  readonly serverFacts: CurrentViewServerFactsDto;
 }
 
 export type AnswerProvenanceSourceKind =
