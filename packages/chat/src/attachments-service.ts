@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import type { AccessContext } from "@jarv1s/db";
 import {
-  VaultContextRunner,
   type VaultContext,
+  type VaultContextRunner,
   deleteVaultDir,
   listVaultDirectories,
   readVaultFile,
