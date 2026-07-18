@@ -153,7 +153,8 @@ failure there as a real surface change to acknowledge or fix, never loosen the m
   Chosen so the EXISTING budget UAT numbers do not move (envelope already skips both
   `transfers` and null rows) while the reports UAT can prove pairing: without pairing the
   savings side would pollute the uncategorized spending bucket; with pairing the bucket
-  holds only the seeded coffee transaction.
+  holds exactly the two already-seeded uncategorized rows (coffee 675 + interest −1,250 =
+  −$5.75 net), not the transfer leg.
 - Zero credentials, as always — `finance.plaid-tokens` is never seeded.
 
 ## Secret hygiene (restated, binding)
