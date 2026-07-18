@@ -4,6 +4,7 @@ import type { Multiplexer } from "../../packages/ai/src/adapters/multiplexer.js"
 import { CliChatEngineImpl } from "../../packages/chat/src/live/cli-chat-engine.js";
 import type { VerifiedSubmitError } from "../../packages/chat/src/live/cli-chat-engine.js";
 import { CODEX_IDENTITY_FILENAME } from "../../packages/chat/src/live/private-transcript-cleanup.js";
+import { CliChatUnavailableError } from "../../packages/chat/src/live/errors.js";
 
 function makeIo() {
   return {
@@ -338,5 +339,25 @@ describe("CliChatEngineImpl — verified interactive submit", () => {
     });
 
     expect(events).toHaveLength(0);
+  });
+});
+
+describe("CliChatEngineImpl — plain submit mux-failure classification (#1157)", () => {
+  it("maps a mux delivery failure to CliChatUnavailableError so runTurn can heal", async () => {
+    // #1157: engine terminal died out-of-band (pane_not_found from herdr). Pre-fix the
+    // in-process engine rethrew the raw transport Error, so chat-session-manager's heal
+    // branch (which keys on CliChatUnavailableError) never fired — only the RPC path got
+    // the typed classification from cli-runner. This pins the in-process parity mapping.
+    const mux = stateMachineMux({ panes: ["[1m❯[0m \n"] });
+    (mux.submit as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('herdr send-text failed (code 1): {"error":{"code":"pane_not_found"}}')
+    );
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "submit-dead-pane", io, { mux, echoMs: 0 });
+    // Launch first: without a live handle, requireHandle() throws before reaching the
+    // mux call and the assertion would false-pass on the wrong error.
+    await engine.launch({ neutralDir: "/tmp/submit-dead-pane", personaPath: "/p.md" });
+
+    await expect(engine.submit("hello")).rejects.toBeInstanceOf(CliChatUnavailableError);
   });
 });

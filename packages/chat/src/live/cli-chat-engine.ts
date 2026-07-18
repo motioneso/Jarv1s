@@ -291,7 +291,17 @@ export class CliChatEngineImpl implements CliChatEngine {
       await this.codexExec.submit(sanitized);
       return;
     }
-    await this.mux.submit(this.requireHandle(), sanitized);
+    // #1157: mux delivery failure (pane gone — engine died out-of-band) = text verifiably
+    // never entered the engine. Classify as CliChatUnavailableError so runTurn's heal branch
+    // can relaunch + resubmit once; a plain Error would bypass it. RPC path already gets
+    // this typing from cli-runner (VerifiedSubmitError) — this is in-process parity.
+    try {
+      await this.mux.submit(this.requireHandle(), sanitized);
+    } catch (err) {
+      throw new CliChatUnavailableError("live chat engine terminal is gone", {
+        cause: redactCause(err)
+      });
+    }
     if (this.provider === "google") this.agyHasSubmitted = true;
   }
 
