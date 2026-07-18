@@ -22,4 +22,12 @@ export const MODULE_STYLES = `
 .fnm-catpick { display: inline-flex; align-items: center; gap: 0.375rem; }
 /* Amounts align on digits via numeric variants — mono is retired app-wide. */
 .fnm-amount { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+/* FIN-05 (#1150) reports: bars/trend are layout-only — the fill inherits
+   currentColor at reduced opacity, so no raw color enters the module. */
+.fnm-report-grid { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); align-items: start; }
+.fnm-report-bar { position: relative; height: 0.5rem; flex: 1; min-width: 4rem; overflow: hidden; }
+.fnm-report-bar-fill { position: absolute; inset: 0 auto 0 0; background: currentColor; opacity: 0.35; }
+.fnm-report-bar-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.25rem 0; }
+.fnm-report-bar-row > span:first-child { flex: 0 0 10rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fnm-report-trend { width: 100%; height: 8rem; display: block; }
 `;

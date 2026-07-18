@@ -7,6 +7,7 @@ import { ModuleLink, useModulePath } from "./router";
 import { h, useSyncExternalStore, type ReactNodeLike } from "./runtime";
 import { BudgetScreen } from "./screens/budget";
 import { FeedScreen } from "./screens/feed";
+import { ReportsScreen } from "./screens/reports";
 import { currentLiveMessage, subscribeLive } from "./states";
 import { MODULE_STYLES } from "./styles";
 
@@ -26,7 +27,8 @@ function LiveRegion(): ReactNodeLike {
 
 const TABS: ReadonlyArray<{ to: string; label: string }> = [
   { to: "/", label: "Feed" },
-  { to: "/budget", label: "Budget" }
+  { to: "/budget", label: "Budget" },
+  { to: "/reports", label: "Reports" }
 ];
 
 export function Root(props: { hostActions: HostActions }): ReactNodeLike {
@@ -51,7 +53,13 @@ export function Root(props: { hostActions: HostActions }): ReactNodeLike {
           </ModuleLink>
         ))}
       </nav>
-      {path === "/budget" ? <BudgetScreen /> : <FeedScreen hostActions={props.hostActions} />}
+      {path === "/budget" ? (
+        <BudgetScreen />
+      ) : path === "/reports" ? (
+        <ReportsScreen />
+      ) : (
+        <FeedScreen hostActions={props.hostActions} />
+      )}
     </div>
   );
 }
