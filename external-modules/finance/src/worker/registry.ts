@@ -8,6 +8,11 @@
 // of Task 7 (#1146); notImplemented stays exported for FIN-02's Task 8 keys.
 import { accountsListHandler } from "./handlers/accounts.js";
 import { connectPollHandler, connectStartHandler } from "./handlers/connect.js";
+import {
+  categorizeApplyHandler,
+  transactionCategorizeHandler,
+  transactionsQueryHandler
+} from "./handlers/feed.js";
 import { syncRunHandler } from "./handlers/sync.js";
 import type { WorkerPorts } from "./ports.js";
 import type { ToolHandler } from "./wrap.js";
@@ -21,9 +26,8 @@ export const HANDLERS: Readonly<Record<string, ToolFactory>> = {
   "connect.start": connectStartHandler,
   "connect.poll": connectPollHandler,
   "sync.run": syncRunHandler,
-  // FIN-02 (#1147) Task 8: manifest v2 declares the feed surface up front;
-  // real handlers land in Tasks 9–10.
-  "transactions.query": notImplemented,
-  "transaction.categorize": notImplemented,
-  "categorize.apply": notImplemented
+  // FIN-02 (#1147) Task 10: the feed surface declared by manifest v2.
+  "transactions.query": transactionsQueryHandler,
+  "transaction.categorize": transactionCategorizeHandler,
+  "categorize.apply": categorizeApplyHandler
 };
