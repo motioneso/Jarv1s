@@ -12,4 +12,14 @@ export const MODULE_STYLES = `
 .fnm-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .fnm-table { width: 100%; border-collapse: collapse; }
 .fnm-table th, .fnm-table td { text-align: left; vertical-align: top; padding: 0.25rem 0.75rem 0.25rem 0; }
+.fnm-chips { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.fnm-pill { display: inline-flex; align-items: baseline; gap: 0.5rem; padding: 0.375rem 0.75rem; }
+.fnm-feed { list-style: none; margin: 0; padding: 0; }
+.fnm-txrow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 0.75rem; padding: 0.5rem 0.75rem; }
+.fnm-txmain { display: flex; flex-direction: column; gap: 0.125rem; min-width: 0; }
+.fnm-txmain > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fnm-txtags { display: inline-flex; align-items: center; gap: 0.5rem; }
+.fnm-catpick { display: inline-flex; align-items: center; gap: 0.375rem; }
+/* Amounts align on digits via numeric variants — mono is retired app-wide. */
+.fnm-amount { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 `;
