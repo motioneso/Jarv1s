@@ -21,7 +21,9 @@ export function formatCents(amountCents: number, isoCurrency: string): string {
 
 /** "2026-07" → "July 2026" (feed month heading). */
 export function monthLabel(month: string): string {
-  const [year, monthIndex] = month.split("-").map(Number);
+  // Defaults satisfy noUncheckedIndexedAccess in the root test program;
+  // callers always pass validated "YYYY-MM".
+  const [year = 0, monthIndex = 1] = month.split("-").map(Number);
   return new Date(Date.UTC(year, monthIndex - 1, 1)).toLocaleDateString(undefined, {
     month: "long",
     year: "numeric",
@@ -31,7 +33,7 @@ export function monthLabel(month: string): string {
 
 /** Shift a "YYYY-MM" month by delta months (prev/next picker). */
 export function shiftMonth(month: string, delta: number): string {
-  const [year, monthIndex] = month.split("-").map(Number);
+  const [year = 0, monthIndex = 1] = month.split("-").map(Number);
   const shifted = new Date(Date.UTC(year, monthIndex - 1 + delta, 1));
   return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}`;
 }

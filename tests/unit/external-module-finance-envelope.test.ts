@@ -72,7 +72,7 @@ describe("finance envelope math (#1148)", () => {
     });
 
     // June leaves 5_000; July = 5_000 carry + 10_000 assigned − 4_000 spent.
-    expect(result["2026-07"].categories.groceries).toEqual({
+    expect(result["2026-07"]!.categories.groceries).toEqual({
       assignedCents: 10_000,
       activityCents: 4_000,
       availableCents: 11_000
@@ -95,16 +95,16 @@ describe("finance envelope math (#1148)", () => {
     });
 
     // June: dining overspent by 5_000 → available −5_000, shown in-month.
-    expect(result["2026-06"].categories.dining.availableCents).toBe(-5_000);
-    expect(result["2026-06"].tbbCents).toBe(100_000 - 10_000);
+    expect(result["2026-06"]!.categories.dining!.availableCents).toBe(-5_000);
+    expect(result["2026-06"]!.tbbCents).toBe(100_000 - 10_000);
     // July: the category starts clean (carry = max(−5_000, 0) = 0)…
-    expect(result["2026-07"].categories.dining).toEqual({
+    expect(result["2026-07"]!.categories.dining).toEqual({
       assignedCents: 10_000,
       activityCents: 0,
       availableCents: 10_000
     });
     // …and the 5_000 debits TBB instead: 100_000 − 20_000 assigned − 5_000.
-    expect(result["2026-07"].tbbCents).toBe(100_000 - 20_000 - 5_000);
+    expect(result["2026-07"]!.tbbCents).toBe(100_000 - 20_000 - 5_000);
   });
 
   it("accumulates TBB across three months (income, assigned, prior overspend)", () => {
@@ -125,9 +125,9 @@ describe("finance envelope math (#1148)", () => {
     });
 
     // May: 300k in − 40k assigned; the 10k overspend hits from June on.
-    expect(result["2026-05"].tbbCents).toBe(260_000);
-    expect(result["2026-06"].tbbCents).toBe(600_000 - 80_000 - 10_000);
-    expect(result["2026-07"].tbbCents).toBe(600_000 - 120_000 - 10_000);
+    expect(result["2026-05"]!.tbbCents).toBe(260_000);
+    expect(result["2026-06"]!.tbbCents).toBe(600_000 - 80_000 - 10_000);
+    expect(result["2026-07"]!.tbbCents).toBe(600_000 - 120_000 - 10_000);
   });
 
   it("excludes transfers from activity entirely", () => {
@@ -142,9 +142,9 @@ describe("finance envelope math (#1148)", () => {
       }
     });
 
-    expect(result["2026-07"].categories.transfers).toBeUndefined();
-    expect(result["2026-07"].categories.groceries.activityCents).toBe(2_000);
-    expect(result["2026-07"].tbbCents).toBe(-10_000);
+    expect(result["2026-07"]!.categories.transfers).toBeUndefined();
+    expect(result["2026-07"]!.categories.groceries!.activityCents).toBe(2_000);
+    expect(result["2026-07"]!.tbbCents).toBe(-10_000);
   });
 
   it("includes pending transactions in activity", () => {
@@ -158,7 +158,7 @@ describe("finance envelope math (#1148)", () => {
       }
     });
 
-    expect(result["2026-07"].categories.dining).toEqual({
+    expect(result["2026-07"]!.categories.dining).toEqual({
       assignedCents: 5_000,
       activityCents: 3_500,
       availableCents: 1_500
@@ -173,7 +173,7 @@ describe("finance envelope math (#1148)", () => {
       ledgers: { "2026-07": ledger({ groceries: 7_777 }) },
       transactionsByMonth: {}
     });
-    expect(result["2026-07"].categories.groceries.assignedCents).toBe(7_777);
+    expect(result["2026-07"]!.categories.groceries!.assignedCents).toBe(7_777);
   });
 
   it("derives future ledger-only months with zero activity", () => {
@@ -189,12 +189,12 @@ describe("finance envelope math (#1148)", () => {
 
     // 2026-08 has no data — not derived; carry passes through unchanged.
     expect(result["2026-08"]).toBeUndefined();
-    expect(result["2026-09"].categories.savings).toEqual({
+    expect(result["2026-09"]!.categories.savings).toEqual({
       assignedCents: 20_000,
       activityCents: 0,
       availableCents: 40_000
     });
-    expect(result["2026-09"].tbbCents).toBe(100_000 - 40_000);
+    expect(result["2026-09"]!.tbbCents).toBe(100_000 - 40_000);
   });
 
   it("is deterministic — same inputs, deep-equal output, no clock", () => {

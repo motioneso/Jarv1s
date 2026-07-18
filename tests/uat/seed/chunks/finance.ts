@@ -35,6 +35,7 @@ const MODULE_ID = "finance";
 const NS_CONNECTIONS = "finance.connections";
 const NS_ACCOUNTS = "finance.accounts";
 const NS_TRANSACTIONS = "finance.transactions";
+const NS_BUDGETS = "finance.budgets";
 
 const ITEM_ID = "uat-item-first-platypus";
 const CHECKING_ID = "uat-acc-checking";
@@ -48,6 +49,13 @@ function currentMonth(): string {
 /** A YYYY-MM-DD date inside `month`; day is 2-digit and always valid (<= 28). */
 function dayInMonth(month: string, day: number): string {
   return `${month}-${String(day).padStart(2, "0")}`;
+}
+
+/** "YYYY-MM" one month before `month` (UTC arithmetic, year rollover safe). */
+function previousMonth(month: string): string {
+  const [year = 0, monthIndex = 1] = month.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, monthIndex - 2, 1));
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 export async function seedFinanceChunk(
@@ -177,6 +185,19 @@ export async function seedFinanceChunk(
     });
     await setModuleKvValue(scopedDb, userKey(NS_TRANSACTIONS, `${SAVINGS_ID}:${month}`), {
       transactions: savingsTransactions
+    });
+
+    // FIN-03 (#1148) Task 5: a PRIOR-month assignment ledger (BudgetLedger
+    // shape, envelope.ts) — the only budget row seeded. No transactions exist
+    // in that month (the feed spec's empty-state assertion depends on that),
+    // so the derivation carries both balances forward untouched: current-month
+    // groceries available = 20000 − 8432 spent = 11568, rent available =
+    // 185000 − 185000 = 0, TBB = −205000 (nothing categorized as income).
+    // The budget spec asserts exactly those derived numbers, proving rollover.
+    // `state:{month}` caches are deliberately NOT seeded — the status handler
+    // must compute them. Still zero credentials (see hygiene note above).
+    await setModuleKvValue(scopedDb, userKey(NS_BUDGETS, `ledger:${previousMonth(month)}`), {
+      assignments: { groceries: 20_000, "rent-mortgage": 185_000 }
     });
   });
 }

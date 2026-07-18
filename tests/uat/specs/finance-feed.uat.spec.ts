@@ -29,7 +29,7 @@ export const uatLevel = { level: "admin+data", without: [] } as const;
 // logs are unrecoverable after a failure (learned the hard way on this spec's
 // first run: a silently-failing queue job left no evidence). Dump them into the
 // run log BEFORE teardown whenever the test didn't pass.
-test.afterEach(async (_fixtures, testInfo) => {
+test.afterEach(async ({}, testInfo) => {
   const projectName = process.env.JARVIS_UAT_PROJECT_NAME;
   if (testInfo.status === testInfo.expectedStatus || !projectName) return;
   // The reload-poll loop at the end of the test spams ~40 request-log lines per
@@ -70,7 +70,10 @@ test.afterEach(async (_fixtures, testInfo) => {
         "-d",
         "jarv1s",
         "-c",
-        "SELECT name, state, retry_count, started_on, completed_on, output FROM pgboss.job WHERE name LIKE 'finance%' ORDER BY created_on"
+        // platform.module-control is included because the enable-click runs a
+        // reconcile inside that job — its output column holds the full
+        // serialized reconcile error the worker log reduces to an errorName.
+        "SELECT name, state, retry_count, started_on, completed_on, output FROM pgboss.job WHERE name LIKE 'finance%' OR name = 'platform.module-control' ORDER BY created_on"
       ]),
       { stdio: "inherit" }
     );
