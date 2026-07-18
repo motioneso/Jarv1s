@@ -237,7 +237,14 @@ export function createExternalModuleRpcHandler(input: {
         if (input.toolRisk === "read") {
           throw new ExternalModuleRpcError("forbidden_kv_mutation");
         }
-        if (scope === "instance" && !(await input.isActorAdmin())) {
+        // FIN-00 #1145: default stays admin-gated; a namespace whose reviewed,
+        // hash-pinned manifest declares instanceWritePolicy "module" opts its
+        // instance rows into handler writes for any acting user.
+        if (
+          scope === "instance" &&
+          declaration.instanceWritePolicy !== "module" &&
+          !(await input.isActorAdmin())
+        ) {
           throw new ExternalModuleRpcError("forbidden_instance_kv_write");
         }
         if (method === "kv.delete") return deleteModuleKvKey(scopedDb, target);

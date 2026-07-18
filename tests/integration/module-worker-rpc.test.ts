@@ -227,6 +227,55 @@ describe("external module worker RLS", () => {
     expect(audit.rows[0].metadata).not.toContain("minted-token-1");
   });
 
+  it("allows non-admin instance kv writes when the namespace declares instanceWritePolicy module", async () => {
+    const optedIn = {
+      ...moduleA,
+      manifest: {
+        ...moduleA.manifest,
+        storage: [
+          {
+            namespace: "acme-a.state",
+            scopes: ["instance", "user"] as const,
+            instanceWritePolicy: "module" as const
+          }
+        ]
+      }
+    };
+    const write = createExternalModuleRpcHandler({
+      module: optedIn,
+      toolRisk: "write",
+      actorUserId: ids.userA,
+      requestId: "rpc-kv-policy",
+      workerDataContext: new DataContextRunner(workerDb),
+      cipher: createModuleCredentialSecretCipher(),
+      isActorAdmin: async () => false
+    });
+    await expect(
+      write(
+        "kv.set",
+        { scope: "instance", namespace: "acme-a.state", key: "pooled", value: { v: 9 } },
+        () => undefined
+      )
+    ).resolves.toBeUndefined();
+    // read-risk tools still cannot mutate, policy or not
+    const read = createExternalModuleRpcHandler({
+      module: optedIn,
+      toolRisk: "read",
+      actorUserId: ids.userA,
+      requestId: "rpc-kv-policy-read",
+      workerDataContext: new DataContextRunner(workerDb),
+      cipher: createModuleCredentialSecretCipher(),
+      isActorAdmin: async () => false
+    });
+    await expect(
+      read(
+        "kv.set",
+        { scope: "instance", namespace: "acme-a.state", key: "pooled", value: { v: 9 } },
+        () => undefined
+      )
+    ).rejects.toMatchObject({ code: "forbidden_kv_mutation" });
+  });
+
   it("allows declared KV reads but denies read-tool and non-admin instance mutations", async () => {
     const base = {
       module: moduleA,
