@@ -282,10 +282,13 @@ export async function mockExternalWebModule(page: Page): Promise<void> {
       "const { react: React } = window.__JARVIS_MODULE_RUNTIME__;",
       "export default {",
       "  contractVersion: 1,",
-      "  Root: (props) => React.createElement('button', {",
-      "    type: 'button',",
-      "    onClick: () => props.hostActions.openAssistant({ starterPrompt: 'Help me start my job search.' })",
-      "  }, 'Continue with Jarvis')",
+      "  Root: (props) => React.createElement(React.Fragment, null,",
+      "    React.createElement('span', { 'data-assistant-surface': props.assistantSurface ? 'available' : 'missing' }, props.assistantSurface ? 'Assistant surface available' : 'Assistant surface missing'),",
+      "    React.createElement('button', {",
+      "      type: 'button',",
+      "      onClick: () => props.hostActions.openAssistant({ starterPrompt: 'Help me start my job search.' })",
+      "    }, 'Continue with Jarvis')",
+      "  )",
       "};"
     ].join("\n");
     await route.fulfill({

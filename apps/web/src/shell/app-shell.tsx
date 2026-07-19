@@ -35,6 +35,11 @@ import { buildShellNavigation, resolvePageHeading } from "../app-route-metadata"
 import { useUserLocale } from "../locale/locale-format";
 import { queryKeys } from "../api/query-keys";
 import { ChatDrawer } from "../chat/chat-drawer";
+import {
+  AssistantSurfaceHostProvider,
+  type AssistantRecordV1,
+  type AssistantSurfaceHostValue
+} from "../chat/assistant-surface";
 import { useChatStream } from "../chat/use-chat-stream";
 import { usePageContextSync } from "../chat/use-page-context-sync";
 import { BrandMark } from "./brand-mark";
@@ -115,6 +120,37 @@ export function AppShell(props: AppShellProps) {
   // Lifted to the shell so the SSE stream + transcript persist while the drawer is
   // closed and as the user navigates between pages — the chat follows the user.
   const { records, clearRecords, streamErrorCount } = useChatStream();
+  // #1196 — external modules subscribe to this same shell-owned stream. Immediate delivery avoids
+  // a mount race when records arrived before the module bundle finished loading.
+  const assistantRecordListeners = useRef(
+    new Set<(records: readonly AssistantRecordV1[]) => void>()
+  );
+  const recordsRef = useRef(records);
+  recordsRef.current = records;
+  const subscribeAssistantRecords = useCallback<AssistantSurfaceHostValue["subscribeRecords"]>(
+    (listener) => {
+      assistantRecordListeners.current.add(listener);
+      listener(recordsRef.current);
+      return () => assistantRecordListeners.current.delete(listener);
+    },
+    []
+  );
+  useEffect(() => {
+    for (const listener of assistantRecordListeners.current) listener(records);
+  }, [records]);
+  // Task #1196's next slice replaces this no-op with drawer-suppression presence handling.
+  const registerAssistantComposer = useCallback<AssistantSurfaceHostValue["registerComposer"]>(
+    () => () => undefined,
+    []
+  );
+  const assistantSurfaceHost = useMemo<AssistantSurfaceHostValue>(
+    () => ({
+      records,
+      registerComposer: registerAssistantComposer,
+      subscribeRecords: subscribeAssistantRecords
+    }),
+    [records, registerAssistantComposer, subscribeAssistantRecords]
+  );
   const pendingNotesDelete = useMemo(() => {
     const results = new Set(
       records
@@ -267,22 +303,24 @@ export function AppShell(props: AppShellProps) {
         </header>
 
         <main className="content-surface">
-          <ChatControlsProvider
-            value={{
-              openChat,
-              openChatWith,
-              openAssistantWithDraft,
-              pendingNotesDelete: pendingNotesDelete
-                ? {
-                    actionRequestId: pendingNotesDelete.actionRequestId!,
-                    summary: pendingNotesDelete.summary ?? pendingNotesDelete.text
-                  }
-                : null,
-              openActionRequest
-            }}
-          >
-            {props.children}
-          </ChatControlsProvider>
+          <AssistantSurfaceHostProvider value={assistantSurfaceHost}>
+            <ChatControlsProvider
+              value={{
+                openChat,
+                openChatWith,
+                openAssistantWithDraft,
+                pendingNotesDelete: pendingNotesDelete
+                  ? {
+                      actionRequestId: pendingNotesDelete.actionRequestId!,
+                      summary: pendingNotesDelete.summary ?? pendingNotesDelete.text
+                    }
+                  : null,
+                openActionRequest
+              }}
+            >
+              {props.children}
+            </ChatControlsProvider>
+          </AssistantSurfaceHostProvider>
         </main>
       </div>
 

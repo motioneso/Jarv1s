@@ -835,11 +835,24 @@ export async function importChatSkill(file: File): Promise<ChatSkillResponse> {
 
 export async function sendChatTurn(
   text: string,
-  attachmentIds?: readonly string[]
+  attachmentIds?: readonly string[],
+  controlContext?: Readonly<Record<string, unknown>>
 ): Promise<SendChatTurnResponse> {
   return requestJson<SendChatTurnResponse>("/api/chat/turn", {
     method: "POST",
-    body: { text, ...(attachmentIds?.length ? { attachmentIds } : {}) }
+    body: {
+      text,
+      ...(controlContext ? { controlContext } : {}),
+      ...(attachmentIds?.length ? { attachmentIds } : {})
+    }
+  });
+}
+
+/** #1196 — seed core-authored onboarding context for one host-bound external module. */
+export function seedModuleOnboarding(moduleId: string): Promise<{ ok: boolean }> {
+  return requestJson<{ ok: boolean }>("/api/chat/module-onboarding", {
+    method: "POST",
+    body: { moduleId }
   });
 }
 
