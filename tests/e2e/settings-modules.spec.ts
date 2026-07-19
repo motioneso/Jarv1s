@@ -45,7 +45,7 @@ test.describe("Module registry installed-row switch (#996, #860)", () => {
     await page.getByRole("button", { name: "Admin / Setup" }).click();
     await page.getByRole("button", { name: "Instance modules" }).click();
     await expect(page.getByRole("heading", { name: "Instance modules" })).toBeVisible();
-    await expect(page.getByText("Available modules")).toBeVisible();
+    await expect(page.getByText("Module library")).toBeVisible();
 
     // The authored Switch renders an <input type="checkbox"> (role checkbox, not "switch"),
     // visually hidden — the wrapping <label.jds-switch> is the clickable surface. Starts
