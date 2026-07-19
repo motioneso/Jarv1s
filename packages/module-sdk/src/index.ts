@@ -654,9 +654,23 @@ export interface ExternalModuleScheduleDeclaration {
   readonly params?: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * #1166 (F6-D4): a job the platform enqueues ONCE PER ACTIVE USER every time
+ * the module is reconciled (boot, enable, manifest change). For backfill /
+ * repair work. Deliveries repeat across reconciles — handlers MUST be
+ * idempotent (marker check); the singletonKey only dedups concurrent sends.
+ */
+export interface ExternalModuleReconcileJobDeclaration {
+  readonly id: string;
+  /** Must name one of this module's declared worker queues. */
+  readonly queue: string;
+  readonly jobKind: string;
+}
+
 export interface ExternalModuleWorkerDeclaration {
   readonly queues?: readonly ExternalModuleQueueDeclaration[];
   readonly schedules?: readonly ExternalModuleScheduleDeclaration[];
+  readonly reconcileJobs?: readonly ExternalModuleReconcileJobDeclaration[];
 }
 
 export interface ModuleFetchRequest {

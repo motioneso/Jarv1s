@@ -193,12 +193,53 @@ function validateWorker(
       }
     }
   }
+  // #1166 (F6-D4): reconcileJobs are a one-shot-per-active-user enqueue on every reconcile
+  // (backfill/repair), distinct from the recurring cron `schedules` above. Mirrors the
+  // schedules block's validation style: bounded count, bounded id, must reference a
+  // declared queue, unknown keys rejected outright, duplicate ids rejected.
+  if (worker.reconcileJobs !== undefined && !Array.isArray(worker.reconcileJobs)) {
+    errors.push("worker.reconcileJobs must be an array");
+  }
+  const reconcileJobs = Array.isArray(worker.reconcileJobs) ? worker.reconcileJobs : [];
+  if (reconcileJobs.length > 8) errors.push("worker declares more than 8 reconcileJobs");
+  const reconcileJobIds = new Set<string>();
+  for (const entry of reconcileJobs) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      errors.push("worker reconcileJob entries must be objects");
+      continue;
+    }
+    const job = entry as Record<string, unknown>;
+    const unknownKeys = Object.keys(job).filter((key) => !["id", "queue", "jobKind"].includes(key));
+    if (unknownKeys.length > 0) {
+      errors.push(`worker reconcileJob contains unknown fields: ${unknownKeys.join(", ")}`);
+    }
+    if (typeof job.id !== "string" || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(job.id)) {
+      errors.push("worker reconcileJob id must be a bounded lowercase kebab identifier");
+    } else if (reconcileJobIds.has(job.id)) {
+      errors.push("worker reconcileJob ids must be unique");
+    } else reconcileJobIds.add(job.id);
+    if (typeof job.queue !== "string" || !queueNames.has(job.queue)) {
+      errors.push("worker reconcileJob queue must reference a declared queue");
+    }
+    if (
+      typeof job.jobKind !== "string" ||
+      job.jobKind.trim().length === 0 ||
+      job.jobKind.length > 128
+    ) {
+      errors.push("worker reconcileJob jobKind must be a non-empty string (max 128 chars)");
+    }
+  }
   return {
     ...(worker.queues !== undefined
       ? { queues: normalizedQueues as unknown as ExternalModuleWorkerDeclaration["queues"] }
       : {}),
     ...(worker.schedules !== undefined
       ? { schedules: schedules as ExternalModuleWorkerDeclaration["schedules"] }
+      : {}),
+    ...(worker.reconcileJobs !== undefined
+      ? {
+          reconcileJobs: reconcileJobs as ExternalModuleWorkerDeclaration["reconcileJobs"]
+        }
       : {})
   };
 }

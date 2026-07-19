@@ -107,6 +107,111 @@ describe("external module manifest types (#917)", () => {
     expect(result.manifest.worker?.schedules?.[0]?.id).toBe("daily");
   });
 
+  it("preserves a validated worker.reconcileJobs declaration (#1166 F6-D4)", () => {
+    const result = validateExternalModuleManifest(
+      {
+        ...base,
+        worker: {
+          queues: [{ name: "fixture.migrate", handler: "migrate" }],
+          reconcileJobs: [
+            { id: "storage-migrate", queue: "fixture.migrate", jobKind: "fixture.migrate" }
+          ]
+        }
+      },
+      "fixture",
+      "0.1.0"
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.manifest.worker?.reconcileJobs?.[0]).toEqual({
+      id: "storage-migrate",
+      queue: "fixture.migrate",
+      jobKind: "fixture.migrate"
+    });
+  });
+
+  it.each([
+    [
+      "reconcileJob targeting an undeclared queue",
+      {
+        ...base,
+        worker: {
+          queues: [{ name: "fixture.migrate", handler: "migrate" }],
+          reconcileJobs: [
+            { id: "storage-migrate", queue: "fixture.missing", jobKind: "fixture.migrate" }
+          ]
+        }
+      },
+      "declared queue"
+    ],
+    [
+      "reconcileJob with a bad id",
+      {
+        ...base,
+        worker: {
+          queues: [{ name: "fixture.migrate", handler: "migrate" }],
+          reconcileJobs: [
+            { id: "Storage_Migrate", queue: "fixture.migrate", jobKind: "fixture.migrate" }
+          ]
+        }
+      },
+      "bounded lowercase kebab identifier"
+    ],
+    [
+      "reconcileJob with unknown keys",
+      {
+        ...base,
+        worker: {
+          queues: [{ name: "fixture.migrate", handler: "migrate" }],
+          reconcileJobs: [
+            {
+              id: "storage-migrate",
+              queue: "fixture.migrate",
+              jobKind: "fixture.migrate",
+              extra: true
+            }
+          ]
+        }
+      },
+      "unknown fields"
+    ],
+    [
+      "duplicate reconcileJob ids",
+      {
+        ...base,
+        worker: {
+          queues: [{ name: "fixture.migrate", handler: "migrate" }],
+          reconcileJobs: [
+            { id: "storage-migrate", queue: "fixture.migrate", jobKind: "fixture.migrate" },
+            { id: "storage-migrate", queue: "fixture.migrate", jobKind: "fixture.migrate" }
+          ]
+        }
+      },
+      "unique"
+    ],
+    [
+      "too many reconcileJobs",
+      {
+        ...base,
+        worker: {
+          queues: [{ name: "fixture.migrate", handler: "migrate" }],
+          reconcileJobs: Array.from({ length: 9 }, (_, index) => ({
+            id: `job-${index}`,
+            queue: "fixture.migrate",
+            jobKind: "fixture.migrate"
+          }))
+        }
+      },
+      "8 reconcileJobs"
+    ]
+  ])("rejects %s", (_name, raw, expected) => {
+    const result = validateExternalModuleManifest(raw, "fixture", "0.1.0");
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.join("; ")).toContain(expected);
+  });
+
   it.each([
     ["invalid fetch host", { ...base, fetchHosts: ["127.0.0.1"] }, "fetchHost"],
     [
