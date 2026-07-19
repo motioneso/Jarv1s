@@ -23,6 +23,8 @@ const DEFAULT_LOCALE_SETTINGS: LocaleSettingsDto = {
   dateFormat: "24"
 };
 
+const SUPPORTED_TIME_ZONES = Intl.supportedValuesOf("timeZone");
+
 const DEFAULT_QUIET_HOURS: QuietHoursSettingsDto = {
   enabled: false,
   start: "22:00",
@@ -165,9 +167,6 @@ export function ProfilePane({ me }: PaneProps) {
             <div className="prof__email">{user.email}</div>
           </div>
           <div className="prof__badges">
-            <Badge tone="pine" dot>
-              {user.status === "active" ? "Active" : user.status}
-            </Badge>
             <Badge tone="neutral">{role}</Badge>
           </div>
         </div>
@@ -201,20 +200,9 @@ export function ProfilePane({ me }: PaneProps) {
             ) : undefined
           }
         />
-        <Row
-          name="Role"
-          desc={
-            role === "Owner"
-              ? "Owner — full access to admin & setup."
-              : role === "Admin"
-                ? "Admin — instance administration."
-                : "Member of this instance."
-          }
-          control={<Badge tone="neutral">{role}</Badge>}
-        />
       </Group>
 
-      <Group title="Locale">
+      <Group title="Location">
         <div className="fld">
           <div className="fld__lbl">Time zone</div>
           <div className="fld__row">
@@ -224,10 +212,11 @@ export function ProfilePane({ me }: PaneProps) {
               disabled={localeQuery.isLoading || localeMutation.isPending}
               onChange={(event) => updateLocale({ timezone: event.currentTarget.value })}
             >
-              <option value="America/Los_Angeles">Pacific — America/Los_Angeles</option>
-              <option value="America/New_York">Eastern — America/New_York</option>
-              <option value="Europe/London">GMT — Europe/London</option>
-              <option value="Europe/Berlin">CET — Europe/Berlin</option>
+              {SUPPORTED_TIME_ZONES.map((timeZone) => (
+                <option key={timeZone} value={timeZone}>
+                  {timeZone}
+                </option>
+              ))}
             </Select>
           </div>
         </div>
@@ -237,7 +226,7 @@ export function ProfilePane({ me }: PaneProps) {
             <Select
               value={locale.region}
               aria-label="Language & region"
-              disabled={localeQuery.isLoading || localeMutation.isPending}
+              disabled
               onChange={(event) => updateLocale({ region: event.currentTarget.value })}
             >
               <option value="en-US">English (United States)</option>
