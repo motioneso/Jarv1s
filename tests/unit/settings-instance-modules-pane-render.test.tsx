@@ -123,6 +123,18 @@ function seedClient(): QueryClient {
       }
     ]
   } satisfies ListModuleCredentialsResponse);
+  client.setQueryData(["module-credentials", "admin", DECLARED_ID], {
+    moduleId: DECLARED_ID,
+    credentials: [
+      {
+        credentialId: `${DECLARED_ID}.api-key`,
+        displayName: "Declared API Key",
+        scope: "instance",
+        configured: false,
+        updatedAt: null
+      }
+    ]
+  } satisfies ListModuleCredentialsResponse);
   return client;
 }
 
@@ -136,6 +148,11 @@ describe("InstanceModulesPane external-modules group (#1084)", () => {
   it("renders the #918 admin credentials section for that module (not silently dropped)", () => {
     const html = renderWithQuery(seedClient());
     expect(html).toContain("Acme API Key");
+  });
+
+  it("renders admin credentials for a registry-installed module (#1176)", () => {
+    const html = renderWithQuery(seedClient());
+    expect(html).toContain("Declared API Key");
   });
 
   it("does not duplicate a registry-known module into the External-modules group", () => {

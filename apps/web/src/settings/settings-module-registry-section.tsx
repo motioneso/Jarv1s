@@ -13,6 +13,7 @@ import {
   removeRegistryModule
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { ModuleCredentialsSection } from "./module-credentials-section";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
 import { Note, Switch } from "./settings-ui";
@@ -212,15 +213,18 @@ export function ModuleRegistrySection({
                 row, not just Remove/purge — reuses the same setExternalModuleEnabled
                 mutation the External-modules group already owns (id space is shared). */}
             {row.state === "installed-enabled" || row.state === "installed-disabled" ? (
-              <Switch
-                ariaLabel={`Enable ${row.name}`}
-                checked={
-                  (externalModules?.find((module) => module.id === row.id)?.status ?? null) ===
-                  "enabled"
-                }
-                disabled={settingEnabledPending}
-                onChange={(value) => onSetEnabled(row.id, value)}
-              />
+              <>
+                <Switch
+                  ariaLabel={`Enable ${row.name}`}
+                  checked={
+                    (externalModules?.find((module) => module.id === row.id)?.status ?? null) ===
+                    "enabled"
+                  }
+                  disabled={settingEnabledPending}
+                  onChange={(value) => onSetEnabled(row.id, value)}
+                />
+                <ModuleCredentialsSection moduleId={row.id} surface="admin" />
+              </>
             ) : null}
             <p>
               {STATE_LABELS[row.state]}
