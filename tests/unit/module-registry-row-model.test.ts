@@ -108,13 +108,13 @@ describe("libraryAction (#1187 decision 2)", () => {
   });
 
   it("purgePending overrides state -> no action, purge reason", () => {
-    expect(
-      libraryAction(row({ id: "m", state: "installed-enabled", purgePending: true }))
-    ).toEqual({
-      kind: "none",
-      label: "Purge pending",
-      reason: "Data purge pending — takes effect on restart."
-    });
+    expect(libraryAction(row({ id: "m", state: "installed-enabled", purgePending: true }))).toEqual(
+      {
+        kind: "none",
+        label: "Purge pending",
+        reason: "Data purge pending — takes effect on restart."
+      }
+    );
   });
 });
 
