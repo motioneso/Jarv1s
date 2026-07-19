@@ -66,9 +66,9 @@ Tracking: [#1185](https://github.com/motioneso/Jarv1s/issues/1185)
 
 ### Color-mode rearrange target
 
-Annotations: `mrs74jai-oh5ztv`, `mrs9a182-qhp8y3`
+Annotations: `mrs74jai-oh5ztv`, `mrs9a182-qhp8y3`, `mrs9q3h1-dl5euy`, `mrs9wryn-hp4nzm`
 
-The same rearrange payload says to move Color mode, but one event points to Assistant settings and the later event points to Today. Confirm the intended destination before implementation; keep both open meanwhile.
+The same rearrange payload says to move Color mode, but events point to Assistant settings, Today, Instance Modules, and now Finance. Confirm the intended destination before implementation; keep all copies open meanwhile.
 
 ### News topic source
 

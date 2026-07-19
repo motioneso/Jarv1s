@@ -140,6 +140,9 @@ describe("downloadAndStageModule (#964)", () => {
     expect(result.version).toBe("1.2.0");
     expect(result.packageHash).toMatch(/^sha256:[a-f0-9]{64}$/);
     expect(existsSync(join(modulesDir, "job-search", "jarvis.module.json"))).toBe(true);
+    expect(
+      JSON.parse(readFileSync(join(modulesDir, "job-search", "package.json"), "utf8"))
+    ).toEqual({ type: "commonjs" });
     expect(existsSync(join(modulesDir, ".staging-job-search"))).toBe(false);
   });
 

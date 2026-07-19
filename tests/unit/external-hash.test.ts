@@ -57,4 +57,14 @@ describe("hashExternalPackage (#917)", () => {
     writeFileSync(join(dir, "jarvis.module.json"), '{"id":"m"}');
     expect(hashExternalPackage(dir)).toBe(hashExternalPackage(dir));
   });
+
+  it("changes when the worker module type changes", () => {
+    writeFileSync(join(dir, "jarvis.module.json"), '{"id":"m"}');
+    writeFileSync(join(dir, "package.json"), '{"type":"commonjs"}');
+    const before = hashExternalPackage(dir);
+
+    writeFileSync(join(dir, "package.json"), '{"type":"module"}');
+
+    expect(hashExternalPackage(dir)).not.toBe(before);
+  });
 });
