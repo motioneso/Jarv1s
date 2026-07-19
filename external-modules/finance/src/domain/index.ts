@@ -12,5 +12,7 @@ export * from "./records.js";
 export * from "./reduce.js";
 export * from "./reports.js";
 export * from "./shared-pool.js";
+export * from "./store-kv.js";
+export * from "./store-port.js";
 export * from "./taxonomy.js";
 export * from "./transfers.js";
