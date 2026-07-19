@@ -278,6 +278,28 @@ describe("exact user ACK evidence", () => {
       hasExactUserAck("anthropic", completedOldRecord + claudeUser("yes") + "\n", cursor, "yes")
     ).toBe(true);
   });
+
+  // #1170 second kill link: non-bracketed tmux paste makes claude 2.1.215 record
+  // multiline user turns with `\r` where the engine submitted `\n` (probe-confirmed).
+  // The ack compare must tolerate newline flavor — and ONLY newline flavor.
+  it.each([["anthropic", claudeUser] as const, ["openai-compatible", codexUser] as const])(
+    "matches a CR-recorded multiline paste against the LF expectedText for %s",
+    (provider, userRecord) => {
+      const expected = "Read the file.\n\n<attachments>\nmanifest line\n</attachments>";
+      const crRecorded = "Read the file.\r\r<attachments>\rmanifest line\r</attachments>";
+      const crlfRecorded = expected.replace(/\n/g, "\r\n");
+      const cursor = captureAckCursor("");
+
+      expect(hasExactUserAck(provider, userRecord(crRecorded) + "\n", cursor, expected)).toBe(true);
+      expect(hasExactUserAck(provider, userRecord(crlfRecorded) + "\n", cursor, expected)).toBe(
+        true
+      );
+      // Normalization must not loosen the match beyond newline flavor.
+      expect(
+        hasExactUserAck(provider, userRecord("Read the file.\rDIFFERENT") + "\n", cursor, expected)
+      ).toBe(false);
+    }
+  );
 });
 
 describe("parseTranscript — google (Gemini CLI JSONL schema)", () => {
