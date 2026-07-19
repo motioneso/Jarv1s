@@ -41,7 +41,13 @@ const UNDECLARED_ID = "acme-undeclared";
 // drop, so the test also proves the fix didn't just delete the filter entirely.
 const DECLARED_ID = "acme-declared";
 
-function seedClient(): QueryClient {
+function seedClient(
+  declaredState:
+    | "installed-enabled"
+    | "installed-disabled"
+    | "update-available"
+    | "update-pending-restart" = "installed-enabled"
+): QueryClient {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   client.setQueryData(queryKeys.settings.adminModules, {
     modules: []
@@ -96,7 +102,7 @@ function seedClient(): QueryClient {
         id: DECLARED_ID,
         name: "Acme Declared",
         description: null,
-        state: "installed-enabled",
+        state: declaredState,
         installedVersion: "0.1.0",
         // Backed by a registry-index entry -> registry-known -> must be excluded from the
         // External-modules group below (it already has its own row in Available modules).
@@ -123,6 +129,18 @@ function seedClient(): QueryClient {
       }
     ]
   } satisfies ListModuleCredentialsResponse);
+  client.setQueryData(["module-credentials", "admin", DECLARED_ID], {
+    moduleId: DECLARED_ID,
+    credentials: [
+      {
+        credentialId: `${DECLARED_ID}.api-key`,
+        displayName: "Declared API Key",
+        scope: "instance",
+        configured: false,
+        updatedAt: null
+      }
+    ]
+  } satisfies ListModuleCredentialsResponse);
   return client;
 }
 
@@ -135,8 +153,22 @@ describe("InstanceModulesPane external-modules group (#1084)", () => {
 
   it("renders the #918 admin credentials section for that module (not silently dropped)", () => {
     const html = renderWithQuery(seedClient());
-    expect(html).toContain("Acme API Key");
+    const occurrences = html.split("Acme API Key").length - 1;
+    expect(occurrences).toBe(2); // Field label + input aria-label, exactly one field.
   });
+
+  it.each([
+    "installed-enabled",
+    "installed-disabled",
+    "update-available",
+    "update-pending-restart"
+  ] as const)(
+    "renders admin credentials for a registry-installed module in %s (#1176)",
+    (state) => {
+      const html = renderWithQuery(seedClient(state));
+      expect(html).toContain("Declared API Key");
+    }
+  );
 
   it("does not duplicate a registry-known module into the External-modules group", () => {
     const html = renderWithQuery(seedClient());
