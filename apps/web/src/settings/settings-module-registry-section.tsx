@@ -16,7 +16,7 @@ import { queryKeys } from "../api/query-keys";
 import { ModuleCredentialsSection } from "./module-credentials-section";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
-import { Note, Switch } from "./settings-ui";
+import { Note, Row, Switch } from "./settings-ui";
 
 // #996/#860: props threaded down from InstanceModulesPane (Task 12) so an installed
 // registry row can reuse the same setExternalModuleEnabled mutation the External-modules
@@ -217,18 +217,21 @@ export function ModuleRegistrySection({
   if (registryQuery.isError) return <p className="jds-muted">{readError(registryQuery.error)}</p>;
   if (!data || !data.enabled) return null;
 
-  const canInstall = (row: ModuleRegistryRowDto) =>
-    (row.state === "not-installed" ||
-      row.state === "update-available" ||
-      row.state === "declared-not-present" ||
-      row.state === "install-failed") &&
-    !row.purgePending;
   const canRemove = (row: ModuleRegistryRowDto) =>
     row.state !== "not-installed" && row.state !== "declared-not-present" && !row.purgePending;
+  // #1187 decision 2: `libraryAction` governs the PRIMARY control only (button/switch/text).
+  // This switch-visibility gate is an orthogonal, pre-existing (#996/#860) concern that can
+  // appear alongside an install button (update-available) or alongside no button at all
+  // (update-pending-restart) — unchanged from the pre-#1187 behavior.
+  const showEnableSwitch = (row: ModuleRegistryRowDto) =>
+    row.latestVersion != null &&
+    (row.state === "installed-enabled" ||
+      row.state === "installed-disabled" ||
+      row.state === "update-available" ||
+      row.state === "update-pending-restart");
 
   return (
-    <section aria-label="Module registry">
-      <h3>Available modules</h3>
+    <>
       {data.registryUnavailable ? (
         <p className="jds-muted">
           The module registry is unreachable — showing installed modules only.
@@ -250,95 +253,94 @@ export function ModuleRegistrySection({
       >
         {refreshMutation.isPending ? "Refreshing…" : "Refresh from registry"}
       </button>
-      <ul>
-        {data.modules.map((row) => (
-          <li key={row.id}>
-            <div>
-              <strong>{row.name}</strong> <code>{row.id}</code>
-              {row.installedVersion ? <span> v{row.installedVersion}</span> : null}
-              {row.latestVersion && row.latestVersion !== row.installedVersion ? (
-                <span> (latest v{row.latestVersion})</span>
-              ) : null}
-            </div>
-            {row.description ? <p>{row.description}</p> : null}
-            {/* #996/#860 spec §4c: an installed module needs a working switch on its own
-                row, not just Remove/purge — reuses the same setExternalModuleEnabled
-                mutation the External-modules group already owns (id space is shared). */}
-            {row.latestVersion != null &&
-            (row.state === "installed-enabled" ||
-              row.state === "installed-disabled" ||
-              row.state === "update-available" ||
-              row.state === "update-pending-restart") ? (
-              <>
-                <Switch
-                  ariaLabel={`Enable ${row.name}`}
-                  checked={
-                    (externalModules?.find((module) => module.id === row.id)?.status ?? null) ===
-                    "enabled"
-                  }
-                  disabled={settingEnabledPending}
-                  onChange={(value) => onSetEnabled(row.id, value)}
-                />
-                <ModuleCredentialsSection moduleId={row.id} surface="admin" />
-              </>
-            ) : null}
-            <p>
-              {STATE_LABELS[row.state]}
-              {row.purgePending ? " · data purge pending — takes effect on restart" : null}
-            </p>
-            {row.state === "install-failed" && row.lastInstallError ? (
-              <p className="jds-muted">{row.lastInstallError}</p>
-            ) : null}
-            {row.state === "incompatible" ? (
-              <p className="jds-muted">Requires Jarvis {row.requiresCore}.</p>
-            ) : null}
-            <div>
-              {canInstall(row) ? (
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--primary"
-                  onClick={() => onInstall(row)}
-                  disabled={downloadMutation.isPending}
-                >
-                  {row.state === "update-available"
-                    ? "Download update"
-                    : row.state === "install-failed"
-                      ? "Retry download"
-                      : "Install"}
-                </button>
-              ) : null}
-              {canRemove(row) ? (
+      {data.modules.map((row) => {
+        const action = libraryAction(row);
+        return (
+          <div key={row.id}>
+            <Row
+              name={
                 <>
-                  <button
-                    type="button"
-                    className="jds-btn jds-btn--quiet"
-                    onClick={() => onRemove(row)}
-                  >
-                    Remove
-                  </button>
-                  <button
-                    type="button"
-                    className="jds-btn jds-btn--quiet"
-                    onClick={() => onRemovePurge(row)}
-                  >
-                    Remove + purge
-                  </button>
+                  {row.name} <code>{row.id}</code>
                 </>
-              ) : null}
-              {row.purgePending ? (
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--quiet"
-                  onClick={() => cancelPurgeMutation.mutate(row.id)}
-                  disabled={cancelPurgeMutation.isPending}
-                >
-                  Cancel purge
-                </button>
-              ) : null}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
+              }
+              desc={
+                <>
+                  {row.installedVersion || row.latestVersion ? (
+                    <div>
+                      {row.installedVersion ? `v${row.installedVersion}` : null}
+                      {row.latestVersion && row.latestVersion !== row.installedVersion
+                        ? ` (latest v${row.latestVersion})`
+                        : null}
+                    </div>
+                  ) : null}
+                  {row.description ? <div>{row.description}</div> : null}
+                  {action.reason ? <div className="jds-muted">{action.reason}</div> : null}
+                </>
+              }
+              control={
+                <div>
+                  {action.kind === "install" ? (
+                    <button
+                      type="button"
+                      className="jds-btn jds-btn--primary"
+                      onClick={() => onInstall(row)}
+                      disabled={downloadMutation.isPending}
+                    >
+                      {action.label}
+                    </button>
+                  ) : action.kind === "none" ? (
+                    <span className="jds-muted">{action.label}</span>
+                  ) : null}
+                  {showEnableSwitch(row) ? (
+                    <Switch
+                      ariaLabel={`Enable ${row.name}`}
+                      checked={
+                        (externalModules?.find((module) => module.id === row.id)?.status ??
+                          null) === "enabled"
+                      }
+                      disabled={settingEnabledPending}
+                      onChange={(value) => onSetEnabled(row.id, value)}
+                    />
+                  ) : null}
+                  {canRemove(row) ? (
+                    <>
+                      <button
+                        type="button"
+                        className="jds-btn jds-btn--quiet"
+                        onClick={() => onRemove(row)}
+                      >
+                        Remove
+                      </button>
+                      <button
+                        type="button"
+                        className="jds-btn jds-btn--quiet"
+                        onClick={() => onRemovePurge(row)}
+                      >
+                        Remove + purge
+                      </button>
+                    </>
+                  ) : null}
+                  {row.purgePending ? (
+                    <button
+                      type="button"
+                      className="jds-btn jds-btn--quiet"
+                      onClick={() => cancelPurgeMutation.mutate(row.id)}
+                      disabled={cancelPurgeMutation.isPending}
+                    >
+                      Cancel purge
+                    </button>
+                  ) : null}
+                </div>
+              }
+            />
+            {/* #918: instance-scope credential slots declared by this module's manifest, if
+                any — renders nothing when the module has none. */}
+            {showEnableSwitch(row) ? (
+              <ModuleCredentialsSection moduleId={row.id} surface="admin" />
+            ) : null}
+          </div>
+        );
+      })}
+    </>
   );
 }
