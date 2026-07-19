@@ -105,6 +105,9 @@ importers:
       '@jarv1s/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@jarv1s/chat':
+        specifier: workspace:*
+        version: link:../../packages/chat
       '@jarv1s/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
@@ -126,6 +129,9 @@ importers:
       '@jarv1s/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@jarv1s/vault':
+        specifier: workspace:*
+        version: link:../../packages/vault
       fastify:
         specifier: ^5.6.2
         version: 5.8.5

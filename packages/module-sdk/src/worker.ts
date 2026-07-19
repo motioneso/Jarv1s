@@ -67,6 +67,14 @@ export interface ModuleWorkerContext {
       params?: readonly unknown[]
     ): Promise<{ rows: T[] }>;
   };
+  /** Actor-scoped, extracted text only; missing, foreign, or image attachments return null. */
+  readonly attachments: {
+    readText(attachmentId: string): Promise<{
+      readonly fileName: string;
+      readonly mimeType: string;
+      readonly text: string;
+    } | null>;
+  };
 }
 
 type Handler = (ctx: ModuleWorkerContext) => Promise<unknown>;
@@ -111,6 +119,12 @@ export function defineModuleWorker(input: {
         rows: Record<string, unknown>[];
       }>
   } as ModuleWorkerContext["db"];
+  const attachments: ModuleWorkerContext["attachments"] = {
+    readText: (attachmentId) =>
+      callParent("attachments.readText", { attachmentId }) as ReturnType<
+        ModuleWorkerContext["attachments"]["readText"]
+      >
+  };
 
   createInterface({ input: process.stdin }).on("line", (line) => {
     void (async () => {
@@ -155,7 +169,8 @@ export function defineModuleWorker(input: {
           fetch: (request) => callParent("fetch.request", request) as Promise<ModuleFetchResponse>,
           kv,
           ai,
-          db
+          db,
+          attachments
         });
         send({ jsonrpc: "2.0", id: message.id, result });
       } catch {

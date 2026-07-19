@@ -3,6 +3,7 @@ import { sql } from "kysely";
 import {
   createModuleStorageRpc,
   ModuleQueryError,
+  type AccessContext,
   type DataContextDb,
   type DataContextRunner
 } from "@jarv1s/db";
@@ -65,6 +66,12 @@ export type ExternalModuleAiResult =
   | { readonly ok: true; readonly object: unknown }
   | { readonly ok: false; readonly error: ExternalModuleAiError };
 
+export interface ExternalModuleAttachmentText {
+  readonly fileName: string;
+  readonly mimeType: string;
+  readonly text: string;
+}
+
 // Max ctx.ai.generateStructured calls per tool invocation (spec D6: platform
 // config, enforced in parent memory — the handler is built per invocation).
 export const AI_CALLS_PER_INVOCATION_CAP = 8;
@@ -87,6 +94,10 @@ export function createExternalModuleRpcHandler(input: {
   readonly workerDataContext: DataContextRunner;
   readonly cipher: ModuleCredentialCipher;
   readonly isActorAdmin: () => Promise<boolean>;
+  readonly readAttachmentText?: (
+    access: AccessContext,
+    attachmentId: string
+  ) => Promise<ExternalModuleAttachmentText | null>;
   readonly createFetch?: (allowedHosts: readonly string[]) => typeof fetch;
   readonly ai?: (
     scopedDb: DataContextDb,
@@ -103,6 +114,18 @@ export function createExternalModuleRpcHandler(input: {
   let aiCalls = 0;
 
   return async (method, rawParams, rememberSecret) => {
+    if (method === "attachments.readText") {
+      const attachmentId = attachmentIdParam(rawParams);
+      if (!input.readAttachmentText || !attachmentId) return null;
+      try {
+        return await input.readAttachmentText(
+          { actorUserId: input.actorUserId, requestId: input.requestId },
+          attachmentId
+        );
+      } catch {
+        return null;
+      }
+    }
     const params = record(rawParams);
     if (method === "fetch.request") {
       const request = fetchRequest(params);
@@ -373,6 +396,17 @@ function stringParam(value: Record<string, unknown>, key: string): string {
     throw new ExternalModuleRpcError("invalid_rpc");
   }
   return found;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function attachmentIdParam(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const params = value as Record<string, unknown>;
+  if (Object.keys(params).length !== 1 || typeof params.attachmentId !== "string") {
+    return undefined;
+  }
+  return UUID_RE.test(params.attachmentId) ? params.attachmentId : undefined;
 }
 
 function scopeParam(value: Record<string, unknown>): "instance" | "user" {
