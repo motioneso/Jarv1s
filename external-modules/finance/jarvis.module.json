@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "finance",
   "name": "Finance",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "Jarvis Project",
   "lifecycle": "optional",
   "compatibility": { "jarv1s": ">=0.1.0" },
@@ -38,6 +38,15 @@
     { "namespace": "finance.shared", "scopes": ["instance"], "instanceWritePolicy": "module" },
     { "namespace": "finance.settings", "scopes": ["user", "instance"] }
   ],
+  "database": {
+    "ownedTables": [
+      "app.finance_items",
+      "app.finance_accounts",
+      "app.finance_transactions",
+      "app.finance_balance_snapshots",
+      "app.finance_budget_assignments"
+    ]
+  },
   "runtime": { "workerEntrypoint": "dist/worker.js", "workerContractVersion": 1 },
   "assistantTools": [
     {
