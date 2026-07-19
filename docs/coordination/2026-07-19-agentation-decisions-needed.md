@@ -62,7 +62,8 @@ Need direction on whether to create:
 - Settings profile/location/appearance/navigation polish: `mrs6nwxo-retj99`, `mrs6ounh-hcmg1m`, `mrs6p20v-ly0lth`, `mrs6pc4e-7vnnsy`, `mrs6pwcc-7fddqk`, `mrs6qsrk-vhcc05`, `mrs6s2g7-aupxgf`, `mrs7kslm-upor2w`
 - Settings Assistant/Memory polish: `mrs75paa-g8oyyp`, `mrs76gsz-akmshz`, `mrs78asb-befxrt`, `mrs79332-a3shdo`
 - Settings defects: `mrs6arkr-3c85gx`, `mrs6bbol-p7gxya`, `mrs776lh-bmzmj5`, `mrs77jy9-33ynvd`
-- Connected/Modules cleanup: `mrs7cn4e-wts5qg`, `mrs7d04t-i9o3cy`, `mrs7mknx-iekzvf`, `mrs7n6bc-7aqwjr`
+- Connected/Oversight/Modules cleanup: `mrs7cn4e-wts5qg`, `mrs7d04t-i9o3cy`, `mrs7mknx-iekzvf`, `mrs7n6bc-7aqwjr`, `mrs7nz2f-g2ngs8`, `mrs7ofm2-2okb7q`
+- Host guidance and typography: `mrs7pqjl-v6hvxl`, `mrs7q4xr-erj12w`
 - Connector onboarding parity: `mrs67gef-h4qiyt`, `mrs69zpx-rxknnt`
 
 ## Comment closure protocol
