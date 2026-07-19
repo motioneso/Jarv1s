@@ -1,11 +1,12 @@
 // external-modules/finance/src/worker/handlers/accounts.ts
 //
 // FIN-01 (#1146) Task 7: finance.accounts.list — the read tool behind "what
-// are my balances". Pure KV read (NS.accounts joined with each account's
-// item record for status/institution); never builds a Plaid client and never
-// touches the token map. Balances are as-of the last sync (updatedAt says
-// when), which is the module's design: reads are instant, freshness comes
-// from the 6-hour sweep or finance.sync.run-now.
+// are my balances". Pure store read (accounts joined with each account's
+// item record for status/institution — FIN-06c #1166 Task 8 moved this off
+// KV onto the store port); never builds a Plaid client and never touches the
+// token map. Balances are as-of the last sync (updatedAt says when), which is
+// the module's design: reads are instant, freshness comes from the 6-hour
+// sweep or finance.sync.run-now.
 //
 // FIN-04 (#1149) Task 5: the same read also merges OTHER owners' shared
 // accounts from the finance.shared mirror, appended after own accounts and

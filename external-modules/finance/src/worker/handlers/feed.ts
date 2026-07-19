@@ -7,7 +7,13 @@
 // categorize.apply is the SAME category-set logic behind the
 // finance.categorize-apply queue — the web path, which per D4/D6 carries the
 // four identifier ids only. Notes never ride a job payload.
-import type { Category, Rule, TransactionChunk, TransactionRecord } from "../../domain/index.js";
+import type {
+  Category,
+  FinanceStore,
+  Rule,
+  TransactionChunk,
+  TransactionRecord
+} from "../../domain/index.js";
 import {
   contentHash,
   DEFAULT_CATEGORIES,
@@ -57,17 +63,14 @@ export const transactionsQueryHandler: ToolFactory = (ports) => async (input) =>
   const pendingOnly = readBool(input, "pendingOnly") ?? false;
   const limit = readInt(input, "limit", { min: 1, max: 200 }) ?? 50;
 
-  // Chunk keys are "accountId:YYYY-MM" (domain/keys.ts) — one get per
-  // account for the requested month, or a suffix scan across all accounts.
-  const keys = accountId
-    ? [`${accountId}:${month}`]
-    : (await ports.kv.list(NS.transactions)).filter((key) => key.endsWith(`:${month}`));
-
-  let transactions: FeedRow[] = [];
-  for (const key of keys) {
-    const chunk = (await ports.kv.get(NS.transactions, key)) as TransactionChunk | null;
-    if (chunk) transactions.push(...chunk.transactions);
-  }
+  // FIN-06c (#1166) Task 9: one store call for the requested month, across
+  // every account — store.listMonthTransactions already returns the pinned
+  // date-desc/id-asc order, so accountId (when given) is just a filter.
+  const store = await ports.store();
+  const monthTransactions = await store.listMonthTransactions(month);
+  let transactions: FeedRow[] = accountId
+    ? monthTransactions.filter((record) => record.accountId === accountId)
+    : [...monthTransactions];
   // FIN-04 (#1149): merge OTHER owners' shared month chunks BEFORE the
   // filters below, so category/search/pending treat shared rows exactly like
   // own rows. Own-prefix mirror chunks are skipped (own records above are
@@ -137,22 +140,26 @@ function readApplyIds(input: Record<string, unknown>): ApplyIds {
  */
 async function applyCategory(
   ports: WorkerPorts,
+  store: FinanceStore,
   ids: ApplyIds
-): Promise<{ chunkKey: string; chunk: TransactionChunk; record: TransactionRecord }> {
+): Promise<{ record: TransactionRecord }> {
   const live = (await loadCategories(ports)).filter((category) => !category.archived);
   if (!live.some((category) => category.id === ids.categoryId)) {
     throw new InputError("invalid_category", "categoryId is not a live category");
   }
-  const chunkKey = `${ids.accountId}:${ids.month}`;
-  const chunk = (await ports.kv.get(NS.transactions, chunkKey)) as TransactionChunk | null;
-  const record = chunk?.transactions.find((entry) => entry.id === ids.transactionId);
+  // FIN-06c (#1166) Task 9: locate the record via the chunk read, but write
+  // it back through store.putTransaction — the store re-derives the same
+  // (accountId, month) chunk from the record itself, so there's no chunk to
+  // hand back and re-set anymore.
+  const chunk = await store.getTransactionChunk(ids.accountId, ids.month);
+  const record = chunk?.find((entry) => entry.id === ids.transactionId);
   if (!chunk || !record) {
     // Names the condition only — ids from a queue payload are still inputs.
     throw new InputError("not_found", "no transaction matches the given ids");
   }
   record.categoryId = ids.categoryId;
   record.categorizedBy = "user";
-  return { chunkKey, chunk, record };
+  return { record };
 }
 
 export const transactionCategorizeHandler: ToolFactory = (ports) => async (input) => {
@@ -161,9 +168,10 @@ export const transactionCategorizeHandler: ToolFactory = (ports) => async (input
   const notes = readString(input, "notes", { maxBytes: 2000 });
   const createRule = readBool(input, "createRule") ?? false;
 
-  const { chunkKey, chunk, record } = await applyCategory(ports, ids);
+  const store = await ports.store();
+  const { record } = await applyCategory(ports, store, ids);
   if (notes !== undefined) record.notes = notes;
-  await ports.kv.set(NS.transactions, chunkKey, chunk);
+  await store.putTransaction(record);
 
   let rule: Rule | undefined;
   if (createRule) {
@@ -197,7 +205,8 @@ export const categorizeApplyHandler: ToolFactory = (ports) => async (input) => {
   // The manifest paramsSchema rejects extra keys host-side; ignoring the rest
   // here is defense in depth.
   const ids = readApplyIds(params as Record<string, unknown>);
-  const { chunkKey, chunk, record } = await applyCategory(ports, ids);
-  await ports.kv.set(NS.transactions, chunkKey, chunk);
+  const store = await ports.store();
+  const { record } = await applyCategory(ports, store, ids);
+  await store.putTransaction(record);
   return { status: "ok", transaction: record };
 };
