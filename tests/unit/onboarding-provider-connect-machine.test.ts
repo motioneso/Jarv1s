@@ -165,6 +165,25 @@ describe("interpretLoginResponse", () => {
     expect(next).toEqual({ kind: "awaiting_token", loginId: "L1", authorizationUrl: "https://x" });
   });
 
+  it("Codex device auth displays its code and polls for completion", () => {
+    const next = interpretLoginResponse(
+      {
+        ...base,
+        providerKind: "openai-compatible",
+        status: "awaiting_authorization",
+        authorizationUrl: "https://auth.openai.com/codex/device",
+        userCode: "ABCD-EFGHI"
+      },
+      "begin"
+    );
+    expect(next).toEqual({
+      kind: "awaiting_authorization",
+      loginId: "L1",
+      authorizationUrl: "https://auth.openai.com/codex/device",
+      userCode: "ABCD-EFGHI"
+    });
+  });
+
   it("begin with NO url ⇒ no_url (codex headless)", () => {
     const next = interpretLoginResponse({ ...base, status: "awaiting_token" }, "begin");
     expect(next).toEqual({ kind: "no_url", loginId: "L1" });

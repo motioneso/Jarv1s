@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 
 import type { CardModel } from "../../apps/web/src/onboarding/provider-connect-machine.js";
-import { ProviderCard } from "../../apps/web/src/onboarding/cli-auth-step.js";
+import { copyText, ProviderCard } from "../../apps/web/src/onboarding/cli-auth-step.js";
 
 // This repo ships no DOM test environment — exercise the REAL presentational <ProviderCard/> by
 // rendering each derived CardModel to an HTML string (mirrors onboarding-multiplexer-step.test.tsx).
@@ -29,6 +29,37 @@ const baseModel = (over: Partial<CardModel>): CardModel => ({
   ...over
 });
 
+afterEach(() => vi.unstubAllGlobals());
+
+describe("copyText", () => {
+  it("falls back to execCommand when the Clipboard API rejects on a LAN origin", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("Clipboard is unavailable"));
+    const textarea = {
+      value: "",
+      setAttribute: vi.fn(),
+      style: {} as CSSStyleDeclaration,
+      select: vi.fn(),
+      remove: vi.fn()
+    };
+    const appendChild = vi.fn();
+    const execCommand = vi.fn().mockReturnValue(true);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    vi.stubGlobal("document", {
+      createElement: vi.fn().mockReturnValue(textarea),
+      body: { appendChild },
+      execCommand
+    });
+
+    await copyText("ABCD-EFGHI");
+
+    expect(writeText).toHaveBeenCalledWith("ABCD-EFGHI");
+    expect(textarea.value).toBe("ABCD-EFGHI");
+    expect(textarea.select).toHaveBeenCalledOnce();
+    expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(textarea.remove).toHaveBeenCalledOnce();
+  });
+});
+
 describe("ProviderCard (rendered)", () => {
   it("not_installed shows a Connect affordance", () => {
     expect(render(baseModel({ status: "not_installed" })).toLowerCase()).toContain("connect");
@@ -52,6 +83,21 @@ describe("ProviderCard (rendered)", () => {
     expect(html).toContain('class="onb-auth__paste"');
     expect(html).toContain('class="onb-auth__code"');
     expect(html.toLowerCase()).toContain("paste");
+  });
+
+  it("logging_in device auth shows the supplied code without a paste-code field", () => {
+    const html = render(
+      baseModel({
+        status: "logging_in",
+        awaitingToken: false,
+        authorizationUrl: "https://auth.openai.com/codex/device",
+        userCode: "ABCD-EFGHI"
+      }),
+      "Codex"
+    );
+    expect(html).toContain("https://auth.openai.com/codex/device");
+    expect(html).toContain("ABCD-EFGHI");
+    expect(html).not.toContain('class="onb-auth__paste"');
   });
 
   it("no_login (codex headless) shows the degraded, non-blocking message", () => {
