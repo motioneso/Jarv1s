@@ -266,7 +266,8 @@ describe("finance job reconciliation (#1146)", () => {
     await reconciler.reconcileAll();
 
     // Manifest order, create-then-converge per queue (no dead-letter targets
-    // declared in FIN-01, so no reordering).
+    // declared in FIN-01, so no reordering). storage-migrate (FIN-06b, #1166)
+    // is the manifest's last-declared queue, hence last here too.
     expect(calls).toEqual([
       "create:finance.sync-run",
       'update:finance.sync-run:{"retryLimit":3}',
@@ -277,7 +278,9 @@ describe("finance job reconciliation (#1146)", () => {
       "create:finance.budget-apply",
       'update:finance.budget-apply:{"retryLimit":1}',
       "create:finance.share-apply",
-      'update:finance.share-apply:{"retryLimit":1}'
+      'update:finance.share-apply:{"retryLimit":1}',
+      "create:finance.storage-migrate",
+      'update:finance.storage-migrate:{"retryLimit":1}'
     ]);
     // One schedule per active user; payload is metadata-only (D6) and the
     // key is the reconciler's module/schedule/user triple ("/"-separated —
