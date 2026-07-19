@@ -247,3 +247,66 @@ describe("InstanceModulesPane external-modules trust warning (#1187 decision 5)"
     expect(html).toContain("External modules are not reviewed by Jarvis");
   });
 });
+
+// #1187 decisions 1/2: built-in optional modules and downloadable registry modules render as
+// ONE actionable inventory ("Module library"), not a separate "Optional modules" +
+// "Available modules" section pair.
+describe("InstanceModulesPane module library merge (#1187 decisions 1/2)", () => {
+  function seedMergeClient(): QueryClient {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.settings.adminModules, {
+      modules: [
+        {
+          id: "builtin-a",
+          name: "Builtin A",
+          required: false,
+          instanceDisabled: false
+        }
+      ]
+    } satisfies ListModulesResponse);
+    client.setQueryData(queryKeys.settings.adminModuleRegistry, {
+      enabled: true,
+      registryUnavailable: false,
+      modules: [
+        {
+          id: "registry-a",
+          name: "Registry A",
+          description: null,
+          state: "not-installed",
+          installedVersion: null,
+          latestVersion: "1.0.0",
+          stagedVersion: null,
+          requiresCore: null,
+          capabilities: null,
+          lastInstallError: null,
+          purgePending: false
+        }
+      ]
+    } satisfies GetModuleRegistryResponse);
+    return client;
+  }
+
+  it("renders one merged 'Module library' group, not separate 'Optional modules'/'Available modules' sections", () => {
+    const html = renderWithQuery(seedMergeClient());
+    expect(html).toContain("Module library");
+    expect(html).not.toContain("Optional modules");
+    expect(html).not.toContain("Available modules");
+    expect(html).not.toContain('aria-label="Module registry"');
+  });
+
+  it("places a registry row inside the merged Module library group, after the built-in row", () => {
+    const html = renderWithQuery(seedMergeClient());
+    const groupIndex = html.indexOf("Module library");
+    const builtinIndex = html.indexOf("Builtin A");
+    const registryIndex = html.indexOf("Registry A");
+    expect(groupIndex).toBeGreaterThan(-1);
+    expect(builtinIndex).toBeGreaterThan(groupIndex);
+    expect(registryIndex).toBeGreaterThan(builtinIndex);
+  });
+
+  it("uses decision-2 wording 'Download and install' instead of 'Install'", () => {
+    const html = renderWithQuery(seedMergeClient());
+    expect(html).toContain("Download and install");
+    expect(html).not.toContain(">Install<");
+  });
+});

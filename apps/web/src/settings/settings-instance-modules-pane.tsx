@@ -100,7 +100,14 @@ export function InstanceModulesPane() {
         title="Instance modules"
         desc="Turn optional modules on or off for everyone. Core modules are always on and aren't listed."
       />
-      <Group title="Optional modules">
+      {/* #1187 decisions 1/2: built-in optional modules and registry-downloadable modules are
+          ONE actionable inventory — a single "Module library" group, built-ins first, then
+          registry rows. No new list/card abstraction: reuses the existing Group/Row/Switch
+          primitives and ModuleRegistrySection's own row rendering. */}
+      <Group
+        title="Module library"
+        desc="Turn built-in modules on or off, or download and install more from the registry."
+      >
         {modules.length ? (
           modules.map((module) => (
             <Row
@@ -118,10 +125,17 @@ export function InstanceModulesPane() {
           ))
         ) : (
           <Row
-            name={modulesQuery.isLoading ? "Loading modules…" : "No optional modules"}
-            desc={modulesQuery.isLoading ? undefined : "Every module on this instance is core."}
+            name={modulesQuery.isLoading ? "Loading modules…" : "No built-in optional modules"}
+            desc={
+              modulesQuery.isLoading ? undefined : "Every built-in module on this instance is core."
+            }
           />
         )}
+        <ModuleRegistrySection
+          externalModules={external?.modules}
+          onSetEnabled={(id, enabled) => setExternalEnabled.mutate({ id, enabled })}
+          settingEnabledPending={setExternalEnabled.isPending}
+        />
       </Group>
       <Note>
         Disabling a module hides it for everyone and stops it collecting new data. Existing data is
@@ -179,11 +193,6 @@ export function InstanceModulesPane() {
           </Group>
         );
       })()}
-      <ModuleRegistrySection
-        externalModules={external?.modules}
-        onSetEnabled={(id, enabled) => setExternalEnabled.mutate({ id, enabled })}
-        settingEnabledPending={setExternalEnabled.isPending}
-      />
     </>
   );
 }
