@@ -133,6 +133,7 @@ function stateMachineMux(opts: {
   readonly onEnter?: () => void;
 }): Multiplexer & {
   readonly clearComposer: ReturnType<typeof vi.fn>;
+  readonly clearComposerHard: ReturnType<typeof vi.fn>;
   readonly capturePane: ReturnType<typeof vi.fn>;
   readonly paste: ReturnType<typeof vi.fn>;
   readonly pressEnter: ReturnType<typeof vi.fn>;
@@ -146,6 +147,7 @@ function stateMachineMux(opts: {
     kind: "tmux",
     open: vi.fn().mockResolvedValue("pane-1"),
     clearComposer: vi.fn().mockResolvedValue(undefined),
+    clearComposerHard: vi.fn().mockResolvedValue(undefined),
     capturePane,
     paste,
     pressEnter,
@@ -599,6 +601,7 @@ describe("CliChatEngineImpl — failure-path token redaction", () => {
       open: vi.fn().mockRejectedValue(new Error(message)),
       submit: vi.fn(),
       clearComposer: vi.fn(),
+      clearComposerHard: vi.fn(),
       capturePane: vi.fn().mockResolvedValue(""),
       paste: vi.fn(),
       pressEnter: vi.fn(),

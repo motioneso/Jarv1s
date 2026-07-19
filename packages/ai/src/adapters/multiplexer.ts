@@ -31,6 +31,16 @@ export interface Multiplexer {
   open(opts: MuxOpenOpts): Promise<MuxHandle>;
   /** Clear the current composer without submitting it. */
   clearComposer(handle: MuxHandle): Promise<void>;
+  /**
+   * Forcefully clear a MULTILINE composer. #1170: `clearComposer` sends C-u, which a live
+   * claude 2.1.215 probe showed clears only the CURRENT line — earlier lines of a multiline
+   * paste survive, so the composer can never be emptied and every subsequent turn fails its
+   * pre-paste emptiness gate. The same probe showed a single Ctrl+C wipes the whole composer
+   * without exiting the CLI. Callers must only invoke this when the composer is known to be
+   * non-empty: on an EMPTY composer Ctrl+C arms the CLI's "press again to exit" state, and a
+   * rapid second Ctrl+C would terminate the session.
+   */
+  clearComposerHard(handle: MuxHandle): Promise<void>;
   /** Capture the currently visible pane for positive readiness/ECHO observations. */
   capturePane(handle: MuxHandle): Promise<string>;
   /** Paste `text` without pressing Enter. */

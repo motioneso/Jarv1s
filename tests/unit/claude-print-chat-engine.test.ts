@@ -35,6 +35,7 @@ function fakeMux(): Multiplexer & { opened: string[]; killed: MuxHandle[] } {
       throw new Error("ClaudePrintChatEngine should open per-turn commands, not paste into a REPL");
     },
     async clearComposer() {},
+    async clearComposerHard() {},
     async capturePane() {
       return "";
     },
