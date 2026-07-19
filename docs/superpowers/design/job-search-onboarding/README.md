@@ -137,7 +137,7 @@ In production, `profile` maps to the real search-profile + monitor config the mo
 - `index.html` — the onboarding shell (design reference): app frame (NavRail + topbar + content) hosting `<JobsOnboarding/>`, plus the `.ob2*` layout CSS and `obtype` keyframes. Reference for how it embeds in the app content area.
 - `JobsOnboarding.jsx.txt` — the full conversation component: atoms (Strata, Avatar, Row, Bubble, Typing), controls (Control, MultiControl, SourcesControl, ChipToggle, AddInput), ProfileAside, the phase state machine (`handle`), CritiqueCard, Summary, composer. **This is the primary reference.**
 - `kit.jsx.txt` — shared Job Search presentational helpers (Eyebrow, Strap, SectionHead, FitBadge, Meta, Confidence, monoLabel) used across onboarding + module.
-- `icon.js` — the `Ic` lucide helper used by the prototypes (map to `lucide-react` in production).
+- `icon.js.txt` — the `Ic` lucide helper used by the prototypes (map to `lucide-react` in production).
 - **Module (destination) for reference:** `module/index.html` + `JobsMatches.jsx.txt`, `JobsOverview.jsx.txt`, `JobsProfile.jsx.txt`, `JobsMonitors.jsx.txt` — the steady-state Job Search tabs the onboarding leads into. Same kit and tokens.
 - Design-system primitives referenced (`Button`, `Badge`, `Switch`, `NavRail`, etc.) live in the Park Press design system — use the real components in the app.
 
