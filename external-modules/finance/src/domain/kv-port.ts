@@ -22,7 +22,8 @@ export interface FinanceKv {
 // The eight namespaces declared by jarvis.module.json — the manifest is
 // authoritative. `settings` also carries instance scope in the manifest;
 // this port only ever sees its user scope. `budgets` (FIN-03, #1148) holds
-// `ledger:{month}` assignment ledgers and throwaway `state:{month}` caches.
+// `ledger:{month}` assignment ledgers (KV mode only — post-migration the
+// store reads the module tables).
 export const NS = {
   connections: "finance.connections",
   accounts: "finance.accounts",
