@@ -41,6 +41,7 @@ Tracking: [#1183](https://github.com/motioneso/Jarv1s/issues/1183)
 - Reading page/context information must not produce a tool approval prompt.
 - Approval UI is for actions that create, modify, or otherwise have side effects.
 - Mutating approvals need a durable option equivalent to **Yes, and don't ask again for this tool/command** rather than forcing the same approval repeatedly.
+- Security grounding corrected the original diagnosis: MCP page-context reads already avoid prompts; the repro is on the native Claude-Code tool path. An unapproved spec on `spec/1183-tool-approvals` separates effect from permitted read scope, keeps deny-by-default containment, and recommends excluding durable Bash grants from v1.
 
 ### Sports standings and follows
 
