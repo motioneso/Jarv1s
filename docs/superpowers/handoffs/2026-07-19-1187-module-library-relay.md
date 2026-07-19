@@ -41,6 +41,13 @@ report) still applies, just stop before push/PR.
 6. Send the Coordinator a compact verification report (files touched, gate exit codes, spec
    acceptance-box status) per the wrap-up override above. Do not push/PR/merge/touch board.
 
+## Coordinator correction (received after plan was written, 2026-07-19)
+
+**APPROVED — no design fork.** One placement fix: define `libraryAction` in
+`settings-module-registry-section.tsx`, not in `settings-instance-modules-pane.tsx` — the pane
+already imports the section, so putting it in the pane would create a circular import. Already
+applied to the plan file (task 1). Everything else in the plan stands as pre-approved.
+
 ## Key design judgment already made (flag if reconsidering)
 
 Decision-4 capability translation: no hardcoded permission-id→phrase table (vocabulary is
