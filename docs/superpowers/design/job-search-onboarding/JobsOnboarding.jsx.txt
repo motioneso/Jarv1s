@@ -1,0 +1,426 @@
+/* Job Search — first-run onboarding, led by Jarvis in conversation.
+   Renders inside the app content area. Jarvis starts with the resume, then
+   narrows the search through a few quick questions. Exposes window.JobsOnboarding. */
+(function () {
+  const DS = window.JarvisParkPressDesignSystem_0501fa;
+  const { Button, Badge, Switch } = DS;
+  const { monoLabel, Eyebrow, Strap, Meta } = window.JobKit;
+  const Ic = window.Ic;
+
+  /* ---------- atoms ---------- */
+
+  function Strata({ s = 15 }) {
+    return (
+      <svg viewBox="0 0 24 24" width={s} height={s} fill="none" aria-hidden="true">
+        <rect x="4" y="5.5" width="13" height="3" rx="1.5" fill="currentColor" />
+        <rect x="4" y="10.5" width="16" height="3" rx="1.5" fill="var(--gold)" />
+        <rect x="4" y="15.5" width="9" height="3" rx="1.5" fill="currentColor" />
+      </svg>
+    );
+  }
+
+  function Avatar() {
+    return <span style={{ width: 34, height: 34, borderRadius: 999, background: "var(--gold)", color: "var(--ink)", display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none" }}><Strata s={16} /></span>;
+  }
+
+  function Row({ children, from }) {
+    const jarvis = from === "jarvis";
+    return (
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", justifyContent: jarvis ? "flex-start" : "flex-end" }}>
+        {jarvis ? <Avatar /> : null}
+        <div style={{ maxWidth: "82%", minWidth: 0 }}>{children}</div>
+      </div>
+    );
+  }
+
+  function Bubble({ from, children }) {
+    const jarvis = from === "jarvis";
+    return (
+      <div style={{
+        fontSize: 14.5, lineHeight: 1.55, textWrap: "pretty",
+        padding: "12px 16px", borderRadius: jarvis ? "4px 12px 12px 12px" : "12px 4px 12px 12px",
+        background: jarvis ? "var(--surface)" : "var(--accent)", color: jarvis ? "var(--ink)" : "var(--accent-ink)",
+        border: jarvis ? "1px solid var(--line)" : "1px solid transparent"
+      }}>{children}</div>
+    );
+  }
+
+  function Typing() {
+    return (
+      <Row from="jarvis">
+        <div style={{ display: "inline-flex", gap: 5, padding: "15px 16px", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "4px 12px 12px 12px" }}>
+          {[0, 1, 2].map((i) => <span key={i} style={{ width: 6, height: 6, borderRadius: 999, background: "var(--ink-3)", animation: `obtype 1.1s ${i * 0.15}s ease-in-out infinite` }} />)}
+        </div>
+      </Row>
+    );
+  }
+
+  /* ---------- inline controls (the current question) ---------- */
+
+  function ChipToggle({ on, inferred, onClick, children }) {
+    return (
+      <button type="button" onClick={onClick} style={{
+        all: "unset", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13.5, fontWeight: 500,
+        padding: "8px 14px", borderRadius: 999, transition: "background 120ms, border-color 120ms, color 120ms",
+        color: on ? "var(--accent-ink)" : inferred ? "var(--gold-hover)" : "var(--ink)",
+        background: on ? "var(--accent)" : "var(--surface)",
+        border: on ? "1px solid var(--accent)" : inferred ? "1px dashed color-mix(in srgb, var(--gold) 55%, transparent)" : "1px solid var(--line-strong)"
+      }}>
+        {on ? <Ic n="Check" s={13} /> : null}{children}
+        {inferred && !on ? <span style={{ ...monoLabel, fontSize: 8, color: "var(--gold-hover)" }}>inferred</span> : null}
+      </button>
+    );
+  }
+
+  function AddInput({ onAdd, placeholder }) {
+    const [v, setV] = React.useState("");
+    const add = () => { const t = v.trim(); if (t) onAdd(t); setV(""); };
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <input value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} placeholder={placeholder} style={{
+          fontFamily: "var(--font-text)", fontSize: 13, color: "var(--ink)", background: "var(--surface-sunken)",
+          border: "1px dashed var(--line-strong)", borderRadius: 999, padding: "8px 14px", outline: "none", width: 140
+        }} />
+        <button type="button" onClick={add} title="Add" style={{ all: "unset", cursor: "pointer", width: 30, height: 30, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--oat-lo)", color: "var(--ink-2)" }}><Ic n="Plus" s={15} /></button>
+      </span>
+    );
+  }
+
+  function Control({ ctrl, onSubmit }) {
+    const wrap = { display: "flex", flexWrap: "wrap", gap: 9, alignItems: "center" };
+
+    if (ctrl.kind === "resume") {
+      return (
+        <button type="button" onClick={onSubmit} style={{
+          all: "unset", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10,
+          width: "100%", boxSizing: "border-box", padding: "30px 24px", textAlign: "center",
+          border: "1px dashed var(--line-strong)", borderRadius: 10, background: "var(--surface)"
+        }}>
+          <span style={{ width: 46, height: 46, borderRadius: 8, background: "var(--oat-lo)", color: "var(--ink-2)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Ic n="Upload" s={22} /></span>
+          <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 16, color: "var(--ink)" }}>Drop your resume, or browse</span>
+          <span style={{ ...monoLabel, fontSize: 9 }}>PDF · DOCX · up to 5 MB</span>
+        </button>
+      );
+    }
+
+    if (ctrl.kind === "confirm") {
+      return (
+        <div style={wrap}>
+          <Button variant="primary" size="sm" iconLeft={<Ic n="Check" s={14} />} onClick={() => onSubmit(ctrl.yes)}>{ctrl.yesLabel}</Button>
+          {ctrl.noLabel ? <Button variant="quiet" size="sm" iconLeft={<Ic n="MessageSquare" s={14} />} onClick={() => onSubmit(ctrl.no)}>{ctrl.noLabel}</Button> : null}
+        </div>
+      );
+    }
+
+    if (ctrl.kind === "single") {
+      return (
+        <div style={wrap}>
+          {ctrl.options.map((o) => <ChipToggle key={o} on={false} onClick={() => onSubmit(o)}>{o}</ChipToggle>)}
+          {ctrl.custom ? <AddInput onAdd={onSubmit} placeholder={ctrl.custom} /> : null}
+        </div>
+      );
+    }
+
+    if (ctrl.kind === "multi") return <MultiControl ctrl={ctrl} onSubmit={onSubmit} />;
+    if (ctrl.kind === "sources") return <SourcesControl ctrl={ctrl} onSubmit={onSubmit} />;
+    return null;
+  }
+
+  function MultiControl({ ctrl, onSubmit }) {
+    const [sel, setSel] = React.useState(() => ctrl.seed.filter((o) => o.on).map((o) => o.v));
+    const [extra, setExtra] = React.useState([]);
+    const all = [...ctrl.seed, ...extra.map((v) => ({ v }))];
+    const toggle = (v) => setSel((s) => s.includes(v) ? s.filter((x) => x !== v) : [...s, v]);
+    return (
+      <div style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 9, alignItems: "center" }}>
+          {all.map((o) => <ChipToggle key={o.v} on={sel.includes(o.v)} inferred={o.inferred} onClick={() => toggle(o.v)}>{o.v}</ChipToggle>)}
+          {ctrl.add ? <AddInput onAdd={(v) => { setExtra((e) => [...e, v]); setSel((s) => [...s, v]); }} placeholder={ctrl.add} /> : null}
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <Button variant="primary" size="sm" iconRight={<Ic n="ArrowRight" s={14} />} disabled={ctrl.min && sel.length < ctrl.min} onClick={() => onSubmit(sel)}>{ctrl.cta}</Button>
+          {ctrl.skip ? <Button variant="quiet" size="sm" onClick={() => onSubmit([])}>{ctrl.skip}</Button> : null}
+        </div>
+      </div>
+    );
+  }
+
+  function SourcesControl({ ctrl, onSubmit }) {
+    const [boards, setBoards] = React.useState(ctrl.boards);
+    const [run, setRun] = React.useState(ctrl.runTime);
+    const enabled = Object.values(boards).filter(Boolean).length;
+    return (
+      <div style={{ display: "grid", gap: 14 }}>
+        <div style={{ display: "grid", gap: 8 }}>
+          {ctrl.list.map((b) => {
+            const on = !!boards[b.id];
+            return (
+              <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: "11px 14px" }}>
+                <span style={{ width: 32, height: 32, borderRadius: 6, background: "var(--oat-lo)", color: "var(--ink)", display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none" }}><Ic n="Rss" s={16} /></span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: on ? "var(--ink)" : "var(--ink-3)" }}>{b.name}</div>
+                  <div style={{ fontSize: 12.5, color: "var(--ink-2)" }}>{b.query}</div>
+                </div>
+                <Switch checked={on} onChange={() => setBoards((s) => ({ ...s, [b.id]: !s[b.id] }))} />
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ ...monoLabel, fontSize: 9.5, marginRight: 2 }}>Daily run</span>
+          {ctrl.times.map((t) => (
+            <button key={t} type="button" onClick={() => setRun(t)} style={{
+              all: "unset", cursor: "pointer", fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 500, letterSpacing: "0.06em",
+              padding: "7px 12px", borderRadius: 4, color: run === t ? "var(--accent-ink)" : "var(--ink-2)",
+              background: run === t ? "var(--accent)" : "var(--surface)", border: `1px solid ${run === t ? "var(--accent)" : "var(--line-strong)"}`
+            }}>{t}</button>
+          ))}
+        </div>
+        <div>
+          <Button variant="primary" size="sm" iconRight={<Ic n="ArrowRight" s={14} />} disabled={enabled === 0} onClick={() => onSubmit({ boards, run, enabled })}>Watch these {enabled} boards</Button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------- profile aside ---------- */
+
+  function ProfileAside({ p }) {
+    const rows = [
+      ["Resume", p.resume, "FileText"],
+      ["Titles", p.titles, "Target"],
+      ["Comp floor", p.comp, "DollarSign"],
+      ["Work mode", p.workMode, "Globe"],
+      ["Locations", p.locations, "MapPin"],
+      ["Dealbreakers", p.dealbreakers, "Ban"],
+      ["Sources", p.sources, "Rss"],
+      ["Daily run", p.runTime, "Clock"]
+    ];
+    const set = rows.filter((r) => r[1]).length;
+    return (
+      <aside style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: "20px 20px 22px", position: "sticky", top: 0, alignSelf: "start" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
+          <span style={{ ...monoLabel, fontSize: 10 }}>Building your profile</span>
+          <span style={{ ...monoLabel, fontSize: 9.5, color: "var(--gold-hover)" }}>{set}/8</span>
+        </div>
+        <Strap w={26} style={{ marginBottom: 16 }} />
+        <div style={{ display: "grid", gap: 2 }}>
+          {rows.map(([k, v, icon]) => (
+            <div key={k} style={{ display: "flex", gap: 11, alignItems: "flex-start", padding: "9px 0", borderBottom: "1px solid var(--line)" }}>
+              <span style={{ width: 22, height: 22, borderRadius: 999, flex: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", background: v ? "var(--accent)" : "var(--oat-lo)", color: v ? "var(--accent-ink)" : "var(--ink-3)" }}>
+                {v ? <Ic n="Check" s={12} /> : <Ic n={icon} s={12} />}
+              </span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ ...monoLabel, fontSize: 8.5, marginBottom: v ? 3 : 0 }}>{k}</div>
+                {v ? <div style={{ fontSize: 13, color: "var(--ink)", fontWeight: 500, textWrap: "pretty" }}>{v}</div> : <div style={{ fontSize: 12.5, color: "var(--ink-3)" }}>Not yet</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </aside>
+    );
+  }
+
+  /* ---------- the flow ---------- */
+
+  const BOARD_LIST = [
+    { id: "greenhouse", name: "Greenhouse", query: "Product Design · Remote US" },
+    { id: "lever", name: "Lever", query: "Design Engineer · Remote" },
+    { id: "ashby", name: "Ashby", query: "Staff / Principal Designer" },
+    { id: "workday", name: "Workday", query: "Enterprise design roles" }
+  ];
+
+  function JobsOnboarding() {
+    const [log, setLog] = React.useState([]);
+    const [typing, setTyping] = React.useState(false);
+    const [ctrl, setCtrl] = React.useState(null);
+    const [phase, setPhase] = React.useState("boot");
+    const [done, setDone] = React.useState(false);
+    const [profile, setProfile] = React.useState({ resume: "", titles: "", comp: "", workMode: "", locations: "", dealbreakers: "", sources: "", runTime: "" });
+    const idRef = React.useRef(0);
+    const scrollRef = React.useRef(null);
+    const nid = () => ++idRef.current;
+
+    const patchP = (p) => setProfile((s) => ({ ...s, ...p }));
+    const pushUser = (text) => setLog((l) => [...l, { id: nid(), role: "user", node: <Bubble from="user">{text}</Bubble> }]);
+    const pushJ = (node) => setLog((l) => [...l, { id: nid(), role: "jarvis", node }]);
+
+    // say a sequence of jarvis nodes with a typing pause, then reveal a control
+    const say = React.useCallback((nodes, nextCtrl, delay = 620) => {
+      setCtrl(null); setTyping(true);
+      setTimeout(() => {
+        setTyping(false);
+        setLog((l) => [...l, ...nodes.map((n) => ({ id: nid(), role: "jarvis", node: <Bubble from="jarvis">{n}</Bubble> }))]);
+        if (nextCtrl) setCtrl(nextCtrl); else setCtrl(null);
+      }, delay);
+    }, []);
+
+    React.useEffect(() => {
+      if (phase !== "boot") return;
+      setPhase("resume");
+      say([
+        <>I'll get your job search set up — should take a couple of minutes, and you can change any of it later just by asking.</>,
+        <>Let's start with your resume. Drop it in and I'll read it: I'll pull out the strengths I can actually stand behind and store an approved copy to score matches against. I never apply on your behalf.</>
+      ], { kind: "resume" }, 400);
+    }, [phase, say]);
+
+    React.useEffect(() => { const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; }, [log, typing, ctrl]);
+
+    /* per-step handlers */
+    function handle(value) {
+      if (phase === "resume") {
+        pushUser("📄 ben-ledger-resume.pdf");
+        setCtrl(null); setTyping(true);
+        setTimeout(() => {
+          setTyping(false);
+          patchP({ resume: "Draft — 18/21 claims verifiable" });
+          pushJ(<CritiqueCard />);
+          setCtrl({ kind: "confirm", yesLabel: "Looks right — use it", yes: "yes", noLabel: "Let's refine it", no: "no" });
+          setPhase("resume-confirm");
+        }, 1150);
+        return;
+      }
+      if (phase === "resume-confirm") {
+        if (value === "no") { pushUser("Let's refine it"); say([<>We can do that any time in chat — for now I'll keep this as your working copy so we can keep moving.</>], null, 500); }
+        else pushUser("Looks right — use it");
+        patchP({ resume: "Approved · rev 7c22a1" });
+        setPhase("titles");
+        say([<>Good. From your resume, here are the titles I'd track. Keep the ones that fit, drop what doesn't, add anything I missed.</>],
+          { kind: "multi", seed: [{ v: "Staff Product Designer", on: true }, { v: "Principal Designer", on: true }, { v: "Design Engineer", inferred: true }], add: "Add a title", min: 1, cta: "Track these titles" });
+        return;
+      }
+      if (phase === "titles") {
+        pushUser(value.join(" · "));
+        patchP({ titles: value.join(", ") });
+        setPhase("comp");
+        say([<>What's your base comp floor? Below this I won't waste your time surfacing anything.</>],
+          { kind: "single", options: ["$175k", "$195k", "$215k"], custom: "Enter an amount" });
+        return;
+      }
+      if (phase === "comp") {
+        const v = value.startsWith("$") ? value : "$" + value;
+        pushUser(v + " base");
+        patchP({ comp: v + " base" });
+        setPhase("workmode");
+        say([<>And how do you want to work?</>], { kind: "single", options: ["Remote-first", "Hybrid ok", "On-site ok"] });
+        return;
+      }
+      if (phase === "workmode") {
+        pushUser(value);
+        patchP({ workMode: value });
+        setPhase("locations");
+        say([<>Where should I look? Add any regions or cities — I'll take remote as global unless you tell me otherwise.</>],
+          { kind: "multi", seed: [{ v: "Remote — US", on: true }, { v: "San Francisco, CA" }], add: "Add a location", min: 1, cta: "Search these" });
+        return;
+      }
+      if (phase === "locations") {
+        pushUser(value.join(" · "));
+        patchP({ locations: value.join(", ") });
+        setPhase("dealbreakers");
+        say([<>Last thing about the role itself — anything that's an automatic no? A match that trips any of these gets filtered out before it reaches you.</>],
+          { kind: "multi", seed: [{ v: "On-site 5 days/week", on: true }, { v: "Below comp floor", on: true }, { v: "No equity" }], add: "Add a dealbreaker", cta: "Set dealbreakers", skip: "None of these" });
+        return;
+      }
+      if (phase === "dealbreakers") {
+        pushUser(value.length ? value.join(" · ") : "No dealbreakers");
+        patchP({ dealbreakers: value.length ? value.join(", ") : "None" });
+        setPhase("sources");
+        say([<>Now the sources. I'll check these boards every morning — they're read-only public APIs, so I read postings and score them but never submit anything. Adjust the boards or the run time.</>],
+          { kind: "sources", list: BOARD_LIST, boards: { greenhouse: true, lever: true, ashby: true, workday: false }, times: ["6:00 AM", "7:00 AM", "8:00 AM"], runTime: "7:00 AM" });
+        return;
+      }
+      if (phase === "sources") {
+        const names = BOARD_LIST.filter((b) => value.boards[b.id]).map((b) => b.name);
+        pushUser(names.join(", ") + " · " + value.run);
+        patchP({ sources: names.join(", "), runTime: value.run + " daily" });
+        setPhase("done"); setDone(true);
+        say([
+          <>That's everything I need. Monitoring is on and your first run is queued for {value.run} — I'll scan, score against your profile, and bring the credible matches into your morning briefing.</>,
+          <>You can change any of this later just by telling me. Ready when you are.</>
+        ], { kind: "summary" }, 700);
+        return;
+      }
+    }
+
+    function CritiqueCard() {
+      return (
+        <div style={{ border: "1px dashed color-mix(in srgb, var(--gold) 55%, transparent)", borderRadius: 10, padding: "16px 18px", background: "color-mix(in srgb, var(--gold) 4%, var(--surface))" }}>
+          <div style={{ ...monoLabel, fontSize: 9.5, color: "var(--gold-hover)", marginBottom: 10 }}>Read your resume · draft</div>
+          <p style={{ fontSize: 14, lineHeight: 1.55, color: "var(--ink)", margin: "0 0 14px", textWrap: "pretty" }}>Strong systems narrative — the Park Press ownership story carries the whole thing. I led with it, tightened your summary, and cut two dated skills.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <div style={{ ...monoLabel, fontSize: 8.5, color: "var(--accent)", marginBottom: 7 }}>Strengths I'll cite</div>
+              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 6 }}>
+                {["8 yrs high-craft product design", "Built a design system end to end", "Prototypes in code"].map((t) => <li key={t} style={{ display: "flex", gap: 8, alignItems: "baseline", fontSize: 12.5, color: "var(--ink-2)" }}><span style={{ width: 4, height: 4, borderRadius: 999, background: "var(--accent)", flex: "none", transform: "translateY(-2px)" }} />{t}</li>)}
+              </ul>
+            </div>
+            <div>
+              <div style={{ ...monoLabel, fontSize: 8.5, color: "var(--gold-hover)", marginBottom: 7 }}>I'd source before citing</div>
+              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 6 }}>
+                {["“Grew activation 40%”", "“Led a team of 6”", "Two metrics from 2019"].map((t) => <li key={t} style={{ display: "flex", gap: 8, alignItems: "baseline", fontSize: 12.5, color: "var(--ink-2)" }}><span style={{ width: 4, height: 4, borderRadius: 999, background: "var(--amber)", flex: "none", transform: "translateY(-2px)" }} />{t}</li>)}
+              </ul>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function Summary() {
+      return (
+        <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: "18px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: "var(--accent)" }} />
+            <span style={{ ...monoLabel, fontSize: 10, color: "var(--accent)" }}>Monitoring on · first run {profile.runTime}</span>
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Button variant="primary" iconRight={<Ic n="ArrowRight" s={16} />} onClick={() => { window.location.href = "../job-search/index.html"; }}>Go to Job Search</Button>
+            <Button variant="quiet" iconLeft={<Ic n="RotateCcw" s={15} />} onClick={() => window.location.reload()}>Start over</Button>
+          </div>
+        </div>
+      );
+    }
+
+    // free-text composer: functional for text-taking steps, otherwise a gentle nudge
+    const [draft, setDraft] = React.useState("");
+    const textStep = phase === "comp";
+    function sendDraft() {
+      const t = draft.trim(); if (!t) return; setDraft("");
+      if (textStep) { handle(t); return; }
+      pushUser(t);
+      say([<>Tap the options above and we'll keep moving — or if none fit, just tell me and I'll note it.</>], ctrl, 500);
+    }
+
+    return (
+      <div className="ob2">
+        <div className="ob2-chat">
+          <div className="ob2-head">
+            <Eyebrow tone="gold">First-run setup</Eyebrow>
+            <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 30, letterSpacing: "-0.025em", textTransform: "uppercase", margin: "8px 0 0", color: "var(--ink)" }}>Let's set up your job search</h1>
+          </div>
+          <div className="ob2-log" ref={scrollRef}>
+            <div style={{ display: "grid", gap: 16, paddingBottom: 8 }}>
+              {log.map((m) => <Row key={m.id} from={m.role}>{m.node}</Row>)}
+              {typing ? <Typing /> : null}
+              {ctrl ? (
+                <Row from="jarvis">
+                  {ctrl.kind === "summary" ? <Summary /> : <Control ctrl={ctrl} onSubmit={handle} />}
+                </Row>
+              ) : null}
+            </div>
+          </div>
+          <div className="ob2-composer">
+            <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendDraft(); }}
+              placeholder={done ? "Ask Jarvis anything about your search…" : textStep ? "Type an amount, or tap a chip above…" : "Message Jarvis…"} style={{
+                flex: 1, fontFamily: "var(--font-text)", fontSize: 14, color: "var(--ink)", background: "var(--surface-sunken)",
+                border: "1px solid var(--line-strong)", borderRadius: 8, padding: "12px 15px", outline: "none"
+              }} />
+            <button type="button" onClick={sendDraft} title="Send" style={{ all: "unset", cursor: "pointer", width: 44, height: 44, borderRadius: 8, background: "var(--accent)", color: "var(--accent-ink)", display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none" }}><Ic n="ArrowUp" s={19} /></button>
+          </div>
+        </div>
+        <ProfileAside p={profile} />
+      </div>
+    );
+  }
+
+  window.JobsOnboarding = JobsOnboarding;
+})();

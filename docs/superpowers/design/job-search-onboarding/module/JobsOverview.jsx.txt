@@ -1,0 +1,121 @@
+/* Job Search — Overview: search readiness, onboarding checkpoints, monitor health. */
+(function () {
+  const DS = window.JarvisParkPressDesignSystem_0501fa;
+  const { Badge, Button } = DS;
+  const { monoLabel, Eyebrow, Strap, SectionHead, Meta } = window.JobKit;
+  const Ic = window.Ic;
+
+  const STEPS = [
+    { id: "profile", label: "Build your search profile", body: "Target titles, locations, comp floor, and dealbreakers.", status: "done" },
+    { id: "resume", label: "Add & critique your resume", body: "Jarvis reads it, flags gaps, and stores an approved revision.", status: "done" },
+    { id: "sources", label: "Choose sources & schedule", body: "Which boards to watch and when the daily run happens.", status: "done" },
+    { id: "review", label: "Review your first matches", body: "Confirm a save or pass so Jarvis learns your taste.", status: "current" }
+  ];
+
+  const GATES = [
+    { label: "Profile", ok: true, okLabel: "Approved", pending: "Pending" },
+    { label: "Resume", ok: true, okLabel: "Approved", pending: "Pending" },
+    { label: "Monitoring", ok: true, okLabel: "On", pending: "Off" }
+  ];
+
+  const STATUS = {
+    done: { tone: "accent", label: "Done", icon: "Check" },
+    current: { tone: "gold", label: "Now", icon: "ArrowRight" },
+    todo: { tone: "neutral", label: "To do", icon: "Circle" }
+  };
+
+  function StepRow({ s, last }) {
+    const st = STATUS[s.status];
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "34px 1fr auto", gap: 16, alignItems: "start", padding: "18px 0", borderTop: last ? "none" : undefined, borderBottom: "1px solid var(--line)" }}>
+        <span style={{
+          width: 30, height: 30, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", flex: "none",
+          background: s.status === "done" ? "var(--accent)" : s.status === "current" ? "color-mix(in srgb, var(--gold) 22%, transparent)" : "var(--oat-lo)",
+          color: s.status === "done" ? "var(--accent-ink)" : s.status === "current" ? "var(--gold-hover)" : "var(--ink-3)",
+          border: s.status === "current" ? "1px solid color-mix(in srgb, var(--gold) 55%, transparent)" : "none"
+        }}><Ic n={st.icon} s={15} /></span>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: s.status === "todo" ? "var(--ink-3)" : "var(--ink)", marginBottom: 3 }}>{s.label}</div>
+          <div style={{ fontSize: 13, color: "var(--ink-2)", textWrap: "pretty" }}>{s.body}</div>
+        </div>
+        <div style={{ paddingTop: 3 }}>
+          {s.status === "current"
+            ? <Badge tone="gold">Now</Badge>
+            : s.status === "done"
+            ? <span style={{ ...monoLabel, fontSize: 9, color: "var(--accent)" }}>Done</span>
+            : <span style={{ ...monoLabel, fontSize: 9 }}>To do</span>}
+        </div>
+      </div>
+    );
+  }
+
+  function JobsOverview({ onGoMatches }) {
+    const done = STEPS.filter((s) => s.status === "done").length;
+    return (
+      <div>
+        {/* HERO — readiness */}
+        <section style={{ display: "grid", gridTemplateColumns: "1.2fr 0.9fr", gap: 40, alignItems: "end", paddingBottom: 26 }}>
+          <div>
+            <Eyebrow tone="gold" style={{ marginBottom: 14 }}>Setup · {done} of {STEPS.length} complete</Eyebrow>
+            <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 62, letterSpacing: "-0.035em", lineHeight: 0.88, textTransform: "uppercase", margin: 0, color: "var(--ink)" }}>
+              Almost<br /><span style={{ color: "var(--accent)" }}>ready to go</span>
+            </h1>
+            <Strap style={{ marginTop: 18 }} />
+            <p style={{ fontFamily: "var(--font-text)", fontSize: 14.5, color: "var(--ink-2)", margin: "16px 0 0", maxWidth: "52ch", textWrap: "pretty" }}>
+              Your profile and resume are approved and monitoring is live. One thing left — review your first batch of matches so I can learn what you're drawn to.
+            </p>
+            <div style={{ marginTop: 22 }}>
+              <Button variant="primary" iconLeft={<Ic n="ArrowRight" s={16} />} onClick={onGoMatches}>Review new matches</Button>
+            </div>
+          </div>
+          <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: 22 }}>
+            <div style={{ ...monoLabel, marginBottom: 16 }}>Readiness gates</div>
+            <div style={{ display: "grid", gap: 14 }}>
+              {GATES.map((g) => (
+                <div key={g.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <span style={{ fontSize: 14, color: "var(--ink)", fontWeight: 500 }}>{g.label}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: 999, background: g.ok ? "var(--accent)" : "var(--ink-3)" }} />
+                    <span style={{ ...monoLabel, fontSize: 9.5, color: g.ok ? "var(--accent)" : "var(--ink-3)" }}>{g.ok ? g.okLabel : g.pending}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+        <div style={{ height: 3, background: "var(--ink)" }} />
+
+        {/* CHECKPOINTS */}
+        <div style={{ marginTop: 30, display: "grid", gridTemplateColumns: "1.35fr 1fr", gap: 34, alignItems: "start" }}>
+          <div>
+            <SectionHead>Setup checkpoints</SectionHead>
+            <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: "2px 20px" }}>
+              {STEPS.map((s, i) => <StepRow key={s.id} s={s} last={i === STEPS.length - 1} />)}
+            </div>
+          </div>
+
+          {/* MONITOR HEALTH */}
+          <div>
+            <SectionHead>Monitor health</SectionHead>
+            <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: 22, display: "grid", gap: 18 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px 12px" }}>
+                {[["Boards", "3"], ["Enabled", "3"], ["Next run", "7:00 AM"], ["Last success", "6:41 AM"]].map(([k, v]) => (
+                  <div key={k}>
+                    <div style={{ ...monoLabel, fontSize: 9, marginBottom: 5 }}>{k}</div>
+                    <div style={{ fontFamily: "var(--font-display)", fontWeight: 300, fontSize: 24, letterSpacing: "-0.01em", color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>{v}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 4 }}>
+                <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--accent)" }} />
+                <span style={{ fontSize: 13, color: "var(--ink-2)" }}>All monitors healthy. 142 postings reviewed today.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  window.JobsOverview = JobsOverview;
+})();
