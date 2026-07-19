@@ -51,3 +51,13 @@ export async function pollOnboardingProviderLogin(
     body: input
   });
 }
+
+/** Cancel an abandoned login so the runner's single-login slot is released. */
+export async function cancelOnboardingProviderLogin(
+  input: OnboardingProviderLoginPollRequest
+): Promise<void> {
+  await requestJson<unknown>("/api/onboarding/provider-login/cancel", {
+    method: "POST",
+    body: input
+  });
+}

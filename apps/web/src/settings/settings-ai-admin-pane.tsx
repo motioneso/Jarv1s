@@ -7,6 +7,7 @@ import {
   Plus,
   RefreshCw,
   GitCommitHorizontal,
+  LogIn,
   Terminal,
   Trash2,
   Unlink,
@@ -36,6 +37,11 @@ import { readError } from "./settings-types";
 import { Badge, Field, Group, Note, PaneHead, Row, Segmented, Select, Switch } from "./settings-ui";
 import { EditModelForm } from "./settings-ai-edit-model-form";
 import { TerminalModal } from "./terminal-modal";
+import {
+  ProviderLoginDialog,
+  supportsAutomatedProviderLogin,
+  type AutomatedLoginProvider
+} from "./settings-provider-login-dialog";
 import { ChatLockGroup } from "./settings-ai-chat-lock-group";
 import { YoloAdminGroup } from "./settings-yolo-admin-group";
 import { WebSearchKeyGroup } from "./settings-web-search-key-group";
@@ -154,6 +160,7 @@ function ProviderCard(props: {
   readonly editing: boolean;
   readonly onEdit: (id: string | null) => void;
   readonly onAuth: (id: string, method: AiAuthMethod) => void;
+  readonly onLogin: () => void;
   readonly onExecutionMode: (id: string, executionMode: AiProviderExecutionMode) => void;
   readonly onCredential: (id: string, input: { baseUrl: string; apiKey: string }) => void;
   readonly onModelOverride: (model: AiConfiguredModelDto, allowed: boolean) => void;
@@ -175,6 +182,7 @@ function ProviderCard(props: {
   // #1059 — a CLI-auth provider has no API key to credential-test; its Test action opens
   // a live owner-gated terminal onto the CLI instead of calling testMutation.
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const canAutomateLogin = supportsAutomatedProviderLogin(provider);
   const testMutation = useMutation({
     mutationFn: () => testAiProvider(provider.id),
     onSuccess: ({ result }) =>
@@ -223,6 +231,18 @@ function ProviderCard(props: {
           </div>
         </div>
         <div className="prov__acts">
+          {canAutomateLogin ? (
+            <button
+              type="button"
+              className="jds-btn jds-btn--quiet jds-btn--sm"
+              onClick={props.onLogin}
+            >
+              <span className="jds-btn__icon">
+                <LogIn size={14} />
+              </span>
+              Log in
+            </button>
+          ) : null}
           <button
             type="button"
             className="jds-btn jds-btn--quiet jds-btn--sm"
@@ -299,13 +319,9 @@ function ProviderCard(props: {
               <button
                 type="button"
                 className="jds-btn jds-btn--quiet jds-btn--sm"
-                onClick={() =>
-                  toast(`Re-authenticated with the ${provider.displayName} CLI`, {
-                    icon: <Terminal size={17} />
-                  })
-                }
+                onClick={() => (canAutomateLogin ? props.onLogin() : setTerminalOpen(true))}
               >
-                Re-authenticate
+                {canAutomateLogin ? "Re-authenticate" : "Use terminal to sign in"}
               </button>
             </div>
           ) : (
@@ -506,6 +522,7 @@ export function AiProvidersPane() {
   const { toast, confirm } = useFeedback();
   const [pick, setPick] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [loginProvider, setLoginProvider] = useState<AutomatedLoginProvider | null>(null);
   const providersQuery = useQuery({
     queryKey: queryKeys.ai.providers,
     queryFn: listAiProviders,
@@ -676,6 +693,9 @@ export function AiProvidersPane() {
                 onAuth={(id, method) =>
                   updateMutation.mutate({ id, patch: { authMethod: method } })
                 }
+                onLogin={() => {
+                  if (supportsAutomatedProviderLogin(provider)) setLoginProvider(provider);
+                }}
                 onExecutionMode={(id, executionMode) =>
                   updateMutation.mutate({ id, patch: { executionMode } })
                 }
@@ -738,6 +758,20 @@ export function AiProvidersPane() {
           </div>
         ) : null}
       </Group>
+
+      {loginProvider ? (
+        <ProviderLoginDialog
+          provider={loginProvider}
+          onClose={() => setLoginProvider(null)}
+          onSuccess={() => {
+            setLoginProvider(null);
+            void invalidate();
+            toast(`${loginProvider.displayName} connected`, {
+              icon: <GitCommitHorizontal size={17} />
+            });
+          }}
+        />
+      ) : null}
 
       {providers.length ? (
         <Group

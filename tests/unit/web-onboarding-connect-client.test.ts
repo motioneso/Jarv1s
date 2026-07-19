@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   beginOnboardingProviderLogin,
+  cancelOnboardingProviderLogin,
   installOnboardingProvider,
   pollOnboardingProviderLogin,
   submitOnboardingProviderLoginToken
@@ -80,5 +81,19 @@ describe("onboarding connect client (#365)", () => {
     expect((fetchMock.mock.calls[0] as unknown as [string])[0]).toBe(
       "/api/onboarding/provider-login/poll"
     );
+  });
+
+  it("cancelOnboardingProviderLogin POSTs the login handle to /cancel", async () => {
+    const fetchMock = mockFetchOnce({
+      providerKind: "anthropic",
+      loginId: "L1",
+      ok: true,
+      installState: "needs_login"
+    });
+    await cancelOnboardingProviderLogin({ providerKind: "anthropic", loginId: "L1" });
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/onboarding/provider-login/cancel");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ providerKind: "anthropic", loginId: "L1" });
   });
 });
