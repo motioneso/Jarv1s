@@ -97,6 +97,8 @@ export function AppShell(props: AppShellProps) {
   // shot, mirrors #368's askJarvisStarter: seeds the composer on drawer open, cleared on close.
   const [moduleDraft, setModuleDraft] = useState<string | undefined>(undefined);
   const [focusActionRequestId, setFocusActionRequestId] = useState<string | null>(null);
+  const embeddedComposerRef = useRef<((draft: string) => void) | null>(null);
+  const [assistantSurfacePresent, setAssistantSurfacePresent] = useState(false);
   const [theme] = useState<ShellTheme>(() => loadShellTheme());
   const [colorMode] = useState(() => loadShellColorMode());
   useEffect(() => {
@@ -114,6 +116,11 @@ export function AppShell(props: AppShellProps) {
   // contrast openChatWith, which sends). Direct setState in an event handler is correct here — this
   // is NOT a render-phase updater, so it is not the StrictMode double-fire trap #368 warned about.
   const openAssistantWithDraft = useCallback((draft: string) => {
+    const embeddedComposer = embeddedComposerRef.current;
+    if (embeddedComposer) {
+      embeddedComposer(draft);
+      return;
+    }
     setModuleDraft(draft);
     setChatOpen(true);
   }, []);
@@ -138,9 +145,22 @@ export function AppShell(props: AppShellProps) {
   useEffect(() => {
     for (const listener of assistantRecordListeners.current) listener(records);
   }, [records]);
-  // Task #1196's next slice replaces this no-op with drawer-suppression presence handling.
+  // #1196 — one external route mounts at a time. Presence owns assistant focus until unmount:
+  // close the drawer, route host drafts inline, then restore the ordinary shell controls.
   const registerAssistantComposer = useCallback<AssistantSurfaceHostValue["registerComposer"]>(
-    () => () => undefined,
+    (acceptDraft) => {
+      embeddedComposerRef.current = acceptDraft;
+      setAssistantSurfacePresent(true);
+      setChatOpen(false);
+      setAskJarvisStarter(undefined);
+      setModuleDraft(undefined);
+      setFocusActionRequestId(null);
+      return () => {
+        if (embeddedComposerRef.current !== acceptDraft) return;
+        embeddedComposerRef.current = null;
+        setAssistantSurfacePresent(false);
+      };
+    },
     []
   );
   const assistantSurfaceHost = useMemo<AssistantSurfaceHostValue>(
@@ -295,6 +315,7 @@ export function AppShell(props: AppShellProps) {
               className={`icon-button ${chatOpen ? "active" : ""}`}
               title="Ask Jarvis"
               type="button"
+              disabled={assistantSurfacePresent}
               onClick={() => setChatOpen((open) => !open)}
             >
               <MessageSquare size={19} aria-hidden="true" />

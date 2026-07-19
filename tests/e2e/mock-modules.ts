@@ -298,6 +298,41 @@ export async function mockExternalWebModule(page: Page): Promise<void> {
   });
 }
 
+/** #1196 — fixture module that mounts the real host AssistantSurface contract. */
+export async function mockAssistantSurfaceWebModule(page: Page): Promise<void> {
+  await mockExternalWebModule(page);
+
+  await page.route("**/api/modules/job-search/web/dist/web/index.js*", async (route) => {
+    const bundle = [
+      "const { react: React } = window.__JARVIS_MODULE_RUNTIME__;",
+      "export default {",
+      "  contractVersion: 1,",
+      "  Root: (props) => {",
+      "    if (!props.assistantSurface) return React.createElement('p', null, 'Assistant surface missing');",
+      "    const Surface = props.assistantSurface.Surface;",
+      "    return React.createElement(Surface, {",
+      "      localRows: [",
+      "        { id: 'intro', role: 'assistant', content: 'Scripted intro' },",
+      "        { id: 'answer', role: 'user', content: 'Scripted answer' }",
+      "      ],",
+      "      recordKinds: ['reply', 'action_request'],",
+      "      typing: true,",
+      "      activeControl: React.createElement('button', {",
+      "        type: 'button',",
+      "        onClick: () => props.hostActions.openAssistant({ starterPrompt: 'Draft routed inline' })",
+      "      }, 'Route draft inline'),",
+      "      composer: { placeholder: 'Message embedded Jarvis' }",
+      "    });",
+      "  }",
+      "};"
+    ].join("\n");
+    await route.fulfill({
+      contentType: "text/javascript; charset=utf-8",
+      body: bundle
+    });
+  });
+}
+
 /**
  * JS-06 (#935) — options for {@link mockExternalWebModuleFromDist}.
  *
