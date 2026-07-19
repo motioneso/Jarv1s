@@ -218,6 +218,25 @@ test("onboarding offers IMAP providers and makes no Microsoft promises", async (
   await expect(
     page.getByText(/Passwords are encrypted at rest and never shown in logs or briefings/i)
   ).toBeVisible();
+  await expect(page.locator(".onb-guide__step")).toHaveCount(3);
+  await expect(
+    page.getByRole("link", { name: /Proton Mail setup guide/i })
+  ).toHaveAttribute("href", "https://proton.me/support/protonmail-bridge-install");
+
+  const remainingHelpLinks: Record<string, string> = {
+    "Yahoo Mail": "https://help.yahoo.com/kb/SLN15241.html",
+    iCloud: "https://support.apple.com/en-us/102654",
+    Fastmail: "https://www.fastmail.help/hc/en-us/articles/360058752854-App-passwords"
+  };
+
+  for (const [name, url] of Object.entries(remainingHelpLinks)) {
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("button", { name: new RegExp(`Connect ${name}`, "i") }).click();
+    await expect(page.locator(".onb-guide__step")).not.toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: new RegExp(`${name} setup guide`, "i") })
+    ).toHaveAttribute("href", url);
+  }
 });
 
 test("Google and IMAP provider cards share equal visual weight and a stable order", async ({
