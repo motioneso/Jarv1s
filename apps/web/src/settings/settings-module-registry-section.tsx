@@ -39,29 +39,81 @@ const STATE_LABELS: Record<ModuleRegistryRowDto["state"], string> = {
   incompatible: "Incompatible with this Jarvis version"
 };
 
-// Spec §8: the pre-download confirm shows the index capabilities block so the admin
-// reviews what the module can do BEFORE anything is fetched. Plain-text rendering —
-// ConfirmOptions.description is a string; richer layout is a later design pass.
-// `capabilities` is null when the row is local-only (not present in the registry
-// index, e.g. `declared-not-present`) — those states never route through here since
-// `canInstall` still allows a download attempt, so guard rather than assume presence.
-function describeCapabilities(row: ModuleRegistryRowDto): string {
+// #1187 decision 4: lead the pre-download confirm with a plain consequence sentence built
+// from the DTO's structured fields (permissions are open-vocabulary and module-defined, so a
+// permission-id -> phrase table would misrepresent unknown ids), then keep the raw permission
+// ids as a supporting detail sentence — preserves full risk info, doesn't invent translations.
+// `capabilities` is null when the row is local-only (not present in the registry index, e.g.
+// `declared-not-present`) — those states never route through here since `canInstall` still
+// allows a download attempt, so guard rather than assume presence.
+export function describeCapabilityConsequences(row: ModuleRegistryRowDto): string {
   const caps = row.capabilities;
   if (!caps)
     return "No capability information is available yet. The download applies on the next restart.";
-  const parts = [
-    caps.permissions.length ? `Permissions: ${caps.permissions.join(", ")}.` : "No permissions.",
-    caps.fetchHosts.length
-      ? `May fetch from: ${caps.fetchHosts.join(", ")}.`
-      : "No network access.",
-    caps.tools.length
-      ? `Tools: ${caps.tools.map((tool) => `${tool.name} (${tool.risk})`).join(", ")}.`
-      : "No assistant tools.",
-    caps.ownsTables.length
-      ? `Owns database tables: ${caps.ownsTables.join(", ")}.`
-      : "No database tables."
-  ];
-  return `${parts.join(" ")} The download applies on the next restart.`;
+  const consequences: string[] = [];
+  if (caps.fetchHosts.length) consequences.push("connect to the internet");
+  if (caps.tools.some((tool) => tool.risk !== "read"))
+    consequences.push("take actions that change data or send requests");
+  if (caps.ownsTables.length) consequences.push("store its own data");
+  const consequenceSentence = consequences.length
+    ? `This module can ${consequences.join(", ")}.`
+    : "This module makes no outside connections and stores no data.";
+  const permissionDetail = caps.permissions.length
+    ? `Requested permissions: ${caps.permissions.join(", ")}.`
+    : "No specific permissions requested.";
+  return `${consequenceSentence} ${permissionDetail} The download applies on the next restart.`;
+}
+
+// #1187 decision 2: one admin-actionable control per row instead of a Required badge or a
+// non-actionable text row. `reason` carries the existing truthful disabled-reason/error text
+// that used to render as a separate <p> for install-failed/incompatible states.
+export interface LibraryAction {
+  readonly kind: "install" | "switch" | "none";
+  readonly label: string;
+  readonly reason?: string;
+}
+
+export function libraryAction(row: ModuleRegistryRowDto): LibraryAction {
+  if (row.purgePending) {
+    return {
+      kind: "none",
+      label: "Purge pending",
+      reason: "Data purge pending — takes effect on restart."
+    };
+  }
+  switch (row.state) {
+    case "not-installed":
+    case "declared-not-present":
+      return { kind: "install", label: "Download and install" };
+    case "installed-disabled":
+      // Switch only wired when the row is registry-index-backed (latestVersion set) —
+      // matches the pre-existing gating on the enable/disable mutation below.
+      return row.latestVersion != null
+        ? { kind: "switch", label: "Enable" }
+        : { kind: "none", label: STATE_LABELS["installed-disabled"] };
+    case "installed-enabled":
+      return row.latestVersion != null
+        ? { kind: "switch", label: "Disable" }
+        : { kind: "none", label: STATE_LABELS["installed-enabled"] };
+    case "update-available":
+      return { kind: "install", label: "Download update" };
+    case "update-pending-restart":
+      return { kind: "none", label: STATE_LABELS["update-pending-restart"] };
+    case "pending-restart":
+      return { kind: "none", label: STATE_LABELS["pending-restart"] };
+    case "install-failed":
+      return {
+        kind: "install",
+        label: "Retry download",
+        reason: row.lastInstallError ?? undefined
+      };
+    case "incompatible":
+      return {
+        kind: "none",
+        label: STATE_LABELS.incompatible,
+        reason: row.requiresCore ? `Requires Jarvis ${row.requiresCore}.` : undefined
+      };
+  }
 }
 
 export function ModuleRegistrySection({
@@ -130,7 +182,7 @@ export function ModuleRegistrySection({
         row.state === "update-available"
           ? `Update ${row.name} to v${row.latestVersion}?`
           : `Install ${row.name}?`,
-      description: describeCapabilities(row),
+      description: describeCapabilityConsequences(row),
       confirmLabel: row.state === "update-available" ? "Download update" : "Download",
       onConfirm: () => downloadMutation.mutate({ id: row.id })
     });
