@@ -11,12 +11,12 @@ import {
   downloadRegistryModule,
   getModuleRegistry,
   removeRegistryModule
-} from "../api/client";
-import { queryKeys } from "../api/query-keys";
-import { ModuleCredentialsSection } from "./module-credentials-section";
-import { useFeedback } from "./settings-feedback";
-import { readError } from "./settings-types";
-import { Note, Row, Switch } from "./settings-ui";
+} from "../api/client.js";
+import { queryKeys } from "../api/query-keys.js";
+import { ModuleCredentialsSection } from "./module-credentials-section.js";
+import { useFeedback } from "./settings-feedback.js";
+import { readError } from "./settings-types.js";
+import { Note, Row, Switch } from "./settings-ui.js";
 
 // #996/#860: props threaded down from InstanceModulesPane (Task 12) so an installed
 // registry row can reuse the same setExternalModuleEnabled mutation the External-modules
