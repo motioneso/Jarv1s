@@ -6,6 +6,7 @@ export * from "./migrations/module-sql-runner.js";
 export * from "./migrations/sql-runner.js";
 export * from "./module-role-broker.js";
 export * from "./module-rls-emitter.js";
+export * from "./module-statement-classify.js";
 export * from "./module-storage-rpc.js";
 export * from "./role-bootstrap.js";
 export * from "./secret-cipher.js";
