@@ -19,9 +19,10 @@
  */
 
 import type { AiAutoRegisterPort } from "@jarv1s/ai";
-import type { RpcConnection } from "@jarv1s/chat";
+import { CliChatUnavailableError, type RpcConnection } from "@jarv1s/chat";
 import { LOGIN_ADAPTERS } from "@jarv1s/cli-runner";
 import type { AiProviderKind } from "@jarv1s/db";
+import { HttpError } from "@jarv1s/module-sdk";
 import type {
   OnboardingLoginDependencies,
   ProviderLoginabilityPort,
@@ -81,18 +82,38 @@ export function buildOnboardingLogin(deps: {
 
   const requireConn = (): RpcConnection => {
     const conn = deps.getConnection();
-    if (!conn) throw new Error("cli-runner connection unavailable for login");
+    if (!conn) {
+      throw new HttpError(503, "Provider login is currently unavailable. Please try again.");
+    }
     return conn;
   };
 
+  // The Settings module deliberately does not depend on @jarv1s/chat, so its shared route
+  // mapper cannot recognize CliChatUnavailableError directly. Translate runner transport/busy
+  // failures at this composition seam into the canonical route error before they cross the
+  // module boundary; otherwise a retryable runner outage is exposed as a misleading 500.
+  const runLoginRpc = async <T>(operation: () => Promise<T>): Promise<T> => {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof CliChatUnavailableError) {
+        throw new HttpError(503, "Provider login is currently unavailable. Please try again.");
+      }
+      throw error;
+    }
+  };
+
   const loginClient: ProviderLoginClient = {
-    begin: async (provider) => mapOutcome(await requireConn().beginLogin({ provider })),
+    begin: async (provider) =>
+      mapOutcome(await runLoginRpc(() => requireConn().beginLogin({ provider }))),
     poll: async (provider, loginId) =>
-      mapOutcome(await requireConn().pollLogin({ provider, loginId })),
+      mapOutcome(await runLoginRpc(() => requireConn().pollLogin({ provider, loginId }))),
     submitToken: async (provider, loginId, token) =>
-      mapOutcome(await requireConn().submitLoginToken({ provider, loginId, token })),
+      mapOutcome(
+        await runLoginRpc(() => requireConn().submitLoginToken({ provider, loginId, token }))
+      ),
     cancel: async (provider, loginId) => {
-      await requireConn().cancelLogin({ provider, loginId });
+      await runLoginRpc(() => requireConn().cancelLogin({ provider, loginId }));
     }
   };
 
