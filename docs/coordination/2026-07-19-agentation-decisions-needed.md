@@ -29,6 +29,7 @@ Tracking: [#1182](https://github.com/motioneso/Jarv1s/issues/1182)
 - Do not offer normal users a provider choice when the options have no understandable user benefit.
 - Hide the `stub` option and the user-facing embedding-provider selector unless a real user-facing reason for choosing providers is established.
 - Provider selection may remain an internal/dev concern in the meantime.
+- Implementation commit `a44d20a8` removes the entire non-actionable Embeddings group and has independent code QA; keep the annotation open until the live desktop/narrow browser proof passes.
 
 ### Read-only context and tool approvals
 
@@ -83,9 +84,10 @@ Ben's response clarified News layout rather than the initial topic source. Still
 ## Tracked without more product decisions
 
 - [#1186](https://github.com/motioneso/Jarv1s/issues/1186) — Settings appearance/navigation, Assistant layout, and Host guidance regressions: `mrs6s2g7-aupxgf`, `mrs75paa-g8oyyp`, `mrs76gsz-akmshz`, `mrs78asb-befxrt`, `mrs7kslm-upor2w`, `mrs7pqjl-v6hvxl`, `mrs7q4xr-erj12w`.
-- [#1191](https://github.com/motioneso/Jarv1s/issues/1191) — diagnose the Assistant persona preview CLI failure and safe recovery copy: `mrs776lh-bmzmj5`, `mrs77jy9-33ynvd`.
-- [#1192](https://github.com/motioneso/Jarv1s/issues/1192) — complete truthful connector cap cause/scope/freshness/recovery across Connected and Oversight: `mrs7cn4e-wts5qg`, `mrs7ofm2-2okb7q`.
-- [#1181](https://github.com/motioneso/Jarv1s/issues/1181) also owns the People-folder empty-state typography note `mrs79332-a3shdo`; it must land with the folder model rather than receive a cosmetic standalone patch.
+- [#1191](https://github.com/motioneso/Jarv1s/issues/1191) — the Assistant persona preview transport is wired; the defect is unsafe/misleading collapse of distinct CLI failures. An unapproved bounded recovery-copy spec is drafted on `spec/1191-persona-preview`; annotations `mrs776lh-bmzmj5` and `mrs77jy9-33ynvd` remain open.
+- [#1192](https://github.com/motioneso/Jarv1s/issues/1192) — the approved #995 security design already covers truthful connector cap cause/scope/freshness/recovery. The remaining slice is buildable but must serialize after #1179 because both touch `sync-jobs.ts`; keep `mrs7cn4e-wts5qg` and `mrs7ofm2-2okb7q` open.
+- [#1181](https://github.com/motioneso/Jarv1s/issues/1181) also owns the People-folder empty-state typography note `mrs79332-a3shdo`; it must land with the folder model rather than receive a cosmetic standalone patch. An unapproved mapping spec is drafted on `spec/1181-people-folders`.
+- [#1184](https://github.com/motioneso/Jarv1s/issues/1184) has an unapproved standings/follows spec draft on `spec/1184-sports-standings`; no implementation starts until its default-set and dismissal decisions are approved.
 - [#1187](https://github.com/motioneso/Jarv1s/issues/1187) — Instance-module inventory, actions, warnings, and install-dialog copy: `mrs7d04t-i9o3cy`, `mrs7mknx-iekzvf`, `mrs7n6bc-7aqwjr`, `mrs7nz2f-g2ngs8`, `mrs94lf2-v77w9l`.
 - [#1188](https://github.com/motioneso/Jarv1s/issues/1188) — Connector parity, app-password guidance, consent-screen click, and add-account defects: `mrs67gef-h4qiyt`, `mrs69zpx-rxknnt`, `mrs6arkr-3c85gx`, `mrs6bbol-p7gxya`.
 
