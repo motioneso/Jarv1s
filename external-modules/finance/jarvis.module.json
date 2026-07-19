@@ -36,7 +36,8 @@
     { "namespace": "finance.snapshots", "scopes": ["user"] },
     { "namespace": "finance.budgets", "scopes": ["user"] },
     { "namespace": "finance.shared", "scopes": ["instance"], "instanceWritePolicy": "module" },
-    { "namespace": "finance.settings", "scopes": ["user", "instance"] }
+    { "namespace": "finance.settings", "scopes": ["user", "instance"] },
+    { "namespace": "finance.meta", "scopes": ["user"] }
   ],
   "database": {
     "ownedTables": [
@@ -254,6 +255,12 @@
             "shared": { "type": "boolean" }
           }
         }
+      },
+      {
+        "name": "finance.storage-migrate",
+        "handler": "storage.migrate",
+        "retryLimit": 1,
+        "allowManualRun": true
       }
     ],
     "schedules": [
@@ -263,6 +270,13 @@
         "scope": "user",
         "jobKind": "finance.sync-sweep",
         "queue": "finance.sync-run"
+      }
+    ],
+    "reconcileJobs": [
+      {
+        "id": "storage-migrate",
+        "queue": "finance.storage-migrate",
+        "jobKind": "finance.storage-migrate"
       }
     ]
   },

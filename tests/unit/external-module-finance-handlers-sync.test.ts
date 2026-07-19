@@ -7,7 +7,7 @@ import type {
   PlaidTx
 } from "../../external-modules/finance/src/adapters/plaid.js";
 import { PlaidError } from "../../external-modules/finance/src/adapters/plaid.js";
-import { NS } from "../../external-modules/finance/src/domain/index.js";
+import { kvStore, NS } from "../../external-modules/finance/src/domain/index.js";
 import type { FinanceKv } from "../../external-modules/finance/src/domain/index.js";
 import { syncRunHandler } from "../../external-modules/finance/src/worker/handlers/sync.js";
 import type { TokenMap, WorkerPorts } from "../../external-modules/finance/src/worker/ports.js";
@@ -142,6 +142,7 @@ function fakePorts(opts: { kv?: FinanceKv; plaid?: PlaidClient | null; tokens?: 
       list: async () => [...mirrorStore.keys()]
     },
     ai: null,
+    db: null,
     plaid:
       opts.plaid === null || opts.plaid === undefined
         ? null
@@ -158,7 +159,10 @@ function fakePorts(opts: { kv?: FinanceKv; plaid?: PlaidClient | null; tokens?: 
     creds: { get: async () => ({ clientId: "client-id-7f3a", secret: "secret-9b2c" }) },
     settings: { getEnvironment: async () => "sandbox" },
     isAdmin: false,
-    now: () => NOW
+    now: () => NOW,
+    // FIN-06b (#1166): pre-cutover handler tests stay on kvStore — the
+    // FIN-06c cutover (Tasks 8-10) is what makes handlers actually call this.
+    store: async () => kvStore(kv)
   };
   return { ports, kv, plaidFactoryCalls };
 }

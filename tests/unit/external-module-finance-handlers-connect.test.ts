@@ -5,7 +5,7 @@ import type {
   PlaidAccount,
   PlaidClient
 } from "../../external-modules/finance/src/adapters/plaid.js";
-import { linkKey, NS } from "../../external-modules/finance/src/domain/index.js";
+import { kvStore, linkKey, NS } from "../../external-modules/finance/src/domain/index.js";
 import type { FinanceKv } from "../../external-modules/finance/src/domain/index.js";
 import {
   connectPollHandler,
@@ -133,6 +133,7 @@ function fakePorts(opts: {
       }
     },
     ai: null,
+    db: null,
     plaid:
       opts.plaid === null
         ? null
@@ -157,7 +158,10 @@ function fakePorts(opts: {
     },
     settings: { getEnvironment: async () => opts.environment ?? "sandbox" },
     isAdmin: opts.isAdmin ?? false,
-    now: () => NOW
+    now: () => NOW,
+    // FIN-06b (#1166): pre-cutover handler tests stay on kvStore — the
+    // FIN-06c cutover (Tasks 8-10) is what makes handlers actually call this.
+    store: async () => kvStore(kv)
   };
   return { ports, kv, tokenWrites, plaidFactoryCalls };
 }

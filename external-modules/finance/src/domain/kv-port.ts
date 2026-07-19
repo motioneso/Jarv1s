@@ -31,7 +31,10 @@ export const NS = {
   rules: "finance.rules",
   snapshots: "finance.snapshots",
   budgets: "finance.budgets",
-  settings: "finance.settings"
+  settings: "finance.settings",
+  // FIN-06b (#1166 F6-D4): the storage-migrate marker namespace — separate
+  // from settings so a future settings wipe/export can never touch it.
+  meta: "finance.meta"
 } as const;
 
 export type FinanceNamespace = (typeof NS)[keyof typeof NS];
