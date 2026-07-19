@@ -6,7 +6,6 @@ import type { OnboardingStatusResponse, OnboardingStepsDto } from "@jarv1s/share
 
 import { completeOnboarding, getOnboardingStatus, skipOnboarding } from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import { BrandMark } from "../shell/brand-mark";
 import { ApiKeyOptOutStep } from "./api-key-opt-out-step";
 import { CliAuthStep } from "./cli-auth-step";
 import { ConnectorStep } from "./connector-step";
@@ -16,8 +15,6 @@ import { SectionTourStep } from "./section-tour-step";
 import { WelcomeStep } from "./welcome-step";
 import { firstIncompleteStepIndex } from "./resume";
 import { SkipConfirmDialog, needsSkipConfirm } from "./skip-confirm";
-import { hasConnectedProvider } from "./chat-availability";
-import { requestAskJarvis } from "./ask-jarvis-handoff";
 
 const FOUNDER_ORDER = ["welcome", "cliAuth", "connectors", "finish"] as const;
 const MEMBER_ORDER = ["welcome", "assistant", "accounts", "tour", "finish"] as const;
@@ -97,19 +94,13 @@ export function OnboardingWizard(props: {
     queryClient.invalidateQueries({ queryKey: queryKeys.onboarding.status });
 
   const finish = useMutation({
-    mutationFn: async (destination: "today" | "settings") => {
-      await completeOnboarding();
-      return destination;
-    },
+    mutationFn: completeOnboarding,
     onSuccess: async () => {
       await invalidateStatus();
     },
-    onSettled: (_data, _error, destination) => {
-      if (_error || destination === undefined) return;
-      // This wizard mounts its own BrowserRouter while App is in its early-return branch. A
-      // document navigation carries the requested destination into the shell's fresh router;
-      // an in-place router update is lost when the early-return branch unmounts.
-      window.location.replace(destination === "settings" ? "/settings" : "/today");
+    onSettled: (_data, error) => {
+      if (error) return;
+      window.location.replace("/today");
     }
   });
   const skip = useMutation({
@@ -134,18 +125,6 @@ export function OnboardingWizard(props: {
     setSkipConfirmOpen(false);
     skip.mutate();
   };
-  // #368: "Ask Jarvis" at the Finish step. Drops the one-shot handoff flag, then completes
-  // onboarding to Today — App remounts into the shell, which consumes the flag and opens the chat
-  // drawer pre-filled with the setup-check starter (not auto-sent). This is a plain event handler,
-  // NOT a setState updater, so requestAskJarvis runs once (StrictMode double-fire trap).
-  const onAskJarvis = () => {
-    requestAskJarvis();
-    finish.mutate("today");
-  };
-  // Gate the affordance on chat being available (≥1 provider reached `ready`). Derived from the
-  // SAME onboarding status #365 added — provider-agnostic, no provider/model hardcoded.
-  const chatAvailable = hasConnectedProvider(statusQuery.data);
-
   // No isLoading branch: initialData guarantees data is present from the first render
   // (app.tsx already waited). A background refetch error never blanks the wizard.
   // Phase 4: the status is a role union — narrow to the founder variant for the founder steps;
@@ -169,7 +148,7 @@ export function OnboardingWizard(props: {
   const skipCurrentStep = () => {
     setSkippedSteps((current) => new Set(current).add(currentRailKey));
     if (isLast) {
-      finish.mutate("today");
+      finish.mutate();
     } else {
       goNext();
     }
@@ -201,10 +180,8 @@ export function OnboardingWizard(props: {
           key="finish"
           role="member"
           skippedSteps={skippedSteps}
-          onFinish={(destination) => finish.mutate(destination)}
+          onFinish={() => finish.mutate()}
           pending={finish.isPending}
-          chatAvailable={chatAvailable}
-          onAskJarvis={onAskJarvis}
         />
       ]
     : [];
@@ -317,10 +294,8 @@ export function OnboardingWizard(props: {
                   role="founder"
                   skippedSteps={skippedSteps}
                   founderSteps={founderSteps}
-                  onFinish={(destination) => finish.mutate(destination)}
+                  onFinish={() => finish.mutate()}
                   pending={finish.isPending}
-                  chatAvailable={chatAvailable}
-                  onAskJarvis={onAskJarvis}
                 />
               ) : null}
             </>
@@ -368,11 +343,7 @@ export function FinishStep(props: {
   readonly skippedSteps: ReadonlySet<string>;
   readonly founderSteps?: OnboardingStepsDto;
   readonly pending: boolean;
-  readonly onFinish: (destination: "today" | "settings") => void;
-  /** #368: chat is available (≥1 provider ready). Gates the "Ask Jarvis" affordance — no dead button. */
-  readonly chatAvailable: boolean;
-  /** #368: completes onboarding AND opens the chat drawer pre-filled with the setup-check starter. */
-  readonly onAskJarvis: () => void;
+  readonly onFinish: () => void;
 }) {
   const isMember = props.role === "member";
   const recap = isMember
@@ -426,62 +397,15 @@ export function FinishStep(props: {
         ))}
       </div>
       <div className="onb-finish__cta">
-        {props.chatAvailable ? (
-          <>
-            <button
-              className="primary-button"
-              type="button"
-              disabled={props.pending}
-              onClick={props.onAskJarvis}
-            >
-              <BrandMark size={16} /> Ask Jarvis
-            </button>
-            <button
-              className="ghost-button"
-              type="button"
-              disabled={props.pending}
-              onClick={() => props.onFinish("today")}
-            >
-              {isMember ? "Open today" : "Open today’s brief"}{" "}
-              <ArrowRight size={16} aria-hidden="true" />
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              className="primary-button"
-              type="button"
-              disabled={props.pending}
-              onClick={() => props.onFinish("today")}
-            >
-              {isMember ? "Open today" : "Open today’s brief"}{" "}
-              <ArrowRight size={16} aria-hidden="true" />
-            </button>
-            <button
-              className="ghost-button"
-              type="button"
-              disabled={props.pending}
-              onClick={() => props.onFinish("settings")}
-            >
-              {isMember ? "Adjust in settings" : "Go to settings"}
-            </button>
-          </>
-        )}
+        <button
+          className="primary-button"
+          type="button"
+          disabled={props.pending}
+          onClick={props.onFinish}
+        >
+          Finish setup <ArrowRight size={16} aria-hidden="true" />
+        </button>
       </div>
-      {props.chatAvailable ? (
-        <p className="onb-finish__askhint">
-          Jarvis can help you check your setup and finish configuring — just ask. You can also{" "}
-          <button
-            className="onb-finish__settingslink"
-            type="button"
-            disabled={props.pending}
-            onClick={() => props.onFinish("settings")}
-          >
-            {isMember ? "adjust in settings" : "go to settings"}
-          </button>
-          .
-        </p>
-      ) : null}
       <div className="onb-signoff">
         {isMember ? "Welcome to Jarvis." : "Your setup is complete."}
       </div>
