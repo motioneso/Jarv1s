@@ -21,7 +21,7 @@
 - `capabilities.permissions` are raw `permissionId` strings from `manifest.assistantTools`
   (`scripts/publish-module-registry.ts:119`), open-vocabulary and module-defined — do NOT
   invent a translation table (would misrepresent unknown ids). Instead: lead the confirm copy
-  with a plain consequence sentence built from the *structured* fields already on the DTO
+  with a plain consequence sentence built from the _structured_ fields already on the DTO
   (`fetchHosts` → network access, `tools[].risk` → side-effecting tools, `ownsTables` → stored
   data), then keep the raw permission ids as a supporting detail line — preserves full risk
   info (non-goal: "no weakening... of install risk information") while leading with
@@ -41,7 +41,7 @@
    section→pane import (if `libraryAction` lived in the pane) would be circular. Export it
    from the registry section (or a new neutral view-model file if it grows) alongside
    `describeCapabilities`'s replacement. `libraryAction(row: ModuleRegistryRowDto): { label:
-   string; kind: "install" | "switch" | "none"; reason?: string }` implementing decision 2's
+string; kind: "install" | "switch" | "none"; reason?: string }` implementing decision 2's
    exact table (absent+compatible → "Download and install"; installed+disabled → "Enable";
    installed+enabled → "Disable"; update/failure/incompatible/pending-restart → existing
    truthful label/reason, unchanged). In `settings-module-registry-section.tsx` replace
