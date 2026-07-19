@@ -4,6 +4,8 @@
 **Source:** pending annotations from the live `5178` instance  
 **Rule:** annotations are one-way intake. Discussion happens here; no issue or build starts until explicitly requested.
 
+Implemented changes awaiting review are tracked separately in `~/Jarv1s/docs/coordination/2026-07-19-agentation-addressed-for-review.md`.
+
 ## Decisions needed
 
 ### 1. Memory folder chooser
