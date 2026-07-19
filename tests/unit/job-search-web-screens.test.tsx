@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import Contribution from "../../external-modules/job-search/src/web/index.js";
 import { STEP_LABELS, whenLabel } from "../../external-modules/job-search/src/web/format.js";
+import { RootView } from "../../external-modules/job-search/src/web/root.js";
 import { h } from "../../external-modules/job-search/src/web/runtime.js";
 import { OnboardingView } from "../../external-modules/job-search/src/web/screens/onboarding.js";
 import {
@@ -123,15 +124,39 @@ describe("job-search Root contract (#935)", () => {
     expect(typeof Contribution.Root).toBe("function");
   });
 
-  it("Root renders module chrome and tab nav", () => {
-    const html = render(h(Contribution.Root, { hostActions: { openAssistant: () => undefined } }));
+  it("renders exactly the four approved tabs after onboarding", () => {
+    const html = render(
+      h(RootView, {
+        path: "/",
+        onboardingStep: "done",
+        hostActions: { openAssistant: () => undefined }
+      })
+    );
+
     expect(html).toContain("Job Search");
-    expect(html).toContain("jds-eyebrow");
     expect(html).toContain('aria-current="page"');
-    for (const label of ["Overview", "Onboarding", "Profile", "Monitors", "Opportunities"]) {
+    for (const label of ["Overview", "Matches", "Monitors", "Profile"]) {
       expect(html).toContain(label);
     }
+    for (const retired of ["Onboarding", "Profile &amp; resume", "Opportunities"]) {
+      expect(html).not.toContain(retired);
+    }
     expect(html).toContain('aria-live="polite"');
+  });
+
+  it("replaces the tab shell with the Lane E placeholder during first run", () => {
+    const html = render(
+      h(RootView, {
+        path: "/",
+        onboardingStep: "profile",
+        hostActions: { openAssistant: () => undefined }
+      })
+    );
+
+    expect(html).toContain("Setting up your job search");
+    expect(html).toContain("Guided onboarding will appear here");
+    expect(html).not.toContain("Job Search sections");
+    expect(html).not.toContain('href="/m/job-search/matches"');
   });
 });
 
