@@ -59,7 +59,7 @@ Need direction on whether to create:
 ## Ready for issue creation without more product decisions
 
 - News layout: `mrs6fnq4-zwv9ak`, `mrs6fzi5-6xxaah`, `mrs6kba3-kbjwv6`
-- Settings profile/location/appearance polish: `mrs6nwxo-retj99`, `mrs6ounh-hcmg1m`, `mrs6p20v-ly0lth`, `mrs6pc4e-7vnnsy`, `mrs6pwcc-7fddqk`, `mrs6qsrk-vhcc05`, `mrs6s2g7-aupxgf`
+- Settings profile/location/appearance/navigation polish: `mrs6nwxo-retj99`, `mrs6ounh-hcmg1m`, `mrs6p20v-ly0lth`, `mrs6pc4e-7vnnsy`, `mrs6pwcc-7fddqk`, `mrs6qsrk-vhcc05`, `mrs6s2g7-aupxgf`, `mrs7kslm-upor2w`
 - Settings Assistant/Memory polish: `mrs75paa-g8oyyp`, `mrs76gsz-akmshz`, `mrs78asb-befxrt`, `mrs79332-a3shdo`
 - Settings defects: `mrs6arkr-3c85gx`, `mrs6bbol-p7gxya`, `mrs776lh-bmzmj5`, `mrs77jy9-33ynvd`
 - Connected/Modules cleanup: `mrs7cn4e-wts5qg`, `mrs7d04t-i9o3cy`
