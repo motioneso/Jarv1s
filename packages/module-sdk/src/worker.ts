@@ -54,6 +54,19 @@ export interface ModuleWorkerContext {
         }
     >;
   };
+  /**
+   * Bounded SQL against the module's OWN declared tables (manifest
+   * database.ownedTables). The host enforces the statement allowlist
+   * (SELECT/INSERT/UPDATE/DELETE only), read-only tool risk, a 5s
+   * statement_timeout, and 5000-row / 5 MiB result caps; failures surface
+   * as generic rpc errors. Params are $1-style positional placeholders.
+   */
+  readonly db: {
+    query<T = Record<string, unknown>>(
+      text: string,
+      params?: readonly unknown[]
+    ): Promise<{ rows: T[] }>;
+  };
 }
 
 type Handler = (ctx: ModuleWorkerContext) => Promise<unknown>;
@@ -92,6 +105,12 @@ export function defineModuleWorker(input: {
         ModuleWorkerContext["ai"]["generateStructured"]
       >
   };
+  const db: ModuleWorkerContext["db"] = {
+    query: (text, params) =>
+      callParent("db.query", params === undefined ? { text } : { text, params }) as Promise<{
+        rows: Record<string, unknown>[];
+      }>
+  } as ModuleWorkerContext["db"];
 
   createInterface({ input: process.stdin }).on("line", (line) => {
     void (async () => {
@@ -135,7 +154,8 @@ export function defineModuleWorker(input: {
           },
           fetch: (request) => callParent("fetch.request", request) as Promise<ModuleFetchResponse>,
           kv,
-          ai
+          ai,
+          db
         });
         send({ jsonrpc: "2.0", id: message.id, result });
       } catch {

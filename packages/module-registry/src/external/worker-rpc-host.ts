@@ -1,6 +1,11 @@
 import { sql } from "kysely";
 
-import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
+import {
+  createModuleStorageRpc,
+  ModuleQueryError,
+  type DataContextDb,
+  type DataContextRunner
+} from "@jarv1s/db";
 import type { ModuleAssistantToolRisk } from "@jarv1s/module-sdk";
 import type { ModuleFetchRequest, ModuleFetchResponse } from "@jarv1s/module-sdk";
 import { createHostPinnedFetch } from "@jarv1s/host-fetch";
@@ -30,6 +35,9 @@ export class ExternalModuleRpcError extends Error {
       | "credential_value_invalid"
       | "forbidden_ai_call"
       | "forbidden_secret_in_ai_input"
+      | "undeclared_database"
+      | "forbidden_db_statement"
+      | "forbidden_db_mutation"
       | "invalid_rpc"
   ) {
     super(code);
@@ -124,6 +132,44 @@ export function createExternalModuleRpcHandler(input: {
         await sql`SELECT set_config('app.current_module_id', ${input.module.id}, true)`.execute(
           scopedDb.db
         );
+
+        if (method === "db.query") {
+          // #1167: only modules that declared owned tables get the SQL door; the
+          // tables themselves are created/guarded by the platform installer (RLS,
+          // owner-only, jarvis_mod_<slug>_runtime role) — this check is the manifest
+          // gate, not the security boundary.
+          const ownedTables = input.module.manifest.database?.ownedTables ?? [];
+          if (ownedTables.length === 0) throw new ExternalModuleRpcError("undeclared_database");
+          const text = stringParam(params, "text");
+          if (params.params !== undefined && !Array.isArray(params.params)) {
+            throw new ExternalModuleRpcError("invalid_rpc");
+          }
+          const storageRpc = createModuleStorageRpc(scopedDb, input.module.id, {
+            // Read-risk tools must not mutate — same policy as kv.set's
+            // forbidden_kv_mutation. "write" and "destructive" may.
+            readOnly: input.toolRisk === "read"
+          });
+          try {
+            return await storageRpc.query(
+              text,
+              (params.params as readonly unknown[] | undefined) ?? []
+            );
+          } catch (error) {
+            if (error instanceof ModuleQueryError) {
+              if (error.code === "forbidden_statement") {
+                throw new ExternalModuleRpcError("forbidden_db_statement");
+              }
+              if (error.code === "forbidden_mutation") {
+                throw new ExternalModuleRpcError("forbidden_db_mutation");
+              }
+            }
+            // Cap and db_query_failed errors cross as-is: already redacted at the
+            // @jarv1s/db layer (SQLSTATE + primary message only, no detail/hint).
+            // worker-runtime.ts forwards workers a generic rpc_failed regardless and
+            // logs nothing for rpc errors (verified #1167 grounding).
+            throw error;
+          }
+        }
 
         if (method === "ai.generateStructured") {
           // Handlers built without the ai dep (e.g. the queued-jobs path) fail

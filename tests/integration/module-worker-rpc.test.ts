@@ -1,7 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import {
+  createDatabase,
+  DataContextRunner,
+  ensureModuleRoles,
+  generateModuleTableRlsSql,
+  type JarvisDatabase
+} from "@jarv1s/db";
 import {
   AI_CALLS_PER_INVOCATION_CAP,
   createExternalModuleRpcHandler,
@@ -526,5 +532,152 @@ describe("ai.generateStructured", () => {
       rpc("ai.generateStructured", { schema: { type: "object" }, prompt: "over cap" }, noSecret)
     ).resolves.toEqual({ ok: false, error: "usage_limited" });
     expect(calls).toBe(AI_CALLS_PER_INVOCATION_CAP);
+  });
+});
+
+describe("db.query (#1167)", () => {
+  const dbModuleId = "acme-db";
+  const moduleDb = {
+    id: dbModuleId,
+    dir: "/unused",
+    manifest: {
+      schemaVersion: 1 as const,
+      id: dbModuleId,
+      name: "Acme DB",
+      version: "1.0.0",
+      publisher: "Acme",
+      lifecycle: "optional" as const,
+      compatibility: { jarv1s: ">=0.0.0" },
+      auth: [],
+      storage: [],
+      fetchHosts: [],
+      database: { ownedTables: ["app.acme_db_items"] }
+    },
+    manifestHash: "sha256:db",
+    packageHash: "sha256:db"
+  };
+
+  beforeAll(async () => {
+    await ensureModuleRoles(connectionStrings.bootstrap, dbModuleId);
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        "CREATE TABLE app.acme_db_items (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), owner_user_id uuid NOT NULL, label text)"
+      );
+      for (const statement of generateModuleTableRlsSql(dbModuleId, ["app.acme_db_items"])) {
+        await client.query(statement);
+      }
+      // The rpc handler runs on the worker pool; the broker grants the runtime
+      // role to jarvis_worker_runtime at ensureModuleRoles time — this explicit
+      // grant is idempotent and keeps the test self-documenting.
+      await client.query(
+        "GRANT jarvis_mod_acme_db_runtime TO jarvis_worker_runtime WITH INHERIT FALSE"
+      );
+    } finally {
+      await client.end();
+    }
+  });
+
+  afterAll(async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      // Revoke order matters: downstream runtime grants before the install
+      // role's grant-option privileges, mirroring module-storage-rpc.test.ts.
+      // DROP ROLE fails while a role still holds any privileges, so every
+      // privilege ensureModuleRoles granted must be revoked first (Postgres
+      // does not implicitly strip these on DROP TABLE/DROP ROLE).
+      await client.query("REVOKE jarvis_mod_acme_db_runtime FROM jarvis_worker_runtime");
+      await client.query("DROP TABLE IF EXISTS app.acme_db_items");
+      await client.query("REVOKE ALL PRIVILEGES ON SCHEMA app FROM jarvis_mod_acme_db_runtime");
+      await client.query(
+        "REVOKE EXECUTE ON FUNCTION app.current_actor_user_id() FROM jarvis_mod_acme_db_runtime"
+      );
+      await client.query("REVOKE ALL PRIVILEGES ON SCHEMA app FROM jarvis_mod_acme_db_install");
+      await client.query("REVOKE ALL PRIVILEGES ON app.users FROM jarvis_mod_acme_db_install");
+      await client.query(
+        "REVOKE EXECUTE ON FUNCTION app.current_actor_user_id() FROM jarvis_mod_acme_db_install"
+      );
+      await client.query("DROP ROLE IF EXISTS jarvis_mod_acme_db_install");
+      await client.query("DROP ROLE IF EXISTS jarvis_mod_acme_db_runtime");
+    } finally {
+      await client.end();
+    }
+  });
+
+  const dbRpc = (toolRisk: "read" | "write", module = moduleDb) =>
+    createExternalModuleRpcHandler({
+      module,
+      toolRisk,
+      actorUserId: ids.userA,
+      requestId: "rpc-db-1",
+      workerDataContext: new DataContextRunner(workerDb),
+      cipher: createModuleCredentialSecretCipher(),
+      isActorAdmin: async () => false
+    });
+
+  it("rejects modules without a database declaration", async () => {
+    const rpc = createExternalModuleRpcHandler({
+      module: moduleA,
+      toolRisk: "write",
+      actorUserId: ids.userA,
+      requestId: "rpc-db-2",
+      workerDataContext: new DataContextRunner(workerDb),
+      cipher: createModuleCredentialSecretCipher(),
+      isActorAdmin: async () => false
+    });
+    await expect(rpc("db.query", { text: "SELECT 1" }, () => undefined)).rejects.toMatchObject({
+      code: "undeclared_database"
+    });
+  });
+
+  it("writes and reads the module's own table under RLS", async () => {
+    const rpc = dbRpc("write");
+    await rpc(
+      "db.query",
+      {
+        text: "INSERT INTO app.acme_db_items (owner_user_id, label) VALUES ($1, $2)",
+        params: [ids.userA, "from-module"]
+      },
+      () => undefined
+    );
+    const result = (await rpc(
+      "db.query",
+      { text: "SELECT label FROM app.acme_db_items WHERE owner_user_id = $1", params: [ids.userA] },
+      () => undefined
+    )) as { rows: Array<{ label: string }> };
+    expect(result.rows).toEqual([{ label: "from-module" }]);
+  });
+
+  it("maps read-risk mutations to forbidden_db_mutation", async () => {
+    const rpc = dbRpc("read");
+    await expect(
+      rpc(
+        "db.query",
+        {
+          text: "INSERT INTO app.acme_db_items (owner_user_id, label) VALUES ($1, $2)",
+          params: [ids.userA, "blocked"]
+        },
+        () => undefined
+      )
+    ).rejects.toMatchObject({ code: "forbidden_db_mutation" });
+  });
+
+  it("maps allowlist rejections to forbidden_db_statement", async () => {
+    const rpc = dbRpc("write");
+    await expect(
+      rpc("db.query", { text: "TRUNCATE app.acme_db_items" }, () => undefined)
+    ).rejects.toMatchObject({ code: "forbidden_db_statement" });
+  });
+
+  it("rejects malformed params", async () => {
+    const rpc = dbRpc("write");
+    await expect(
+      rpc("db.query", { text: "SELECT 1", params: "nope" }, () => undefined)
+    ).rejects.toMatchObject({ code: "invalid_rpc" });
+    await expect(rpc("db.query", { params: [] }, () => undefined)).rejects.toMatchObject({
+      code: "invalid_rpc"
+    });
   });
 });

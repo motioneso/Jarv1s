@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -114,5 +115,89 @@ it("bridges ctx.ai.generateStructured over parent RPC and returns the result ver
     id: "host:2",
     result: { ai: { ok: true, object: { summary: "s" } } }
   });
+  child.kill();
+});
+
+it("exposes ctx.db.query as a db.query rpc round-trip", async () => {
+  const { child, next } = await spawnWorker(
+    `defineModuleWorker({
+      handlers: {
+        report: async (ctx) => ({
+          withParams: await ctx.db.query("SELECT 1", [2]),
+          withoutParams: await ctx.db.query("SELECT 2")
+        })
+      }
+    });`
+  );
+  expect(await next()).toMatchObject({ method: "worker.ready", params: { version: 1 } });
+  child.stdin?.write(
+    `${JSON.stringify({
+      jsonrpc: "2.0",
+      id: "host:1",
+      method: "module.invoke",
+      params: { handler: "report", input: {} }
+    })}\n`
+  );
+  const first = await next();
+  // params omitted from the wire entirely when the caller passes none —
+  // the host treats undefined and absent identically, but absent is smaller.
+  expect(first).toMatchObject({ method: "db.query", params: { text: "SELECT 1", params: [2] } });
+  child.stdin?.write(
+    `${JSON.stringify({ jsonrpc: "2.0", id: first.id, result: { rows: [{ one: 1 }] } })}\n`
+  );
+  const second = await next();
+  expect(second).toMatchObject({ method: "db.query", params: { text: "SELECT 2" } });
+  expect((second.params as { params?: unknown }).params).toBeUndefined();
+  child.stdin?.write(
+    `${JSON.stringify({ jsonrpc: "2.0", id: second.id, result: { rows: [{ two: 2 }] } })}\n`
+  );
+  expect(await next()).toMatchObject({
+    id: "host:1",
+    result: {
+      withParams: { rows: [{ one: 1 }] },
+      withoutParams: { rows: [{ two: 2 }] }
+    }
+  });
+  child.kill();
+});
+
+it("surfaces host db.query errors as a generic handler_failed without leaking internals", async () => {
+  const marker = `rpc-error-marker-${randomUUID()}`;
+  const { child, next } = await spawnWorker(
+    `defineModuleWorker({
+      handlers: {
+        leak: async (ctx) => ctx.db.query("SELECT secret FROM t")
+      }
+    });`
+  );
+  expect(await next()).toMatchObject({ method: "worker.ready", params: { version: 1 } });
+  child.stdin?.write(
+    `${JSON.stringify({
+      jsonrpc: "2.0",
+      id: "host:1",
+      method: "module.invoke",
+      params: { handler: "leak", input: {} }
+    })}\n`
+  );
+  const dbCall = await next();
+  expect(dbCall).toMatchObject({ method: "db.query", params: { text: "SELECT secret FROM t" } });
+  // Simulates a host-side query failure OR an older host that lacks db.query
+  // (method-not-found) — either way the worker must not leak the error text
+  // or the query text back to the module/host response.
+  child.stdin?.write(
+    `${JSON.stringify({
+      jsonrpc: "2.0",
+      id: dbCall.id,
+      error: { code: -32601, message: marker }
+    })}\n`
+  );
+  const final = await next();
+  expect(final).toMatchObject({
+    id: "host:1",
+    error: { code: -32000, message: "handler_failed" }
+  });
+  const serialized = JSON.stringify(final);
+  expect(serialized).not.toContain(marker);
+  expect(serialized).not.toContain("SELECT secret FROM t");
   child.kill();
 });
