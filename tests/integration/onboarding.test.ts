@@ -161,16 +161,20 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
     expect(status.state).toBe("pending");
     // v0.1.3: the multiplexer step is gone from the assembled status.
     expect("multiplexer" in status.steps).toBe(false);
-    // v0.1.3 F2: onboarding offers ONLY the loginable allowlist (anthropic) — codex/google
-    // are NOT surfaced even though cliPresentByKind carries every kind.
-    expect(status.steps.cliAuth.providers).toEqual([{ kind: "anthropic", cliPresent: true }]);
+    // Onboarding offers every CLI provider kind; installability/loginability are separate
+    // capabilities surfaced by each provider card.
+    expect(status.steps.cliAuth.providers).toEqual([
+      { kind: "anthropic", cliPresent: true },
+      { kind: "openai-compatible", cliPresent: false },
+      { kind: "google", cliPresent: false }
+    ]);
     // #365: done now ⇔ ≥1 provider is `ready` (installed AND logged in), not mere presence.
     // No installStateByKind here ⇒ no provider is ready ⇒ not done.
     expect(status.steps.cliAuth.done).toBe(false);
     expect(status.steps.connectors.done).toBe(true);
   });
 
-  it("hides codex/openai-compatible from onboarding even when catalog-installable (v0.1.3 F2)", () => {
+  it("surfaces every CLI provider even when one login adapter is unavailable", () => {
     const repository = new SettingsRepository();
     const status = repository.assembleOnboardingStatus({
       state: "pending",
@@ -180,11 +184,9 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
       installableByKind: { anthropic: true, "openai-compatible": true, google: true }
     });
     const kinds = status.steps.cliAuth.providers.map((p) => p.kind);
-    expect(kinds).toEqual(["anthropic"]);
-    expect(kinds).not.toContain("openai-compatible");
-    // A codex `ready` row must NOT make onboarding cliAuth done — codex is not offered, so it
-    // can't satisfy the "≥1 offered provider ready" floor.
-    expect(status.steps.cliAuth.done).toBe(false);
+    expect(kinds).toEqual(["anthropic", "openai-compatible", "google"]);
+    // A codex `ready` row satisfies the onboarding floor because it is now an offered provider.
+    expect(status.steps.cliAuth.done).toBe(true);
   });
 
   it("cliAuth.done is true ONLY when ≥1 OFFERED provider installState is ready (#365)", () => {
