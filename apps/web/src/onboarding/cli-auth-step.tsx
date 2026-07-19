@@ -67,6 +67,30 @@ function errorText(error: unknown): string {
   return "Something went wrong. Try again.";
 }
 
+export async function copyText(value: string): Promise<void> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return;
+    }
+  } catch {
+    // Plain-HTTP LAN origins can expose clipboard.writeText but reject its use.
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  try {
+    textarea.select();
+    if (!document.execCommand("copy")) throw new Error("copy failed");
+  } finally {
+    textarea.remove();
+  }
+}
+
 export function CliAuthStep(props: {
   readonly step: OnboardingCliAuthStepDto;
   readonly onRecheck: () => Promise<unknown> | void;
@@ -107,6 +131,20 @@ export function CliAuthStep(props: {
           }
         });
         return;
+      case "awaiting_authorization":
+        patch(kind, {
+          login: {
+            phase: "awaiting_authorization",
+            loginId: next.loginId,
+            authorizationUrl: next.authorizationUrl,
+            ...(next.userCode !== undefined ? { userCode: next.userCode } : {})
+          }
+        });
+        void pollLoop(kind, next.loginId, {
+          authorizationUrl: next.authorizationUrl,
+          ...(next.userCode !== undefined ? { userCode: next.userCode } : {})
+        });
+        return;
       case "no_url":
         patch(kind, { login: { phase: "no_url", loginId: next.loginId } });
         return;
@@ -123,8 +161,12 @@ export function CliAuthStep(props: {
     }
   };
 
-  const pollLoop = async (kind: OnboardingProviderKind, loginId: string) => {
-    patch(kind, { login: { phase: "polling", loginId } });
+  const pollLoop = async (
+    kind: OnboardingProviderKind,
+    loginId: string,
+    surface?: Pick<LoginSession, "authorizationUrl" | "userCode">
+  ) => {
+    patch(kind, { login: { phase: "polling", loginId, ...surface } });
     for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
       await delay(POLL_INTERVAL_MS);
       let next: LoginNext;
@@ -344,7 +386,32 @@ export function ProviderCard(props: {
           ) : null}
 
           {model.status === "logging_in" ? (
-            model.awaitingToken && model.authorizationUrl ? (
+            model.userCode && model.authorizationUrl ? (
+              <div className="onb-auth__outwrap">
+                <div className="onb-auth__hint">
+                  Open the sign-in page and enter this device code. Jarvis will detect when you’re
+                  finished.
+                </div>
+                <div className="onb-auth__outhd">
+                  <a
+                    className="onb-cli__guide"
+                    href={model.authorizationUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open sign-in page <ExternalLink size={12} aria-hidden="true" />
+                  </a>
+                  <button
+                    className="onb-auth__re"
+                    type="button"
+                    onClick={() => void copyText(model.userCode ?? "")}
+                  >
+                    <Copy size={12} aria-hidden="true" /> Copy code
+                  </button>
+                </div>
+                <code>{model.userCode}</code>
+              </div>
+            ) : model.awaitingToken && model.authorizationUrl ? (
               <div className="onb-auth__outwrap">
                 <div className="onb-auth__hint">
                   Open the sign-in page, approve access, then paste the code it gives you.
@@ -361,9 +428,7 @@ export function ProviderCard(props: {
                   <button
                     className="onb-auth__re"
                     type="button"
-                    onClick={() =>
-                      void navigator.clipboard?.writeText(model.authorizationUrl ?? "")
-                    }
+                    onClick={() => void copyText(model.authorizationUrl ?? "")}
                   >
                     <Copy size={12} aria-hidden="true" /> Copy link
                   </button>

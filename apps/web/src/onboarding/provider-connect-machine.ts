@@ -19,6 +19,7 @@ export type LoginPhase =
   | "idle"
   | "beginning"
   | "awaiting_token"
+  | "awaiting_authorization"
   | "submitting"
   | "polling"
   | "no_url";
@@ -27,6 +28,7 @@ export interface LoginSession {
   readonly phase: LoginPhase;
   readonly loginId?: string;
   readonly authorizationUrl?: string;
+  readonly userCode?: string;
   readonly error?: string;
 }
 
@@ -47,6 +49,7 @@ export interface CardModel {
   readonly busy: boolean;
   readonly errorMessage?: string;
   readonly authorizationUrl?: string;
+  readonly userCode?: string;
   readonly awaitingToken: boolean;
   readonly inFlight: boolean;
 }
@@ -54,6 +57,7 @@ export interface CardModel {
 const ACTIVE_LOGIN: ReadonlySet<LoginPhase> = new Set([
   "beginning",
   "awaiting_token",
+  "awaiting_authorization",
   "submitting",
   "polling"
 ]);
@@ -76,7 +80,8 @@ export function deriveCardModel(args: {
   const base = {
     busy,
     awaitingToken: login.phase === "awaiting_token",
-    authorizationUrl: login.phase === "awaiting_token" ? login.authorizationUrl : undefined,
+    authorizationUrl: ACTIVE_LOGIN.has(login.phase) ? login.authorizationUrl : undefined,
+    userCode: ACTIVE_LOGIN.has(login.phase) ? login.userCode : undefined,
     inFlight,
     ...(errorMessage !== undefined ? { errorMessage } : {})
   };
@@ -108,6 +113,12 @@ export function shouldAutoLogin(installState: ProviderInstallState): boolean {
 
 export type LoginNext =
   | { readonly kind: "awaiting_token"; readonly loginId: string; readonly authorizationUrl: string }
+  | {
+      readonly kind: "awaiting_authorization";
+      readonly loginId: string;
+      readonly authorizationUrl: string;
+      readonly userCode?: string;
+    }
   | { readonly kind: "no_url"; readonly loginId: string }
   | { readonly kind: "poll"; readonly loginId: string }
   | { readonly kind: "ready" }
@@ -123,6 +134,14 @@ export function interpretLoginResponse(
   // awaiting_authorization | awaiting_token (not settled)
   if (phase === "begin") {
     if (!resp.authorizationUrl) return { kind: "no_url", loginId: resp.loginId };
+    if (resp.status === "awaiting_authorization") {
+      return {
+        kind: "awaiting_authorization",
+        loginId: resp.loginId,
+        authorizationUrl: resp.authorizationUrl,
+        ...(resp.userCode !== undefined ? { userCode: resp.userCode } : {})
+      };
+    }
     return {
       kind: "awaiting_token",
       loginId: resp.loginId,
