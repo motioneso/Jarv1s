@@ -19,14 +19,33 @@ export function isComposerEmpty(provider: ProviderKind, pane: string): boolean {
   );
 }
 
+// #1170: claude collapses LARGE pastes into a single placeholder line instead of echoing
+// the text — a live 2.1.215 probe of a 40-line paste rendered exactly `[Pasted text #2
+// +39 lines]` (N increments per paste within a session, M = totalLines - 1) with none of
+// the pasted content visible. Exact-echo verification is therefore impossible for large
+// multiline pastes; the placeholder itself is the echo evidence.
+const CLAUDE_PASTED_PLACEHOLDER = /^\[Pasted text #\d+(?: \+\d+ lines)?\]$/;
+
 export function composerHasExactEcho(
   provider: ProviderKind,
   pane: string,
   expectedText: string
 ): boolean {
   const current = currentComposer(provider, pane);
+  if (current === null) return false;
+  if (normalizeComposerText(current.text) === normalizeComposerText(expectedText)) return true;
+  // #1170: accept claude's collapsed-paste placeholder as echo evidence, but ONLY for
+  // multiline expected text (single-line text always renders verbatim, so a placeholder
+  // there would be foreign content). This is safe against stale/foreign placeholders
+  // because verifiedSubmit verifies the composer is EMPTY immediately before pasting —
+  // any placeholder observed after our paste can only be our paste. We deliberately do
+  // NOT match the `+M lines` count against the expected line count: the CLI's counting
+  // semantics are undocumented and a drift there would resurrect the exact 503 outage
+  // this fixes.
   return (
-    current !== null && normalizeComposerText(current.text) === normalizeComposerText(expectedText)
+    provider === "anthropic" &&
+    expectedText.includes("\n") &&
+    CLAUDE_PASTED_PLACEHOLDER.test(current.text)
   );
 }
 
@@ -54,8 +73,21 @@ function currentComposer(
   const composerLines = [first];
   for (let i = index + 1; i < lines.length; i += 1) {
     const line = stripAnsi(lines[i] ?? "").trim();
-    if (!line || /^(?:─+|\? for shortcuts|esc to |ctrl\+)/i.test(line)) break;
+    if (/^(?:─+|\? for shortcuts|esc to |ctrl\+)/i.test(line)) break;
+    // #1170: claude renders interior BLANK lines of a multiline paste inside the composer
+    // (probed live on 2.1.215 with an attachment-shaped payload — the `\n\n` before the
+    // <attachments> block appears as a blank composer line above the ─── chrome boundary).
+    // Breaking on the first blank line truncated the collected echo at that blank, so
+    // composerHasExactEcho could NEVER match an attachment turn and every one 503'd.
+    // For anthropic, collect through blanks and stop only at the chrome boundary; other
+    // providers keep the old blank-line stop (codex chrome below the composer is not
+    // guaranteed to match the boundary regex, and its echo behavior was not probed).
+    if (!line && provider !== "anthropic") break;
     composerLines.push(line);
+  }
+  // Trailing blanks are padding between the composer text and the chrome, not content.
+  while (composerLines.length > 0 && composerLines[composerLines.length - 1] === "") {
+    composerLines.pop();
   }
   return { rawFirstLine, text: composerLines.join(" ").trim() };
 }

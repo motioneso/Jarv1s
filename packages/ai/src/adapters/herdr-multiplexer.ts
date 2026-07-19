@@ -92,6 +92,12 @@ export class HerdrMultiplexer implements Multiplexer {
     await this.runChecked(["pane", "send-keys", handle, "C-u"], "send-keys");
   }
 
+  async clearComposerHard(handle: MuxHandle): Promise<void> {
+    // #1170: see TmuxMultiplexer.clearComposerHard — C-u cannot empty a multiline
+    // composer; a single Ctrl+C can. Only sent when the composer is known non-empty.
+    await this.runChecked(["pane", "send-keys", handle, "C-c"], "send-keys");
+  }
+
   async capturePane(handle: MuxHandle): Promise<string> {
     const { code, stdout, stderr } = await this.io.run("herdr", [
       "pane",

@@ -664,6 +664,7 @@ describe("createRealEngineFactory", () => {
       open: async () => "h",
       submit: async () => {},
       clearComposer: async () => {},
+      clearComposerHard: async () => {},
       capturePane: async () => "",
       paste: async () => {},
       pressEnter: async () => {},

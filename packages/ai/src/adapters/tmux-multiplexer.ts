@@ -100,6 +100,13 @@ export class TmuxMultiplexer implements Multiplexer {
     await this.runChecked(["send-keys", "-t", handle, "C-u"]);
   }
 
+  async clearComposerHard(handle: MuxHandle): Promise<void> {
+    // #1170: C-u is line-scoped; Ctrl+C is the only probed keystroke that wipes a
+    // multiline claude composer in one press (Escape does nothing, repeated C-u strands
+    // earlier lines). Engine only calls this after observing a non-empty composer.
+    await this.runChecked(["send-keys", "-t", handle, "C-c"]);
+  }
+
   async capturePane(handle: MuxHandle): Promise<string> {
     const { code, stdout, stderr } = await this.io.run(
       "tmux",

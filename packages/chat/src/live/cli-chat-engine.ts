@@ -28,7 +28,6 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import {
@@ -48,7 +47,7 @@ import type { AiProviderExecutionMode } from "@jarv1s/shared";
 
 import { CliChatUnavailableError } from "./errors.js";
 import { CodexExecSession } from "./codex-exec-session.js";
-import { modelOverrideFlag, redactCause, sanitizeInput, shellQuote } from "./cli-engine-helpers.js";
+import { redactCause, sanitizeInput } from "./cli-engine-helpers.js";
 import { composerHasExactEcho, isComposerEmpty } from "./composer-evidence.js";
 import {
   VerifiedSubmitError,
@@ -57,9 +56,15 @@ import {
   type VerifiedSubmitOpts
 } from "./cli-chat-engine-opts.js";
 import { killMuxSessionByName, SESSION_PREFIX } from "./cli-session-lifecycle.js";
-import { writeClaudePermissionHook } from "./claude-permission-hook.js";
+// #1170 file-cap split: launch-line builders + per-session secret/config writers
+// moved verbatim to cli-launch-commands.ts (same pattern as the #1157 opts split).
 import {
-  AGY_SESSION_LOG_FILENAME,
+  buildLaunchCommand,
+  resolvePersonaPath,
+  writeCodexTokenEnv,
+  writeGeminiSettings
+} from "./cli-launch-commands.js";
+import {
   captureAgyConversationIdentity,
   codexTranscriptMatchesIdentity,
   codexTranscriptPath,
@@ -77,7 +82,6 @@ import type {
   EngineLaunchOpts,
   TranscriptRecord
 } from "./types.js";
-import { vaultReadOnlyToolPatterns } from "./vault-allowlist.js";
 
 export {
   LOGIN_SESSION_PREFIX,
@@ -107,10 +111,6 @@ export {
   type ProbeProviderResult,
   type ProbeProviderStatus
 } from "./provider-probe.js";
-
-const PERSONA_FILENAME = "persona.md";
-
-const CLAUDE_MCP_FILENAME = ".jarvis-claude-mcp.json";
 
 /** Result of a bounded server-side replay-drain (§4.1.2). */
 interface DrainOutcome {
@@ -148,6 +148,7 @@ export class CliChatEngineImpl implements CliChatEngine {
   private readonly drainPollMs: number;
   private readonly echoMs: number;
   private readonly verifiedSubmitMs: number;
+  private readonly nudgeAfterMs: number;
   private readonly executionMode: AiProviderExecutionMode;
   private readonly onDiagnostic?: (event: CliChatEngineDiagnostic) => void;
   private codexExec: CodexExecSession | null = null;
@@ -170,6 +171,7 @@ export class CliChatEngineImpl implements CliChatEngine {
     this.drainPollMs = opts.drainPollMs ?? 250;
     this.echoMs = opts.echoMs ?? 10_000;
     this.verifiedSubmitMs = opts.verifiedSubmitMs ?? 35_000;
+    this.nudgeAfterMs = opts.nudgeAfterMs ?? 7_000;
     this.executionMode = opts.executionMode ?? "interactive";
     this.onDiagnostic = opts.onDiagnostic;
   }
@@ -196,13 +198,13 @@ export class CliChatEngineImpl implements CliChatEngine {
       // When the cli-runner owns the launch it ships persona CONTENT (`personaText`),
       // not a path: write it under the server-derived neutral dir, `0600` (§4.1.1a).
       // The in-process host path keeps using the manager-rendered `personaPath`.
-      personaPath = await this.resolvePersonaPath(opts);
+      personaPath = await resolvePersonaPath(this.io, opts);
 
       this.codexTokenEnvPath =
-        this.provider === "openai-compatible" ? await this.writeCodexTokenEnv(opts) : null;
+        this.provider === "openai-compatible" ? await writeCodexTokenEnv(this.io, opts) : null;
 
       if (this.provider === "google" && opts.mcpToken && opts.mcpServerUrl) {
-        await this.writeGeminiSettings(opts);
+        await writeGeminiSettings(this.io, opts);
       }
     } catch (err) {
       // PRE-mux-create failure: remove the whole per-session neutral dir (§6.5).
@@ -232,7 +234,18 @@ export class CliChatEngineImpl implements CliChatEngine {
       return { offset: 0 };
     }
 
-    const launchLine = await this.buildLaunchCommand(opts, sessionId, personaPath);
+    const launchLine = await buildLaunchCommand(
+      {
+        provider: this.provider,
+        io: this.io,
+        executionMode: this.executionMode,
+        credentialFile: this.credentialFile,
+        codexTokenEnvPath: this.codexTokenEnvPath
+      },
+      opts,
+      sessionId,
+      personaPath
+    );
     try {
       this.handle = await this.mux.open({
         name: `${SESSION_PREFIX}${this.threadKey}`,
@@ -346,11 +359,27 @@ export class CliChatEngineImpl implements CliChatEngine {
         }
         await this.mux.clearComposer(handle);
         this.throwIfCanceled(opts.signal);
-        const empty = await this.observePane(
+        let empty = await this.observePane(
           handle,
           (pane) => isComposerEmpty(this.provider, pane),
           opts.signal
         );
+        if (!empty) {
+          // #1170: clearComposer (C-u) only clears the CURRENT composer line — a stuck
+          // MULTILINE composer (e.g. a previous attachment turn's failed paste) survives
+          // it, so without this fallback the emptiness gate fails on every later turn of
+          // the session ("chat input unavailable" forever). Ctrl+C wipes the whole
+          // composer in one press (probed live, claude 2.1.215). Only sent here, after
+          // observing non-empty: Ctrl+C on an EMPTY composer arms the CLI's
+          // press-again-to-exit state and a second press would kill the session.
+          await this.mux.clearComposerHard(handle);
+          this.throwIfCanceled(opts.signal);
+          empty = await this.observePane(
+            handle,
+            (pane) => isComposerEmpty(this.provider, pane),
+            opts.signal
+          );
+        }
         if (!empty) throw new VerifiedSubmitError("unavailable");
         pasted = false;
 
@@ -367,7 +396,7 @@ export class CliChatEngineImpl implements CliChatEngine {
         entered = true;
         await this.mux.pressEnter(handle);
         this.throwIfCanceled(opts.signal);
-        await this.waitForUserAck(ack, sanitized, opts.signal);
+        await this.waitForUserAckWithEnterNudge(ack, sanitized, handle, opts.signal);
         return;
       }
       throw new VerifiedSubmitError("unavailable");
@@ -661,12 +690,45 @@ export class CliChatEngineImpl implements CliChatEngine {
     }
   }
 
+  /**
+   * #1162/#1171: claude occasionally SWALLOWS the Enter keypress — the echo was verified,
+   * Enter was sent, but the composer still holds the text and no user record ever reaches
+   * the transcript (Ben's prod "stuck 'try again'" turns). Bounded recovery: wait a short
+   * window for the transcript ack; if it doesn't land AND the composer still visibly holds
+   * content, press Enter again (max 2 nudges). The composer-still-holds-content guard is
+   * what makes re-pressing safe: an EMPTY composer means the text was submitted and the
+   * ack is merely lagging, so we never re-press there — no duplicate-turn risk.
+   */
+  private async waitForUserAckWithEnterNudge(
+    initial: { readonly path: string | null; readonly cursor: AckCursor },
+    expectedText: string,
+    handle: MuxHandle,
+    signal: AbortSignal
+  ): Promise<void> {
+    const MAX_ENTER_NUDGES = 2;
+    for (let nudge = 0; nudge < MAX_ENTER_NUDGES; nudge += 1) {
+      if (await this.waitForUserAck(initial, expectedText, signal, this.nudgeAfterMs)) return;
+      const pane = await this.mux.capturePane(handle);
+      this.throwIfCanceled(signal);
+      if (isComposerEmpty(this.provider, pane)) break;
+      await this.mux.pressEnter(handle);
+      this.throwIfCanceled(signal);
+    }
+    // Unbounded wait as before; the prod RPC bounds this externally via its
+    // verified-submit deadline, so an in-process ceiling here would be redundant.
+    await this.waitForUserAck(initial, expectedText, signal);
+  }
+
   private async waitForUserAck(
     initial: { readonly path: string | null; readonly cursor: AckCursor },
     expectedText: string,
-    signal: AbortSignal
-  ): Promise<void> {
+    signal: AbortSignal,
+    deadlineMs?: number
+  ): Promise<boolean> {
     const provider = this.provider as AckProviderKind;
+    // deadlineMs bounds the wait for the Enter-nudge probe loop; without it the wait is
+    // unbounded (pre-#1171 behavior) and only ever exits by acking or throwing on cancel.
+    const deadline = deadlineMs === undefined ? null : Date.now() + deadlineMs;
     for (;;) {
       this.throwIfCanceled(signal);
       const path = initial.path ?? (await this.resolveTranscriptPath(signal));
@@ -675,11 +737,12 @@ export class CliChatEngineImpl implements CliChatEngine {
         try {
           const jsonl = await this.io.readFile(path);
           this.throwIfCanceled(signal);
-          if (hasExactUserAck(provider, jsonl, initial.cursor, expectedText)) return;
+          if (hasExactUserAck(provider, jsonl, initial.cursor, expectedText)) return true;
         } catch {
           this.throwIfCanceled(signal);
         }
       }
+      if (deadline !== null && Date.now() >= deadline) return false;
       await this.io.sleep(this.drainPollMs);
       this.throwIfCanceled(signal);
     }
@@ -704,6 +767,11 @@ export class CliChatEngineImpl implements CliChatEngine {
   private async clearPastedComposer(handle: MuxHandle): Promise<boolean> {
     try {
       await this.mux.clearComposer(handle);
+      if (isComposerEmpty(this.provider, await this.mux.capturePane(handle))) return true;
+      // #1170: the pasted text we're discarding is usually MULTILINE (attachment manifests
+      // always are), and C-u cannot empty a multiline composer — hard-clear (Ctrl+C) before
+      // giving up, else the caller needlessly kills the whole session.
+      await this.mux.clearComposerHard(handle);
       return isComposerEmpty(this.provider, await this.mux.capturePane(handle));
     } catch {
       return false;
@@ -719,207 +787,6 @@ export class CliChatEngineImpl implements CliChatEngine {
   }
 
   // ─── helpers ─────────────────────────────────────────────────────────────────
-
-  /**
-   * Build the single shell line that `cd`s into the neutral dir and launches the
-   * CLI with the security-critical flags. Sent as one `send-keys` line (the
-   * matrix's recommended shape).
-   */
-  private async buildLaunchCommand(
-    opts: EngineLaunchOpts,
-    sessionId: string,
-    personaPath: string
-  ): Promise<string> {
-    switch (this.provider) {
-      case "anthropic":
-        return this.buildClaudeCommand(opts, sessionId, personaPath);
-      case "openai-compatible":
-        return this.buildCodexCommand(opts);
-      case "google":
-        return this.buildGeminiCommand(opts);
-    }
-  }
-
-  /**
-   * Build the Claude launch line. The MCP bearer token is NEVER on the line: the
-   * full `--mcp-config` JSON (incl. the `Authorization: Bearer jst_…` header) is
-   * written to a `0600` `<neutralDir>/.jarvis-claude-mcp.json` and the line passes
-   * the PATH, not the JSON (§6.2). `claude --mcp-config` accepts a file path.
-   */
-  private async buildClaudeCommand(
-    opts: EngineLaunchOpts,
-    sessionId: string,
-    personaPath: string
-  ): Promise<string> {
-    // #363: when a captured OAuth token is persisted, authenticate claude via
-    // CLAUDE_CODE_OAUTH_TOKEN read at RUNTIME from the 0600 file (`$(cat …)`) — the secret is
-    // NEVER in the tmux argv / pane-typed string, and is scoped to THIS claude invocation only.
-    const claudeCmd =
-      this.credentialFile && existsSync(this.credentialFile)
-        ? `CLAUDE_CODE_OAUTH_TOKEN="$(cat ${shellQuote(this.credentialFile)})" claude`
-        : "claude";
-    // #1071: REVERT of #1068 (see header for the full root-cause narrative). `default` is correct;
-    // #1068's `bypassPermissions` was the prod-chat 503 regression — in claude 2.1.183 it triggers a
-    // BLOCKING bypass-mode accept-warning that bypassPermissionsModeAccepted:true does NOT suppress →
-    // REPL never ready → VerifiedSubmitError → 503. Confirmed by live prod-container test: the FULL
-    // flag set below under `default` reaches a clean ready REPL and answers a turn (seeding +
-    // HOME=/data/cli-auth already suppress the folder-trust wizard). Restores spike-F2 DiD.
-    const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, claudeCmd, "--permission-mode default"];
-
-    if (opts.mcpToken && opts.mcpServerUrl) {
-      const mcpConfigPath = await this.writeClaudeMcpConfig(opts);
-      const settingsPath = await writeClaudePermissionHook(this.io, {
-        neutralDir: opts.neutralDir,
-        mcpToken: opts.mcpToken,
-        mcpServerUrl: opts.mcpServerUrl
-      });
-      parts.push(`--mcp-config ${shellQuote(mcpConfigPath)}`);
-      parts.push(`--settings ${shellQuote(settingsPath)}`);
-      const allowedTools = ["mcp__jarvis__*", ...vaultReadOnlyToolPatterns()].join(" ");
-      parts.push(`--allowedTools ${shellQuote(allowedTools)}`);
-    } else {
-      parts.push('--tools ""');
-    }
-
-    parts.push(
-      `--append-system-prompt-file ${shellQuote(personaPath)}`,
-      `--session-id ${sessionId}`,
-      "--strict-mcp-config"
-    );
-
-    const modelFlag = modelOverrideFlag(opts);
-    if (modelFlag) parts.push(modelFlag);
-
-    return parts.join(" ");
-  }
-
-  private buildCodexCommand(opts: EngineLaunchOpts): string {
-    const tokenEnvVar = "JARVIS_MCP_TOKEN";
-    const sourceEnv = this.codexTokenEnvPath ? `. ${shellQuote(this.codexTokenEnvPath)} &&` : "";
-    const codexCommand = this.executionMode === "non_interactive" ? "codex exec --json" : "codex";
-    const parts = [`cd ${shellQuote(opts.neutralDir)} &&`, sourceEnv, codexCommand];
-
-    // #1083 F1: deny shell_tool/apply_patch_tool on EVERY launch (was gated behind the MCP check
-    // below, so no-gateway launches kept native shell/patch tools); mirrors anthropic's `--tools ""`.
-    parts.push(`-c 'features.shell_tool=false'`, `-c 'features.apply_patch_tool=false'`);
-
-    if (opts.mcpToken && opts.mcpServerUrl) {
-      parts.push(
-        `-c 'mcp_servers.jarvis.url="${opts.mcpServerUrl}"'`,
-        `-c 'mcp_servers.jarvis.bearer_token_env_var="${tokenEnvVar}"'`,
-        `-c 'mcp_servers.jarvis.tool_timeout_sec=180'`,
-        `-c 'mcp_servers.jarvis.default_tools_approval_mode="approve"'`,
-        `-c 'features.tool_call_mcp_elicitation=false'`
-      );
-    }
-    const modelFlag = modelOverrideFlag(opts); // codex accepts -m/--model
-    if (modelFlag) parts.push(modelFlag);
-    // `-a never`/`approval_policy` cover shell approvals. MCP tool approval is
-    // separate; auto-approve only the generated Jarv1s server so the hidden TUI
-    // never blocks on a prompt the web user cannot see.
-    parts.push("--disable apps", "--sandbox read-only", "-a never", `-c 'approval_policy="never"'`);
-
-    return parts.join(" ");
-  }
-
-  private buildGeminiCommand(opts: EngineLaunchOpts): string {
-    // Token is already injected via .gemini/settings.json Authorization header — no env var needed.
-    const parts = [
-      `cd ${shellQuote(opts.neutralDir)} &&`,
-      "agy",
-      "--sandbox",
-      "--log-file",
-      shellQuote(join(opts.neutralDir, AGY_SESSION_LOG_FILENAME))
-    ];
-    const modelFlag = modelOverrideFlag(opts); // agy accepts --model
-    if (modelFlag) parts.push(modelFlag);
-    return parts.join(" ");
-  }
-
-  /**
-   * Resolve the persona file the CLI is pointed at. When `personaText` is supplied
-   * (the cli-runner RPC path), write it under the server-derived neutral dir `0600`
-   * and return that path (§4.1.1a). Otherwise (in-process host path) use the
-   * manager-rendered `personaPath` unchanged.
-   */
-  private async resolvePersonaPath(opts: EngineLaunchOpts): Promise<string> {
-    if (opts.personaText === undefined) return opts.personaPath;
-    await this.io.run("mkdir", ["-p", opts.neutralDir]);
-    const path = join(opts.neutralDir, PERSONA_FILENAME);
-    await this.io.writeFile(path, opts.personaText);
-    // Persona text is not a secret, but keep the dir uniform `0600` files (§6.2).
-    await this.io.run("chmod", ["600", path]);
-    return path;
-  }
-
-  /**
-   * Write Claude's full `--mcp-config` JSON (incl. the bearer header) to a `0600`
-   * file so the token never appears on the launch line / argv / capture-pane (§6.2).
-   * Returns the file path the launch line references.
-   */
-  private async writeClaudeMcpConfig(opts: EngineLaunchOpts): Promise<string> {
-    const path = join(opts.neutralDir, CLAUDE_MCP_FILENAME);
-    const mcpConfig = JSON.stringify({
-      mcpServers: {
-        jarvis: {
-          type: "http",
-          url: opts.mcpServerUrl,
-          headers: { Authorization: `Bearer ${opts.mcpToken}` },
-          timeout: 180000
-        }
-      }
-    });
-    await this.io.writeFile(path, mcpConfig);
-    const chmod = await this.io.run("chmod", ["600", path]);
-    if (chmod.code !== 0) {
-      await this.io.run("rm", ["-f", path]);
-      throw new Error(`Could not lock down Claude MCP config file: ${chmod.stderr ?? ""}`.trim());
-    }
-    return path;
-  }
-
-  private async writeGeminiSettings(opts: EngineLaunchOpts): Promise<void> {
-    const settingsDir = join(opts.neutralDir, ".gemini");
-    await this.io.run("mkdir", ["-p", settingsDir]);
-    const settings = {
-      mcpServers: {
-        jarvis: {
-          httpUrl: opts.mcpServerUrl,
-          headers: { Authorization: `Bearer ${opts.mcpToken}` },
-          timeout: 180000
-        }
-      },
-      tools: { core: [] as string[] },
-      security: { disableYoloMode: true }
-    };
-    const path = join(settingsDir, "settings.json");
-    await this.io.writeFile(path, JSON.stringify(settings, null, 2));
-    // The settings file carries the Authorization header — lock it down `0600` (§6.5).
-    // Symmetric with writeClaudeMcpConfig / writeCodexTokenEnv: if the chmod fails we
-    // MUST NOT leave a world/group-readable token file behind. rm -f it and throw so the
-    // failure routes through launch()'s removeNeutralDirQuietly cleanup (§6.5) — a failed
-    // lockdown never leaves a readable Bearer token on disk.
-    const chmod = await this.io.run("chmod", ["600", path]);
-    if (chmod.code !== 0) {
-      await this.io.run("rm", ["-f", path]);
-      throw new Error(`Could not lock down Gemini settings file: ${chmod.stderr ?? ""}`.trim());
-    }
-  }
-
-  private async writeCodexTokenEnv(opts: EngineLaunchOpts): Promise<string | null> {
-    if (!opts.mcpToken) return null;
-    const path = join(opts.neutralDir, ".jarvis-mcp-token.env");
-    await this.io.writeFile(
-      path,
-      `JARVIS_MCP_TOKEN=${shellQuote(opts.mcpToken)}\nexport JARVIS_MCP_TOKEN\n`
-    );
-    const chmod = await this.io.run("chmod", ["600", path]);
-    if (chmod.code !== 0) {
-      await this.io.run("rm", ["-f", path]);
-      throw new Error(`Could not lock down Codex MCP token file: ${chmod.stderr ?? ""}`.trim());
-    }
-    return path;
-  }
 
   /**
    * Bounded server-side replay-drain (§4.1.2). Submits `replayBatch` (if present)

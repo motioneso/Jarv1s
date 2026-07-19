@@ -42,6 +42,12 @@ export interface CliChatEngineOpts {
   readonly echoMs?: number;
   /** Failure-only bound for replay's verified submit. */
   readonly verifiedSubmitMs?: number;
+  /**
+   * #1162/#1171: how long to wait for the post-Enter transcript ACK before probing for a
+   * swallowed Enter (composer still holds the text ⇒ press Enter again, max 2 nudges).
+   * Default 7000ms; tests shrink it to keep the bounded ack wait off the wall clock.
+   */
+  readonly nudgeAfterMs?: number;
   readonly executionMode?: AiProviderExecutionMode;
   /** #1157: best-effort diagnostic sink (see CliChatEngineDiagnostic). Must never throw into the submit path. */
   readonly onDiagnostic?: (event: CliChatEngineDiagnostic) => void;

@@ -21,6 +21,7 @@ function stateMachineMux(opts: {
   readonly onEnter?: () => void;
 }): Multiplexer & {
   readonly clearComposer: ReturnType<typeof vi.fn>;
+  readonly clearComposerHard: ReturnType<typeof vi.fn>;
   readonly capturePane: ReturnType<typeof vi.fn>;
   readonly paste: ReturnType<typeof vi.fn>;
   readonly pressEnter: ReturnType<typeof vi.fn>;
@@ -32,6 +33,7 @@ function stateMachineMux(opts: {
     kind: "tmux",
     open: vi.fn().mockResolvedValue("pane-1"),
     clearComposer: vi.fn().mockResolvedValue(undefined),
+    clearComposerHard: vi.fn().mockResolvedValue(undefined),
     capturePane,
     paste: vi.fn(async () => opts.onPaste?.()),
     pressEnter: vi.fn(async () => opts.onEnter?.()),
@@ -73,9 +75,104 @@ describe("CliChatEngineImpl — verified interactive submit", () => {
     });
 
     expect(mux.clearComposer).toHaveBeenCalledTimes(1);
+    // #1170: hard clear (Ctrl+C) must never fire when the soft clear already emptied the
+    // composer — on an empty composer it arms claude's press-again-to-exit state.
+    expect(mux.clearComposerHard).not.toHaveBeenCalled();
     expect(mux.paste).toHaveBeenCalledTimes(1);
     expect(mux.pressEnter).toHaveBeenCalledTimes(1);
     expect(mux.kill).not.toHaveBeenCalled();
+  });
+
+  it("hard-clears a stuck multiline composer that C-u cannot empty (#1170)", async () => {
+    // Probed live on claude 2.1.215: C-u clears only the CURRENT line, so a stuck
+    // multiline paste (every attachment turn is multiline) survives clearComposer and
+    // pre-fix the emptiness gate failed the whole turn ("chat input unavailable").
+    let transcript = "";
+    const stuck = "❯ stuck line one\n  stuck line two\n";
+    const mux = stateMachineMux({
+      // Capture order: post-C-u observe (still stuck) → post-C-c observe (empty) → echo.
+      panes: [stuck, empty, "❯ next turn\n"],
+      onEnter: () => {
+        transcript += claudeUser("next turn");
+      }
+    });
+    const io = makeIo();
+    io.readFile.mockImplementation(async () => transcript);
+    const engine = new CliChatEngineImpl("anthropic", "hard-clear", io, { mux, echoMs: 0 });
+    await engine.launch({ neutralDir: "/tmp/hard-clear", personaPath: "/p.md" });
+
+    await engine.verifiedSubmit({
+      attemptId: "66666666-6666-4666-8666-666666666666",
+      text: "next turn",
+      signal: new AbortController().signal
+    });
+
+    expect(mux.clearComposer).toHaveBeenCalledTimes(1);
+    expect(mux.clearComposerHard).toHaveBeenCalledTimes(1);
+    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
+    expect(mux.kill).not.toHaveBeenCalled();
+  });
+
+  it("re-presses Enter when the ack never lands and the composer still holds the text (#1162)", async () => {
+    // Swallowed-Enter recovery: echo verified, Enter sent, but no user record reaches the
+    // transcript and the text still sits in the composer ⇒ press Enter again (bounded).
+    let transcript = "";
+    let enters = 0;
+    const mux = stateMachineMux({
+      // Captures: emptiness gate → echo observe → nudge composer probe (still holding).
+      panes: [empty, "❯ exact payload\n", "❯ exact payload\n"],
+      onEnter: () => {
+        enters += 1;
+        // First Enter is "swallowed" (no ack); the nudge's second Enter lands it.
+        if (enters === 2) transcript += claudeUser("exact payload");
+      }
+    });
+    const io = makeIo();
+    io.readFile.mockImplementation(async () => transcript);
+    const engine = new CliChatEngineImpl("anthropic", "enter-nudge", io, {
+      mux,
+      echoMs: 0,
+      nudgeAfterMs: 0
+    });
+    await engine.launch({ neutralDir: "/tmp/enter-nudge", personaPath: "/p.md" });
+
+    await engine.verifiedSubmit({
+      attemptId: "77777777-7777-4777-8777-777777777777",
+      text: "exact payload",
+      signal: new AbortController().signal
+    });
+
+    expect(mux.pressEnter).toHaveBeenCalledTimes(2);
+    expect(mux.kill).not.toHaveBeenCalled();
+  });
+
+  it("never re-presses Enter when the composer is empty (submitted, ack lagging) (#1162)", async () => {
+    // Empty composer ⇒ the text WAS submitted; re-pressing there is the duplicate-turn
+    // hazard, so the nudge must fall through to the plain unbounded ack wait instead.
+    const io = makeIo();
+    const mux = stateMachineMux({
+      // Captures: emptiness gate → echo observe → nudge composer probe (EMPTY = submitted).
+      panes: [empty, "❯ exact payload\n", empty]
+    });
+    // Ack appears only AFTER the nudge probe has captured the empty composer (3rd capture),
+    // forcing the bounded wait to time out once and the fall-through unbounded wait to win.
+    io.readFile.mockImplementation(async () =>
+      mux.capturePane.mock.calls.length >= 3 ? claudeUser("exact payload") : ""
+    );
+    const engine = new CliChatEngineImpl("anthropic", "ack-lag", io, {
+      mux,
+      echoMs: 0,
+      nudgeAfterMs: 0
+    });
+    await engine.launch({ neutralDir: "/tmp/ack-lag", personaPath: "/p.md" });
+
+    await engine.verifiedSubmit({
+      attemptId: "88888888-8888-4888-8888-888888888889",
+      text: "exact payload",
+      signal: new AbortController().signal
+    });
+
+    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
   });
 
   it("allows one clear-first re-paste, then still presses Enter only once", async () => {
