@@ -390,23 +390,29 @@ export function GoogleConnectorStep(props: {
             <span>{imapProvider.prerequisite}</span>
           </div>
           <ol className="onb-guide">
-            {imapProvider.steps.map((step, index) => (
-              <li className="onb-guide__step" key={step}>
-                <span className="onb-guide__n">{index + 1}</span>
-                <div className="onb-guide__body">
-                  <div className="onb-guide__t">{step}</div>
-                </div>
-              </li>
-            ))}
+            {imapProvider.steps.map((step, index) => {
+              const isLastStep = index === imapProvider.steps.length - 1;
+              return (
+                <li className="onb-guide__step" key={step}>
+                  <span className="onb-guide__n">{index + 1}</span>
+                  <div className="onb-guide__body">
+                    <div className="onb-guide__t">{step}</div>
+                    {isLastStep ? (
+                      <a
+                        className="onb-guide__link"
+                        href={imapProvider.helpUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {imapProvider.name} setup guide{" "}
+                        <ExternalLink size={13} aria-hidden="true" />
+                      </a>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ol>
-          <a
-            className="onb-guide__link"
-            href={imapProvider.helpUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {imapProvider.name} setup guide <ExternalLink size={13} aria-hidden="true" />
-          </a>
           <div className="onb-cred">
             <div className="onb-cred__hd">Enter your email credentials</div>
             <label className="onb-cred__field">
