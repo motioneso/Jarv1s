@@ -1,0 +1,71 @@
+/* Job Search UI kit — shared Park Press presentational helpers. Exposes window.JobKit. */
+(function () {
+  const monoLabel = {
+    fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 500,
+    letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--ink-3)"
+  };
+
+  function Eyebrow({ children, tone, style }) {
+    const color = tone === "gold" ? "var(--gold-hover)" : tone === "muted" ? "var(--ink-3)" : "var(--ink-2)";
+    return <p style={{ ...monoLabel, color, margin: 0, ...style }}>{children}</p>;
+  }
+
+  function Strap({ w = 30, color = "var(--gold)", style }) {
+    return <span style={{ display: "block", width: w, height: 3, background: color, ...style }} />;
+  }
+
+  function SectionHead({ children, trailing, style }) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 14, margin: "0 0 14px", ...style }}>
+        <span style={{ ...monoLabel, whiteSpace: "nowrap" }}>{children}</span>
+        <span style={{ flex: 1, height: 1, background: "var(--line)" }} />
+        {trailing ?? null}
+      </div>
+    );
+  }
+
+  // Fit band → committed color field (quality signal, not a semantic status).
+  const FIT = {
+    strong: { label: "Strong fit", bg: "var(--accent)", fg: "var(--accent-ink)" },
+    good:   { label: "Good fit",   bg: "var(--steel)",  fg: "#eef2f6" },
+    fair:   { label: "Fair fit",   bg: "var(--oat-lo)", fg: "var(--ink-2)" },
+    weak:   { label: "Weak fit",   bg: "var(--oat-lo)", fg: "var(--ink-3)" }
+  };
+  function FitBadge({ band, style }) {
+    const f = FIT[band] ?? FIT.fair;
+    return (
+      <span style={{
+        display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "var(--font-mono)",
+        fontSize: 10, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase",
+        padding: "5px 10px", borderRadius: 4, color: f.fg, background: f.bg, ...style
+      }}>{f.label}</span>
+    );
+  }
+
+  // Small mono meta pill (outline).
+  function Meta({ children, tone, style }) {
+    const c = tone === "gold" ? "var(--gold-hover)" : "var(--ink-2)";
+    return (
+      <span style={{
+        fontFamily: "var(--font-mono)", fontSize: 9.5, fontWeight: 500, letterSpacing: "0.1em",
+        textTransform: "uppercase", color: c, border: "1px solid var(--line)", padding: "3px 8px",
+        borderRadius: 999, ...style
+      }}>{children}</span>
+    );
+  }
+
+  // Confidence dots (1–3).
+  function Confidence({ level }) {
+    const n = level === "high" ? 3 : level === "medium" ? 2 : 1;
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }} title={`Confidence: ${level}`}>
+        <span style={{ ...monoLabel, fontSize: 9, color: "var(--ink-3)" }}>Conf</span>
+        {[0, 1, 2].map((i) => (
+          <span key={i} style={{ width: 6, height: 6, borderRadius: 999, background: i < n ? "var(--gold)" : "var(--oat-lo)", border: i < n ? "none" : "1px solid var(--line)" }} />
+        ))}
+      </span>
+    );
+  }
+
+  window.JobKit = { monoLabel, Eyebrow, Strap, SectionHead, FitBadge, Meta, Confidence, FIT };
+})();

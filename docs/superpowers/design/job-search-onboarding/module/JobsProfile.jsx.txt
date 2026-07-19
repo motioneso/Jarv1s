@@ -1,0 +1,117 @@
+/* Job Search — Profile: approved resume + search profile (conversational editing lives with Jarvis). */
+(function () {
+  const DS = window.JarvisParkPressDesignSystem_0501fa;
+  const { Badge, Button } = DS;
+  const { monoLabel, Eyebrow, SectionHead, Strap } = window.JobKit;
+  const Ic = window.Ic;
+
+  const TITLES = [
+    { v: "Staff Product Designer", inferred: false },
+    { v: "Principal Designer", inferred: false },
+    { v: "Design Engineer", inferred: true }
+  ];
+  const LOCATIONS = ["Remote — US", "San Francisco, CA"];
+  const DEALBREAKERS = ["On-site 5 days/week", "Below $195k base", "No equity"];
+
+  function Chip({ children, inferred }) {
+    return (
+      <span style={{
+        display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 500,
+        padding: "6px 12px", borderRadius: 999,
+        color: inferred ? "var(--gold-hover)" : "var(--ink)",
+        background: inferred ? "transparent" : "var(--oat-lo)",
+        border: inferred ? "1px dashed color-mix(in srgb, var(--gold) 55%, transparent)" : "1px solid transparent"
+      }} title={inferred ? "Inferred from your resume — confirm with Jarvis to lock it in" : undefined}>
+        {children}
+        {inferred ? <span style={{ ...monoLabel, fontSize: 8, color: "var(--gold-hover)" }}>inferred</span> : null}
+      </span>
+    );
+  }
+
+  function Field({ label, children }) {
+    return (
+      <div style={{ display: "grid", gap: 8 }}>
+        <span style={{ ...monoLabel, fontSize: 9.5 }}>{label}</span>
+        {children}
+      </div>
+    );
+  }
+
+  function JobsProfile() {
+    return (
+      <div>
+        <section style={{ paddingBottom: 24 }}>
+          <Eyebrow tone="gold" style={{ marginBottom: 12 }}>What Jarvis searches on</Eyebrow>
+          <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 44, letterSpacing: "-0.03em", lineHeight: 0.92, textTransform: "uppercase", margin: 0, color: "var(--ink)" }}>Profile & resume</h1>
+          <Strap style={{ marginTop: 16 }} />
+          <p style={{ fontSize: 14, color: "var(--ink-2)", margin: "14px 0 0", maxWidth: "56ch", textWrap: "pretty" }}>
+            This is the lens every match is scored through. Edit it in a conversation — I'll draft the change and you approve it.
+          </p>
+        </section>
+        <div style={{ height: 3, background: "var(--ink)" }} />
+
+        <div style={{ marginTop: 30, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 26, alignItems: "start" }}>
+          {/* RESUME */}
+          <div>
+            <SectionHead trailing={<Badge tone="accent">Approved</Badge>}>Resume</SectionHead>
+            <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+                <span style={{ width: 44, height: 44, borderRadius: 6, background: "var(--ink)", color: "var(--oat-hi)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}><Ic n="FileText" s={22} /></span>
+                <div>
+                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 18, color: "var(--ink)" }}>Ben Ledger — Resume</div>
+                  <div style={{ ...monoLabel, fontSize: 9.5, marginTop: 3 }}>rev · 7c22a1 · critique</div>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 12px", marginBottom: 20 }}>
+                <Field label="Approved"><span style={{ fontSize: 14, color: "var(--ink)" }}>July 12, 2026</span></Field>
+                <Field label="Confirmed claims"><span style={{ fontSize: 14, color: "var(--ink)" }}>18 of 21</span></Field>
+              </div>
+              <div style={{ background: "var(--oat-lo)", borderRadius: 6, padding: "14px 16px", marginBottom: 20 }}>
+                <div style={{ ...monoLabel, fontSize: 9, marginBottom: 7 }}>Latest critique</div>
+                <p style={{ fontSize: 13.5, color: "var(--ink-2)", margin: 0, lineHeight: 1.55, textWrap: "pretty" }}>
+                  Strong systems narrative. Three metrics still need a source before I'll cite them to an employer — tightened the summary and cut two dated skills.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Button variant="secondary" size="sm" iconLeft={<Ic n="MessageSquare" s={14} />}>Refine with Jarvis</Button>
+                <Button variant="quiet" size="sm" iconLeft={<Ic n="History" s={14} />}>Revisions</Button>
+              </div>
+            </div>
+          </div>
+
+          {/* PROFILE */}
+          <div>
+            <SectionHead trailing={<span style={{ ...monoLabel, fontSize: 9 }}>Updated Jul 12</span>}>Search profile</SectionHead>
+            <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: 24, display: "grid", gap: 20 }}>
+              <Field label="Target titles">
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{TITLES.map((t) => <Chip key={t.v} inferred={t.inferred}>{t.v}</Chip>)}</div>
+              </Field>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+                <Field label="Seniority"><span style={{ fontSize: 14, color: "var(--ink)" }}>Staff / Principal</span></Field>
+                <Field label="Comp floor"><span style={{ fontSize: 14, color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>$195,000 base</span></Field>
+              </div>
+              <Field label="Locations">
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{LOCATIONS.map((l) => <Chip key={l}>{l}</Chip>)}</div>
+              </Field>
+              <Field label="Work mode"><span style={{ fontSize: 14, color: "var(--ink)" }}>Remote-first · hybrid up to 2 days</span></Field>
+              <Field label="Dealbreakers">
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {DEALBREAKERS.map((d) => (
+                    <span key={d} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--amber)", background: "var(--amber-field)", padding: "5px 11px", borderRadius: 999 }}>
+                      <Ic n="X" s={12} />{d}
+                    </span>
+                  ))}
+                </div>
+              </Field>
+              <div style={{ paddingTop: 4 }}>
+                <Button variant="secondary" size="sm" iconLeft={<Ic n="MessageSquare" s={14} />}>Update with Jarvis</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  window.JobsProfile = JobsProfile;
+})();

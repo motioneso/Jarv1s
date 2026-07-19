@@ -1,0 +1,346 @@
+/* Job Search — Matches: today's new credible matches, buckets, and opportunity detail. */
+(function () {
+  const DS = window.JarvisParkPressDesignSystem_0501fa;
+  const { Badge, Button } = DS;
+  const { monoLabel, Eyebrow, Strap, SectionHead, FitBadge, Meta, Confidence } = window.JobKit;
+  const Ic = window.Ic;
+
+  const OPPS = [
+    {
+      id: "a1", bucket: "new", title: "Staff Product Designer", company: "Linear", location: "Remote · US",
+      workMode: "Remote", comp: "$210k–$255k + equity", source: "Ashby", when: "2h ago", fresh: "fresh",
+      fitBand: "strong", confidence: "high",
+      topEvidence: "8 yrs shipping design systems; led the Park Press system end-to-end.",
+      topGap: "No formal management line, though you've mentored 4 designers.",
+      recommendation: "Apply", inferred: true,
+      desc: "We're looking for a Staff Product Designer to own the craft bar across Linear. You'll shape complex workflows, partner closely with engineering, and set the visual and interaction standard for the product.\n\nWhat you'll do\n· Drive design for a core product area from strategy through pixel-level execution\n· Extend and steward our design system\n· Raise the craft bar through critique and mentorship\n\nWhat we're looking for\n· 7+ years of product design experience at a high-craft software company\n· A portfolio that shows systems thinking and obsessive attention to detail\n· Fluency working directly in the medium — you prototype to think",
+      summary: "This is squarely in your wheelhouse: a high-craft IC role that rewards the systems work you've been doing, with no forced move into management.",
+      evidence: [
+        { req: "7+ yrs product design", ev: "8 years across Northstar Labs and two startups", src: "Resume" },
+        { req: "Design systems ownership", ev: "Built and shipped the Park Press system solo", src: "Profile" },
+        { req: "Prototyping fluency", ev: "Portfolio shows working prototypes, not just mocks", src: "Resume" }
+      ],
+      blockers: [], gaps: ["No line-management title (mentorship only)"],
+      unknowns: ["Team size for this area", "On-call / support expectations"],
+      prefMatch: ["Fully remote", "IC track preserved", "Comp above your $195k floor"],
+      prefConflict: []
+    },
+    {
+      id: "a2", bucket: "new", title: "Senior Product Designer, Growth", company: "Ramp", location: "New York, NY",
+      workMode: "Hybrid · 3 days", comp: "$185k–$220k", source: "Greenhouse", when: "5h ago", fresh: "fresh",
+      fitBand: "good", confidence: "medium",
+      topEvidence: "Strong quantitative sense; ran experiments at Northstar.",
+      topGap: "Hybrid in NYC conflicts with your remote preference.",
+      recommendation: "Consider",
+      summary: "Good craft match and comp is in band, but the 3-day NYC hybrid requirement runs against your stated remote-first preference.",
+      evidence: [
+        { req: "Growth / experimentation", ev: "Owned onboarding A/B program at Northstar", src: "Resume" },
+        { req: "Senior product design", ev: "6 years, senior since 2023", src: "Profile" }
+      ],
+      blockers: [], gaps: ["Less fintech domain exposure"],
+      unknowns: ["Relocation support"],
+      prefMatch: ["Comp in band"],
+      prefConflict: ["Requires 3 days on-site in NYC"]
+    },
+    {
+      id: "a3", bucket: "new", title: "Design Engineer", company: "Vercel", location: "Remote · Global",
+      workMode: "Remote", comp: "$190k–$230k + equity", source: "Lever", when: "8h ago", fresh: "fresh",
+      fitBand: "good", confidence: "high",
+      topEvidence: "You prototype in code — rare and exactly what this hybrid role wants.",
+      topGap: "Production React depth is mid-level, not senior.",
+      recommendation: "Consider",
+      summary: "A design-engineering hybrid that values your prototype-in-code habit. The bar for production React is high; worth a conversation to gauge where they draw the line.",
+      evidence: [
+        { req: "Design + front-end hybrid", ev: "Ships interactive prototypes in React", src: "Profile" },
+        { req: "Systems thinking", ev: "Park Press tokens + component API design", src: "Resume" }
+      ],
+      blockers: [], gaps: ["Production-grade React at scale"],
+      unknowns: ["Split between design and engineering time"],
+      prefMatch: ["Fully remote", "Equity component"],
+      prefConflict: []
+    },
+    {
+      id: "s1", bucket: "saved", title: "Principal Designer", company: "Notion", location: "Remote · US",
+      workMode: "Remote", comp: "$230k–$280k", source: "Greenhouse", when: "2d ago", fresh: "fresh",
+      fitBand: "strong", confidence: "medium",
+      topEvidence: "Editorial, systems-led craft matches their design culture.",
+      topGap: "Principal scope may expect org-wide influence you haven't formally held.",
+      recommendation: "Apply",
+      summary: "You saved this one. Strong craft alignment; the open question is whether 'principal' here means org-wide strategy or staff-level IC depth.",
+      evidence: [{ req: "Principal-level craft", ev: "System ownership + editorial sensibility", src: "Profile" }],
+      blockers: [], gaps: ["Org-wide influence track record"], unknowns: ["Scope of the principal role"],
+      prefMatch: ["Fully remote", "Top of comp band"], prefConflict: []
+    },
+    {
+      id: "p1", bucket: "passed", title: "UX Designer II", company: "Oracle", location: "Austin, TX",
+      workMode: "On-site", comp: "$130k–$155k", source: "Greenhouse", when: "4d ago", fresh: "fresh",
+      fitBand: "weak", confidence: "high",
+      topEvidence: "—", topGap: "On-site, below comp floor, and a level down.",
+      recommendation: "Pass",
+      summary: "You passed this — on-site in Austin, below your comp floor, and a level below your current seniority.",
+      evidence: [], blockers: ["On-site required", "Below $195k comp floor"], gaps: ["A level down from your current role"],
+      unknowns: [], prefMatch: [], prefConflict: ["On-site", "Comp below floor"],
+      decisionReason: "Below comp floor and on-site only."
+    },
+    {
+      id: "t1", bucket: "stale", title: "Senior Designer, Platform", company: "Stripe", location: "Remote · US",
+      workMode: "Remote", comp: "$195k–$235k", source: "Greenhouse", when: "9d ago", fresh: "stale",
+      fitBand: "good", confidence: "medium",
+      topEvidence: "Platform/systems background fits well.", topGap: "Posting no longer appears on the source board.",
+      recommendation: "Consider",
+      summary: "This match went stale — it's dropped off Stripe's board, so the role was likely filled or paused.",
+      evidence: [{ req: "Platform design", ev: "Systems + tokens experience", src: "Profile" }],
+      blockers: [], gaps: [], unknowns: ["Whether the role is still open"], prefMatch: ["Fully remote"], prefConflict: []
+    }
+  ];
+
+  const BUCKETS = [["new", "New"], ["saved", "Saved"], ["passed", "Passed"], ["stale", "Stale"]];
+
+  function FreshBadge({ fresh }) {
+    if (fresh === "stale") return <Meta tone style={{ color: "var(--ink-3)" }}>Stale</Meta>;
+    return <span style={{ display: "inline-flex", alignItems: "center", gap: 5, ...monoLabel, fontSize: 9.5, color: "var(--accent)" }}><span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--accent)" }} />Fresh</span>;
+  }
+
+  function OppCard({ o, onOpen }) {
+    const meta = [o.location, o.workMode, o.comp].filter(Boolean);
+    return (
+      <button onClick={() => onOpen(o.id)} style={{
+        all: "unset", cursor: "pointer", display: "block", width: "100%",
+        background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8,
+        padding: "20px 22px", transition: "border-color 120ms, transform 120ms"
+      }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--line-strong)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--line)"; }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+          <span style={{ ...monoLabel, fontSize: 9.5, color: "var(--ink-3)" }}>{o.source} · {o.when}</span>
+          <FreshBadge fresh={o.fresh} />
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 22, letterSpacing: "-0.02em", color: "var(--ink)", lineHeight: 1.05 }}>{o.title}</span>
+              <span style={{ fontSize: 15, fontWeight: 600, color: "var(--ink-2)" }}>{o.company}</span>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+              {meta.map((m) => <Meta key={m}>{m}</Meta>)}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10, flex: "none" }}>
+            <FitBadge band={o.fitBand} />
+            <Confidence level={o.confidence} />
+          </div>
+        </div>
+        {(o.topEvidence && o.topEvidence !== "—") || o.topGap ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
+            <div>
+              <div style={{ ...monoLabel, fontSize: 9, color: "var(--accent)", marginBottom: 5 }}>Why it fits</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", textWrap: "pretty" }}>{o.topEvidence}</div>
+            </div>
+            <div>
+              <div style={{ ...monoLabel, fontSize: 9, color: "var(--gold-hover)", marginBottom: 5 }}>Watch out</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", textWrap: "pretty" }}>{o.topGap}</div>
+            </div>
+          </div>
+        ) : null}
+      </button>
+    );
+  }
+
+  const EMPTY = {
+    new: "Nothing credible has landed here yet. New matches appear after your monitors run each morning.",
+    saved: "Ask Jarvis to save an opportunity and it lands here — decisions happen in the conversation.",
+    passed: "Roles you've passed on file here, with the reason kept.",
+    stale: "Nothing has gone stale. Postings that drop off their source board move here."
+  };
+
+  function ListView({ bucket, setBucket, onOpen }) {
+    const newCount = OPPS.filter((o) => o.bucket === "new").length;
+    const rows = OPPS.filter((o) => o.bucket === bucket);
+    const counts = Object.fromEntries(BUCKETS.map(([id]) => [id, OPPS.filter((o) => o.bucket === id).length]));
+
+    return (
+      <div>
+        {/* HERO — new today */}
+        <section style={{ display: "grid", gridTemplateColumns: "1.2fr 0.9fr", gap: 40, alignItems: "end", paddingBottom: 26 }}>
+          <div>
+            <Eyebrow tone="gold" style={{ marginBottom: 14 }}>Wednesday · July 15 · New today</Eyebrow>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 18 }}>
+              <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 72, letterSpacing: "-0.035em", lineHeight: 0.85, textTransform: "uppercase", color: "var(--ink)" }}>{newCount} new</span>
+              <span style={{ ...monoLabel, fontSize: 11, color: "var(--accent)", paddingBottom: 10 }}>credible matches</span>
+            </div>
+            <Strap style={{ marginTop: 18 }} />
+            <p style={{ fontFamily: "var(--font-text)", fontSize: 14.5, color: "var(--ink-2)", margin: "16px 0 0", maxWidth: "54ch", textWrap: "pretty" }}>
+              Three landed overnight — one's a strong fit. I've scored each against your profile and resume; the rest of the board wasn't worth your time.
+            </p>
+          </div>
+          <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--accent)" }} />
+              <span style={{ ...monoLabel, color: "var(--ink-2)" }}>Monitoring on</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 12px" }}>
+              {[["Boards", "3"], ["Next run", "7:00 AM"], ["Reviewed", "142"], ["Surfaced", "6"]].map(([k, v]) => (
+                <div key={k}>
+                  <div style={{ ...monoLabel, fontSize: 9, marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 300, fontSize: 22, letterSpacing: "-0.01em", color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+        <div style={{ height: 3, background: "var(--ink)" }} />
+
+        {/* BUCKETS */}
+        <nav style={{ display: "flex", gap: 6, margin: "26px 0 22px", flexWrap: "wrap" }}>
+          {BUCKETS.map(([id, label]) => (
+            <button key={id} onClick={() => setBucket(id)} style={{
+              all: "unset", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8,
+              fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase",
+              padding: "9px 15px", borderRadius: 4, color: bucket === id ? "var(--accent-ink)" : "var(--ink-2)",
+              background: bucket === id ? "var(--accent)" : "var(--surface)", border: `1px solid ${bucket === id ? "var(--accent)" : "var(--line)"}`
+            }}>
+              {label}
+              <span style={{ fontSize: 9.5, opacity: bucket === id ? 0.8 : 0.6 }}>{counts[id]}</span>
+            </button>
+          ))}
+        </nav>
+
+        {rows.length === 0 ? (
+          <div style={{ padding: "48px 24px", textAlign: "center", border: "1px dashed var(--line-strong)", borderRadius: 8, background: "var(--surface)" }}>
+            <Eyebrow style={{ marginBottom: 8 }}>Nothing here yet</Eyebrow>
+            <p style={{ color: "var(--ink-2)", margin: "0 auto", maxWidth: "46ch" }}>{EMPTY[bucket]}</p>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: 14 }}>
+            {rows.map((o) => <OppCard key={o.id} o={o} onOpen={onOpen} />)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function NamedList({ label, items, tone }) {
+    if (!items || !items.length) return null;
+    const dot = tone === "amber" ? "var(--amber)" : tone === "accent" ? "var(--accent)" : "var(--ink-3)";
+    return (
+      <div>
+        <div style={{ ...monoLabel, fontSize: 9.5, marginBottom: 8 }}>{label}</div>
+        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 7 }}>
+          {items.map((it) => (
+            <li key={it} style={{ display: "flex", gap: 10, alignItems: "baseline", fontSize: 13.5, color: "var(--ink-2)" }}>
+              <span style={{ width: 5, height: 5, borderRadius: 999, background: dot, flex: "none", transform: "translateY(-2px)" }} />
+              <span style={{ textWrap: "pretty" }}>{it}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  function DetailView({ id, onBack }) {
+    const o = OPPS.find((x) => x.id === id);
+    const [decision, setDecision] = React.useState(o.bucket === "saved" ? "saved" : o.bucket === "passed" ? "passed" : null);
+    const meta = [o.location, o.workMode, o.comp].filter(Boolean);
+    const REC = { Apply: "accent", Consider: "gold", Pass: "muted" };
+
+    return (
+      <article>
+        <button onClick={onBack} style={{ all: "unset", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, ...monoLabel, color: "var(--ink-2)", marginBottom: 22 }}>
+          <Ic n="ArrowLeft" s={14} /> Back to matches
+        </button>
+
+        {/* header */}
+        <header>
+          <Eyebrow style={{ marginBottom: 12 }}>{o.company} · {o.source} · first seen {o.when}</Eyebrow>
+          <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 46, letterSpacing: "-0.03em", lineHeight: 0.95, textTransform: "uppercase", margin: 0, color: "var(--ink)", textWrap: "balance" }}>{o.title}</h1>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "18px 0 0" }}>
+            {meta.map((m) => <Meta key={m}>{m}</Meta>)}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 20 }}>
+            <FitBadge band={o.fitBand} />
+            <Confidence level={o.confidence} />
+            <a href="#" onClick={(e) => e.preventDefault()} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "var(--font-mono)", fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+              View original posting <Ic n="ExternalLink" s={13} />
+            </a>
+          </div>
+        </header>
+
+        <div style={{ height: 1, background: "var(--line)", margin: "28px 0" }} />
+
+        <div style={{ display: "grid", gridTemplateColumns: "1.35fr 1fr", gap: 34, alignItems: "start" }}>
+          {/* LEFT — description */}
+          <div>
+            <SectionHead>The role</SectionHead>
+            <div style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--ink)", whiteSpace: "pre-wrap", textWrap: "pretty" }}>{o.desc || "Ask Jarvis for the full description — the stored copy was truncated at capture."}</div>
+          </div>
+
+          {/* RIGHT — evaluation (governor: AI-scored, subtle) */}
+          <aside>
+            <div style={{ position: "relative", border: "1px dashed color-mix(in srgb, var(--gold) 55%, transparent)", borderRadius: 10, padding: "20px 20px 22px", background: "color-mix(in srgb, var(--gold) 4%, var(--surface))" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
+                <span style={{ ...monoLabel, fontSize: 9.5, color: "var(--gold-hover)" }}>Jarvis evaluation</span>
+                <span style={{
+                  fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase",
+                  padding: "4px 10px", borderRadius: 4, color: REC[o.recommendation] === "accent" ? "var(--accent-ink)" : "var(--ink)",
+                  background: REC[o.recommendation] === "accent" ? "var(--accent)" : REC[o.recommendation] === "gold" ? "color-mix(in srgb, var(--gold) 26%, transparent)" : "var(--oat-lo)"
+                }}>{o.recommendation}</span>
+              </div>
+              <p style={{ fontSize: 14, lineHeight: 1.55, color: "var(--ink)", margin: "0 0 18px", textWrap: "pretty" }}>{o.summary}</p>
+
+              {o.evidence.length ? (
+                <div style={{ marginBottom: 18 }}>
+                  <div style={{ ...monoLabel, fontSize: 9.5, marginBottom: 9 }}>Evidence</div>
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {o.evidence.map((e, i) => (
+                      <div key={i} style={{ display: "grid", gap: 3 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>{e.req}</div>
+                        <div style={{ fontSize: 12.5, color: "var(--ink-2)" }}>{e.ev} <span style={{ ...monoLabel, fontSize: 8.5, color: "var(--ink-3)" }}>· {e.src}</span></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <div style={{ display: "grid", gap: 16 }}>
+                <NamedList label="Blockers" items={o.blockers} tone="amber" />
+                <NamedList label="Gaps" items={o.gaps} tone="amber" />
+                <NamedList label="Preference matches" items={o.prefMatch} tone="accent" />
+                <NamedList label="Preference conflicts" items={o.prefConflict} tone="amber" />
+                <NamedList label="Open questions" items={o.unknowns} />
+              </div>
+
+              <div style={{ ...monoLabel, fontSize: 8.5, color: "var(--ink-3)", marginTop: 18, paddingTop: 14, borderTop: "1px solid color-mix(in srgb, var(--gold) 22%, transparent)" }}>
+                Scored against profile rev · a1f3 · resume rev · 7c22
+              </div>
+            </div>
+
+            {/* decision */}
+            <div style={{ marginTop: 18, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: 18 }}>
+              <div style={{ ...monoLabel, fontSize: 9.5, marginBottom: 10 }}>Your decision</div>
+              {decision ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <Badge tone={decision === "saved" ? "accent" : "neutral"}>{decision === "saved" ? "Saved" : "Passed"}</Badge>
+                  {o.decisionReason ? <span style={{ fontSize: 12.5, color: "var(--ink-2)" }}>{o.decisionReason}</span> : null}
+                </div>
+              ) : null}
+              <div style={{ display: "flex", gap: 8 }}>
+                <Button variant="primary" size="sm" iconLeft={<Ic n="Bookmark" s={14} />} onClick={() => setDecision("saved")}>Save</Button>
+                <Button variant="secondary" size="sm" onClick={() => setDecision("passed")}>Pass</Button>
+              </div>
+              <p style={{ fontSize: 12, color: "var(--ink-3)", margin: "12px 0 0", textWrap: "pretty" }}>Decisions are confirmed with Jarvis in the conversation — this is a preview.</p>
+            </div>
+          </aside>
+        </div>
+      </article>
+    );
+  }
+
+  function JobsMatches() {
+    const [bucket, setBucket] = React.useState("new");
+    const [openId, setOpenId] = React.useState(null);
+    if (openId) return <DetailView id={openId} onBack={() => setOpenId(null)} />;
+    return <ListView bucket={bucket} setBucket={setBucket} onOpen={setOpenId} />;
+  }
+
+  window.JobsMatches = JobsMatches;
+})();

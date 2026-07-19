@@ -28,3 +28,6 @@ docs/releases/*-weekly/index.html
 
 # Subagent-driven-development scratch — git-ignored briefs/reports/ledger/diffs
 .superpowers/sdd/
+
+# Frozen design handoff artifacts (keep byte-identical to the exported design project)
+docs/superpowers/design/
