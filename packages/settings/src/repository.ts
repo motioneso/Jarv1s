@@ -118,17 +118,19 @@ export interface AssembleOnboardingStatusInput {
 }
 
 /**
- * v0.1.3: onboarding offers ONLY providers whose HEADLESS login is guaranteed to complete on a
- * server (no interactive browser callback the operator can't reach). Today that is `anthropic`
- * (the claude `setup-token` paste flow). `openai-compatible` (codex) headless login CANNOT
- * complete on a server and bricked chat via the single-active gate during the v0.1.2 live test,
- * so it is hidden from onboarding here. Re-add a kind the moment its headless login is real.
+ * Onboarding offers every CLI provider kind. Installation and login support remain separate
+ * capability gates: the status response can render a provider as unavailable when its catalog
+ * recipe is blocked, and the login route rejects a provider without a validated login adapter.
  *
  * This is ONBOARDING PRESENTATION only — provider-agnostic at the engine layer. The AI module,
  * settings, and the provider catalog still support every provider; this list only governs which
  * provider cards the first-run wizard surfaces.
  */
-const ONBOARDING_LOGINABLE_PROVIDER_KINDS: readonly OnboardingProviderKind[] = ["anthropic"];
+const ONBOARDING_PROVIDER_KINDS: readonly OnboardingProviderKind[] = [
+  "anthropic",
+  "openai-compatible",
+  "google"
+];
 
 // #917: the external-module admin types live in ./repository-external-modules.js (extracted
 // for the 1000-line file-size gate) and are imported above for local use in the method
@@ -768,8 +770,8 @@ export class SettingsRepository {
    * supplies the persisted state, the per-provider CLI presence, and the connector-exists bool.
    * Derived `done`:
    *  - cliAuth.done ⇔ at least one OFFERED provider has reached `ready` (#365: installed AND
-   *    logged in). v0.1.3: only providers in {@link ONBOARDING_LOGINABLE_PROVIDER_KINDS} are
-   *    OFFERED (codex/openai-compatible headless login can't complete on a server).
+   *    logged in). The offered provider set is presentation-only and does not constrain the
+   *    provider-agnostic engine.
    *  - connectors.done ⇔ a connector account exists.
    * The `satisfies OnboardingFounderStatus` makes contract drift a compile error (Codex R1).
    * Phase 4: this assembler builds ONLY the founder variant of the role-tagged status union;
@@ -785,8 +787,9 @@ export class SettingsRepository {
       installableByKind
     } = input;
 
-    // v0.1.3: offer ONLY allowlisted-loginable providers in onboarding (presentation-only).
-    const providers = ONBOARDING_LOGINABLE_PROVIDER_KINDS.map((kind) => {
+    // Offer every CLI provider in onboarding; installability/loginability are separate runtime
+    // capabilities and are surfaced by the per-card lifecycle state.
+    const providers = ONBOARDING_PROVIDER_KINDS.map((kind) => {
       const installState = installStateByKind?.[kind];
       const installable = installableByKind?.[kind];
       return {

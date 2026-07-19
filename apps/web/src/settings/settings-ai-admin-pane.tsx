@@ -57,13 +57,18 @@ import {
   type AiServiceBinding
 } from "@jarv1s/shared";
 
-const PROVIDER_CATALOG: readonly { readonly label: string; readonly kind: AiProviderKind }[] = [
-  { label: "Anthropic", kind: "anthropic" },
-  { label: "OpenAI", kind: "openai-compatible" },
-  { label: "Google", kind: "google" },
-  { label: "Mistral", kind: "openai-compatible" },
-  { label: "Local (Ollama)", kind: "ollama" },
-  { label: "OpenAI-compatible", kind: "openai-compatible" }
+const PROVIDER_CATALOG: readonly {
+  readonly label: string;
+  readonly kind: AiProviderKind;
+  readonly authMethod: AiAuthMethod;
+}[] = [
+  { label: "Anthropic", kind: "anthropic", authMethod: "cli" },
+  { label: "OpenAI", kind: "openai-compatible", authMethod: "cli" },
+  { label: "Google", kind: "google", authMethod: "cli" },
+  { label: "Mistral", kind: "openai-compatible", authMethod: "api_key" },
+  { label: "Local (Ollama)", kind: "ollama", authMethod: "api_key" },
+  { label: "OpenAI-compatible", kind: "openai-compatible", authMethod: "api_key" },
+  { label: "Custom", kind: "custom", authMethod: "api_key" }
 ];
 
 const CAP_SHORT: Record<AiModelCapability, string> = {
@@ -557,8 +562,12 @@ export function AiProvidersPane() {
     ]);
 
   const createMutation = useMutation({
-    mutationFn: (option: { label: string; kind: AiProviderKind }) =>
-      createAiProvider({ providerKind: option.kind, displayName: option.label, authMethod: "cli" }),
+    mutationFn: (option: (typeof PROVIDER_CATALOG)[number]) =>
+      createAiProvider({
+        providerKind: option.kind,
+        displayName: option.label,
+        authMethod: option.authMethod
+      }),
     onSuccess: (_data, option) => {
       setPick(false);
       void invalidate();
