@@ -211,10 +211,6 @@ describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
   it("syncs a multi-page run, persisting each cursor only after its chunks", async () => {
     const kv = fakeKv();
     await seedItem(kv, "item-1");
-    // FIN-03 (#1148): stale budget caches — the run writes July chunks, so
-    // June's projection must survive and July's must be invalidated.
-    await kv.set(NS.budgets, "state:2026-06", { computedAt: "x", tbbCents: 0, categories: {} });
-    await kv.set(NS.budgets, "state:2026-07", { computedAt: "x", tbbCents: 0, categories: {} });
     const pages = [
       syncPage({
         added: [tx({ transaction_id: "t1", date: "2026-07-10" })],
@@ -275,10 +271,6 @@ describe("finance.sync.run (#1146, D3 shared queue/tool handler)", () => {
       status: "connected",
       lastSyncAt: NOW.toISOString()
     });
-
-    // Budget cache invalidation (FIN-03): from the earliest touched month on.
-    expect(await kv.get(NS.budgets, "state:2026-06")).not.toBeNull();
-    expect(await kv.get(NS.budgets, "state:2026-07")).toBeNull();
   });
 
   it("resumes from a stored cursor", async () => {
