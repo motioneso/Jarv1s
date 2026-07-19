@@ -316,8 +316,12 @@ export async function extractPdfText(bytes: Buffer): Promise<string> {
       const destroy = (parser as { destroy?: () => Promise<void> }).destroy;
       if (typeof destroy === "function") await destroy.call(parser).catch(() => undefined);
     }
-  } catch {
+  } catch (error) {
     // Explicit failure note instead of a crash — the engine can tell the user (spec §4).
+    console.warn(
+      "[chat-attachments] PDF text extraction failed:",
+      error instanceof Error ? error.message : "Unknown PDF parser error"
+    );
     return "[PDF text extraction failed for this attachment]";
   }
 }
