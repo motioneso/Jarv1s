@@ -45,3 +45,5 @@ starts at a different top offset than Sports.
 - [ ] Focused tests cover image and no-image markup/classes without snapshotting incidental text.
 - [ ] Live `5178` desktop and narrow screenshots prove both card variants before resolving the three
       annotations.
+- [ ] A low-cost visual-QA agent clicks the touched story/link controls and proves they navigate or
+      expose a truthful disabled/error state; a visible no-op control fails acceptance.

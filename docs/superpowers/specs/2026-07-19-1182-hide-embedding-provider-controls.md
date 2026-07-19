@@ -17,17 +17,16 @@ semantic memory behavior.
 - Remove the editable embedding-provider and embedding-model controls from user-facing Settings.
 - Keep the existing instance/environment configuration path for development and tests; this change
   does not delete runtime configuration keys or alter provider construction.
-- Retain one read-only Memory search status in the existing Assistant & AI pane:
-  - a real local provider is described as configured on this Jarvis host;
-  - a non-production/test provider is described as unavailable in this environment, without naming
-    `stub` or offering a selector.
-- Do not display model identifiers. They do not help a normal user act on the state.
+- Do not replace the controls with a read-only Settings card. If the user cannot act on the state,
+  it is not a setting. Remove the Embeddings group from the pane entirely.
+- Keep the existing runtime configuration API/resolver truthful for diagnostics and internal use;
+  do not display provider or model identifiers in normal Settings.
 
 ## Scope
 
-- Simplify `~/Jarv1s/apps/web/src/settings/settings-embedding-config-group.tsx` to a read-only status.
-- Update focused Settings tests for the local and unavailable states.
-- Delete now-unused mutation, form-state, and model-query code from that component.
+- Remove `EmbeddingConfigGroup` from its only Settings caller and delete the now-unused component if
+  no other caller exists.
+- Update focused Settings tests to prove the entire non-actionable group is absent.
 
 ## Non-goals
 
@@ -41,10 +40,8 @@ semantic memory behavior.
 
 - [ ] No normal Settings route renders `stub`, an embedding-provider select, or an embedding-model
       input.
-- [ ] Local configuration is reported in user language as running on this Jarvis host.
-- [ ] Test/non-production configuration is reported as unavailable without implementation-only
-      vocabulary.
+- [ ] No read-only replacement card or decorative Settings text is added.
 - [ ] Existing non-UI dev/test configuration continues unchanged.
-- [ ] Focused component tests cover both states and prove the removed controls are absent.
-- [ ] A live `5178` screenshot verifies the assembled Assistant & AI pane before the annotation is
-      resolved.
+- [ ] Focused pane tests prove the removed group and controls are absent.
+- [ ] A low-cost visual-QA agent verifies the assembled Assistant & AI pane on `5178` and clicks every
+      remaining interactive control in the touched section; any no-op control fails acceptance.
