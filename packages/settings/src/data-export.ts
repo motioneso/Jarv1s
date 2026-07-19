@@ -193,7 +193,14 @@ export async function readExternalModuleExportRows(
 ): Promise<Record<string, readonly ExportRow[]>> {
   const rowsByTable: Record<string, readonly ExportRow[]> = {};
   for (const manifest of installedManifests) {
-    const rpc = createModuleStorageRpc(scopedDb, manifest.id);
+    const rpc = createModuleStorageRpc(scopedDb, manifest.id, {
+      // Export must return every row of every owned table — the interactive
+      // caps (5s / 5000 rows / 5 MiB, #1167) would truncate large exports.
+      // The allowlist and redaction stay on; the statement here is a SELECT.
+      statementTimeoutMs: null,
+      rowCap: null,
+      resultByteCap: null
+    });
     for (const table of manifest.database?.ownedTables ?? []) {
       assertQualifiedTableName(table);
       const result = await rpc.query<Record<string, unknown>>(`SELECT * FROM ${table} ORDER BY id`);
