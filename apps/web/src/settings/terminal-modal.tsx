@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, LoaderCircle, TriangleAlert, X } from "lucide-react";
+import { Copy, KeyRound, LoaderCircle, TriangleAlert, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 // #xterm.js ships a stylesheet, not JS — a static CSS import is side-effect-only and safe
@@ -96,6 +96,7 @@ export function TerminalModal(props: {
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [hasTerminalSelection, setHasTerminalSelection] = useState(false);
 
   const setPasswordMutation = useMutation({
     mutationFn: (pw: string) => setTerminalPassword(pw),
@@ -128,6 +129,7 @@ export function TerminalModal(props: {
   const isLive = phase?.kind === "unlocked";
 
   const termHostRef = useRef<HTMLDivElement | null>(null);
+  const terminalRef = useRef<Terminal | null>(null);
   const ticket = phase?.kind === "unlocked" ? phase.ticket : null;
 
   useEffect(() => {
@@ -146,6 +148,10 @@ export function TerminalModal(props: {
     term.loadAddon(fitAddon);
     term.open(termHostRef.current);
     fitAddon.fit();
+    terminalRef.current = term;
+    const selectionDisposable = term.onSelectionChange(() => {
+      setHasTerminalSelection(term.hasSelection());
+    });
 
     const ws = new WebSocket(terminalWsUrl(ticket));
     ws.binaryType = "arraybuffer";
@@ -184,12 +190,41 @@ export function TerminalModal(props: {
     return () => {
       window.removeEventListener("resize", sendResize);
       dataDisposable.dispose();
+      selectionDisposable.dispose();
+      terminalRef.current = null;
+      setHasTerminalSelection(false);
       ws.close();
       term.dispose();
     };
     // `toast` comes from useFeedback()'s stable context value; only the ticket identity
     // should re-run this effect (a new ticket means a fresh WS connection to open).
   }, [ticket]);
+
+  const copyTerminalSelection = async () => {
+    const selection = terminalRef.current?.getSelection();
+    if (!selection) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(selection);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = selection;
+        textarea.setAttribute("readonly", "true");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        try {
+          textarea.select();
+          if (!document.execCommand("copy")) throw new Error("copy failed");
+        } finally {
+          textarea.remove();
+        }
+      }
+      toast("Selected terminal text copied", { tone: "ready" });
+    } catch {
+      toast("Could not copy the selected terminal text", { tone: "drift" });
+    }
+  };
 
   const onSubmitSetPassword = (event: FormEvent) => {
     event.preventDefault();
@@ -344,6 +379,15 @@ export function TerminalModal(props: {
               <div className="term-modal__host" ref={termHostRef} />
             </div>
             <div className="jds-dialog__foot">
+              <button
+                type="button"
+                className="jds-btn jds-btn--quiet"
+                onClick={() => void copyTerminalSelection()}
+                disabled={!hasTerminalSelection}
+              >
+                <Copy size={14} aria-hidden="true" />
+                Copy selected text
+              </button>
               <button type="button" className="jds-btn jds-btn--quiet" onClick={onClose}>
                 <span className="jds-btn__icon">
                   <X size={14} aria-hidden="true" />
