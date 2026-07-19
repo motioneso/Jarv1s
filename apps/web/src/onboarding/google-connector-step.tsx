@@ -266,25 +266,24 @@ export function GoogleConnectorStep(props: {
               </span>
             </label>
             <div className="onb-cred__actions">
-              {google.authUrl ? (
+              <button
+                className="jds-btn jds-btn--primary jds-btn--sm"
+                type="button"
+                disabled={!credsReady || google.authorizationPending}
+                onClick={google.openConsentScreen}
+              >
+                Open consent screen
+              </button>
+              {google.popupBlocked && google.authUrl ? (
                 <a
-                  className="jds-btn jds-btn--primary jds-btn--sm"
+                  className="jds-btn jds-btn--quiet jds-btn--sm"
                   href={google.authUrl}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Open consent screen <ExternalLink size={13} aria-hidden="true" />
+                  Open manually <ExternalLink size={13} aria-hidden="true" />
                 </a>
-              ) : (
-                <button
-                  className="jds-btn jds-btn--primary jds-btn--sm"
-                  type="button"
-                  disabled={!credsReady || google.authorizationPending}
-                  onClick={google.startAuthorization}
-                >
-                  Open consent screen
-                </button>
-              )}
+              ) : null}
               <button
                 className="jds-btn jds-btn--quiet jds-btn--sm"
                 type="button"
@@ -293,7 +292,9 @@ export function GoogleConnectorStep(props: {
                 Cancel
               </button>
               <span className="onb-cred__hint">
-                Encrypted at rest. Stored securely and never shown in logs or briefings.
+                {google.popupBlocked
+                  ? "Your browser blocked the popup. Use the link above to finish in a new tab."
+                  : "Encrypted at rest. Stored securely and never shown in logs or briefings."}
               </span>
             </div>
           </div>

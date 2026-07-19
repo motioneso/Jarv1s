@@ -268,3 +268,129 @@ test("Connect another account shows the picker, cancel returns to the connected 
   await expect(page.getByRole("heading", { name: "Google connected" })).toBeVisible();
   await expect(page.getByText("Connected accounts")).toBeVisible();
 });
+
+test("one-click Google consent opens the popup on the first click", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    isInstanceAdmin: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    onboardingStatus: defaultOnboardingStatus({
+      steps: {
+        cliAuth: {
+          done: true,
+          providers: [{ kind: "anthropic", cliPresent: true, installState: "ready" }]
+        },
+        connectors: { done: false }
+      }
+    })
+  });
+
+  await page.goto("/");
+  await page
+    .getByLabel("Onboarding progress")
+    .getByRole("button", { name: /Google/ })
+    .click();
+  await page.getByRole("button", { name: /Connect Google/i }).click();
+
+  await page.getByLabel("Client ID", { exact: true }).fill("000000-xxxx.apps.googleusercontent.com");
+  await page.getByLabel("Client secret", { exact: true }).fill("GOCSPX-secret");
+
+  const [popup] = await Promise.all([
+    page.waitForEvent("popup"),
+    page.getByRole("button", { name: "Open consent screen" }).click()
+  ]);
+  await popup.waitForURL(/accounts\.google\.com/);
+  expect(popup.url()).toContain("accounts.google.com");
+});
+
+test("blocked popup shows a manual link and explanation", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.open = () => null;
+  });
+  await mockApi(page, {
+    authenticated: true,
+    isInstanceAdmin: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    onboardingStatus: defaultOnboardingStatus({
+      steps: {
+        cliAuth: {
+          done: true,
+          providers: [{ kind: "anthropic", cliPresent: true, installState: "ready" }]
+        },
+        connectors: { done: false }
+      }
+    })
+  });
+
+  await page.goto("/");
+  await page
+    .getByLabel("Onboarding progress")
+    .getByRole("button", { name: /Google/ })
+    .click();
+  await page.getByRole("button", { name: /Connect Google/i }).click();
+
+  await page.getByLabel("Client ID", { exact: true }).fill("000000-xxxx.apps.googleusercontent.com");
+  await page.getByLabel("Client secret", { exact: true }).fill("GOCSPX-secret");
+  await page.getByRole("button", { name: "Open consent screen" }).click();
+
+  await expect(page.getByText(/browser blocked the popup/i)).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open manually/i })).toBeVisible();
+});
+
+test("failed authorization closes the popup and surfaces the error", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    isInstanceAdmin: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    onboardingStatus: defaultOnboardingStatus({
+      steps: {
+        cliAuth: {
+          done: true,
+          providers: [{ kind: "anthropic", cliPresent: true, installState: "ready" }]
+        },
+        connectors: { done: false }
+      }
+    })
+  });
+  await page.route("**/api/connectors/google/authorize", (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Authorization failed." })
+    })
+  );
+
+  await page.goto("/");
+  await page
+    .getByLabel("Onboarding progress")
+    .getByRole("button", { name: /Google/ })
+    .click();
+  await page.getByRole("button", { name: /Connect Google/i }).click();
+
+  await page.getByLabel("Client ID", { exact: true }).fill("000000-xxxx.apps.googleusercontent.com");
+  await page.getByLabel("Client secret", { exact: true }).fill("GOCSPX-secret");
+
+  const [popup] = await Promise.all([
+    page.waitForEvent("popup"),
+    page.getByRole("button", { name: "Open consent screen" }).click()
+  ]);
+  // The mock 500 resolves fast enough that the popup can already be closed by the time we
+  // start waiting — don't block on an event that may have already fired.
+  if (!popup.isClosed()) {
+    await popup.waitForEvent("close");
+  }
+
+  await expect(page.getByText("Authorization failed.")).toBeVisible();
+});
