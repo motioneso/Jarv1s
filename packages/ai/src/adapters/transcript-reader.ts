@@ -81,12 +81,27 @@ export function captureAckCursor(jsonl: string): AckCursor {
   return { offset: jsonl.length };
 }
 
+/**
+ * #1170 (second kill link): tmux `paste-buffer` without `-p` delivers newlines as
+ * carriage returns, and claude 2.1.215 records the pasted user turn with literal
+ * `\r` where the engine's expectedText has `\n` (probe-confirmed: pasted
+ * `…else.\n\n<attachments>` → transcript `…else.\r\r<attachments>`). Strict `===`
+ * therefore NEVER acked a multiline turn — the turn delivered and ran, but the
+ * engine hit `verifiedSubmitMs` and 500'd with delivery_unknown. Compare with
+ * newline flavor normalized on BOTH sides; this cannot promote a foreign record
+ * into an ack (the text must still match byte-for-byte modulo CR/CRLF vs LF).
+ */
+function normalizeNewlines(text: string): string {
+  return text.replace(/\r\n?/g, "\n");
+}
+
 export function hasExactUserAck(
   provider: AckProviderKind,
   jsonl: string,
   cursor: AckCursor,
   expectedText: string
 ): boolean {
+  const expected = normalizeNewlines(expectedText);
   for (const line of completeLinesAfter(jsonl, cursor.offset)) {
     let rec: Record<string, unknown>;
     try {
@@ -95,8 +110,8 @@ export function hasExactUserAck(
       continue;
     }
 
-    if (provider === "anthropic" && claudeUserText(rec) === expectedText) return true;
-    if (provider === "openai-compatible" && codexUserText(rec) === expectedText) return true;
+    const recorded = provider === "anthropic" ? claudeUserText(rec) : codexUserText(rec);
+    if (recorded !== null && normalizeNewlines(recorded) === expected) return true;
   }
   return false;
 }
