@@ -3,8 +3,9 @@
 **Spec:** `docs/superpowers/specs/2026-07-19-1187-module-inventory-feedback.md`
 **Plan:** `docs/superpowers/plans/2026-07-19-1187-module-library.md`
 **Worktree/branch:** this worktree, `feedback/1187-module-library`.
-**Coordinator:** label `Coordinator`, session `019f7c33-1d00-76c3-97ae-b637ff77faa9` — re-resolve
-pane by label+session id at message time, never a baked `…-N`.
+**Coordinator:** label `Coordinator`, session `019f7c2e-9662-7fd0-ab3e-694241b334ae` (re-verified
+live via `herdr pane list` at relay time — an earlier session-id value in this doc's history was
+stale; always re-resolve by label+session id at message time, never a baked `…-N`).
 **Tier:** security.
 
 Read plan/spec BY SECTION for the current task only, never front-to-back.
@@ -82,8 +83,9 @@ all three green — this is the very next action for the successor.
    still squatting port 4173 before assuming; if so, dodge with a scratch config on a free port,
    never kill a foreign process.
 5. Run full gate `pnpm verify:foundation`.
-6. Send a compact verification report to the Coordinator (label `Coordinator`, session
-   `019f7c33-1d00-76c3-97ae-b637ff77faa9`, re-resolved fresh). Include: files touched across all
+6. Send a compact verification report to the Coordinator (label `Coordinator`, re-resolve session
+   id fresh via `herdr pane list` at message time — do not trust any session id written earlier in
+   this doc without re-verifying). Include: files touched across all
    commits (`dec8f95c`, `167d6542`, `14b98a1c`, plus the new typecheck-fix commit), gate exit
    codes, spec acceptance-box status, and a note that the typecheck drift found+fixed this segment
    was pre-existing since Task 1, not attributable to Task 2/4 scope. Do NOT push, PR, merge, or
