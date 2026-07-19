@@ -5,7 +5,7 @@ import type {
   PlaidAccount,
   PlaidClient
 } from "../../external-modules/finance/src/adapters/plaid.js";
-import { NS } from "../../external-modules/finance/src/domain/index.js";
+import { kvStore, NS } from "../../external-modules/finance/src/domain/index.js";
 import type { FinanceKv, SharedMirrorKv } from "../../external-modules/finance/src/domain/index.js";
 import {
   sharedAccountPrefix,
@@ -106,10 +106,12 @@ function fakePorts(opts: {
   tokens?: TokenMap;
 }): WorkerPorts {
   const secretsAllowed = opts.tokens !== undefined;
+  const kv = opts.kv ?? fakeKv();
   return {
-    kv: opts.kv ?? fakeKv(),
+    kv,
     mirror: opts.mirror,
     ai: null,
+    db: null,
     plaid: opts.plaid ? () => opts.plaid! : null,
     tokens: {
       read: async () => {
@@ -133,7 +135,10 @@ function fakePorts(opts: {
       }
     },
     isAdmin: false,
-    now: () => NOW
+    now: () => NOW,
+    // FIN-06b (#1166): pre-cutover handler tests stay on kvStore — the
+    // FIN-06c cutover (Tasks 8-10) is what makes handlers actually call this.
+    store: async () => kvStore(kv)
   };
 }
 

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "finance",
   "name": "Finance",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "Jarvis Project",
   "lifecycle": "optional",
   "compatibility": { "jarv1s": ">=0.1.0" },
@@ -36,8 +36,18 @@
     { "namespace": "finance.snapshots", "scopes": ["user"] },
     { "namespace": "finance.budgets", "scopes": ["user"] },
     { "namespace": "finance.shared", "scopes": ["instance"], "instanceWritePolicy": "module" },
-    { "namespace": "finance.settings", "scopes": ["user", "instance"] }
+    { "namespace": "finance.settings", "scopes": ["user", "instance"] },
+    { "namespace": "finance.meta", "scopes": ["user"] }
   ],
+  "database": {
+    "ownedTables": [
+      "app.finance_items",
+      "app.finance_accounts",
+      "app.finance_transactions",
+      "app.finance_balance_snapshots",
+      "app.finance_budget_assignments"
+    ]
+  },
   "runtime": { "workerEntrypoint": "dist/worker.js", "workerContractVersion": 1 },
   "assistantTools": [
     {
@@ -245,6 +255,12 @@
             "shared": { "type": "boolean" }
           }
         }
+      },
+      {
+        "name": "finance.storage-migrate",
+        "handler": "storage.migrate",
+        "retryLimit": 1,
+        "allowManualRun": true
       }
     ],
     "schedules": [
@@ -254,6 +270,13 @@
         "scope": "user",
         "jobKind": "finance.sync-sweep",
         "queue": "finance.sync-run"
+      }
+    ],
+    "reconcileJobs": [
+      {
+        "id": "storage-migrate",
+        "queue": "finance.storage-migrate",
+        "jobKind": "finance.storage-migrate"
       }
     ]
   },

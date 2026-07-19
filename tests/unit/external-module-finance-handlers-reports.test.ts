@@ -1,7 +1,7 @@
 // tests/unit/external-module-finance-handlers-reports.test.ts
 import { describe, expect, it } from "vitest";
 
-import { NS } from "../../external-modules/finance/src/domain/index.js";
+import { kvStore, NS } from "../../external-modules/finance/src/domain/index.js";
 import type {
   FinanceKv,
   SharedMirrorKv,
@@ -82,6 +82,7 @@ function fakePorts(kv: FinanceKv, mirror: SharedMirrorKv): WorkerPorts {
     kv,
     mirror,
     ai: null,
+    db: null,
     plaid: null,
     tokens: {
       read: async () => {
@@ -102,7 +103,10 @@ function fakePorts(kv: FinanceKv, mirror: SharedMirrorKv): WorkerPorts {
       }
     },
     isAdmin: false,
-    now: () => NOW
+    now: () => NOW,
+    // FIN-06b (#1166): pre-cutover handler tests stay on kvStore — the
+    // FIN-06c cutover (Tasks 8-10) is what makes handlers actually call this.
+    store: async () => kvStore(kv)
   };
 }
 

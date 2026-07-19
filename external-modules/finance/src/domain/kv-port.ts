@@ -22,7 +22,8 @@ export interface FinanceKv {
 // The eight namespaces declared by jarvis.module.json — the manifest is
 // authoritative. `settings` also carries instance scope in the manifest;
 // this port only ever sees its user scope. `budgets` (FIN-03, #1148) holds
-// `ledger:{month}` assignment ledgers and throwaway `state:{month}` caches.
+// `ledger:{month}` assignment ledgers (KV mode only — post-migration the
+// store reads the module tables).
 export const NS = {
   connections: "finance.connections",
   accounts: "finance.accounts",
@@ -31,7 +32,10 @@ export const NS = {
   rules: "finance.rules",
   snapshots: "finance.snapshots",
   budgets: "finance.budgets",
-  settings: "finance.settings"
+  settings: "finance.settings",
+  // FIN-06b (#1166 F6-D4): the storage-migrate marker namespace — separate
+  // from settings so a future settings wipe/export can never touch it.
+  meta: "finance.meta"
 } as const;
 
 export type FinanceNamespace = (typeof NS)[keyof typeof NS];

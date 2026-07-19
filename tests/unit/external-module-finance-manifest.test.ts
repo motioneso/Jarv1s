@@ -110,7 +110,9 @@ describe("finance manifest contract (#1146)", () => {
     // instance scope (admin-gated `plaid` → {environment} key, default write
     // policy). FIN-04 (#1149) adds finance.shared: instance-only with
     // instanceWritePolicy "module" — the FIN-00 D2 seam that lets worker
-    // handlers (not just admins) write the household mirror.
+    // handlers (not just admins) write the household mirror. FIN-06b (#1166)
+    // adds finance.meta: separate from settings so a future settings
+    // wipe/export can never touch the storage-migrate marker.
     expect(result.manifest.storage).toEqual([
       { namespace: "finance.connections", scopes: ["user"] },
       { namespace: "finance.accounts", scopes: ["user"] },
@@ -120,7 +122,8 @@ describe("finance manifest contract (#1146)", () => {
       { namespace: "finance.snapshots", scopes: ["user"] },
       { namespace: "finance.budgets", scopes: ["user"] },
       { namespace: "finance.shared", scopes: ["instance"], instanceWritePolicy: "module" },
-      { namespace: "finance.settings", scopes: ["user", "instance"] }
+      { namespace: "finance.settings", scopes: ["user", "instance"] },
+      { namespace: "finance.meta", scopes: ["user"] }
     ]);
 
     // D2/D3: connect-poll queue shares the tool handler; the six-hourly sweep
@@ -184,6 +187,15 @@ describe("finance manifest contract (#1146)", () => {
             shared: { type: "boolean" }
           }
         }
+      },
+      {
+        // FIN-06b (#1166): the one-shot per-owner backfill — no paramsSchema,
+        // pure metadata job (F6-D4), replay-safe so retryLimit is moot but
+        // pinned to 1 to match the module's other one-shot writes.
+        name: "finance.storage-migrate",
+        handler: "storage.migrate",
+        retryLimit: 1,
+        allowManualRun: true
       }
     ]);
     expect(result.manifest.worker?.schedules).toEqual([
@@ -193,6 +205,15 @@ describe("finance manifest contract (#1146)", () => {
         scope: "user",
         jobKind: "finance.sync-sweep",
         queue: "finance.sync-run"
+      }
+    ]);
+    // FIN-06b (#1166): the reconcile sweep that drives every owner through
+    // storage-migrate without a manual per-user trigger.
+    expect(result.manifest.worker?.reconcileJobs).toEqual([
+      {
+        id: "storage-migrate",
+        queue: "finance.storage-migrate",
+        jobKind: "finance.storage-migrate"
       }
     ]);
 

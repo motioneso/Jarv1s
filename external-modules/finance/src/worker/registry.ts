@@ -14,6 +14,7 @@ import {
   transactionCategorizeHandler,
   transactionsQueryHandler
 } from "./handlers/feed.js";
+import { storageMigrateHandler } from "./handlers/migrate.js";
 import { reportsNetWorthHandler, reportsSpendingHandler } from "./handlers/reports.js";
 import { accountSetSharedHandler, shareApplyHandler } from "./handlers/shared.js";
 import { syncRunHandler } from "./handlers/sync.js";
@@ -42,5 +43,8 @@ export const HANDLERS: Readonly<Record<string, ToolFactory>> = {
   "share.apply": shareApplyHandler,
   // FIN-05 (#1150) Task 4: the read-only reports surface of manifest v0.4.0.
   "reports.spending": reportsSpendingHandler,
-  "reports.net-worth": reportsNetWorthHandler
+  "reports.net-worth": reportsNetWorthHandler,
+  // FIN-06b (#1166) Task 6: the one-shot per-owner KV -> SQL backfill.
+  // Queue-only — no assistant-tool twin (F6-D4).
+  "storage.migrate": storageMigrateHandler
 };

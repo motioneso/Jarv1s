@@ -2,8 +2,7 @@
 //
 // FIN-03 (#1148) Task 1: pure YNAB-semantics budget derivation (spec delta
 // §"Envelope math"). Everything here is a deterministic function of the
-// assignment ledgers and the transaction records — no clock, no I/O — so the
-// cached `state:{month}` projection can always be thrown away and recomputed.
+// assignment ledgers and transaction records — no clock, no I/O.
 // Spending-positive integer cents throughout (FIN-01 record convention).
 
 import type { TransactionRecord } from "./records.js";
@@ -26,7 +25,8 @@ export type BudgetMonthStateCore = {
   categories: Record<string, BudgetCategoryState>;
 };
 
-/** `state:{YYYY-MM}` cached value (performance projection only). */
+/** Derived month state returned by budget.status — computed fresh on every
+ *  call, never persisted (FIN-06c F6-D1). */
 export type BudgetMonthState = BudgetMonthStateCore & {
   /** ISO, from the worker ctx clock — never derived here (no ambient dates). */
   computedAt: string;

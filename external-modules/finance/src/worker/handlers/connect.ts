@@ -11,10 +11,11 @@ import { randomUUID } from "node:crypto";
 
 import type { PlaidClient } from "../../adapters/plaid.js";
 import { FinanceFetchError } from "../../adapters/types.js";
-import { itemKey, linkKey, NS } from "../../domain/index.js";
+import { linkKey, NS } from "../../domain/index.js";
 import type {
   AccountRecord,
   FinanceKv,
+  FinanceStore,
   ItemRecord,
   LinkSessionRecord
 } from "../../domain/index.js";
@@ -23,7 +24,6 @@ import type { ToolFactory } from "../registry.js";
 import { InputError, readEnum } from "../validate.js";
 
 const LINK_PREFIX = "link:";
-const ITEM_PREFIX = "item:";
 const CLIENT_USER_ID_KEY = "client-user-id";
 /** Hosted Link sessions the user never finished are dropped after 30 min. */
 const ABANDON_AFTER_MS = 30 * 60_000;
@@ -54,16 +54,11 @@ async function ensureClientUserId(kv: FinanceKv): Promise<string> {
   return id;
 }
 
-// Shared with handlers/sync.ts (Task 6).
-export async function loadItems(kv: FinanceKv): Promise<ItemRecord[]> {
-  const keys = await kv.list(NS.connections);
-  const items: ItemRecord[] = [];
-  for (const key of keys) {
-    if (!key.startsWith(ITEM_PREFIX)) continue;
-    const record = await kv.get(NS.connections, key);
-    if (record) items.push(record as unknown as ItemRecord);
-  }
-  return items;
+// Shared with handlers/sync.ts (Task 6). FIN-06c (#1166) Task 8: item
+// enumeration goes through the store port (KV pre-migration, SQL after) —
+// the connections KV namespace itself stays home to link:*/cursor:* only.
+export async function loadItems(store: FinanceStore): Promise<ItemRecord[]> {
+  return store.listItems();
 }
 
 export const connectStartHandler: ToolFactory = (ports) => async (input) => {
@@ -72,11 +67,12 @@ export const connectStartHandler: ToolFactory = (ports) => async (input) => {
   const plaid = await buildPlaid(ports, ports.isAdmin ? override : undefined);
 
   const clientUserId = await ensureClientUserId(ports.kv);
+  const store = await ports.store();
 
   // Reauth (update mode): if an item needs re-login, this start fixes THAT
   // item instead of adding a new one — Plaid requires its access token and
   // rejects a products list in update mode.
-  const reauthItem = (await loadItems(ports.kv)).find((item) => item.status === "reauth-required");
+  const reauthItem = (await loadItems(store)).find((item) => item.status === "reauth-required");
   let accessToken: string | undefined;
   if (reauthItem) {
     const tokens = await ports.tokens.read();
@@ -114,6 +110,7 @@ export const connectStartHandler: ToolFactory = (ports) => async (input) => {
 
 async function completePublicToken(
   ports: WorkerPorts,
+  store: FinanceStore,
   plaid: PlaidClient,
   publicToken: string,
   connectedItemCount: number
@@ -146,7 +143,7 @@ async function completePublicToken(
       isoCurrency: account.isoCurrency,
       updatedAt: nowIso
     };
-    await ports.kv.set(NS.accounts, account.accountId, record);
+    await store.putAccount(record);
   }
   const item: ItemRecord = {
     itemId,
@@ -154,15 +151,16 @@ async function completePublicToken(
     connectedAt: nowIso,
     status: "connected"
   };
-  await ports.kv.set(NS.connections, itemKey(itemId), item);
+  await store.putItem(item);
 }
 
 export const connectPollHandler: ToolFactory = (ports) => async () => {
+  const store = await ports.store();
   const keys = await ports.kv.list(NS.connections);
   const sessionKeys = keys.filter((key) => key.startsWith(LINK_PREFIX));
   // Loaded once up front: the D5 guard needs "were there connected items
   // BEFORE this poll started", independent of items this poll adds.
-  const connectedItemCount = (await loadItems(ports.kv)).filter(
+  const connectedItemCount = (await loadItems(store)).filter(
     (item) => item.status !== "error"
   ).length;
 
@@ -195,7 +193,7 @@ export const connectPollHandler: ToolFactory = (ports) => async () => {
       continue;
     }
     for (const publicToken of result.publicTokens) {
-      await completePublicToken(ports, plaid, publicToken, connectedItemCount);
+      await completePublicToken(ports, store, plaid, publicToken, connectedItemCount);
     }
     await ports.kv.set(NS.connections, key, { ...session, status: "completed" });
     completed += 1;

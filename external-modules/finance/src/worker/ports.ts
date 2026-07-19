@@ -6,7 +6,7 @@
 // and the domain/worker layers stay bundler-independent.
 import type { PlaidClient, PlaidCreds } from "../adapters/plaid.js";
 import type { PlaidEnv } from "../adapters/types.js";
-import type { FinanceKv, SharedMirrorKv } from "../domain/index.js";
+import type { FinanceDb, FinanceKv, FinanceStore, SharedMirrorKv } from "../domain/index.js";
 
 export type FinanceAiResult =
   | { readonly ok: true; readonly object: unknown }
@@ -77,12 +77,27 @@ export interface WorkerPorts {
   readonly plaid: ((env: PlaidEnv, creds: PlaidCreds) => PlaidClient) | null;
   /** Nullable: categorization (FIN-02) degrades gracefully when no AI bridge exists. */
   readonly ai: FinanceAi | null;
+  /**
+   * FIN-06b (#1166): raw module db.query access, present only when ctx.db
+   * exists on this host (#1167). Every OTHER handler must go through
+   * store() instead — this exists solely for storage-migrate's insert +
+   * count-verify SQL, which the FinanceStore interface deliberately doesn't
+   * expose (DO NOTHING upserts and raw counts are migration-only concerns).
+   */
+  readonly db: FinanceDb | null;
   readonly tokens: TokensPort;
   readonly creds: CredsPort;
   readonly settings: InstanceSettingsPort;
   /** Admin-gated inputs (connect.start environment override) are dropped when false. */
   readonly isAdmin: boolean;
   now(): Date;
+  /**
+   * FIN-06b (#1166 F6-D4): the per-owner storage selector — async, memoized
+   * per invocation (worker/store.ts is the ONLY dual-read point). Every
+   * handler calls this once and uses the returned FinanceStore for the rest
+   * of the invocation, never mixing kv/db reads directly.
+   */
+  store(): Promise<FinanceStore>;
 }
 
 /**

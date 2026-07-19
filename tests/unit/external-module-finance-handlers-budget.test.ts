@@ -1,7 +1,7 @@
 // tests/unit/external-module-finance-handlers-budget.test.ts
 import { describe, expect, it } from "vitest";
 
-import { NS } from "../../external-modules/finance/src/domain/index.js";
+import { kvStore, NS } from "../../external-modules/finance/src/domain/index.js";
 import type {
   FinanceKv,
   TransactionRecord
@@ -9,21 +9,19 @@ import type {
 import {
   budgetApplyHandler,
   budgetAssignHandler,
-  budgetStatusHandler,
-  invalidateBudgetStateFrom
+  budgetStatusHandler
 } from "../../external-modules/finance/src/worker/handlers/budget.js";
 import type { WorkerPorts } from "../../external-modules/finance/src/worker/ports.js";
 
-// FIN-03 (#1148) Task 3+5: the budget handler contracts (spec delta §"Worker
-// delta"). Pinned here: `ledger:{month}` is the source of truth and assign
-// SETS a total (never increments); `state:{month}` is a throwaway cache
-// OWNED BY THE WRITE PATHS — status serves it on hit and recomputes on miss
-// WITHOUT persisting, because finance.budget.status is a read-risk tool and
-// the host rpc rejects kv.set from read tools with `forbidden_kv_mutation`
-// (worker-rpc-host.ts; this surfaced as the UAT run-2 handler_failed). The
-// write paths delete caches ≥ the affected month, then warm the assigned
-// month; the queue twin consumes the HOST job envelope (ids in input.params —
-// the a6023cb7 regression), not flat ids.
+// FIN-03 (#1148) Task 3+5, cut over to FinanceStore + state-cache retirement
+// by FIN-06c (#1166) Task 10: the budget handler contracts (spec delta
+// §"Worker delta"). Pinned here: `ledger:{month}` is the source of truth and
+// assign SETS a total (never increments, so the budget-apply queue stays
+// replay-safe at retryLimit 1); status always derives fresh from
+// loadDerivationInput — SQL month reads are one indexed query, so the old
+// `state:{month}` read-amplification cache is gone (F6-D1). The queue twin
+// consumes the HOST job envelope (ids in input.params — the a6023cb7
+// regression), not flat ids.
 
 const NOW = new Date("2026-07-18T12:00:00Z");
 
@@ -68,6 +66,7 @@ function fakePorts(kv: FinanceKv): WorkerPorts {
       }
     },
     ai: null,
+    db: null,
     plaid: null,
     tokens: {
       read: async () => {
@@ -88,7 +87,10 @@ function fakePorts(kv: FinanceKv): WorkerPorts {
       }
     },
     isAdmin: false,
-    now: () => NOW
+    now: () => NOW,
+    // FIN-06b (#1166): pre-cutover handler tests stay on kvStore — the
+    // FIN-06c cutover (Tasks 8-10) is what makes handlers actually call this.
+    store: async () => kvStore(kv)
   };
 }
 
@@ -122,7 +124,7 @@ async function seedJuly(kv: FinanceKv): Promise<void> {
 }
 
 describe("finance budget.status (#1148)", () => {
-  it("derives the month from ledger + chunks WITHOUT persisting (read-risk tool)", async () => {
+  it("derives the month from ledger + chunks", async () => {
     const kv = fakeKv();
     await seedJuly(kv);
 
@@ -141,23 +143,6 @@ describe("finance budget.status (#1148)", () => {
     expect((result.categories as Array<{ id: string }>).some((c) => c.id === "groceries")).toBe(
       true
     );
-    // status must NOT kv.set — the host rejects writes from read-risk tools
-    // (forbidden_kv_mutation), which is exactly the UAT run-2 handler_failed.
-    expect(await kv.get(NS.budgets, "state:2026-07")).toBeNull();
-  });
-
-  it("serves the cached state on a second call instead of recomputing", async () => {
-    const kv = fakeKv();
-    await seedJuly(kv);
-    // Sentinel: if status recomputed, this impossible value would vanish.
-    await kv.set(NS.budgets, "state:2026-07", {
-      computedAt: "2026-07-01T00:00:00.000Z",
-      tbbCents: 42,
-      categories: {}
-    });
-
-    const result = await budgetStatusHandler(fakePorts(kv))({ month: "2026-07" });
-    expect((result.state as { tbbCents: number }).tbbCents).toBe(42);
   });
 
   it("rolls carry and TBB into a later month with no data of its own", async () => {
@@ -242,33 +227,6 @@ describe("finance budget.assign — tool path (#1148)", () => {
     });
   });
 
-  it("invalidates later caches and warms the assigned month's cache", async () => {
-    const kv = fakeKv();
-    for (const month of ["2026-06", "2026-07", "2026-08"]) {
-      await kv.set(NS.budgets, `state:${month}`, { computedAt: "x", tbbCents: 0, categories: {} });
-    }
-
-    await budgetAssignHandler(fakePorts(kv))({
-      month: "2026-07",
-      categoryId: "groceries",
-      amountCents: 1_000
-    });
-
-    // June derives only from months ≤ June — untouched. August is stale and
-    // stays deleted (status recomputes it on demand). July — the assigned
-    // month — is re-derived and persisted HERE, because assign is the
-    // write-risk path and status (read-risk) can never persist it.
-    expect(await kv.get(NS.budgets, "state:2026-06")).not.toBeNull();
-    expect(await kv.get(NS.budgets, "state:2026-07")).toEqual({
-      computedAt: NOW.toISOString(),
-      tbbCents: -1_000,
-      categories: {
-        groceries: { assignedCents: 1_000, activityCents: 0, availableCents: 1_000 }
-      }
-    });
-    expect(await kv.get(NS.budgets, "state:2026-08")).toBeNull();
-  });
-
   it("rejects an unknown category, a fractional amount, and out-of-range amounts", async () => {
     const kv = fakeKv();
     const assign = budgetAssignHandler(fakePorts(kv));
@@ -301,9 +259,6 @@ describe("finance budget-apply — queue path (#1148)", () => {
     expect(await kv.get(NS.budgets, "ledger:2026-07")).toEqual({
       assignments: { groceries: 50_000 }
     });
-    // The queue twin shares applyAssignment, so it warms the month's cache
-    // too — this is what the UAT reload-poll reads back after the assign.
-    expect(await kv.get(NS.budgets, "state:2026-07")).toMatchObject({ tbbCents: -50_000 });
   });
 
   it("rejects flat ids (the a6023cb7 regression) and a foreign jobKind", async () => {
@@ -323,22 +278,5 @@ describe("finance budget-apply — queue path (#1148)", () => {
         params: { month: "2026-07", categoryId: "groceries", amountCents: 1 }
       })
     ).rejects.toThrow("jobKind is not supported");
-  });
-});
-
-describe("invalidateBudgetStateFrom (#1148)", () => {
-  it("deletes state caches ≥ the given month and leaves ledgers alone", async () => {
-    const kv = fakeKv();
-    await kv.set(NS.budgets, "ledger:2026-07", { assignments: {} });
-    for (const month of ["2026-05", "2026-06", "2026-07"]) {
-      await kv.set(NS.budgets, `state:${month}`, { computedAt: "x", tbbCents: 0, categories: {} });
-    }
-
-    await invalidateBudgetStateFrom(kv, "2026-06");
-
-    expect(await kv.get(NS.budgets, "state:2026-05")).not.toBeNull();
-    expect(await kv.get(NS.budgets, "state:2026-06")).toBeNull();
-    expect(await kv.get(NS.budgets, "state:2026-07")).toBeNull();
-    expect(await kv.get(NS.budgets, "ledger:2026-07")).not.toBeNull();
   });
 });

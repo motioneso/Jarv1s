@@ -51,8 +51,19 @@ async function runWorker(sends: readonly object[], until: (m: Rpc) => boolean): 
         // Minimal kv-answering parent: real handlers (Task 7 made all four
         // registry keys live) issue kv RPCs upward; an empty store keeps the
         // suite hermetic while proving the bridge round-trips in the bundle.
+        // kv.get also answers storeSelector's marker check (FIN-06b, #1166
+        // F6-D4): ctx.db is unconditionally present on every worker context
+        // now (module-sdk worker.ts), so every store() call issues one
+        // kv.get(finance.meta, "storage:migrated") before the list/get calls
+        // below — null keeps that owner on kvStore, matching pre-FIN-06
+        // hermetic behavior.
         if (message.method === "kv.list") {
           child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: message.id, result: [] })}\n`);
+        }
+        if (message.method === "kv.get") {
+          child.stdin.write(
+            `${JSON.stringify({ jsonrpc: "2.0", id: message.id, result: null })}\n`
+          );
         }
         if (until(message)) {
           clearTimeout(timer);

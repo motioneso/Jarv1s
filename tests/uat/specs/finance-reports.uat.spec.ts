@@ -183,4 +183,54 @@ test("Finance reports derive net worth and pairing-excluded spending end-to-end"
     timeout: 30_000
   });
   await expect(categoryRow("Uncategorized").getByText("-$5.75", { exact: true })).toBeVisible();
+
+  // --- FIN-06c (#1166, F6-D5): the ETL proof ---------------------------------------------
+  // Everything above passed with the SAME dollar figures as the FIN-05 record while
+  // reading through a KV-shaped seed — that's only possible if enable's
+  // finance.storage-migrate job (fired per owner, F6-D4) correctly drained every KV
+  // namespace into the module's own tables and the reports handlers now read those
+  // tables. This block is the direct proof: the source KV rows are gone and the
+  // destination table rows exist. The migrate job runs async after enable, so poll
+  // (same docker-exec-psql invocation as the afterEach diagnostic above) rather than
+  // assert once. Namespace strings match domain/kv-port.ts's NS map; app.module_kv
+  // columns match packages/settings/sql/0154_module_kv.sql.
+  const runPsql = (sql: string): string =>
+    execFileSync(
+      "docker",
+      buildUatComposeArgs(projectName, [
+        "exec",
+        "-T",
+        "postgres",
+        "psql",
+        "-U",
+        "postgres",
+        "-d",
+        "jarv1s",
+        "-t",
+        "-A",
+        "-c",
+        sql
+      ]),
+      { encoding: "utf8" }
+    );
+
+  await expect(async () => {
+    const kvNamespacesGone = runPsql(
+      "SELECT count(*) FROM app.module_kv WHERE module_id = 'finance' AND namespace IN ('finance.accounts','finance.transactions','finance.snapshots')"
+    ).trim();
+    const connectionItemsGone = runPsql(
+      "SELECT count(*) FROM app.module_kv WHERE module_id = 'finance' AND namespace = 'finance.connections' AND key LIKE 'item:%'"
+    ).trim();
+    // Ledger AND the now-retired state cache both lived in this one namespace
+    // (F6-D1) — a single count covers both.
+    const budgetsGone = runPsql(
+      "SELECT count(*) FROM app.module_kv WHERE module_id = 'finance' AND namespace = 'finance.budgets'"
+    ).trim();
+    const transactionRows = runPsql("SELECT count(*) FROM app.finance_transactions").trim();
+
+    expect(kvNamespacesGone, "accounts/transactions/snapshots KV namespaces").toBe("0");
+    expect(connectionItemsGone, "connections item:* KV keys").toBe("0");
+    expect(budgetsGone, "budgets namespace (ledger + state)").toBe("0");
+    expect(Number(transactionRows), "app.finance_transactions row count").toBeGreaterThan(0);
+  }).toPass({ timeout: 60_000, intervals: [2_000] });
 });

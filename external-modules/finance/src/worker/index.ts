@@ -11,26 +11,36 @@ import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
 
 import { fetchFromWorkerContext } from "../adapters/index.js";
 import { createPlaid } from "../adapters/plaid.js";
+import type { FinanceDb } from "../domain/index.js";
 import { kvFromWorkerContext, mirrorFromWorkerContext, NS } from "../domain/index.js";
 import { credsFromWorkerContext, tokensFromWorkerContext } from "./auth-port.js";
 import type { FinanceAi, WorkerPorts } from "./ports.js";
 import { aiFromWorkerContext } from "./ports.js";
 import type { ToolFactory } from "./registry.js";
 import { HANDLERS } from "./registry.js";
+import { storeSelector } from "./store.js";
 import { wrap } from "./wrap.js";
 
 // ctx.ai is read structurally (job-search precedent) so this worker builds
 // against today's SDK and degrades gracefully when no AI bridge is present.
 type MaybeAiContext = ModuleWorkerContext & { readonly ai?: FinanceAi };
+// ctx.db (#1167) is read the same structural way — an older host simply
+// omits it, and storeSelector degrades every owner to the KV store (F6-D4).
+type MaybeDbContext = ModuleWorkerContext & { readonly db?: FinanceDb };
 
 function ports(ctx: ModuleWorkerContext): WorkerPorts {
   const ai = (ctx as MaybeAiContext).ai;
+  const db = (ctx as MaybeDbContext).db;
+  const kv = kvFromWorkerContext(ctx.kv);
   return {
-    kv: kvFromWorkerContext(ctx.kv),
+    kv,
     // FIN-04 (#1149): the household mirror, pinned to instance-scope
     // finance.shared inside the adapter (structural namespace isolation).
     mirror: mirrorFromWorkerContext(ctx.kv),
     ai: ai ? aiFromWorkerContext(ai) : null,
+    // FIN-06b (#1166): same structural nullable pattern as ai — storage.migrate
+    // is the only handler that reads this directly (see ports.ts).
+    db: db ?? null,
     // ctx.fetch is typed required on ModuleWorkerContext, but guard anyway:
     // an older host omitting it must degrade to a structured fetch error,
     // never a worker crash.
@@ -56,7 +66,10 @@ function ports(ctx: ModuleWorkerContext): WorkerPorts {
     // worker.ts ctx = input/auth/fetch/kv/ai only) — admin-gated inputs
     // (connect.start environment override) stay dropped until the SDK adds one.
     isAdmin: false,
-    now: () => new Date()
+    now: () => new Date(),
+    // FIN-06b (#1166 F6-D4): built once per invocation over this call's own
+    // kv/db, then memoized inside the closure — see worker/store.ts.
+    store: storeSelector(kv, db)
   };
 }
 

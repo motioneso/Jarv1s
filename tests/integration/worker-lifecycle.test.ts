@@ -317,6 +317,116 @@ describe("external module job reconciliation (#996, #860)", () => {
     expect(scheduledKey).toMatch(/^[\w.\-/]+$/);
   });
 
+  it("enqueues manifest reconcileJobs once per active user with a singleton key", async () => {
+    const sent: { name: string; payload: unknown; options: unknown }[] = [];
+    const users = ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"];
+    const module = {
+      id: "acme",
+      dir: "/acme",
+      manifestHash: `sha256:${"c".repeat(64)}`,
+      packageHash: `sha256:${"d".repeat(64)}`,
+      manifest: {
+        schemaVersion: 1,
+        id: "acme",
+        name: "Acme",
+        version: "1.0.0",
+        publisher: "tests",
+        lifecycle: "optional",
+        compatibility: { jarv1s: ">=0.0.0" },
+        runtime: { workerEntrypoint: "worker.js", workerContractVersion: 1 },
+        worker: {
+          queues: [{ name: "acme.migrate", handler: "migrate" }],
+          reconcileJobs: [{ id: "storage-migrate", queue: "acme.migrate", jobKind: "acme.migrate" }]
+        }
+      }
+    } as ExternalModuleDiscovery;
+    const boss = {
+      getQueue: async () => ({ name: "acme.migrate" }),
+      getSchedules: async () => [],
+      send: async (name: string, payload: unknown, options: unknown) => {
+        sent.push({ name, payload, options });
+        return "job-id";
+      }
+    } as unknown as PgBoss;
+    const reconciler = new ExternalModuleJobReconciler({
+      boss,
+      discoveries: () => [module],
+      isModuleEnabled: async () => true,
+      listActiveUserIds: async () => users
+    });
+
+    await reconciler.reconcileModule("acme");
+
+    expect(sent).toEqual([
+      {
+        name: "acme.migrate",
+        payload: {
+          actorUserId: users[0],
+          moduleId: "acme",
+          jobKind: "acme.migrate",
+          manifestHash: module.manifestHash
+        },
+        options: { singletonKey: `acme/storage-migrate/${users[0]}` }
+      },
+      {
+        name: "acme.migrate",
+        payload: {
+          actorUserId: users[1],
+          moduleId: "acme",
+          jobKind: "acme.migrate",
+          manifestHash: module.manifestHash
+        },
+        options: { singletonKey: `acme/storage-migrate/${users[1]}` }
+      }
+    ]);
+    // "/" separator, not ":" — pg-boss v12 assertKey restricts keys to [\w.\-/] (#1147 lesson).
+    for (const entry of sent) {
+      expect((entry.options as { singletonKey: string }).singletonKey).toMatch(/^[\w.\-/]+$/);
+    }
+  });
+
+  it("skips reconcileJobs whose queue is not declared", async () => {
+    const sent: unknown[] = [];
+    const module = {
+      id: "acme",
+      dir: "/acme",
+      manifestHash: `sha256:${"c".repeat(64)}`,
+      packageHash: `sha256:${"d".repeat(64)}`,
+      manifest: {
+        schemaVersion: 1,
+        id: "acme",
+        name: "Acme",
+        version: "1.0.0",
+        publisher: "tests",
+        lifecycle: "optional",
+        compatibility: { jarv1s: ">=0.0.0" },
+        runtime: { workerEntrypoint: "worker.js", workerContractVersion: 1 },
+        worker: {
+          queues: [{ name: "acme.migrate", handler: "migrate" }],
+          reconcileJobs: [{ id: "storage-migrate", queue: "acme.missing", jobKind: "acme.migrate" }]
+        }
+      }
+    } as ExternalModuleDiscovery;
+    const boss = {
+      getQueue: async () => ({ name: "acme.migrate" }),
+      getSchedules: async () => [],
+      send: async (...args: unknown[]) => {
+        sent.push(args);
+        return "job-id";
+      }
+    } as unknown as PgBoss;
+    const reconciler = new ExternalModuleJobReconciler({
+      boss,
+      discoveries: () => [module],
+      isModuleEnabled: async () => true,
+      listActiveUserIds: async () => ["00000000-0000-4000-8000-000000000001"]
+    });
+
+    await reconciler.reconcileModule("acme");
+
+    expect(sent).toEqual([]);
+  });
+
   it("stops workers and schedules on disable without deleting queues", async () => {
     const calls: string[] = [];
     let enabled = true;

@@ -4,18 +4,12 @@
 // are risk "read" — pure aggregation, no KV writes (the host rejects
 // mutation from read tools with forbidden_kv_mutation, which is exactly the
 // posture reports want). Windows come from ports.now(); never ambient time.
-import type {
-  AccountRecord,
-  SnapshotChunk,
-  TransactionChunk,
-  TransactionRecord
-} from "../../domain/index.js";
+import type { SnapshotChunk, TransactionChunk, TransactionRecord } from "../../domain/index.js";
 import {
   aggregateSpending,
   deriveNetWorth,
   excludeTransfers,
   monthWindow,
-  NS,
   parseSharedKey,
   toSharedTransaction
 } from "../../domain/index.js";
@@ -46,11 +40,11 @@ export const reportsSpendingHandler: ToolFactory = (ports) => async (input) => {
   const window = readWindow(input, ports);
   const months = loadMonths(window);
 
+  // FIN-06c (#1166) Task 9: one store call per margin+window month.
+  const store = await ports.store();
   const own: TransactionRecord[] = [];
-  for (const key of await ports.kv.list(NS.transactions)) {
-    if (!months.has(key.slice(-7))) continue;
-    const chunk = (await ports.kv.get(NS.transactions, key)) as TransactionChunk | null;
-    if (chunk) own.push(...chunk.transactions);
+  for (const month of months) {
+    own.push(...(await store.listMonthTransactions(month)));
   }
 
   // Household rows grouped BY OWNER: pairing never crosses owners, and the
@@ -93,19 +87,16 @@ export const reportsNetWorthHandler: ToolFactory = (ports) => async (input) => {
   readString(input, "actorUserId", { required: true });
   const window = readWindow(input, ports);
 
-  const accounts: AccountRecord[] = [];
-  for (const key of await ports.kv.list(NS.accounts)) {
-    const record = (await ports.kv.get(NS.accounts, key)) as AccountRecord | null;
-    if (record) accounts.push(record);
-  }
+  const store = await ports.store();
+  const accounts = await store.listAccounts();
   // ALL snapshot chunks, not just window months: pre-window snapshots feed
   // carry-forward into the window (domain/net-worth.ts contract). Bounded by
   // accounts × months-since-connect. Own-only by design — snapshots are
   // never mirrored, so the mirror port is untouched here.
   const chunks: Record<string, SnapshotChunk> = {};
-  for (const key of await ports.kv.list(NS.snapshots)) {
-    const chunk = (await ports.kv.get(NS.snapshots, key)) as SnapshotChunk | null;
-    if (chunk) chunks[key] = chunk;
+  for (const { accountId, month } of await store.listSnapshotChunks()) {
+    const days = await store.getSnapshotChunk(accountId, month);
+    if (days) chunks[`${accountId}:${month}`] = { days };
   }
   return { window, ...deriveNetWorth(accounts, chunks, window) };
 };

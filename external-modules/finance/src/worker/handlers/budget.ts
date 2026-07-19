@@ -1,21 +1,16 @@
 // external-modules/finance/src/worker/handlers/budget.ts
 //
 // FIN-03 (#1148) Task 3: the envelope-budget handlers over the pure
-// derivation in domain/envelope.ts (spec delta §"Worker delta").
+// derivation in domain/envelope.ts (spec delta §"Worker delta"). Cut over to
+// FinanceStore and the `state:{YYYY-MM}` cache retired by FIN-06c (#1166)
+// Task 10 (F6-D1): that cache was a KV-read-amplification workaround — a SQL
+// month read is one indexed query, so status now always derives fresh from
+// loadDerivationInput and never persists.
 //
-// Storage contract (namespace finance.budgets):
-//   ledger:{YYYY-MM} — assignment SOURCE OF TRUTH; assign SETS a total per
-//     category (never increments), which keeps the budget-apply queue
-//     replay-safe at retryLimit 1.
-//   state:{YYYY-MM}  — cached BudgetMonthState, a pure performance
-//     projection OWNED BY THE WRITE PATHS. budget.status is a read-risk
-//     tool: the host rpc rejects kv.set from read tools with
-//     `forbidden_kv_mutation` (worker-rpc-host.ts — surfaced as the UAT
-//     run-2 handler_failed), so status recomputes on miss and returns the
-//     result WITHOUT persisting. Every write path (assign here, chunk
-//     writes in sync.ts) deletes caches ≥ the affected month — carry/TBB
-//     flow forward, so deleting is always safe — and assign then re-derives
-//     and warms the assigned month's cache.
+// Storage contract: `ledger:{YYYY-MM}` (assignment SOURCE OF TRUTH; assign
+// SETS a total per category, never increments, keeping the budget-apply
+// queue replay-safe at retryLimit 1) lives behind `store.listAssignmentMonths`
+// / `store.getLedger` / `store.setAssignment`.
 //
 // Two write paths, one apply: the assistant tool (budget.assign) and the
 // web queue twin (finance.budget-apply) both converge on applyAssignment.
@@ -26,12 +21,11 @@
 import {
   deriveBudgetMonths,
   effectiveTransferIds,
-  NS,
   type BudgetLedger,
   type BudgetMonthState,
+  type FinanceStore,
   type TransactionRecord
 } from "../../domain/index.js";
-import type { FinanceKv } from "../../domain/index.js";
 import type { ToolFactory } from "../registry.js";
 import type { WorkerPorts } from "../ports.js";
 import { InputError, readInt, readString } from "../validate.js";
@@ -43,9 +37,6 @@ const MONTH = /^[0-9]{4}-[0-9]{2}$/;
 // tool path, which never crosses the queue params schema.
 const AMOUNT_BOUND = 100_000_000;
 
-const ledgerKey = (month: string) => `ledger:${month}`;
-const stateKey = (month: string) => `state:${month}`;
-
 function readMonth(input: Record<string, unknown>): string {
   const month = readString(input, "month", { required: true });
   if (!MONTH.test(month)) {
@@ -55,46 +46,25 @@ function readMonth(input: Record<string, unknown>): string {
 }
 
 /**
- * Delete every cached `state:` projection for `month` and all later months.
- * Earlier months are untouched: a month's state derives only from months ≤
- * itself, so a write at `month` cannot stale anything before it.
- */
-export async function invalidateBudgetStateFrom(kv: FinanceKv, month: string): Promise<void> {
-  const target = stateKey(month);
-  for (const key of await kv.list(NS.budgets)) {
-    // YYYY-MM is lexicographically ordered, so plain string ≥ is correct.
-    if (key.startsWith("state:") && key >= target) {
-      await kv.delete(NS.budgets, key);
-    }
-  }
-}
-
-/**
  * Load the full derivation input: every assignment ledger plus every
  * transaction chunk, grouped by the chunk key's month suffix
  * (`{accountId}:{YYYY-MM}` — the reducer files each txn under its date's
  * month, so the key month IS the txn month).
  */
-async function loadDerivationInput(kv: FinanceKv): Promise<{
+async function loadDerivationInput(store: FinanceStore): Promise<{
   ledgers: Record<string, BudgetLedger>;
   transactionsByMonth: Record<string, TransactionRecord[]>;
 }> {
   const ledgers: Record<string, BudgetLedger> = {};
-  for (const key of await kv.list(NS.budgets)) {
-    if (!key.startsWith("ledger:")) continue;
-    const stored = await kv.get(NS.budgets, key);
-    if (stored) ledgers[key.slice("ledger:".length)] = stored as BudgetLedger;
+  for (const month of await store.listAssignmentMonths()) {
+    const ledger = await store.getLedger(month);
+    if (ledger) ledgers[month] = ledger;
   }
 
   const transactionsByMonth: Record<string, TransactionRecord[]> = {};
-  for (const key of await kv.list(NS.transactions)) {
-    const month = key.slice(-7);
-    if (!MONTH.test(month)) continue;
-    const chunk = (await kv.get(NS.transactions, key)) as {
-      transactions?: TransactionRecord[];
-    } | null;
-    if (!chunk?.transactions?.length) continue;
-    (transactionsByMonth[month] ??= []).push(...chunk.transactions);
+  for (const month of await store.listTransactionMonths()) {
+    const records = await store.listMonthTransactions(month);
+    if (records.length) transactionsByMonth[month] = records;
   }
   // FIN-05 (#1150): drop the effective transfer set (auto-paired rows ∪
   // transfers-categorized) BEFORE derivation. Pairing needs the full
@@ -110,8 +80,12 @@ async function loadDerivationInput(kv: FinanceKv): Promise<{
   return { ledgers, transactionsByMonth };
 }
 
-async function computeMonthState(ports: WorkerPorts, month: string): Promise<BudgetMonthState> {
-  const input = await loadDerivationInput(ports.kv);
+async function computeMonthState(
+  ports: WorkerPorts,
+  store: FinanceStore,
+  month: string
+): Promise<BudgetMonthState> {
+  const input = await loadDerivationInput(store);
   // Inject the requested month into the derivation union when it has no data
   // of its own: the derivation then rolls carry/TBB forward into it (or
   // yields the all-zero state when there is no data at all).
@@ -124,17 +98,14 @@ async function computeMonthState(ports: WorkerPorts, month: string): Promise<Bud
 
 export const budgetStatusHandler: ToolFactory = (ports) => async (input) => {
   const month = readMonth(input);
-  const cached = (await ports.kv.get(NS.budgets, stateKey(month))) as BudgetMonthState | null;
-  // Compute-on-miss, never persist: this tool is risk "read", and the host
-  // rejects kv.set from read tools (see storage contract above). The cache
-  // only exists when a write path warmed it.
-  const state = cached ?? (await computeMonthState(ports, month));
+  const store = await ports.store();
+  const state = await computeMonthState(ports, store, month);
   // Taxonomy rides along so the web budget screen renders names and group
   // order from a single call (same shape transactions.query ships).
   return { month, state, categories: await loadCategories(ports) };
 };
 
-/** Shared write path: validate, RMW the ledger, invalidate stale caches. */
+/** Shared write path: validate, then SET the assigned category's total. */
 async function applyAssignment(
   ports: WorkerPorts,
   args: { month: string; categoryId: string; amountCents: number }
@@ -144,17 +115,8 @@ async function applyAssignment(
     throw new InputError("invalid_category", "categoryId is not a live category");
   }
 
-  const key = ledgerKey(args.month);
-  const ledger = ((await ports.kv.get(NS.budgets, key)) as BudgetLedger | null) ?? {
-    assignments: {}
-  };
-  ledger.assignments[args.categoryId] = args.amountCents;
-  await ports.kv.set(NS.budgets, key, ledger);
-  await invalidateBudgetStateFrom(ports.kv, args.month);
-  // Warm the assigned month's cache from here — the write-risk path — since
-  // read-risk status can never persist it. Later months stay cold and are
-  // recomputed on demand by status.
-  await ports.kv.set(NS.budgets, stateKey(args.month), await computeMonthState(ports, args.month));
+  const store = await ports.store();
+  await store.setAssignment(args.month, args.categoryId, args.amountCents);
 
   return { status: "ok", ...args };
 }

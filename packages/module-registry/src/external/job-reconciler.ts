@@ -158,6 +158,27 @@ export class ExternalModuleJobReconciler {
         await this.deps.boss.unschedule(schedule.name, schedule.key);
       }
     }
+
+    // #1166 F6-D4: one-shot per-user enqueue on every reconcile. "/" separator,
+    // NOT ":" — pg-boss v12 assertKey restricts keys to [\w.\-/] (#1147 lesson).
+    // Dedup here is best-effort (concurrent sends only); the real replay guard is
+    // the handler's idempotency marker.
+    for (const job of module.manifest.worker?.reconcileJobs ?? []) {
+      const queue = queueByName.get(job.queue);
+      if (!queue) continue;
+      for (const actorUserId of users) {
+        const payload: ExternalModuleJobPayload = {
+          actorUserId,
+          moduleId,
+          jobKind: job.jobKind,
+          manifestHash: module.manifestHash
+        };
+        assertModuleJobPayload(queue, payload);
+        await this.deps.boss.send(queue.name, payload, {
+          singletonKey: `${moduleId}/${job.id}/${actorUserId}`
+        });
+      }
+    }
   }
 
   async purgeModule(moduleId: string): Promise<void> {

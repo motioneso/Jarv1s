@@ -1,11 +1,12 @@
 // external-modules/finance/src/worker/handlers/accounts.ts
 //
 // FIN-01 (#1146) Task 7: finance.accounts.list — the read tool behind "what
-// are my balances". Pure KV read (NS.accounts joined with each account's
-// item record for status/institution); never builds a Plaid client and never
-// touches the token map. Balances are as-of the last sync (updatedAt says
-// when), which is the module's design: reads are instant, freshness comes
-// from the 6-hour sweep or finance.sync.run-now.
+// are my balances". Pure store read (accounts joined with each account's
+// item record for status/institution — FIN-06c #1166 Task 8 moved this off
+// KV onto the store port); never builds a Plaid client and never touches the
+// token map. Balances are as-of the last sync (updatedAt says when), which is
+// the module's design: reads are instant, freshness comes from the 6-hour
+// sweep or finance.sync.run-now.
 //
 // FIN-04 (#1149) Task 5: the same read also merges OTHER owners' shared
 // accounts from the finance.shared mirror, appended after own accounts and
@@ -13,8 +14,8 @@
 // skipped — their user-scoped records above are authoritative. Read-risk
 // tool: the mirror is only ever list/get here (the host rejects mutation
 // from read tools with forbidden_kv_mutation).
-import { itemKey, NS, parseSharedKey } from "../../domain/index.js";
-import type { AccountRecord, ItemRecord, SharedAccountMeta } from "../../domain/index.js";
+import { parseSharedKey } from "../../domain/index.js";
+import type { ItemRecord, SharedAccountMeta } from "../../domain/index.js";
 import type { WorkerPorts } from "../ports.js";
 import type { ToolFactory } from "../registry.js";
 import { readString } from "../validate.js";
@@ -101,24 +102,24 @@ export const accountsListHandler: ToolFactory = (ports) => async (input) => {
   // and host-bound on queue envelopes — never caller-controlled (#1149).
   const actorUserId = readString(input, "actorUserId", { required: true });
 
-  const accountIds = await ports.kv.list(NS.accounts);
+  // FIN-06c (#1166) Task 8: one store call replaces the list+get loop — the
+  // store port already returns full records, so the old "deleted between
+  // list and get" race no longer applies.
+  const store = await ports.store();
+  const accountRecords = await store.listAccounts();
 
   // Item records are few (one per bank); memoize per itemId so a bank with
   // many accounts costs one connections read.
   const itemCache = new Map<string, ItemRecord | null>();
   const loadItem = async (itemId: string): Promise<ItemRecord | null> => {
     if (!itemCache.has(itemId)) {
-      const record = await ports.kv.get(NS.connections, itemKey(itemId));
-      itemCache.set(itemId, record ? (record as unknown as ItemRecord) : null);
+      itemCache.set(itemId, await store.getItem(itemId));
     }
     return itemCache.get(itemId)!;
   };
 
   const own: AccountView[] = [];
-  for (const accountId of accountIds) {
-    const stored = await ports.kv.get(NS.accounts, accountId);
-    if (!stored) continue; // deleted between list and get — benign race
-    const account = stored as unknown as AccountRecord;
+  for (const account of accountRecords) {
     const item = await loadItem(account.itemId);
     own.push({
       accountId: account.accountId,
@@ -136,7 +137,7 @@ export const accountsListHandler: ToolFactory = (ports) => async (input) => {
       sharedToHousehold: account.sharedToHousehold === true
     });
   }
-  // kv.list order is storage-dependent; pin a stable order for the assistant.
+  // store.listAccounts() order is storage-dependent; pin a stable order.
   own.sort((a, b) => (a.accountId < b.accountId ? -1 : a.accountId > b.accountId ? 1 : 0));
 
   const accounts: (AccountView | SharedAccountView)[] = [

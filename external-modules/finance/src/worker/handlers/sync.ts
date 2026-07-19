@@ -17,15 +17,14 @@ import type {
   CategorizeAi,
   ChunkMap,
   FinanceKv,
+  FinanceStore,
   ItemRecord,
-  Rule,
-  TransactionChunk
+  Rule
 } from "../../domain/index.js";
 import {
   categorize,
   cursorKey,
   DEFAULT_CATEGORIES,
-  itemKey,
   monthKey,
   NS,
   parseSharedKey,
@@ -41,7 +40,6 @@ import { buildCategorizeAi } from "../ai-port.js";
 import type { WorkerPorts } from "../ports.js";
 import type { ToolFactory } from "../registry.js";
 import { InputError, readString } from "../validate.js";
-import { invalidateBudgetStateFrom } from "./budget.js";
 import { buildPlaid, loadItems } from "./connect.js";
 
 // Plaid pages are capped at count:100 (adapter), so 20 pages = 2000
@@ -113,25 +111,26 @@ async function readCursor(kv: FinanceKv, itemId: string): Promise<string | null>
 
 /** Write today's balance into the account's month snapshot, once per day. */
 async function appendSnapshots(
-  kv: FinanceKv,
+  store: FinanceStore,
   accounts: { accountId: string; balanceCents: number }[],
   today: string
 ): Promise<void> {
+  const month = today.slice(0, 7);
   for (const account of accounts) {
-    const key = monthKey(account.accountId, today);
-    const chunk = ((await kv.get(NS.snapshots, key)) ?? { days: {} }) as {
-      days: Record<string, number>;
-    };
+    const days = (await store.getSnapshotChunk(account.accountId, month)) ?? {};
     // First write of the day wins: the sweep runs every 6 hours and run-now
     // is user-triggered — re-recording would rewrite history mid-day.
-    if (chunk.days[today] !== undefined) continue;
-    chunk.days[today] = account.balanceCents;
-    await kv.set(NS.snapshots, key, chunk);
+    if (days[today] !== undefined) continue;
+    await store.putSnapshotChunk(account.accountId, month, {
+      ...days,
+      [today]: account.balanceCents
+    });
   }
 }
 
 async function syncItem(
   ports: WorkerPorts,
+  store: FinanceStore,
   plaid: Awaited<ReturnType<typeof buildPlaid>>,
   item: ItemRecord,
   accessToken: string,
@@ -151,25 +150,25 @@ async function syncItem(
     // The raw Plaid row knows nothing about sharing: read the stored record
     // first and carry the flag forward, or every sweep would silently
     // unshare the account (FIN-04 #1149 — bug found in Task 4 grounding).
-    const stored = await ports.kv.get(NS.accounts, account.accountId);
+    const stored = await store.getAccount(account.accountId);
     const sharedToHousehold = stored?.sharedToHousehold === true;
-    const record = {
+    const record: AccountRecord = {
       ...account,
       itemId: item.itemId,
       updatedAt: nowIso,
       ...(sharedToHousehold ? { sharedToHousehold: true } : {})
     };
-    await ports.kv.set(NS.accounts, account.accountId, record);
+    await store.putAccount(record);
     if (sharedToHousehold) {
       sharedIds.add(account.accountId);
       // Refresh the household meta so members see current balances.
       await ports.mirror.set(
         sharedMetaKey(actorUserId, account.accountId),
-        toSharedAccountMeta(actorUserId, record as unknown as AccountRecord)
+        toSharedAccountMeta(actorUserId, record)
       );
     }
   }
-  await appendSnapshots(ports.kv, accounts, today);
+  await appendSnapshots(store, accounts, today);
 
   let cursor = await readCursor(ports.kv, item.itemId);
   const counts = { added: 0, modified: 0, removed: 0, pages: 0 };
@@ -180,37 +179,40 @@ async function syncItem(
 
     // Load exactly the months this page touches, plus each month's
     // predecessor — the only chunk where a posted tx's pending twin can hide.
+    // Pairs are tracked alongside the composed keys so the store RMW below
+    // never has to re-derive accountId/month by parsing a chunk key (the
+    // composed string format stays reduceSyncPage's internal addressing
+    // only, per FIN-06c #1166 Task 8).
     const keys = new Set<string>();
+    const pairs = new Map<string, { accountId: string; month: string }>();
     for (const tx of [...page.added, ...page.modified]) {
-      keys.add(monthKey(tx.account_id, tx.date));
-      keys.add(prevMonthKey(tx.account_id, tx.date));
+      const targetKey = monthKey(tx.account_id, tx.date);
+      const prevKey = prevMonthKey(tx.account_id, tx.date);
+      keys.add(targetKey);
+      keys.add(prevKey);
+      pairs.set(targetKey, { accountId: tx.account_id, month: targetKey.slice(-7) });
+      pairs.set(prevKey, { accountId: tx.account_id, month: prevKey.slice(-7) });
     }
     const chunks: ChunkMap = {};
     for (const key of keys) {
-      const stored = await ports.kv.get(NS.transactions, key);
-      if (stored) chunks[key] = stored as TransactionChunk;
+      const pair = pairs.get(key)!;
+      const transactions = await store.getTransactionChunk(pair.accountId, pair.month);
+      if (transactions) chunks[key] = { transactions };
     }
 
     const reduced = reduceSyncPage(chunks, page);
     const next = await categorizeChunks(reduced.chunks, reduced.touched, categorizeCtx);
     for (const key of reduced.touched) {
-      await ports.kv.set(NS.transactions, key, next[key]!);
+      const pair = pairs.get(key)!;
+      await store.putTransactionChunk(pair.accountId, pair.month, next[key]!.transactions);
       // FIN-04 (#1149): mirror the changed month for shared accounts as part
-      // of the normal write path. Chunk keys are `${accountId}:${YYYY-MM}`.
-      const chunkAccountId = key.slice(0, -8);
-      if (sharedIds.has(chunkAccountId)) {
+      // of the normal write path.
+      if (sharedIds.has(pair.accountId)) {
         await ports.mirror.set(
-          sharedMonthKey(actorUserId, chunkAccountId, key.slice(-7)),
+          sharedMonthKey(actorUserId, pair.accountId, pair.month),
           toSharedChunk(next[key]!)
         );
       }
-    }
-    // FIN-03 (#1148): new/changed activity stales every cached budget
-    // projection from the earliest touched month forward (carry/TBB flow
-    // forward only). Chunk keys end in the txn month, so slice(-7) is it.
-    if (reduced.touched.length > 0) {
-      const earliestMonth = [...reduced.touched].map((key) => key.slice(-7)).sort()[0]!;
-      await invalidateBudgetStateFrom(ports.kv, earliestMonth);
     }
     // Cursor LAST (see header): only after this page's chunks are durable.
     await ports.kv.set(NS.connections, cursorKey(item.itemId), { cursor: page.nextCursor });
@@ -232,7 +234,11 @@ async function syncItem(
  * the healing path for a crash between the share-flag write and the mirror
  * write in applyShareFlag.
  */
-async function reconcileOwnMirror(ports: WorkerPorts, actorUserId: string): Promise<void> {
+async function reconcileOwnMirror(
+  ports: WorkerPorts,
+  store: FinanceStore,
+  actorUserId: string
+): Promise<void> {
   const prefix = sharedOwnerPrefix(actorUserId);
   for (const key of await ports.mirror.list()) {
     if (!key.startsWith(prefix)) continue;
@@ -241,7 +247,7 @@ async function reconcileOwnMirror(ports: WorkerPorts, actorUserId: string): Prom
       await ports.mirror.delete(key);
       continue;
     }
-    const account = await ports.kv.get(NS.accounts, parsed.accountId);
+    const account = await store.getAccount(parsed.accountId);
     if (account?.sharedToHousehold !== true) {
       await ports.mirror.delete(key);
     }
@@ -253,10 +259,11 @@ export const syncRunHandler: ToolFactory = (ports) => async (input) => {
   // the API host's tool-input injection both deliver actorUserId — required,
   // because the mirror's own-prefix contract hangs off it.
   const actorUserId = readString(input, "actorUserId", { required: true });
-  const items = await loadItems(ports.kv);
+  const store = await ports.store();
+  const items = await loadItems(store);
   if (items.length === 0) {
     // Still reconcile: removing the LAST item must not strand mirror keys.
-    await reconcileOwnMirror(ports, actorUserId);
+    await reconcileOwnMirror(ports, store, actorUserId);
     return { status: "ok", items: [] };
   }
 
@@ -276,7 +283,7 @@ export const syncRunHandler: ToolFactory = (ports) => async (input) => {
     if (entry === undefined) {
       // Item on record but no token: unrecoverable without a reconnect.
       // TOKEN_MISSING is our own code (Plaid-style casing), not provider prose.
-      await ports.kv.set(NS.connections, itemKey(item.itemId), {
+      await store.putItem({
         ...item,
         status: "error",
         lastError: "TOKEN_MISSING"
@@ -294,6 +301,7 @@ export const syncRunHandler: ToolFactory = (ports) => async (input) => {
     try {
       const counts = await syncItem(
         ports,
+        store,
         plaid,
         item,
         entry.accessToken,
@@ -303,7 +311,7 @@ export const syncRunHandler: ToolFactory = (ports) => async (input) => {
       // Success clears any prior failure state — this is also how a
       // reauth-required item returns to connected after Hosted Link update.
       const { lastError: _cleared, ...rest } = item;
-      await ports.kv.set(NS.connections, itemKey(item.itemId), {
+      await store.putItem({
         ...rest,
         status: "connected",
         lastSyncAt: ports.now().toISOString()
@@ -316,7 +324,7 @@ export const syncRunHandler: ToolFactory = (ports) => async (input) => {
       if (!(error instanceof PlaidError)) throw error;
       const status: ItemRecord["status"] =
         error.code === "ITEM_LOGIN_REQUIRED" ? "reauth-required" : "error";
-      await ports.kv.set(NS.connections, itemKey(item.itemId), {
+      await store.putItem({
         ...item,
         status,
         lastError: error.code
@@ -324,6 +332,6 @@ export const syncRunHandler: ToolFactory = (ports) => async (input) => {
       results.push({ itemId: item.itemId, status, added: 0, modified: 0, removed: 0, pages: 0 });
     }
   }
-  await reconcileOwnMirror(ports, actorUserId);
+  await reconcileOwnMirror(ports, store, actorUserId);
   return { status: "ok", items: results };
 };

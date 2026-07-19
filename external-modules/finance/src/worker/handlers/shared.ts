@@ -13,9 +13,7 @@
 // construction, and the projection helpers are explicit allowlists, so
 // neither foreign prefixes nor undeclared fields (notes, itemId, status) can
 // ever reach instance scope.
-import type { AccountRecord, TransactionChunk } from "../../domain/index.js";
 import {
-  NS,
   sharedAccountPrefix,
   sharedMetaKey,
   sharedMonthKey,
@@ -37,32 +35,29 @@ export async function applyShareFlag(
   command: ShareCommand
 ): Promise<{ status: "ok"; accountId: string; shared: boolean }> {
   const { actorUserId, accountId, shared } = command;
-  const stored = await ports.kv.get(NS.accounts, accountId);
-  if (stored === null) {
+  const store = await ports.store();
+  const account = await store.getAccount(accountId);
+  if (account === null) {
     throw new InputError("unknown_account", "accountId is not on record");
   }
-  const account = stored as AccountRecord;
   // Flag first, mirror second, in the SAME invocation (spec delta §"Share /
   // unshare semantics"): a crash between the two leaves a stale mirror that
   // the next sync's own-prefix reconcile (ON→OFF) or replay (OFF→ON) heals.
-  await ports.kv.set(NS.accounts, accountId, { ...account, sharedToHousehold: shared });
+  await store.putAccount({ ...account, sharedToHousehold: shared });
 
   if (shared) {
     await ports.mirror.set(
       sharedMetaKey(actorUserId, accountId),
       toSharedAccountMeta(actorUserId, account)
     );
-    // Every stored month chunk for this account. User-scope chunk keys are
-    // `${accountId}:${YYYY-MM}`, so the month is everything past the colon.
-    const chunkPrefix = `${accountId}:`;
-    for (const key of await ports.kv.list(NS.transactions)) {
-      if (!key.startsWith(chunkPrefix)) continue;
-      const chunk = await ports.kv.get(NS.transactions, key);
-      if (chunk === null) continue;
-      const month = key.slice(chunkPrefix.length);
+    // Every stored month for this account — mirror writes stay on the
+    // instance KV port (FIN-06c #1166 Task 9), only the source read moves.
+    for (const month of await store.listTransactionMonths()) {
+      const transactions = await store.getTransactionChunk(accountId, month);
+      if (transactions === null) continue;
       await ports.mirror.set(
         sharedMonthKey(actorUserId, accountId, month),
-        toSharedChunk(chunk as TransactionChunk)
+        toSharedChunk({ transactions })
       );
     }
   } else {
