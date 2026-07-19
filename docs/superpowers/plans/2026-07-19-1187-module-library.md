@@ -35,13 +35,17 @@
 
 ## Tasks (each commits green)
 
-1. **Row-action + capability-consequence helpers.** In `settings-instance-modules-pane.tsx`
-   (mirrors existing `registryIndexIds`/`filterUndeclaredExternalModules` pure-fn style): add
-   `libraryAction(row: ModuleRegistryRowDto): { label: string; kind: "install" | "switch" |
-   "none"; reason?: string }` implementing decision 2's exact table (absent+compatible →
-   "Download and install"; installed+disabled → "Enable"; installed+enabled → "Disable";
-   update/failure/incompatible/pending-restart → existing truthful label/reason, unchanged).
-   In `settings-module-registry-section.tsx` replace `describeCapabilities` with
+1. **Row-action + capability-consequence helpers.** **Coordinator correction (2026-07-19):
+   define `libraryAction` in `settings-module-registry-section.tsx`, NOT the pane file** —
+   the pane already imports the section, so a pane→section import would be fine but a
+   section→pane import (if `libraryAction` lived in the pane) would be circular. Export it
+   from the registry section (or a new neutral view-model file if it grows) alongside
+   `describeCapabilities`'s replacement. `libraryAction(row: ModuleRegistryRowDto): { label:
+   string; kind: "install" | "switch" | "none"; reason?: string }` implementing decision 2's
+   exact table (absent+compatible → "Download and install"; installed+disabled → "Enable";
+   installed+enabled → "Disable"; update/failure/incompatible/pending-restart → existing
+   truthful label/reason, unchanged). In `settings-module-registry-section.tsx` replace
+   `describeCapabilities` with
    `describeCapabilityConsequences` (consequence sentence first, raw permission ids retained
    as a second sentence, not dropped). Unit tests: extend
    `tests/unit/instance-modules-dedup.test.tsx` (or a new colocated `*-row-model.test.ts`) —
