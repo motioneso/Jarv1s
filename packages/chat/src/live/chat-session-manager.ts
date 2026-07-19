@@ -129,6 +129,7 @@ interface UserSession {
   lastActivity: number;
   transcriptOffset: number;
   incognito: boolean;
+  readonly seededContextKeys: Set<string>;
 }
 
 const MAX_SUBSCRIBERS_PER_ACTOR = 5;
@@ -303,7 +304,8 @@ export class ChatSessionManager {
       // Seed from the launch return so the FIRST real readNew does not re-read the
       // server-drained replay block as the assistant reply (§4.1.2).
       transcriptOffset: offset,
-      incognito: threadState?.incognito ?? false
+      incognito: threadState?.incognito ?? false,
+      seededContextKeys: new Set()
     };
     this.sessions.set(actorUserId, session);
 
@@ -360,7 +362,10 @@ export class ChatSessionManager {
     actorUserId: string,
     userName: string,
     text: string,
-    opts?: { readonly attachments?: readonly StoredAttachmentMeta[] }
+    opts?: {
+      readonly attachments?: readonly StoredAttachmentMeta[];
+      readonly moduleControl?: string;
+    }
   ): Promise<{
     reply: string;
     userMessageId?: string;
@@ -381,10 +386,17 @@ export class ChatSessionManager {
     }
   }
 
-  async seedContext(actorUserId: string, userName: string, seed: string): Promise<void> {
+  async seedContext(
+    actorUserId: string,
+    userName: string,
+    seed: string,
+    idempotencyKey?: string
+  ): Promise<void> {
     const session = await this.ensureSession(actorUserId, userName);
+    if (idempotencyKey && session.seededContextKeys.has(idempotencyKey)) return;
     await session.engine.submit(seed);
     session.transcriptOffset = await this.drain(session.engine, session.transcriptOffset);
+    if (idempotencyKey) session.seededContextKeys.add(idempotencyKey);
     session.lastActivity = this.deps.clock.now();
     this.deps.touchMcpToken?.(actorUserId);
   }
@@ -393,7 +405,10 @@ export class ChatSessionManager {
     actorUserId: string,
     userName: string,
     text: string,
-    opts?: { readonly attachments?: readonly StoredAttachmentMeta[] }
+    opts?: {
+      readonly attachments?: readonly StoredAttachmentMeta[];
+      readonly moduleControl?: string;
+    }
   ): Promise<{
     reply: string;
     userMessageId?: string;
@@ -431,7 +446,10 @@ export class ChatSessionManager {
       // #1133 — attachments ride as a server-composed manifest appended AFTER all
       // user-influenced text; the engine pulls bytes via chat.readAttachment on demand.
       const manifest = renderAttachmentsManifest(attachments);
-      const engineText = manifest ? `${builtEngineText}\n\n${manifest}` : builtEngineText;
+      const withAttachments = manifest ? `${builtEngineText}\n\n${manifest}` : builtEngineText;
+      const engineText = opts?.moduleControl
+        ? `${withAttachments}\n\n${opts.moduleControl}`
+        : withAttachments;
       this.emit(actorUserId, { kind: "user", text });
       try {
         await session.engine.submit(engineText);

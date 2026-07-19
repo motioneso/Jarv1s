@@ -75,7 +75,11 @@ const YOLO_ENABLED_PREF_KEY = "yolo.enabled";
 import { buildCalendarWriteService } from "./calendar-write-impl.js";
 import { buildEmailWriteService } from "./email-write-impl.js";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
-import { registerChatLiveRoutes, type EveningInterviewSeed } from "./live-routes.js";
+import {
+  registerChatLiveRoutes,
+  type EveningInterviewSeed,
+  type ModuleOnboardingSeedSource
+} from "./live-routes.js";
 import { CliChatUnavailableError } from "./live/errors.js";
 import { NATIVE_CONFIRM_TIMEOUT_MS } from "./live/claude-permission-hook.js";
 import { createCurrentViewReadService, type CurrentViewReadService } from "./live/current-view.js";
@@ -393,7 +397,30 @@ export function registerChatRoutes(
     resolveAccessContext: dependencies.resolveAccessContext,
     runtime: {
       ...runtime,
-      resolveEveningInterviewSeed: dependencies.resolveEveningInterviewSeed
+      resolveEveningInterviewSeed: dependencies.resolveEveningInterviewSeed,
+      resolveModuleOnboardingSeed:
+        wiring && resolveActiveModules
+          ? async (
+              actorUserId: string,
+              moduleId: string
+            ): Promise<ModuleOnboardingSeedSource | undefined> => {
+              const manifest = (await resolveActiveModules(actorUserId)).find(
+                (candidate) => candidate.id === moduleId && candidate.assistantOnboarding?.guidance
+              );
+              if (!manifest?.assistantOnboarding) return undefined;
+              const state = await wiring.gateway.runReadToolForActor(
+                actorUserId,
+                `${moduleId}.onboarding.get-state`,
+                {}
+              );
+              if (!state.ok) return undefined;
+              return {
+                moduleId,
+                guidance: manifest.assistantOnboarding.guidance,
+                state: state.data
+              };
+            }
+          : undefined
     },
     pageContextStore,
     // #1133 — lets /turn resolve uploaded attachment ids to vault metadata.

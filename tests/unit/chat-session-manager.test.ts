@@ -362,6 +362,16 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
     expect(engine.submitted[0]).toContain('<external_source type="evening_review">');
     expect(recordTurn).not.toHaveBeenCalled();
   });
+
+  it("seeds a module onboarding context once per live engine session (#1194)", async () => {
+    const engine = new FakeEngine(0);
+    const manager = new ChatSessionManager(depsWith(engine));
+
+    await manager.seedContext("u1", "Ben", "seed", "module-onboarding:job-search");
+    await manager.seedContext("u1", "Ben", "seed", "module-onboarding:job-search");
+
+    expect(engine.submitted).toEqual(["seed"]);
+  });
 });
 
 describe("ChatSessionManager.submitTurn turn-lock release (#445)", () => {
