@@ -64,6 +64,12 @@ Tracking: [#1185](https://github.com/motioneso/Jarv1s/issues/1185)
 
 ## Decisions still needed
 
+### Color-mode rearrange target
+
+Annotations: `mrs74jai-oh5ztv`, `mrs9a182-qhp8y3`
+
+The same rearrange payload says to move Color mode, but one event points to Assistant settings and the later event points to Today. Confirm the intended destination before implementation; keep both open meanwhile.
+
 ### News topic source
 
 Annotation: `mrs6e5xf-38fy5c`
@@ -72,6 +78,7 @@ Ben's response clarified News layout rather than the initial topic source. Still
 
 ## Ready for issue creation without more product decisions
 
+- Module install dialog copy: `mrs94lf2-v77w9l` — replace the implementation-shaped permissions list with a useful description of what the module does; retain only permission/risk information that benefits a normal user.
 - Remaining Settings appearance/navigation polish: `mrs6qsrk-vhcc05`, `mrs6s2g7-aupxgf`, `mrs7kslm-upor2w`
 - Settings Assistant/Memory polish: `mrs75paa-g8oyyp`, `mrs76gsz-akmshz`, `mrs78asb-befxrt`, `mrs79332-a3shdo`
 - Settings defects: `mrs6arkr-3c85gx`, `mrs6bbol-p7gxya`, `mrs776lh-bmzmj5`, `mrs77jy9-33ynvd`
