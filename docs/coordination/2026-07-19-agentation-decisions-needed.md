@@ -82,7 +82,10 @@ Ben's response clarified News layout rather than the initial topic source. Still
 
 ## Tracked without more product decisions
 
-- [#1186](https://github.com/motioneso/Jarv1s/issues/1186) — Settings appearance/navigation, Assistant, error-state, Memory typography, and Host guidance batch: `mrs6s2g7-aupxgf`, `mrs75paa-g8oyyp`, `mrs76gsz-akmshz`, `mrs776lh-bmzmj5`, `mrs77jy9-33ynvd`, `mrs78asb-befxrt`, `mrs79332-a3shdo`, `mrs7cn4e-wts5qg`, `mrs7kslm-upor2w`, `mrs7ofm2-2okb7q`, `mrs7pqjl-v6hvxl`, `mrs7q4xr-erj12w`.
+- [#1186](https://github.com/motioneso/Jarv1s/issues/1186) — Settings appearance/navigation, Assistant layout, and Host guidance regressions: `mrs6s2g7-aupxgf`, `mrs75paa-g8oyyp`, `mrs76gsz-akmshz`, `mrs78asb-befxrt`, `mrs7kslm-upor2w`, `mrs7pqjl-v6hvxl`, `mrs7q4xr-erj12w`.
+- [#1191](https://github.com/motioneso/Jarv1s/issues/1191) — diagnose the Assistant persona preview CLI failure and safe recovery copy: `mrs776lh-bmzmj5`, `mrs77jy9-33ynvd`.
+- [#1192](https://github.com/motioneso/Jarv1s/issues/1192) — complete truthful connector cap cause/scope/freshness/recovery across Connected and Oversight: `mrs7cn4e-wts5qg`, `mrs7ofm2-2okb7q`.
+- [#1181](https://github.com/motioneso/Jarv1s/issues/1181) also owns the People-folder empty-state typography note `mrs79332-a3shdo`; it must land with the folder model rather than receive a cosmetic standalone patch.
 - [#1187](https://github.com/motioneso/Jarv1s/issues/1187) — Instance-module inventory, actions, warnings, and install-dialog copy: `mrs7d04t-i9o3cy`, `mrs7mknx-iekzvf`, `mrs7n6bc-7aqwjr`, `mrs7nz2f-g2ngs8`, `mrs94lf2-v77w9l`.
 - [#1188](https://github.com/motioneso/Jarv1s/issues/1188) — Connector parity, app-password guidance, consent-screen click, and add-account defects: `mrs67gef-h4qiyt`, `mrs69zpx-rxknnt`, `mrs6arkr-3c85gx`, `mrs6bbol-p7gxya`.
 
