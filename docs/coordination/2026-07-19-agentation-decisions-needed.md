@@ -6,62 +6,73 @@
 
 Implemented changes awaiting review are tracked separately in `~/Jarv1s/docs/coordination/2026-07-19-agentation-addressed-for-review.md`.
 
-## Decisions needed
+## Decisions recorded from Ben
 
-### 1. Memory folder chooser
+### People folder mapping
 
 Annotations: `mrs7ahq4-tqxreq`, `mrs7bpwk-aaww5b`
 
-Need a decision:
+Tracking: [#1181](https://github.com/motioneso/Jarv1s/issues/1181)
 
-- Should the chooser move to Data Sources and appear only after a notes source is connected?
-- Or should it stay under Memory and always expose folders available inside the container?
-- Should rows such as `People` be selectable folders, informational roots, or removed?
+- This is a People feature, not a Memory feature.
+- Make People-folder use an explicit on/off setting.
+- When enabled, the folder selector must show the folders the user has mapped/selected for People.
+- If the user has no selected People folder, Jarvis may use a default People folder.
+- Do not present the current `People` row as an unexplained informational root; the UI must communicate the active mapping.
 
-### 2. Stub embedding provider
+### Embedding-provider choice
 
 Annotation: `mrs7esoy-5vom9w`
 
-Need a decision: hide `stub` from normal users as a dev/test-only option, or retain it with a clear user-facing purpose and explanation.
+Tracking: [#1182](https://github.com/motioneso/Jarv1s/issues/1182)
 
-### 3. YOLO mode behavior
+- Do not offer normal users a provider choice when the options have no understandable user benefit.
+- Hide the `stub` option and the user-facing embedding-provider selector unless a real user-facing reason for choosing providers is established.
+- Provider selection may remain an internal/dev concern in the meantime.
+
+### Read-only context and tool approvals
 
 Annotations: `mrs7glmb-381n6c`, `mrs7h432-mdsidg`
 
-Need:
+Tracking: [#1183](https://github.com/motioneso/Jarv1s/issues/1183)
 
-- The exact chat prompt/action that failed, what side effect was expected, and what happened instead.
-- Whether the drawer toggle controls only the current conversation or changes the global YOLO setting.
-- Whether a newly opened conversation inherits the global setting or starts with YOLO off.
+- Repro: with YOLO off, asking chat whether it can tell which page is open surfaces tool-permission UI.
+- Reading page/context information must not produce a tool approval prompt.
+- Approval UI is for actions that create, modify, or otherwise have side effects.
+- Mutating approvals need a durable option equivalent to **Yes, and don't ask again for this tool/command** rather than forcing the same approval repeatedly.
 
-### 4. Sports organization
+### Sports standings and follows
 
 Annotations: `mrs6ikaz-7yxxu9`, `mrs6l17v-o14jkx`
 
-Confirm this default:
+Tracking: [#1184](https://github.com/motioneso/Jarv1s/issues/1184)
 
-- Show leagues containing followed teams first.
-- If no teams are followed, show all leagues.
-- Let users add more leagues manually.
-- Show the follow-team prompt initially, then persist dismissal per user.
+- With no follows, show a sensible default set: the major US sports/leagues plus the top soccer leagues.
+- When a user follows a team or league, prioritize those leagues in the default standings view.
+- Put the remaining leagues behind **More**.
+- In **More**, users can star leagues to add them to the default standings view.
+- Keep the follow-team prompt optional and dismissible; persist dismissal per user.
 
-### 5. News topics
+### News image/caption hierarchy and text fallback
+
+Related layout annotations: `mrs6fnq4-zwv9ak`, `mrs6fzi5-6xxaah`, `mrs6kba3-kbjwv6`
+
+Tracking: [#1185](https://github.com/motioneso/Jarv1s/issues/1185)
+
+- Make it visually unambiguous that the caption below an image belongs to that image; adjacent left/right article copy must not read like the image caption.
+- When an article has no image, show more article text before **Continue reading** so the card does not feel prematurely truncated.
+
+## Decisions still needed
+
+### News topic source
 
 Annotation: `mrs6e5xf-38fy5c`
 
-Need the initial topic source: use categories already present in article data, or define a fixed curated topic list. Subpages remain later scope.
-
-### 6. Issue packaging
-
-Need direction on whether to create:
-
-- One issue per area: News, Sports, Settings polish, Settings defects, and YOLO; or
-- A smaller number of approved bundles.
+Ben's response clarified News layout rather than the initial topic source. Still choose whether the first topic list comes from categories already present in article data or from a fixed curated topic list. Subpages remain later scope.
 
 ## Ready for issue creation without more product decisions
 
-- News layout: `mrs6fnq4-zwv9ak`, `mrs6fzi5-6xxaah`, `mrs6kba3-kbjwv6`
-- Settings profile/location/appearance/navigation polish: `mrs6nwxo-retj99`, `mrs6ounh-hcmg1m`, `mrs6p20v-ly0lth`, `mrs6pc4e-7vnnsy`, `mrs6pwcc-7fddqk`, `mrs6qsrk-vhcc05`, `mrs6s2g7-aupxgf`, `mrs7kslm-upor2w`
+- Remaining Settings appearance/navigation polish: `mrs6qsrk-vhcc05`, `mrs6s2g7-aupxgf`, `mrs7kslm-upor2w`
 - Settings Assistant/Memory polish: `mrs75paa-g8oyyp`, `mrs76gsz-akmshz`, `mrs78asb-befxrt`, `mrs79332-a3shdo`
 - Settings defects: `mrs6arkr-3c85gx`, `mrs6bbol-p7gxya`, `mrs776lh-bmzmj5`, `mrs77jy9-33ynvd`
 - Connected/Oversight/Modules cleanup: `mrs7cn4e-wts5qg`, `mrs7d04t-i9o3cy`, `mrs7mknx-iekzvf`, `mrs7n6bc-7aqwjr`, `mrs7nz2f-g2ngs8`, `mrs7ofm2-2okb7q`
