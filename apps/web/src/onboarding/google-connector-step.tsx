@@ -570,40 +570,33 @@ export function GoogleConnectorStep(props: {
         <span className="onb-prov__tile">G</span>
         <span className="onb-prov__main">
           <span className="onb-prov__name">Google</span>
-          <span className="onb-prov__desc">Gmail &amp; Calendar · available now</span>
+          <span className="onb-prov__desc">Gmail &amp; Calendar · OAuth · available now</span>
         </span>
         <span className="onb-prov__cta">
           Connect Google <ArrowRight size={15} aria-hidden="true" />
         </span>
       </button>
-      <div className="onb-provsec">
-        <div className="onb-provsec__hd">
-          <span className="onb-provsec__lbl">More services</span>
-          <span className="onb-provsec__note">Available now</span>
-        </div>
-        <div className="onb-provgrid">
-          {IMAP_PROVIDERS.map((provider) => (
-            <button
-              className="onb-provmini"
-              key={provider.id}
-              type="button"
-              onClick={() => {
-                setImapProvider(provider);
-                setImapTestResult(null);
-                setMode("imap");
-              }}
-            >
-              <span className="onb-provmini__tile">{provider.tile}</span>
-              <span className="onb-provmini__main">
-                <span className="onb-provmini__name">{provider.name}</span>
-                <span className="onb-provmini__soon">
-                  Connect {provider.name} <ArrowRight size={10} aria-hidden="true" />
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
+      {IMAP_PROVIDERS.map((provider) => (
+        <button
+          className="onb-prov"
+          key={provider.id}
+          type="button"
+          onClick={() => {
+            setImapProvider(provider);
+            setImapTestResult(null);
+            setMode("imap");
+          }}
+        >
+          <span className="onb-prov__tile">{provider.tile}</span>
+          <span className="onb-prov__main">
+            <span className="onb-prov__name">{provider.name}</span>
+            <span className="onb-prov__desc">Email sync · app password · available now</span>
+          </span>
+          <span className="onb-prov__cta">
+            Connect {provider.name} <ArrowRight size={15} aria-hidden="true" />
+          </span>
+        </button>
+      ))}
     </section>
   );
 }

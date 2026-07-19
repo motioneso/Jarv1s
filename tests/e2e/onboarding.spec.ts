@@ -220,6 +220,46 @@ test("onboarding offers IMAP providers and makes no Microsoft promises", async (
   ).toBeVisible();
 });
 
+test("Google and IMAP provider cards share equal visual weight and a stable order", async ({
+  page
+}) => {
+  await mockApi(page, {
+    authenticated: true,
+    isInstanceAdmin: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    onboardingStatus: defaultOnboardingStatus({
+      steps: {
+        cliAuth: {
+          done: true,
+          providers: [{ kind: "anthropic", cliPresent: true, installState: "ready" }]
+        },
+        connectors: { done: false }
+      }
+    })
+  });
+
+  await page.goto("/");
+  await page
+    .getByLabel("Onboarding progress")
+    .getByRole("button", { name: /Google/ })
+    .click();
+
+  // Every provider CTA (Google + 4 IMAP) renders through the same full-weight card — no
+  // dashed "More services" secondary treatment left for any of the five.
+  const cards = page.locator(".onb-prov");
+  await expect(cards).toHaveCount(5);
+  await expect(page.locator(".onb-provmini")).toHaveCount(0);
+  await expect(cards.nth(0)).toContainText("Connect Google");
+  await expect(cards.nth(1)).toContainText("Connect Yahoo Mail");
+  await expect(cards.nth(2)).toContainText("Connect Proton Mail");
+  await expect(cards.nth(3)).toContainText("Connect iCloud");
+  await expect(cards.nth(4)).toContainText("Connect Fastmail");
+});
+
 test("Connect another account shows the picker, cancel returns to the connected summary", async ({
   page
 }) => {
