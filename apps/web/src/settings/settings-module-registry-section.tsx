@@ -212,7 +212,11 @@ export function ModuleRegistrySection({
             {/* #996/#860 spec §4c: an installed module needs a working switch on its own
                 row, not just Remove/purge — reuses the same setExternalModuleEnabled
                 mutation the External-modules group already owns (id space is shared). */}
-            {row.state === "installed-enabled" || row.state === "installed-disabled" ? (
+            {row.latestVersion != null &&
+            (row.state === "installed-enabled" ||
+              row.state === "installed-disabled" ||
+              row.state === "update-available" ||
+              row.state === "update-pending-restart") ? (
               <>
                 <Switch
                   ariaLabel={`Enable ${row.name}`}
