@@ -1,7 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 import { defaultOnboardingStatus } from "./mock-onboarding-api.js";
-import { createMockConnectorProviders, mockApi } from "./mock-api.js";
+import {
+  createMockConnectorAccount,
+  createMockConnectorProviders,
+  mockApi
+} from "./mock-api.js";
 
 test("bootstrap owner with incomplete onboarding sees the wizard, then the app shell after finish", async ({
   page
@@ -214,4 +218,53 @@ test("onboarding offers IMAP providers and makes no Microsoft promises", async (
   await expect(
     page.getByText(/Passwords are encrypted at rest and never shown in logs or briefings/i)
   ).toBeVisible();
+});
+
+test("Connect another account shows the picker, cancel returns to the connected summary", async ({
+  page
+}) => {
+  await mockApi(page, {
+    authenticated: true,
+    isInstanceAdmin: true,
+    chatThreads: [],
+    connectorAccounts: [
+      createMockConnectorAccount("google-account-1", {
+        providerId: "google",
+        providerType: "google",
+        providerDisplayName: "Google",
+        status: "active"
+      })
+    ],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    onboardingStatus: defaultOnboardingStatus({
+      steps: {
+        cliAuth: {
+          done: true,
+          providers: [{ kind: "anthropic", cliPresent: true, installState: "ready" }]
+        },
+        connectors: { done: true }
+      }
+    })
+  });
+
+  await page.goto("/");
+  await page
+    .getByLabel("Onboarding progress")
+    .getByRole("button", { name: /Google/ })
+    .click();
+
+  await expect(page.getByRole("heading", { name: "Google connected" })).toBeVisible();
+  await expect(page.getByText("Connected accounts")).toBeVisible();
+
+  await page.getByRole("button", { name: "Connect another account" }).click();
+
+  await expect(page.getByText("Choose a service to connect")).toBeVisible();
+  await expect(page.getByText("Connected accounts")).not.toBeVisible();
+
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  await expect(page.getByRole("heading", { name: "Google connected" })).toBeVisible();
+  await expect(page.getByText("Connected accounts")).toBeVisible();
 });

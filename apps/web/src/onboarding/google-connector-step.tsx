@@ -68,7 +68,7 @@ export function GoogleConnectorStep(props: {
   readonly privacy: string;
   readonly done?: boolean;
 }) {
-  const [mode, setMode] = useState<"picker" | "connecting" | "imap" | "connected">(
+  const [mode, setMode] = useState<"picker" | "connecting" | "imap" | "connected" | "adding">(
     props.done ? "connected" : "picker"
   );
   const [imapProvider, setImapProvider] = useState<ImapProvider>(IMAP_PROVIDERS[0]);
@@ -288,7 +288,7 @@ export function GoogleConnectorStep(props: {
               <button
                 className="jds-btn jds-btn--quiet jds-btn--sm"
                 type="button"
-                onClick={() => setMode("picker")}
+                onClick={() => setMode(connected ? "connected" : "picker")}
               >
                 Cancel
               </button>
@@ -416,7 +416,7 @@ export function GoogleConnectorStep(props: {
               <button
                 className="jds-btn jds-btn--quiet jds-btn--sm"
                 type="button"
-                onClick={() => setMode("picker")}
+                onClick={() => setMode(connected ? "connected" : "picker")}
               >
                 Cancel
               </button>
@@ -435,7 +435,7 @@ export function GoogleConnectorStep(props: {
     );
   }
 
-  if (mode === "connected" || connected) {
+  if (mode === "connected" || (connected && mode !== "adding")) {
     const firstAccount = accounts[0];
     return (
       <section className="onb-step" aria-labelledby="google-connected-title">
@@ -506,7 +506,7 @@ export function GoogleConnectorStep(props: {
               </div>
             </div>
           )}
-          <button className="onb-addmore" type="button" onClick={() => setMode("picker")}>
+          <button className="onb-addmore" type="button" onClick={() => setMode("adding")}>
             <span className="onb-addmore__ic">
               <Plus size={16} aria-hidden="true" />
             </span>
@@ -555,6 +555,15 @@ export function GoogleConnectorStep(props: {
       </div>
       <div className="onb-pickhd">
         <span className="onb-pickhd__lbl">Choose a service to connect</span>
+        {mode === "adding" ? (
+          <button
+            className="jds-btn jds-btn--quiet jds-btn--sm"
+            type="button"
+            onClick={() => setMode("connected")}
+          >
+            Cancel
+          </button>
+        ) : null}
       </div>
       <button className="onb-prov" type="button" onClick={() => setMode("connecting")}>
         <span className="onb-prov__tile">G</span>
