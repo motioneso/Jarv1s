@@ -127,25 +127,28 @@ export function InstanceModulesPane() {
         Disabling a module hides it for everyone and stops it collecting new data. Existing data is
         kept.
       </Note>
-      {/* #917/#996: external modules are always-on now (no JARVIS_ENABLE_EXTERNAL_MODULES
-          gate); `external` is only undefined while the query is loading. */}
-      {external?.enabled ? (
-        <Group
-          title="External modules"
-          desc="User-authored modules discovered in this instance's modules directory. Off by default."
-        >
-          {/* #917: trusted-operator warning — enabling runs third-party code on the box with
-              the same access as built-in features. Uses the authored <Note> primitive (no `tone`
-              prop exists) with a warning icon. */}
-          <Note icon={<AlertTriangle size={13} aria-hidden="true" />}>
-            External modules are not reviewed by Jarvis. Only enable modules you authored or fully
-            trust — an enabled module runs with the same access as built-in features.
-          </Note>
-          {/* #996/#860: a module downloaded via the registry is also a discovered external
-              module — filter those out here so it doesn't render twice (once below, once in
-              "Available modules"). */}
-          {filterUndeclaredExternalModules(external.modules, registryIds).length ? (
-            filterUndeclaredExternalModules(external.modules, registryIds).map((module) => {
+      {/* #1187 decision 5: the trust warning is only true when the inventory actually
+          contains a module from outside the pinned registry — `external?.enabled` alone
+          (always true, #917/#996) doesn't mean one exists. Compute once so the gate and the
+          list below can't disagree. */}
+      {(() => {
+        const undeclaredExternalModules = external
+          ? filterUndeclaredExternalModules(external.modules, registryIds)
+          : [];
+        if (!undeclaredExternalModules.length) return null;
+        return (
+          <Group
+            title="External modules"
+            desc="User-authored modules discovered in this instance's modules directory. Off by default."
+          >
+            {/* #917: trusted-operator warning — enabling runs third-party code on the box with
+                the same access as built-in features. Uses the authored <Note> primitive (no
+                `tone` prop exists) with a warning icon. */}
+            <Note icon={<AlertTriangle size={13} aria-hidden="true" />}>
+              External modules are not reviewed by Jarvis. Only enable modules you authored or fully
+              trust — an enabled module runs with the same access as built-in features.
+            </Note>
+            {undeclaredExternalModules.map((module) => {
               // #917: surface WHY a module is inactive. Drift auto-disable (package changed
               // after it was enabled) wins; otherwise any server-provided disabledReason.
               const reason = module.drifted
@@ -172,17 +175,10 @@ export function InstanceModulesPane() {
                   <ModuleCredentialsSection moduleId={module.id} surface="admin" />
                 </div>
               );
-            })
-          ) : (
-            // The section is gated on `enabled` (data already loaded), so this is the
-            // genuinely-empty case, not a loading placeholder.
-            <Row
-              name="No external modules"
-              desc="No external modules are present in the modules directory."
-            />
-          )}
-        </Group>
-      ) : null}
+            })}
+          </Group>
+        );
+      })()}
       <ModuleRegistrySection
         externalModules={external?.modules}
         onSetEnabled={(id, enabled) => setExternalEnabled.mutate({ id, enabled })}
