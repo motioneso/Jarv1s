@@ -23,6 +23,7 @@ import { LOGIN_ADAPTERS } from "./login-adapters.js";
 import { readProviderCredentialEnv } from "./provider-token-store.js";
 import { LoginService } from "./login-service.js";
 import { createSanitizedTmuxIo } from "./runner-io.js";
+import { buildSanitizedCliEnv } from "./sanitized-env.js";
 import { CliRunnerServer } from "./server.js";
 import { TerminalHost } from "./terminal-host.js";
 
@@ -63,6 +64,25 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): CliRunnerConfi
 }
 
 /**
+ * Build the child environment for the CLI sidecar. The auth volume is the CLI's HOME, not merely
+ * an auxiliary path: Claude and Codex resolve their onboarding, trust, credentials, and transcript
+ * state from HOME. The runner process may itself inherit the host HOME, so override it before the
+ * allowlist is applied. Without this, first-run seeding writes to `homeBase` while the tmux server
+ * and provider CLI read the host's unrelated `~/.claude.json`.
+ */
+export function buildCliRunnerChildEnv(
+  config: Pick<CliRunnerConfig, "homeBase">,
+  source: NodeJS.ProcessEnv = process.env
+): NodeJS.ProcessEnv {
+  return buildSanitizedCliEnv({
+    ...source,
+    HOME: config.homeBase,
+    JARVIS_CLI_HOME: config.homeBase,
+    JARVIS_CLI_HOME_BASE: config.homeBase
+  });
+}
+
+/**
  * §A.3.7 (R6, CRITICAL): source every catalog `kind:"env"` `selfUpdateDisable` pair
  * into the cli-runner `process.env` BEFORE the tmux fork. `buildSanitizedCliEnv` is a
  * passthrough FILTER, not a setter — allowlisting the key alone is a NO-OP: the value
@@ -100,7 +120,9 @@ export function createCliRunner(
   sourceSelfUpdateDisableEnv(process.env);
 
   // The §7.2 sanitized TmuxIo: every tmux/CLI child gets the allowlist env only.
-  const io = createSanitizedTmuxIo();
+  // HOME must match the configured auth volume. The runner commonly inherits the operator's
+  // host HOME, but provider first-run state is deliberately seeded under config.homeBase.
+  const io = createSanitizedTmuxIo(buildCliRunnerChildEnv(config));
 
   // The §A.3 install service. It carries its OWN per-provider lock (distinct from the
   // §4.1.0a admission mutex) and runs npm/artifact installs under the sanitized installer

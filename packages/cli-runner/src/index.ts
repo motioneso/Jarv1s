@@ -15,7 +15,12 @@ export {
 } from "./hello.js";
 export { buildSanitizedCliEnv } from "./sanitized-env.js";
 export { createSanitizedTmuxIo } from "./runner-io.js";
-export { sourceSelfUpdateDisableEnv, main, type CliRunnerConfig } from "./main.js";
+export {
+  buildCliRunnerChildEnv,
+  sourceSelfUpdateDisableEnv,
+  main,
+  type CliRunnerConfig
+} from "./main.js";
 export {
   InstallService,
   InstallBadRequestError,
