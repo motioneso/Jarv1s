@@ -184,3 +184,66 @@ describe("InstanceModulesPane external-modules group (#1084)", () => {
     expect(html).toContain("Acme Undeclared");
   });
 });
+
+// #1187 decision 5: the trust warning must appear only when the inventory actually contains a
+// module from a source outside the pinned registry — not merely because `external.enabled`.
+describe("InstanceModulesPane external-modules trust warning (#1187 decision 5)", () => {
+  function seedNoUndeclaredExternal(): QueryClient {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.settings.adminModules, {
+      modules: []
+    } satisfies ListModulesResponse);
+    client.setQueryData(queryKeys.settings.adminExternalModules, {
+      enabled: true,
+      modules: [
+        {
+          id: DECLARED_ID,
+          name: "Acme Declared",
+          version: "0.1.0",
+          publisher: "Acme",
+          status: "enabled",
+          active: true,
+          drifted: false,
+          disabledReason: null,
+          web: null
+        }
+      ] satisfies readonly ExternalModuleDto[]
+    });
+    client.setQueryData(queryKeys.settings.adminModuleRegistry, {
+      enabled: true,
+      registryUnavailable: false,
+      modules: [
+        {
+          id: DECLARED_ID,
+          name: "Acme Declared",
+          description: null,
+          state: "installed-enabled",
+          installedVersion: "0.1.0",
+          // Registry-index-backed -> registryIndexIds includes it -> not undeclared.
+          latestVersion: "0.1.0",
+          stagedVersion: null,
+          requiresCore: null,
+          capabilities: null,
+          lastInstallError: null,
+          purgePending: false
+        }
+      ]
+    } satisfies GetModuleRegistryResponse);
+    client.setQueryData(["module-credentials", "admin", DECLARED_ID], {
+      moduleId: DECLARED_ID,
+      credentials: []
+    } satisfies ListModuleCredentialsResponse);
+    return client;
+  }
+
+  it("hides the External modules group entirely when no module is actually undeclared", () => {
+    const html = renderWithQuery(seedNoUndeclaredExternal());
+    expect(html).not.toContain("External modules are not reviewed by Jarvis");
+    expect(html).not.toContain("External modules");
+  });
+
+  it("still shows the warning when an undeclared module is present (existing behavior)", () => {
+    const html = renderWithQuery(seedClient());
+    expect(html).toContain("External modules are not reviewed by Jarvis");
+  });
+});
