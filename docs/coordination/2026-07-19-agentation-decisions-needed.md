@@ -68,23 +68,23 @@ Tracking: [#1185](https://github.com/motioneso/Jarv1s/issues/1185)
 
 Annotations: `mrs74jai-oh5ztv`, `mrs9a182-qhp8y3`, `mrs9q3h1-dl5euy`, `mrs9wryn-hp4nzm`
 
+Tracking: [#1189](https://github.com/motioneso/Jarv1s/issues/1189)
+
 The same rearrange payload says to move Color mode, but events point to Assistant settings, Today, Instance Modules, and now Finance. Confirm the intended destination before implementation; keep all copies open meanwhile.
 
 ### News topic source
 
 Annotation: `mrs6e5xf-38fy5c`
 
+Tracking: [#1190](https://github.com/motioneso/Jarv1s/issues/1190)
+
 Ben's response clarified News layout rather than the initial topic source. Still choose whether the first topic list comes from categories already present in article data or from a fixed curated topic list. Subpages remain later scope.
 
-## Ready for issue creation without more product decisions
+## Tracked without more product decisions
 
-- Module install dialog copy: `mrs94lf2-v77w9l` — replace the implementation-shaped permissions list with a useful description of what the module does; retain only permission/risk information that benefits a normal user.
-- Remaining Settings appearance/navigation polish: `mrs6qsrk-vhcc05`, `mrs6s2g7-aupxgf`, `mrs7kslm-upor2w`
-- Settings Assistant/Memory polish: `mrs75paa-g8oyyp`, `mrs76gsz-akmshz`, `mrs78asb-befxrt`, `mrs79332-a3shdo`
-- Settings defects: `mrs6arkr-3c85gx`, `mrs6bbol-p7gxya`, `mrs776lh-bmzmj5`, `mrs77jy9-33ynvd`
-- Connected/Oversight/Modules cleanup: `mrs7cn4e-wts5qg`, `mrs7d04t-i9o3cy`, `mrs7mknx-iekzvf`, `mrs7n6bc-7aqwjr`, `mrs7nz2f-g2ngs8`, `mrs7ofm2-2okb7q`
-- Host guidance and typography: `mrs7pqjl-v6hvxl`, `mrs7q4xr-erj12w`
-- Connector onboarding parity: `mrs67gef-h4qiyt`, `mrs69zpx-rxknnt`
+- [#1186](https://github.com/motioneso/Jarv1s/issues/1186) — Settings appearance/navigation, Assistant, error-state, Memory typography, and Host guidance batch: `mrs6s2g7-aupxgf`, `mrs75paa-g8oyyp`, `mrs76gsz-akmshz`, `mrs776lh-bmzmj5`, `mrs77jy9-33ynvd`, `mrs78asb-befxrt`, `mrs79332-a3shdo`, `mrs7cn4e-wts5qg`, `mrs7kslm-upor2w`, `mrs7ofm2-2okb7q`, `mrs7pqjl-v6hvxl`, `mrs7q4xr-erj12w`.
+- [#1187](https://github.com/motioneso/Jarv1s/issues/1187) — Instance-module inventory, actions, warnings, and install-dialog copy: `mrs7d04t-i9o3cy`, `mrs7mknx-iekzvf`, `mrs7n6bc-7aqwjr`, `mrs7nz2f-g2ngs8`, `mrs94lf2-v77w9l`.
+- [#1188](https://github.com/motioneso/Jarv1s/issues/1188) — Connector parity, app-password guidance, consent-screen click, and add-account defects: `mrs67gef-h4qiyt`, `mrs69zpx-rxknnt`, `mrs6arkr-3c85gx`, `mrs6bbol-p7gxya`.
 
 ## Comment closure protocol
 
