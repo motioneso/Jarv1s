@@ -5,7 +5,7 @@ Adversarial second pass: Codex review returned APPROVE-WITH-CHANGES (1 blocker o
 sanitization mechanism, 3 major precision items); all findings are incorporated below.
 **Date:** 2026-07-19
 **Owner:** Ben (coordinator executing under delegation)
-**GitHub:** #TBD (feature issue; per-lane task issues "Part of #TBD")
+**GitHub:** feature issue #1193; lane task issues #1194 (A), #1195 (B), #1196 (C), #1197 (D), #1198 (E), #1199 (F) — each "Part of #1193"
 **Grounded on:** `origin/main` @ `01fd7d41` (fetched 2026-07-19)
 **Design source:** `docs/superpowers/design/job-search-onboarding/` (Park Press handoff, claude.ai
 design project `0501fab4`; `JobsOnboarding.jsx.txt` is the primary artifact — copy is final)
