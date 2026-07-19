@@ -133,7 +133,10 @@ export function Composer(props: {
         setAttachError(rejection);
         continue;
       }
-      const localId = crypto.randomUUID();
+      // randomUUID is HTTPS-only in some browsers; keep LAN HTTP uploads usable.
+      const localId =
+        globalThis.crypto?.randomUUID?.() ??
+        `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
       const fileName = file.name || "pasted-image.png";
       current = addPendingAttachment(current, {
         localId,
