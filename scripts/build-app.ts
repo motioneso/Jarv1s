@@ -114,7 +114,10 @@ async function buildTarget(target: Target): Promise<void> {
   // shipping a bundle that dies at boot inside the Docker prod smoke.
   execFileSync(process.execPath, ["--check", resolve(root, outfile)], { stdio: "inherit" });
   if (target === "api") {
-    const workerSource = resolve(dirname(chatRequire.resolve("pdf-parse/worker")), "../pdf.worker.mjs");
+    const workerSource = resolve(
+      dirname(chatRequire.resolve("pdf-parse/worker")),
+      "../pdf.worker.mjs"
+    );
     copyFileSync(workerSource, resolve(root, dirname(outfile), "pdf.worker.mjs"));
   }
   console.log(`built ${outfile} (parse-checked)`);
