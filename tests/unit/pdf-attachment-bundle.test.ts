@@ -43,7 +43,17 @@ process.stdout.write(text);`
         target: "node24",
         format: "esm",
         outfile: bundlePath,
-        absWorkingDir: root
+        absWorkingDir: root,
+        banner: {
+          js: [
+            "import { createRequire as __jarvisCreateRequire } from 'node:module';",
+            "import { fileURLToPath as __jarvisFileURLToPath } from 'node:url';",
+            "import { dirname as __jarvisDirname } from 'node:path';",
+            "const require = __jarvisCreateRequire(import.meta.url);",
+            "const __filename = __jarvisFileURLToPath(import.meta.url);",
+            "const __dirname = __jarvisDirname(__filename);"
+          ].join("\n")
+        }
       });
       await copyFile(workerPath, join(tempDir, "pdf.worker.mjs"));
 
