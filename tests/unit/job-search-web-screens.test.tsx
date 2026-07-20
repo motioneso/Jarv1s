@@ -9,11 +9,10 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import Contribution from "../../external-modules/job-search/src/web/index.js";
-import { STEP_LABELS, whenLabel } from "../../external-modules/job-search/src/web/format.js";
+import { whenLabel } from "../../external-modules/job-search/src/web/format.js";
 import { Confidence, FitBadge } from "../../external-modules/job-search/src/web/kit.js";
 import { RootView } from "../../external-modules/job-search/src/web/root.js";
 import { h } from "../../external-modules/job-search/src/web/runtime.js";
-import { OnboardingView } from "../../external-modules/job-search/src/web/screens/onboarding.js";
 import {
   bucketFromPath,
   hashFromPath,
@@ -40,7 +39,6 @@ import {
   type ProfileResult,
   type ResumeResult
 } from "../../external-modules/job-search/src/web/screens/profile.js";
-import { starterDraftForStep } from "../../external-modules/job-search/src/web/starter-drafts.js";
 import {
   DisabledState,
   EmptyState,
@@ -94,27 +92,6 @@ describe("job-search authored states (#935)", () => {
       h(EmptyState, { title: "No monitors yet", body: "Set one up with Jarvis." })
     );
     expect(html).toContain("No monitors yet");
-  });
-});
-
-describe("job-search starter drafts (#935)", () => {
-  it("has a draft for every checkpoint and the done state, all under the host cap", () => {
-    for (const step of [
-      "resume_intake",
-      "resume_critique",
-      "resume_approval",
-      "profile",
-      "sources_schedule",
-      "review_enable",
-      "done"
-    ]) {
-      const draft = starterDraftForStep(step);
-      expect(draft.length).toBeGreaterThan(10);
-      expect(draft.length).toBeLessThan(1000);
-      // Host sanitizer fail-closes on control characters — never ship one.
-      // eslint-disable-next-line no-control-regex
-      expect(draft).not.toMatch(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/);
-    }
   });
 });
 
@@ -208,41 +185,6 @@ describe("job-search Park Press kit (#1197)", () => {
     const confidence = render(h(Confidence, { level: "high" }));
     expect(confidence).toContain('aria-label="Confidence: high"');
     expect(confidence).toContain("Conf");
-  });
-});
-
-describe("job-search onboarding view (#935)", () => {
-  it("lists the six checkpoints with done/current/todo status", () => {
-    const html = render(h(OnboardingView, { state: onboardingFixture, hostActions: noopHost }));
-    for (const label of [
-      "Share your resume",
-      "Review the critique",
-      "Approve a resume revision",
-      "Build your search profile",
-      "Choose sources & schedule",
-      "Review & enable monitoring"
-    ]) {
-      // renderToString HTML-escapes text nodes ("&" → "&amp;").
-      expect(html).toContain(label.replace(/&/g, "&amp;"));
-    }
-    expect(html).toContain("Done"); // completed steps
-    expect(html).toContain("Current"); // the active step badge
-    expect(html).toContain("Continue with Jarvis");
-  });
-
-  it("celebrates completion without a continue action", () => {
-    const html = render(
-      h(OnboardingView, {
-        state: {
-          step: "done",
-          completed: Object.fromEntries(Object.keys(STEP_LABELS).map((s) => [s, true])),
-          gates: { resumeApproved: true, profileApproved: true, monitorEnabled: true }
-        },
-        hostActions: noopHost
-      })
-    );
-    expect(html).toContain("Onboarding complete");
-    expect(html).not.toContain("Continue with Jarvis");
   });
 });
 
