@@ -43,6 +43,30 @@ export const MODULE_STYLES = `
 .jsm-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.125rem 0.75rem; }
 .jsm-stat__value { margin-top: 0.3rem; font-family: var(--font-display); font-size: 1.35rem; font-variant-numeric: tabular-nums; }
 .jsm-card-copy { margin: 0; color: var(--ink-2); font-size: 0.82rem; line-height: 1.5; }
+.jsm-text-accent { color: var(--accent); }
+.jsm-text-gold { color: var(--gold-strong); }
+.jsm-buckets, .jsm-pill-row, .jsm-button-row, .jsm-detail-score { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.jsm-card-list { display: grid; gap: 0.875rem; margin: 0; padding: 0; list-style: none; }
+.jsm-match-card { display: grid; gap: 1rem; }
+.jsm-match-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.25rem; }
+.jsm-match-card__title { margin: 0; font-family: var(--font-display); font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; }
+.jsm-match-card__company { margin: 0.35rem 0 0; color: var(--ink-2); font-weight: 600; }
+.jsm-match-card__score { display: flex; flex: none; flex-direction: column; align-items: flex-end; gap: 0.625rem; }
+.jsm-evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.125rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.jsm-evidence-grid p { margin: 0.35rem 0 0; color: var(--ink-2); font-size: 0.82rem; line-height: 1.5; }
+.jsm-detail-title { max-width: 24ch; margin: 0.75rem 0 1.125rem; font-family: var(--font-display); font-size: clamp(2.25rem, 5vw, 3.25rem); font-weight: 800; letter-spacing: -0.03em; line-height: 0.95; text-transform: uppercase; text-wrap: balance; }
+.jsm-detail-score { margin-top: 1.25rem; gap: 1rem; }
+.jsm-detail-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 1fr); gap: 2rem; align-items: start; padding-top: 1.75rem; border-top: 1px solid var(--line); }
+.jsm-role-copy { color: var(--ink); line-height: 1.65; text-wrap: pretty; }
+.jsm-evaluation { display: grid; gap: 1rem; padding: 1.25rem; border: 1px dashed var(--gold); border-radius: var(--radius-card); background: var(--surface); }
+.jsm-evaluation__evidence { display: grid; gap: 0.75rem; }
+.jsm-evaluation__evidence p { margin: 0.2rem 0 0; color: var(--ink-2); font-size: 0.8rem; }
+.jsm-named-list ul { display: grid; gap: 0.4rem; margin: 0.5rem 0 0; padding-left: 1.1rem; color: var(--ink-2); }
+.jsm-named-list--accent li::marker { color: var(--accent); }
+.jsm-named-list--amber li::marker { color: var(--amber-strong); }
+.jsm-detail-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.875rem; margin: 0; }
+.jsm-detail-meta dt, .jsm-detail-meta dd { margin: 0; }
+.jsm-detail-meta dd { margin-top: 0.25rem; }
 .jsm-state { display: flex; flex-direction: column; gap: 0.5rem; padding: 1.25rem; }
 .jsm-meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; margin: 0; }
 .jsm-meta dt { margin: 0; }
@@ -54,8 +78,11 @@ export const MODULE_STYLES = `
 .jsm-table { width: 100%; border-collapse: collapse; }
 .jsm-table th, .jsm-table td { text-align: left; vertical-align: top; padding: 0.25rem 0.75rem 0.25rem 0; }
 @media (max-width: 760px) {
-  .jsm-hero, .jsm-overview-grid { grid-template-columns: 1fr; gap: 1.5rem; }
+  .jsm-hero, .jsm-overview-grid, .jsm-detail-grid { grid-template-columns: 1fr; gap: 1.5rem; }
   .jsm-display { font-size: clamp(2.5rem, 14vw, 3.75rem); }
+  .jsm-match-card__head { flex-direction: column; }
+  .jsm-match-card__score { flex-direction: row; align-items: center; }
+  .jsm-evidence-grid { grid-template-columns: 1fr; }
   .jsm-checkpoint { grid-template-columns: 2rem minmax(0, 1fr); }
   .jsm-checkpoint > :last-child { grid-column: 2; }
 }

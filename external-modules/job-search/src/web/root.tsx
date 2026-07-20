@@ -10,7 +10,7 @@ import { useToolQuery } from "./store";
 import { OverviewScreen } from "./screens/overview";
 import { ProfileScreen } from "./screens/profile";
 import { MonitorsScreen } from "./screens/monitors";
-import { OpportunitiesScreen } from "./screens/opportunities";
+import { MatchesScreen } from "./screens/matches";
 
 export type HostActions = { openAssistant: (input: { starterPrompt: string }) => void };
 
@@ -24,8 +24,6 @@ const TABS: ReadonlyArray<{ to: string; label: string }> = [
 function activeTab(path: string): string {
   if (path === "/") return "/";
   const first = `/${path.split("/")[1] ?? ""}`;
-  // #1197: keep old opportunity-card links alive until the Matches rewrite lands.
-  if (first === "/opportunities") return "/matches";
   return TABS.some((tab) => tab.to === first) ? first : "/";
 }
 
@@ -40,7 +38,9 @@ function LiveRegion(): ReactNodeLike {
 
 function RouteSwitch(props: { path: string; hostActions: HostActions }): ReactNodeLike {
   const tab = activeTab(props.path);
-  if (tab === "/matches") return <OpportunitiesScreen path={props.path} />;
+  if (tab === "/matches") {
+    return <MatchesScreen path={props.path} hostActions={props.hostActions} />;
+  }
   if (tab === "/monitors") return <MonitorsScreen />;
   if (tab === "/profile") return <ProfileScreen hostActions={props.hostActions} />;
   return <OverviewScreen hostActions={props.hostActions} />;
