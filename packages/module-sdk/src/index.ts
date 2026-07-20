@@ -563,6 +563,12 @@ export interface JarvisModuleManifest {
   readonly personContextProvider?: PersonContextProvider;
   readonly dataLifecycle?: ModuleDataLifecycleManifest;
   readonly externalSources?: readonly ModuleExternalSourceManifest[];
+  readonly assistantOnboarding?: ModuleAssistantOnboardingManifest;
+}
+
+/** Declarative, untrusted module guidance embedded only inside core-owned onboarding framing. */
+export interface ModuleAssistantOnboardingManifest {
+  readonly guidance: string;
 }
 
 /**
@@ -762,6 +768,7 @@ export interface JsonJarvisModuleManifest {
    * validated positively in packages/module-registry/src/external/validate.ts.
    */
   readonly navigation?: readonly ExternalModuleNavigationEntry[];
+  readonly assistantOnboarding?: ModuleAssistantOnboardingManifest;
 }
 
 /**

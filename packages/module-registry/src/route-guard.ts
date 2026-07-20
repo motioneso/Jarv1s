@@ -114,6 +114,8 @@ export const PLATFORM_UNGUARDED_ROUTES: ReadonlySet<RouteKey> = new Set<RouteKey
   routeKey("DELETE", "/api/me/modules/:moduleId/credentials/:credentialId"),
   routeKey("GET", "/api/modules/:moduleId/web/*"),
   routeKey("POST", "/api/modules/:moduleId/queues/:queueName/run"),
+  // #1194: core-owned seed route performs its own actor-active manifest + guidance gate.
+  routeKey("POST", "/api/chat/module-onboarding"),
   // observability sink (#413): unauthenticated platform route the browser fires
   // client errors into. Owned by no module, never stores anything, only logs.
   routeKey("POST", "/api/errors")

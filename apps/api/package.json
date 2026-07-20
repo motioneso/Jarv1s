@@ -12,6 +12,7 @@
     "@fastify/websocket": "^11.3.0",
     "@jarv1s/ai": "workspace:*",
     "@jarv1s/auth": "workspace:*",
+    "@jarv1s/chat": "workspace:*",
     "@jarv1s/connectors": "workspace:*",
     "@jarv1s/db": "workspace:*",
     "@jarv1s/jobs": "workspace:*",
@@ -19,6 +20,7 @@
     "@jarv1s/module-sdk": "workspace:*",
     "@jarv1s/settings": "workspace:*",
     "@jarv1s/shared": "workspace:*",
+    "@jarv1s/vault": "workspace:*",
     "fastify": "^5.6.2",
     "kysely": "^0.29.2",
     "pg-boss": "^12.18.2"

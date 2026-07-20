@@ -1,4 +1,5 @@
 import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
+import { ChatAttachmentsService } from "@jarv1s/chat";
 import type { JarvisModuleManifest, ToolResult } from "@jarv1s/module-sdk";
 import {
   reconcileExternalModules,
@@ -13,6 +14,7 @@ import {
   type ExternalModuleAiResult
 } from "@jarv1s/module-registry/node";
 import { createModuleCredentialSecretCipher, type SettingsRepository } from "@jarv1s/settings";
+import { getVaultBaseDir, VaultContextRunner } from "@jarv1s/vault";
 
 export function createExternalModuleTools(input: {
   readonly discoveries: readonly ExternalModuleDiscovery[];
@@ -35,6 +37,7 @@ export function createExternalModuleTools(input: {
   if (!input.workerDataContext) return { manifests: [] };
   const runtime = new ExternalModuleWorkerRuntime({ logger: input.logger });
   const cipher = createModuleCredentialSecretCipher();
+  const attachments = new ChatAttachmentsService(new VaultContextRunner(getVaultBaseDir()));
   const manifests = createExternalToolManifests(
     input.discoveries,
     async (module, tool, toolInput, context) => {
@@ -52,6 +55,16 @@ export function createExternalModuleTools(input: {
               (await input.settingsRepository.getUserById(scopedDb, context.actorUserId))
                 ?.is_instance_admin === true
           ),
+        readAttachmentText: async (access, attachmentId) => {
+          const content = await attachments.readContent(access, attachmentId);
+          return content.kind === "text"
+            ? {
+                fileName: content.meta.fileName,
+                mimeType: content.meta.mimeType,
+                text: content.text
+              }
+            : null;
+        },
         // Bind the module id here so the rpc host stays module-agnostic; the host
         // still enforces risk gating, the composition guard, and the call cap.
         ...(input.ai ? { ai: (db, req) => input.ai!(db, module.id, req) } : {})

@@ -76,6 +76,24 @@ describe("job-search manifest contract (#930)", () => {
     expect(result.manifest.navigation).toEqual([
       { id: "job-search", label: "Job Search", path: "/", icon: "briefcase" }
     ]);
+    expect(result.manifest.assistantOnboarding?.guidance).toContain(
+      "titles -> profile.save-draft.fields.targetTitles"
+    );
+    expect(result.manifest.assistantOnboarding?.guidance).toContain(
+      "sources -> monitor.save per enabled board"
+    );
+  });
+
+  it("rejects oversized or control-character onboarding guidance (#1194)", () => {
+    for (const guidance of ["x".repeat(8 * 1024 + 1), "safe\u0000unsafe"]) {
+      const result = validateExternalModuleManifest(
+        { ...loadManifest(), assistantOnboarding: { guidance } },
+        "job-search",
+        "0.1.0"
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.errors.join(" ")).toContain("assistantOnboarding.guidance");
+    }
   });
 
   it("rejects the design's original dotted id (spec delta 1)", () => {

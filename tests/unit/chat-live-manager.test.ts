@@ -386,6 +386,20 @@ describe("ChatSessionManager", () => {
     });
   });
 
+  it("sends module control only to the engine and persists the clean user turn (#1194)", async () => {
+    const { manager, persistence, engines } = makeManager();
+
+    await manager.submitTurn("user-1", "Ben", "Remote is right.", {
+      moduleControl: '<module_control>\n{"step":"workmode"}\n</module_control>'
+    });
+
+    expect(engines[0]?.submitted.at(-1)).toBe(
+      'Remote is right.\n\n<module_control>\n{"step":"workmode"}\n</module_control>'
+    );
+    expect(persistence.recorded[0]?.userText).toBe("Remote is right.");
+    expect(persistence.recorded[0]?.userText).not.toContain("module_control");
+  });
+
   it("fans out records to multiple subscribers (multi-tab)", async () => {
     const { manager } = makeManager();
     const a: TranscriptRecord[] = [];

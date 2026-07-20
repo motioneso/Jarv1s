@@ -28,6 +28,7 @@ export function createExternalToolManifests(
       publisher: module.manifest.publisher,
       lifecycle: module.manifest.lifecycle,
       compatibility: module.manifest.compatibility,
+      assistantOnboarding: module.manifest.assistantOnboarding,
       availability: {
         defaultEnabled: false,
         supportsUserDisable: module.manifest.lifecycle === "user-toggleable"

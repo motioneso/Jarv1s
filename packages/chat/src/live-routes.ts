@@ -48,6 +48,11 @@ import {
 } from "./live/chat-session-manager.js";
 import { CliChatUnavailableError } from "./live/errors.js";
 import type { PageContextStore } from "./live/page-context-store.js";
+import {
+  neutralizeSeedFraming,
+  renderModuleControlContext,
+  sanitizeExternalData
+} from "./live/prompt-safety.js";
 import type { ChatSessionRuntime } from "./live/runtime.js";
 
 // Per-user rate-limit key via the shared module-sdk helper: a UUID-shaped session bearer or
@@ -66,6 +71,12 @@ export interface EveningInterviewSeed {
   readonly openingPrompt: string;
 }
 
+export interface ModuleOnboardingSeedSource {
+  readonly moduleId: string;
+  readonly guidance: string;
+  readonly state: Record<string, unknown>;
+}
+
 export interface ChatLiveRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly runtime: ChatSessionRuntime & {
@@ -73,6 +84,10 @@ export interface ChatLiveRoutesDependencies {
       actorUserId: string,
       briefingRunId?: string
     ) => Promise<EveningInterviewSeed>;
+    readonly resolveModuleOnboardingSeed?: (
+      actorUserId: string,
+      moduleId: string
+    ) => Promise<ModuleOnboardingSeedSource | undefined>;
   };
   /** #1109 — TTL-backed store the pull-based chat.getCurrentView tool reads from. */
   readonly pageContextStore: PageContextStore;
@@ -109,7 +124,7 @@ export function registerChatLiveRoutes(
       if ("error" in bodyResult) {
         return reply.code(400).send({ error: bodyResult.error });
       }
-      const { text, attachmentIds } = bodyResult;
+      const { text, attachmentIds, moduleControl } = bodyResult;
 
       try {
         // #1133 — resolve attachment ids to vault-backed metadata before the turn
@@ -156,7 +171,7 @@ export function registerChatLiveRoutes(
           access.actorUserId,
           userName,
           text,
-          attachments ? { attachments } : undefined
+          attachments || moduleControl ? { attachments, moduleControl } : undefined
         );
 
         return reply.send({
@@ -366,6 +381,49 @@ export function registerChatLiveRoutes(
     }
   );
 
+  server.post(
+    "/api/chat/module-onboarding",
+    {
+      config: {
+        rateLimit: {
+          max: CHAT_MUTATION_MAX,
+          timeWindow: "1 minute",
+          keyGenerator: sessionRateLimitKey
+        }
+      }
+    },
+    async (request, reply) => {
+      const access = await resolveOr401(dependencies, request, reply);
+      if (!access) return reply;
+
+      const moduleId = readModuleOnboardingBody(request.body);
+      if (!moduleId) return reply.code(404).send({ error: "Not found" });
+
+      let source: ModuleOnboardingSeedSource | undefined;
+      try {
+        source = await runtime.resolveModuleOnboardingSeed?.(access.actorUserId, moduleId);
+      } catch {
+        // #1194 — missing, inactive, unsupported, and failed state reads intentionally
+        // collapse to one 404 so callers cannot probe module availability.
+        return reply.code(404).send({ error: "Not found" });
+      }
+      if (!source) return reply.code(404).send({ error: "Not found" });
+
+      try {
+        const userName = await runtime.resolveUserName(access.actorUserId);
+        await runtime.manager.seedContext(
+          access.actorUserId,
+          userName,
+          buildModuleOnboardingSeed(source),
+          `module-onboarding:${source.moduleId}`
+        );
+        return reply.send({ ok: true });
+      } catch (error) {
+        return handleLiveRouteError(error, reply);
+      }
+    }
+  );
+
   // #1109 — client PUTs its current view here (debounced, on navigation/change); an AI tool
   // pulls it on demand rather than the client pushing it on every chat turn.
   server.put(
@@ -437,8 +495,26 @@ export function buildEveningInterviewSeed(reviewText: string | null): EveningInt
   };
 }
 
-function sanitizeExternalData(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+export function buildModuleOnboardingSeed(source: ModuleOnboardingSeedSource): string {
+  const defang = (value: string) => sanitizeExternalData(neutralizeSeedFraming(value));
+  const guidance = defang(source.guidance);
+  const state = defang(JSON.stringify(source.state));
+  return (
+    "<trusted_instructions>\n" +
+    "The active module screen leads this onboarding conversation. When a turn includes a " +
+    "<module_control> block, perform exactly its described tool calls with values verbatim and " +
+    "reply in at most one short sentence. Every write is only a proposal for the user's action " +
+    "request approval; never retry a denied action unprompted. For an attached resume call " +
+    "job-search.resume.import-attachment with its attachmentId and never re-type its contents. " +
+    "Only user-pasted resume text may use resume.save-draft mode manual verbatim. Answer free text " +
+    "briefly in first person, calm and lightly dry, sentence case, without emoji, then steer back. " +
+    "Never fabricate resume or profile content; ask about unsupported claims. Never enable " +
+    "monitoring before sources are confirmed.\n" +
+    "</trusted_instructions>\n\n" +
+    `<external_source type="module_onboarding" module="${defang(source.moduleId)}">\n` +
+    `${guidance}\n</external_source>\n\n` +
+    `<module_onboarding_state>\n${state}\n</module_onboarding_state>`
+  );
 }
 
 function readEveningInterviewBody(body: unknown): { briefingRunId?: string } | { error: string } {
@@ -452,6 +528,14 @@ function readEveningInterviewBody(body: unknown): { briefingRunId?: string } | {
     return { error: "briefingRunId must be a non-empty string" };
   }
   return { briefingRunId: raw.trim() };
+}
+
+function readModuleOnboardingBody(body: unknown): string | undefined {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return undefined;
+  const moduleId = (body as Record<string, unknown>).moduleId;
+  return typeof moduleId === "string" && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(moduleId)
+    ? moduleId
+    : undefined;
 }
 
 /**
@@ -522,17 +606,20 @@ function handleLiveRouteError(error: unknown, reply: FastifyReply) {
 }
 
 /**
- * Parse a /turn body: `text` plus the optional #1133 `attachmentIds` list. Text may
+ * Parse a /turn body: `text`, optional #1133 `attachmentIds`, and optional #1194
+ * module control data. Text may
  * be empty ONLY when at least one attachment id rides along (an image-only turn —
  * the engine still receives the server-composed attachments manifest). Ids are
  * shape-checked as UUIDs here so nothing unvalidated ever reaches a vault path.
  */
 function readTurnBody(
   body: unknown
-): { text: string; attachmentIds: readonly string[] } | { error: string } {
+): { text: string; attachmentIds: readonly string[]; moduleControl?: string } | { error: string } {
   if (!body || typeof body !== "object" || Array.isArray(body))
     return { error: "text is required" };
   const record = body as Record<string, unknown>;
+  const control = renderModuleControlContext(record.controlContext);
+  if (!control.ok) return { error: control.error };
 
   let attachmentIds: string[] = [];
   const rawIds = record.attachmentIds;
@@ -555,7 +642,9 @@ function readTurnBody(
   const value = record.text;
   const hasAttachments = attachmentIds.length > 0;
   if (typeof value !== "string") {
-    if (value === undefined && hasAttachments) return { text: "", attachmentIds };
+    if (value === undefined && hasAttachments) {
+      return { text: "", attachmentIds, ...(control.text ? { moduleControl: control.text } : {}) };
+    }
     return { error: "text is required" };
   }
   if (value.length > MAX_CHAT_TURN_TEXT_LENGTH) {
@@ -563,5 +652,9 @@ function readTurnBody(
   }
   const trimmed = value.trim();
   if (trimmed.length === 0 && !hasAttachments) return { error: "text is required" };
-  return { text: trimmed, attachmentIds };
+  return {
+    text: trimmed,
+    attachmentIds,
+    ...(control.text ? { moduleControl: control.text } : {})
+  };
 }

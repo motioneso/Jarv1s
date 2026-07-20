@@ -161,6 +161,34 @@ it("exposes ctx.db.query as a db.query rpc round-trip", async () => {
   child.kill();
 });
 
+it("exposes ctx.attachments.readText as an attachments.readText rpc round-trip (#1194)", async () => {
+  const { child, next } = await spawnWorker(
+    `defineModuleWorker({ handlers: { importResume: async (ctx) => ({
+      attachment: await ctx.attachments.readText("11111111-1111-4111-8111-111111111111")
+    }) } });`
+  );
+
+  expect(await next()).toMatchObject({ method: "worker.ready", params: { version: 1 } });
+  child.stdin?.write(
+    `${JSON.stringify({ jsonrpc: "2.0", id: "host:3", method: "module.invoke", params: { handler: "importResume", input: {} } })}\n`
+  );
+  const call = await next();
+  expect(call).toMatchObject({
+    method: "attachments.readText",
+    params: { attachmentId: "11111111-1111-4111-8111-111111111111" }
+  });
+  child.stdin?.write(
+    `${JSON.stringify({ jsonrpc: "2.0", id: call.id, result: { fileName: "resume.txt", mimeType: "text/plain", text: "hello" } })}\n`
+  );
+  expect(await next()).toMatchObject({
+    id: "host:3",
+    result: {
+      attachment: { fileName: "resume.txt", mimeType: "text/plain", text: "hello" }
+    }
+  });
+  child.kill();
+});
+
 it("surfaces host db.query errors as a generic handler_failed without leaking internals", async () => {
   const marker = `rpc-error-marker-${randomUUID()}`;
   const { child, next } = await spawnWorker(

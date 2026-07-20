@@ -81,6 +81,8 @@ describe("briefings prompt-isolation (static)", () => {
 describe("evening interview seed prompt-isolation (static)", () => {
   const liveRoutesPath = resolve(here, "../../packages/chat/src/live-routes.ts");
   const seedSource = readFileSync(liveRoutesPath, "utf8");
+  const promptSafetyPath = resolve(here, "../../packages/chat/src/live/prompt-safety.ts");
+  const promptSafetySource = readFileSync(promptSafetyPath, "utf8");
 
   it("buildEveningInterviewSeed trusted preamble is a pure literal", () => {
     expect(seedSource, "interview seed must contain a trusted_instructions block").toContain(
@@ -111,7 +113,7 @@ describe("evening interview seed prompt-isolation (static)", () => {
   });
 
   it("sanitizes review text before emitting into external_source", () => {
-    expect(seedSource).toMatch(/function sanitizeExternalData/);
+    expect(promptSafetySource).toMatch(/export function sanitizeExternalData/);
     expect(seedSource).toMatch(/sanitizeExternalData\(reviewText/);
   });
 });

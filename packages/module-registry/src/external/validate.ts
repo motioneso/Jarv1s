@@ -10,6 +10,7 @@ import type {
   ExternalModuleDatabaseDeclaration,
   ExternalModuleNavigationEntry,
   ExternalModuleWorkerDeclaration,
+  ModuleAssistantOnboardingManifest,
   ModuleAuthDeclaration,
   ModuleLifecycle,
   ModuleStorageDeclaration,
@@ -31,6 +32,7 @@ export const MODULE_ID_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 // declare — and later purge — another module's (or core's) tables. Name part capped at
 // Postgres's 63-char identifier limit.
 export const MODULE_OWNED_TABLE_RE = /^app\.[a-z][a-z0-9_]{0,62}$/;
+export const ASSISTANT_ONBOARDING_GUIDANCE_MAX_BYTES = 8 * 1024;
 
 const LIFECYCLES: readonly ModuleLifecycle[] = [
   "required",
@@ -456,6 +458,36 @@ export function validateExternalModuleManifest(
     }
   }
 
+  let assistantOnboarding: ModuleAssistantOnboardingManifest | undefined;
+  if (obj.assistantOnboarding !== undefined) {
+    if (
+      typeof obj.assistantOnboarding !== "object" ||
+      obj.assistantOnboarding === null ||
+      Array.isArray(obj.assistantOnboarding)
+    ) {
+      errors.push("assistantOnboarding must be an object");
+    } else {
+      const onboarding = obj.assistantOnboarding as Record<string, unknown>;
+      const unknownKeys = Object.keys(onboarding).filter((key) => key !== "guidance");
+      if (unknownKeys.length > 0) {
+        errors.push(`assistantOnboarding contains unknown fields: ${unknownKeys.join(", ")}`);
+      }
+      if (
+        !isNonEmptyString(onboarding.guidance) ||
+        new TextEncoder().encode(onboarding.guidance as string).byteLength >
+          ASSISTANT_ONBOARDING_GUIDANCE_MAX_BYTES ||
+        // eslint-disable-next-line no-control-regex -- manifest guidance must be plain text.
+        /[\u0000-\u001F\u007F]/.test(onboarding.guidance as string)
+      ) {
+        errors.push(
+          `assistantOnboarding.guidance must be non-empty plain text (${ASSISTANT_ONBOARDING_GUIDANCE_MAX_BYTES} bytes max)`
+        );
+      } else if (unknownKeys.length === 0) {
+        assistantOnboarding = { guidance: onboarding.guidance as string };
+      }
+    }
+  }
+
   if ((obj.worker !== undefined || obj.fetchHosts !== undefined) && obj.runtime === undefined) {
     errors.push("runtime is required when worker or fetchHosts exist");
   }
@@ -646,7 +678,8 @@ export function validateExternalModuleManifest(
     ...(worker !== undefined ? { worker } : {}),
     ...(obj.fetchHosts !== undefined ? { fetchHosts: obj.fetchHosts as readonly string[] } : {}),
     ...(database !== undefined ? { database } : {}),
-    ...(navigation !== undefined ? { navigation } : {})
+    ...(navigation !== undefined ? { navigation } : {}),
+    ...(assistantOnboarding !== undefined ? { assistantOnboarding } : {})
   };
   return { ok: true, manifest };
 }

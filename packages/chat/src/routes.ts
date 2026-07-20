@@ -102,6 +102,7 @@ import { VaultContextRunner, getVaultBaseDir } from "@jarv1s/vault";
 
 import { readAttachments, registerChatAttachmentRoutes } from "./attachments-routes.js";
 import { ChatAttachmentsService } from "./attachments-service.js";
+import { createModuleOnboardingSeedResolver } from "./module-onboarding-seed.js";
 import { ChatRepository } from "./repository.js";
 import { registerChatSkillsRoutes } from "./skills/routes.js";
 import { ChatSkillsRepository } from "./skills/repository.js";
@@ -393,7 +394,11 @@ export function registerChatRoutes(
     resolveAccessContext: dependencies.resolveAccessContext,
     runtime: {
       ...runtime,
-      resolveEveningInterviewSeed: dependencies.resolveEveningInterviewSeed
+      resolveEveningInterviewSeed: dependencies.resolveEveningInterviewSeed,
+      resolveModuleOnboardingSeed:
+        wiring && resolveActiveModules
+          ? createModuleOnboardingSeedResolver({ resolveActiveModules, gateway: wiring.gateway })
+          : undefined
     },
     pageContextStore,
     // #1133 — lets /turn resolve uploaded attachment ids to vault metadata.

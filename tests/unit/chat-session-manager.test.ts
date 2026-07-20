@@ -362,6 +362,16 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
     expect(engine.submitted[0]).toContain('<external_source type="evening_review">');
     expect(recordTurn).not.toHaveBeenCalled();
   });
+
+  it("seeds a module onboarding context once per live engine session (#1194)", async () => {
+    const engine = new FakeEngine(0);
+    const manager = new ChatSessionManager(depsWith(engine));
+
+    await manager.seedContext("u1", "Ben", "seed", "module-onboarding:job-search");
+    await manager.seedContext("u1", "Ben", "seed", "module-onboarding:job-search");
+
+    expect(engine.submitted).toEqual(["seed"]);
+  });
 });
 
 describe("ChatSessionManager.submitTurn turn-lock release (#445)", () => {
@@ -951,34 +961,26 @@ describe("ChatSessionManager.stopTurn — user-driven Stop (#456 Task C)", () =>
     const received: TranscriptRecord[] = [];
     manager.subscribe("u1", (r) => received.push(r));
 
-    // Start a turn; it blocks in readNew (gate unresolved).
     const turnPromise = manager.submitTurn("u1", "Ben", "long running question");
 
-    // Give the turn a tick to reach the blocked readNew.
     await new Promise((r) => setImmediate(r));
 
-    // User clicks Stop.
     await manager.stopTurn("u1");
 
-    // The turn resolves (the interrupted engine unblocked the gate; the stop signal broke the loop).
     const { reply } = await turnPromise;
     expect(reply).toBe(""); // no partial reply persisted
 
-    // The 'Stopped by user.' status record was emitted over SSE.
     const stopStatus = received.find((r) => r.kind === "status" && r.text === "Stopped by user.");
     expect(stopStatus).toBeDefined();
 
-    // The engine was interrupted, not killed.
     expect(engine.interrupted).toBe(true);
     expect(engine.killed).toBe(false);
 
-    // recordTurn was NOT called (turn never completed — coordinator ruling (a): persist nothing).
     expect(
       (manager as unknown as { deps: { persistence: { recordTurn: ReturnType<typeof vi.fn> } } })
         .deps.persistence.recordTurn
     ).not.toHaveBeenCalled();
 
-    // The turn-in-flight lock is released and the same engine remains reusable.
     const second = await manager.submitTurn("u1", "Ben", "next");
     expect(second.reply).toBe("should-not-persist");
   });
