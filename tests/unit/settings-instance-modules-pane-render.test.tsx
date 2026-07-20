@@ -15,12 +15,14 @@ import type {
   ExternalModuleDto,
   GetModuleRegistryResponse,
   ListModuleCredentialsResponse,
-  ListModulesResponse
+  ListModulesResponse,
+  ModuleRegistryRowDto
 } from "@jarv1s/shared";
 
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 import { InstanceModulesPane } from "../../apps/web/src/settings/settings-instance-modules-pane.js";
 import { FeedbackProvider } from "../../apps/web/src/settings/settings-feedback.js";
+import { describeCapabilityConsequences } from "../../apps/web/src/settings/settings-module-registry-section.js";
 
 function renderWithQuery(client: QueryClient): string {
   return renderToString(
@@ -182,5 +184,184 @@ describe("InstanceModulesPane external-modules group (#1084)", () => {
     // The genuinely-undeclared module still renders its own Row in this group — proves the
     // filter didn't just start dropping everything.
     expect(html).toContain("Acme Undeclared");
+  });
+});
+
+// #1187 decision 5: the trust warning must appear only when the inventory actually contains a
+// module from a source outside the pinned registry — not merely because `external.enabled`.
+describe("InstanceModulesPane external-modules trust warning (#1187 decision 5)", () => {
+  function seedNoUndeclaredExternal(): QueryClient {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.settings.adminModules, {
+      modules: []
+    } satisfies ListModulesResponse);
+    client.setQueryData(queryKeys.settings.adminExternalModules, {
+      enabled: true,
+      modules: [
+        {
+          id: DECLARED_ID,
+          name: "Acme Declared",
+          version: "0.1.0",
+          publisher: "Acme",
+          status: "enabled",
+          active: true,
+          drifted: false,
+          disabledReason: null,
+          web: null
+        }
+      ] satisfies readonly ExternalModuleDto[]
+    });
+    client.setQueryData(queryKeys.settings.adminModuleRegistry, {
+      enabled: true,
+      registryUnavailable: false,
+      modules: [
+        {
+          id: DECLARED_ID,
+          name: "Acme Declared",
+          description: null,
+          state: "installed-enabled",
+          installedVersion: "0.1.0",
+          // Registry-index-backed -> registryIndexIds includes it -> not undeclared.
+          latestVersion: "0.1.0",
+          stagedVersion: null,
+          requiresCore: null,
+          capabilities: null,
+          lastInstallError: null,
+          purgePending: false
+        }
+      ]
+    } satisfies GetModuleRegistryResponse);
+    client.setQueryData(["module-credentials", "admin", DECLARED_ID], {
+      moduleId: DECLARED_ID,
+      credentials: []
+    } satisfies ListModuleCredentialsResponse);
+    return client;
+  }
+
+  it("hides the External modules group entirely when no module is actually undeclared", () => {
+    const html = renderWithQuery(seedNoUndeclaredExternal());
+    expect(html).not.toContain("External modules are not reviewed by Jarvis");
+    expect(html).not.toContain("External modules");
+  });
+
+  it("still shows the warning when an undeclared module is present (existing behavior)", () => {
+    const html = renderWithQuery(seedClient());
+    expect(html).toContain("External modules are not reviewed by Jarvis");
+  });
+});
+
+// #1187 decisions 1/2: built-in optional modules and downloadable registry modules render as
+// ONE actionable inventory ("Module library"), not a separate "Optional modules" +
+// "Available modules" section pair.
+describe("InstanceModulesPane module library merge (#1187 decisions 1/2)", () => {
+  function seedMergeClient(): QueryClient {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(queryKeys.settings.adminModules, {
+      modules: [
+        {
+          id: "builtin-a",
+          name: "Builtin A",
+          required: false,
+          instanceDisabled: false
+        }
+      ]
+    } satisfies ListModulesResponse);
+    client.setQueryData(queryKeys.settings.adminModuleRegistry, {
+      enabled: true,
+      registryUnavailable: false,
+      modules: [
+        {
+          id: "registry-a",
+          name: "Registry A",
+          description: null,
+          state: "not-installed",
+          installedVersion: null,
+          latestVersion: "1.0.0",
+          stagedVersion: null,
+          requiresCore: null,
+          capabilities: null,
+          lastInstallError: null,
+          purgePending: false
+        }
+      ]
+    } satisfies GetModuleRegistryResponse);
+    return client;
+  }
+
+  it("renders one merged 'Module library' group, not separate 'Optional modules'/'Available modules' sections", () => {
+    const html = renderWithQuery(seedMergeClient());
+    expect(html).toContain("Module library");
+    expect(html).not.toContain("Optional modules");
+    expect(html).not.toContain("Available modules");
+    expect(html).not.toContain('aria-label="Module registry"');
+  });
+
+  it("places a registry row inside the merged Module library group, after the built-in row", () => {
+    const html = renderWithQuery(seedMergeClient());
+    const groupIndex = html.indexOf("Module library");
+    const builtinIndex = html.indexOf("Builtin A");
+    const registryIndex = html.indexOf("Registry A");
+    expect(groupIndex).toBeGreaterThan(-1);
+    expect(builtinIndex).toBeGreaterThan(groupIndex);
+    expect(registryIndex).toBeGreaterThan(builtinIndex);
+  });
+
+  it("uses decision-2 wording 'Download and install' instead of 'Install'", () => {
+    const html = renderWithQuery(seedMergeClient());
+    expect(html).toContain("Download and install");
+    expect(html).not.toContain(">Install<");
+  });
+});
+
+// QA-RED remediation (2026-07-20): describeCapabilityConsequences was only unit-tested as a
+// pure function against `capabilities: null` fixtures — the actual install-confirm dialog
+// markup never proved it renders the consequence sentence for a row with real capabilities.
+// FeedbackProvider's `initialDialog` seed (settings-feedback.tsx) exists specifically to close
+// this gap without jsdom/@testing-library (repo has neither).
+function capabilityRow(
+  overrides: Partial<ModuleRegistryRowDto> & Pick<ModuleRegistryRowDto, "id">
+): ModuleRegistryRowDto {
+  return {
+    name: overrides.id,
+    description: null,
+    state: "not-installed",
+    installedVersion: null,
+    latestVersion: null,
+    stagedVersion: null,
+    requiresCore: null,
+    capabilities: null,
+    lastInstallError: null,
+    purgePending: false,
+    ...overrides
+  } satisfies ModuleRegistryRowDto;
+}
+
+describe("install-confirm dialog capability copy (#1187 decision 4 render proof)", () => {
+  it("renders the consequence sentence in .jds-dialog__desc for a row with real capabilities", () => {
+    const rowWithCaps = capabilityRow({
+      id: "acme-net",
+      capabilities: {
+        permissions: ["net.fetch.acme"],
+        fetchHosts: ["api.acme.example"],
+        tools: [],
+        ownsTables: []
+      }
+    });
+    const html = renderToString(
+      createElement(
+        FeedbackProvider,
+        {
+          initialDialog: {
+            title: "Install Acme Net?",
+            description: describeCapabilityConsequences(rowWithCaps),
+            confirmLabel: "Download",
+            onConfirm: () => {}
+          }
+        },
+        createElement("div")
+      )
+    );
+    expect(html).toContain("jds-dialog__desc");
+    expect(html).toContain("This module can connect to the internet");
   });
 });

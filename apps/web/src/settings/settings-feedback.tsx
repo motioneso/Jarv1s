@@ -54,9 +54,19 @@ interface ToastEntry extends ToastOptions {
   readonly message: string;
 }
 
-export function FeedbackProvider(props: { readonly children: ReactNode }) {
+export function FeedbackProvider(props: {
+  readonly children: ReactNode;
+  /**
+   * Test-only seed for the confirm dialog's initial state. There is no jsdom/@testing-library
+   * in this repo (renderToString-only unit tests, see settings-appearance-pane.test.tsx), so a
+   * render test can't click a row to open the dialog — this lets it seed `dialog` directly and
+   * assert the rendered markup. Defaults to `undefined`, which preserves existing behavior
+   * exactly (dialog starts closed).
+   */
+  readonly initialDialog?: ConfirmOptions | null;
+}) {
   const [toasts, setToasts] = useState<readonly ToastEntry[]>([]);
-  const [dialog, setDialog] = useState<ConfirmOptions | null>(null);
+  const [dialog, setDialog] = useState<ConfirmOptions | null>(props.initialDialog ?? null);
   const [confirmInput, setConfirmInput] = useState("");
   const nextId = useRef(1);
 

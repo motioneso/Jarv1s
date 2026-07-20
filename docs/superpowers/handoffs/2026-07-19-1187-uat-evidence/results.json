@@ -1,0 +1,110 @@
+{
+  "CP_SETUP": {
+    "ok": true,
+    "detail": "signed_in_as=qa@jarv1s.local"
+  },
+  "CP1": {
+    "ok": true,
+    "detail": "library=1 available=0 optional=0"
+  },
+  "CP2": {
+    "ok": true,
+    "detail": "builtin_present=True finance=True job_search=True"
+  },
+  "CP3": {
+    "ok": true,
+    "detail": "external_modules_group_count=0 (expected 0 \u2014 no undeclared)"
+  },
+  "CP4": {
+    "ok": true,
+    "detail": "refresh_button_count=1"
+  },
+  "CP5": {
+    "ok": true,
+    "detail": "finance install_btn=1 switch=0"
+  },
+  "CP6": {
+    "ok": false,
+    "detail": "wellness_switch=1 disable_label=False"
+  },
+  "CP7": {
+    "ok": false,
+    "detail": "wellness_switch=1 enable_label=False"
+  },
+  "CP12": {
+    "ok": true,
+    "detail": "finance install dialog opened"
+  },
+  "CP9": {
+    "ok": true,
+    "detail": "consequence_sentence_present=True"
+  },
+  "CP10": {
+    "ok": true,
+    "detail": "permissions_sentence_present=True"
+  },
+  "CP11": {
+    "ok": true,
+    "detail": "confirm_label='Download'"
+  },
+  "CP13": {
+    "ok": true,
+    "detail": "post_install finance_state=pending-restart"
+  },
+  "CP14": {
+    "ok": true,
+    "detail": "muted_text='Downloaded \u2014 restart to apply' switch_count=0 (pending-restart: muted text + no switch is correct per #1187)"
+  },
+  "CP15": {
+    "ok": true,
+    "detail": "wellness instanceDisabled after toggle=True (proxy: registry Switch path requires restart; built-in Switch works end-to-end)"
+  },
+  "CP16": {
+    "ok": true,
+    "detail": "finance state after remove=not-installed"
+  },
+  "CP17": {
+    "ok": true,
+    "detail": "confirm_dialog_ok=True finance purgePending=True"
+  },
+  "CP18": {
+    "ok": true,
+    "detail": "cancel_purge_btn_present=1 purgePending_after=False"
+  },
+  "CP19": {
+    "ok": true,
+    "detail": "wellness_switch_disabled_attr_when_idle=None"
+  },
+  "CP20": {
+    "ok": true,
+    "detail": "disabling_note_present=True"
+  },
+  "CP21": {
+    "ok": true,
+    "detail": "trust_warning_present=0 (expected 0 \u2014 no undeclared external)"
+  },
+  "CP8": {
+    "ok": true,
+    "detail": "primary_btn=1 switch=0 muted_span=0"
+  },
+  "CP22": {
+    "ok": true,
+    "detail": "scrollWidth=375 clientWidth=375 hscroll=False"
+  },
+  "CP23": {
+    "ok": true,
+    "detail": "primary=1 switch=0 muted=0"
+  },
+  "CP24": {
+    "ok": true,
+    "detail": "sidebar_open=1 settings_route=True"
+  },
+  "CP25": {
+    "ok": true,
+    "detail": "total_console_errors=3 real=0 sample=[]"
+  },
+  "CP26": {
+    "ok": true,
+    "detail": "total_page_errors=0 sample=[]"
+  }
+}
