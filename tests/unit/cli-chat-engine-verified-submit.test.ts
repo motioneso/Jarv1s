@@ -388,6 +388,50 @@ describe("CliChatEngineImpl — verified interactive submit", () => {
     expect(mux.kill).toHaveBeenCalledTimes(1);
   });
 
+  it("hangs forever when an individual mux call never settles — pressEnter (#1226 relay-4)", async () => {
+    // Relay-4 live finding: composer held the full pasted payload, un-submitted, no
+    // spinner, for 300+s — the #1226 fix above (MAX_ENTER_NUDGES exhaustion) never even
+    // engaged. Root cause: every "bounded" loop in this file (observePane's echoMs
+    // deadline, waitForUserAckWithEnterNudge's nudgeAfterMs) only bounds the polling
+    // loop's OWN sleep/deadline check — it never wraps the individual
+    // `await this.mux.*(handle)` call inside it with its own timeout. If that single
+    // RPC (here: pressEnter at cli-chat-engine.ts ~397) never settles, execution never
+    // reaches the nudge loop at all, so its 7s/14s/21s bound never fires. This test
+    // proves the hang is real and deterministic, not a guess.
+    const mux = stateMachineMux({ panes: [empty, "❯ exact payload\n"] });
+    (mux.pressEnter as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise(() => {}));
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "hung-press-enter", io, {
+      mux,
+      echoMs: 0,
+      nudgeAfterMs: 0
+    });
+    await engine.launch({ neutralDir: "/tmp/hung-press-enter", personaPath: "/p.md" });
+
+    const RACE_DEADLINE_MS = 200;
+    const outcome = await Promise.race([
+      engine
+        .verifiedSubmit({
+          attemptId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          text: "exact payload",
+          signal: new AbortController().signal
+        })
+        .then(
+          () => ({ kind: "resolved" as const }),
+          (err: unknown) => ({ kind: "rejected" as const, err })
+        ),
+      new Promise<{ kind: "timeout" }>((resolve) =>
+        setTimeout(() => resolve({ kind: "timeout" }), RACE_DEADLINE_MS)
+      )
+    ]);
+
+    // Current (buggy) behavior: verifiedSubmit never settles. This assertion documents
+    // the live bug pending a Coordinator-approved fix — it is expected to flip to
+    // "rejected" once a per-call timeout is added around mux.pressEnter.
+    expect(outcome.kind).toBe("timeout");
+    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the original Codex marker when invalidation purge cannot prove identity", async () => {
     const uuid = "019f5af9-3c61-7f72-af47-09514db9892c";
     const neutralDir = "/tmp/verified-codex-failed-purge";

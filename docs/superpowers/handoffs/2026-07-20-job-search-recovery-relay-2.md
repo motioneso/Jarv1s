@@ -187,3 +187,51 @@ pane `w1:p04` (tab `w1:t3B`, label "Build 1226 Recovery R4"). Successor (R5): sp
 is a context-exhaustion relay of one continuous branch of work, not a parallel-agent split, so
 no fresh worktree). R4 will send both immutable session ids to Coordinator once R5 is confirmed
 driving.
+
+## Relay 5 update (2026-07-20): precise root cause found and reproduced deterministically
+
+Frozen evidence re-verified untouched: pane `w1:p06` (tab `w1:t3F`) still holds the composer
+state unchanged; API pid `3757574` still alive; `req-1o`/`req-1p` (pid `3757574`, POST
+`/api/chat/module-onboarding`) still have zero "request completed" line in
+`/tmp/jarvis-1226-api.log` after 700+s elapsed (re-grepped, did not touch pane or process).
+
+**Root cause (confirmed, not guessed) — architectural gap in
+`packages/chat/src/live/cli-chat-engine.ts`**: no individual `await this.mux.X(handle)` call
+(`pressEnter`, `capturePane`, `paste`, `clearComposer`, `clearComposerHard`, `kill`) has its own
+timeout. All bounded-looking logic in the file (`observePane`'s `echoMs` deadline,
+`waitForUserAckWithEnterNudge`'s `nudgeAfterMs` x `MAX_ENTER_NUDGES`, `replayAndDrain`'s
+`drainMs`) only bounds the check **between** polling iterations — it never wraps the single RPC
+call itself. If one such call to the herdr multiplexer genuinely never settles, `verifiedSubmit`
+hangs forever, because the code never even reaches the bounded logic (`live-routes.ts` also has
+no route-level timeout, so nothing external bounds it either). This means the #1226 fix from
+commit `a1caaeb5` (fail-fast when the composer never empties across nudges) is real and correct
+for the failure mode it targets, but does NOT cover this deeper class.
+
+**Deterministic reproduction — 3 unit tests, all confirm in <200ms** (fake mux methods that
+return a `Promise` which never resolves, raced against a bounded timer):
+1. `pressEnter` never resolves → `verifiedSubmit` hangs. **Committed** as
+   `tests/unit/cli-chat-engine-verified-submit.test.ts`: "hangs forever when an individual mux
+   call never settles — pressEnter (#1226 relay-4)".
+2. `capturePane` never resolves (inside `observePane`'s echo-check) → hangs identically.
+   Verified via scratch probe, not committed (redundant with #1 for documentation purposes).
+3. `kill` never resolves (inside `purgeThenKillQuietly`, entered=true error path) → hangs
+   identically. Verified via scratch probe, not committed.
+
+Live frozen-pane evidence (composer holds the FULL pasted payload, un-submitted, no active
+spinner, for 700+s) best matches candidate 1: the **first** `await this.mux.pressEnter(handle)`
+call at `cli-chat-engine.ts:397` hanging — execution never reaches
+`waitForUserAckWithEnterNudge` (line 702) at all, which is exactly why its 7s/14s/21s bound
+"never fired despite 5+ minutes" (relay-4's puzzle). Candidates 2/3 share the identical
+architectural gap and would hang the same way if hit in production; this is a systemic issue,
+not unique to one call site.
+
+**Scope note**: the fix (wrap each `await this.mux.X(handle)` call site with a bounded
+race/timeout helper, surfacing a `VerifiedSubmitError` instead of hanging) is entirely within
+the approved-scope file — **no change to `packages/ai/src/adapters/herdr-multiplexer.ts` is
+architecturally required**. Not yet implemented; escalated to Coordinator per relay protocol
+(this finding changes the shape of Task 6's remaining work) rather than deciding unilaterally
+whether R5 proceeds to implement it now or relays to R6. Full detail in agentmemory project
+`jarv1s`, search `"1226 relay-5"`.
+
+Pane `w1:p06` still NOT touched, API process still NOT restarted, per Coordinator's freeze
+instruction.
