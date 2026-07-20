@@ -204,7 +204,9 @@ export function validateSingleTokenEnvContent(content: string): void {
     );
   }
   if (value.length === 0) {
-    throw new Error(`real-chat token env file's ${REAL_CHAT_TOKEN_ENV_VAR} value must not be empty`);
+    throw new Error(
+      `real-chat token env file's ${REAL_CHAT_TOKEN_ENV_VAR} value must not be empty`
+    );
   }
 }
 
@@ -227,7 +229,15 @@ export async function writeUatRealChatEnvFile(): Promise<UatEnvFile | undefined>
   chmodSync(dir, 0o700);
   const path = join(dir, "real-chat.env");
   try {
-    await execFileAsync("gpg", ["--batch", "--yes", "--decrypt", "--quiet", "--output", path, encryptedPath]);
+    await execFileAsync("gpg", [
+      "--batch",
+      "--yes",
+      "--decrypt",
+      "--quiet",
+      "--output",
+      path,
+      encryptedPath
+    ]);
     chmodSync(path, 0o600);
     const content = readFileSync(path, "utf8");
     validateSingleTokenEnvContent(content);
@@ -527,6 +537,15 @@ export async function provisionForUat(
   );
   let imageBuilt = false; // build once; a port-bind retry shouldn't rebuild the image
 
+  // #1121: opt-in, before the loop so JARVIS_UAT_REAL_CHAT_ENV_FILE is exported once (and inherited
+  // by the Playwright child run-uat.ts spawns) before any composeSeedHook interpolates the seed
+  // service's second env_file entry. A no-op (returns undefined) unless the operator set
+  // JARVIS_UAT_REAL_CHAT_TOKEN_FILE, so default/CI runs are unchanged; a configured-but-malformed
+  // token file throws here and aborts the run loudly rather than silently degrading to a
+  // credential-free run. Held for the whole function: the success path hands cleanup to the returned
+  // teardown; terminal failures clean up below.
+  const realChatEnvFile = await writeUatRealChatEnvFile();
+
   while (remainingCandidates.length > 0) {
     const { projectName } = generateUatRunId();
     const webPort = await findAvailablePort(remainingCandidates);
@@ -579,6 +598,7 @@ export async function provisionForUat(
           await teardownCompose();
           await assertNoLeakedResources(projectName);
           envFile.cleanup();
+          realChatEnvFile?.cleanup();
         }
       };
     } catch (error) {
@@ -595,9 +615,13 @@ export async function provisionForUat(
         remainingCandidates = remainingCandidates.filter((port) => port !== webPort);
         continue;
       }
+      // #1121: terminal (non-retry) failure — realChatEnvFile is created once before the loop, so
+      // clean it here rather than in the retry path above (which reuses the exported env var).
+      realChatEnvFile?.cleanup();
       throw error;
     }
   }
+  realChatEnvFile?.cleanup();
   throw new Error(
     `exhausted all ${UAT_PORT_RANGE_SIZE} reserved UAT ports (${UAT_PORT_RANGE_START}-${
       UAT_PORT_RANGE_START + UAT_PORT_RANGE_SIZE - 1
