@@ -227,13 +227,11 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
     const turns = await captureTurns(page);
     await page.goto("/m/job-search");
 
-    await page
-      .locator(".jsm-dropzone input[type='file']")
-      .setInputFiles({
-        name: "resume.pdf",
-        mimeType: "application/pdf",
-        buffer: Buffer.from("%PDF-1.4")
-      });
+    await page.locator(".jsm-dropzone input[type='file']").setInputFiles({
+      name: "resume.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4")
+    });
 
     await expect
       .poll(() => turns)
@@ -254,13 +252,11 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
     const turns = await captureTurns(page);
     await page.goto("/m/job-search");
 
-    await page
-      .locator(".jsm-dropzone input[type='file']")
-      .setInputFiles({
-        name: "resume.pdf",
-        mimeType: "application/pdf",
-        buffer: Buffer.from("%PDF-1.4")
-      });
+    await page.locator(".jsm-dropzone input[type='file']").setInputFiles({
+      name: "resume.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4")
+    });
     await expect(page.getByText("I couldn't read that file")).toBeVisible();
 
     // Upload control must still be present (re-armed), not replaced by an error-only state.
