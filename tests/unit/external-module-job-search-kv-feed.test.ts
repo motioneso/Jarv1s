@@ -129,8 +129,15 @@ describe("feed index", () => {
 
     const feed = await readFeedOrRebuild(kv, REBUILT_AT);
     expect(feed.entries).toHaveLength(3);
-    // The repaired index is persisted, not just returned.
-    expect((await readFeed(kv))?.entries).toHaveLength(3);
+    // readFeedOrRebuild is a READ path (#1203): it repairs and returns the
+    // index but never persists, so the stale corrupt row is still there —
+    // only rebuildFeed's write-risk callers overwrite it.
+    const error = await readFeed(kv).then(
+      () => null,
+      (e: unknown) => e
+    );
+    expect(error).toBeInstanceOf(JobSearchKvError);
+    expect((error as JobSearchKvError).code).toBe("corrupt_index");
   });
 
   it("readFeedOrRebuild builds a fresh index when none exists", async () => {
@@ -138,6 +145,7 @@ describe("feed index", () => {
     await seedThree(kv);
     const feed = await readFeedOrRebuild(kv, REBUILT_AT);
     expect(feed.entries).toHaveLength(3);
+    expect(await readFeed(kv)).toBeNull();
   });
 
   it("interrupted upsert-then-rebuild converges on retry (no posting lost)", async () => {
