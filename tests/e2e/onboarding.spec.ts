@@ -1,11 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { defaultOnboardingStatus } from "./mock-onboarding-api.js";
-import {
-  createMockConnectorAccount,
-  createMockConnectorProviders,
-  mockApi
-} from "./mock-api.js";
+import { createMockConnectorAccount, createMockConnectorProviders, mockApi } from "./mock-api.js";
 
 test("bootstrap owner with incomplete onboarding sees the wizard, then the app shell after finish", async ({
   page
@@ -219,9 +215,10 @@ test("onboarding offers IMAP providers and makes no Microsoft promises", async (
     page.getByText(/Passwords are encrypted at rest and never shown in logs or briefings/i)
   ).toBeVisible();
   await expect(page.locator(".onb-guide__step")).toHaveCount(3);
-  await expect(
-    page.getByRole("link", { name: /Proton Mail setup guide/i })
-  ).toHaveAttribute("href", "https://proton.me/support/protonmail-bridge-install");
+  await expect(page.getByRole("link", { name: /Proton Mail setup guide/i })).toHaveAttribute(
+    "href",
+    "https://proton.me/support/protonmail-bridge-install"
+  );
 
   const remainingHelpLinks: Record<string, string> = {
     "Yahoo Mail": "https://help.yahoo.com/kb/SLN15241.html",
@@ -355,7 +352,9 @@ test("one-click Google consent opens the popup on the first click", async ({ pag
     .click();
   await page.getByRole("button", { name: /Connect Google/i }).click();
 
-  await page.getByLabel("Client ID", { exact: true }).fill("000000-xxxx.apps.googleusercontent.com");
+  await page
+    .getByLabel("Client ID", { exact: true })
+    .fill("000000-xxxx.apps.googleusercontent.com");
   await page.getByLabel("Client secret", { exact: true }).fill("GOCSPX-secret");
 
   const [popup] = await Promise.all([
@@ -396,7 +395,9 @@ test("blocked popup shows a manual link and explanation", async ({ page }) => {
     .click();
   await page.getByRole("button", { name: /Connect Google/i }).click();
 
-  await page.getByLabel("Client ID", { exact: true }).fill("000000-xxxx.apps.googleusercontent.com");
+  await page
+    .getByLabel("Client ID", { exact: true })
+    .fill("000000-xxxx.apps.googleusercontent.com");
   await page.getByLabel("Client secret", { exact: true }).fill("GOCSPX-secret");
   await page.getByRole("button", { name: "Open consent screen" }).click();
 
@@ -438,7 +439,9 @@ test("failed authorization closes the popup and surfaces the error", async ({ pa
     .click();
   await page.getByRole("button", { name: /Connect Google/i }).click();
 
-  await page.getByLabel("Client ID", { exact: true }).fill("000000-xxxx.apps.googleusercontent.com");
+  await page
+    .getByLabel("Client ID", { exact: true })
+    .fill("000000-xxxx.apps.googleusercontent.com");
   await page.getByLabel("Client secret", { exact: true }).fill("GOCSPX-secret");
 
   const [popup] = await Promise.all([

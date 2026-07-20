@@ -9,8 +9,9 @@ mode overriding connected summary; focused unit/E2E with fake credentials only; 
 auth contract/secret-storage changes.
 
 Grounding done against live branch — all four spec bugs confirmed current:
+
 - `apps/web/src/onboarding/google-connector-step.tsx` render-order bug: `mode === "connected"
-  || connected` always wins before the picker return, so "Connect another account"
+|| connected` always wins before the picker return, so "Connect another account"
   (`setMode("picker")`, line ~509) is a no-op once any account exists.
 - Two-click OAuth: lines ~268-287 swap `<button onClick={startAuthorization}>` for an
   `<a href={authUrl} target="_blank">` only after `authUrl` resolves async — two clicks.
@@ -22,18 +23,20 @@ Grounding done against live branch — all four spec bugs confirmed current:
 - `apps/web/src/onboarding/member-connector-step.tsx` is a thin passthrough wrapper around
   `GoogleConnectorStep` — no separate fix needed, benefits automatically.
 - `apps/web/src/settings/settings-google-connect.tsx` shares `useGoogleConnectFlow` and has the
-  *same* two-click bug, but is out of scope (collision: #1186 owns Settings surfaces later).
+  _same_ two-click bug, but is out of scope (collision: #1186 owns Settings surfaces later).
   The one-click fix must be **additive-only** in the hook (new `openConsentScreen` +
   `popupBlocked`, existing `startAuthorization`/`authUrl` untouched) so Settings' behavior and
   its e2e (`tests/e2e/connect-google.spec.ts`) are unaffected.
 
 Verified official provider doc links for IMAP app-password steps:
+
 - Yahoo: https://help.yahoo.com/kb/SLN15241.html
 - Proton (Bridge, not a generic app password): https://proton.me/support/protonmail-bridge-install
 - iCloud: https://support.apple.com/en-us/102654
 - Fastmail: https://www.fastmail.help/hc/en-us/articles/360058752854-App-passwords
 
 Existing assertions that MUST keep passing unmodified:
+
 - `tests/e2e/onboarding.spec.ts` "onboarding offers IMAP providers..." — exact Proton
   prerequisite regex + "Passwords are encrypted..." hint text. Keep the current `prerequisite`
   sentence verbatim as the lead line; add steps/link below it, don't replace it.
@@ -72,7 +75,7 @@ Existing assertions that MUST keep passing unmodified:
 4. **IMAP provider setup steps + verified links.** Extend `IMAP_PROVIDERS` entries with
    `steps: string[]` and `helpUrl`. Render an ordered list (reuse `.onb-guide` list styling)
    plus an `ExternalLink`-icon link under the existing prerequisite sentence in `mode ===
-   "imap"`. Wire in the four verified URLs above.
+"imap"`. Wire in the four verified URLs above.
    Test: extend the existing Proton e2e case (keep its current assertions passing) and add
    one assertion per remaining provider for steps-list + help link presence.
 
@@ -80,8 +83,8 @@ Existing assertions that MUST keep passing unmodified:
    only (`onboarding-design.css`, `onboarding-connectors.css`).
 
 6. **Full local gate** before wrap-up: `pnpm --filter @jarv1s/web lint && pnpm --filter
-   @jarv1s/web typecheck`, then `npx playwright test tests/e2e/onboarding.spec.ts
-   tests/e2e/connect-google.spec.ts tests/e2e/connect-imap.spec.ts --project=chromium`.
+@jarv1s/web typecheck`, then `npx playwright test tests/e2e/onboarding.spec.ts
+tests/e2e/connect-google.spec.ts tests/e2e/connect-imap.spec.ts --project=chromium`.
    Record exact commands + exit codes in the wrap-up report.
 
 ## Wrap-up override (run-specific, from Coordinator)

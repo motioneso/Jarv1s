@@ -38,8 +38,8 @@ export const IMAP_PROVIDERS = [
     prerequisite:
       "Generate an app password in Yahoo Account Security; your normal password will not work.",
     steps: [
-      "Sign in at Yahoo Account Security and select \"Create app password.\"",
-      "Name it, then select \"Generate password.\"",
+      'Sign in at Yahoo Account Security and select "Create app password."',
+      'Name it, then select "Generate password."',
       "Copy the one-time password Yahoo shows."
     ],
     helpUrl: "https://help.yahoo.com/kb/SLN15241.html"
@@ -64,7 +64,7 @@ export const IMAP_PROVIDERS = [
     prerequisite: "Generate an app-specific password at appleid.apple.com.",
     steps: [
       "Sign in at appleid.apple.com and open Sign-In and Security.",
-      "Choose \"App-Specific Passwords\" and generate a new one.",
+      'Choose "App-Specific Passwords" and generate a new one.',
       "Copy the generated password."
     ],
     helpUrl: "https://support.apple.com/en-us/102654"
@@ -76,8 +76,8 @@ export const IMAP_PROVIDERS = [
     prerequisite: "Generate an app password in Fastmail Settings > Privacy & Security.",
     steps: [
       "In Fastmail, go to Settings > Privacy & Security.",
-      "Under \"Connected apps & API tokens,\" select \"New app password.\"",
-      "Choose \"Mail, Contacts & Calendars\" access and generate it."
+      'Under "Connected apps & API tokens," select "New app password."',
+      'Choose "Mail, Contacts & Calendars" access and generate it.'
     ],
     helpUrl: "https://www.fastmail.help/hc/en-us/articles/360058752854-App-passwords"
   }
