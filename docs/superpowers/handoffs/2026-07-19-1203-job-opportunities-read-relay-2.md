@@ -34,7 +34,7 @@ Coordinator's exact approval message (verbatim, so you don't second-guess it):
   pnpm test:integration tests/integration/external-module-job-search-kv-isolation.test.ts -t "#1203"
   ```
   Its output (if it finished) is at:
-  `/tmp/claude-1000/-home-ben-Jarv1s--claude-worktrees-fix-1203-job-opportunities-read/a3150d45-8be6-4ba1-97f4-f9929a10e438/tasks/bnjkdrc2m.output`
+  `~/Jarv1s/.claude/worktrees/fix-1203-job-opportunities-read/a3150d45-8be6-4ba1-97f4-f9929a10e438/tasks/bnjkdrc2m.output`
   — that tmp dir belongs to the OLD session, but the file itself is a plain file on disk and should still be `Read`-able by absolute path. **If it's gone or inconclusive, just re-run the command above** — it takes ~5 min (mostly vitest import/transform overhead, not the actual test), and is the very next thing to do.
 
 **First action as successor: confirm Task 2's test run is actually green** (read the tmp output file above, or re-run the `-t "#1203"` command). Only mark Task 2 complete (TaskUpdate id 2) once you've seen it pass — don't assume it passed just because the edit looks right.
