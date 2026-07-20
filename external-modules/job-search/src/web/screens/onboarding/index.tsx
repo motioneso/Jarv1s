@@ -226,7 +226,11 @@ export function advanceOnDurableEvent(
       pending.add(record.messageId);
       continue;
     }
-    if (record.kind === "action_result" && record.actionRequestId && pending.has(record.actionRequestId)) {
+    if (
+      record.kind === "action_result" &&
+      record.actionRequestId &&
+      pending.has(record.actionRequestId)
+    ) {
       if (record.outcome === "executed") {
         pending.delete(record.actionRequestId);
         onAdvance();
@@ -267,7 +271,6 @@ export function JobsOnboarding(props: {
       cancelled = true;
       unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!outcome) {
