@@ -1,7 +1,7 @@
 import "./helpers/install-module-runtime";
 
 import { renderToString } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AddInput,
@@ -20,7 +20,43 @@ import {
   sourceQuery,
   type OnboardingSnapshot
 } from "../../external-modules/job-search/src/web/screens/onboarding/model.js";
+import {
+  advanceOnDurableEvent,
+  bootstrapOnboarding,
+  buildComposerSubmit,
+  buildProfileSubmit,
+  JobsOnboarding,
+  type AssistantRecordMirror,
+  type AssistantSurfaceHandleMirror
+} from "../../external-modules/job-search/src/web/screens/onboarding/index.js";
 import { h } from "../../external-modules/job-search/src/web/runtime.js";
+
+function stubFetch(status: number, body: unknown): ReturnType<typeof vi.fn> {
+  const stub = vi.fn(async () => ({
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body
+  }));
+  vi.stubGlobal("fetch", stub);
+  return stub;
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+function fakeHandle(
+  overrides: Partial<AssistantSurfaceHandleMirror> = {}
+): AssistantSurfaceHandleMirror {
+  return {
+    Surface: () => null,
+    seedOnboarding: vi.fn(async () => ({ ok: true })),
+    submitTurn: vi.fn(async () => undefined),
+    uploadAttachment: vi.fn(async () => ({ id: "a1", fileName: "resume.pdf", sizeBytes: 100 })),
+    subscribeRecords: vi.fn(() => () => undefined),
+    ...overrides
+  };
+}
 
 function render(node: unknown): string {
   return renderToString(node as never);
@@ -195,5 +231,126 @@ describe("Job Search onboarding controls (#1198)", () => {
     expect(html).toContain("Monitoring on · first run 7:00 AM daily");
     expect(html).toContain("Go to Job Search");
     expect(html).toContain("Start over");
+  });
+});
+
+describe("Job Search onboarding orchestration (#1198 Task 3)", () => {
+  it("builds the profile titles submit turn with exact text and control context", () => {
+    const submit = buildProfileSubmit("titles", {
+      targetTitles: ["Staff Product Designer", "Principal Designer"]
+    });
+    expect(submit).toEqual({
+      text: "Staff Product Designer · Principal Designer",
+      controlContext: {
+        step: "profile",
+        action: "titles",
+        values: { targetTitles: ["Staff Product Designer", "Principal Designer"] }
+      }
+    });
+  });
+
+  it("wires a profile submit through submitTurn", async () => {
+    const handle = fakeHandle();
+    const submit = buildProfileSubmit("titles", {
+      targetTitles: ["Staff Product Designer", "Principal Designer"]
+    });
+    await handle.submitTurn(submit);
+    expect(handle.submitTurn).toHaveBeenCalledWith({
+      text: "Staff Product Designer · Principal Designer",
+      controlContext: {
+        step: "profile",
+        action: "titles",
+        values: { targetTitles: ["Staff Product Designer", "Principal Designer"] }
+      }
+    });
+  });
+
+  it("composer submit returns handled and posts free text under the profile step", () => {
+    const handle = fakeHandle();
+    const onSubmitText = buildComposerSubmit("titles", handle);
+    expect(onSubmitText("I prefer remote only")).toBe("handled");
+    expect(handle.submitTurn).toHaveBeenCalledWith({
+      text: "I prefer remote only",
+      controlContext: { step: "profile", action: "freeform" }
+    });
+  });
+
+  it("composer submit uses the phase itself as step outside the profile substeps", () => {
+    const handle = fakeHandle();
+    const onSubmitText = buildComposerSubmit("resume_intake", handle);
+    onSubmitText("here is context");
+    expect(handle.submitTurn).toHaveBeenCalledWith({
+      text: "here is context",
+      controlContext: { step: "resume_intake", action: "freeform" }
+    });
+  });
+
+  it("advances on a matching executed result and clears the pending id", () => {
+    const onAdvance = vi.fn();
+    const records: AssistantRecordMirror[] = [
+      { kind: "action_request", messageId: "req-1", toolName: "job-search.profile.save-draft" },
+      { kind: "action_result", actionRequestId: "req-1", outcome: "executed" }
+    ];
+    const result = advanceOnDurableEvent(records, new Set(), "dealbreakers", onAdvance);
+    expect(onAdvance).toHaveBeenCalledOnce();
+    expect(result.pendingIds.has("req-1")).toBe(false);
+    expect(result.retry).toBe(false);
+  });
+
+  it("marks retry on denied without advancing", () => {
+    const onAdvance = vi.fn();
+    const records: AssistantRecordMirror[] = [
+      { kind: "action_request", messageId: "req-2", toolName: "job-search.profile.save-draft" },
+      { kind: "action_result", actionRequestId: "req-2", outcome: "denied" }
+    ];
+    const result = advanceOnDurableEvent(records, new Set(), "dealbreakers", onAdvance);
+    expect(onAdvance).not.toHaveBeenCalled();
+    expect(result.retry).toBe(true);
+    expect(result.pendingIds.has("req-2")).toBe(false);
+  });
+
+  it("ignores requests for tools the active phase does not expect", () => {
+    const onAdvance = vi.fn();
+    const records: AssistantRecordMirror[] = [
+      { kind: "action_request", messageId: "req-3", toolName: "job-search.monitor.save" },
+      { kind: "action_result", actionRequestId: "req-3", outcome: "executed" }
+    ];
+    const result = advanceOnDurableEvent(records, new Set(), "titles", onAdvance);
+    expect(onAdvance).not.toHaveBeenCalled();
+    expect(result.pendingIds.size).toBe(0);
+  });
+
+  it("ignores allowed results and keeps the id pending", () => {
+    const onAdvance = vi.fn();
+    const records: AssistantRecordMirror[] = [
+      { kind: "action_request", messageId: "req-4", toolName: "job-search.profile.save-draft" },
+      { kind: "action_result", actionRequestId: "req-4", outcome: "allowed" }
+    ];
+    const result = advanceOnDurableEvent(records, new Set(), "dealbreakers", onAdvance);
+    expect(onAdvance).not.toHaveBeenCalled();
+    expect(result.retry).toBe(false);
+    expect(result.pendingIds.has("req-4")).toBe(true);
+  });
+
+  it("bootstraps by seeding once then reading onboarding, profile, resume, sources", async () => {
+    const handle = fakeHandle();
+    stubFetch(200, {
+      invocation: { status: "succeeded", blockedReason: null, result: { status: "ok" } }
+    });
+    const outcome = await bootstrapOnboarding(handle);
+    expect(handle.seedOnboarding).toHaveBeenCalledOnce();
+    expect(outcome.kind).toBe("ok");
+  });
+
+  it("bootstraps to disabled when any read reports the module is off", async () => {
+    const handle = fakeHandle();
+    stubFetch(404, { error: "Assistant tool is not declared" });
+    const outcome = await bootstrapOnboarding(handle);
+    expect(outcome.kind).toBe("disabled");
+  });
+
+  it("renders the initial loading state before effects run", () => {
+    const html = render(h(JobsOnboarding, { handle: fakeHandle() }));
+    expect(html).toContain("Loading");
   });
 });

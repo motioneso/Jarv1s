@@ -13,6 +13,7 @@ import { whenLabel } from "../../external-modules/job-search/src/web/format.js";
 import { Confidence, FitBadge } from "../../external-modules/job-search/src/web/kit.js";
 import { RootView } from "../../external-modules/job-search/src/web/root.js";
 import { h } from "../../external-modules/job-search/src/web/runtime.js";
+import type { AssistantSurfaceHandleMirror } from "../../external-modules/job-search/src/web/screens/onboarding/index.js";
 import {
   bucketFromPath,
   hashFromPath,
@@ -121,7 +122,29 @@ describe("job-search Root contract (#935)", () => {
     expect(html).toContain('aria-live="polite"');
   });
 
-  it("replaces the tab shell with the Lane E placeholder during first run", () => {
+  it("replaces the tab shell with JobsOnboarding when the assistant surface handle is present", () => {
+    const handle: AssistantSurfaceHandleMirror = {
+      Surface: () => null,
+      seedOnboarding: async () => ({ ok: true }),
+      submitTurn: async () => undefined,
+      uploadAttachment: async () => ({ id: "a1", fileName: "resume.pdf", sizeBytes: 1 }),
+      subscribeRecords: () => () => undefined
+    };
+    const html = render(
+      h(RootView, {
+        path: "/",
+        onboardingStep: "profile",
+        hostActions: { openAssistant: () => undefined },
+        assistantSurface: handle
+      })
+    );
+
+    expect(html).toContain("Loading");
+    expect(html).not.toContain("Job Search sections");
+    expect(html).not.toContain('href="/m/job-search/matches"');
+  });
+
+  it("renders a fail-closed card instead of silently proceeding without a handle", () => {
     const html = render(
       h(RootView, {
         path: "/",
@@ -130,8 +153,7 @@ describe("job-search Root contract (#935)", () => {
       })
     );
 
-    expect(html).toContain("Setting up your job search");
-    expect(html).toContain("Guided onboarding will appear here");
+    expect(html).toContain("can’t start guided setup");
     expect(html).not.toContain("Job Search sections");
     expect(html).not.toContain('href="/m/job-search/matches"');
   });
