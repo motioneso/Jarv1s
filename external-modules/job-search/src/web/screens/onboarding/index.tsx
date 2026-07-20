@@ -5,7 +5,7 @@
 // objects flowing through the host boundary to actually match at runtime.
 import { LoadingState } from "../../states";
 import { invokeTool } from "../../api";
-import { h, useEffect, useState, type ReactNodeLike } from "../../runtime";
+import { h, useEffect, useRef, useState, type ReactNodeLike } from "../../runtime";
 import {
   derivePhase,
   expectedTools,
@@ -620,15 +620,24 @@ export function JobsOnboarding(props: {
   const [showPaste, setShowPaste] = useState(false);
   const [dueTime, setDueTime] = useState<string | null>(null);
 
+  // subscribeRecords is registered once (mirrors the host's single EventSource);
+  // its listener closure would otherwise stale-close over the mount-time outcome/
+  // pendingIds, so read the current values through refs kept in sync every render.
+  const outcomeRef = useRef(outcome);
+  outcomeRef.current = outcome;
+  const pendingIdsRef = useRef(pendingIds);
+  pendingIdsRef.current = pendingIds;
+
   useEffect(() => {
     let cancelled = false;
     bootstrapOnboarding(props.handle).then((result) => {
       if (!cancelled) setOutcome(result);
     });
     const unsubscribe = props.handle.subscribeRecords((records) => {
-      if (!outcome || outcome.kind !== "ok") return;
-      const phase = derivePhase(outcome.data.snapshot);
-      const result = advanceOnDurableEvent(records, pendingIds, phase, () => {
+      const currentOutcome = outcomeRef.current;
+      if (!currentOutcome || currentOutcome.kind !== "ok") return;
+      const phase = derivePhase(currentOutcome.data.snapshot);
+      const result = advanceOnDurableEvent(records, pendingIdsRef.current, phase, () => {
         bootstrapOnboarding(props.handle).then((next) => {
           if (!cancelled) setOutcome(next);
         });
