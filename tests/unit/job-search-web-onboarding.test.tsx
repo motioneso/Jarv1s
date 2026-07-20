@@ -309,6 +309,76 @@ describe("Job Search onboarding orchestration (#1198 Task 3)", () => {
     expect(result.retry).toBe(false);
   });
 
+  it("advances on a fresh standalone executed result for the active phase", () => {
+    const onAdvance = vi.fn();
+    const result = advanceOnDurableEvent(
+      [
+        {
+          kind: "action_result",
+          actionRequestId: "auto-1",
+          toolName: "job-search.resume.import-attachment",
+          outcome: "executed"
+        }
+      ],
+      new Set(),
+      "resume_intake",
+      onAdvance,
+      new Set()
+    );
+
+    expect(onAdvance).toHaveBeenCalledOnce();
+    expect(result.processedIds.has("auto-1")).toBe(true);
+  });
+
+  it.each([
+    ["error", "job-search.resume.import-attachment", new Set<string>()],
+    ["allowed", "job-search.resume.import-attachment", new Set<string>()],
+    ["executed", "job-search.monitor.save", new Set<string>()],
+    ["executed", "job-search.resume.import-attachment", new Set(["standalone-1"])]
+  ] as const)(
+    "does not advance a standalone %s result when it is failed, unmatched, or stale",
+    (outcome, toolName, processedIds) => {
+      const onAdvance = vi.fn();
+      advanceOnDurableEvent(
+        [
+          {
+            kind: "action_result",
+            actionRequestId: "standalone-1",
+            toolName,
+            outcome
+          }
+        ],
+        new Set(),
+        "resume_intake",
+        onAdvance,
+        processedIds
+      );
+
+      expect(onAdvance).not.toHaveBeenCalled();
+    }
+  );
+
+  it("deduplicates repeated standalone terminal results", () => {
+    const onAdvance = vi.fn();
+    const record: AssistantRecordMirror = {
+      kind: "action_result",
+      actionRequestId: "auto-duplicate",
+      toolName: "job-search.resume.import-attachment",
+      outcome: "executed"
+    };
+
+    const result = advanceOnDurableEvent(
+      [record, record],
+      new Set(),
+      "resume_intake",
+      onAdvance,
+      new Set()
+    );
+
+    expect(onAdvance).toHaveBeenCalledOnce();
+    expect(result.processedIds.has("auto-duplicate")).toBe(true);
+  });
+
   it("marks retry on denied without advancing", () => {
     const onAdvance = vi.fn();
     const records: AssistantRecordMirror[] = [
@@ -372,6 +442,93 @@ describe("Job Search onboarding orchestration (#1198 Task 3)", () => {
   it("renders the initial loading state before effects run", () => {
     const html = render(h(JobsOnboarding, { handle: fakeHandle(), hostActions }));
     expect(html).toContain("Loading");
+  });
+
+  it("serializes overlapping terminal-result refreshes and waits for durable phase change", async () => {
+    let onboardingRead = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => ({
+        ok: true,
+        status: 200,
+        json: async () =>
+          url.includes("onboarding.get-state")
+            ? onboardingStateBody(
+                ["resume_intake", "resume_intake", "resume_critique"][onboardingRead++] ??
+                  "resume_critique"
+              )
+            : onboardingStateBody("resume_intake")
+      }))
+    );
+    let listener: ((records: readonly AssistantRecordMirror[]) => void) | undefined;
+    const releaseSeed: Array<() => void> = [];
+    let seedCalls = 0;
+    let seedsInFlight = 0;
+    let maxSeedsInFlight = 0;
+    let captured: AssistantSurfaceViewPropsMirror | null = null;
+    const handle = fakeHandle({
+      Surface: (props) => {
+        captured = props;
+        return null;
+      },
+      seedOnboarding: vi.fn(async () => {
+        seedCalls += 1;
+        if (seedCalls === 1) return { ok: true };
+        seedsInFlight += 1;
+        maxSeedsInFlight = Math.max(maxSeedsInFlight, seedsInFlight);
+        await new Promise<void>((resolve) =>
+          releaseSeed.push(() => {
+            seedsInFlight -= 1;
+            resolve();
+          })
+        );
+        return { ok: true };
+      }),
+      subscribeRecords: vi.fn((next) => {
+        listener = next;
+        return () => undefined;
+      })
+    });
+
+    await act(async () => {
+      create(h(JobsOnboarding, { handle, hostActions }) as never);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect((captured?.activeControl as { type?: unknown } | null)?.type).toBe(ResumeDropzone);
+
+    await act(async () => {
+      listener?.([
+        {
+          kind: "action_result",
+          actionRequestId: "auto-overlap-1",
+          toolName: "job-search.resume.import-attachment",
+          outcome: "executed"
+        }
+      ]);
+      listener?.([
+        {
+          kind: "action_result",
+          actionRequestId: "auto-overlap-2",
+          toolName: "job-search.resume.import-attachment",
+          outcome: "executed"
+        }
+      ]);
+      await Promise.resolve();
+    });
+    expect(maxSeedsInFlight).toBe(1);
+
+    await act(async () => {
+      releaseSeed.shift()?.();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect((captured?.activeControl as { type?: unknown } | null)?.type).toBe(ResumeDropzone);
+
+    await act(async () => {
+      releaseSeed.shift()?.();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(captured?.activeControl).toBeNull();
+    expect(captured?.typing).toBe(true);
   });
 });
 

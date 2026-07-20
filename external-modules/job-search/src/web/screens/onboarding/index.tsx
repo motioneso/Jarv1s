@@ -242,6 +242,7 @@ function isProfileSubstep(phase: OnboardingPhase): phase is ProfileSubstep {
 
 export interface AdvanceResult {
   readonly pendingIds: ReadonlySet<string>;
+  readonly processedIds: ReadonlySet<string>;
   readonly retry: boolean;
 }
 
@@ -249,10 +250,12 @@ export function advanceOnDurableEvent(
   records: readonly AssistantRecordMirror[],
   pendingIds: ReadonlySet<string>,
   activePhase: OnboardingPhase,
-  onAdvance: () => void
+  onAdvance: () => void,
+  processedIds: ReadonlySet<string> = new Set()
 ): AdvanceResult {
   const expected = new Set(expectedTools(activePhase));
   const pending = new Set(pendingIds);
+  const processed = new Set(processedIds);
   let retry = false;
 
   for (const record of records) {
@@ -260,7 +263,8 @@ export function advanceOnDurableEvent(
       record.kind === "action_request" &&
       record.actionRequestId &&
       record.toolName &&
-      expected.has(record.toolName)
+      expected.has(record.toolName) &&
+      !processed.has(record.actionRequestId)
     ) {
       pending.add(record.actionRequestId);
       continue;
@@ -268,21 +272,29 @@ export function advanceOnDurableEvent(
     if (
       record.kind === "action_result" &&
       record.actionRequestId &&
-      pending.has(record.actionRequestId)
+      !processed.has(record.actionRequestId)
     ) {
+      const paired = pending.has(record.actionRequestId);
+      const standalone = Boolean(record.toolName && expected.has(record.toolName));
+      if (!paired && !standalone) {
+        if (record.outcome !== "allowed") processed.add(record.actionRequestId);
+        continue;
+      }
       if (record.outcome === "executed") {
         pending.delete(record.actionRequestId);
+        processed.add(record.actionRequestId);
         onAdvance();
         continue;
       }
       if (record.outcome === "denied" || record.outcome === "error") {
         pending.delete(record.actionRequestId);
+        processed.add(record.actionRequestId);
         retry = true;
       }
     }
   }
 
-  return { pendingIds: pending, retry };
+  return { pendingIds: pending, processedIds: processed, retry };
 }
 
 const PHASE_ORDER: readonly OnboardingPhase[] = [
@@ -644,7 +656,6 @@ export function JobsOnboarding(props: {
   readonly hostActions: HostActions;
 }): ReactNodeLike {
   const [outcome, setOutcome] = useState<BootstrapOutcome | null>(null);
-  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(new Set());
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [showPaste, setShowPaste] = useState(false);
   const [dueTime, setDueTime] = useState<string | null>(null);
@@ -652,6 +663,11 @@ export function JobsOnboarding(props: {
   const [profileBuffer, setProfileBuffer] = useState<ProfileFields>(() =>
     storage ? readProfileBuffer(storage, props.hostActions.actorScopeKey) : {}
   );
+  const outcomeRef = useRef(outcome);
+  outcomeRef.current = outcome;
+  const pendingIdsRef = useRef<ReadonlySet<string>>(new Set());
+  const processedIdsRef = useRef<ReadonlySet<string>>(new Set());
+  const refreshQueueRef = useRef(Promise.resolve());
 
   const applyBootstrap = (result: BootstrapOutcome) => {
     // #1213: durable approval owns the truth; clear only after re-bootstrap confirms its gate.
@@ -671,32 +687,55 @@ export function JobsOnboarding(props: {
   };
 
   // subscribeRecords is registered once (mirrors the host's single EventSource);
-  // its listener closure would otherwise stale-close over the mount-time outcome/
-  // pendingIds, so read the current values through refs kept in sync every render.
-  const outcomeRef = useRef(outcome);
-  outcomeRef.current = outcome;
-  const pendingIdsRef = useRef(pendingIds);
-  pendingIdsRef.current = pendingIds;
+  // refs keep current render state and transcript-processing state available to its listener.
   const profileBufferRef = useRef(profileBuffer);
   profileBufferRef.current = profileBuffer;
 
   useEffect(() => {
     let cancelled = false;
     bootstrapOnboarding(props.handle).then((result) => {
-      if (!cancelled) applyBootstrap(result);
+      if (!cancelled) {
+        outcomeRef.current = result;
+        applyBootstrap(result);
+      }
     });
     const unsubscribe = props.handle.subscribeRecords((records) => {
       const currentOutcome = outcomeRef.current;
-      if (!currentOutcome || currentOutcome.kind !== "ok") return;
+      if (!currentOutcome) {
+        processedIdsRef.current = new Set([
+          ...processedIdsRef.current,
+          ...records.flatMap((record) =>
+            record.kind === "action_result" &&
+            record.outcome !== "allowed" &&
+            record.actionRequestId
+              ? [record.actionRequestId]
+              : []
+          )
+        ]);
+        return;
+      }
+      if (currentOutcome.kind !== "ok") return;
       const phase = derivePhase(
         withProfileBuffer(currentOutcome.data, profileBufferRef.current).snapshot
       );
-      const result = advanceOnDurableEvent(records, pendingIdsRef.current, phase, () => {
-        bootstrapOnboarding(props.handle).then((next) => {
-          if (!cancelled) applyBootstrap(next);
-        });
-      });
-      setPendingIds(result.pendingIds);
+      const result = advanceOnDurableEvent(
+        records,
+        pendingIdsRef.current,
+        phase,
+        () => {
+          refreshQueueRef.current = refreshQueueRef.current.then(async () => {
+            if (cancelled) return;
+            const next = await bootstrapOnboarding(props.handle);
+            if (!cancelled) {
+              outcomeRef.current = next;
+              applyBootstrap(next);
+            }
+          });
+        },
+        processedIdsRef.current
+      );
+      pendingIdsRef.current = result.pendingIds;
+      processedIdsRef.current = result.processedIds;
     });
     return () => {
       cancelled = true;
