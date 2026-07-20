@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import Contribution from "../../external-modules/job-search/src/web/index.js";
 import { STEP_LABELS, whenLabel } from "../../external-modules/job-search/src/web/format.js";
+import { Confidence, FitBadge } from "../../external-modules/job-search/src/web/kit.js";
 import { RootView } from "../../external-modules/job-search/src/web/root.js";
 import { h } from "../../external-modules/job-search/src/web/runtime.js";
 import { OnboardingView } from "../../external-modules/job-search/src/web/screens/onboarding.js";
@@ -161,7 +162,7 @@ describe("job-search Root contract (#935)", () => {
 });
 
 describe("job-search overview view (#935)", () => {
-  it("shows onboarding progress, approval gates, and monitor health", () => {
+  it("renders the approved readiness hero, checkpoints, gates, and monitor health", () => {
     const html = render(
       h(OverviewView, {
         onboarding: onboardingFixture,
@@ -169,11 +170,17 @@ describe("job-search overview view (#935)", () => {
         hostActions: noopHost
       })
     );
-    expect(html).toContain("3 of 6");
-    expect(html).toContain("Resume approved");
-    expect(html).toContain("Profile pending");
+    expect(html).toContain("Almost");
+    expect(html).toContain("ready to go");
+    expect(html).toContain("Setup checkpoints");
+    expect(html).toContain("Readiness gates");
+    expect(html).toContain("Monitor health");
+    expect(html).toContain("Resume");
+    expect(html).toContain("Approved");
     expect(html).toContain("1 enabled");
     expect(html).toContain("daily at 07:00 · America/New_York");
+    expect(html).toContain("Review new matches");
+    expect(html).toContain('href="/m/job-search/matches"');
   });
 
   it("with no monitors, offers the assistant handoff instead of health", () => {
@@ -181,6 +188,15 @@ describe("job-search overview view (#935)", () => {
       h(OverviewView, { onboarding: onboardingFixture, monitors: [], hostActions: noopHost })
     );
     expect(html).toContain("No monitors yet");
+  });
+});
+
+describe("job-search Park Press kit (#1197)", () => {
+  it("renders fit bands and accessible confidence", () => {
+    expect(render(h(FitBadge, { band: "strong" }))).toContain("Strong fit");
+    const confidence = render(h(Confidence, { level: "high" }));
+    expect(confidence).toContain('aria-label="Confidence: high"');
+    expect(confidence).toContain("Conf");
   });
 });
 
