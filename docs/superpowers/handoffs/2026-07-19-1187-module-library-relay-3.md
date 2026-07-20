@@ -67,15 +67,13 @@ isolation step, not a bare `pnpm verify:foundation`.
   (guardrails below). Escalated instead of fixing.
 
 **Escalated to Coordinator twice** (old coordinator session, then the new one that adopted the run
-mid-relay) with the compact status above. **No reply received yet as of this relay** — the
-successor's first job is to check for a reply (`herdr pane read <Coordinator pane> --source recent
---lines 30`) and act on it:
-- If Coordinator says proceed → run `coordinated-wrap-up`, noting this failure in the report as a
-  known pre-existing gate red (not introduced by #1187), do NOT push/PR/merge per the run override
-  above (Coordinator integrates this branch itself).
-- If Coordinator says hold → wait / relay further per normal triggers.
-- If no reply within a reasonable wait, re-ping once (busy agents queue — check
-  `Press up to edit queued messages` before assuming non-delivery) rather than guessing.
+mid-relay) with the compact status above.
+
+**Coordinator decision received:** proceed to `coordinated-wrap-up` and open the PR despite the
+documented pre-existing main-baseline `test:integration` failure (the 2
+`onboarding-provider-install.test.ts` tests above) — **no merge**. Note the failure in the PR/report
+as a known pre-existing gate red, not introduced by #1187. This supersedes the "check for reply
+first" instruction below — the reply already landed, act on it directly.
 
 ## Guardrails (unchanged)
 
