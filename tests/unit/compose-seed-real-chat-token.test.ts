@@ -19,7 +19,7 @@ function extractServiceBlock(source: string, serviceName: string): string {
   const startIndex = lines.findIndex((line) => line === `  ${serviceName}:`);
   if (startIndex === -1) throw new Error(`service "${serviceName}" not found in compose file`);
   const endIndex = lines.findIndex(
-    (line, i) => i > startIndex && /^  \S/.test(line) // next 2-space-indented key
+    (line, i) => i > startIndex && /^ {2}\S/.test(line) // next 2-space-indented key
   );
   return lines.slice(startIndex, endIndex === -1 ? lines.length : endIndex).join("\n");
 }
@@ -30,7 +30,7 @@ describe("docker-compose.prod.yml seed/jarv1s cli-auth wiring", () => {
   const jarv1sBlock = extractServiceBlock(source, "jarv1s");
 
   it("declares jarv1s-cli-auth exactly once at top level (project-scoped)", () => {
-    const topLevelDeclarations = source.match(/^  jarv1s-cli-auth:\s*$/gm) ?? [];
+    const topLevelDeclarations = source.match(/^ {2}jarv1s-cli-auth:\s*$/gm) ?? [];
     expect(topLevelDeclarations).toHaveLength(1);
   });
 

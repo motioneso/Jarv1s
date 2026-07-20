@@ -20,7 +20,9 @@ const DEFAULT_CLI_HOME_BASE = "/data/cli-auth";
  * seed behavior is unchanged. Never logs the token.
  */
 export async function maybePersistRealChatToken(
-  homeBase = process.env.JARVIS_CLI_HOME_BASE ?? process.env.JARVIS_CLI_HOME ?? DEFAULT_CLI_HOME_BASE
+  homeBase = process.env.JARVIS_CLI_HOME_BASE ??
+    process.env.JARVIS_CLI_HOME ??
+    DEFAULT_CLI_HOME_BASE
 ): Promise<void> {
   const token = process.env.CLAUDE_CODE_OAUTH_TOKEN;
   if (!token) {
