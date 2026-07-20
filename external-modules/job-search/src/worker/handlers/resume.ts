@@ -40,6 +40,10 @@ import { InputError, readBool, readEnum, readString } from "../validate.js";
 import { updateOnboarding } from "./flow.js";
 
 const ORIGINAL_REVISION_ID = "0";
+const RESUME_ATTACHMENT_MIME_TYPES = new Set([
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+]);
 
 async function readRevision(
   ports: WorkerPorts,
@@ -108,6 +112,23 @@ export function getResumeHandler(ports: WorkerPorts) {
       response.diff = diffLines(parent.content, revision.content) as readonly DiffHunk[];
     }
     return response;
+  };
+}
+
+/** #1198: import host-extracted text without routing private resume content through the model. */
+export function importResumeAttachmentHandler(ports: WorkerPorts) {
+  return async (input: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const attachmentId = readString(input, "attachmentId", { required: true });
+    assertId(attachmentId);
+    const attachment = await ports.attachments?.readText(attachmentId);
+    if (!attachment || !RESUME_ATTACHMENT_MIME_TYPES.has(attachment.mimeType)) {
+      throw new InputError("attachmentId must identify a readable PDF or DOCX attachment");
+    }
+    const saved = await saveResumeDraftHandler(ports)({
+      mode: "manual",
+      content: attachment.text
+    });
+    return { ...saved, fileName: attachment.fileName };
   };
 }
 

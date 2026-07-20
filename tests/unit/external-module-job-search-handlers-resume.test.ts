@@ -34,6 +34,7 @@ import type {
 import {
   approveResumeHandler,
   getResumeHandler,
+  importResumeAttachmentHandler,
   saveResumeDraftHandler
 } from "../../external-modules/job-search/src/worker/handlers/resume.js";
 import { wrap } from "../../external-modules/job-search/src/worker/wrap.js";
@@ -88,6 +89,57 @@ async function seedRevised(kv: MemoryKv, evidence?: readonly ResumeEvidence[]): 
     createdAt: NOW.toISOString()
   });
 }
+
+describe("resume.import-attachment handler (#1198)", () => {
+  it("stores actor-scoped extracted PDF text byte-identically through manual intake", async () => {
+    const kv = createMemoryKv();
+    const extractedText = "First line\n\nSecond line — unchanged";
+    const ports: WorkerPorts = {
+      ...portsFor(kv),
+      attachments: {
+        readText: async (attachmentId) =>
+          attachmentId === "attachment-1"
+            ? {
+                fileName: "resume.pdf",
+                mimeType: "application/pdf",
+                text: extractedText
+              }
+            : null
+      }
+    };
+
+    expect(await importResumeAttachmentHandler(ports)({ attachmentId: "attachment-1" })).toEqual({
+      status: "ok",
+      revisionId: "0",
+      fileName: "resume.pdf"
+    });
+    expect((await getResumeHandler(ports)({ revisionId: "0" })).content).toBe(extractedText);
+    expect((await getOnboardingState(kv))?.step).toBe("resume_critique");
+  });
+
+  it("fails closed without writing for foreign, unsupported, or unavailable attachments", async () => {
+    const cases: Array<WorkerPorts["attachments"] | undefined> = [
+      { readText: async () => null },
+      {
+        readText: async () => ({
+          fileName: "resume.txt",
+          mimeType: "text/plain",
+          text: "private resume"
+        })
+      },
+      undefined
+    ];
+
+    for (const attachments of cases) {
+      const kv = createMemoryKv();
+      const result = await wrap(importResumeAttachmentHandler({ ...portsFor(kv), attachments }))({
+        attachmentId: "attachment-1"
+      });
+      expect(result.status).toBe("error");
+      expect(kv.dump().size).toBe(0);
+    }
+  });
+});
 
 describe("resume.get handler", () => {
   it("no resume at all: a question inviting a paste, not a fabricated record", async () => {

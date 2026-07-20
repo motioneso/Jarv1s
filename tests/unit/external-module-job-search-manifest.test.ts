@@ -28,8 +28,8 @@ describe("job-search manifest contract (#930)", () => {
       workerEntrypoint: "dist/worker.js",
       workerContractVersion: 1
     });
-    // 13 from JS-01..03 + the three JS-04 capture-surface tools.
-    expect(result.manifest.assistantTools).toHaveLength(16);
+    // 16 existing tools + #1198 reset and actor-scoped resume import.
+    expect(result.manifest.assistantTools).toHaveLength(18);
     // Spec delta 2: one permission per tool, equal to the tool name.
     for (const tool of result.manifest.assistantTools ?? []) {
       expect(tool.permissionId).toBe(tool.name);
@@ -153,10 +153,12 @@ describe("job-search manifest contract (#930)", () => {
 describe("job-search manifest strict input schemas (#932)", () => {
   const IMPLEMENTED = [
     "job-search.onboarding.get-state",
+    "job-search.onboarding.reset",
     "job-search.profile.get",
     "job-search.profile.save-draft",
     "job-search.profile.approve",
     "job-search.resume.get",
+    "job-search.resume.import-attachment",
     "job-search.resume.save-draft",
     "job-search.resume.approve",
     "job-search.monitor.list",
@@ -218,6 +220,21 @@ describe("job-search manifest strict input schemas (#932)", () => {
     expect(schema.required).toBeUndefined();
     expect(Object.keys(props).sort()).toEqual(["includeDiff", "revisionId"]);
     expect(props.includeDiff?.type).toBe("boolean");
+  });
+
+  it("onboarding reset and attachment import are strict confirm-gated writes", () => {
+    const reset = schemaFor("job-search.onboarding.reset");
+    expect(reset.properties).toBeUndefined();
+    expect(reset.required).toBeUndefined();
+
+    const imported = schemaFor("job-search.resume.import-attachment");
+    expect(imported.required).toEqual(["attachmentId"]);
+    expect(Object.keys(imported.properties as Record<string, unknown>)).toEqual(["attachmentId"]);
+
+    const tools = loadManifest().assistantTools as Array<Record<string, unknown>>;
+    for (const name of ["job-search.onboarding.reset", "job-search.resume.import-attachment"]) {
+      expect(tools.find((tool) => tool.name === name)?.risk).toBe("write");
+    }
   });
 
   it("approvals require revisionId; reads without inputs stay empty-strict", () => {

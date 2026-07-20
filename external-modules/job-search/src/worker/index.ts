@@ -32,6 +32,7 @@ function ports(ctx: ModuleWorkerContext): WorkerPorts {
     // an older host omitting it must degrade to fetch_unavailable run
     // records (JS-05 #934), never a worker crash.
     fetch: ctx.fetch ? fetchFromWorkerContext(ctx.fetch) : null,
+    attachments: ctx.attachments,
     now: () => new Date()
   };
 }

@@ -36,7 +36,10 @@ import {
   listMonitorsHandler,
   saveMonitorHandler
 } from "../../external-modules/job-search/src/worker/handlers/monitor.js";
-import { getStateHandler } from "../../external-modules/job-search/src/worker/handlers/onboarding.js";
+import {
+  getStateHandler,
+  resetOnboardingHandler
+} from "../../external-modules/job-search/src/worker/handlers/onboarding.js";
 import {
   approveProfileHandler,
   getProfileHandler,
@@ -238,6 +241,54 @@ describe("onboarding.get-state handler", () => {
   });
 });
 
+describe("onboarding.reset handler (#1198)", () => {
+  it("restarts checkpoints while preserving approved records and monitors", async () => {
+    const kv = createMemoryKv();
+    const ports = portsFor(kv);
+    const now = ports.now();
+    await saveOriginalResume(kv, "Approved resume", now);
+    await approveResume(kv, "0", now);
+    await saveProfileRevision(kv, {
+      schemaVersion: 1,
+      revisionId: "profile-1",
+      createdAt: now.toISOString(),
+      provenance: "user",
+      fields: { targetTitles: ["Staff Engineer"] }
+    });
+    await approveProfile(kv, "profile-1", now);
+    await saveMonitor(kv, {
+      schemaVersion: 1,
+      monitorId: "monitor-1",
+      adapterId: "greenhouse",
+      enabled: true,
+      query: { board: "gitlab" },
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString()
+    });
+    await updateOnboarding(kv, {
+      complete: [...STEP_ORDER],
+      approvedResumeRevisionId: "0",
+      approvedProfileRevisionId: "profile-1"
+    });
+
+    expect(await resetOnboardingHandler(ports)({})).toEqual({ status: "ok" });
+    expect(await getOnboardingState(kv)).toEqual({
+      schemaVersion: 1,
+      step: "resume_intake",
+      completed: {}
+    });
+    expect(await getStateHandler(ports)({})).toMatchObject({
+      step: "resume_intake",
+      gates: { resumeApproved: true, profileApproved: true, monitorEnabled: true }
+    });
+    expect((await getResumeHandler(ports)({})).revisionId).toBe("0");
+    expect((await getProfileHandler(ports)({})).active).toMatchObject({
+      revisionId: "profile-1"
+    });
+    expect((await listMonitorsHandler(ports)({})).monitors).toHaveLength(1);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Task 10: six-checkpoint walkthrough, provider-leak sweep, registry isolation
 // ---------------------------------------------------------------------------
@@ -435,10 +486,12 @@ describe("monitor jobs cannot edit resume or profile", () => {
     expect(Object.keys(HANDLERS).sort()).toEqual(
       [
         "onboarding.get-state",
+        "onboarding.reset",
         "profile.get",
         "profile.save-draft",
         "profile.approve",
         "resume.get",
+        "resume.import-attachment",
         "resume.save-draft",
         "resume.approve",
         "monitor.list",

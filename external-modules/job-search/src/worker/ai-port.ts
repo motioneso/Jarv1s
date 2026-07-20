@@ -34,6 +34,14 @@ export interface WorkerPorts {
    * discovery records fetch_unavailable rather than crashing.
    */
   readonly fetch?: AdapterFetch | null;
+  /** Actor-scoped extracted document text supplied by the host. */
+  readonly attachments?: {
+    readText(attachmentId: string): Promise<{
+      readonly fileName: string;
+      readonly mimeType: string;
+      readonly text: string;
+    } | null>;
+  };
   now(): Date;
 }
 
