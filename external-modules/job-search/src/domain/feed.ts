@@ -2,7 +2,7 @@
 //
 // JS-02 (#931): feed index. Purely DERIVED state rebuilt from job/*
 // canonical records — a lost or corrupt index never loses a posting.
-// readFeed fails closed with corrupt_index on any stored-shape drift;
+// readFeed returns null on any stored-shape drift;
 // readFeedOrRebuild catches exactly that (and absence) and repairs.
 // Entries are compact — no titles, companies, or URLs, so the index
 // leaks nothing beyond what job/* and eval/* already hold.
@@ -121,7 +121,11 @@ function compareRanked(a: RankedEntry, b: RankedEntry): number {
   return a.entry.h < b.entry.h ? -1 : 1; // deterministic content-free tie-break
 }
 
-export async function rebuildFeed(kv: JobSearchKv, now: Date): Promise<FeedIndex> {
+// Pure compute — no kv.set. Shared by rebuildFeed (persists, for write-risk
+// callers) and readFeedOrRebuild (#1203: a read-risk handler must never
+// trigger the RPC host's forbidden_kv_mutation, so the read path computes
+// and returns without writing).
+async function buildFeedIndex(kv: JobSearchKv, now: Date): Promise<FeedIndex> {
   const jobs = await listOpportunities(kv);
   // Gate needs an approved profile; band currency (isOutdated) additionally
   // needs the approved resume — half an identity can't prove an evaluation
@@ -154,11 +158,15 @@ export async function rebuildFeed(kv: JobSearchKv, now: Date): Promise<FeedIndex
     });
   }
   ranked.sort(compareRanked);
-  const index: FeedIndex = {
+  return {
     schemaVersion: 1,
     rebuiltAt: now.toISOString(),
     entries: ranked.map((r) => r.entry)
   };
+}
+
+export async function rebuildFeed(kv: JobSearchKv, now: Date): Promise<FeedIndex> {
+  const index = await buildFeedIndex(kv, now);
   await writeRecord(kv, NS.feed, keys.feedActive, index);
   return index;
 }
@@ -168,10 +176,9 @@ export async function readFeed(kv: JobSearchKv): Promise<FeedIndex | null> {
   try {
     stored = await readRecord(kv, NS.feed, keys.feedActive);
   } catch (error) {
-    // Envelope-level drift on a DERIVED key is corruption, not version skew —
-    // collapse to the one code readFeedOrRebuild repairs from.
+    // A corrupt DERIVED key is equivalent to a missing index.
     if (error instanceof JobSearchKvError) {
-      throw new JobSearchKvError("corrupt_index", "stored feed index is unreadable");
+      return null;
     }
     throw error;
   }
@@ -183,20 +190,12 @@ export async function readFeed(kv: JobSearchKv): Promise<FeedIndex | null> {
     !Array.isArray(stored.entries) ||
     !stored.entries.every(isFeedEntry)
   ) {
-    throw new JobSearchKvError("corrupt_index", "stored feed index has an invalid shape");
+    return null;
   }
   return stored as unknown as FeedIndex;
 }
 
 export async function readFeedOrRebuild(kv: JobSearchKv, now: Date): Promise<FeedIndex> {
-  let feed: FeedIndex | null;
-  try {
-    feed = await readFeed(kv);
-  } catch (error) {
-    if (error instanceof JobSearchKvError && error.code === "corrupt_index") {
-      return rebuildFeed(kv, now);
-    }
-    throw error;
-  }
-  return feed ?? rebuildFeed(kv, now);
+  const feed = await readFeed(kv);
+  return feed ?? buildFeedIndex(kv, now);
 }
