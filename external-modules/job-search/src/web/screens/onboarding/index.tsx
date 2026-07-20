@@ -120,7 +120,16 @@ async function bootstrapRead<T extends Record<string, unknown>>(
 export async function bootstrapOnboarding(
   handle: AssistantSurfaceHandleMirror
 ): Promise<BootstrapOutcome> {
-  await handle.seedOnboarding();
+  // Unhandled here, this rejection would leave JobsOnboarding's `outcome` state at
+  // null forever (permanent loading spinner) instead of surfacing the error state.
+  try {
+    await handle.seedOnboarding();
+  } catch (error) {
+    return {
+      kind: "error",
+      message: error instanceof Error ? error.message : "Failed to seed onboarding."
+    };
+  }
   const [onboarding, profile, resume, sources] = await Promise.all([
     bootstrapRead<OnboardingSnapshot["onboarding"] & Record<string, unknown>>(
       "job-search.onboarding.get-state"
