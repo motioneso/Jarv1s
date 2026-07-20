@@ -55,9 +55,25 @@ const doneState = {
   gates: { resumeApproved: true, profileApproved: true, monitorEnabled: true }
 };
 
-const emptyProfile = { status: "ok", active: null, draftRevisionIds: [] };
+type ProfileFixture = {
+  readonly status: string;
+  readonly active: {
+    readonly revisionId: string;
+    readonly createdAt: string;
+    readonly provenance: string;
+    readonly fields: {
+      readonly targetTitles: string[];
+      readonly compensation: { readonly currency: string; readonly minimum: number };
+      readonly remotePreference: string[];
+      readonly locations: string[];
+    };
+  } | null;
+  readonly draftRevisionIds: string[];
+};
 
-const dealbreakersProfile = {
+const emptyProfile: ProfileFixture = { status: "ok", active: null, draftRevisionIds: [] };
+
+const dealbreakersProfile: ProfileFixture = {
   status: "ok",
   active: {
     revisionId: "profile-1",
@@ -98,7 +114,10 @@ const sourcesFixture = {
   ]
 };
 
-function fixturesFor(onboarding: unknown, profile = emptyProfile): Record<string, unknown> {
+function fixturesFor(
+  onboarding: Record<string, unknown>,
+  profile: ProfileFixture = emptyProfile
+): Record<string, Record<string, unknown>> {
   return {
     "job-search.onboarding.get-state": onboarding,
     "job-search.profile.get": profile,
