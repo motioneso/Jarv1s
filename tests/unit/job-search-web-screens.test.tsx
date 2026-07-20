@@ -32,7 +32,8 @@ import {
 import {
   MonitorsView,
   runStateLabel,
-  type MonitorDetail
+  type MonitorDetail,
+  type SourceInfo
 } from "../../external-modules/job-search/src/web/screens/monitors.js";
 import {
   ProfileView,
@@ -252,17 +253,26 @@ const profileFixture: ProfileResult = {
     createdAt: "2026-07-10T12:00:00.000Z",
     provenance: "user",
     // Hostile external string — must render escaped, never as markup.
-    fields: { targetTitles: ["Staff Engineer", "<script>alert(1)</script>"] }
+    fields: {
+      targetTitles: ["Staff Engineer", "<script>alert(1)</script>"],
+      seniority: "Staff / Principal",
+      compensation: { currency: "USD", minimum: 195000 },
+      locations: ["Remote — US", "San Francisco, CA"],
+      remotePreference: ["remote", "hybrid"],
+      dealbreakers: ["On-site 5 days/week", "No equity"]
+    }
   },
   draftRevisionIds: []
 };
 
-const resumeFixture: ResumeResult = {
+const resumeFixture: ResumeResult & { content: string } = {
   status: "ok",
   revisionId: "rev-resume-12345678",
   kind: "markdown",
   createdAt: "2026-07-09T12:00:00.000Z",
-  critiqueSummary: "Strong impact bullets; <b>tighten</b> the summary."
+  critiqueSummary: "Strong impact bullets; <b>tighten</b> the summary.",
+  evidence: [{ claim: "Built a design system" }],
+  content: "PRIVATE RESUME BODY MUST NOT RENDER"
 };
 
 describe("job-search profile view (#935)", () => {
@@ -270,10 +280,18 @@ describe("job-search profile view (#935)", () => {
     const html = render(
       h(ProfileView, { profile: profileFixture, resume: resumeFixture, hostActions: noopHost })
     );
-    expect(html).toContain("rev-resu"); // short revision id
+    expect(html).toContain("What Jarvis searches on");
+    expect(html).toContain("Profile &amp; resume");
+    expect(html).toContain("Approved");
+    expect(html).toContain("rev-resu");
     expect(html).toContain("Staff Engineer");
+    expect(html).toContain("Staff / Principal");
+    expect(html).toContain("USD 195,000");
+    expect(html).toContain("Remote — US");
+    expect(html).toContain("On-site 5 days/week");
     expect(html).toContain("Refine with Jarvis");
     expect(html).toContain("Update with Jarvis");
+    expect(html).not.toContain("PRIVATE RESUME BODY MUST NOT RENDER");
   });
 
   it("renders external strings as text, never markup", () => {
@@ -304,18 +322,41 @@ const monitorDetail: MonitorDetail = {
   enabled: true,
   timezone: "America/New_York",
   dueTime: "07:00",
+  query: "Product Design · Remote US",
   lastCheckedAt: "2026-07-10T11:00:00.000Z",
   lastSuccessAt: "2026-07-10T11:00:00.000Z"
 };
 
+const sourcesFixture: SourceInfo[] = [
+  {
+    adapterId: "greenhouse",
+    displayName: "Greenhouse",
+    enabled: true,
+    status: "allowed"
+  },
+  { adapterId: "lever", displayName: "Lever", enabled: true, status: "allowed" },
+  { adapterId: "ashby", displayName: "Ashby", enabled: true, status: "allowed" }
+];
+
 describe("job-search monitors view (#935)", () => {
-  it("shows adapter, schedule, enabled state, and last success", () => {
-    const html = render(h(MonitorsView, { monitors: [monitorDetail] }));
-    expect(html).toContain("greenhouse");
+  it("renders source-backed Park Press board cards with health and run-now", () => {
+    const html = render(
+      h(MonitorsView, {
+        monitors: [monitorDetail],
+        sources: sourcesFixture,
+        hostActions: noopHost
+      })
+    );
+    expect(html).toContain("Daily discovery");
+    expect(html).toContain("Watched boards");
+    expect(html).toContain("Greenhouse");
+    expect(html).not.toContain("Workday");
+    expect(html).toContain("Product Design · Remote US");
     expect(html).toContain("daily at 07:00 · America/New_York");
     expect(html).toContain("Enabled");
     expect(html).toContain("Last success");
     expect(html).toContain("Run now");
+    expect(html).toContain("Sources are keyless public job-board APIs");
   });
 
   it("maps run-now outcomes to announced labels", () => {
@@ -328,7 +369,9 @@ describe("job-search monitors view (#935)", () => {
   });
 
   it("with no monitors renders the authored empty state", () => {
-    expect(render(h(MonitorsView, { monitors: [] }))).toContain("No monitors yet");
+    expect(
+      render(h(MonitorsView, { monitors: [], sources: sourcesFixture, hostActions: noopHost }))
+    ).toContain("No monitors yet");
   });
 });
 

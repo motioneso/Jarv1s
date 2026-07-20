@@ -41,7 +41,7 @@ function RouteSwitch(props: { path: string; hostActions: HostActions }): ReactNo
   if (tab === "/matches") {
     return <MatchesScreen path={props.path} hostActions={props.hostActions} />;
   }
-  if (tab === "/monitors") return <MonitorsScreen />;
+  if (tab === "/monitors") return <MonitorsScreen hostActions={props.hostActions} />;
   if (tab === "/profile") return <ProfileScreen hostActions={props.hostActions} />;
   return <OverviewScreen hostActions={props.hostActions} />;
 }
