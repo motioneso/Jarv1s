@@ -36,6 +36,19 @@ const monitorDetail = {
   cursor: { lastCheckedAt: "2026-07-10T11:00:00.000Z", lastSuccessAt: "2026-07-10T11:00:00.000Z" }
 };
 
+const onboardingDone = {
+  step: "done",
+  completed: {
+    resume_intake: true,
+    resume_critique: true,
+    resume_approval: true,
+    profile: true,
+    sources_schedule: true,
+    review_enable: true
+  },
+  gates: { resumeApproved: true, profileApproved: true, monitorEnabled: true }
+};
+
 async function mountModule(
   page: Page,
   options?: DistModuleMockOptions & { themeActiveId?: string }
@@ -51,11 +64,17 @@ async function mountModule(
     tasks: []
   });
   // AFTER mockApi — most-recently-registered route wins over its /api/* catch-all 404.
-  await mockExternalWebModuleFromDist(page, options);
+  await mockExternalWebModuleFromDist(page, {
+    ...options,
+    invokeFixtures: {
+      "job-search.onboarding.get-state": onboardingDone,
+      ...options?.invokeFixtures
+    }
+  });
 }
 
 test.describe("JS-06 module surface (real bundle)", () => {
-  test("renders real data: onboarding progress and a monitor row with wall-clock + zone", async ({
+  test("renders the approved tab shell and a monitor row with wall-clock + zone", async ({
     page
   }) => {
     await mountModule(page, {
@@ -67,49 +86,32 @@ test.describe("JS-06 module surface (real bundle)", () => {
     await page.goto("/m/job-search");
 
     await expect(page.getByRole("heading", { name: "Job Search" })).toBeVisible();
-    // Default onboarding fixture: step "profile" with the three resume steps done.
-    await expect(page.getByRole("heading", { name: "3 of 6 steps complete" })).toBeVisible();
+    for (const label of ["Overview", "Matches", "Monitors", "Profile"]) {
+      await expect(page.getByRole("link", { name: label })).toBeVisible();
+    }
     // Monitor schedule is the configured wall-clock + IANA zone verbatim (Coordinator ruling:
     // no cross-timezone HH:MM arithmetic).
     await expect(page.getByText("greenhouse — daily at 07:00 · America/New_York")).toBeVisible();
   });
 
-  test("#916 onboarding handoff: editable focused draft, never auto-submitted", async ({
-    page
-  }) => {
-    await mountModule(page);
-    // Registered after mockApi/module mocks so this route wins — flags any chat submit.
-    let turnPosted = false;
-    await page.route("**/api/chat/turn", async (route) => {
-      turnPosted = true;
-      await route.fulfill({ json: { userMessageId: "u1", assistantMessageId: "a1", reply: "hi" } });
+  test("first-run state replaces every tab with the Lane E placeholder", async ({ page }) => {
+    await mountModule(page, {
+      invokeFixtures: {
+        "job-search.onboarding.get-state": {
+          step: "profile",
+          completed: { resume_intake: true, resume_critique: true, resume_approval: true },
+          gates: { resumeApproved: true, profileApproved: false, monitorEnabled: false }
+        }
+      }
     });
 
     await page.goto("/m/job-search");
 
-    // Keyboard-activate the module's internal Onboarding tab (a11y: links work via Enter).
-    const onboardingTab = page.getByRole("link", { name: "Onboarding" });
-    await onboardingTab.focus();
-    await onboardingTab.press("Enter");
-    await expect(page.getByRole("heading", { name: "Set up your job search" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Onboarding" })).toHaveAttribute(
-      "aria-current",
-      "page"
-    );
-
-    // Keyboard-activate the handoff. Only the onboarding screen is mounted now, so exactly one
-    // "Continue with Jarvis" exists.
-    const button = page.getByRole("button", { name: "Continue with Jarvis" });
-    await button.press("Enter");
-
-    // The composer holds the step draft ("profile" step) as an editable, focused value…
-    const composer = page.getByRole("textbox", { name: "Message Jarvis" });
-    await expect(composer).toHaveValue(
-      "Let's build my job search profile: target titles, skills, locations, and preferences."
-    );
-    await expect(composer).toBeFocused();
-    // …and nothing was sent on the user's behalf (#916 hard requirement).
-    expect(turnPosted).toBe(false);
+    await expect(page.getByRole("heading", { name: "Setting up your job search" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Job Search sections" })).toHaveCount(0);
+    for (const label of ["Overview", "Matches", "Monitors", "Profile"]) {
+      await expect(page.getByRole("link", { name: label })).toHaveCount(0);
+    }
   });
 
   test("run-now: queued then already-queued, announced politely, no duplicate activation", async ({
@@ -151,22 +153,14 @@ test.describe("JS-06 module surface (real bundle)", () => {
     // 404 on every invoke = tool no longer declared = module disabled/uninstalled server-side;
     // a stale browser session must degrade to the actionless disabled state (spec).
     await mountModule(page, { invokeStatus: 404 });
-    await page.goto("/m/job-search");
 
     const disabledHeading = page.getByRole("heading", { name: "Job Search is turned off" });
-    await expect(disabledHeading.first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Continue with Jarvis" })).toHaveCount(0);
-
-    // Every data-fetching route shows the same fail-closed state. (Opportunities is a static
-    // JS-08 shell with no data plane and no actions, so it's covered by the no-handoff check.)
-    for (const tab of ["Onboarding", "Profile & resume", "Monitors"]) {
-      await page.getByRole("link", { name: tab }).click();
+    for (const path of ["", "/matches", "/monitors", "/profile"]) {
+      await page.goto(`/m/job-search${path}`);
       await expect(disabledHeading.first()).toBeVisible();
-      await expect(page.getByRole("button", { name: "Continue with Jarvis" })).toHaveCount(0);
+      await expect(page.getByRole("navigation", { name: "Job Search sections" })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Run now" })).toHaveCount(0);
     }
-    await page.getByRole("link", { name: "Opportunities" }).click();
-    await expect(page.getByRole("button", { name: "Continue with Jarvis" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Run now" })).toHaveCount(0);
   });
 });
 
@@ -176,7 +170,7 @@ test.describe("JS-06 screenshots (light/dark)", () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
   for (const theme of ["light", "dark"] as const) {
-    test(`overview/onboarding/monitors — ${theme}`, async ({ page }) => {
+    test(`overview/monitors — ${theme}`, async ({ page }) => {
       if (theme === "dark") {
         // Same boot mechanism as capture-screens-dark: seed the persisted theme before app load.
         await page.addInitScript(() => {
@@ -196,12 +190,8 @@ test.describe("JS-06 screenshots (light/dark)", () => {
       });
 
       await page.goto("/m/job-search");
-      await expect(page.getByRole("heading", { name: "3 of 6 steps complete" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Job Search" })).toBeVisible();
       await page.screenshot({ path: `test-results/js06-screens/overview-${theme}.png` });
-
-      await page.getByRole("link", { name: "Onboarding" }).click();
-      await expect(page.getByRole("heading", { name: "Set up your job search" })).toBeVisible();
-      await page.screenshot({ path: `test-results/js06-screens/onboarding-${theme}.png` });
 
       await page.getByRole("link", { name: "Monitors" }).click();
       await expect(page.getByRole("button", { name: "Run now" }).first()).toBeVisible();

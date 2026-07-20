@@ -5,9 +5,9 @@
 import { h, useSyncExternalStore, type ReactNodeLike } from "./runtime";
 import { ModuleLink, useModulePath } from "./router";
 import { MODULE_STYLES } from "./styles";
-import { currentLiveMessage, subscribeLive } from "./states";
+import { currentLiveMessage, outcomeGate, subscribeLive } from "./states";
+import { useToolQuery } from "./store";
 import { OverviewScreen } from "./screens/overview";
-import { OnboardingScreen } from "./screens/onboarding";
 import { ProfileScreen } from "./screens/profile";
 import { MonitorsScreen } from "./screens/monitors";
 import { OpportunitiesScreen } from "./screens/opportunities";
@@ -16,15 +16,16 @@ export type HostActions = { openAssistant: (input: { starterPrompt: string }) =>
 
 const TABS: ReadonlyArray<{ to: string; label: string }> = [
   { to: "/", label: "Overview" },
-  { to: "/onboarding", label: "Onboarding" },
-  { to: "/profile", label: "Profile & resume" },
+  { to: "/matches", label: "Matches" },
   { to: "/monitors", label: "Monitors" },
-  { to: "/opportunities", label: "Opportunities" }
+  { to: "/profile", label: "Profile" }
 ];
 
 function activeTab(path: string): string {
   if (path === "/") return "/";
   const first = `/${path.split("/")[1] ?? ""}`;
+  // #1197: keep old opportunity-card links alive until the Matches rewrite lands.
+  if (first === "/opportunities") return "/matches";
   return TABS.some((tab) => tab.to === first) ? first : "/";
 }
 
@@ -39,16 +40,39 @@ function LiveRegion(): ReactNodeLike {
 
 function RouteSwitch(props: { path: string; hostActions: HostActions }): ReactNodeLike {
   const tab = activeTab(props.path);
-  if (tab === "/onboarding") return <OnboardingScreen hostActions={props.hostActions} />;
-  if (tab === "/profile") return <ProfileScreen hostActions={props.hostActions} />;
+  if (tab === "/matches") return <OpportunitiesScreen path={props.path} />;
   if (tab === "/monitors") return <MonitorsScreen />;
-  if (tab === "/opportunities") return <OpportunitiesScreen path={props.path} />;
+  if (tab === "/profile") return <ProfileScreen hostActions={props.hostActions} />;
   return <OverviewScreen hostActions={props.hostActions} />;
 }
 
-export function Root(props: { hostActions: HostActions }): ReactNodeLike {
-  const path = useModulePath();
-  const current = activeTab(path);
+function FirstRunPlaceholder(): ReactNodeLike {
+  return (
+    <section className="jds-card jds-card--sunken jsm-state" role="status">
+      <span className="jds-eyebrow">First run</span>
+      <h1>Setting up your job search</h1>
+      {/* #1193/#1197: Lane E replaces this dependency-safe placeholder with JobsOnboarding. */}
+      <p>Guided onboarding will appear here.</p>
+    </section>
+  );
+}
+
+export function RootView(props: {
+  path: string;
+  onboardingStep: string;
+  hostActions: HostActions;
+}): ReactNodeLike {
+  if (props.onboardingStep !== "done") {
+    return (
+      <div className="jsm-root" data-module="job-search">
+        <style>{MODULE_STYLES}</style>
+        <LiveRegion />
+        <FirstRunPlaceholder />
+      </div>
+    );
+  }
+
+  const current = activeTab(props.path);
   return (
     <div className="jsm-root" data-module="job-search">
       <style>{MODULE_STYLES}</style>
@@ -69,7 +93,19 @@ export function Root(props: { hostActions: HostActions }): ReactNodeLike {
           </ModuleLink>
         ))}
       </nav>
-      <RouteSwitch path={path} hostActions={props.hostActions} />
+      <RouteSwitch path={props.path} hostActions={props.hostActions} />
     </div>
+  );
+}
+
+export function Root(props: { hostActions: HostActions }): ReactNodeLike {
+  const path = useModulePath();
+  const onboarding = useToolQuery<{ step: string } & Record<string, unknown>>(
+    "job-search.onboarding.get-state"
+  );
+  return outcomeGate(
+    onboarding,
+    (state) => <RootView path={path} onboardingStep={state.step} hostActions={props.hostActions} />,
+    { loadingLabel: "Loading job search" }
   );
 }
