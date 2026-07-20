@@ -121,7 +121,11 @@ function compareRanked(a: RankedEntry, b: RankedEntry): number {
   return a.entry.h < b.entry.h ? -1 : 1; // deterministic content-free tie-break
 }
 
-export async function rebuildFeed(kv: JobSearchKv, now: Date): Promise<FeedIndex> {
+// Pure compute — no kv.set. Shared by rebuildFeed (persists, for write-risk
+// callers) and readFeedOrRebuild (#1203: a read-risk handler must never
+// trigger the RPC host's forbidden_kv_mutation, so the read path computes
+// and returns without writing).
+async function buildFeedIndex(kv: JobSearchKv, now: Date): Promise<FeedIndex> {
   const jobs = await listOpportunities(kv);
   // Gate needs an approved profile; band currency (isOutdated) additionally
   // needs the approved resume — half an identity can't prove an evaluation
@@ -154,11 +158,15 @@ export async function rebuildFeed(kv: JobSearchKv, now: Date): Promise<FeedIndex
     });
   }
   ranked.sort(compareRanked);
-  const index: FeedIndex = {
+  return {
     schemaVersion: 1,
     rebuiltAt: now.toISOString(),
     entries: ranked.map((r) => r.entry)
   };
+}
+
+export async function rebuildFeed(kv: JobSearchKv, now: Date): Promise<FeedIndex> {
+  const index = await buildFeedIndex(kv, now);
   await writeRecord(kv, NS.feed, keys.feedActive, index);
   return index;
 }
@@ -194,9 +202,9 @@ export async function readFeedOrRebuild(kv: JobSearchKv, now: Date): Promise<Fee
     feed = await readFeed(kv);
   } catch (error) {
     if (error instanceof JobSearchKvError && error.code === "corrupt_index") {
-      return rebuildFeed(kv, now);
+      return buildFeedIndex(kv, now);
     }
     throw error;
   }
-  return feed ?? rebuildFeed(kv, now);
+  return feed ?? buildFeedIndex(kv, now);
 }

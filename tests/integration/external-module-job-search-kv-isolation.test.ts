@@ -902,6 +902,21 @@ describe("job-search opportunity feed + decision isolation (#937)", () => {
     ).rejects.toMatchObject({ code: "missing_record" });
   });
 
+  it("read-risk actor with no stored feed: list succeeds, no KV row is created (#1203)", async () => {
+    // opportunities.list is risk:"read" in the manifest, so production always
+    // invokes it with toolRisk:"read" — the RPC host rejects any kv.set from
+    // a read-risk call with forbidden_kv_mutation. A missing/corrupt feed
+    // index must self-heal by computing and returning, never persisting.
+    const kvReadOnly = kvForActor(ids.adminUser, { admin: true, toolRisk: "read" });
+    const ports = makePorts(kvReadOnly, null, T_RUN2);
+
+    const list = await listOpportunitiesHandler(ports)({});
+    expect(list).toMatchObject({ status: "ok", total: 0, opportunities: [] });
+
+    const rows = await bootstrapJobSearchRows();
+    expect(rows.some((r) => r.owner_user_id === ids.adminUser)).toBe(false);
+  });
+
   it("userB's denied decide leaves A's record byte-identical; the owner's own decide lands", async () => {
     const rowFor = async (): Promise<string | undefined> =>
       (await bootstrapJobSearchRows()).find(
