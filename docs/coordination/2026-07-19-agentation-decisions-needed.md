@@ -64,6 +64,19 @@ Tracking: [#1185](https://github.com/motioneso/Jarv1s/issues/1185)
 - Make it visually unambiguous that the caption below an image belongs to that image; adjacent left/right article copy must not read like the image caption.
 - When an article has no image, show more article text before **Continue reading** so the card does not feel prematurely truncated.
 
+## AWAITING-BEN
+
+### #1185 live-5178 spot-check and annotation resolution
+
+Annotations: `mrs6fnq4-zwv9ak`, `mrs6fzi5-6xxaah`, `mrs6kba3-kbjwv6`
+
+Tracking: [PR #1211](https://github.com/motioneso/Jarv1s/pull/1211)
+
+- Fable approved an ephemeral live #1000-harness UAT instance as merge evidence because shared `5178` requires admin approval and no authorized admin session is available: https://github.com/motioneso/Jarv1s/pull/1211#issuecomment-5018689344.
+- Harness evidence must use a fresh database, legitimate seeded owner session, real News ingestion/pipeline, zero frontend mocks, and desktop+narrow screenshots for photo and no-photo cards.
+- Keep all three annotations open after harness QA. Resolve them only after Ben performs or authorizes a shared-`5178` spot-check with real admin access.
+- Do not guess credentials, flip `instance_settings`, self-approve through the database, or mint an admin session.
+
 ## Decisions still needed
 
 ### Color-mode rearrange target
