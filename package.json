@@ -79,6 +79,7 @@
   "dependencies": {
     "@fastify/helmet": "^13",
     "@fastify/rate-limit": "^10",
+    "@jarv1s/cli-runner": "workspace:*",
     "fastify": "^5.6.2",
     "kysely": "^0.29.2",
     "pg": "^8.21.0",
