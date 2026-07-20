@@ -706,16 +706,28 @@ export class CliChatEngineImpl implements CliChatEngine {
     signal: AbortSignal
   ): Promise<void> {
     const MAX_ENTER_NUDGES = 2;
+    let composerEmptied = false;
     for (let nudge = 0; nudge < MAX_ENTER_NUDGES; nudge += 1) {
       if (await this.waitForUserAck(initial, expectedText, signal, this.nudgeAfterMs)) return;
       const pane = await this.mux.capturePane(handle);
       this.throwIfCanceled(signal);
-      if (isComposerEmpty(this.provider, pane)) break;
+      if (isComposerEmpty(this.provider, pane)) {
+        composerEmptied = true;
+        break;
+      }
       await this.mux.pressEnter(handle);
       this.throwIfCanceled(signal);
     }
-    // Unbounded wait as before; the prod RPC bounds this externally via its
-    // verified-submit deadline, so an in-process ceiling here would be redundant.
+    if (!composerEmptied) {
+      // #1226: initial Enter plus both bounded nudges left the composer still holding the
+      // text — Enter is not landing, so no ack will ever arrive. Waiting further just delays
+      // the inevitable; fail fast so the caller's entered=true catch classifies this as
+      // delivery_unknown (kill once, never auto-resend) instead of spinning unbounded.
+      throw new VerifiedSubmitError("delivery_unknown", true);
+    }
+    // Composer went empty: the text was submitted and the ack is merely lagging behind the
+    // transcript writer, so this extended wait is a safe, non-duplicating poll. The prod RPC
+    // still bounds it externally via its verified-submit deadline.
     await this.waitForUserAck(initial, expectedText, signal);
   }
 
