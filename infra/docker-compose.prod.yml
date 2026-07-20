@@ -88,6 +88,12 @@ services:
     # unless the ops profile is explicitly selected (Coordinator ruling,
     # binding). #1082: tests/uat/seed/guard.ts is the authoritative target-DB
     # gate; JARVIS_UAT_SEED_CONFIRM remains a necessary second intent check.
+    # #1217: the Dockerfile has no USER directive, so without this override
+    # seed runs as root and tests/uat/seed/chunks/notes.ts's vault mkdir
+    # creates root-owned content. start-jarv1s.ts's prepareRuntimeDirs chown
+    # only reaches /data/vaults before seed ever runs, so it can't fix this
+    # after the fact — seed must run as the same uid/gid as jarv1s from the start.
+    user: "${JARVIS_HOST_UID:-1000}:${JARVIS_HOST_GID:-1000}"
     command: ["node_modules/.bin/tsx", "tests/uat/seed/cli.ts"]
     environment:
       JARVIS_UAT_SEED_LEVEL: "${JARVIS_UAT_SEED_LEVEL:-bare}"

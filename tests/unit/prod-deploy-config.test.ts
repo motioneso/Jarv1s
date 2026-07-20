@@ -45,6 +45,20 @@ describe("prod deploy config — host CLI bridge removed for in-container CLI ch
   });
 });
 
+describe("prod deploy config — seed service drops root before touching the vault (#1217)", () => {
+  it("the seed service runs as the runtime uid/gid, not root", () => {
+    // #1217: seed has no user: override, so it runs fully as root (no USER directive in
+    // the Dockerfile). tests/uat/seed/chunks/notes.ts creates the actor's vault dir via
+    // VaultContextRunner while seed is running — root-owned — and start-jarv1s.ts's
+    // prepareRuntimeDirs chown only ever reaches the top-level /data/vaults, and only
+    // before seed runs, never after. Seed must run as the same uid/gid the jarv1s
+    // service already uses so seeded vault content is never root-owned to begin with.
+    const seedBlock = composeProd.match(/^ {2}seed:\n([\s\S]*?)(?=^ {2}\S)/m)?.[1];
+    expect(seedBlock).toBeDefined();
+    expect(seedBlock).toContain('user: "${JARVIS_HOST_UID:-1000}:${JARVIS_HOST_GID:-1000}"');
+  });
+});
+
 describe("prod deploy config — systemd ExecStart uses docker --env-file (branch-review #2)", () => {
   it("ExecStart/ExecStop pass --env-file to docker instead of systemd EnvironmentFile", () => {
     const envFilePath = "~/Jarv1s/infra/env.production.local";
