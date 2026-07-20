@@ -38,13 +38,17 @@ test("installing Job Search from Settings reaches installed-enabled after a real
 
   await openInstanceModules();
   await expect(page.getByRole("heading", { name: "Instance modules" })).toBeVisible();
-  await expect(page.getByText("Available modules")).toBeVisible();
+  await expect(page.getByText("Module library")).toBeVisible();
 
-  const registry = page.locator('[aria-label="Module registry"]');
-  const jobSearchRow = registry.locator("li", { hasText: "Job Search" });
-  await expect(jobSearchRow.getByText("Not installed")).toBeVisible();
+  // #1187 rewrite: registry rows render via the shared Group/Row primitives, not a
+  // <ul aria-label="Module registry">/<li> list — scope to the "Module library" card, then
+  // the .set-row whose text contains "Job Search" (settings-module-registry-section.tsx).
+  const moduleLibraryCard = page.locator(".pane__card", { hasText: "Module library" });
+  const jobSearchRow = moduleLibraryCard.locator(".set-row", { hasText: "Job Search" });
 
-  await jobSearchRow.getByRole("button", { name: "Install" }).click();
+  // No "Not installed" assertion: libraryAction() renders only a button for the
+  // not-installed state, never that text (settings-module-registry-section.tsx:85-87).
+  await jobSearchRow.getByRole("button", { name: "Download and install" }).click();
   const installDialog = page.getByRole("dialog", { name: "Install Job Search?" });
   await expect(installDialog).toBeVisible();
   await installDialog.getByRole("button", { name: "Download" }).click();
@@ -60,16 +64,23 @@ test("installing Job Search from Settings reaches installed-enabled after a real
 
   await openInstanceModules();
   const jobSearchRowAfterRestart = page
-    .locator('[aria-label="Module registry"]')
-    .locator("li", { hasText: "Job Search" });
-  await expect(jobSearchRowAfterRestart.getByText("Installed")).toBeVisible({ timeout: 30_000 });
+    .locator(".pane__card", { hasText: "Module library" })
+    .locator(".set-row", { hasText: "Job Search" });
 
+  // No "Installed" text assertion either: installed-enabled + latestVersion != null (this
+  // registry-known row's case) renders only the Switch, never that text
+  // (settings-module-registry-section.tsx:94-97). The real proof the state advanced is the
+  // switch reading checked and the install button having disappeared.
+  //
   // No click here: scripts/module-reconcile.ts's phase-5 staged-acceptance sets
   // `status = 'enabled'` unconditionally when a staged download is accepted on restart —
   // a registry install has no separate manual-enable step, so "installed-enabled" (this
-  // test's own name) means the switch already reads checked once "Installed" is visible.
+  // test's own name) means the switch already reads checked once the restart lands.
   const enableSwitch = jobSearchRowAfterRestart.getByRole("checkbox", {
     name: /enable job search/i
   });
-  await expect(enableSwitch).toBeChecked();
+  await expect(enableSwitch).toBeChecked({ timeout: 30_000 });
+  await expect(
+    jobSearchRowAfterRestart.getByRole("button", { name: "Download and install" })
+  ).not.toBeVisible();
 });
