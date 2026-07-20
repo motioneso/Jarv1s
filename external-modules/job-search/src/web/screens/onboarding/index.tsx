@@ -3,7 +3,7 @@
 // so it must match the real AssistantSurfaceHandleV1/TranscriptRecord field
 // names exactly (messageId/actionRequestId/toolName/outcome) for runtime
 // objects flowing through the host boundary to actually match at runtime.
-import { LoadingState } from "../../states";
+import { ErrorState, LoadingState } from "../../states";
 import { invokeTool } from "../../api";
 import { h, useEffect, useRef, useState, type ReactNodeLike } from "../../runtime";
 import {
@@ -20,6 +20,7 @@ import {
 import {
   CritiqueCard,
   MultiControl,
+  ProfileAside,
   RESUME_ACCEPT,
   MAX_RESUME_BYTES,
   ResumeDropzone,
@@ -749,30 +750,60 @@ export function JobsOnboarding(props: {
 
   const Surface = props.handle.Surface;
   if (outcome.kind !== "ok") {
-    return <Surface composer={{ placeholder: "Tell us more" }} />;
+    return (
+      <ErrorState
+        message={
+          outcome.kind === "disabled"
+            ? "Job Search is disabled for this account."
+            : outcome.kind === "blocked"
+              ? "Jarvis needs confirmation before it can verify your Job Search setup."
+              : "Jarvis couldn't verify your saved Job Search setup. Try again."
+        }
+      />
+    );
   }
 
   const bufferedData = withProfileBuffer(outcome.data, profileBuffer);
   const phase = derivePhase(bufferedData.snapshot);
   const resolvedDueTime = dueTime ?? "07:00";
+  const fields = bufferedData.snapshot.profileProgress.fields;
   return (
-    <Surface
-      localRows={buildLocalRows(phase, bufferedData, resolvedDueTime)}
-      activeControl={buildActiveControl(phase, bufferedData, props.handle, {
-        error: resumeError,
-        showPaste,
-        setError: setResumeError,
-        setShowPaste,
-        dueTime: resolvedDueTime,
-        setDueTime,
-        onProfileAnswer
-      })}
-      composer={{
-        placeholder: "Tell us more",
-        onSubmitText: buildComposerSubmit(phase, props.handle)
-      }}
-      typing={phase === "resume_critique"}
-    />
+    <div className="ob2">
+      <div className="ob2-chat">
+        <Surface
+          localRows={buildLocalRows(phase, bufferedData, resolvedDueTime)}
+          activeControl={buildActiveControl(phase, bufferedData, props.handle, {
+            error: resumeError,
+            showPaste,
+            setError: setResumeError,
+            setShowPaste,
+            dueTime: resolvedDueTime,
+            setDueTime,
+            onProfileAnswer
+          })}
+          composer={{
+            placeholder: "Tell us more",
+            onSubmitText: buildComposerSubmit(phase, props.handle)
+          }}
+          typing={phase === "resume_critique"}
+        />
+      </div>
+      <ProfileAside
+        values={{
+          resume:
+            phase === "resume_intake"
+              ? undefined
+              : bufferedData.snapshot.onboarding.gates.resumeApproved
+                ? "Approved"
+                : "Draft",
+          titles: fields.targetTitles?.join(", ") || undefined,
+          comp: fields.compensation ? `$${fields.compensation.minimum}` : undefined,
+          workMode: fields.remotePreference?.join(", ") || undefined,
+          locations: fields.locations?.join(", ") || undefined,
+          dealbreakers: fields.dealbreakers?.join(", ") || undefined
+        }}
+      />
+    </div>
   );
 }
 

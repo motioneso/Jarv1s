@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { sendChatTurn } from "../../api/client";
+import { BrandMark } from "../../shell/brand-mark";
 import { Thread } from "../message-row";
 import type { ChatRecordKind } from "../use-chat-stream";
 import type { AssistantSurfaceViewProps } from "./contracts";
@@ -47,6 +48,7 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
             className={`assistant-surface__row assistant-surface__row--${row.role}`}
             key={row.id}
           >
+            {row.role === "assistant" ? <JarvisIdentity /> : null}
             <div className={`jds-bubble jds-bubble--${row.role}`}>{row.content}</div>
           </div>
         ))}
@@ -54,6 +56,7 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
         {props.typing ? <TypingRow /> : null}
         {props.activeControl ? (
           <div className="assistant-surface__row assistant-surface__row--control">
+            <JarvisIdentity />
             {props.activeControl}
           </div>
         ) : null}
@@ -73,6 +76,12 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
             rows={1}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                submit();
+              }
+            }}
           />
           <button className="jds-btn jds-btn--primary" type="submit">
             Send
@@ -85,10 +94,22 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
 
 function TypingRow() {
   return (
-    <div className="assistant-surface__typing" aria-label="Jarvis is typing" aria-live="polite">
-      <span className="jds-typing-dot" />
-      <span className="jds-typing-dot" />
-      <span className="jds-typing-dot" />
+    <div className="assistant-surface__row assistant-surface__row--assistant assistant-surface__typing-row">
+      <JarvisIdentity />
+      <div className="assistant-surface__typing" aria-label="Jarvis is typing" aria-live="polite">
+        <span className="jds-typing-dot" />
+        <span className="jds-typing-dot" />
+        <span className="jds-typing-dot" />
+      </div>
     </div>
+  );
+}
+
+function JarvisIdentity() {
+  return (
+    <span className="assistant-surface__identity">
+      <BrandMark size={14} />
+      <span>Jarvis</span>
+    </span>
   );
 }

@@ -579,4 +579,47 @@ describe("Job Search onboarding composition (#1198 Task 4 Step 0)", () => {
     expect(captured?.localRows?.length ?? 0).toBeGreaterThan(0);
     expect(typeof captured?.composer?.onSubmitText).toBe("function");
   });
+
+  it("renders resume intake in the approved two-column shell with an unset Resume row", async () => {
+    stubFetch(200, onboardingStateBody("resume_intake"));
+    let tree: ReturnType<typeof create> | undefined;
+    const handle = fakeHandle({ Surface: () => h("section", null, "Conversation") });
+
+    await act(async () => {
+      tree = create(h(JobsOnboarding, { handle, hostActions }) as never);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const rendered = JSON.stringify(tree?.toJSON());
+    expect(rendered).toContain("ob2");
+    expect(rendered).toContain("ob2-chat");
+    expect(rendered).toContain("jsm-profile-aside");
+    expect(rendered).toContain("Resume");
+    expect(rendered).toContain("Not yet");
+  });
+
+  it.each([
+    [404, { error: "not found" }, "Job Search is disabled"],
+    [
+      200,
+      { invocation: { status: "blocked", blockedReason: "confirmation_required" } },
+      "Jarvis needs confirmation"
+    ],
+    [500, { error: "private server detail" }, "Jarvis couldn't verify"]
+  ])("renders an authored error state for bootstrap status %s", async (status, body, copy) => {
+    stubFetch(status, body);
+    let tree: ReturnType<typeof create> | undefined;
+    const handle = fakeHandle({ Surface: () => h("p", null, "Generic assistant surface") });
+
+    await act(async () => {
+      tree = create(h(JobsOnboarding, { handle, hostActions }) as never);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const rendered = JSON.stringify(tree?.toJSON());
+    expect(rendered).toContain("jsm-state");
+    expect(rendered).toContain(copy);
+    expect(rendered).not.toContain("Generic assistant surface");
+    expect(rendered).not.toContain("private server detail");
+  });
 });
