@@ -332,10 +332,19 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
     });
 
     await page.goto("/m/job-search");
-    await page.getByRole("button", { name: "None of these" }).click();
-    await page.waitForRequest("**/api/chat/turn");
+    // waitForRequest must be armed before the click: the mocked POST resolves fast enough
+    // that click-then-wait can miss it entirely (request already finished by the time the
+    // wait call registers its listener).
+    await Promise.all([
+      page.waitForRequest("**/api/chat/turn"),
+      page.getByRole("button", { name: "None of these" }).click()
+    ]);
     releaseWave2();
 
+    // Denial text rides an action_result record, which the chat drawer always groups into a
+    // collapsed "Behind the scenes" disclosure (apps/web/src/chat/message-row.tsx ActivityPeek)
+    // rather than a standalone bubble — expand it before asserting visibility.
+    await page.getByText("Behind the scenes").click();
     await expect(page.getByText("That didn't go through — let's try that again.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Set dealbreakers" })).toBeVisible();
     expect(turns).toHaveLength(1);
@@ -417,8 +426,13 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
     });
 
     await page.goto("/m/job-search");
-    await page.getByRole("button", { name: "Set dealbreakers" }).click();
-    await page.waitForRequest("**/api/chat/turn");
+    // waitForRequest must be armed before the click: the mocked POST resolves fast enough
+    // that click-then-wait can miss it entirely (request already finished by the time the
+    // wait call registers its listener).
+    await Promise.all([
+      page.waitForRequest("**/api/chat/turn"),
+      page.getByRole("button", { name: "Set dealbreakers" }).click()
+    ]);
 
     // Before the executed action_result arrives, the phase must NOT have advanced yet — the
     // dealbreakers control is still the active control (proves advance isn't SSE-record-driven).
@@ -442,6 +456,11 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
     const submit = page.getByRole("button", { name: /Watch these \d boards/ });
     await expect(submit).toBeDisabled();
 
+    // All enabled sources default checked; `ready` requires every checked source to have a
+    // valid query, so leaving Lever/Ashby checked with an empty config would keep the button
+    // disabled even after Greenhouse is filled — uncheck them to isolate Greenhouse.
+    await page.getByRole("checkbox", { name: "Lever board token" }).uncheck();
+    await page.getByRole("checkbox", { name: "Ashby board token" }).uncheck();
     await page.getByLabel("Greenhouse board token or URL").fill("acme");
     await expect(submit).toBeEnabled();
     await submit.click();
@@ -450,15 +469,16 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
     expect(turns[0]?.controlContext).toMatchObject({ step: "sources_schedule", action: "schedule" });
   });
 
-  test("done Summary + Go to Job Search reloads into final tabs", async ({ page }) => {
+  test("done onboarding step renders the full module tabs directly", async ({ page }) => {
+    // RootView (root.tsx) renders JobsOnboarding only while onboardingStep !== "done"; once
+    // the backend reports "done" it renders the tabbed dashboard immediately — JobsOnboarding's
+    // own internal "done"/Summary phase is unreachable through this route and is not under test
+    // here (see relay escalation for this run).
     await mountJobSearch(page, { invokeFixtures: fixturesFor(doneState, dealbreakersProfile) });
     await page.goto("/m/job-search");
 
-    await expect(page.getByText(/Monitoring on · first run/)).toBeVisible();
-    await page.getByRole("button", { name: "Go to Job Search" }).click();
-    await page.waitForLoadState("load");
-
     await expect(page.getByRole("navigation", { name: "Job Search sections" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Job Search" })).toBeVisible();
   });
 
   test("authored controls expose accessible roles/labels (no a11y violations proxy)", async ({
