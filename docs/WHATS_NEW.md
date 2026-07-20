@@ -1,5 +1,70 @@
 # What's New in Jarvis
 
+## Latest delivery — 2026-07-20
+
+### Guided Job Search onboarding
+
+Job Search now opens as a guided flow inside Jarvis, with dedicated search screens and an embedded
+assistant. Reloading restores the profile step you were on instead of sending you back to the start.
+
+[PR #1204](https://github.com/motioneso/Jarv1s/pull/1204) · [PR #1209](https://github.com/motioneso/Jarv1s/pull/1209) · [PR #1212](https://github.com/motioneso/Jarv1s/pull/1212) · [PR #1214](https://github.com/motioneso/Jarv1s/pull/1214) · [PR #1215](https://github.com/motioneso/Jarv1s/pull/1215)
+
+---
+
+### Attach files and screenshots in chat
+
+You can attach files or paste screenshots directly into the chat drawer, keeping supporting material
+with the conversation instead of describing it separately.
+
+[PR #1156](https://github.com/motioneso/Jarv1s/pull/1156)
+
+---
+
+### Finance reports that understand transfers
+
+The Finance module now produces spending, cash-flow, and net-worth reports and automatically pairs
+transfers so moving money between accounts does not look like income or spending.
+
+[PR #1163](https://github.com/motioneso/Jarv1s/pull/1163) · [PR #1173](https://github.com/motioneso/Jarv1s/pull/1173)
+
+---
+
+### Jarvis knows which screen you are viewing
+
+Jarvis can now use the current page and app context when answering, making in-app help more relevant
+without requiring you to explain where you are first.
+
+[PR #1126](https://github.com/motioneso/Jarv1s/pull/1126)
+
+---
+
+### Weekly delivery reports
+
+A scheduled weekly report now summarizes what shipped, giving you a compact record of recent product
+changes without manually reviewing individual pull requests.
+
+[PR #1129](https://github.com/motioneso/Jarv1s/pull/1129)
+
+---
+
+### More resilient live chat
+
+Live chat now recovers from stale sessions, and multiline pasted messages no longer trigger false
+delivery failures or attachment-turn errors.
+
+[PR #1160](https://github.com/motioneso/Jarv1s/pull/1160) · [PR #1172](https://github.com/motioneso/Jarv1s/pull/1172) · [PR #1175](https://github.com/motioneso/Jarv1s/pull/1175)
+
+---
+
+### Easier module setup
+
+Settings now shows credential controls for registry-installed modules, so required connections are
+visible where you manage the module instead of appearing to be missing.
+
+[PR #1178](https://github.com/motioneso/Jarv1s/pull/1178)
+
+---
+
 ## App-grounded help — 2026-07-16
 
 Jarvis can now look up shipped screens, settings, prerequisites, and named fixes from the app's
