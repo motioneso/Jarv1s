@@ -18,9 +18,12 @@ export const CLIENT_MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
 const IMAGE_MIMES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
+// #1216 — mirror the server whitelist (packages/chat attachments-service classifyAttachmentMime);
+// the client must fail-fast-accept exactly what the server extracts, and it extracts DOCX.
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
 /** The file-input `accept` list — same families the server whitelists. */
-export const ATTACHMENT_ACCEPT =
-  "image/png,image/jpeg,image/webp,image/gif,application/pdf,text/*,application/json";
+export const ATTACHMENT_ACCEPT = `image/png,image/jpeg,image/webp,image/gif,application/pdf,${DOCX_MIME},text/*,application/json`;
 
 export interface PendingAttachment {
   /** Client-generated key for list rendering/removal — never sent to the server. */
@@ -43,10 +46,11 @@ export function attachmentValidationError(file: {
   const isImage = IMAGE_MIMES.has(file.type);
   const isDocument =
     file.type === "application/pdf" ||
+    file.type === DOCX_MIME ||
     file.type.startsWith("text/") ||
     file.type === "application/json";
   if (!isImage && !isDocument) {
-    return `"${file.name}" is not a supported type. Attach images, PDFs, or text files.`;
+    return `"${file.name}" is not a supported type. Attach images, PDFs, Word documents, or text files.`;
   }
   const cap = isImage ? CLIENT_MAX_IMAGE_BYTES : CLIENT_MAX_DOCUMENT_BYTES;
   if (file.size > cap) {
