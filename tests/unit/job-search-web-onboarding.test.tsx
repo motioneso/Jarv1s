@@ -290,7 +290,7 @@ describe("Job Search onboarding orchestration (#1198 Task 3)", () => {
   it("advances on a matching executed result and clears the pending id", () => {
     const onAdvance = vi.fn();
     const records: AssistantRecordMirror[] = [
-      { kind: "action_request", messageId: "req-1", toolName: "job-search.profile.save-draft" },
+      { kind: "action_request", actionRequestId: "req-1", toolName: "job-search.profile.save-draft" },
       { kind: "action_result", actionRequestId: "req-1", outcome: "executed" }
     ];
     const result = advanceOnDurableEvent(records, new Set(), "dealbreakers", onAdvance);
@@ -302,7 +302,7 @@ describe("Job Search onboarding orchestration (#1198 Task 3)", () => {
   it("marks retry on denied without advancing", () => {
     const onAdvance = vi.fn();
     const records: AssistantRecordMirror[] = [
-      { kind: "action_request", messageId: "req-2", toolName: "job-search.profile.save-draft" },
+      { kind: "action_request", actionRequestId: "req-2", toolName: "job-search.profile.save-draft" },
       { kind: "action_result", actionRequestId: "req-2", outcome: "denied" }
     ];
     const result = advanceOnDurableEvent(records, new Set(), "dealbreakers", onAdvance);
@@ -314,7 +314,7 @@ describe("Job Search onboarding orchestration (#1198 Task 3)", () => {
   it("ignores requests for tools the active phase does not expect", () => {
     const onAdvance = vi.fn();
     const records: AssistantRecordMirror[] = [
-      { kind: "action_request", messageId: "req-3", toolName: "job-search.monitor.save" },
+      { kind: "action_request", actionRequestId: "req-3", toolName: "job-search.monitor.save" },
       { kind: "action_result", actionRequestId: "req-3", outcome: "executed" }
     ];
     const result = advanceOnDurableEvent(records, new Set(), "titles", onAdvance);
@@ -325,7 +325,7 @@ describe("Job Search onboarding orchestration (#1198 Task 3)", () => {
   it("ignores allowed results and keeps the id pending", () => {
     const onAdvance = vi.fn();
     const records: AssistantRecordMirror[] = [
-      { kind: "action_request", messageId: "req-4", toolName: "job-search.profile.save-draft" },
+      { kind: "action_request", actionRequestId: "req-4", toolName: "job-search.profile.save-draft" },
       { kind: "action_result", actionRequestId: "req-4", outcome: "allowed" }
     ];
     const result = advanceOnDurableEvent(records, new Set(), "dealbreakers", onAdvance);
