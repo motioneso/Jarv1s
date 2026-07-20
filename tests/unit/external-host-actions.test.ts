@@ -54,14 +54,15 @@ describe("sanitizeStarterPrompt (#916 validation + hard cap, fail closed)", () =
 describe("createModuleHostActions (#916 host-bound module id, fail closed)", () => {
   it("opens the assistant with the sanitized prompt on valid input", () => {
     const open = vi.fn();
-    const actions = createModuleHostActions("job-search", open);
+    const actions = createModuleHostActions("job-search", open, "actor-a");
     actions.openAssistant({ starterPrompt: "  Find me a job.  " });
     expect(open).toHaveBeenCalledExactlyOnceWith("Find me a job.");
+    expect(actions.actorScopeKey).toBe("actor-a");
   });
 
   it("does NOT open the assistant on an invalid/oversize prompt (fail closed)", () => {
     const open = vi.fn();
-    const actions = createModuleHostActions("job-search", open);
+    const actions = createModuleHostActions("job-search", open, "actor-a");
     actions.openAssistant({ starterPrompt: "   " });
     actions.openAssistant({ starterPrompt: "a".repeat(MAX_STARTER_PROMPT_LENGTH + 1) });
     // @ts-expect-error — the contract input has no other field; a module cannot pass a moduleId.
@@ -71,16 +72,16 @@ describe("createModuleHostActions (#916 host-bound module id, fail closed)", () 
 
   it("fails closed when the host binding is a blank/malformed module id", () => {
     const open = vi.fn();
-    createModuleHostActions("", open).openAssistant({ starterPrompt: "hi" });
-    createModuleHostActions("Not A Slug", open).openAssistant({ starterPrompt: "hi" });
+    createModuleHostActions("", open, "actor-a").openAssistant({ starterPrompt: "hi" });
+    createModuleHostActions("Not A Slug", open, "actor-a").openAssistant({ starterPrompt: "hi" });
     expect(open).not.toHaveBeenCalled();
   });
 
   it("binds each module to its own handler — one module cannot reach another's action", () => {
     const openA = vi.fn();
     const openB = vi.fn();
-    const a = createModuleHostActions("mod-a", openA);
-    const b = createModuleHostActions("mod-b", openB);
+    const a = createModuleHostActions("mod-a", openA, "actor-a");
+    const b = createModuleHostActions("mod-b", openB, "actor-b");
     a.openAssistant({ starterPrompt: "from A" });
     expect(openA).toHaveBeenCalledExactlyOnceWith("from A");
     expect(openB).not.toHaveBeenCalled();

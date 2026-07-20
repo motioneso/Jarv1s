@@ -325,6 +325,31 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
     await expect(page.getByRole("button", { name: "None of these" })).toBeVisible();
   });
 
+  test("reload restores the first unanswered profile sub-step and buffered comp", async ({
+    page
+  }) => {
+    await mountJobSearch(page, { invokeFixtures: fixturesFor(dealbreakersState, emptyProfile) });
+    await captureTurns(page);
+    await page.goto("/m/job-search");
+
+    await page.getByRole("button", { name: "Track these titles" }).click();
+    await page.getByRole("button", { name: "$195k" }).click();
+    await page.getByRole("button", { name: "Set comp floor" }).click();
+    await expect(page.getByText("And how do you want to work?")).toBeVisible();
+
+    await page.reload();
+
+    await expect(page.getByText("And how do you want to work?")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Track these titles" })).toHaveCount(0);
+    expect(
+      await page.evaluate(() =>
+        JSON.parse(sessionStorage.getItem("jobsearch:onboarding:profile:user-1") ?? "{}")
+      )
+    ).toMatchObject({
+      compensation: { currency: "USD", minimum: 195000 }
+    });
+  });
+
   test("denied profile approval retains Dealbreakers control and retry copy", async ({ page }) => {
     await mountJobSearch(page, {
       invokeFixtures: fixturesFor(dealbreakersState, dealbreakersProfile)
@@ -372,7 +397,6 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
       }
       // conn >= 3: leave pending, no further reconnect churn.
     });
-
     await page.goto("/m/job-search");
     // waitForRequest must be armed before the click: the mocked POST resolves fast enough
     // that click-then-wait can miss it entirely (request already finished by the time the
@@ -403,7 +427,7 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
       tasks: []
     });
     await mockExternalWebModuleFromDist(page, {
-      invokeFixtures: fixturesFor(dealbreakersState, dealbreakersProfile)
+      invokeFixtures: fixturesFor(dealbreakersState, emptyProfile)
     });
 
     // Overrides mockExternalWebModuleFromDist's static invoke route (registered after it, so
@@ -426,7 +450,7 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
         });
         return;
       }
-      const fixtures = fixturesFor(dealbreakersState, dealbreakersProfile);
+      const fixtures = fixturesFor(dealbreakersState, emptyProfile);
       await route.fulfill({
         json: { invocation: { status: "succeeded", result: fixtures[tool] ?? {} } }
       });
@@ -475,6 +499,17 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
       }
       // conn >= 3: leave pending, no further reconnect churn.
     });
+    await page.addInitScript(() => {
+      sessionStorage.setItem(
+        "jobsearch:onboarding:profile:user-1",
+        JSON.stringify({
+          targetTitles: ["Staff Product Designer"],
+          compensation: { currency: "USD", minimum: 195000 },
+          remotePreference: ["Remote-first"],
+          locations: ["Remote — US"]
+        })
+      );
+    });
 
     await page.goto("/m/job-search");
     // waitForRequest must be armed before the click: the mocked POST resolves fast enough
@@ -493,6 +528,9 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
 
     await expect(page.getByText("Workday")).toHaveCount(0); // sources_schedule control renders
     await expect(page.getByRole("button", { name: /Watch these \d boards/ })).toBeVisible();
+    expect(
+      await page.evaluate(() => sessionStorage.getItem("jobsearch:onboarding:profile:user-1"))
+    ).toBeNull();
     expect(turns).toHaveLength(1);
   });
 

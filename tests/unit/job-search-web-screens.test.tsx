@@ -67,7 +67,7 @@ const monitorsFixture: MonitorSummary[] = [
   }
 ];
 
-const noopHost = { openAssistant: () => undefined };
+const noopHost = { actorScopeKey: "actor-a", openAssistant: () => undefined };
 
 describe("job-search authored states (#935)", () => {
   it("loading state announces via role=status", () => {
@@ -107,7 +107,7 @@ describe("job-search Root contract (#935)", () => {
       h(RootView, {
         path: "/",
         onboardingStep: "done",
-        hostActions: { openAssistant: () => undefined }
+        hostActions: noopHost
       })
     );
 
@@ -134,7 +134,7 @@ describe("job-search Root contract (#935)", () => {
       h(RootView, {
         path: "/",
         onboardingStep: "profile",
-        hostActions: { openAssistant: () => undefined },
+        hostActions: noopHost,
         assistantSurface: handle
       })
     );
@@ -149,7 +149,7 @@ describe("job-search Root contract (#935)", () => {
       h(RootView, {
         path: "/",
         onboardingStep: "profile",
-        hostActions: { openAssistant: () => undefined }
+        hostActions: noopHost
       })
     );
 

@@ -13,6 +13,9 @@
 
 /** Contract v1 host actions handed to an external module's Root (see loader.ts). */
 export interface ExternalModuleHostActionsV1 {
+  /** #1213: opaque per-actor token for client-side namespacing only; never render or transmit it. */
+  readonly actorScopeKey: string;
+
   /**
    * Open the assistant with `starterPrompt` inserted as an editable draft. The host validates and
    * caps the prompt; invalid/oversize input fails closed (the assistant is not opened). The input
@@ -61,9 +64,12 @@ export function sanitizeStarterPrompt(raw: unknown): string | null {
  */
 export function createModuleHostActions(
   moduleId: string,
-  openAssistantWithDraft: (draft: string) => void
+  openAssistantWithDraft: (draft: string) => void,
+  actorScopeKey: string
 ): ExternalModuleHostActionsV1 {
   return {
+    // #1213: host-attested identity scopes tab-local module state without exposing an auth API.
+    actorScopeKey,
     openAssistant(input) {
       // Defense in depth: only ever act when the host binding is a well-formed module id.
       if (!MODULE_ID_PATTERN.test(moduleId)) return;
