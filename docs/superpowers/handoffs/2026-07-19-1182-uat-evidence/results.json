@@ -1,0 +1,561 @@
+{
+  "issue": 1182,
+  "branch": "fix/1182-hide-embedding-controls",
+  "timestamp": "2026-07-20T14:22:55+00:00",
+  "instance": {
+    "web": "http://127.0.0.1:20000",
+    "project": "uat-1270587_86b92eca"
+  },
+  "totals": {
+    "pass": 67,
+    "fail": 0,
+    "info": 1
+  },
+  "fails": [],
+  "matrix": [
+    {
+      "width": 1280,
+      "control": "auth",
+      "action": "owner signup + land in app",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": "email recorded in log only"
+    },
+    {
+      "width": 1280,
+      "control": "pane",
+      "action": "load /settings?section=aiproviders",
+      "outcome": "PASS",
+      "evidence": "03_aiproviders_pane_top_1280.png",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "pane content",
+      "action": "assert no 'embedding' text anywhere in pane",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": "absent"
+    },
+    {
+      "width": 1280,
+      "control": "pane content",
+      "action": "assert no 'stub' text anywhere in pane",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": "absent"
+    },
+    {
+      "width": 1280,
+      "control": "pane DOM",
+      "action": "assert no embedding-labelled select/input in DOM",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": "0 matches"
+    },
+    {
+      "width": 1280,
+      "control": "Allow user override switch",
+      "action": "toggle",
+      "outcome": "PASS",
+      "evidence": "04_override_toggled_1280.png",
+      "note": "toast seen"
+    },
+    {
+      "width": 1280,
+      "control": "Add provider button",
+      "action": "click -> picker opens",
+      "outcome": "PASS",
+      "evidence": "05_provider_picker_open_1280.png",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Provider picker: Anthropic",
+      "action": "click -> provider created",
+      "outcome": "PASS",
+      "evidence": "06_provider_added_1280.png",
+      "note": "toast=True card=True"
+    },
+    {
+      "width": 1280,
+      "control": "Provider picker: OpenAI",
+      "action": "click -> second provider created",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": "toast=True card=True"
+    },
+    {
+      "width": 1280,
+      "control": "Set as default",
+      "action": "click -> default badge moves to OpenAI",
+      "outcome": "PASS",
+      "evidence": "07_default_set_1280.png",
+      "note": "toast=True openai_default=True anthropic_default=True"
+    },
+    {
+      "width": 1280,
+      "control": "Terminal button",
+      "action": "click -> modal opens",
+      "outcome": "PASS",
+      "evidence": "08_terminal_modal_1280.png",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Terminal modal close",
+      "action": "Cancel/Close -> modal dismissed",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Edit button",
+      "action": "click -> edit panel with auth segmented",
+      "outcome": "PASS",
+      "evidence": "09_provider_edit_open_1280.png",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Auth segmented: API key",
+      "action": "select -> key+URL fields render",
+      "outcome": "PASS",
+      "evidence": "10_auth_api_key_fields_1280.png",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Credential Save button",
+      "action": "enabled after input",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Credential Save button",
+      "action": "click -> backend saves credential and card shows stored state",
+      "outcome": "PASS",
+      "evidence": "11_credential_saved_1280.png",
+      "note": "toast=True persisted=True"
+    },
+    {
+      "width": 1280,
+      "control": "Execution mode segmented",
+      "action": "select Non-interactive",
+      "outcome": "PASS",
+      "evidence": "12_exec_mode_noninteractive_1280.png",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Auth segmented: CLI subscription",
+      "action": "select -> CLI panel renders",
+      "outcome": "PASS",
+      "evidence": "13_auth_cli_panel_1280.png",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Re-authenticate button",
+      "action": "click -> toast",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Model override switch",
+      "action": "toggle first model",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Model edit (pencil)",
+      "action": "click -> edit form",
+      "outcome": "PASS",
+      "evidence": "14_model_edit_1280.png",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Model disable (minus)",
+      "action": "click -> disabled toast",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Chat service binding select",
+      "action": "change to Economy",
+      "outcome": "PASS",
+      "evidence": "15_service_binding_1280.png",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Voice enable switch",
+      "action": "not rendered (endpoint unconfigured)",
+      "outcome": "INFO",
+      "evidence": "",
+      "note": "switch renders only when an endpoint is configured; config fields exercised instead"
+    },
+    {
+      "width": 1280,
+      "control": "Voice config fields + Save gating",
+      "action": "fill URL/model/key -> Save enables (was disabled empty)",
+      "outcome": "PASS",
+      "evidence": "16_voice_fields_filled_1280.png",
+      "note": "save disabled empty=True, enabled filled=True"
+    },
+    {
+      "width": 1280,
+      "control": "Voice Save button",
+      "action": "click -> backend saves endpoint and configured state renders",
+      "outcome": "PASS",
+      "evidence": "17_voice_saved_1280.png",
+      "note": "toast=True persisted=True"
+    },
+    {
+      "width": 1280,
+      "control": "Locked chat model select",
+      "action": "lock to first model -> toast",
+      "outcome": "PASS",
+      "evidence": "18_chat_locked_1280.png",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Locked chat model select",
+      "action": "clear lock -> toast",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Brave Search key input",
+      "action": "accepts input",
+      "outcome": "PASS",
+      "evidence": "19_brave_key_input_1280.png",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "YOLO master switch",
+      "action": "toggle on -> danger confirm dialog",
+      "outcome": "PASS",
+      "evidence": "20_yolo_confirm_1280.png",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "YOLO confirm dialog",
+      "action": "Enable YOLO -> settings updated toast",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "YOLO master switch",
+      "action": "toggle off (restore)",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Remove provider (trash) + confirm",
+      "action": "click -> removed",
+      "outcome": "PASS",
+      "evidence": "21_remove_confirm_1280.png",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "Remove second provider",
+      "action": "click -> removed",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 1280,
+      "control": "pane",
+      "action": "final state after full control sweep",
+      "outcome": "PASS",
+      "evidence": "22_aiproviders_pane_final_1280.png",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "pane",
+      "action": "load /settings?section=aiproviders",
+      "outcome": "PASS",
+      "evidence": "23_aiproviders_pane_top_375.png",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "pane content",
+      "action": "assert no 'embedding' text anywhere in pane",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": "absent"
+    },
+    {
+      "width": 375,
+      "control": "pane content",
+      "action": "assert no 'stub' text anywhere in pane",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": "absent"
+    },
+    {
+      "width": 375,
+      "control": "pane DOM",
+      "action": "assert no embedding-labelled select/input in DOM",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": "0 matches"
+    },
+    {
+      "width": 375,
+      "control": "Allow user override switch",
+      "action": "toggle",
+      "outcome": "PASS",
+      "evidence": "24_override_toggled_375.png",
+      "note": "toast seen"
+    },
+    {
+      "width": 375,
+      "control": "Add provider button",
+      "action": "click -> picker opens",
+      "outcome": "PASS",
+      "evidence": "25_provider_picker_open_375.png",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Provider picker: Anthropic",
+      "action": "click -> provider created",
+      "outcome": "PASS",
+      "evidence": "26_provider_added_375.png",
+      "note": "toast=True card=True"
+    },
+    {
+      "width": 375,
+      "control": "Provider picker: OpenAI",
+      "action": "click -> second provider created",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": "toast=True card=True"
+    },
+    {
+      "width": 375,
+      "control": "Set as default",
+      "action": "click -> default badge moves to OpenAI",
+      "outcome": "PASS",
+      "evidence": "27_default_set_375.png",
+      "note": "toast=True openai_default=True anthropic_default=True"
+    },
+    {
+      "width": 375,
+      "control": "Terminal button",
+      "action": "click -> modal opens",
+      "outcome": "PASS",
+      "evidence": "28_terminal_modal_375.png",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Terminal modal close",
+      "action": "Cancel/Close -> modal dismissed",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Edit button",
+      "action": "click -> edit panel with auth segmented",
+      "outcome": "PASS",
+      "evidence": "29_provider_edit_open_375.png",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Auth segmented: API key",
+      "action": "select -> key+URL fields render",
+      "outcome": "PASS",
+      "evidence": "30_auth_api_key_fields_375.png",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Credential Save button",
+      "action": "enabled after input",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Credential Save button",
+      "action": "click -> backend saves credential and card shows stored state",
+      "outcome": "PASS",
+      "evidence": "31_credential_saved_375.png",
+      "note": "toast=True persisted=True"
+    },
+    {
+      "width": 375,
+      "control": "Execution mode segmented",
+      "action": "select Non-interactive",
+      "outcome": "PASS",
+      "evidence": "32_exec_mode_noninteractive_375.png",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Auth segmented: CLI subscription",
+      "action": "select -> CLI panel renders",
+      "outcome": "PASS",
+      "evidence": "33_auth_cli_panel_375.png",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Re-authenticate button",
+      "action": "click -> toast",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Model override switch",
+      "action": "toggle first model",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Model edit (pencil)",
+      "action": "click -> edit form",
+      "outcome": "PASS",
+      "evidence": "34_model_edit_375.png",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Model disable (minus)",
+      "action": "click -> disabled toast",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Chat service binding select",
+      "action": "change to Economy",
+      "outcome": "PASS",
+      "evidence": "35_service_binding_375.png",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Voice enable switch",
+      "action": "toggle",
+      "outcome": "PASS",
+      "evidence": "36_voice_toggled_375.png",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Voice Save button",
+      "action": "click -> backend saves existing endpoint update",
+      "outcome": "PASS",
+      "evidence": "37_voice_saved_375.png",
+      "note": "toast=True persisted=True"
+    },
+    {
+      "width": 375,
+      "control": "Locked chat model select",
+      "action": "lock to first model -> toast",
+      "outcome": "PASS",
+      "evidence": "38_chat_locked_375.png",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Locked chat model select",
+      "action": "clear lock -> toast",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Brave Search key input",
+      "action": "accepts input",
+      "outcome": "PASS",
+      "evidence": "39_brave_key_input_375.png",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "YOLO master switch",
+      "action": "toggle on -> danger confirm dialog",
+      "outcome": "PASS",
+      "evidence": "40_yolo_confirm_375.png",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "YOLO confirm dialog",
+      "action": "Enable YOLO -> settings updated toast",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "YOLO master switch",
+      "action": "toggle off (restore)",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Remove provider (trash) + confirm",
+      "action": "click -> removed",
+      "outcome": "PASS",
+      "evidence": "41_remove_confirm_375.png",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "Remove second provider",
+      "action": "click -> removed",
+      "outcome": "PASS",
+      "evidence": "",
+      "note": ""
+    },
+    {
+      "width": 375,
+      "control": "pane",
+      "action": "final state after full control sweep",
+      "outcome": "PASS",
+      "evidence": "42_aiproviders_pane_final_375.png",
+      "note": ""
+    }
+  ]
+}
