@@ -86,7 +86,12 @@ const resumeFixture = {
 const sourcesFixture = {
   status: "ok",
   sources: [
-    { adapterId: "greenhouse", displayName: "Greenhouse", enabled: true, configHint: "board token" },
+    {
+      adapterId: "greenhouse",
+      displayName: "Greenhouse",
+      enabled: true,
+      configHint: "board token"
+    },
     { adapterId: "lever", displayName: "Lever", enabled: true, configHint: "board token" },
     { adapterId: "ashby", displayName: "Ashby", enabled: true, configHint: "board token" },
     { adapterId: "workday", displayName: "Workday", enabled: false, configHint: "unsupported" }
@@ -124,7 +129,11 @@ async function mountJobSearch(
   await mockExternalWebModuleFromDist(page, options);
 }
 
-type CapturedTurn = { readonly text: string; readonly attachmentIds?: readonly string[]; readonly controlContext?: unknown };
+type CapturedTurn = {
+  readonly text: string;
+  readonly attachmentIds?: readonly string[];
+  readonly controlContext?: unknown;
+};
 
 async function captureTurns(page: Page): Promise<CapturedTurn[]> {
   const turns: CapturedTurn[] = [];
@@ -147,10 +156,16 @@ async function mockAttachments(
   const uploads: { readonly name: string }[] = [];
   await page.route("**/api/chat/attachments", async (route: Route) => {
     if (opts?.failNext) {
-      await route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"boom"}' });
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: '{"error":"boom"}'
+      });
       return;
     }
-    const name = decodeURIComponent(route.request().headers()["x-jarvis-file-name"] ?? "resume.pdf");
+    const name = decodeURIComponent(
+      route.request().headers()["x-jarvis-file-name"] ?? "resume.pdf"
+    );
     uploads.push({ name });
     await route.fulfill({
       status: 201,
@@ -214,15 +229,21 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
 
     await page
       .locator(".jsm-dropzone input[type='file']")
-      .setInputFiles({ name: "resume.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4") });
+      .setInputFiles({
+        name: "resume.pdf",
+        mimeType: "application/pdf",
+        buffer: Buffer.from("%PDF-1.4")
+      });
 
-    await expect.poll(() => turns).toEqual([
-      {
-        text: "resume.pdf",
-        attachmentIds: ["attach-1"],
-        controlContext: { step: "resume_intake", action: "upload", fileName: "resume.pdf" }
-      }
-    ]);
+    await expect
+      .poll(() => turns)
+      .toEqual([
+        {
+          text: "resume.pdf",
+          attachmentIds: ["attach-1"],
+          controlContext: { step: "resume_intake", action: "upload", fileName: "resume.pdf" }
+        }
+      ]);
   });
 
   test("upload failure re-arms upload and paste fallback sends manual resume text via turn", async ({
@@ -235,7 +256,11 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
 
     await page
       .locator(".jsm-dropzone input[type='file']")
-      .setInputFiles({ name: "resume.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4") });
+      .setInputFiles({
+        name: "resume.pdf",
+        mimeType: "application/pdf",
+        buffer: Buffer.from("%PDF-1.4")
+      });
     await expect(page.getByText("I couldn't read that file")).toBeVisible();
 
     // Upload control must still be present (re-armed), not replaced by an error-only state.
@@ -244,12 +269,14 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
     await page.getByLabel("Paste resume text instead").fill("Ten years of platform engineering.");
     await page.getByRole("button", { name: "Use pasted resume" }).click();
 
-    await expect.poll(() => turns).toEqual([
-      {
-        text: "Ten years of platform engineering.",
-        controlContext: { step: "resume_intake", action: "paste" }
-      }
-    ]);
+    await expect
+      .poll(() => turns)
+      .toEqual([
+        {
+          text: "Ten years of platform engineering.",
+          controlContext: { step: "resume_intake", action: "paste" }
+        }
+      ]);
   });
 
   test("every scripted question/control/copy appears in order up to dealbreakers", async ({
@@ -276,7 +303,7 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
       await expect(locator).toBeVisible();
       const box = await locator.boundingBox();
       expect(box).not.toBeNull();
-      expect((box?.y ?? 0)).toBeGreaterThanOrEqual(previous);
+      expect(box?.y ?? 0).toBeGreaterThanOrEqual(previous);
       previous = box?.y ?? previous;
     }
     await expect(page.getByRole("button", { name: "Set dealbreakers" })).toBeVisible();
@@ -360,7 +387,9 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
       notifications: [],
       tasks: []
     });
-    await mockExternalWebModuleFromDist(page, { invokeFixtures: fixturesFor(dealbreakersState, dealbreakersProfile) });
+    await mockExternalWebModuleFromDist(page, {
+      invokeFixtures: fixturesFor(dealbreakersState, dealbreakersProfile)
+    });
 
     // Overrides mockExternalWebModuleFromDist's static invoke route (registered after it, so
     // Playwright matches this one first): onboarding.get-state flips to sources_schedule only
@@ -373,12 +402,19 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
       const tool = decodeURIComponent(match?.[1] ?? "");
       if (tool === "job-search.onboarding.get-state") {
         await route.fulfill({
-          json: { invocation: { status: "succeeded", result: advanced ? sourcesScheduleState : dealbreakersState } }
+          json: {
+            invocation: {
+              status: "succeeded",
+              result: advanced ? sourcesScheduleState : dealbreakersState
+            }
+          }
         });
         return;
       }
       const fixtures = fixturesFor(dealbreakersState, dealbreakersProfile);
-      await route.fulfill({ json: { invocation: { status: "succeeded", result: fixtures[tool] ?? {} } } });
+      await route.fulfill({
+        json: { invocation: { status: "succeeded", result: fixtures[tool] ?? {} } }
+      });
     });
 
     const turns = await captureTurns(page);
@@ -448,7 +484,9 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
   test("boards require valid URL/token and create one combined turn with no Workday", async ({
     page
   }) => {
-    await mountJobSearch(page, { invokeFixtures: fixturesFor(sourcesScheduleState, dealbreakersProfile) });
+    await mountJobSearch(page, {
+      invokeFixtures: fixturesFor(sourcesScheduleState, dealbreakersProfile)
+    });
     const turns = await captureTurns(page);
     await page.goto("/m/job-search");
 
@@ -466,7 +504,10 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
     await submit.click();
 
     await expect.poll(() => turns).toHaveLength(1);
-    expect(turns[0]?.controlContext).toMatchObject({ step: "sources_schedule", action: "schedule" });
+    expect(turns[0]?.controlContext).toMatchObject({
+      step: "sources_schedule",
+      action: "schedule"
+    });
   });
 
   test("done onboarding step renders the full module tabs directly", async ({ page }) => {
