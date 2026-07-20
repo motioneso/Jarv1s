@@ -120,3 +120,70 @@ separate follow-up issue, or hand to a fresh session).
    `origin/main` -> `coordinated-wrap-up` (PR must disclose: shared-chat + package-hash
    dependencies, the module-install prereq, the provider-connection fix, AND this new
    module-onboarding hang finding — never merge, wait for Ben).
+
+## Coordinator decision (2026-07-20): relay to R5, do not attempt another live turn first
+
+Coordinator reviewed the relay-4 finding and ordered an immediate relay to a fresh session
+("Build 1226 Recovery R5", same worktree `/home/ben/Jarv1s/.claude/worktrees/job-search-recovery`,
+same branch `fix/1226-job-search-recovery`) rather than a follow-up issue or another live-turn
+attempt. **Do not close pane `w1:p06` or restart the API process until the bounded-evidence
+capture below is done** — it is the live, still-open repro of the hang.
+
+### Frozen evidence (do not disturb until captured properly)
+- API process: pid `3757574`, launched via `nohup ... pnpm --filter @jarv1s/api dev` from this
+  worktree, log at `/tmp/jarvis-1226-api.log`.
+- Confirmed env (`tr '\0' '\n' < /proc/3757574/environ`): `JARVIS_MULTIPLEXER=herdr`,
+  `JARVIS_HERDR_ROOT_TAB=jarv1s` (self-healing path — this is why it's no longer 503ing with
+  `pane_not_found`), plus an incidental inherited `HERDR_PANE_ID=w1:p04` (R4's own pane — harmless
+  since `JARVIS_HERDR_ROOT_TAB` takes precedence in `resolveRoot()`'s override order).
+- `herdr tab list` shows tab `jarv1s` (`tab_id: w1:t3F`) with 2 panes: `w1:p05` (plain shell,
+  no agent, cwd = this worktree — likely the parent pane `ensureTabPane()` opened before
+  splitting) and `w1:p06` (agent: claude, `agent_session.value:
+  0bd0a0a0-3b44-4e22-97b6-9668a3055e7b`, cwd `~/.jarvis/chat/00000000-0000-4000-8000-000000000001`,
+  `agent_status: idle`). **Pane IDs reflow — re-resolve both from a fresh `herdr pane list`
+  filtered to `tab_id == "w1:t3F"` before touching either; do not assume `w1:p05`/`w1:p06` are
+  still current numbers.**
+- `herdr pane read w1:p06 --source recent` shows the onboarding system prompt + module-onboarding
+  JSON state block fully echoed into the composer (`❯ calm, lightly dry, sentence case...`),
+  never submitted — text sits there with no active spinner.
+- API log (`/tmp/jarvis-1226-api.log`), last two lines in the entire file, both for pid
+  `3757574`, reqId `req-1o` and `req-1p`, both `POST /api/chat/module-onboarding`, "incoming
+  request" at `time: 1784588583372` / `1784588583373` (epoch ms). Grepped the full file for
+  both reqIds: **zero "request completed" line exists for either, for this pid** (reqIds are
+  reused per-process by Fastify's default counter, so earlier matches in the log belong to
+  prior process incarnations — filter by `pid: 3757574` specifically). At last check
+  (`date +%s` = `1784589039`) the requests had been open **~456 seconds** with the API process
+  still alive and responsive to other routes.
+
+### R5 task (from Coordinator, verbatim intent)
+Build one deterministic, red-capable reproduction loop that proves this exact ~300s+ symptom
+on demand (don't rely on the live pane staying frozen forever), then trace the call path
+route -> session/RPC layer -> engine-host -> `verifiedSubmit` boundary in
+`packages/chat/src/live/cli-chat-engine.ts` to identify the **precise `await` that never
+resolves**, upstream of the bounded nudge loop (`waitForUserAckWithEnterNudge`, ~line 702;
+nudgeAfterMs=7000 x 2 nudges, should bound to ~14-21s and never did). Candidates to check first:
+`this.mux.pressEnter(handle)` (~line 397), `observePane` calls (~line 377, 389), and
+`purgeThenKillQuietly()` -> `kill()` (~line 865, ~473) during error-path cleanup — none of these
+visibly declare their own deadline in the code read so far.
+
+- **Instrumentation rule**: add only uniquely-tagged temporary diagnostics (e.g. a distinct
+  log-line prefix like `[R5-DIAG-<random>]`) around suspect awaits, capture the reproduction,
+  then **remove every temporary diagnostic** before handing off or committing.
+- **Manual Enter remains forbidden** — do not press Enter into any live chat pane yourself;
+  the whole point is proving the *automated* path either completes or fails fast without
+  human intervention.
+- **Scope**: authorized edit surface is still `packages/chat/src/live/cli-chat-engine.ts` +
+  its focused test `tests/unit/cli-chat-engine-verified-submit.test.ts`. If the proven root
+  cause lives outside that seam (e.g. in `packages/ai/src/adapters/herdr-multiplexer.ts`, or
+  the route handler in `packages/chat/src/live-routes.ts`), **stop and report the exact
+  file/function to Coordinator and request scope before editing it.**
+- Task 6 may only be considered unblocked once the **original automated** module-onboarding
+  request returns (success or a fail-fast error) with zero manual keys involved.
+
+### Handoff protocol
+Predecessor session (R4, this one): `agent_session.value = 80fab49d-7cea-4966-bf86-3863dc88fc5d`,
+pane `w1:p04` (tab `w1:t3B`, label "Build 1226 Recovery R4"). Successor (R5): spawned via the
+`herdr-handoff` skill pattern but **in this same worktree/branch** (Coordinator override — this
+is a context-exhaustion relay of one continuous branch of work, not a parallel-agent split, so
+no fresh worktree). R4 will send both immutable session ids to Coordinator once R5 is confirmed
+driving.
