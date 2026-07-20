@@ -345,13 +345,15 @@ async function critiqueSave(
     maxOutputTokens: 16_384
   });
   if (!result.ok) {
-    // The error union is provider-agnostic by construction, but the user copy
-    // stays generic regardless.
+    // The error union and user copy stay provider-agnostic.
     return {
       status: "question",
       question:
-        "The AI critique didn't complete. Try again in a moment, or paste " +
-        "your own edits as a manual draft."
+        result.error === "needs_config"
+          ? "Structured AI is not configured for this instance. Configure it before retrying, " +
+            "or paste your own edits as a manual draft."
+          : "The AI critique didn't complete. Try again in a moment, or paste " +
+            "your own edits as a manual draft."
     };
   }
   const critique = parseCritique(result.object);
