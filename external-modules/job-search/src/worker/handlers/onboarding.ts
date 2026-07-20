@@ -10,7 +10,8 @@ import {
   getActiveResume,
   getMonitor,
   getOnboardingState,
-  listMonitorIds
+  listMonitorIds,
+  saveOnboardingState
 } from "../../domain/index.js";
 import type { WorkerPorts } from "../ai-port.js";
 import { STEP_ORDER } from "./flow.js";
@@ -45,5 +46,17 @@ export function getStateHandler(ports: WorkerPorts) {
       response.approvedProfileRevisionId = state.approvedProfileRevisionId;
     }
     return response;
+  };
+}
+
+/** #1198: restart checkpoints without deleting approved append-only history. */
+export function resetOnboardingHandler(ports: WorkerPorts) {
+  return async (_input: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    await saveOnboardingState(ports.kv, {
+      schemaVersion: 1,
+      step: "resume_intake",
+      completed: {}
+    });
+    return { status: "ok" };
   };
 }

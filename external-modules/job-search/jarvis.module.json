@@ -63,6 +63,17 @@
       "handler": "onboarding.get-state"
     },
     {
+      "name": "job-search.onboarding.reset",
+      "permissionId": "job-search.onboarding.reset",
+      "description": "Restart the user's job-search onboarding checkpoints",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "handler": "onboarding.reset"
+    },
+    {
       "name": "job-search.profile.get",
       "permissionId": "job-search.profile.get",
       "description": "Read the user's job-search profile",
@@ -129,6 +140,23 @@
         "additionalProperties": false
       },
       "handler": "resume.get"
+    },
+    {
+      "name": "job-search.resume.import-attachment",
+      "permissionId": "job-search.resume.import-attachment",
+      "description": "Import actor-owned extracted PDF or DOCX text as a resume revision",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "attachmentId": {
+            "type": "string"
+          }
+        },
+        "required": ["attachmentId"],
+        "additionalProperties": false
+      },
+      "handler": "resume.import-attachment"
     },
     {
       "name": "job-search.resume.save-draft",

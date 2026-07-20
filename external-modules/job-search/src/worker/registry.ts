@@ -10,7 +10,7 @@
 import type { WorkerPorts } from "./ai-port.js";
 import { listSourcesHandler, pasteCaptureHandler, urlCaptureHandler } from "./handlers/capture.js";
 import { getMonitorHandler, listMonitorsHandler, saveMonitorHandler } from "./handlers/monitor.js";
-import { getStateHandler } from "./handlers/onboarding.js";
+import { getStateHandler, resetOnboardingHandler } from "./handlers/onboarding.js";
 import {
   decideOpportunityHandler,
   getOpportunityHandler,
@@ -25,6 +25,7 @@ import {
 import {
   approveResumeHandler,
   getResumeHandler,
+  importResumeAttachmentHandler,
   saveResumeDraftHandler
 } from "./handlers/resume.js";
 import type { ToolHandler } from "./wrap.js";
@@ -35,10 +36,12 @@ export const notImplemented: ToolFactory = () => async () => ({ status: "not-imp
 
 export const HANDLERS: Readonly<Record<string, ToolFactory>> = {
   "onboarding.get-state": getStateHandler,
+  "onboarding.reset": resetOnboardingHandler,
   "profile.get": getProfileHandler,
   "profile.save-draft": saveProfileDraftHandler,
   "profile.approve": approveProfileHandler,
   "resume.get": getResumeHandler,
+  "resume.import-attachment": importResumeAttachmentHandler,
   "resume.save-draft": saveResumeDraftHandler,
   "resume.approve": approveResumeHandler,
   "monitor.list": listMonitorsHandler,

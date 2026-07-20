@@ -160,7 +160,7 @@ const resume = {
   kind: "critique",
   createdAt: "2026-07-09T12:00:00.000Z",
   critiqueSummary: "Strong systems narrative; three metrics still need a source.",
-  evidence: [{ claim: "Design system ownership" }],
+  evidence: [{ claimText: "Design system ownership" }],
   content: "PRIVATE RESUME BODY MUST NOT RENDER"
 };
 
@@ -300,8 +300,9 @@ test.describe("JS-06 Park Press screens (real bundle)", () => {
     });
     await page.goto("/m/job-search");
 
-    await expect(page.getByRole("heading", { name: "Setting up your job search" })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Job Search sections" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Set dealbreakers" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "None of these" })).toBeVisible();
   });
 
   test("retired opportunities paths no longer alias to Matches", async ({ page }) => {

@@ -72,6 +72,19 @@ export async function registerMockChatRoutes(page: Page, state: MockChatApiState
       });
     }
   );
+
+  // Global default so every module-onboarding seed call succeeds; the js1198 onboarding
+  // spec (#1198) needs the same route and registers no override, so this covers both.
+  await page.route(
+    (url) => url.pathname.endsWith("/api/chat/module-onboarding"),
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true })
+      });
+    }
+  );
 }
 
 export function createMockChatThread(

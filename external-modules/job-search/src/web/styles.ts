@@ -106,6 +106,41 @@ export const MODULE_STYLES = `
 .jsm-prewrap { white-space: pre-wrap; }
 .jsm-table { width: 100%; border-collapse: collapse; }
 .jsm-table th, .jsm-table td { text-align: left; vertical-align: top; padding: 0.25rem 0.75rem 0.25rem 0; }
+.ob2 { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 30px; min-height: 0; }
+.ob2-chat { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.ob2-head { padding-bottom: 1rem; border-bottom: 3px solid var(--ink); }
+.jsm-control-stack { display: grid; gap: 0.75rem; }
+.jsm-chip-row, .jsm-run-time { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; }
+.jsm-chip { display: inline-flex; align-items: center; gap: 0.4rem; border-color: var(--line-strong); background: var(--surface); color: var(--ink); }
+.jsm-chip.is-active { border-color: var(--accent); background: var(--accent); color: var(--text-on-accent); }
+.jsm-chip.is-inferred { border-style: dashed; border-color: var(--gold); color: var(--gold-strong); }
+.jsm-add-input { display: inline-flex; align-items: flex-start; gap: 0.4rem; }
+.jsm-add-input > span { display: grid; gap: 0.25rem; }
+.jsm-add-input input, .jsm-source-control > input, .jsm-paste-fallback textarea { border: 1px dashed var(--line-strong); border-radius: var(--radius-pill); padding: 0.5rem 0.75rem; color: var(--ink); background: var(--surface-2); font: inherit; }
+.jsm-add-input small, .jsm-source-control small { display: block; max-width: 42ch; color: var(--ink-3); font-size: 0.72rem; line-height: 1.35; }
+.jsm-dropzone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.625rem; box-sizing: border-box; width: 100%; padding: 1.875rem 1.5rem; cursor: pointer; text-align: center; border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); background: var(--surface); }
+.jsm-dropzone:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.jsm-control-error { margin: 0; color: var(--red); }
+.jsm-paste-fallback { display: grid; gap: 0.5rem; }
+.jsm-paste-fallback textarea { border-radius: var(--radius-md); resize: vertical; }
+.jsm-source-list { display: grid; gap: 0.5rem; }
+.jsm-source-control { display: grid; gap: 0.65rem; padding: 0.75rem; }
+.jsm-source-control > label { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.jsm-source-control strong { display: block; }
+.jsm-source-control > input { border-style: solid; border-radius: var(--radius-md); }
+.jsm-critique-card { padding: 1rem 1.125rem; border: 1px dashed var(--gold); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--gold) 4%, var(--surface)); }
+.jsm-critique-card > p { line-height: 1.55; }
+.jsm-critique-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.jsm-critique-grid ul { display: grid; gap: 0.4rem; margin: 0.5rem 0 0; padding-left: 1.1rem; color: var(--ink-2); }
+.jsm-profile-aside { position: sticky; top: 0; align-self: start; padding: 1.25rem; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
+.jsm-profile-aside__rows { display: grid; margin-top: 1rem; }
+.jsm-profile-aside__row { display: grid; grid-template-columns: 1.4rem minmax(0, 1fr); gap: 0.7rem; padding: 0.6rem 0; border-bottom: 1px solid var(--line); }
+.jsm-profile-aside__row:last-child { border-bottom: 0; }
+.jsm-profile-aside__row > span:last-child { display: grid; gap: 0.2rem; }
+.jsm-profile-aside__row strong { overflow-wrap: anywhere; font-size: 0.8rem; }
+.jsm-aside-status { display: inline-flex; width: 1.35rem; height: 1.35rem; align-items: center; justify-content: center; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--ink-3); }
+.jsm-aside-status.is-set { background: var(--accent); color: var(--text-on-accent); }
+.jsm-summary { display: grid; gap: 0.875rem; }
 @media (max-width: 760px) {
   .jsm-hero, .jsm-overview-grid, .jsm-detail-grid { grid-template-columns: 1fr; gap: 1.5rem; }
   .jsm-display { font-size: clamp(2.5rem, 14vw, 3.75rem); }
@@ -116,5 +151,11 @@ export const MODULE_STYLES = `
   .jsm-profile-grid { grid-template-columns: 1fr; }
   .jsm-checkpoint { grid-template-columns: 2rem minmax(0, 1fr); }
   .jsm-checkpoint > :last-child { grid-column: 2; }
+  .ob2 { grid-template-columns: 1fr; gap: 1.5rem; }
+  .jsm-profile-aside { position: static; }
+  .jsm-critique-grid { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jsm-chip { transition: none; }
 }
 `;

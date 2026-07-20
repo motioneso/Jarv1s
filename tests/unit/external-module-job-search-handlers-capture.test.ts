@@ -24,6 +24,8 @@ import {
   pasteCaptureHandler,
   urlCaptureHandler
 } from "../../external-modules/job-search/src/worker/handlers/capture.js";
+import { resetOnboardingHandler } from "../../external-modules/job-search/src/worker/handlers/onboarding.js";
+import { importResumeAttachmentHandler } from "../../external-modules/job-search/src/worker/handlers/resume.js";
 import { monitorRunHandler } from "../../external-modules/job-search/src/worker/handlers/run.js";
 import { HANDLERS } from "../../external-modules/job-search/src/worker/registry.js";
 import { wrap } from "../../external-modules/job-search/src/worker/wrap.js";
@@ -241,6 +243,8 @@ describe("capture handlers are zero-network by construction", () => {
     expect(HANDLERS["capture.paste"]).toBe(pasteCaptureHandler);
     expect(HANDLERS["capture.url"]).toBe(urlCaptureHandler);
     expect(HANDLERS["monitor.run"]).toBe(monitorRunHandler);
-    expect(Object.keys(HANDLERS)).toHaveLength(17);
+    expect(HANDLERS["onboarding.reset"]).toBe(resetOnboardingHandler);
+    expect(HANDLERS["resume.import-attachment"]).toBe(importResumeAttachmentHandler);
+    expect(Object.keys(HANDLERS)).toHaveLength(19);
   });
 });
