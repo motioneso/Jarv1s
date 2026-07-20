@@ -144,8 +144,7 @@ New — assert the opposite (no persistence on the read-recovery path):
 expect(await readFeed(kv)).toBeNull();
 ```
 
-- [ ] **Step 2: Add the same non-persistence assertion to `"readFeedOrRebuild builds a fresh index
-    when none exists"` (lines ~136-141)**
+- [ ] **Step 2: Add the same non-persistence assertion to `"readFeedOrRebuild builds a fresh index when none exists"` (lines ~136-141)**
 
 After `const feed = await readFeedOrRebuild(kv, REBUILT_AT); expect(feed.entries).toHaveLength(3);`
 add:
