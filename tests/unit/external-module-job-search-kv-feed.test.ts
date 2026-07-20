@@ -2,7 +2,7 @@
 //
 // JS-02 (#931) Task 8: feed index. The feed is DERIVED state — rebuilt from
 // job/* canonical records, never a source of truth — so a corrupt index is
-// detected (corrupt_index), recoverable (readFeedOrRebuild), and an
+// detected (null), recoverable (readFeedOrRebuild), and an
 // interrupted upsert+rebuild flow converges on retry without losing a
 // posting.
 //
@@ -17,7 +17,6 @@
 // entries carry only {h, r, s} still reads cleanly (additive ABI).
 import { describe, expect, it } from "vitest";
 
-import { JobSearchKvError } from "../../external-modules/job-search/src/domain/errors.js";
 import type {
   EvaluationConfidence,
   EvaluationRecord,
@@ -100,26 +99,17 @@ describe("feed index", () => {
     expect(await readFeed(kv)).toBeNull();
   });
 
-  it("throws corrupt_index on an unreadable stored index", async () => {
+  it("returns null for an unreadable stored index", async () => {
     const kv = createMemoryKv();
     // Garbage planted directly: wrong shape entirely.
     await kv.set(NS.feed, keys.feedActive, { schemaVersion: 1, entries: "not-an-array" });
-    const error = await readFeed(kv).then(
-      () => null,
-      (e: unknown) => e
-    );
-    expect(error).toBeInstanceOf(JobSearchKvError);
-    expect((error as JobSearchKvError).code).toBe("corrupt_index");
+    expect(await readFeed(kv)).toBeNull();
   });
 
-  it("maps invalid stored envelopes to corrupt_index too", async () => {
+  it("maps invalid stored envelopes to null too", async () => {
     const kv = createMemoryKv();
     await kv.set(NS.feed, keys.feedActive, { schemaVersion: 99 });
-    const error = await readFeed(kv).then(
-      () => null,
-      (e: unknown) => e
-    );
-    expect((error as JobSearchKvError).code).toBe("corrupt_index");
+    expect(await readFeed(kv)).toBeNull();
   });
 
   it("readFeedOrRebuild recovers from a corrupt index", async () => {
@@ -132,12 +122,7 @@ describe("feed index", () => {
     // readFeedOrRebuild is a READ path (#1203): it repairs and returns the
     // index but never persists, so the stale corrupt row is still there —
     // only rebuildFeed's write-risk callers overwrite it.
-    const error = await readFeed(kv).then(
-      () => null,
-      (e: unknown) => e
-    );
-    expect(error).toBeInstanceOf(JobSearchKvError);
-    expect((error as JobSearchKvError).code).toBe("corrupt_index");
+    expect(await readFeed(kv)).toBeNull();
   });
 
   it("readFeedOrRebuild builds a fresh index when none exists", async () => {
