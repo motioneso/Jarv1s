@@ -15,12 +15,14 @@ import type {
   ExternalModuleDto,
   GetModuleRegistryResponse,
   ListModuleCredentialsResponse,
-  ListModulesResponse
+  ListModulesResponse,
+  ModuleRegistryRowDto
 } from "@jarv1s/shared";
 
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 import { InstanceModulesPane } from "../../apps/web/src/settings/settings-instance-modules-pane.js";
 import { FeedbackProvider } from "../../apps/web/src/settings/settings-feedback.js";
+import { describeCapabilityConsequences } from "../../apps/web/src/settings/settings-module-registry-section.js";
 
 function renderWithQuery(client: QueryClient): string {
   return renderToString(
@@ -308,5 +310,58 @@ describe("InstanceModulesPane module library merge (#1187 decisions 1/2)", () =>
     const html = renderWithQuery(seedMergeClient());
     expect(html).toContain("Download and install");
     expect(html).not.toContain(">Install<");
+  });
+});
+
+// QA-RED remediation (2026-07-20): describeCapabilityConsequences was only unit-tested as a
+// pure function against `capabilities: null` fixtures — the actual install-confirm dialog
+// markup never proved it renders the consequence sentence for a row with real capabilities.
+// FeedbackProvider's `initialDialog` seed (settings-feedback.tsx) exists specifically to close
+// this gap without jsdom/@testing-library (repo has neither).
+function capabilityRow(
+  overrides: Partial<ModuleRegistryRowDto> & Pick<ModuleRegistryRowDto, "id">
+): ModuleRegistryRowDto {
+  return {
+    name: overrides.id,
+    description: null,
+    state: "not-installed",
+    installedVersion: null,
+    latestVersion: null,
+    stagedVersion: null,
+    requiresCore: null,
+    capabilities: null,
+    lastInstallError: null,
+    purgePending: false,
+    ...overrides
+  } satisfies ModuleRegistryRowDto;
+}
+
+describe("install-confirm dialog capability copy (#1187 decision 4 render proof)", () => {
+  it("renders the consequence sentence in .jds-dialog__desc for a row with real capabilities", () => {
+    const rowWithCaps = capabilityRow({
+      id: "acme-net",
+      capabilities: {
+        permissions: ["net.fetch.acme"],
+        fetchHosts: ["api.acme.example"],
+        tools: [],
+        ownsTables: []
+      }
+    });
+    const html = renderToString(
+      createElement(
+        FeedbackProvider,
+        {
+          initialDialog: {
+            title: "Install Acme Net?",
+            description: describeCapabilityConsequences(rowWithCaps),
+            confirmLabel: "Download",
+            onConfirm: () => {}
+          }
+        },
+        createElement("div")
+      )
+    );
+    expect(html).toContain("jds-dialog__desc");
+    expect(html).toContain("This module can connect to the internet");
   });
 });
