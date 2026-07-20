@@ -11,6 +11,8 @@ import {
   writeVaultFile,
   writeVaultFileBytes
 } from "@jarv1s/vault";
+import JSZip from "jszip";
+import mammoth from "mammoth";
 
 /**
  * #1133 / #1154 — chat attachment storage. Bytes live in the actor's vault under
@@ -22,6 +24,7 @@ import {
 // Whitelist is fail-closed: anything not matched here is rejected with 415 at upload.
 const IMAGE_MIMES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 const PDF_MIME = "application/pdf";
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 export const MAX_IMAGE_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 export const MAX_DOCUMENT_ATTACHMENT_BYTES = 10 * 1024 * 1024;
@@ -33,11 +36,12 @@ export const PENDING_ATTACHMENT_TTL_MS = 24 * 60 * 60 * 1000;
 // at 16k rendered chars anyway — capping here lets us append an honest truncation note.
 export const ATTACHMENT_TEXT_CAP_CHARS = 15_000;
 
-export type AttachmentMimeKind = "image" | "pdf" | "text";
+export type AttachmentMimeKind = "image" | "pdf" | "docx" | "text";
 
 export function classifyAttachmentMime(mimeType: string): AttachmentMimeKind | undefined {
   if (IMAGE_MIMES.has(mimeType)) return "image";
   if (mimeType === PDF_MIME) return "pdf";
+  if (mimeType === DOCX_MIME) return "docx";
   if (mimeType.startsWith("text/") || mimeType === "application/json") return "text";
   return undefined;
 }
@@ -45,7 +49,7 @@ export function classifyAttachmentMime(mimeType: string): AttachmentMimeKind | u
 // Magic-byte signatures for the binary types. A declared binary mime whose bytes don't
 // match is rejected — mislabeled text is harmless (read as text, worst case garbage), but
 // mislabeled binaries would otherwise let e.g. a PDF masquerade as a PNG.
-function sniffMatches(mimeType: string, bytes: Buffer): boolean {
+async function sniffMatches(mimeType: string, bytes: Buffer): Promise<boolean> {
   const starts = (sig: number[], offset = 0) =>
     bytes.length >= offset + sig.length && sig.every((b, i) => bytes[offset + i] === b);
   switch (mimeType) {
@@ -60,6 +64,15 @@ function sniffMatches(mimeType: string, bytes: Buffer): boolean {
       return starts([0x52, 0x49, 0x46, 0x46]) && starts([0x57, 0x45, 0x42, 0x50], 8);
     case PDF_MIME:
       return starts([0x25, 0x50, 0x44, 0x46]);
+    case DOCX_MIME:
+      // #1195 / #1193: OOXML formats share PK magic bytes; requiring Word's main document
+      // entry rejects renamed XLSX/PPTX files before untrusted bytes reach extraction.
+      if (!starts([0x50, 0x4b, 0x03, 0x04])) return false;
+      try {
+        return (await JSZip.loadAsync(bytes)).file("word/document.xml") !== null;
+      } catch {
+        return false;
+      }
     default:
       return true; // text kinds: no signature to check
   }
@@ -181,7 +194,7 @@ export class ChatAttachmentsService {
         `Attachment exceeds the ${Math.floor(cap / (1024 * 1024))} MB limit for this type`
       );
     }
-    if (!sniffMatches(input.mimeType, input.bytes)) {
+    if (!(await sniffMatches(input.mimeType, input.bytes))) {
       throw new ChatAttachmentUploadError(
         415,
         "Attachment content does not match its declared type"
@@ -248,6 +261,9 @@ export class ChatAttachmentsService {
       if (mimeKind === "pdf") {
         return { kind: "text", meta, text: await extractPdfText(bytes) } as const;
       }
+      if (mimeKind === "docx") {
+        return { kind: "text", meta, text: await extractDocxText(bytes) } as const;
+      }
       return { kind: "text", meta, text: capText(bytes.toString("utf8")) } as const;
     });
   }
@@ -300,5 +316,16 @@ async function extractPdfText(bytes: Buffer): Promise<string> {
   } catch {
     // Explicit failure note instead of a crash — the engine can tell the user (spec §4).
     return "[PDF text extraction failed for this attachment]";
+  }
+}
+
+async function extractDocxText(bytes: Buffer): Promise<string> {
+  try {
+    // #1195 / #1193: raw text keeps resume content on the same capped, deterministic
+    // attachment-manifest path as PDFs without preserving active document formatting.
+    const result = await mammoth.extractRawText({ buffer: bytes });
+    return capText(result.value);
+  } catch {
+    return "[DOCX text extraction failed for this attachment]";
   }
 }

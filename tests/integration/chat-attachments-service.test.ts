@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import JSZip from "jszip";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { VaultContextRunner } from "@jarv1s/vault";
@@ -39,6 +40,11 @@ endobj
 5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj
 trailer<</Root 1 0 R>>`,
   "latin1"
+);
+
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const DOCX_FIXTURE = await readFile(
+  new URL("../fixtures/chat-attachments/resume.docx", import.meta.url)
 );
 
 describe("ChatAttachmentsService (#1133)", () => {
@@ -99,6 +105,65 @@ describe("ChatAttachmentsService (#1133)", () => {
     if (content.kind === "text") {
       expect(content.text).toContain("Hello attachment");
     }
+  });
+
+  it("extracts text from a genuine DOCX attachment", async () => {
+    const meta = await service.saveAttachment(access, {
+      fileName: "resume.docx",
+      mimeType: DOCX_MIME,
+      bytes: DOCX_FIXTURE
+    });
+    const content = await service.readContent(access, meta.id);
+    if (content.kind !== "text") throw new Error("expected text content");
+    expect(content.text.trim()).toBe("Lane B DOCX resume fixture");
+  });
+
+  it("rejects an xlsx archive renamed to docx", async () => {
+    const renamedXlsx = await new JSZip()
+      .file("xl/workbook.xml", "<workbook />")
+      .generateAsync({ type: "nodebuffer" });
+    await expect(
+      service.saveAttachment(access, {
+        fileName: "renamed.docx",
+        mimeType: DOCX_MIME,
+        bytes: renamedXlsx
+      })
+    ).rejects.toMatchObject({ statusCode: 415 });
+  });
+
+  it("returns an explicit note when DOCX extraction fails", async () => {
+    const malformedDocx = await new JSZip()
+      .file("word/document.xml", "not valid WordprocessingML")
+      .generateAsync({ type: "nodebuffer" });
+    const meta = await service.saveAttachment(access, {
+      fileName: "broken.docx",
+      mimeType: DOCX_MIME,
+      bytes: malformedDocx
+    });
+    const content = await service.readContent(access, meta.id);
+    if (content.kind !== "text") throw new Error("expected text content");
+    expect(content.text).toBe("[DOCX text extraction failed for this attachment]");
+  });
+
+  it("caps extracted DOCX text with the shared truncation note", async () => {
+    const zip = await JSZip.loadAsync(DOCX_FIXTURE);
+    zip.file(
+      "word/document.xml",
+      `<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body><w:p><w:r><w:t>${"x".repeat(ATTACHMENT_TEXT_CAP_CHARS + 500)}</w:t></w:r></w:p></w:body>
+</w:document>`
+    );
+    const meta = await service.saveAttachment(access, {
+      fileName: "long.docx",
+      mimeType: DOCX_MIME,
+      bytes: await zip.generateAsync({ type: "nodebuffer" })
+    });
+    const content = await service.readContent(access, meta.id);
+    if (content.kind !== "text") throw new Error("expected text content");
+    expect(content.text.startsWith("x".repeat(100))).toBe(true);
+    expect(content.text).toContain("[truncated:");
+    expect(content.text.length).toBeLessThan(ATTACHMENT_TEXT_CAP_CHARS + 200);
   });
 
   it("caps oversized text with an explicit truncation note", async () => {
