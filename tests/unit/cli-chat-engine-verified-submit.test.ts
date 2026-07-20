@@ -388,23 +388,25 @@ describe("CliChatEngineImpl — verified interactive submit", () => {
     expect(mux.kill).toHaveBeenCalledTimes(1);
   });
 
-  it("hangs forever when an individual mux call never settles — pressEnter (#1226 relay-4)", async () => {
+  it("rejects instead of hanging when an individual mux call never settles — pressEnter (#1226 relay-4/5/6)", async () => {
     // Relay-4 live finding: composer held the full pasted payload, un-submitted, no
     // spinner, for 300+s — the #1226 fix above (MAX_ENTER_NUDGES exhaustion) never even
     // engaged. Root cause: every "bounded" loop in this file (observePane's echoMs
     // deadline, waitForUserAckWithEnterNudge's nudgeAfterMs) only bounds the polling
-    // loop's OWN sleep/deadline check — it never wraps the individual
+    // loop's OWN sleep/deadline check — it never wrapped the individual
     // `await this.mux.*(handle)` call inside it with its own timeout. If that single
-    // RPC (here: pressEnter at cli-chat-engine.ts ~397) never settles, execution never
-    // reaches the nudge loop at all, so its 7s/14s/21s bound never fires. This test
-    // proves the hang is real and deterministic, not a guess.
+    // RPC (here: pressEnter at cli-chat-engine.ts ~419) never settles, execution never
+    // reaches the nudge loop at all, so its 7s/14s/21s bound never fires. Relay-6 added
+    // `raceMux` (a per-call `muxCallMs` timeout) around every such RPC, so the hang is
+    // now provably bounded: this test proves the fix, not the bug.
     const mux = stateMachineMux({ panes: [empty, "❯ exact payload\n"] });
     (mux.pressEnter as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise(() => {}));
     const io = makeIo();
     const engine = new CliChatEngineImpl("anthropic", "hung-press-enter", io, {
       mux,
       echoMs: 0,
-      nudgeAfterMs: 0
+      nudgeAfterMs: 0,
+      muxCallMs: 0
     });
     await engine.launch({ neutralDir: "/tmp/hung-press-enter", personaPath: "/p.md" });
 
@@ -425,10 +427,16 @@ describe("CliChatEngineImpl — verified interactive submit", () => {
       )
     ]);
 
-    // Current (buggy) behavior: verifiedSubmit never settles. This assertion documents
-    // the live bug pending a Coordinator-approved fix — it is expected to flip to
-    // "rejected" once a per-call timeout is added around mux.pressEnter.
-    expect(outcome.kind).toBe("timeout");
+    // pressEnter fires after `entered = true` is set, so the existing entered/pasted
+    // classification in verifiedSubmit's catch block turns raceMux's plain timeout Error
+    // into a delivery_unknown VerifiedSubmitError — the real rejection wins the inner
+    // race well inside RACE_DEADLINE_MS, so the outer harness timeout arm stays unhit.
+    expect(outcome.kind).toBe("rejected");
+    if (outcome.kind === "rejected") {
+      expect(outcome.err).toMatchObject<Partial<VerifiedSubmitError>>({
+        code: "delivery_unknown"
+      });
+    }
     expect(mux.pressEnter).toHaveBeenCalledTimes(1);
   });
 
