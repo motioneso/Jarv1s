@@ -324,6 +324,22 @@
   flex: none;
 }
 
+/* Conversation bubble (#1196): asymmetric 4px/12px corners match Park Press dialogue. */
+.jds-bubble {
+  max-width: min(76ch, 88%);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-xs) var(--radius-card) var(--radius-card) var(--radius-card);
+  background: var(--surface-2);
+  color: var(--text);
+}
+.jds-bubble--user {
+  border-color: var(--accent);
+  border-radius: var(--radius-card) var(--radius-xs) var(--radius-card) var(--radius-card);
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
 /* Removable chip */
 .jds-chip {
   display: inline-flex;
@@ -357,6 +373,54 @@
 .jds-chip__x svg {
   width: 13px;
   height: 13px;
+}
+
+/* Toggle chip (#1196): same primitive, native pressed state. */
+.jds-chip--toggle {
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+.jds-chip--toggle:hover {
+  background: var(--surface-3);
+}
+.jds-chip--toggle[aria-pressed="true"],
+.jds-chip--toggle.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-soft-fg);
+}
+
+/* Shared embedded-assistant typing dots (#1196). */
+.jds-typing-dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--text-subtle);
+  animation: jds-typing-dot 1.2s var(--ease-quiet) infinite;
+}
+.jds-typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.jds-typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes jds-typing-dot {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(calc(var(--space-1) * -1));
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jds-typing-dot {
+    animation: none;
+  }
 }
 
 /* ---------------------------------------------------------------

@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import * as React from "react";
 import * as ReactDOMClient from "react-dom/client";
 
+import type { AssistantSurfaceHandleV1 } from "../chat/assistant-surface";
 import type { ExternalModuleHostActionsV1 } from "./host-actions";
 
 export const JARVIS_WEB_CONTRACT_VERSION = 1;
@@ -13,6 +14,8 @@ export interface ExternalWebContributionProps {
    * calls e.g. `hostActions.openAssistant({ starterPrompt })` from a user gesture.
    */
   readonly hostActions: ExternalModuleHostActionsV1;
+  /** #1196 — optional only so a v1.1 module bundle can fail closed on an older host. */
+  readonly assistantSurface?: AssistantSurfaceHandleV1;
 }
 
 /** Contract v1: the default export of an external module's web entrypoint. */

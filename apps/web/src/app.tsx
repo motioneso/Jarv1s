@@ -14,6 +14,7 @@ import {
 import { webRoutePath } from "./app-route-metadata";
 import { queryKeys } from "./api/query-keys";
 import { AuthScreen } from "./auth/auth-screen";
+import { createAssistantSurfaceHandle, useAssistantSurfaceHost } from "./chat/assistant-surface";
 import {
   installModuleHostRuntime,
   loadExternalModuleContribution,
@@ -335,12 +336,18 @@ function ExternalModuleMount(props: {
   readonly Component: ComponentType<ExternalWebContributionProps>;
 }) {
   const { openAssistantWithDraft } = useChatControls();
+  const { subscribeRecords } = useAssistantSurfaceHost();
   const hostActions = useMemo(
     () => createModuleHostActions(props.moduleId, openAssistantWithDraft),
     [props.moduleId, openAssistantWithDraft]
   );
+  // #1196 — same host-controlled binding as hostActions: module code never supplies its id.
+  const assistantSurface = useMemo(
+    () => createAssistantSurfaceHandle(props.moduleId, subscribeRecords),
+    [props.moduleId, subscribeRecords]
+  );
   const Component = props.Component;
-  return <Component hostActions={hostActions} />;
+  return <Component hostActions={hostActions} assistantSurface={assistantSurface} />;
 }
 
 function LoadingScreen() {

@@ -1,0 +1,62 @@
+.assistant-surface {
+  display: grid;
+  min-width: 0;
+}
+
+.assistant-surface__thread {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.assistant-surface__thread .chatd-thread {
+  display: contents;
+}
+
+.assistant-surface__row {
+  display: flex;
+  min-width: 0;
+}
+
+.assistant-surface__row--user {
+  justify-content: flex-end;
+}
+
+.assistant-surface__row--assistant,
+.assistant-surface__row--control {
+  justify-content: flex-start;
+}
+
+.assistant-surface__typing {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: fit-content;
+  padding: var(--space-3) var(--space-4);
+}
+
+.assistant-surface__composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: var(--border-w) solid var(--border);
+}
+
+.assistant-surface__composer textarea {
+  flex: 1;
+  min-width: 0;
+  resize: vertical;
+  border: var(--border-w) solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  line-height: var(--leading-normal);
+  padding: var(--space-3) var(--space-4);
+}
+
+.assistant-surface__composer textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}

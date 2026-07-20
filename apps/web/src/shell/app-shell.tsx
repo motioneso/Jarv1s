@@ -35,6 +35,11 @@ import { buildShellNavigation, resolvePageHeading } from "../app-route-metadata"
 import { useUserLocale } from "../locale/locale-format";
 import { queryKeys } from "../api/query-keys";
 import { ChatDrawer } from "../chat/chat-drawer";
+import {
+  AssistantSurfaceHostProvider,
+  type AssistantRecordV1,
+  type AssistantSurfaceHostValue
+} from "../chat/assistant-surface";
 import { useChatStream } from "../chat/use-chat-stream";
 import { usePageContextSync } from "../chat/use-page-context-sync";
 import { BrandMark } from "./brand-mark";
@@ -92,6 +97,8 @@ export function AppShell(props: AppShellProps) {
   // shot, mirrors #368's askJarvisStarter: seeds the composer on drawer open, cleared on close.
   const [moduleDraft, setModuleDraft] = useState<string | undefined>(undefined);
   const [focusActionRequestId, setFocusActionRequestId] = useState<string | null>(null);
+  const embeddedComposerRef = useRef<((draft: string) => void) | null>(null);
+  const [assistantSurfacePresent, setAssistantSurfacePresent] = useState(false);
   const [theme] = useState<ShellTheme>(() => loadShellTheme());
   const [colorMode] = useState(() => loadShellColorMode());
   useEffect(() => {
@@ -109,12 +116,61 @@ export function AppShell(props: AppShellProps) {
   // contrast openChatWith, which sends). Direct setState in an event handler is correct here — this
   // is NOT a render-phase updater, so it is not the StrictMode double-fire trap #368 warned about.
   const openAssistantWithDraft = useCallback((draft: string) => {
+    const embeddedComposer = embeddedComposerRef.current;
+    if (embeddedComposer) {
+      embeddedComposer(draft);
+      return;
+    }
     setModuleDraft(draft);
     setChatOpen(true);
   }, []);
   // Lifted to the shell so the SSE stream + transcript persist while the drawer is
   // closed and as the user navigates between pages — the chat follows the user.
   const { records, clearRecords, streamErrorCount } = useChatStream();
+  // #1196 — external modules subscribe to this same shell-owned stream. Immediate delivery avoids
+  // a mount race when records arrived before the module bundle finished loading.
+  const assistantRecordListeners = useRef(
+    new Set<(records: readonly AssistantRecordV1[]) => void>()
+  );
+  const recordsRef = useRef(records);
+  recordsRef.current = records;
+  const subscribeAssistantRecords = useCallback<AssistantSurfaceHostValue["subscribeRecords"]>(
+    (listener) => {
+      assistantRecordListeners.current.add(listener);
+      listener(recordsRef.current);
+      return () => assistantRecordListeners.current.delete(listener);
+    },
+    []
+  );
+  useEffect(() => {
+    for (const listener of assistantRecordListeners.current) listener(records);
+  }, [records]);
+  // #1196 — one external route mounts at a time. Presence owns assistant focus until unmount:
+  // close the drawer, route host drafts inline, then restore the ordinary shell controls.
+  const registerAssistantComposer = useCallback<AssistantSurfaceHostValue["registerComposer"]>(
+    (acceptDraft) => {
+      embeddedComposerRef.current = acceptDraft;
+      setAssistantSurfacePresent(true);
+      setChatOpen(false);
+      setAskJarvisStarter(undefined);
+      setModuleDraft(undefined);
+      setFocusActionRequestId(null);
+      return () => {
+        if (embeddedComposerRef.current !== acceptDraft) return;
+        embeddedComposerRef.current = null;
+        setAssistantSurfacePresent(false);
+      };
+    },
+    []
+  );
+  const assistantSurfaceHost = useMemo<AssistantSurfaceHostValue>(
+    () => ({
+      records,
+      registerComposer: registerAssistantComposer,
+      subscribeRecords: subscribeAssistantRecords
+    }),
+    [records, registerAssistantComposer, subscribeAssistantRecords]
+  );
   const pendingNotesDelete = useMemo(() => {
     const results = new Set(
       records
@@ -259,6 +315,7 @@ export function AppShell(props: AppShellProps) {
               className={`icon-button ${chatOpen ? "active" : ""}`}
               title="Ask Jarvis"
               type="button"
+              disabled={assistantSurfacePresent}
               onClick={() => setChatOpen((open) => !open)}
             >
               <MessageSquare size={19} aria-hidden="true" />
@@ -267,22 +324,24 @@ export function AppShell(props: AppShellProps) {
         </header>
 
         <main className="content-surface">
-          <ChatControlsProvider
-            value={{
-              openChat,
-              openChatWith,
-              openAssistantWithDraft,
-              pendingNotesDelete: pendingNotesDelete
-                ? {
-                    actionRequestId: pendingNotesDelete.actionRequestId!,
-                    summary: pendingNotesDelete.summary ?? pendingNotesDelete.text
-                  }
-                : null,
-              openActionRequest
-            }}
-          >
-            {props.children}
-          </ChatControlsProvider>
+          <AssistantSurfaceHostProvider value={assistantSurfaceHost}>
+            <ChatControlsProvider
+              value={{
+                openChat,
+                openChatWith,
+                openAssistantWithDraft,
+                pendingNotesDelete: pendingNotesDelete
+                  ? {
+                      actionRequestId: pendingNotesDelete.actionRequestId!,
+                      summary: pendingNotesDelete.summary ?? pendingNotesDelete.text
+                    }
+                  : null,
+                openActionRequest
+              }}
+            >
+              {props.children}
+            </ChatControlsProvider>
+          </AssistantSurfaceHostProvider>
         </main>
       </div>
 

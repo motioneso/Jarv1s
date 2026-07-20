@@ -70,6 +70,10 @@ test.describe("External module host starter action (#916)", () => {
 
     await page.goto("/m/job-search");
 
+    await expect(page.locator('[data-assistant-surface="available"]')).toHaveText(
+      "Assistant surface available"
+    );
+
     // Keyboard activation (a11y basic): focus the module button and press Enter.
     const button = page.getByRole("button", { name: "Continue with Jarvis" });
     await expect(button).toBeVisible();
