@@ -238,11 +238,11 @@ export function advanceOnDurableEvent(
   for (const record of records) {
     if (
       record.kind === "action_request" &&
-      record.messageId &&
+      record.actionRequestId &&
       record.toolName &&
       expected.has(record.toolName)
     ) {
-      pending.add(record.messageId);
+      pending.add(record.actionRequestId);
       continue;
     }
     if (

@@ -257,12 +257,12 @@ export function SourcesControl(props: {
                 aria-label={`${source.displayName} board token or URL`}
                 value={configs[source.adapterId] ?? ""}
                 placeholder={source.configHint}
-                onChange={(event: { currentTarget: { value: string } }) =>
-                  setConfigs((current) => ({
-                    ...current,
-                    [source.adapterId]: event.currentTarget.value
-                  }))
-                }
+                onChange={(event: { currentTarget: { value: string } }) => {
+                  // event.currentTarget is nulled once dispatch completes, so it must be
+                  // read synchronously here, not inside the deferred setState updater below.
+                  const value = event.currentTarget.value;
+                  setConfigs((current) => ({ ...current, [source.adapterId]: value }));
+                }}
               />
             ) : null}
           </div>
