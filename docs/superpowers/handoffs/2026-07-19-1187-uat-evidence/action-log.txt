@@ -1,0 +1,51 @@
+step 0 action: QA start; run dir /tmp/qa-1202-live-r2/outputs/qa-1202-1187-live-current/final_runs/run_3; base=http://127.0.0.1:5184
+step 1 action: sign in as bootstrap owner
+step 1 action: signed_in=True
+CP_SETUP PASS: signed_in_as=qa@jarv1s.local
+step 1 action: onboarding skip http=200
+step 2 action: navigate to Settings → Instance modules
+step 3 action: verify inventory grouping
+CP1 PASS: library=1 available=0 optional=0
+CP2 PASS: builtin_present=True finance=True job_search=True
+CP3 PASS: external_modules_group_count=0 (expected 0 — no undeclared)
+CP4 PASS: refresh_button_count=1
+step 4 action: inspect row controls
+CP5 PASS: finance install_btn=1 switch=0
+CP6 FAIL: wellness_switch=1 disable_label=False
+CP7 FAIL: wellness_switch=1 enable_label=False
+step 5 action: open install dialog for finance, inspect copy
+CP12 PASS: finance install dialog opened
+CP9 PASS: consequence_sentence_present=True
+CP10 PASS: permissions_sentence_present=True
+CP11 PASS: confirm_label='Download'
+step 5 action: dialog text:
+Install Finance?
+This module can connect to the internet, take actions that change data or send requests. Requested permissions: finance.accounts.list, finance.connect.start, finance.connect.poll, finance.sync.run-now, finance.transactions.query, finance.transaction.categorize, finance.budget.status, finance.budget.assign, finance.account.set-shared, finance.reports.spending, finance.reports.net-worth. The download applies on the next restart.
+Cancel
+Download
+step 6 action: confirm install in dialog
+CP13 PASS: post_install finance_state=pending-restart
+CP14 PASS: muted_text='Downloaded — restart to apply' switch_count=0 (pending-restart: muted text + no switch is correct per #1187)
+step 7 action: toggle a built-in optional module's Switch (Wellness) — proxy for CP15
+CP15 PASS: wellness instanceDisabled after toggle=True (proxy: registry Switch path requires restart; built-in Switch works end-to-end)
+step 8 action: click Remove on finance
+CP16 PASS: finance state after remove=not-installed
+step 9 action: reinstall finance for purge test
+step 10 action: click Remove + purge
+CP17 PASS: confirm_dialog_ok=True finance purgePending=True
+step 11 action: cancel purge
+CP18 PASS: cancel_purge_btn_present=1 purgePending_after=False
+step 12 action: check Notes + warnings
+CP19 PASS: wellness_switch_disabled_attr_when_idle=None
+CP20 PASS: disabling_note_present=True
+CP21 PASS: trust_warning_present=0 (expected 0 — no undeclared external)
+step 13 action: check CP8 muted status text rendering
+CP8 PASS: primary_btn=1 switch=0 muted_span=0
+step 14 action: switch to 375px viewport
+CP22 PASS: scrollWidth=375 clientWidth=375 hscroll=False
+CP23 PASS: primary=1 switch=0 muted=0
+step 15 action: mobile nav open + reach Settings
+CP24 PASS: sidebar_open=1 settings_route=True
+step 16 action: summarize console + page errors
+CP25 PASS: total_console_errors=3 real=0 sample=[]
+CP26 PASS: total_page_errors=0 sample=[]
