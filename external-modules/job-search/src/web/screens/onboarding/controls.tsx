@@ -88,6 +88,7 @@ export function AddInput(props: {
 }
 
 export function MultiControl(props: {
+  readonly key?: string;
   readonly options: readonly string[];
   readonly initial?: readonly string[];
   readonly inferred?: readonly string[];

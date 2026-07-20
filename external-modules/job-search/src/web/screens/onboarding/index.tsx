@@ -26,6 +26,13 @@ import {
   SourcesControl,
   Summary
 } from "./controls";
+import type { HostActions } from "../../root";
+import {
+  clearProfileBuffer,
+  readProfileBuffer,
+  writeProfileBuffer,
+  type ProfileBufferStorage
+} from "./profile-buffer";
 
 // job-search.profile.get returns the profile TAB's ProfileResult shape
 // ({status, active:{fields}|null, draftRevisionIds}), not model.ts's
@@ -94,6 +101,19 @@ export interface BootstrapSnapshot {
   readonly snapshot: OnboardingSnapshot;
   readonly resume: unknown;
   readonly sources: readonly SourceInfo[];
+}
+
+function withProfileBuffer(data: BootstrapSnapshot, buffer: ProfileFields): BootstrapSnapshot {
+  // #1213: tab-local answers overlay approved fields only while computing/rendering profile steps.
+  return {
+    ...data,
+    snapshot: {
+      ...data.snapshot,
+      profileProgress: toProfileProgress({
+        active: { fields: { ...data.snapshot.profileProgress.fields, ...buffer } }
+      })
+    }
+  };
 }
 
 export type BootstrapOutcome =
@@ -442,7 +462,8 @@ function profileSubstepValue(fields: ProfileFields, substep: ProfileSubstep): re
 function buildProfileControl(
   substep: ProfileSubstep,
   data: BootstrapSnapshot,
-  handle: AssistantSurfaceHandleMirror
+  handle: AssistantSurfaceHandleMirror,
+  onAnswer: (values: Partial<ProfileFields>) => void
 ): ReactNodeLike {
   const seed = PROFILE_SEED_DEFAULTS[substep];
   const known = profileSubstepValue(data.snapshot.profileProgress.fields, substep);
@@ -458,6 +479,8 @@ function buildProfileControl(
   };
   return (
     <MultiControl
+      // #1213: each sub-step needs fresh hook state; otherwise React reuses the prior selections.
+      key={substep}
       options={seed.options}
       initial={known.length ? known : seed.initial}
       inferred={seed.inferred}
@@ -466,7 +489,10 @@ function buildProfileControl(
       skip={seed.skip}
       min={seed.min}
       onSubmit={(values) => {
-        void handle.submitTurn(buildProfileSubmit(substep, submitValues(values)));
+        const answer = submitValues(values);
+        // #1213: persist before sending so a reload during the assistant turn restores this answer.
+        onAnswer(answer);
+        void handle.submitTurn(buildProfileSubmit(substep, answer));
       }}
     />
   );
@@ -533,6 +559,7 @@ function buildActiveControl(
   local: ResumeIntakeLocal & {
     readonly dueTime: string;
     readonly setDueTime: (value: string) => void;
+    readonly onProfileAnswer: (values: Partial<ProfileFields>) => void;
   }
 ): ReactNodeLike {
   if (phase === "resume_intake") return buildResumeIntakeControl(handle, local);
@@ -574,7 +601,7 @@ function buildActiveControl(
     phase === "locations" ||
     phase === "dealbreakers"
   ) {
-    return buildProfileControl(phase, data, handle);
+    return buildProfileControl(phase, data, handle, local.onProfileAnswer);
   }
   if (phase === "sources_schedule") {
     return (
@@ -612,13 +639,36 @@ function buildActiveControl(
 }
 
 export function JobsOnboarding(props: {
+  readonly key?: string;
   readonly handle: AssistantSurfaceHandleMirror;
+  readonly hostActions: HostActions;
 }): ReactNodeLike {
   const [outcome, setOutcome] = useState<BootstrapOutcome | null>(null);
   const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(new Set());
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [showPaste, setShowPaste] = useState(false);
   const [dueTime, setDueTime] = useState<string | null>(null);
+  const storage = profileSessionStorage();
+  const [profileBuffer, setProfileBuffer] = useState<ProfileFields>(() =>
+    storage ? readProfileBuffer(storage, props.hostActions.actorScopeKey) : {}
+  );
+
+  const applyBootstrap = (result: BootstrapOutcome) => {
+    // #1213: durable approval owns the truth; clear only after re-bootstrap confirms its gate.
+    if (result.kind === "ok" && result.data.snapshot.onboarding.gates.profileApproved) {
+      if (storage) clearProfileBuffer(storage, props.hostActions.actorScopeKey);
+      setProfileBuffer({});
+    }
+    setOutcome(result);
+  };
+
+  const onProfileAnswer = (values: Partial<ProfileFields>) => {
+    setProfileBuffer((current) => {
+      const next = { ...current, ...values };
+      if (storage) writeProfileBuffer(storage, props.hostActions.actorScopeKey, next);
+      return next;
+    });
+  };
 
   // subscribeRecords is registered once (mirrors the host's single EventSource);
   // its listener closure would otherwise stale-close over the mount-time outcome/
@@ -627,19 +677,23 @@ export function JobsOnboarding(props: {
   outcomeRef.current = outcome;
   const pendingIdsRef = useRef(pendingIds);
   pendingIdsRef.current = pendingIds;
+  const profileBufferRef = useRef(profileBuffer);
+  profileBufferRef.current = profileBuffer;
 
   useEffect(() => {
     let cancelled = false;
     bootstrapOnboarding(props.handle).then((result) => {
-      if (!cancelled) setOutcome(result);
+      if (!cancelled) applyBootstrap(result);
     });
     const unsubscribe = props.handle.subscribeRecords((records) => {
       const currentOutcome = outcomeRef.current;
       if (!currentOutcome || currentOutcome.kind !== "ok") return;
-      const phase = derivePhase(currentOutcome.data.snapshot);
+      const phase = derivePhase(
+        withProfileBuffer(currentOutcome.data, profileBufferRef.current).snapshot
+      );
       const result = advanceOnDurableEvent(records, pendingIdsRef.current, phase, () => {
         bootstrapOnboarding(props.handle).then((next) => {
-          if (!cancelled) setOutcome(next);
+          if (!cancelled) applyBootstrap(next);
         });
       });
       setPendingIds(result.pendingIds);
@@ -659,18 +713,20 @@ export function JobsOnboarding(props: {
     return <Surface composer={{ placeholder: "Tell us more" }} />;
   }
 
-  const phase = derivePhase(outcome.data.snapshot);
+  const bufferedData = withProfileBuffer(outcome.data, profileBuffer);
+  const phase = derivePhase(bufferedData.snapshot);
   const resolvedDueTime = dueTime ?? "07:00";
   return (
     <Surface
-      localRows={buildLocalRows(phase, outcome.data, resolvedDueTime)}
-      activeControl={buildActiveControl(phase, outcome.data, props.handle, {
+      localRows={buildLocalRows(phase, bufferedData, resolvedDueTime)}
+      activeControl={buildActiveControl(phase, bufferedData, props.handle, {
         error: resumeError,
         showPaste,
         setError: setResumeError,
         setShowPaste,
         dueTime: resolvedDueTime,
-        setDueTime
+        setDueTime,
+        onProfileAnswer
       })}
       composer={{
         placeholder: "Tell us more",
@@ -679,4 +735,13 @@ export function JobsOnboarding(props: {
       typing={phase === "resume_critique"}
     />
   );
+}
+
+function profileSessionStorage(): ProfileBufferStorage | null {
+  // #1213: server rendering/tests have no window; restricted browser storage can also throw.
+  try {
+    return typeof window === "undefined" ? null : window.sessionStorage;
+  } catch {
+    return null;
+  }
 }

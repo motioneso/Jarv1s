@@ -13,7 +13,11 @@ import { MonitorsScreen } from "./screens/monitors";
 import { MatchesScreen } from "./screens/matches";
 import { JobsOnboarding, type AssistantSurfaceHandleMirror } from "./screens/onboarding/index";
 
-export type HostActions = { openAssistant: (input: { starterPrompt: string }) => void };
+export type HostActions = {
+  /** #1213: opaque host-provided token used only for actor-scoped client storage keys. */
+  readonly actorScopeKey: string;
+  openAssistant: (input: { starterPrompt: string }) => void;
+};
 
 const TABS: ReadonlyArray<{ to: string; label: string }> = [
   { to: "/", label: "Overview" },
@@ -72,7 +76,12 @@ export function RootView(props: {
         <style>{MODULE_STYLES}</style>
         <LiveRegion />
         {props.assistantSurface ? (
-          <JobsOnboarding handle={props.assistantSurface} />
+          <JobsOnboarding
+            // #1213: remount on actor change so React state cannot retain another actor's buffer.
+            key={props.hostActions.actorScopeKey}
+            handle={props.assistantSurface}
+            hostActions={props.hostActions}
+          />
         ) : (
           <FailClosedFirstRun />
         )}

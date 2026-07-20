@@ -32,6 +32,12 @@ import {
   type AssistantSurfaceViewPropsMirror
 } from "../../external-modules/job-search/src/web/screens/onboarding/index.js";
 import { h } from "../../external-modules/job-search/src/web/runtime.js";
+import type { HostActions } from "../../external-modules/job-search/src/web/root.js";
+
+const hostActions: HostActions = {
+  actorScopeKey: "actor-a",
+  openAssistant: () => undefined
+};
 
 function stubFetch(status: number, body: unknown): ReturnType<typeof vi.fn> {
   const stub = vi.fn(async () => ({
@@ -364,7 +370,7 @@ describe("Job Search onboarding orchestration (#1198 Task 3)", () => {
   });
 
   it("renders the initial loading state before effects run", () => {
-    const html = render(h(JobsOnboarding, { handle: fakeHandle() }));
+    const html = render(h(JobsOnboarding, { handle: fakeHandle(), hostActions }));
     expect(html).toContain("Loading");
   });
 });
@@ -394,7 +400,7 @@ async function mountComposed(step: string): Promise<AssistantSurfaceViewPropsMir
     }
   });
   await act(async () => {
-    create(h(JobsOnboarding, { handle }) as never);
+    create(h(JobsOnboarding, { handle, hostActions }) as never);
   });
   // Bootstrap resolves through several microtask hops (fetch -> json -> the
   // module's Promise.all). A macrotask boundary guarantees every microtask

@@ -278,7 +278,11 @@ export function App() {
                 key={`ext:${route.moduleId}`}
                 path={route.path}
                 element={
-                  <ExternalModuleMount moduleId={route.moduleId} Component={route.Component} />
+                  <ExternalModuleMount
+                    moduleId={route.moduleId}
+                    Component={route.Component}
+                    actorScopeKey={meQuery.data.user.id}
+                  />
                 }
               />
             ))}
@@ -334,12 +338,14 @@ function ModuleGatedRoute(props: {
 function ExternalModuleMount(props: {
   readonly moduleId: string;
   readonly Component: ComponentType<ExternalWebContributionProps>;
+  /** #1213: opaque actor token passed through hostActions only for client-side namespacing. */
+  readonly actorScopeKey: string;
 }) {
   const { openAssistantWithDraft } = useChatControls();
   const { subscribeRecords } = useAssistantSurfaceHost();
   const hostActions = useMemo(
-    () => createModuleHostActions(props.moduleId, openAssistantWithDraft),
-    [props.moduleId, openAssistantWithDraft]
+    () => createModuleHostActions(props.moduleId, openAssistantWithDraft, props.actorScopeKey),
+    [props.moduleId, props.actorScopeKey, openAssistantWithDraft]
   );
   // #1196 — same host-controlled binding as hostActions: module code never supplies its id.
   const assistantSurface = useMemo(
