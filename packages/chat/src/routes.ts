@@ -75,11 +75,7 @@ const YOLO_ENABLED_PREF_KEY = "yolo.enabled";
 import { buildCalendarWriteService } from "./calendar-write-impl.js";
 import { buildEmailWriteService } from "./email-write-impl.js";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
-import {
-  registerChatLiveRoutes,
-  type EveningInterviewSeed,
-  type ModuleOnboardingSeedSource
-} from "./live-routes.js";
+import { registerChatLiveRoutes, type EveningInterviewSeed } from "./live-routes.js";
 import { CliChatUnavailableError } from "./live/errors.js";
 import { NATIVE_CONFIRM_TIMEOUT_MS } from "./live/claude-permission-hook.js";
 import { createCurrentViewReadService, type CurrentViewReadService } from "./live/current-view.js";
@@ -106,6 +102,7 @@ import { VaultContextRunner, getVaultBaseDir } from "@jarv1s/vault";
 
 import { readAttachments, registerChatAttachmentRoutes } from "./attachments-routes.js";
 import { ChatAttachmentsService } from "./attachments-service.js";
+import { createModuleOnboardingSeedResolver } from "./module-onboarding-seed.js";
 import { ChatRepository } from "./repository.js";
 import { registerChatSkillsRoutes } from "./skills/routes.js";
 import { ChatSkillsRepository } from "./skills/repository.js";
@@ -400,26 +397,7 @@ export function registerChatRoutes(
       resolveEveningInterviewSeed: dependencies.resolveEveningInterviewSeed,
       resolveModuleOnboardingSeed:
         wiring && resolveActiveModules
-          ? async (
-              actorUserId: string,
-              moduleId: string
-            ): Promise<ModuleOnboardingSeedSource | undefined> => {
-              const manifest = (await resolveActiveModules(actorUserId)).find(
-                (candidate) => candidate.id === moduleId && candidate.assistantOnboarding?.guidance
-              );
-              if (!manifest?.assistantOnboarding) return undefined;
-              const state = await wiring.gateway.runReadToolForActor(
-                actorUserId,
-                `${moduleId}.onboarding.get-state`,
-                {}
-              );
-              if (!state.ok) return undefined;
-              return {
-                moduleId,
-                guidance: manifest.assistantOnboarding.guidance,
-                state: state.data
-              };
-            }
+          ? createModuleOnboardingSeedResolver({ resolveActiveModules, gateway: wiring.gateway })
           : undefined
     },
     pageContextStore,
