@@ -31,3 +31,10 @@ export {
   type LoginFlowOutcome
 } from "./login-service.js";
 export { LOGIN_ADAPTERS, loadLoginAdapters, type LoginAdapterIssue } from "./login-adapters.js";
+// #1121: seed-only opt-in real-chat path persists a captured token from the host side.
+export {
+  persistProviderToken,
+  readProviderToken,
+  providerTokenPath,
+  isTokenProvider
+} from "./provider-token-store.js";

@@ -14,6 +14,9 @@ importers:
       '@fastify/rate-limit':
         specifier: ^10
         version: 10.3.0
+      '@jarv1s/cli-runner':
+        specifier: workspace:*
+        version: link:packages/cli-runner
       fastify:
         specifier: ^5.6.2
         version: 5.8.5
