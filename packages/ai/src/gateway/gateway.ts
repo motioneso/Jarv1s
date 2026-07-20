@@ -177,6 +177,12 @@ export class AssistantToolGateway {
     if ((await resolvePolicy(found.tool, found.dto.moduleId, input, lookup)) === "run") {
       const result = await this.runHandler(found, input, ctx);
       if (found.tool.risk !== "read") {
+        this.deps.notifier.emit(ctx.chatSessionId, {
+          kind: "action_result",
+          actionRequestId: ctx.requestId,
+          toolName: found.dto.name,
+          outcome: result.ok ? "executed" : "error"
+        });
         const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
         void this.recordAudit(access, found, {
           approvalMode: "auto",
@@ -196,6 +202,9 @@ export class AssistantToolGateway {
   ): Promise<NativeToolPermissionResponse> {
     const { actorUserId, chatSessionId } = this.deps.tokens.verify(token);
     const toolName = safeNativeToolName(request.toolName);
+    if (toolName.startsWith("mcp__jarvis__") && toolName.length > "mcp__jarvis__".length) {
+      return { decision: "allow", reason: "First-party Jarvis MCP transport." };
+    }
     // #1158: read-only meta-tools return before any DB/timezone work — this is the hot path
     // (every conversation's first jarvis tool use goes through ToolSearch).
     if (NATIVE_READONLY_AUTO_ALLOW.has(toolName)) {
