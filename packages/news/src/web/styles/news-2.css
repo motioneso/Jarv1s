@@ -115,6 +115,11 @@
   aspect-ratio: 16 / 9;
   object-fit: cover;
   display: block;
+  /* #1185: pull the kicker 4px closer than the flex `gap` gives the other internal spacing, so
+     the photo reads as bound to its own source/topic line (space-1 = 4px) more tightly than the
+     rest of the card's internal rhythm (space-2 = 8px) — and much tighter than the grid gap to a
+     neighboring card (space-5/6 = 20/24px), so the image can't be mistaken for that story's art. */
+  margin-bottom: calc(var(--space-1) - var(--space-2));
 }
 .nw-mosaic__artkicker {
   margin: 0;
@@ -148,12 +153,14 @@
   overflow: hidden;
 }
 /* No-photo cards skip the 16:9 image, which left them noticeably shorter than their photo
-   neighbours — a ragged gap in the grid (Ben 2026-07-09 /news). Let the blurb run to ten lines
-   so the text reclaims roughly the height the image would have occupied. `summary` is the only
-   body field the feed carries, so a short summary still clamps short — this spends the text that
-   exists rather than fabricating more. */
+   neighbours — a ragged gap in the grid (Ben 2026-07-09 /news). #1185: drop the clamp entirely so
+   the full available sanitized summary shows before "Continue reading" — the feed's `summary` is
+   already sanitized and bounded server-side, so there's no unbounded-growth risk here. Photo
+   cards keep their 3-line clamp above (`.nw-mosaic__blurb`) unchanged. */
 .nw-mosaic__art--textonly .nw-mosaic__blurb {
-  -webkit-line-clamp: 10;
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
 }
 
 @media (max-width: 640px) {
