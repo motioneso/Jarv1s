@@ -156,7 +156,17 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
     });
 
     expect(response.ok).toBe(true);
-    expect(emitted).toHaveLength(0);
+    expect(emitted).toEqual([
+      {
+        chatSessionId: `tasks-${ids.userA}`,
+        record: expect.objectContaining({
+          kind: "action_result",
+          toolName: "tasks.create",
+          outcome: "executed"
+        })
+      }
+    ]);
+    expect(emitted[0]?.record.actionRequestId).toMatch(/^mcp_/);
     if (!response.ok) throw new Error("expected ok");
     expect((response.data as { text: string }).text).toContain(
       "Created task: trusted gateway agency task"
