@@ -54,3 +54,26 @@ list`). Fix is committed `a1caaeb5`, unit tests green. This relay is Task 6 (liv
 ## Coordinator-approved files (unchanged scope boundary)
 `packages/chat/src/live/cli-chat-engine.ts`, `tests/unit/cli-chat-engine-verified-submit.test.ts`.
 Do not touch the multiplexer adapter without a red test + fresh approval.
+
+## Relay 3 update (2026-07-20): provider-connection contradiction RESOLVED
+
+Root cause found, confirmed via `/tmp/jarvis-1226-api.log` — **neither** of relay-2's two
+hypotheses. The API server (`src/server.ts`, pid at the time 3538043) inherited
+`HERDR_PANE_ID=w1:pZV` at process launch from a herdr pane that has since closed/reflowed.
+No `JARVIS_HERDR_ROOT_TAB` is set, so `packages/ai/src/adapters/herdr-multiplexer.ts`
+`resolveRoot()` falls to the static stale-pane-id path instead of the self-healing
+tab-by-label path. Every live-chat launch (general chat drawer AND
+`/api/chat/module-onboarding`) runs `herdr pane split --parent w1:pZV` → `pane_not_found` →
+`CliChatUnavailableError` → 503 "Live chat is currently unavailable on this host". This is
+why Webwright run_1 saw the "Connect a provider" empty state and the Job Search
+"SOMETHING WENT WRONG" error — the CLI engine cannot launch on this host at all right now.
+Unrelated to Settings → Assistant & AI (that's the separate capability-router config).
+
+This is a real, reproducible bug, but the fix (set `JARVIS_HERDR_ROOT_TAB` at server start,
+or restart the server from a currently-live pane) touches the multiplexer adapter / a shared
+dev process — outside the Coordinator-approved scope above. **Escalated to Coordinator**
+(`herdr pane` label `Coordinator`) rather than decided unilaterally; awaiting reply. Full
+detail in agentmemory project `jarv1s`, search `"1226 provider connection"`.
+
+Next agent: check for a Coordinator reply first (message sent to label `Build 1226 Recovery
+R4` / this worktree's pane) before restarting any shared process or re-running Webwright.
