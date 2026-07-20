@@ -30,7 +30,6 @@ import {
   updateAiProvider
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
-import { EmbeddingConfigGroup } from "./settings-embedding-config-group";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
 import { Badge, Field, Group, Note, PaneHead, Row, Segmented, Select, Switch } from "./settings-ui";
@@ -757,7 +756,6 @@ export function AiProvidersPane() {
       {/* #874: Voice (STT) is its own dedicated admin section, independent of the chat providers. */}
       <VoiceConfigGroup />
       <ChatLockGroup />
-      <EmbeddingConfigGroup />
       <WebSearchKeyGroup />
       <YoloAdminGroup />
       <Note icon={<GitCommitHorizontal size={13} />}>

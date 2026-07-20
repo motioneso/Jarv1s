@@ -210,12 +210,13 @@ function MosaicArticle({
   readonly headline: NewsHeadline;
   major?: boolean;
 }) {
-  // No-photo standard cards get a --textonly modifier so CSS can let the blurb run longer and
-  // fill the space the missing 16:9 image would have taken (Ben 2026-07-09 /news: "pull in more
-  // body text so when there isn't a photo there isn't a large gap"). `summary` is the only body
-  // field the feed ships, so a genuinely terse summary still can't be padded — but the raised
-  // clamp spends whatever text exists instead of stopping at 3 lines beside a phantom image slot.
-  // Majors always carry art (composeMosaic requires it), so this only ever hits standards.
+  // No-photo standard cards get a --textonly modifier so CSS can drop the line clamp and show the
+  // full sanitized summary, filling the space the missing 16:9 image would have taken (Ben
+  // 2026-07-09 /news: "pull in more body text so when there isn't a photo there isn't a large
+  // gap"; #1185: show the complete available summary, not just a taller clamp). `summary` is the
+  // only body field the feed ships, so a genuinely terse summary still reads short — this spends
+  // whatever text exists instead of stopping at 3 lines beside a phantom image slot. Majors always
+  // carry art (composeMosaic requires it), so this only ever hits standards.
   const className = ["nw-mosaic__art", major ? "nw-mosaic__art--major" : ""];
   if (!major && !headline.imageUrl) className.push("nw-mosaic__art--textonly");
   return (

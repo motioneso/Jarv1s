@@ -36,26 +36,50 @@ export const IMAP_PROVIDERS = [
     name: "Yahoo Mail",
     tile: "Y",
     prerequisite:
-      "Generate an app password in Yahoo Account Security; your normal password will not work."
+      "Generate an app password in Yahoo Account Security; your normal password will not work.",
+    steps: [
+      'Sign in at Yahoo Account Security and select "Create app password."',
+      'Name it, then select "Generate password."',
+      "Copy the one-time password Yahoo shows."
+    ],
+    helpUrl: "https://help.yahoo.com/kb/SLN15241.html"
   },
   {
     id: "imap-proton",
     name: "Proton Mail",
     tile: "P",
     prerequisite:
-      "Requires a paid Proton plan with Proton Mail Bridge installed and running on or reachable from this host."
+      "Requires a paid Proton plan with Proton Mail Bridge installed and running on or reachable from this host.",
+    steps: [
+      "Install Proton Mail Bridge and sign in with your Proton account.",
+      "Let Bridge generate local IMAP credentials for this host.",
+      "Copy the username and password Bridge shows."
+    ],
+    helpUrl: "https://proton.me/support/protonmail-bridge-install"
   },
   {
     id: "imap-icloud",
     name: "iCloud",
     tile: "i",
-    prerequisite: "Generate an app-specific password at appleid.apple.com."
+    prerequisite: "Generate an app-specific password at appleid.apple.com.",
+    steps: [
+      "Sign in at appleid.apple.com and open Sign-In and Security.",
+      'Choose "App-Specific Passwords" and generate a new one.',
+      "Copy the generated password."
+    ],
+    helpUrl: "https://support.apple.com/en-us/102654"
   },
   {
     id: "imap-fastmail",
     name: "Fastmail",
     tile: "F",
-    prerequisite: "Generate an app password in Fastmail Settings > Privacy & Security."
+    prerequisite: "Generate an app password in Fastmail Settings > Privacy & Security.",
+    steps: [
+      "In Fastmail, go to Settings > Privacy & Security.",
+      'Under "Connected apps & API tokens," select "New app password."',
+      'Choose "Mail, Contacts & Calendars" access and generate it.'
+    ],
+    helpUrl: "https://www.fastmail.help/hc/en-us/articles/360058752854-App-passwords"
   }
 ] as const;
 
@@ -68,7 +92,7 @@ export function GoogleConnectorStep(props: {
   readonly privacy: string;
   readonly done?: boolean;
 }) {
-  const [mode, setMode] = useState<"picker" | "connecting" | "imap" | "connected">(
+  const [mode, setMode] = useState<"picker" | "connecting" | "imap" | "connected" | "adding">(
     props.done ? "connected" : "picker"
   );
   const [imapProvider, setImapProvider] = useState<ImapProvider>(IMAP_PROVIDERS[0]);
@@ -266,34 +290,35 @@ export function GoogleConnectorStep(props: {
               </span>
             </label>
             <div className="onb-cred__actions">
-              {google.authUrl ? (
+              <button
+                className="jds-btn jds-btn--primary jds-btn--sm"
+                type="button"
+                disabled={!credsReady || google.authorizationPending}
+                onClick={google.openConsentScreen}
+              >
+                Open consent screen
+              </button>
+              {google.popupBlocked && google.authUrl ? (
                 <a
-                  className="jds-btn jds-btn--primary jds-btn--sm"
+                  className="jds-btn jds-btn--quiet jds-btn--sm"
                   href={google.authUrl}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Open consent screen <ExternalLink size={13} aria-hidden="true" />
+                  Open manually <ExternalLink size={13} aria-hidden="true" />
                 </a>
-              ) : (
-                <button
-                  className="jds-btn jds-btn--primary jds-btn--sm"
-                  type="button"
-                  disabled={!credsReady || google.authorizationPending}
-                  onClick={google.startAuthorization}
-                >
-                  Open consent screen
-                </button>
-              )}
+              ) : null}
               <button
                 className="jds-btn jds-btn--quiet jds-btn--sm"
                 type="button"
-                onClick={() => setMode("picker")}
+                onClick={() => setMode(connected ? "connected" : "picker")}
               >
                 Cancel
               </button>
               <span className="onb-cred__hint">
-                Encrypted at rest. Stored securely and never shown in logs or briefings.
+                {google.popupBlocked
+                  ? "Your browser blocked the popup. Use the link above to finish in a new tab."
+                  : "Encrypted at rest. Stored securely and never shown in logs or briefings."}
               </span>
             </div>
           </div>
@@ -364,6 +389,30 @@ export function GoogleConnectorStep(props: {
             </span>
             <span>{imapProvider.prerequisite}</span>
           </div>
+          <ol className="onb-guide">
+            {imapProvider.steps.map((step, index) => {
+              const isLastStep = index === imapProvider.steps.length - 1;
+              return (
+                <li className="onb-guide__step" key={step}>
+                  <span className="onb-guide__n">{index + 1}</span>
+                  <div className="onb-guide__body">
+                    <div className="onb-guide__t">{step}</div>
+                    {isLastStep ? (
+                      <a
+                        className="onb-guide__link"
+                        href={imapProvider.helpUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {imapProvider.name} setup guide{" "}
+                        <ExternalLink size={13} aria-hidden="true" />
+                      </a>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
           <div className="onb-cred">
             <div className="onb-cred__hd">Enter your email credentials</div>
             <label className="onb-cred__field">
@@ -416,7 +465,7 @@ export function GoogleConnectorStep(props: {
               <button
                 className="jds-btn jds-btn--quiet jds-btn--sm"
                 type="button"
-                onClick={() => setMode("picker")}
+                onClick={() => setMode(connected ? "connected" : "picker")}
               >
                 Cancel
               </button>
@@ -435,7 +484,7 @@ export function GoogleConnectorStep(props: {
     );
   }
 
-  if (mode === "connected" || connected) {
+  if (mode === "connected" || (connected && mode !== "adding")) {
     const firstAccount = accounts[0];
     return (
       <section className="onb-step" aria-labelledby="google-connected-title">
@@ -506,7 +555,7 @@ export function GoogleConnectorStep(props: {
               </div>
             </div>
           )}
-          <button className="onb-addmore" type="button" onClick={() => setMode("picker")}>
+          <button className="onb-addmore" type="button" onClick={() => setMode("adding")}>
             <span className="onb-addmore__ic">
               <Plus size={16} aria-hidden="true" />
             </span>
@@ -555,45 +604,47 @@ export function GoogleConnectorStep(props: {
       </div>
       <div className="onb-pickhd">
         <span className="onb-pickhd__lbl">Choose a service to connect</span>
+        {mode === "adding" ? (
+          <button
+            className="jds-btn jds-btn--quiet jds-btn--sm"
+            type="button"
+            onClick={() => setMode("connected")}
+          >
+            Cancel
+          </button>
+        ) : null}
       </div>
       <button className="onb-prov" type="button" onClick={() => setMode("connecting")}>
         <span className="onb-prov__tile">G</span>
         <span className="onb-prov__main">
           <span className="onb-prov__name">Google</span>
-          <span className="onb-prov__desc">Gmail &amp; Calendar · available now</span>
+          <span className="onb-prov__desc">Gmail &amp; Calendar · OAuth · available now</span>
         </span>
         <span className="onb-prov__cta">
           Connect Google <ArrowRight size={15} aria-hidden="true" />
         </span>
       </button>
-      <div className="onb-provsec">
-        <div className="onb-provsec__hd">
-          <span className="onb-provsec__lbl">More services</span>
-          <span className="onb-provsec__note">Available now</span>
-        </div>
-        <div className="onb-provgrid">
-          {IMAP_PROVIDERS.map((provider) => (
-            <button
-              className="onb-provmini"
-              key={provider.id}
-              type="button"
-              onClick={() => {
-                setImapProvider(provider);
-                setImapTestResult(null);
-                setMode("imap");
-              }}
-            >
-              <span className="onb-provmini__tile">{provider.tile}</span>
-              <span className="onb-provmini__main">
-                <span className="onb-provmini__name">{provider.name}</span>
-                <span className="onb-provmini__soon">
-                  Connect {provider.name} <ArrowRight size={10} aria-hidden="true" />
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
+      {IMAP_PROVIDERS.map((provider) => (
+        <button
+          className="onb-prov"
+          key={provider.id}
+          type="button"
+          onClick={() => {
+            setImapProvider(provider);
+            setImapTestResult(null);
+            setMode("imap");
+          }}
+        >
+          <span className="onb-prov__tile">{provider.tile}</span>
+          <span className="onb-prov__main">
+            <span className="onb-prov__name">{provider.name}</span>
+            <span className="onb-prov__desc">Email sync · app password · available now</span>
+          </span>
+          <span className="onb-prov__cta">
+            Connect {provider.name} <ArrowRight size={15} aria-hidden="true" />
+          </span>
+        </button>
+      ))}
     </section>
   );
 }

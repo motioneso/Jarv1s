@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { defaultOnboardingStatus } from "./mock-onboarding-api.js";
-import { createMockConnectorProviders, mockApi } from "./mock-api.js";
+import { createMockConnectorAccount, createMockConnectorProviders, mockApi } from "./mock-api.js";
 
 test("bootstrap owner with incomplete onboarding sees the wizard, then the app shell after finish", async ({
   page
@@ -214,4 +214,245 @@ test("onboarding offers IMAP providers and makes no Microsoft promises", async (
   await expect(
     page.getByText(/Passwords are encrypted at rest and never shown in logs or briefings/i)
   ).toBeVisible();
+  await expect(page.locator(".onb-guide__step")).toHaveCount(3);
+  await expect(page.getByRole("link", { name: /Proton Mail setup guide/i })).toHaveAttribute(
+    "href",
+    "https://proton.me/support/protonmail-bridge-install"
+  );
+
+  const remainingHelpLinks: Record<string, string> = {
+    "Yahoo Mail": "https://help.yahoo.com/kb/SLN15241.html",
+    iCloud: "https://support.apple.com/en-us/102654",
+    Fastmail: "https://www.fastmail.help/hc/en-us/articles/360058752854-App-passwords"
+  };
+
+  for (const [name, url] of Object.entries(remainingHelpLinks)) {
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("button", { name: new RegExp(`Connect ${name}`, "i") }).click();
+    await expect(page.locator(".onb-guide__step")).not.toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: new RegExp(`${name} setup guide`, "i") })
+    ).toHaveAttribute("href", url);
+  }
+});
+
+test("Google and IMAP provider cards share equal visual weight and a stable order", async ({
+  page
+}) => {
+  await mockApi(page, {
+    authenticated: true,
+    isInstanceAdmin: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    onboardingStatus: defaultOnboardingStatus({
+      steps: {
+        cliAuth: {
+          done: true,
+          providers: [{ kind: "anthropic", cliPresent: true, installState: "ready" }]
+        },
+        connectors: { done: false }
+      }
+    })
+  });
+
+  await page.goto("/");
+  await page
+    .getByLabel("Onboarding progress")
+    .getByRole("button", { name: /Google/ })
+    .click();
+
+  // Every provider CTA (Google + 4 IMAP) renders through the same full-weight card — no
+  // dashed "More services" secondary treatment left for any of the five.
+  const cards = page.locator(".onb-prov");
+  await expect(cards).toHaveCount(5);
+  await expect(page.locator(".onb-provmini")).toHaveCount(0);
+  await expect(cards.nth(0)).toContainText("Connect Google");
+  await expect(cards.nth(1)).toContainText("Connect Yahoo Mail");
+  await expect(cards.nth(2)).toContainText("Connect Proton Mail");
+  await expect(cards.nth(3)).toContainText("Connect iCloud");
+  await expect(cards.nth(4)).toContainText("Connect Fastmail");
+});
+
+test("Connect another account shows the picker, cancel returns to the connected summary", async ({
+  page
+}) => {
+  await mockApi(page, {
+    authenticated: true,
+    isInstanceAdmin: true,
+    chatThreads: [],
+    connectorAccounts: [
+      createMockConnectorAccount("google-account-1", {
+        providerId: "google",
+        providerType: "google",
+        providerDisplayName: "Google",
+        status: "active"
+      })
+    ],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    onboardingStatus: defaultOnboardingStatus({
+      steps: {
+        cliAuth: {
+          done: true,
+          providers: [{ kind: "anthropic", cliPresent: true, installState: "ready" }]
+        },
+        connectors: { done: true }
+      }
+    })
+  });
+
+  await page.goto("/");
+  await page
+    .getByLabel("Onboarding progress")
+    .getByRole("button", { name: /Google/ })
+    .click();
+
+  await expect(page.getByRole("heading", { name: "Google connected" })).toBeVisible();
+  await expect(page.getByText("Connected accounts")).toBeVisible();
+
+  await page.getByRole("button", { name: "Connect another account" }).click();
+
+  await expect(page.getByText("Choose a service to connect")).toBeVisible();
+  await expect(page.getByText("Connected accounts")).not.toBeVisible();
+
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  await expect(page.getByRole("heading", { name: "Google connected" })).toBeVisible();
+  await expect(page.getByText("Connected accounts")).toBeVisible();
+});
+
+test("one-click Google consent opens the popup on the first click", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    isInstanceAdmin: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    onboardingStatus: defaultOnboardingStatus({
+      steps: {
+        cliAuth: {
+          done: true,
+          providers: [{ kind: "anthropic", cliPresent: true, installState: "ready" }]
+        },
+        connectors: { done: false }
+      }
+    })
+  });
+
+  await page.goto("/");
+  await page
+    .getByLabel("Onboarding progress")
+    .getByRole("button", { name: /Google/ })
+    .click();
+  await page.getByRole("button", { name: /Connect Google/i }).click();
+
+  await page
+    .getByLabel("Client ID", { exact: true })
+    .fill("000000-xxxx.apps.googleusercontent.com");
+  await page.getByLabel("Client secret", { exact: true }).fill("GOCSPX-secret");
+
+  const [popup] = await Promise.all([
+    page.waitForEvent("popup"),
+    page.getByRole("button", { name: "Open consent screen" }).click()
+  ]);
+  await popup.waitForURL(/accounts\.google\.com/);
+  expect(popup.url()).toContain("accounts.google.com");
+});
+
+test("blocked popup shows a manual link and explanation", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.open = () => null;
+  });
+  await mockApi(page, {
+    authenticated: true,
+    isInstanceAdmin: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    onboardingStatus: defaultOnboardingStatus({
+      steps: {
+        cliAuth: {
+          done: true,
+          providers: [{ kind: "anthropic", cliPresent: true, installState: "ready" }]
+        },
+        connectors: { done: false }
+      }
+    })
+  });
+
+  await page.goto("/");
+  await page
+    .getByLabel("Onboarding progress")
+    .getByRole("button", { name: /Google/ })
+    .click();
+  await page.getByRole("button", { name: /Connect Google/i }).click();
+
+  await page
+    .getByLabel("Client ID", { exact: true })
+    .fill("000000-xxxx.apps.googleusercontent.com");
+  await page.getByLabel("Client secret", { exact: true }).fill("GOCSPX-secret");
+  await page.getByRole("button", { name: "Open consent screen" }).click();
+
+  await expect(page.getByText(/browser blocked the popup/i)).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open manually/i })).toBeVisible();
+});
+
+test("failed authorization closes the popup and surfaces the error", async ({ page }) => {
+  await mockApi(page, {
+    authenticated: true,
+    isInstanceAdmin: true,
+    chatThreads: [],
+    connectorAccounts: [],
+    connectorProviders: createMockConnectorProviders(),
+    notifications: [],
+    tasks: [],
+    onboardingStatus: defaultOnboardingStatus({
+      steps: {
+        cliAuth: {
+          done: true,
+          providers: [{ kind: "anthropic", cliPresent: true, installState: "ready" }]
+        },
+        connectors: { done: false }
+      }
+    })
+  });
+  await page.route("**/api/connectors/google/authorize", (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Authorization failed." })
+    })
+  );
+
+  await page.goto("/");
+  await page
+    .getByLabel("Onboarding progress")
+    .getByRole("button", { name: /Google/ })
+    .click();
+  await page.getByRole("button", { name: /Connect Google/i }).click();
+
+  await page
+    .getByLabel("Client ID", { exact: true })
+    .fill("000000-xxxx.apps.googleusercontent.com");
+  await page.getByLabel("Client secret", { exact: true }).fill("GOCSPX-secret");
+
+  const [popup] = await Promise.all([
+    page.waitForEvent("popup"),
+    page.getByRole("button", { name: "Open consent screen" }).click()
+  ]);
+  // The mock 500 resolves fast enough that the popup can already be closed by the time we
+  // start waiting — don't block on an event that may have already fired.
+  if (!popup.isClosed()) {
+    await popup.waitForEvent("close");
+  }
+
+  await expect(page.getByText("Authorization failed.")).toBeVisible();
 });

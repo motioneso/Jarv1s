@@ -4,10 +4,14 @@ import { useState } from "react";
 
 import type { ModuleCredentialStatusDto } from "@jarv1s/shared";
 
-import { listModuleCredentials, revokeModuleCredential, setModuleCredential } from "../api/client";
-import { Field } from "./settings-ui";
-import { useFeedback } from "./settings-feedback";
-import { readError } from "./settings-types";
+import {
+  listModuleCredentials,
+  revokeModuleCredential,
+  setModuleCredential
+} from "../api/client.js";
+import { Field } from "./settings-ui.js";
+import { useFeedback } from "./settings-feedback.js";
+import { readError } from "./settings-types.js";
 
 /**
  * Module credential slots (#918). Docked under a module's row on both the admin surface

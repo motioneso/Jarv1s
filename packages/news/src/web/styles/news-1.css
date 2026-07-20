@@ -4,6 +4,10 @@
 
 .nw-wrap {
   min-width: 0;
+  /* #1185: match Sports' top offset above its masthead (sp-wrap's own space-6, stacked on the
+     shared .content-surface padding both pages already sit in) — News was missing this and
+     started noticeably higher on the page. */
+  padding-top: var(--space-6);
 }
 
 .nw-lede {
