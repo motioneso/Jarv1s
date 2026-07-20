@@ -1,6 +1,7 @@
 import "./helpers/install-module-runtime";
 
 import { renderToString } from "react-dom/server";
+import { act, create } from "react-test-renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -27,7 +28,8 @@ import {
   buildProfileSubmit,
   JobsOnboarding,
   type AssistantRecordMirror,
-  type AssistantSurfaceHandleMirror
+  type AssistantSurfaceHandleMirror,
+  type AssistantSurfaceViewPropsMirror
 } from "../../external-modules/job-search/src/web/screens/onboarding/index.js";
 import { h } from "../../external-modules/job-search/src/web/runtime.js";
 
@@ -352,5 +354,54 @@ describe("Job Search onboarding orchestration (#1198 Task 3)", () => {
   it("renders the initial loading state before effects run", () => {
     const html = render(h(JobsOnboarding, { handle: fakeHandle() }));
     expect(html).toContain("Loading");
+  });
+});
+
+function onboardingStateBody(step: string): unknown {
+  return {
+    invocation: {
+      status: "succeeded",
+      blockedReason: null,
+      result: {
+        status: "ok",
+        step,
+        completed: {},
+        gates: { resumeApproved: false, profileApproved: false, monitorEnabled: false }
+      }
+    }
+  };
+}
+
+async function mountComposed(step: string): Promise<AssistantSurfaceViewPropsMirror | null> {
+  stubFetch(200, onboardingStateBody(step));
+  let captured: AssistantSurfaceViewPropsMirror | null = null;
+  const handle = fakeHandle({
+    Surface: (props: AssistantSurfaceViewPropsMirror) => {
+      captured = props;
+      return null;
+    }
+  });
+  await act(async () => {
+    create(h(JobsOnboarding, { handle }) as never);
+  });
+  // Bootstrap resolves through several microtask hops (fetch -> json -> the
+  // module's Promise.all). A macrotask boundary guarantees every microtask
+  // in that chain has drained before we inspect what Surface received.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  return captured;
+}
+
+// #1198 Task 4 Step 0: JobsOnboarding must compute the phase from the
+// bootstrapped snapshot and hand Surface a real activeControl/localRows/
+// composer.onSubmitText — not just a bare composer placeholder.
+describe("Job Search onboarding composition (#1198 Task 4 Step 0)", () => {
+  it("wires the resume-intake phase to the dropzone control and scripted intro rows", async () => {
+    const captured = await mountComposed("resume_intake");
+    expect(captured).not.toBeNull();
+    expect((captured?.activeControl as { type?: unknown } | null)?.type).toBe(ResumeDropzone);
+    expect(captured?.localRows?.length ?? 0).toBeGreaterThan(0);
+    expect(typeof captured?.composer?.onSubmitText).toBe("function");
   });
 });
