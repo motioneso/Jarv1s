@@ -11,6 +11,7 @@ import { OverviewScreen } from "./screens/overview";
 import { ProfileScreen } from "./screens/profile";
 import { MonitorsScreen } from "./screens/monitors";
 import { MatchesScreen } from "./screens/matches";
+import { JobsOnboarding, type AssistantSurfaceHandleMirror } from "./screens/onboarding/index";
 
 export type HostActions = { openAssistant: (input: { starterPrompt: string }) => void };
 
@@ -46,13 +47,15 @@ function RouteSwitch(props: { path: string; hostActions: HostActions }): ReactNo
   return <OverviewScreen hostActions={props.hostActions} />;
 }
 
-function FirstRunPlaceholder(): ReactNodeLike {
+// Never silently proceed without a real assistant surface handle — first-run
+// onboarding writes go exclusively through the assistant confirm gateway, so
+// no handle means no safe path forward (fail closed, not a stub UI).
+function FailClosedFirstRun(): ReactNodeLike {
   return (
-    <section className="jds-card jds-card--sunken jsm-state" role="status">
+    <section className="jds-card jds-card--sunken jsm-state" role="alert">
       <span className="jds-eyebrow">First run</span>
       <h1>Setting up your job search</h1>
-      {/* #1193/#1197: Lane E replaces this dependency-safe placeholder with JobsOnboarding. */}
-      <p>Guided onboarding will appear here.</p>
+      <p>We can’t start guided setup without the assistant surface. Try reloading the page.</p>
     </section>
   );
 }
@@ -61,13 +64,18 @@ export function RootView(props: {
   path: string;
   onboardingStep: string;
   hostActions: HostActions;
+  assistantSurface?: AssistantSurfaceHandleMirror;
 }): ReactNodeLike {
   if (props.onboardingStep !== "done") {
     return (
       <div className="jsm-root" data-module="job-search">
         <style>{MODULE_STYLES}</style>
         <LiveRegion />
-        <FirstRunPlaceholder />
+        {props.assistantSurface ? (
+          <JobsOnboarding handle={props.assistantSurface} />
+        ) : (
+          <FailClosedFirstRun />
+        )}
       </div>
     );
   }
@@ -98,14 +106,24 @@ export function RootView(props: {
   );
 }
 
-export function Root(props: { hostActions: HostActions }): ReactNodeLike {
+export function Root(props: {
+  hostActions: HostActions;
+  assistantSurface?: AssistantSurfaceHandleMirror;
+}): ReactNodeLike {
   const path = useModulePath();
   const onboarding = useToolQuery<{ step: string } & Record<string, unknown>>(
     "job-search.onboarding.get-state"
   );
   return outcomeGate(
     onboarding,
-    (state) => <RootView path={path} onboardingStep={state.step} hostActions={props.hostActions} />,
+    (state) => (
+      <RootView
+        path={path}
+        onboardingStep={state.step}
+        hostActions={props.hostActions}
+        assistantSurface={props.assistantSurface}
+      />
+    ),
     { loadingLabel: "Loading job search" }
   );
 }
