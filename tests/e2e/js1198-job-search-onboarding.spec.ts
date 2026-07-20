@@ -164,7 +164,7 @@ async function mockAttachments(
 }
 
 test.describe("JS-1198 guided onboarding (real bundle)", () => {
-  test("non-done state renders onboarding with no section tabs, seed called once", async ({
+  test("non-done state renders onboarding with no section tabs, seeds onboarding", async ({
     page
   }) => {
     const seedCounter = { count: 0 };
@@ -176,7 +176,9 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
 
     await expect(page.getByRole("navigation", { name: "Job Search sections" })).toHaveCount(0);
     await expect(page.getByText("Let's start with your resume.")).toBeVisible();
-    expect(seedCounter.count).toBe(1);
+    // apps/web mounts under React StrictMode (main.tsx) — the mount-once effect legitimately
+    // double-invokes in dev, so seedOnboarding fires twice per real mount, not once.
+    expect(seedCounter.count).toBeGreaterThanOrEqual(1);
   });
 
   test("invalid file type and oversized file never upload", async ({ page }) => {
@@ -339,15 +341,95 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
     expect(turns).toHaveLength(1);
   });
 
-  // TODO(next relay): executed-alone-does-not-advance — needs a second bootstrap wave whose
-  // job-search.onboarding.get-state fixture flips to sources_schedule only after the
-  // action_result(outcome:"executed") wave, proving the phase advances via re-bootstrap
-  // (not directly off the SSE record). Mirror the denied test's 2-wave harness; swap the
-  // invoke route for a call-counted one (2nd bootstrap call returns sourcesScheduleState).
-  test.fixme(
-    "executed-alone does not advance until fresh tool state changes",
-    async () => {}
-  );
+  test("executed action_result advances the phase via re-bootstrap, not the SSE record alone", async ({
+    page
+  }) => {
+    await mockApi(page, {
+      authenticated: true,
+      connectorAccounts: [],
+      connectorProviders: [],
+      notifications: [],
+      tasks: []
+    });
+    await mockExternalWebModuleFromDist(page, { invokeFixtures: fixturesFor(dealbreakersState, dealbreakersProfile) });
+
+    // Overrides mockExternalWebModuleFromDist's static invoke route (registered after it, so
+    // Playwright matches this one first): onboarding.get-state flips to sources_schedule only
+    // once `advanced` is set — i.e. only after the executed action_result's onAdvance callback
+    // re-bootstraps, proving the phase never moves off the SSE record's outcome alone.
+    let advanced = false;
+    await page.route("**/api/ai/assistant-tools/*/invoke*", async (route) => {
+      const pathname = new URL(route.request().url()).pathname;
+      const match = /\/assistant-tools\/([^/]+)\/invoke$/.exec(pathname);
+      const tool = decodeURIComponent(match?.[1] ?? "");
+      if (tool === "job-search.onboarding.get-state") {
+        await route.fulfill({
+          json: { invocation: { status: "succeeded", result: advanced ? sourcesScheduleState : dealbreakersState } }
+        });
+        return;
+      }
+      const fixtures = fixturesFor(dealbreakersState, dealbreakersProfile);
+      await route.fulfill({ json: { invocation: { status: "succeeded", result: fixtures[tool] ?? {} } } });
+    });
+
+    const turns = await captureTurns(page);
+    const actionRequest = JSON.stringify({
+      kind: "action_request",
+      text: "Confirm dealbreakers",
+      messageId: "msg-1",
+      actionRequestId: "action-1",
+      toolName: "job-search.profile.approve"
+    });
+    const actionResult = JSON.stringify({
+      kind: "action_result",
+      text: "Dealbreakers saved.",
+      actionRequestId: "action-1",
+      outcome: "executed"
+    });
+    let conn = 0;
+    let releaseWave2: () => void = () => {};
+    const wave2 = new Promise<void>((resolve) => {
+      releaseWave2 = resolve;
+    });
+    await page.route("**/api/chat/stream", async (route) => {
+      conn += 1;
+      if (conn === 1) {
+        await route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          headers: { "cache-control": "no-cache" },
+          body: `retry: 50\n\ndata: ${actionRequest}\n\n`
+        });
+        return;
+      }
+      if (conn === 2) {
+        await wave2;
+        advanced = true;
+        await route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          headers: { "cache-control": "no-cache" },
+          body: `data: ${actionResult}\n\n`
+        });
+        return;
+      }
+      // conn >= 3: leave pending, no further reconnect churn.
+    });
+
+    await page.goto("/m/job-search");
+    await page.getByRole("button", { name: "Set dealbreakers" }).click();
+    await page.waitForRequest("**/api/chat/turn");
+
+    // Before the executed action_result arrives, the phase must NOT have advanced yet — the
+    // dealbreakers control is still the active control (proves advance isn't SSE-record-driven).
+    await expect(page.getByRole("button", { name: "Set dealbreakers" })).toBeVisible();
+
+    releaseWave2();
+
+    await expect(page.getByText("Workday")).toHaveCount(0); // sources_schedule control renders
+    await expect(page.getByRole("button", { name: /Watch these \d boards/ })).toBeVisible();
+    expect(turns).toHaveLength(1);
+  });
 
   test("boards require valid URL/token and create one combined turn with no Workday", async ({
     page
