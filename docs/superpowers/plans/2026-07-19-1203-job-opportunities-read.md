@@ -55,7 +55,7 @@ the pure builder directly and returns the computed index without writing.
 - Consumes: the file's local `kvForActor` wrapper (already supports `KvActorOptions`),
   `listOpportunitiesHandler`, `makePorts`, `bootstrapJobSearchRows`. **No new test id** — reuse
   `ids.adminUser`, which owns zero job-search rows in the `describe("job-search opportunity feed +
-  decision isolation (#937)", ...)` block (confirmed: the existing "admin actor gets the same
+decision isolation (#937)", ...)` block (confirmed: the existing "admin actor gets the same
   denials" test at line 888 already asserts `total: 0, opportunities: []` for admin, but calls
   `kvForActor(ids.adminUser, { admin: true })` with `toolRisk` defaulting to `"write"` — masking
   #1203). `ids` is a repo-wide shared fixture in `tests/integration/test-database.ts` — do not add
@@ -145,7 +145,7 @@ expect(await readFeed(kv)).toBeNull();
 ```
 
 - [ ] **Step 2: Add the same non-persistence assertion to `"readFeedOrRebuild builds a fresh index
-      when none exists"` (lines ~136-141)**
+    when none exists"` (lines ~136-141)**
 
 After `const feed = await readFeedOrRebuild(kv, REBUILT_AT); expect(feed.entries).toHaveLength(3);`
 add:
