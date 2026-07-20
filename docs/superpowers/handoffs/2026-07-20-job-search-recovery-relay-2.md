@@ -77,3 +77,46 @@ detail in agentmemory project `jarv1s`, search `"1226 provider connection"`.
 
 Next agent: check for a Coordinator reply first (message sent to label `Build 1226 Recovery
 R4` / this worktree's pane) before restarting any shared process or re-running Webwright.
+
+## Relay 4 update (2026-07-20): provider-connection fix CONFIRMED, NEW deeper hang found
+
+Coordinator authorized restarting the #1226 API process (only that process, port 3000) with
+`JARVIS_MULTIPLEXER=herdr JARVIS_HERDR_ROOT_TAB=jarv1s`. Done (pid 3757574). `herdr tab list`
+now shows a real self-healed tab `jarv1s` (`w1:t3F`, 2 panes) — confirms relay-3's root cause
+(stale `HERDR_PANE_ID`) is fixed; module-onboarding no longer 503s with "unavailable".
+
+**But**: re-running Task 6 live-proof surfaced a new, real, reproducible bug. Job Search module
+had regressed to needing a full "Download and install" (Settings -> Admin/Setup -> Instance
+modules -> module library row, precisely scoped by `<code>{row.id}</code>` ancestor, NOT the
+enable-toggle relay-2 documented) — installed successfully, restarted again to load it. Then
+`POST /api/chat/module-onboarding` hung 300+s, zero response, API process alive throughout
+(`/tmp/jarvis-1226-api.log` reqId `req-1o`/`req-1p`, no "request completed" line ever).
+`herdr pane read w1:p06` (the freshly-split CLI pane) shows the classic #1226 symptom
+happening *inside* the now-fixed multiplexer path: prompt echoed into the composer, Enter
+never landed, engine sits idle. `waitForUserAckWithEnterNudge` in
+`packages/chat/src/live/cli-chat-engine.ts` (~line 702) is supposed to fail-fast on exactly
+this (nudgeAfterMs=7000 x 2 nudges, ~14-21s bound -> `VerifiedSubmitError("delivery_unknown")`)
+but never fired despite 5+ minutes — the hang is upstream of that bounded loop (candidates:
+`mux.pressEnter`/`observePane` with no deadline of their own, or `purgeThenKillQuietly`'s
+`kill()` during error cleanup hanging). No route-level timeout wraps
+`/api/chat/module-onboarding` in `live-routes.ts` either, so nothing external bounds it.
+
+Full detail + reasoning in agentmemory project `jarv1s`, search `"1226 relay-4"`. Escalated to
+Coordinator (label `Coordinator`, pane `w1:pYN` at time of writing — re-resolve fresh) rather
+than continuing unilaterally; awaiting direction (dig deeper in `cli-chat-engine.ts`, file a
+separate follow-up issue, or hand to a fresh session).
+
+### Start here (next agent)
+1. Check for a Coordinator reply first.
+2. Do NOT trust Task 6 as green — Webwright run_2
+   (`/tmp/jarvis-1226-webwright/final_runs/run_2/`) is INCOMPLETE, hung at step 3 (never
+   reached CP4r-CP7r). run_2's script already fixed run_1's gap (it now also captures
+   `/api/chat/turn` responses, not just `/api/chat/module-onboarding`) — reuse it once the
+   hang is understood.
+3. If digging into the hang: instrument/log inside `waitForUserAckWithEnterNudge` and its
+   callees (`mux.pressEnter`, `observePane`, `purgeThenKillQuietly`) to find which specific
+   await never resolves — don't guess further, add a bounded reproduction first.
+4. Then: scoped checks -> full gate in fresh `jarvis_1226_gate` DB -> pre-push trio + rebase
+   `origin/main` -> `coordinated-wrap-up` (PR must disclose: shared-chat + package-hash
+   dependencies, the module-install prereq, the provider-connection fix, AND this new
+   module-onboarding hang finding — never merge, wait for Ben).
