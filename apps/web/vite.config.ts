@@ -14,6 +14,7 @@ export default defineConfig({
       "/api": {
         target: apiTarget,
         changeOrigin: true,
+        ws: true,
         configure: (proxy) => {
           proxy.on("proxyReq", (proxyReq) => {
             proxyReq.setHeader("Origin", apiTarget);
