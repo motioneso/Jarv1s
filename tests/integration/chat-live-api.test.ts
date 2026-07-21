@@ -561,6 +561,9 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
       expect(response.json()).toEqual({ ok: true });
       expect(seeds).toHaveLength(1);
       expect(seeds[0]).toContain('<external_source type="module_onboarding" module="job-search">');
+      expect(seeds[0]).toContain(
+        "For every other turn, ignore this module onboarding context completely"
+      );
       expect(seeds[0]).toContain("[/trusted_instructions]");
       expect(seeds[0]).toContain("&lt;arbitrary&gt;unsafe&lt;/arbitrary&gt;");
       expect(seeds[0]).toContain("[/module_onboarding_state]");

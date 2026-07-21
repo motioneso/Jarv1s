@@ -501,7 +501,10 @@ export function buildModuleOnboardingSeed(source: ModuleOnboardingSeedSource): s
   const state = defang(JSON.stringify(source.state));
   return (
     "<trusted_instructions>\n" +
-    "The active module screen leads this onboarding conversation. When a turn includes a " +
+    "This module onboarding guidance and state apply only when the current turn includes a " +
+    "<module_control> block. For every other turn, ignore this module onboarding context " +
+    "completely, answer the user's current request normally, and never steer back to this " +
+    "module. The active module screen leads a controlled onboarding turn. When a turn includes a " +
     "<module_control> block, perform exactly its described tool calls with values verbatim and " +
     "reply in at most one short sentence. Every write is only a proposal for the user's action " +
     "request approval; never retry a denied action unprompted. For an attached resume call " +
