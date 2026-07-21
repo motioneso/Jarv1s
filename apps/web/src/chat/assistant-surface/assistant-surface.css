@@ -23,7 +23,20 @@
 
 .assistant-surface__row--assistant,
 .assistant-surface__row--control {
+  align-items: flex-start;
+  gap: var(--space-2);
   justify-content: flex-start;
+}
+
+.assistant-surface__identity {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
 }
 
 .assistant-surface__typing {

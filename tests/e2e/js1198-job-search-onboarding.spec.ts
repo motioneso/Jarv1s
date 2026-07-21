@@ -17,6 +17,18 @@ const resumeIntakeState = {
   gates: { resumeApproved: false, profileApproved: false, monitorEnabled: false }
 };
 
+const resumeApprovalState = {
+  step: "resume_approval",
+  completed: { resume_intake: true, resume_critique: true },
+  gates: { resumeApproved: false, profileApproved: false, monitorEnabled: false }
+};
+
+const resumeApprovedState = {
+  step: "profile",
+  completed: { resume_intake: true, resume_critique: true, resume_approval: true },
+  gates: { resumeApproved: true, profileApproved: false, monitorEnabled: false }
+};
+
 const dealbreakersState = {
   step: "profile",
   completed: {
@@ -261,6 +273,221 @@ test.describe("JS-1198 guided onboarding (real bundle)", () => {
           controlContext: { step: "resume_intake", action: "upload", fileName: "resume.pdf" }
         }
       ]);
+  });
+
+  test("resume upload recovers through confirmed, auto-run, and approved durable checkpoints", async ({
+    page
+  }) => {
+    await mountJobSearch(page, { invokeFixtures: fixturesFor(resumeIntakeState) });
+    await mockAttachments(page);
+
+    let durableState: Record<string, unknown> = resumeIntakeState;
+    let stateReads = 0;
+    await page.route("**/api/ai/assistant-tools/*/invoke*", async (route) => {
+      const pathname = new URL(route.request().url()).pathname;
+      const match = /\/assistant-tools\/([^/]+)\/invoke$/.exec(pathname);
+      const tool = decodeURIComponent(match?.[1] ?? "");
+      if (tool === "job-search.onboarding.get-state") {
+        stateReads += 1;
+        await route.fulfill({
+          json: { invocation: { status: "succeeded", result: durableState } }
+        });
+        return;
+      }
+      const fixtures = fixturesFor(durableState, emptyProfile);
+      await route.fulfill({
+        json: { invocation: { status: "succeeded", result: fixtures[tool] ?? {} } }
+      });
+    });
+
+    let releaseUpload: () => void = () => {};
+    let releaseAutoRun: () => void = () => {};
+    let releaseApprovalRequest: () => void = () => {};
+    const upload = new Promise<void>((resolve) => {
+      releaseUpload = resolve;
+    });
+    const autoRun = new Promise<void>((resolve) => {
+      releaseAutoRun = resolve;
+    });
+    const approvalRequest = new Promise<void>((resolve) => {
+      releaseApprovalRequest = resolve;
+    });
+    const turns: CapturedTurn[] = [];
+    await page.route("**/api/chat/turn", async (route) => {
+      const turn = route.request().postDataJSON() as CapturedTurn;
+      turns.push(turn);
+      const context = turn.controlContext as { action?: string } | undefined;
+      if (context?.action === "upload") releaseUpload();
+      if (context?.action === "approve") releaseApprovalRequest();
+      await route.fulfill({
+        json: {
+          reply: "ok",
+          userMessageId: `u-${turns.length}`,
+          assistantMessageId: `a-${turns.length}`
+        }
+      });
+    });
+
+    let releaseImportResult: () => void = () => {};
+    let releaseApprovalResult: () => void = () => {};
+    const importResult = new Promise<void>((resolve) => {
+      releaseImportResult = resolve;
+    });
+    const approvalResult = new Promise<void>((resolve) => {
+      releaseApprovalResult = resolve;
+    });
+    const resolvedActionIds: string[] = [];
+    await page.route("**/api/chat/action-requests/*/resolve", async (route) => {
+      const actionRequestId = decodeURIComponent(
+        new URL(route.request().url()).pathname.split("/").at(-2) ?? ""
+      );
+      resolvedActionIds.push(actionRequestId);
+      if (actionRequestId === "import-resume") releaseImportResult();
+      if (actionRequestId === "approve-resume") releaseApprovalResult();
+      await route.fulfill({ json: { ok: true } });
+    });
+
+    const importRequest = JSON.stringify({
+      kind: "action_request",
+      text: "Import resume attachment",
+      summary: "Import resume attachment",
+      actionRequestId: "import-resume",
+      toolName: "job-search.resume.import-attachment"
+    });
+    const importTerminal = JSON.stringify({
+      kind: "action_result",
+      text: "Resume imported.",
+      actionRequestId: "import-resume",
+      outcome: "executed"
+    });
+    const critiqueTerminal = JSON.stringify({
+      kind: "action_result",
+      text: "Resume critique saved.",
+      actionRequestId: "critique-resume",
+      toolName: "job-search.resume.save-draft",
+      outcome: "executed"
+    });
+    const approveRequest = JSON.stringify({
+      kind: "action_request",
+      text: "Approve this resume",
+      summary: "Approve this resume",
+      actionRequestId: "approve-resume",
+      toolName: "job-search.resume.approve"
+    });
+    const approveTerminal = JSON.stringify({
+      kind: "action_result",
+      text: "Resume approved.",
+      actionRequestId: "approve-resume",
+      outcome: "executed"
+    });
+    let connection = 0;
+    await page.route("**/api/chat/stream", async (route) => {
+      connection += 1;
+      if (connection === 1) {
+        await upload;
+        await route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          headers: { "cache-control": "no-cache" },
+          body: `retry: 50\n\ndata: ${importRequest}\n\n`
+        });
+        return;
+      }
+      if (connection === 2) {
+        await importResult;
+        await route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          headers: { "cache-control": "no-cache" },
+          body: `retry: 50\n\ndata: ${importTerminal}\n\n`
+        });
+        return;
+      }
+      if (connection === 3) {
+        await autoRun;
+        durableState = resumeApprovalState;
+        await route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          headers: { "cache-control": "no-cache" },
+          body: `retry: 50\n\ndata: ${critiqueTerminal}\n\n`
+        });
+        return;
+      }
+      if (connection === 4) {
+        await approvalRequest;
+        await route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          headers: { "cache-control": "no-cache" },
+          body: `retry: 50\n\ndata: ${approveRequest}\n\n`
+        });
+        return;
+      }
+      if (connection === 5) {
+        await approvalResult;
+        durableState = resumeApprovedState;
+        await route.fulfill({
+          status: 200,
+          contentType: "text/event-stream",
+          headers: { "cache-control": "no-cache" },
+          body: `data: ${approveTerminal}\n\n`
+        });
+      }
+    });
+
+    await page.goto("/m/job-search");
+    const surface = page.locator(".assistant-surface");
+    const dropzone = page.locator(".jsm-dropzone input[type='file']");
+    await expect(dropzone).toBeAttached();
+    await expect(page.locator(".jsm-profile-aside")).toContainText("Building your profile");
+    await expect(
+      surface.locator(".assistant-surface__row--assistant .assistant-surface__identity").first()
+    ).toContainText("Jarvis");
+    const readsBeforeAction = stateReads;
+
+    await dropzone.setInputFiles({
+      name: "resume.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4")
+    });
+    await expect
+      .poll(() => turns[0])
+      .toEqual({
+        text: "resume.pdf",
+        attachmentIds: ["attach-1"],
+        controlContext: { step: "resume_intake", action: "upload", fileName: "resume.pdf" }
+      });
+    await expect(surface.locator(".action-request-card")).toContainText("Import resume attachment");
+    await expect(page.getByText(/mcp__jarvis__/i)).toHaveCount(0);
+
+    await expect(dropzone).toBeAttached();
+    expect(stateReads).toBe(readsBeforeAction);
+    await surface.getByRole("button", { name: "Approve" }).click();
+    await expect.poll(() => stateReads).toBeGreaterThan(readsBeforeAction);
+    await expect(dropzone).toBeAttached();
+
+    releaseAutoRun();
+    await expect(dropzone).toHaveCount(0);
+    await expect(page.getByText("Strong systems narrative.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Looks right — use it" })).toBeVisible();
+    await expect(page.getByText(/mcp__jarvis__/i)).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Looks right — use it" }).click();
+    await expect(surface.locator(".action-request-card").last()).toContainText(
+      "Approve this resume"
+    );
+    await surface.getByRole("button", { name: "Approve" }).click();
+    await expect(page.getByRole("button", { name: "Track these titles" })).toBeVisible();
+    expect(resolvedActionIds).toEqual(["import-resume", "approve-resume"]);
+
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Track these titles" })).toBeVisible();
+    await expect(dropzone).toHaveCount(0);
+    await expect(page.locator(".jsm-profile-aside")).toContainText("Approved");
+    await expect(
+      surface.locator(".assistant-surface__row--assistant .assistant-surface__identity").first()
+    ).toContainText("Jarvis");
   });
 
   test("upload failure re-arms upload and paste fallback sends manual resume text via turn", async ({

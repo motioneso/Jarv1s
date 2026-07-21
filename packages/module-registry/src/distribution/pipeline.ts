@@ -127,6 +127,9 @@ export async function downloadAndStageModule(
         `manifest version ${validation.manifest.version} != index version ${ref.version}`
       );
     }
+    // Worker bundles are CJS. Pin their package boundary so a parent app's
+    // `"type": "module"` cannot reinterpret dist/worker.js as ESM.
+    writeFileSync(join(stagingDir, "package.json"), '{"type":"commonjs"}\n');
     // Hash the staged tree NOW — this is the packageHash the reconcile will trust.
     const packageHash = hashExternalPackage(stagingDir);
     stageModuleDir(stagingDir, options.modulesDir, options.moduleId);

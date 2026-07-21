@@ -343,16 +343,34 @@ describe("resume.save-draft handler — critique mode", () => {
     expect(kv.dump().size).toBe(0);
   });
 
-  it("ai error result → question, nothing persisted", async () => {
+  it("needs_config truthfully says structured AI is not configured for this instance", async () => {
     const kv = createMemoryKv();
     await saveOriginalResume(kv, ORIGINAL, NOW);
     const before = kv.dump();
     const { ai } = fakeAi({ ok: false, error: "needs_config" });
     const result = await saveResumeDraftHandler(portsWith(kv, ai))({ mode: "critique" });
     expect(result.status).toBe("question");
+    expect(result.question).toMatch(/structured AI is not configured for this instance/i);
     expect(result.question).not.toMatch(/anthropic|openai|claude|gpt|gemini/i);
     expect(kv.dump()).toEqual(before);
   });
+
+  it.each(["provider_error", "validation_failed"] as const)(
+    "%s keeps the generic retry language",
+    async (error) => {
+      const kv = createMemoryKv();
+      await saveOriginalResume(kv, ORIGINAL, NOW);
+      const before = kv.dump();
+      const { ai } = fakeAi({ ok: false, error });
+
+      const result = await saveResumeDraftHandler(portsWith(kv, ai))({ mode: "critique" });
+
+      expect(result.status).toBe("question");
+      expect(result.question).toMatch(/didn't complete.*try again/i);
+      expect(result.question).not.toMatch(/not configured/i);
+      expect(kv.dump()).toEqual(before);
+    }
+  );
 
   it("fully-sourced critique persists with evidence and completes resume_critique", async () => {
     const kv = createMemoryKv();

@@ -48,6 +48,10 @@ export interface CliChatEngineOpts {
    * Default 7000ms; tests shrink it to keep the bounded ack wait off the wall clock.
    */
   readonly nudgeAfterMs?: number;
+  /** #1226 relay-5/6: per-call bound on each individual mux RPC (capturePane/paste/pressEnter/
+   * clearComposer/clearComposerHard/kill). Without this a single stalled call hangs
+   * verifiedSubmit forever, upstream of every other bound in the file. Default 10000ms. */
+  readonly muxCallMs?: number;
   readonly executionMode?: AiProviderExecutionMode;
   /** #1157: best-effort diagnostic sink (see CliChatEngineDiagnostic). Must never throw into the submit path. */
   readonly onDiagnostic?: (event: CliChatEngineDiagnostic) => void;

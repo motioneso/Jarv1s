@@ -333,6 +333,113 @@ describe("CliChatEngineImpl — verified interactive submit", () => {
     expect(mux.kill).toHaveBeenCalledTimes(1);
   });
 
+  it("fails fast to delivery_unknown (never hangs) when the composer never empties across all nudges (#1226)", async () => {
+    // Live #1226 blocker: initial Enter plus both bounded nudges left a long multiline
+    // composer still holding the text and no transcript ack ever landed. Pre-fix, once the
+    // MAX_ENTER_NUDGES loop exhausted without the composer going empty, the code fell
+    // through to a genuinely UNBOUNDED waitForUserAck — with no ack ever arriving and the
+    // signal never aborted, that spins forever. A composer still full after every real
+    // Enter press means delivery failed, not "ack lagging", so this must fail fast instead
+    // of waiting on an ack that will never come.
+    const stuckMultiline = "❯ stuck line one\n  stuck line two\n  stuck line three\n";
+    const mux = stateMachineMux({
+      // Captures: emptiness gate (empty) → echo observe (exact match) → nudge probes
+      // (repeats the last pane — stuck — for every subsequent capture).
+      panes: [empty, "❯ exact payload\n", stuckMultiline]
+    });
+    const io = makeIo();
+    io.readFile.mockResolvedValue(""); // no ack ever reaches the transcript
+    // Pre-fix this drives a genuinely unbounded poll loop. A microtask-resolved sleep would
+    // starve the event loop and OOM the worker before the race timer below ever fires — a
+    // real (if tiny) macrotask tick lets the race actually observe the hang.
+    io.sleep.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 1)));
+    const engine = new CliChatEngineImpl("anthropic", "stuck-composer", io, {
+      mux,
+      echoMs: 0,
+      nudgeAfterMs: 0
+    });
+    await engine.launch({ neutralDir: "/tmp/stuck-composer", personaPath: "/p.md" });
+
+    const RACE_DEADLINE_MS = 200;
+    const outcome = await Promise.race([
+      engine
+        .verifiedSubmit({
+          attemptId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          text: "exact payload",
+          signal: new AbortController().signal
+        })
+        .then(
+          () => ({ kind: "resolved" as const }),
+          (err: unknown) => ({ kind: "rejected" as const, err })
+        ),
+      new Promise<{ kind: "timeout" }>((resolve) =>
+        setTimeout(() => resolve({ kind: "timeout" }), RACE_DEADLINE_MS)
+      )
+    ]);
+
+    expect(outcome.kind).toBe("rejected");
+    if (outcome.kind === "rejected") {
+      expect(outcome.err).toMatchObject<Partial<VerifiedSubmitError>>({
+        code: "delivery_unknown"
+      });
+    }
+    // Initial Enter + exactly two bounded nudges — never a third.
+    expect(mux.pressEnter).toHaveBeenCalledTimes(3);
+    expect(mux.kill).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects instead of hanging when an individual mux call never settles — pressEnter (#1226 relay-4/5/6)", async () => {
+    // Relay-4 live finding: composer held the full pasted payload, un-submitted, no
+    // spinner, for 300+s — the #1226 fix above (MAX_ENTER_NUDGES exhaustion) never even
+    // engaged. Root cause: every "bounded" loop in this file (observePane's echoMs
+    // deadline, waitForUserAckWithEnterNudge's nudgeAfterMs) only bounds the polling
+    // loop's OWN sleep/deadline check — it never wrapped the individual
+    // `await this.mux.*(handle)` call inside it with its own timeout. If that single
+    // RPC (here: pressEnter at cli-chat-engine.ts ~419) never settles, execution never
+    // reaches the nudge loop at all, so its 7s/14s/21s bound never fires. Relay-6 added
+    // `raceMux` (a per-call `muxCallMs` timeout) around every such RPC, so the hang is
+    // now provably bounded: this test proves the fix, not the bug.
+    const mux = stateMachineMux({ panes: [empty, "❯ exact payload\n"] });
+    (mux.pressEnter as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise(() => {}));
+    const io = makeIo();
+    const engine = new CliChatEngineImpl("anthropic", "hung-press-enter", io, {
+      mux,
+      echoMs: 0,
+      nudgeAfterMs: 0,
+      muxCallMs: 0
+    });
+    await engine.launch({ neutralDir: "/tmp/hung-press-enter", personaPath: "/p.md" });
+
+    const RACE_DEADLINE_MS = 200;
+    const outcome = await Promise.race([
+      engine
+        .verifiedSubmit({
+          attemptId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          text: "exact payload",
+          signal: new AbortController().signal
+        })
+        .then(
+          () => ({ kind: "resolved" as const }),
+          (err: unknown) => ({ kind: "rejected" as const, err })
+        ),
+      new Promise<{ kind: "timeout" }>((resolve) =>
+        setTimeout(() => resolve({ kind: "timeout" }), RACE_DEADLINE_MS)
+      )
+    ]);
+
+    // pressEnter fires after `entered = true` is set, so the existing entered/pasted
+    // classification in verifiedSubmit's catch block turns raceMux's plain timeout Error
+    // into a delivery_unknown VerifiedSubmitError — the real rejection wins the inner
+    // race well inside RACE_DEADLINE_MS, so the outer harness timeout arm stays unhit.
+    expect(outcome.kind).toBe("rejected");
+    if (outcome.kind === "rejected") {
+      expect(outcome.err).toMatchObject<Partial<VerifiedSubmitError>>({
+        code: "delivery_unknown"
+      });
+    }
+    expect(mux.pressEnter).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the original Codex marker when invalidation purge cannot prove identity", async () => {
     const uuid = "019f5af9-3c61-7f72-af47-09514db9892c";
     const neutralDir = "/tmp/verified-codex-failed-purge";

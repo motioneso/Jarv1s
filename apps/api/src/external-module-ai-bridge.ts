@@ -7,13 +7,21 @@
 // (apps/worker) is built without this bridge and fails closed.
 import type { FastifyBaseLogger } from "fastify";
 
-import { createAiSecretCipher, generateStructured, type AiRepository } from "@jarv1s/ai";
+import {
+  createAiSecretCipher,
+  generateStructured,
+  type AiRepository,
+  type GenerateStructuredDeps
+} from "@jarv1s/ai";
 import type { DataContextDb } from "@jarv1s/db";
 import type { ExternalModuleAiRequest, ExternalModuleAiResult } from "@jarv1s/module-registry/node";
 
 export function createModuleAiBridge(input: {
   readonly aiRepository: AiRepository;
   readonly logger: Pick<FastifyBaseLogger, "info" | "warn">;
+  readonly createCliStructuredAdapter: NonNullable<
+    GenerateStructuredDeps["createCliStructuredAdapter"]
+  >;
 }): (
   scopedDb: DataContextDb,
   moduleId: string,
@@ -27,7 +35,12 @@ export function createModuleAiBridge(input: {
       const result = await generateStructured(
         scopedDb,
         { service: `module.${moduleId}`, ...request },
-        { repository: input.aiRepository, cipher, logger: input.logger }
+        {
+          repository: input.aiRepository,
+          cipher,
+          logger: input.logger,
+          createCliStructuredAdapter: input.createCliStructuredAdapter
+        }
       );
       return result.ok
         ? // Drop usage: module workers never see token counts, model or provider ids.

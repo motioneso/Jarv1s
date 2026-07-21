@@ -10,6 +10,7 @@ import type { PgBoss } from "pg-boss";
 
 import { AiRepository, type TerminalRpcConnectOptions, type TerminalRpcHandle } from "@jarv1s/ai";
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
+import { createCliStructuredAdapterFactory } from "@jarv1s/chat";
 import {
   ConnectorsRepository,
   GoogleConnectionService,
@@ -357,7 +358,11 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       settingsRepository: externalModulesRepository,
       logger: { warn: (data, message) => server.log.warn(data, message) },
       // ctx.ai bridge for module workers (#932, spec D6).
-      ai: createModuleAiBridge({ aiRepository, logger: server.log })
+      ai: createModuleAiBridge({
+        aiRepository,
+        logger: server.log,
+        createCliStructuredAdapter: createCliStructuredAdapterFactory(options.chatEngineFactory)
+      })
     });
     externalWorkerRuntime = externalTools.runtime;
     const externalToolManifests = externalTools.manifests;

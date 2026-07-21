@@ -330,7 +330,17 @@ describe("AssistantToolGateway", () => {
     expect(exampleToolCalls).toEqual([
       { name: "example.autoWrite", input: { value: "quiet" }, actorUserId: ids.userA }
     ]);
-    expect(emitted).toHaveLength(0);
+    expect(emitted).toEqual([
+      {
+        chatSessionId: "s-trusted-auto-write",
+        record: expect.objectContaining({
+          kind: "action_result",
+          toolName: "example.autoWrite",
+          outcome: "executed"
+        })
+      }
+    ]);
+    expect(emitted[0]?.record.actionRequestId).toMatch(/^mcp_/);
   });
 
   it("always confirms destructive tools even if executionPolicy is auto", async () => {

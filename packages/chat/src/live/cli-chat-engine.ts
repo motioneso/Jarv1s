@@ -149,6 +149,7 @@ export class CliChatEngineImpl implements CliChatEngine {
   private readonly echoMs: number;
   private readonly verifiedSubmitMs: number;
   private readonly nudgeAfterMs: number;
+  private readonly muxCallMs: number;
   private readonly executionMode: AiProviderExecutionMode;
   private readonly onDiagnostic?: (event: CliChatEngineDiagnostic) => void;
   private codexExec: CodexExecSession | null = null;
@@ -172,8 +173,29 @@ export class CliChatEngineImpl implements CliChatEngine {
     this.echoMs = opts.echoMs ?? 10_000;
     this.verifiedSubmitMs = opts.verifiedSubmitMs ?? 35_000;
     this.nudgeAfterMs = opts.nudgeAfterMs ?? 7_000;
+    this.muxCallMs = opts.muxCallMs ?? 10_000;
     this.executionMode = opts.executionMode ?? "interactive";
     this.onDiagnostic = opts.onDiagnostic;
+  }
+
+  /** #1226 relay-5/6: bound a single mux RPC so a stalled call can't hang verifiedSubmit
+   * forever. Throws a plain Error (never VerifiedSubmitError) — the caller's existing
+   * entered/pasted classification in verifiedSubmit's catch block already turns any thrown
+   * error into the correct unavailable/delivery_unknown code. */
+  private async raceMux<T>(call: Promise<T>): Promise<T> {
+    let timer: ReturnType<typeof setTimeout>;
+    const timedOut = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`mux call did not settle within ${this.muxCallMs}ms`)),
+        this.muxCallMs
+      );
+      timer.unref?.();
+    });
+    try {
+      return await Promise.race([call, timedOut]);
+    } finally {
+      clearTimeout(timer!);
+    }
   }
 
   // ─── lifecycle ─────────────────────────────────────────────────────────────
@@ -346,7 +368,7 @@ export class CliChatEngineImpl implements CliChatEngine {
         // break the submit path.
         if (pasteAttempt === 0 && this.onDiagnostic) {
           try {
-            const preClearPane = await this.mux.capturePane(handle);
+            const preClearPane = await this.raceMux(this.mux.capturePane(handle));
             if (!isComposerEmpty(this.provider, preClearPane)) {
               this.onDiagnostic({
                 kind: "composer_discarded",
@@ -357,7 +379,7 @@ export class CliChatEngineImpl implements CliChatEngine {
             // Diagnostic is best-effort; a capture failure must not block the turn.
           }
         }
-        await this.mux.clearComposer(handle);
+        await this.raceMux(this.mux.clearComposer(handle));
         this.throwIfCanceled(opts.signal);
         let empty = await this.observePane(
           handle,
@@ -372,7 +394,7 @@ export class CliChatEngineImpl implements CliChatEngine {
           // composer in one press (probed live, claude 2.1.215). Only sent here, after
           // observing non-empty: Ctrl+C on an EMPTY composer arms the CLI's
           // press-again-to-exit state and a second press would kill the session.
-          await this.mux.clearComposerHard(handle);
+          await this.raceMux(this.mux.clearComposerHard(handle));
           this.throwIfCanceled(opts.signal);
           empty = await this.observePane(
             handle,
@@ -384,7 +406,7 @@ export class CliChatEngineImpl implements CliChatEngine {
         pasted = false;
 
         pasted = true;
-        await this.mux.paste(handle, sanitized);
+        await this.raceMux(this.mux.paste(handle, sanitized));
         this.throwIfCanceled(opts.signal);
         const echoed = await this.observePane(
           handle,
@@ -394,7 +416,7 @@ export class CliChatEngineImpl implements CliChatEngine {
         if (!echoed) continue;
 
         entered = true;
-        await this.mux.pressEnter(handle);
+        await this.raceMux(this.mux.pressEnter(handle));
         this.throwIfCanceled(opts.signal);
         await this.waitForUserAckWithEnterNudge(ack, sanitized, handle, opts.signal);
         return;
@@ -473,7 +495,7 @@ export class CliChatEngineImpl implements CliChatEngine {
   async kill(opts?: EngineKillOpts): Promise<void> {
     try {
       if (this.handle !== null) {
-        await this.mux.kill(this.handle);
+        await this.raceMux(this.mux.kill(this.handle));
       } else {
         // No engine-stored handle (e.g. a relaunch raced a restart): still kill by
         // the canonical mux name so a live `jarv1s-live-<key>` session can't survive
@@ -624,7 +646,7 @@ export class CliChatEngineImpl implements CliChatEngine {
 
     let entered = false;
     try {
-      await this.mux.clearComposer(handle);
+      await this.raceMux(this.mux.clearComposer(handle));
       this.throwIfCanceled(signal);
       const empty = await this.observePane(
         handle,
@@ -633,7 +655,7 @@ export class CliChatEngineImpl implements CliChatEngine {
       );
       if (!empty) throw new VerifiedSubmitError("unavailable");
 
-      await this.mux.paste(handle, "/status");
+      await this.raceMux(this.mux.paste(handle, "/status"));
       this.throwIfCanceled(signal);
       const echoed = await this.observePane(
         handle,
@@ -643,7 +665,7 @@ export class CliChatEngineImpl implements CliChatEngine {
       if (!echoed) throw new VerifiedSubmitError("unavailable");
 
       entered = true;
-      await this.mux.pressEnter(handle);
+      await this.raceMux(this.mux.pressEnter(handle));
       this.throwIfCanceled(signal);
       let uuid: string | null = null;
       const observed = await this.observePane(
@@ -706,16 +728,28 @@ export class CliChatEngineImpl implements CliChatEngine {
     signal: AbortSignal
   ): Promise<void> {
     const MAX_ENTER_NUDGES = 2;
+    let composerEmptied = false;
     for (let nudge = 0; nudge < MAX_ENTER_NUDGES; nudge += 1) {
       if (await this.waitForUserAck(initial, expectedText, signal, this.nudgeAfterMs)) return;
-      const pane = await this.mux.capturePane(handle);
+      const pane = await this.raceMux(this.mux.capturePane(handle));
       this.throwIfCanceled(signal);
-      if (isComposerEmpty(this.provider, pane)) break;
-      await this.mux.pressEnter(handle);
+      if (isComposerEmpty(this.provider, pane)) {
+        composerEmptied = true;
+        break;
+      }
+      await this.raceMux(this.mux.pressEnter(handle));
       this.throwIfCanceled(signal);
     }
-    // Unbounded wait as before; the prod RPC bounds this externally via its
-    // verified-submit deadline, so an in-process ceiling here would be redundant.
+    if (!composerEmptied) {
+      // #1226: initial Enter plus both bounded nudges left the composer still holding the
+      // text — Enter is not landing, so no ack will ever arrive. Waiting further just delays
+      // the inevitable; fail fast so the caller's entered=true catch classifies this as
+      // delivery_unknown (kill once, never auto-resend) instead of spinning unbounded.
+      throw new VerifiedSubmitError("delivery_unknown", true);
+    }
+    // Composer went empty: the text was submitted and the ack is merely lagging behind the
+    // transcript writer, so this extended wait is a safe, non-duplicating poll. The prod RPC
+    // still bounds it externally via its verified-submit deadline.
     await this.waitForUserAck(initial, expectedText, signal);
   }
 
@@ -756,7 +790,7 @@ export class CliChatEngineImpl implements CliChatEngine {
     const deadline = Date.now() + this.echoMs;
     for (;;) {
       this.throwIfCanceled(signal);
-      const pane = await this.mux.capturePane(handle);
+      const pane = await this.raceMux(this.mux.capturePane(handle));
       this.throwIfCanceled(signal);
       if (predicate(pane)) return true;
       if (Date.now() >= deadline) return false;
@@ -766,13 +800,14 @@ export class CliChatEngineImpl implements CliChatEngine {
 
   private async clearPastedComposer(handle: MuxHandle): Promise<boolean> {
     try {
-      await this.mux.clearComposer(handle);
-      if (isComposerEmpty(this.provider, await this.mux.capturePane(handle))) return true;
+      await this.raceMux(this.mux.clearComposer(handle));
+      if (isComposerEmpty(this.provider, await this.raceMux(this.mux.capturePane(handle))))
+        return true;
       // #1170: the pasted text we're discarding is usually MULTILINE (attachment manifests
       // always are), and C-u cannot empty a multiline composer — hard-clear (Ctrl+C) before
       // giving up, else the caller needlessly kills the whole session.
-      await this.mux.clearComposerHard(handle);
-      return isComposerEmpty(this.provider, await this.mux.capturePane(handle));
+      await this.raceMux(this.mux.clearComposerHard(handle));
+      return isComposerEmpty(this.provider, await this.raceMux(this.mux.capturePane(handle)));
     } catch {
       return false;
     }

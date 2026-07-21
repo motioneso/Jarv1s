@@ -79,12 +79,13 @@ export function hashExternalPackage(dir: string): string {
     return true;
   };
 
-  // The hashable set: the manifest, the worker bundle, everything the web bundle ships, and
-  // the sql migrations. Anything else in the mounted dir is ignored so unrelated files can't
-  // churn the hash. Files that don't exist are simply omitted (a Slice-1 metadata-only module
-  // may ship only the manifest).
+  // The hashable set: the manifest, worker module type, worker bundle, everything the web bundle
+  // ships, and the sql migrations. Anything else in the mounted dir is ignored so unrelated files
+  // can't churn the hash. Files that don't exist are simply omitted (a Slice-1 metadata-only
+  // module may ship only the manifest).
   const relPaths: string[] = [];
   if (includeIfContained("jarvis.module.json")) relPaths.push("jarvis.module.json");
+  if (includeIfContained("package.json")) relPaths.push("package.json");
   if (includeIfContained(join("dist", "worker.js"))) relPaths.push("dist/worker.js");
   if (includeIfContained(join("dist", "web"))) {
     const webDir = join(dir, "dist", "web");
