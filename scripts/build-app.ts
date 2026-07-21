@@ -12,13 +12,16 @@
  * the transformers wrapper are kept EXTERNAL — they must be required from the
  * pruned production node_modules at runtime, never inlined (Open Risk #3/#6).
  */
+import { copyFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 import { build, type Plugin } from "esbuild";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const chatRequire = createRequire(resolve(root, "packages/chat/package.json"));
 
 type Target = "api" | "worker";
 
@@ -110,6 +113,13 @@ async function buildTarget(target: Target): Promise<void> {
   // bundled-artifact trap class). `node --check` fails the build here instead of
   // shipping a bundle that dies at boot inside the Docker prod smoke.
   execFileSync(process.execPath, ["--check", resolve(root, outfile)], { stdio: "inherit" });
+  if (target === "api") {
+    const workerSource = resolve(
+      dirname(chatRequire.resolve("pdf-parse/worker")),
+      "../pdf.worker.mjs"
+    );
+    copyFileSync(workerSource, resolve(root, dirname(outfile), "pdf.worker.mjs"));
+  }
   console.log(`built ${outfile} (parse-checked)`);
 }
 
