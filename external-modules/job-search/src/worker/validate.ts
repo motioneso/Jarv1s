@@ -115,6 +115,37 @@ export function readInt(
   return value;
 }
 
+// JS-10 (#1229): broad-query string arrays (titles, locations). Same
+// discipline as the scalar readers — errors name the key and OUR constraint,
+// never the submitted value. A non-array is a hard error; each entry must be a
+// string within maxBytes. Absent/null reads as an empty array (the caller
+// decides whether emptiness is fatal).
+export function readStringArray(
+  input: Record<string, unknown>,
+  key: string,
+  opts: { maxBytes?: number } = {}
+): string[] {
+  const value = input[key];
+  if (value === undefined || value === null) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw new InputError(`${key} must be an array`);
+  }
+  const out: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string") {
+      throw new InputError(`${key} must contain only strings`);
+    }
+    if (opts.maxBytes !== undefined && Buffer.byteLength(item, "utf8") > opts.maxBytes) {
+      // Fixed copy — never the computed size, never the content.
+      throw new InputError(`${key} entries exceed ${opts.maxBytes} bytes of UTF-8`);
+    }
+    out.push(item);
+  }
+  return out;
+}
+
 export function readPlainObject(
   input: Record<string, unknown>,
   key: string,
