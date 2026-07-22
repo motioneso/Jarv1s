@@ -115,6 +115,16 @@ export interface OpportunityDetailResult extends Record<string, unknown> {
   opportunity?: OpportunityDetail;
 }
 
+// JS-10 (#1229): `card.source` is the stored opportunity's adapterId
+// (opportunities.ts:148, `source: job.adapterId`) — freehire-sourced records
+// are broad-discovery matches, everything else is a company board watch. No
+// new provenance field was needed; this is purely a display-label lookup.
+const BROAD_SOURCE_IDS = new Set(["freehire"]);
+
+function sourceLabel(source: string): string {
+  return BROAD_SOURCE_IDS.has(source) ? "Broad search" : source;
+}
+
 const EMPTY_BODY: Record<Bucket, string> = {
   new: "Nothing credible has landed here yet. New matches appear after your monitors run each morning.",
   saved:
@@ -129,8 +139,14 @@ function MatchCard(props: { bucket: Bucket; card: OpportunityCard; key?: string 
   return (
     <li className="jds-card jds-card--interactive jsm-match-card">
       <div className="jsm-row">
-        <span className="jds-eyebrow">
-          {`${card.source} · ${whenLabel(card.publishedAt ?? card.firstSeenAt)}`}
+        <span className="jsm-pill-row">
+          {/* JS-10 (#1229): provenance chip — Meta is the existing pill
+              primitive (kit.tsx), reused (not a new colored accent) with its
+              existing gold tone to call out a broad-discovery match. */}
+          <Meta tone={BROAD_SOURCE_IDS.has(card.source) ? "gold" : undefined}>
+            {sourceLabel(card.source)}
+          </Meta>
+          <span className="jds-eyebrow">{whenLabel(card.publishedAt ?? card.firstSeenAt)}</span>
         </span>
         {card.freshness ? (
           <span

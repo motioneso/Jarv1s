@@ -429,6 +429,57 @@ describe("job-search Park Press match cards (#1197)", () => {
     expect(html).toContain("Watch out");
   });
 
+  // JS-10 (#1229): card.source IS the stored opportunity's adapterId
+  // (opportunities.ts, `source: job.adapterId`) — a freehire-sourced card is
+  // a broad-discovery match, so it gets the "Broad search" provenance chip;
+  // board-watch cards (greenhouse/lever/ashby) keep their existing raw label.
+  it("shows a provenance chip distinguishing a broad match from a board match", () => {
+    const mixedFixture: OpportunityListResult = {
+      status: "ok",
+      view: "new",
+      total: 2,
+      limit: 20,
+      offset: 0,
+      opportunities: [
+        {
+          identityHash: "hash-broad",
+          status: "new",
+          title: "Staff Engineer",
+          company: "Freehire Co",
+          source: "freehire",
+          firstSeenAt: "2026-07-11T07:00:00.000Z",
+          freshness: "fresh",
+          evaluationPending: true
+        },
+        {
+          identityHash: "hash-board",
+          status: "new",
+          title: "Staff Engineer",
+          company: "Board Co",
+          source: "ashby",
+          firstSeenAt: "2026-07-11T07:00:00.000Z",
+          freshness: "fresh",
+          evaluationPending: true
+        }
+      ]
+    };
+    const html = render(
+      h(MatchesListView, { bucket: "new", result: mixedFixture, hasMonitors: true })
+    );
+    expect(html).toContain("Broad search");
+    // The board card renders its adapterId directly, unchanged, and is never
+    // relabeled as a broad match.
+    expect(html).toContain("ashby");
+    expect(html).not.toContain("freehire");
+
+    // The existing greenhouse/lever fixture (board-only) never says "Broad
+    // search" — the chip is additive, not a relabel of every card.
+    const boardOnly = render(
+      h(MatchesListView, { bucket: "new", result: feedFixture, hasMonitors: true })
+    );
+    expect(boardOnly).not.toContain("Broad search");
+  });
+
   it("renders hostile posting strings as literal text, never markup (#960)", () => {
     const html = render(
       h(MatchesListView, { bucket: "new", result: feedFixture, hasMonitors: true })
