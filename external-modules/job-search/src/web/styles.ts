@@ -141,6 +141,8 @@ export const MODULE_STYLES = `
 .jsm-aside-status { display: inline-flex; width: 1.35rem; height: 1.35rem; align-items: center; justify-content: center; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--ink-3); }
 .jsm-aside-status.is-set { background: var(--accent); color: var(--text-on-accent); }
 .jsm-summary { display: grid; gap: 0.875rem; }
+/* JS-10 (#1229): primary broad-discovery card on the redesigned sources_schedule step. */
+.jsm-broad-card { display: grid; gap: 0.65rem; }
 @media (max-width: 760px) {
   .jsm-hero, .jsm-overview-grid, .jsm-detail-grid { grid-template-columns: 1fr; gap: 1.5rem; }
   .jsm-display { font-size: clamp(2.5rem, 14vw, 3.75rem); }

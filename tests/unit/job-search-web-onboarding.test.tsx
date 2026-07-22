@@ -6,15 +6,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AddInput,
+  BroadSearchCard,
   ChipToggle,
   CritiqueCard,
   MultiControl,
   ProfileAside,
   ResumeDropzone,
   SourcesControl,
+  SourcesStep,
   Summary
 } from "../../external-modules/job-search/src/web/screens/onboarding/controls.js";
 import {
+  deriveBroadSearch,
   derivePhase,
   expectedTools,
   parseCompensation,
@@ -26,6 +29,7 @@ import {
   bootstrapOnboarding,
   buildComposerSubmit,
   buildProfileSubmit,
+  buildStartBroadSubmit,
   JobsOnboarding,
   type AssistantRecordMirror,
   type AssistantSurfaceHandleMirror,
@@ -130,6 +134,43 @@ describe("Job Search onboarding phase model (#1198)", () => {
     });
     expect(sourceQuery("  ")).toBeNull();
   });
+
+  // JS-10 (#1229): deriveBroadSearch is the single place the broad query is
+  // read off the approved profile — assert it emits ONLY titles/locations/
+  // remote/country/maxResults, proving salary/dealbreakers never leak in.
+  it("derives the broad search summary from approved profile fields, nothing extra", () => {
+    expect(
+      deriveBroadSearch({
+        targetTitles: ["Staff Engineer", "Principal Engineer"],
+        locations: ["Remote", "NYC"],
+        remotePreference: ["Remote-first"],
+        compensation: { currency: "USD", minimum: 195000 },
+        dealbreakers: ["On-site 5 days/week"]
+      })
+    ).toEqual({
+      titles: ["Staff Engineer", "Principal Engineer"],
+      locations: ["Remote", "NYC"],
+      remote: true,
+      country: "us",
+      maxResults: 50
+    });
+  });
+
+  it("defaults remote false and empty arrays when the profile has no answers yet", () => {
+    expect(deriveBroadSearch({})).toEqual({
+      titles: [],
+      locations: [],
+      remote: false,
+      country: "us",
+      maxResults: 50
+    });
+  });
+
+  it("treats a non-remote-first work mode as remote:false", () => {
+    expect(deriveBroadSearch({ remotePreference: ["Hybrid ok", "On-site ok"] }).remote).toBe(
+      false
+    );
+  });
 });
 
 describe("Job Search onboarding controls (#1198)", () => {
@@ -201,6 +242,58 @@ describe("Job Search onboarding controls (#1198)", () => {
     expect(html).not.toContain("Workday");
   });
 
+  it("renders the broad search card with the derived summary and no credential input", () => {
+    const html = render(
+      h(BroadSearchCard, {
+        summary: {
+          titles: ["Staff Engineer"],
+          locations: ["Remote"],
+          remote: true,
+          country: "us",
+          maxResults: 50
+        },
+        dueTime: "07:00",
+        onStart: () => undefined
+      })
+    );
+    expect(html).toContain("Start my search");
+    expect(html).toContain("Staff Engineer");
+    expect(html).toContain("Remote");
+    expect(html).toContain("No credentials needed");
+    expect(html).not.toContain('type="password"');
+    expect(html).not.toContain("<input");
+  });
+
+  // JS-10 (#1229): broad leads and is on by default; company board watches
+  // (SourcesControl) are demoted to a collapsed optional add-on beneath it.
+  it("leads with the broad card and keeps company board watches collapsed until opened", () => {
+    const html = render(
+      h(SourcesStep, {
+        broad: {
+          titles: ["Staff Engineer"],
+          locations: ["Remote"],
+          remote: true,
+          country: "us",
+          maxResults: 50
+        },
+        sources: [
+          {
+            adapterId: "greenhouse",
+            displayName: "Greenhouse job board",
+            enabled: true,
+            configHint: 'Greenhouse board token (e.g. "gitlab")'
+          }
+        ],
+        initialRunTime: "07:00",
+        onStartBroad: () => undefined,
+        onAddBoards: () => undefined
+      })
+    );
+    expect(html).toContain("Start my search");
+    expect(html).toContain("optional");
+    expect(html).not.toContain("Greenhouse job board");
+  });
+
   it("renders critique and aside as escaped text, never resume content", () => {
     const html = render(
       h(
@@ -269,6 +362,59 @@ describe("Job Search onboarding orchestration (#1198 Task 3)", () => {
         step: "profile",
         action: "titles",
         values: { targetTitles: ["Staff Product Designer", "Principal Designer"] }
+      }
+    });
+  });
+
+  // JS-10 (#1229): "Start my search" builds the exact controlContext the
+  // assistant (per jarvis.module.json's assistantOnboarding.guidance) turns
+  // into job-search.monitor.save's broad payload — assert the `broad` object
+  // carries ONLY adapterId + the five DiscoveryQuery fields, nothing else.
+  it("builds the start-my-search submit turn with the exact broad monitor.save controlContext", () => {
+    const broad = deriveBroadSearch({
+      targetTitles: ["Staff Engineer"],
+      locations: ["Remote"],
+      remotePreference: ["Remote-first"],
+      compensation: { currency: "USD", minimum: 195000 },
+      dealbreakers: ["No equity"]
+    });
+    const submit = buildStartBroadSubmit(broad, "07:00");
+    expect(submit).toEqual({
+      text: "Start my search",
+      controlContext: {
+        step: "sources_schedule",
+        action: "start_search",
+        broad: {
+          adapterId: "freehire",
+          titles: ["Staff Engineer"],
+          locations: ["Remote"],
+          remote: true,
+          country: "us",
+          maxResults: 50
+        },
+        dueTime: "07:00"
+      }
+    });
+  });
+
+  it("wires the start-my-search submit through submitTurn", async () => {
+    const handle = fakeHandle();
+    const broad = deriveBroadSearch({ targetTitles: ["Staff Engineer"], locations: ["Remote"] });
+    await handle.submitTurn(buildStartBroadSubmit(broad, "08:00"));
+    expect(handle.submitTurn).toHaveBeenCalledWith({
+      text: "Start my search",
+      controlContext: {
+        step: "sources_schedule",
+        action: "start_search",
+        broad: {
+          adapterId: "freehire",
+          titles: ["Staff Engineer"],
+          locations: ["Remote"],
+          remote: false,
+          country: "us",
+          maxResults: 50
+        },
+        dueTime: "08:00"
       }
     });
   });

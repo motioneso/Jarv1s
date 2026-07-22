@@ -110,3 +110,37 @@ export function sourceQuery(
   if (!trimmed) return null;
   return trimmed.startsWith("https://") ? { url: trimmed } : { board: trimmed };
 }
+
+// JS-10 (#1229): broad-discovery derivation. DEFAULT_BROAD_MAX_RESULTS mirrors
+// MAX_BROAD_POSTINGS_PER_RUN (fetch-discovery.ts) — kept as a literal here so
+// this pure UI module never imports worker internals (see file header).
+const DEFAULT_BROAD_COUNTRY = "us";
+const DEFAULT_BROAD_MAX_RESULTS = 50;
+
+export interface BroadSearchSummary {
+  readonly titles: readonly string[];
+  readonly locations: readonly string[];
+  readonly remote: boolean;
+  readonly country: string;
+  readonly maxResults: number;
+}
+
+/**
+ * Pure derivation of the broad-discovery query summary from the approved
+ * profile — no React, so it's unit-testable without rendering. ProfileFields
+ * has no country field, so country always defaults "us" (the same default
+ * parseBroadQuery applies server-side). remote is a coarse true/false: any
+ * remotePreference answer containing "remote" (e.g. "Remote-first") counts.
+ * Only titles/locations/remote/country/maxResults are read from fields —
+ * compensation and dealbreakers never reach the broad query (outbound
+ * minimization, same rule the worker's parseBroadQuery enforces).
+ */
+export function deriveBroadSearch(fields: ProfileFields): BroadSearchSummary {
+  return {
+    titles: fields.targetTitles ?? [],
+    locations: fields.locations ?? [],
+    remote: (fields.remotePreference ?? []).some((value) => /remote/i.test(value)),
+    country: DEFAULT_BROAD_COUNTRY,
+    maxResults: DEFAULT_BROAD_MAX_RESULTS
+  };
+}

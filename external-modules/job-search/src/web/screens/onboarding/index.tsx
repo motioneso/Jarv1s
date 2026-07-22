@@ -7,9 +7,11 @@ import { ErrorState, LoadingState } from "../../states";
 import { invokeTool } from "../../api";
 import { h, useEffect, useRef, useState, type ReactNodeLike } from "../../runtime";
 import {
+  deriveBroadSearch,
   derivePhase,
   expectedTools,
   parseCompensation,
+  type BroadSearchSummary,
   type OnboardingSnapshot,
   type OnboardingPhase,
   type ProfileFields,
@@ -24,7 +26,7 @@ import {
   RESUME_ACCEPT,
   MAX_RESUME_BYTES,
   ResumeDropzone,
-  SourcesControl,
+  SourcesStep,
   Summary
 } from "./controls";
 import type { HostActions } from "../../root";
@@ -226,6 +228,27 @@ function summarizeProfileValues(phase: ProfileSubstep, values: Partial<ProfileFi
   return (values.dealbreakers ?? []).join(" · ");
 }
 
+// JS-10 (#1229): the "Start my search" submit turn — mirrors buildProfileSubmit's
+// shape so the assistant confirmation gateway (guided by jarvis.module.json's
+// assistantOnboarding.guidance) has the exact broad values already computed
+// client-side from the approved profile, rather than re-deriving them itself.
+// Only titles/locations/remote/country/maxResults ever appear under `broad` —
+// no salary, company, dealbreakers, or employment type.
+export function buildStartBroadSubmit(
+  broad: BroadSearchSummary,
+  dueTime: string
+): { readonly text: string; readonly controlContext: Record<string, unknown> } {
+  return {
+    text: "Start my search",
+    controlContext: {
+      step: "sources_schedule",
+      action: "start_search",
+      broad: { adapterId: "freehire", ...broad },
+      dueTime
+    }
+  };
+}
+
 export function buildComposerSubmit(
   phase: OnboardingPhase,
   handle: AssistantSurfaceHandleMirror
@@ -392,7 +415,10 @@ function phaseRows(phase: OnboardingPhase, data: BootstrapSnapshot, dueTime: str
       return [
         row(
           0,
-          "Now the sources. I'll check these boards every morning — they're read-only public APIs, so I read postings and score them but never submit anything. Adjust the boards or the run time."
+          // JS-10 (#1229): broad discovery (freehire) leads and is on by
+          // default — no credential to collect. Company board watches are
+          // now an optional add-on, offered below the primary card.
+          "Now the search. I'll run it every morning across every company Freehire indexes — read-only, so I read postings and score them but never submit anything. Want to also watch specific company boards, that's optional below."
         )
       ];
     case "done":
@@ -617,11 +643,20 @@ function buildActiveControl(
     return buildProfileControl(phase, data, handle, local.onProfileAnswer);
   }
   if (phase === "sources_schedule") {
+    // JS-10 (#1229): broad (freehire) is the primary, on-by-default control;
+    // SourcesStep demotes company board watches to a collapsed optional
+    // add-on beneath it — see controls.tsx.
+    const broad = deriveBroadSearch(data.snapshot.profileProgress.fields);
     return (
-      <SourcesControl
+      <SourcesStep
+        broad={broad}
         sources={data.sources}
         initialRunTime="07:00"
-        onSubmit={(selection) => {
+        onStartBroad={(due) => {
+          local.setDueTime(due);
+          void handle.submitTurn(buildStartBroadSubmit(broad, due));
+        }}
+        onAddBoards={(selection) => {
           local.setDueTime(selection.dueTime);
           const names = selection.boards.map((board) => board.adapterId).join(" · ");
           void handle.submitTurn({

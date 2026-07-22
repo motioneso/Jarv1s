@@ -2,7 +2,7 @@
 // remain owned by the assistant confirmation gateway in index.tsx.
 import { Eyebrow, Strap } from "../../kit";
 import { h, useState, type ReactNodeLike } from "../../runtime";
-import { sourceQuery, type SourceInfo } from "./model";
+import { sourceQuery, type BroadSearchSummary, type SourceInfo } from "./model";
 
 export const RESUME_ACCEPT =
   "application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.pdf,.docx";
@@ -293,6 +293,69 @@ export function SourcesControl(props: {
       >
         {`Watch these ${active.length} boards`}
       </button>
+    </div>
+  );
+}
+
+// JS-10 (#1229): broad discovery is the PRIMARY sources_schedule control —
+// derived from the approved profile, no credential input (freehire is
+// keyless). SourcesControl (board watches) is demoted below as an optional,
+// collapsed add-on rather than replaced; its own payload shape is untouched.
+function summarizeBroad(summary: BroadSearchSummary): string {
+  const titles = summary.titles.length ? summary.titles.join(", ") : "your target titles";
+  const where = summary.locations.length ? `, in ${summary.locations.join(", ")}` : "";
+  const remote = summary.remote ? " (remote included)" : "";
+  return `I'll search ${titles} across every company Freehire indexes${where}${remote}.`;
+}
+
+export function BroadSearchCard(props: {
+  readonly summary: BroadSearchSummary;
+  readonly dueTime: string;
+  readonly onStart: () => void;
+}): ReactNodeLike {
+  return (
+    <section className="jds-card jsm-broad-card">
+      <Eyebrow tone="gold">Broad search · Freehire</Eyebrow>
+      <p>{summarizeBroad(props.summary)}</p>
+      <p className="jds-eyebrow jsm-text-accent">
+        {`No credentials needed · daily run ${props.dueTime} · up to ${props.summary.maxResults} matches`}
+      </p>
+      <div className="jsm-button-row">
+        <button type="button" className="jds-btn jds-btn--primary" onClick={props.onStart}>
+          Start my search
+        </button>
+      </div>
+    </section>
+  );
+}
+
+export function SourcesStep(props: {
+  readonly broad: BroadSearchSummary;
+  readonly sources: readonly SourceInfo[];
+  readonly initialRunTime?: string;
+  readonly onStartBroad: (dueTime: string) => void;
+  readonly onAddBoards: (selection: SourcesSelection) => void;
+}): ReactNodeLike {
+  const [expanded, setExpanded] = useState(false);
+  const dueTime = props.initialRunTime ?? "07:00";
+  return (
+    <div className="jsm-control-stack">
+      <BroadSearchCard
+        summary={props.broad}
+        dueTime={dueTime}
+        onStart={() => props.onStartBroad(dueTime)}
+      />
+      <button
+        type="button"
+        className="jds-btn jds-btn--ghost jds-btn--sm"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((current) => !current)}
+      >
+        {expanded ? "Hide company boards" : "Also watch specific company boards (optional)"}
+      </button>
+      {expanded ? (
+        <SourcesControl sources={props.sources} initialRunTime={dueTime} onSubmit={props.onAddBoards} />
+      ) : null}
     </div>
   );
 }
