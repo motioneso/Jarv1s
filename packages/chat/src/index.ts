@@ -28,6 +28,7 @@ export {
   type CrossToolReadRunner
 } from "./live/cross-tool-reasoning.js";
 export * from "./live/runtime.js";
+export * from "./live/chat-surface.js";
 export * from "./live/cli-structured-adapter.js";
 // #342 Phase 2: the api-side install state machine (§A.4) — driver, reconcile projection,
 // store port + wire types. Consumed by the composition root to wire the onboarding install seam.

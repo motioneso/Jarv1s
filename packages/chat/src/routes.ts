@@ -290,7 +290,7 @@ export function registerChatRoutes(
     priorityPreferences: dependencies.priorityPreferences,
     mcpTokenLifecycle: wiring
       ? {
-          mint: async (actorUserId: string) => {
+          mint: async (actorUserId: string, chatSessionId: string) => {
             // Capture the actor's current executable tool set as the per-session allowlist.
             // Bare tool names (e.g. "example.read") — same format as tools/list and tools/call params.name.
             // The mcp__jarvis__<name> prefix is a client-side CLI convention that never reaches the server.
@@ -300,7 +300,7 @@ export function registerChatRoutes(
             return {
               token: wiring.tokens.mint({
                 actorUserId,
-                chatSessionId: actorUserId,
+                chatSessionId,
                 allowedToolNames
               }),
               mcpServerUrl: wiring.mcpServerUrl

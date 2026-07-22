@@ -8,6 +8,19 @@ import type { JarvisError } from "@jarv1s/module-sdk/errors";
 export type ChatMessageRole = "user" | "assistant";
 export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model" | "working" | "error";
 
+export type ChatSurface = string & { readonly __chatSurface: unique symbol };
+export const DEFAULT_CHAT_SURFACE = "drawer" as ChatSurface;
+
+const CHAT_SURFACE_PATTERN = /^[a-z][a-z0-9-]{1,31}$/;
+
+export function normalizeChatSurface(value?: unknown): ChatSurface {
+  if (value === undefined) return DEFAULT_CHAT_SURFACE;
+  if (typeof value !== "string" || !CHAT_SURFACE_PATTERN.test(value)) {
+    throw new Error("Invalid chat surface");
+  }
+  return value as ChatSurface;
+}
+
 export interface ChatActivityEventDto {
   readonly kind: string;
   readonly text: string;
@@ -154,6 +167,7 @@ export interface SendChatTurnRequest {
   readonly text: string;
   /** #1133 — ids of previously uploaded attachments to include with this turn (max 5). */
   readonly attachmentIds?: readonly string[];
+  readonly surface?: ChatSurface;
 }
 
 /** #1109 — PUT /api/chat/page-context body: the actor's current client-reported view. */
@@ -434,6 +448,7 @@ export const getChatPrivacyStateResponseSchema = {
 export const getChatPrivacyStateRouteSchema = {
   response: {
     200: getChatPrivacyStateResponseSchema,
+    400: errorResponseSchema,
     401: errorResponseSchema
   }
 } as const;

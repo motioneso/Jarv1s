@@ -1,11 +1,12 @@
 import type { GatewaySessionRecord, SessionNotifier } from "@jarv1s/ai";
 import type { ChatSessionManager } from "./live/chat-session-manager.js";
+import { parseSurfaceSessionKey } from "./live/chat-surface.js";
 import type { TranscriptRecord } from "./live/types.js";
 
 /**
  * Bridges the AssistantToolGateway's SessionNotifier to ChatSessionManager's
- * subscriber fan-out. In Phase 2, chatSessionId === actorUserId (one session
- * per user), so no reverse lookup is needed.
+ * subscriber fan-out. Composite session IDs carry the actor and surface;
+ * bare actor IDs remain supported for existing callers.
  */
 export class ChatGatewayNotifier implements SessionNotifier {
   constructor(private readonly manager: ChatSessionManager) {}
@@ -13,7 +14,12 @@ export class ChatGatewayNotifier implements SessionNotifier {
   emit(chatSessionId: string, record: GatewaySessionRecord): void {
     const transcriptRecord = toTranscriptRecord(record);
     if (transcriptRecord) {
-      this.manager.injectRecord(chatSessionId, transcriptRecord);
+      try {
+        const { actorUserId, surface } = parseSurfaceSessionKey(chatSessionId);
+        this.manager.injectRecord(actorUserId, transcriptRecord, surface);
+      } catch {
+        this.manager.injectRecord(chatSessionId, transcriptRecord);
+      }
     }
   }
 }

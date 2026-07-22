@@ -38,6 +38,6 @@ describe("ChatSessionManager switch replay", () => {
     await manager.ensureSession("user-1", "User");
     await manager.switchProvider("user-1", "User");
 
-    expect(listPriorTurns).toHaveBeenLastCalledWith("user-1", { forceReplay: true });
+    expect(listPriorTurns).toHaveBeenLastCalledWith("user-1", { forceReplay: true }, "drawer");
   });
 });

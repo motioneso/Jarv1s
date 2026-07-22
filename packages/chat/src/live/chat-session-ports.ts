@@ -9,6 +9,7 @@ import type {
   AnswerProvenanceMetadataV1,
   AiProviderExecutionMode,
   ChatAttachmentDto,
+  ChatSurface,
   SourceFreshnessV1
 } from "@jarv1s/shared";
 import type { MemoryRecallItem } from "@jarv1s/memory";
@@ -16,6 +17,7 @@ import type { MemoryRecallItem } from "@jarv1s/memory";
 export interface PrivateThreadState {
   readonly actorUserId: string;
   readonly threadId: string;
+  readonly surface?: ChatSurface;
 }
 
 export interface ChatPersistencePort {
@@ -26,7 +28,8 @@ export interface ChatPersistencePort {
   /** Prior stored turns split into recent verbatim turns + older rolling summary. */
   listPriorTurns(
     actorUserId: string,
-    opts?: { readonly forceReplay?: boolean }
+    opts?: { readonly forceReplay?: boolean },
+    surface?: ChatSurface
   ): Promise<{
     recent: readonly { role: "user" | "assistant"; content: string }[];
     oldSummary: string | null;
@@ -42,7 +45,8 @@ export interface ChatPersistencePort {
       readonly answerProvenance?: AnswerProvenanceMetadataV1;
       /** #1133 — display metadata for files sent with this turn (user-message tool_metadata). */
       readonly attachments?: readonly ChatAttachmentDto[];
-    }
+    },
+    surface?: ChatSurface
   ): Promise<
     | {
         readonly userMessageId: string;
@@ -52,21 +56,31 @@ export interface ChatPersistencePort {
     | undefined
   >;
   /** Close the current conversation and open a fresh one (for /clear). */
-  openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void>;
+  openNewConversation(
+    actorUserId: string,
+    options?: { incognito?: boolean },
+    surface?: ChatSurface
+  ): Promise<void>;
   getCurrentThreadState?(
-    actorUserId: string
+    actorUserId: string,
+    surface?: ChatSurface
   ): Promise<{ readonly id: string; readonly incognito: boolean } | undefined>;
   listIncognitoThreadStates?(): Promise<readonly PrivateThreadState[]>;
-  deleteThread?(actorUserId: string, threadId: string): Promise<void>;
+  deleteThread?(actorUserId: string, threadId: string, surface?: ChatSurface): Promise<void>;
   /** Return the current thread title and the user's persisted timezone (null if unset). */
   getThreadContext(
-    actorUserId: string
+    actorUserId: string,
+    surface?: ChatSurface
   ): Promise<{ threadTitle: string | null; localTimezone: string | null }>;
   /**
    * Make threadId the current thread for actorUserId (for resume). Returns true if
    * the thread was found and touched; false if it does not exist or belongs to another user.
    */
-  touchExistingThread(actorUserId: string, threadId: string): Promise<boolean>;
+  touchExistingThread(
+    actorUserId: string,
+    threadId: string,
+    surface?: ChatSurface
+  ): Promise<boolean>;
 }
 
 export interface PassiveRetrievalPort {

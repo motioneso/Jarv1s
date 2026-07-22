@@ -94,6 +94,7 @@ import type {
   ListCheckinsResponse,
   ListChatThreadMessagesResponse,
   ListChatThreadsResponse,
+  ChatSurface,
   SendChatTurnResponse,
   UploadChatAttachmentResponse,
   ListConnectorAccountsResponse,
@@ -836,23 +837,28 @@ export async function importChatSkill(file: File): Promise<ChatSkillResponse> {
 export async function sendChatTurn(
   text: string,
   attachmentIds?: readonly string[],
-  controlContext?: Readonly<Record<string, unknown>>
+  controlContext?: Readonly<Record<string, unknown>>,
+  surface?: ChatSurface
 ): Promise<SendChatTurnResponse> {
   return requestJson<SendChatTurnResponse>("/api/chat/turn", {
     method: "POST",
     body: {
       text,
       ...(controlContext ? { controlContext } : {}),
-      ...(attachmentIds?.length ? { attachmentIds } : {})
+      ...(attachmentIds?.length ? { attachmentIds } : {}),
+      ...(surface ? { surface } : {})
     }
   });
 }
 
 /** #1196 — seed core-authored onboarding context for one host-bound external module. */
-export function seedModuleOnboarding(moduleId: string): Promise<{ ok: boolean }> {
+export function seedModuleOnboarding(
+  moduleId: string,
+  surface?: ChatSurface
+): Promise<{ ok: boolean }> {
   return requestJson<{ ok: boolean }>("/api/chat/module-onboarding", {
     method: "POST",
-    body: { moduleId }
+    body: { moduleId, ...(surface ? { surface } : {}) }
   });
 }
 
@@ -894,7 +900,9 @@ export async function updatePageContext(snapshot: PageContextSnapshotDto): Promi
   await requestJson<void>("/api/chat/page-context", { method: "PUT", body: { snapshot } });
 }
 
-export async function startEveningInterview(input: { readonly briefingRunId?: string } = {}) {
+export async function startEveningInterview(
+  input: { readonly briefingRunId?: string; readonly surface?: ChatSurface } = {}
+) {
   return requestJson<{ reply: string }>("/api/chat/evening-interview", {
     method: "POST",
     body: input
@@ -902,35 +910,47 @@ export async function startEveningInterview(input: { readonly briefingRunId?: st
 }
 
 /** #456 — stop the in-flight turn. Idempotent (200 even when no turn is in flight). */
-export async function cancelChatTurn(): Promise<void> {
-  await requestJson<unknown>("/api/chat/turn/cancel", { method: "POST" });
+export async function cancelChatTurn(surface?: ChatSurface): Promise<void> {
+  const query = surface ? `?surface=${encodeURIComponent(surface)}` : "";
+  await requestJson<unknown>(`/api/chat/turn/cancel${query}`, { method: "POST" });
 }
 
-export async function clearChat(options?: { incognito?: boolean }): Promise<void> {
-  const url = options?.incognito ? "/api/chat/clear?incognito=true" : "/api/chat/clear";
+export async function clearChat(options?: {
+  incognito?: boolean;
+  surface?: ChatSurface;
+}): Promise<void> {
+  const query = new URLSearchParams();
+  if (options?.incognito) query.set("incognito", "true");
+  if (options?.surface) query.set("surface", options.surface);
+  const url = query.size ? `/api/chat/clear?${query}` : "/api/chat/clear";
   await requestJson<unknown>(url, { method: "POST" });
 }
 
-export async function endPrivateChat(): Promise<void> {
-  await requestJson<unknown>("/api/chat/private/end", { method: "POST" });
+export async function endPrivateChat(surface?: ChatSurface): Promise<void> {
+  const query = surface ? `?surface=${encodeURIComponent(surface)}` : "";
+  await requestJson<unknown>(`/api/chat/private/end${query}`, { method: "POST" });
 }
 
-export async function getChatPrivacyState(): Promise<GetChatPrivacyStateResponse> {
-  return requestJson<GetChatPrivacyStateResponse>("/api/chat/privacy");
+export async function getChatPrivacyState(
+  surface?: ChatSurface
+): Promise<GetChatPrivacyStateResponse> {
+  const query = surface ? `?surface=${encodeURIComponent(surface)}` : "";
+  return requestJson<GetChatPrivacyStateResponse>(`/api/chat/privacy${query}`);
 }
 
 export function beaconEndPrivateChat(): void {
   navigator.sendBeacon?.("/api/chat/private/end", "");
 }
 
-export async function resumeChat(threadId: string): Promise<void> {
-  await requestJson<unknown>(`/api/chat/threads/${encodeURIComponent(threadId)}/resume`, {
+export async function resumeChat(threadId: string, surface?: ChatSurface): Promise<void> {
+  const query = surface ? `?surface=${encodeURIComponent(surface)}` : "";
+  await requestJson<unknown>(`/api/chat/threads/${encodeURIComponent(threadId)}/resume${query}`, {
     method: "POST"
   });
 }
 
-export function chatStreamUrl(): string {
-  return "/api/chat/stream";
+export function chatStreamUrl(surface?: ChatSurface): string {
+  return surface ? `/api/chat/stream?surface=${encodeURIComponent(surface)}` : "/api/chat/stream";
 }
 
 export async function resolveActionRequest(

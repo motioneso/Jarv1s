@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ChatGatewayNotifier } from "../../packages/chat/src/gateway-notifier.js";
 import type { ChatSessionManager } from "../../packages/chat/src/live/chat-session-manager.js";
+import { surfaceSessionKey } from "../../packages/chat/src/live/chat-surface.js";
 import type { TranscriptRecord } from "../../packages/chat/src/live/types.js";
 
 const makeManager = () =>
@@ -9,6 +10,24 @@ const makeManager = () =>
   }) as unknown as ChatSessionManager;
 
 describe("ChatGatewayNotifier", () => {
+  it("routes composite session ids to their actor and surface", () => {
+    const manager = makeManager();
+    const notifier = new ChatGatewayNotifier(manager);
+
+    notifier.emit(surfaceSessionKey("u:1", "job-search"), {
+      kind: "action_request",
+      actionRequestId: "ar_surface",
+      toolName: "example.read",
+      summary: "Read the value"
+    });
+
+    expect(manager.injectRecord).toHaveBeenCalledWith(
+      "u:1",
+      expect.objectContaining({ actionRequestId: "ar_surface" }),
+      "job-search"
+    );
+  });
+
   it("converts action_request and fans out to manager.injectRecord", () => {
     const manager = makeManager();
     const notifier = new ChatGatewayNotifier(manager);

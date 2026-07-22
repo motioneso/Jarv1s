@@ -497,6 +497,7 @@ export interface ChatThreadsTable {
   id: string;
   owner_user_id: string;
   title: string;
+  surface: string;
   incognito: boolean;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;

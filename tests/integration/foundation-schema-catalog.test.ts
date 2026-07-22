@@ -301,7 +301,10 @@ describe("MVP foundation schema catalog", () => {
         { version: "0172", name: "0172_default_execution_mode_non_interactive.sql" },
         // #1238/#1239 — re-run 0172's backfill under a DISABLE/ENABLE+FORCE toggle: 0172's
         // UPDATE hit 0 rows because the migration owner is NOBYPASSRLS on this FORCE-RLS table.
-        { version: "0173", name: "0173_backfill_execution_mode_under_force_rls.sql" }
+        { version: "0173", name: "0173_backfill_execution_mode_under_force_rls.sql" },
+        // JS-00 #1231 — surface-scoped live chat thread lineage and cleanup identity.
+        // Renumbered 0172→0174 on integration: P-02a (#1239) landed 0172/0173 first.
+        { version: "0174", name: "0174_chat_surface.sql" }
       ]);
     } finally {
       await client.end();

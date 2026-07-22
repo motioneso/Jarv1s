@@ -42,7 +42,8 @@ export const chatModuleManifest = {
       "sql/0058_chat_threads_incognito_immutable.sql",
       "sql/0060_chat_memory_settings_to_role.sql",
       "sql/0146_private_chat_cleanup.sql",
-      "sql/0149_chat_skills.sql"
+      "sql/0149_chat_skills.sql",
+      "sql/0174_chat_surface.sql"
     ],
     migrationDirectories: ["packages/chat/sql"],
     ownedTables: [

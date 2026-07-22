@@ -17,6 +17,13 @@ import { renderPersona, type PersonaFs } from "./persona.js";
 import { renderMemorySeedBlock } from "./recall-seed.js";
 import type { CliChatEngine, EngineKillOpts, TranscriptRecord } from "./types.js";
 import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
+import {
+  DEFAULT_CHAT_SURFACE,
+  normalizeChatSurface,
+  parseSurfaceSessionKey,
+  surfaceSessionKey,
+  type ChatSurface
+} from "./chat-surface.js";
 
 export {
   combineHiddenContextBlocks,
@@ -123,6 +130,8 @@ export interface ChatSessionManagerDeps {
 type Subscriber = (record: TranscriptRecord) => void;
 
 interface UserSession {
+  actorUserId: string;
+  surface: ChatSurface;
   engine: CliChatEngine;
   provider: ProviderKind;
   model: string;
@@ -133,6 +142,7 @@ interface UserSession {
 }
 
 const MAX_SUBSCRIBERS_PER_ACTOR = 5;
+const MAX_SUBSCRIBERS_TOTAL_PER_ACTOR = MAX_SUBSCRIBERS_PER_ACTOR * 2;
 const PRIVATE_DETACH_GRACE_MS = 30_000;
 
 /**
@@ -166,22 +176,13 @@ export class ChatSessionManager {
   private readonly sessions = new Map<string, UserSession>();
   private readonly subscribers = new Map<string, Set<Subscriber>>();
   private readonly privateDetachTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  /** In-flight ensureSession promises, keyed by user, to serialize launches. */
+  /** In-flight ensureSession promises, keyed by actor + surface, to serialize launches. */
   private readonly launching = new Map<string, Promise<UserSession>>();
   /** Actors whose next relaunch must replay bounded prior context after an explicit resume. */
   private readonly pendingForcedReplay = new Set<string>();
-  /**
-   * Users with a turn currently in flight. submitTurn rejects a concurrent turn
-   * for the same user (turn-at-a-time, spec §6.5) so two turns can't interleave
-   * readNew against the shared transcript offset and corrupt it.
-   */
+  /** #6.5 — one turn at a time per actor + surface. */
   private readonly turnsInFlight = new Set<string>();
-  /**
-   * #456 — per-turn AbortControllers, keyed by actor. `runTurn` creates one at turn start and
-   * stores it here; the poll loop checks `signal.aborted` after every readNew and breaks cleanly
-   * (no error) when set. `stopTurn` calls `.abort()` to end the in-flight turn from the outside.
-   * Cleared in runTurn's finally so it never leaks.
-   */
+  /** #456 — per-turn stop controllers, keyed by actor + surface. */
   private readonly turnControllers = new Map<string, AbortController>();
   private readonly pollMs: number;
   /** #456 — idle/heartbeat watchdog window; 0 disables (tests only). */
@@ -197,37 +198,36 @@ export class ChatSessionManager {
     this.serverOwnsDrain = deps.serverOwnsDrain ?? false;
   }
 
-  /**
-   * Ensure a live engine exists for the user. If absent, resolve the active
-   * provider, render the persona, launch a fresh engine, and replay the current
-   * conversation's prior turns as seed context. One engine per user; concurrent
-   * calls share a single launch.
-   */
+  /** Ensure one live engine per actor + surface; concurrent launches share a promise. */
   async ensureSession(
     actorUserId: string,
     userName: string,
-    opts?: { readonly forceReplay?: boolean }
+    opts?: { readonly forceReplay?: boolean },
+    surface?: string
   ): Promise<UserSession> {
-    const existing = this.sessions.get(actorUserId);
+    const chatSurface = normalizeChatSurface(surface);
+    const sessionKey = surfaceSessionKey(actorUserId, chatSurface);
+    const existing = this.sessions.get(sessionKey);
     if (existing) return existing;
 
-    const inFlight = this.launching.get(actorUserId);
+    const inFlight = this.launching.get(sessionKey);
     if (inFlight) return inFlight;
 
-    const forceReplay = opts?.forceReplay ?? this.pendingForcedReplay.delete(actorUserId);
-    const launch = this.launchSession(actorUserId, userName, { forceReplay });
-    this.launching.set(actorUserId, launch);
+    const forceReplay = opts?.forceReplay ?? this.pendingForcedReplay.delete(sessionKey);
+    const launch = this.launchSession(actorUserId, userName, { forceReplay }, chatSurface);
+    this.launching.set(sessionKey, launch);
     try {
       return await launch;
     } finally {
-      this.launching.delete(actorUserId);
+      this.launching.delete(sessionKey);
     }
   }
 
   private async launchSession(
     actorUserId: string,
     userName: string,
-    opts?: { readonly forceReplay?: boolean }
+    opts: { readonly forceReplay?: boolean } | undefined,
+    surface: ChatSurface
   ): Promise<UserSession> {
     const { provider, model, executionMode } =
       await this.deps.persistence.resolveActiveProvider(actorUserId);
@@ -244,15 +244,10 @@ export class ChatSessionManager {
       persona
     });
 
-    const sessionKey = actorUserId;
+    const sessionKey = surfaceSessionKey(actorUserId, surface);
     const engine = this.deps.engineFactory(provider, sessionKey, { executionMode });
 
-    // Build the replay batch BEFORE launch so it can be shipped to the cli-runner in the
-    // launch RPC (§4.1). It is REBUILT from live state on every launch — never cached —
-    // since persona, recall seed, rolling summary and recent-turn window can all change
-    // between launches (§4.1.3).
-    //
-    // Phase 3: recall injection — prepend <memory> seed before conversation replay.
+    // Rebuild replay from live state for every launch; recall precedes conversation replay.
     const recallResult = this.deps.recall ? await this.deps.recall.recall(actorUserId) : null;
     const seedBudget = process.env.JARVIS_CHAT_SEED_BUDGET_TOKENS
       ? parseInt(process.env.JARVIS_CHAT_SEED_BUDGET_TOKENS, 10)
@@ -261,28 +256,23 @@ export class ChatSessionManager {
       ? renderMemorySeedBlock(recallResult.episodicChunks, recallResult.facts, seedBudget)
       : "";
 
-    // The bounded window of prior turns (+ older rolling summary) so a respawned or
-    // provider-switched engine continues seamlessly.
     const [threadState, { recent: recentTurns, oldSummary }] = await Promise.all([
-      this.deps.persistence.getCurrentThreadState?.(actorUserId),
-      this.deps.persistence.listPriorTurns(actorUserId, { forceReplay: opts?.forceReplay })
+      this.deps.persistence.getCurrentThreadState?.(actorUserId, surface),
+      this.deps.persistence.listPriorTurns(actorUserId, { forceReplay: opts?.forceReplay }, surface)
     ]);
+    if (threadState?.incognito && surface !== DEFAULT_CHAT_SURFACE) {
+      throw new CliChatUnavailableError("private chat is only available in the drawer");
+    }
     if (threadState?.incognito && !engine.purgeTranscripts) {
       throw new CliChatUnavailableError("private session unavailable");
     }
-    const mcpConfig = await this.deps.mintMcpToken?.(actorUserId, actorUserId);
+    const mcpConfig = await this.deps.mintMcpToken?.(actorUserId, sessionKey);
     const replayParts: string[] = [];
     if (memorySeed) replayParts.push(memorySeed);
     if (oldSummary) replayParts.push(renderSummaryBlock(oldSummary));
     if (recentTurns.length > 0) replayParts.push(renderReplayBlock(recentTurns));
     const replayBatch = replayParts.length > 0 ? replayParts.join("\n\n") : undefined;
 
-    // launch now returns the post-drain transcript offset (§4.0/§4.1.2). The manager
-    // populates personaText + replayBatch on BOTH paths: the RPC engine consumes them
-    // (server writes the persona file, submits + drains replayBatch, returns the real
-    // post-drain offset); the in-process engine IGNORES them, returns { offset: 0 }, and
-    // the manager keeps doing its own submit + drain below — keyed on the EXPLICIT
-    // `serverOwnsDrain` discriminator, NOT on `offset === 0` (see below).
     const { offset } = await engine.launch({
       neutralDir,
       personaPath,
@@ -297,29 +287,19 @@ export class ChatSessionManager {
     });
 
     const session: UserSession = {
+      actorUserId,
+      surface,
       engine,
       provider,
       model,
       lastActivity: this.deps.clock.now(),
-      // Seed from the launch return so the FIRST real readNew does not re-read the
-      // server-drained replay block as the assistant reply (§4.1.2).
       transcriptOffset: offset,
       incognito: threadState?.incognito ?? false,
       seededContextKeys: new Set()
     };
-    this.sessions.set(actorUserId, session);
+    this.sessions.set(sessionKey, session);
 
-    // In-process path: the engine did NOT own the replay drain (it ignores replayBatch and
-    // returns offset 0), so the manager submits + drains the replay itself, exactly as before.
-    //
-    // The decision is keyed on the EXPLICIT `serverOwnsDrain` discriminator, NOT on
-    // `offset === 0`. `offset === 0` is ALSO a legitimate RPC result — a replay was submitted
-    // server-side but the transcript never materialized within the server's drain budget — so an
-    // `offset === 0` sentinel would make the manager DOUBLE-submit the replay over the socket on
-    // the RPC path. With the discriminator the RPC path is skipped regardless of the offset value
-    // (the server already owns the submit+drain), and the in-process path always re-drains.
-    //
-    // When there is no replay to send at all, both paths skip this.
+    // #342 — only in-process engines need manager-owned replay submit + drain.
     if (replayBatch !== undefined && !this.serverOwnsDrain) {
       await engine.submit(replayBatch);
       // Drain (and discard) so real turn records start from a clean offset.
@@ -341,16 +321,20 @@ export class ChatSessionManager {
     userName: string,
     dead: UserSession
   ): Promise<UserSession> {
-    if (this.sessions.get(actorUserId) === dead) this.sessions.delete(actorUserId);
-    this.deps.revokeMcpToken?.(actorUserId);
+    const sessionKey = surfaceSessionKey(actorUserId, dead.surface);
+    if (this.sessions.get(sessionKey) === dead) this.sessions.delete(sessionKey);
+    this.deps.revokeMcpToken?.(sessionKey);
     try {
       await dead.engine.kill();
     } catch {
       // Already dead — kill is best-effort teardown of a stale handle.
     }
-    this.pendingForcedReplay.add(actorUserId);
-    this.emit(actorUserId, { kind: "status", text: "Chat session was lost — reconnecting…" });
-    return this.ensureSession(actorUserId, userName);
+    this.pendingForcedReplay.add(sessionKey);
+    this.emit(actorUserId, dead.surface, {
+      kind: "status",
+      text: "Chat session was lost — reconnecting…"
+    });
+    return this.ensureSession(actorUserId, userName, undefined, dead.surface);
   }
 
   /**
@@ -365,24 +349,27 @@ export class ChatSessionManager {
     opts?: {
       readonly attachments?: readonly StoredAttachmentMeta[];
       readonly moduleControl?: string;
-    }
+    },
+    surface?: string
   ): Promise<{
     reply: string;
     userMessageId?: string;
     assistantMessageId?: string;
     sourceFreshness?: SourceFreshnessV1 | null;
   }> {
-    // Turn-at-a-time (spec §6.5): reject a concurrent turn for the same user.
+    const chatSurface = normalizeChatSurface(surface);
+    const sessionKey = surfaceSessionKey(actorUserId, chatSurface);
+    // Turn-at-a-time (spec §6.5): reject a concurrent turn for the same surface.
     // The flag is set synchronously (before any await) so two turns started in
     // the same tick can't both pass the check, and cleared in finally below.
-    if (this.turnsInFlight.has(actorUserId)) {
+    if (this.turnsInFlight.has(sessionKey)) {
       throw new ChatTurnInFlightError();
     }
-    this.turnsInFlight.add(actorUserId);
+    this.turnsInFlight.add(sessionKey);
     try {
-      return await this.runTurn(actorUserId, userName, text, opts);
+      return await this.runTurn(actorUserId, userName, text, opts, chatSurface);
     } finally {
-      this.turnsInFlight.delete(actorUserId);
+      this.turnsInFlight.delete(sessionKey);
     }
   }
 
@@ -390,15 +377,18 @@ export class ChatSessionManager {
     actorUserId: string,
     userName: string,
     seed: string,
-    idempotencyKey?: string
+    idempotencyKey?: string,
+    surface?: string
   ): Promise<void> {
-    const session = await this.ensureSession(actorUserId, userName);
+    const chatSurface = normalizeChatSurface(surface);
+    const sessionKey = surfaceSessionKey(actorUserId, chatSurface);
+    const session = await this.ensureSession(actorUserId, userName, undefined, chatSurface);
     if (idempotencyKey && session.seededContextKeys.has(idempotencyKey)) return;
     await session.engine.submit(seed);
     session.transcriptOffset = await this.drain(session.engine, session.transcriptOffset);
     if (idempotencyKey) session.seededContextKeys.add(idempotencyKey);
     session.lastActivity = this.deps.clock.now();
-    this.deps.touchMcpToken?.(actorUserId);
+    this.deps.touchMcpToken?.(sessionKey);
   }
 
   private async runTurn(
@@ -408,7 +398,8 @@ export class ChatSessionManager {
     opts?: {
       readonly attachments?: readonly StoredAttachmentMeta[];
       readonly moduleControl?: string;
-    }
+    },
+    surface: ChatSurface = DEFAULT_CHAT_SURFACE
   ): Promise<{
     reply: string;
     userMessageId?: string;
@@ -419,17 +410,18 @@ export class ChatSessionManager {
     // state) gets exactly one retry with forced replay before surfacing.
     let session: UserSession;
     try {
-      session = await this.ensureSession(actorUserId, userName);
+      session = await this.ensureSession(actorUserId, userName, undefined, surface);
     } catch (err) {
       if (!(err instanceof CliChatUnavailableError)) throw err;
-      this.pendingForcedReplay.add(actorUserId);
-      session = await this.ensureSession(actorUserId, userName);
+      this.pendingForcedReplay.add(surfaceSessionKey(actorUserId, surface));
+      session = await this.ensureSession(actorUserId, userName, undefined, surface);
     }
 
     // #456 — per-turn stop signal. stopTurn(actorUserId) aborts this; the poll loop checks
     // signal.aborted after every readNew and breaks cleanly (no error) when set.
     const controller = new AbortController();
-    this.turnControllers.set(actorUserId, controller);
+    const sessionKey = surfaceSessionKey(actorUserId, surface);
+    this.turnControllers.set(sessionKey, controller);
 
     try {
       const attachments = opts?.attachments ?? [];
@@ -441,7 +433,8 @@ export class ChatSessionManager {
           priorityModel: this.deps.priorityModel
         },
         actorUserId,
-        text
+        text,
+        surface
       );
       // #1133 — attachments ride as a server-composed manifest appended AFTER all
       // user-influenced text; the engine pulls bytes via chat.readAttachment on demand.
@@ -450,15 +443,15 @@ export class ChatSessionManager {
       const engineText = opts?.moduleControl
         ? `${withAttachments}\n\n${opts.moduleControl}`
         : withAttachments;
-      this.emit(actorUserId, { kind: "user", text });
+      this.emit(actorUserId, surface, { kind: "user", text });
       try {
         await session.engine.submit(engineText);
       } catch (err) {
         if (err instanceof CliChatDeliveryUnknownError) {
           // Delivery MAY have happened — never resubmit (duplicate-turn risk). Evict so
           // the next turn relaunches cleanly (pre-#1157 behavior, kept).
-          if (this.sessions.get(actorUserId) === session) this.sessions.delete(actorUserId);
-          this.deps.revokeMcpToken?.(actorUserId);
+          if (this.sessions.get(sessionKey) === session) this.sessions.delete(sessionKey);
+          this.deps.revokeMcpToken?.(sessionKey);
           throw err;
         }
         if (err instanceof CliChatUnavailableError) {
@@ -506,7 +499,7 @@ export class ChatSessionManager {
           session.engine.resetActivityDeadline?.();
         }
         for (const record of records) {
-          this.emit(actorUserId, record);
+          this.emit(actorUserId, surface, record);
           if (record.kind === "reply") reply = record.text;
           if (record.kind === "tool" && record.toolName) {
             invokedToolNames.add(record.toolName);
@@ -536,20 +529,20 @@ export class ChatSessionManager {
       if (stopped) {
         // Coordinator ruling (a): emit a status record over SSE, persist NOTHING. The user message
         // and any partial reply are discarded — the turn never completed.
-        this.emit(actorUserId, { kind: "status", text: "Stopped by user." });
+        this.emit(actorUserId, surface, { kind: "status", text: "Stopped by user." });
         session.lastActivity = this.deps.clock.now();
-        this.deps.touchMcpToken?.(actorUserId);
+        this.deps.touchMcpToken?.(sessionKey);
         return { reply };
       }
 
       if (watchdogTripped) {
         const seconds = Math.round(this.idleWatchdogMs / 1000);
-        this.emit(actorUserId, {
+        this.emit(actorUserId, surface, {
           kind: "status",
           text: `No response from the model for ${seconds} seconds — ending turn.`
         });
         session.lastActivity = this.deps.clock.now();
-        this.deps.touchMcpToken?.(actorUserId);
+        this.deps.touchMcpToken?.(sessionKey);
         return { reply };
       }
 
@@ -583,14 +576,15 @@ export class ChatSessionManager {
                   sizeBytes: meta.sizeBytes
                 }))
               : undefined
-        }
+        },
+        surface
       );
       session.lastActivity = this.deps.clock.now();
-      this.deps.touchMcpToken?.(actorUserId);
+      this.deps.touchMcpToken?.(sessionKey);
 
       // Post-store: re-emit reply with messageId + sourceFreshness so live UI picks it up
       if (stored?.assistantMessageId && stored.sourceFreshness !== undefined) {
-        this.emit(actorUserId, {
+        this.emit(actorUserId, surface, {
           kind: "reply",
           text: reply,
           messageId: stored.assistantMessageId,
@@ -605,22 +599,18 @@ export class ChatSessionManager {
         sourceFreshness: stored?.sourceFreshness
       };
     } finally {
-      this.turnControllers.delete(actorUserId);
+      this.turnControllers.delete(sessionKey);
     }
   }
 
-  /**
-   * #456 — user-driven Stop. Ends an in-flight turn cleanly: aborts the turn's stop signal,
-   * interrupts the engine (so any in-progress CLI work halts), emits a 'Stopped by user.' status
-   * record over SSE, and releases the turn-in-flight lock. Persists NOTHING (the turn never
-   * completed — no partial reply, no user message). Idempotent: a no-op when no turn is in
-   * flight for the user.
-   */
-  async stopTurn(actorUserId: string): Promise<void> {
-    const controller = this.turnControllers.get(actorUserId);
+  /** #456 — stop one in-flight turn for this actor + surface. */
+  async stopTurn(actorUserId: string, surface?: string): Promise<void> {
+    const chatSurface = normalizeChatSurface(surface);
+    const sessionKey = surfaceSessionKey(actorUserId, chatSurface);
+    const controller = this.turnControllers.get(sessionKey);
     if (!controller) return; // no turn in flight — idempotent no-op
     controller.abort();
-    const session = this.sessions.get(actorUserId);
+    const session = this.sessions.get(sessionKey);
     if (session) {
       try {
         await session.engine.interrupt();
@@ -630,104 +620,106 @@ export class ChatSessionManager {
     }
   }
 
-  /**
-   * /clear: start a fresh conversation. Rather than sending the CLI's `/clear`
-   * (which rotates the transcript to a NEW session-id file the engine can't read —
-   * its path is pinned at launch — so post-clear turns either replay the previous
-   * reply or time out), we drop the live engine entirely. The next submitTurn
-   * lazily relaunches a fresh engine with a new KNOWN transcript path; because
-   * openNewConversation() clears the stored turns, nothing is replayed — a clean,
-   * contextless reset that matches the "known path, no globbing" launch design.
-   */
-  async clear(actorUserId: string, options?: { incognito?: boolean }): Promise<void> {
-    const currentThread = await this.deps.persistence.getCurrentThreadState?.(actorUserId);
+  /** /clear drops the live engine; the next turn relaunches from the new thread. */
+  async clear(
+    actorUserId: string,
+    options?: { incognito?: boolean },
+    surface?: string
+  ): Promise<void> {
+    const chatSurface = normalizeChatSurface(surface);
+    const sessionKey = surfaceSessionKey(actorUserId, chatSurface);
+    const currentThread = await this.deps.persistence.getCurrentThreadState?.(
+      actorUserId,
+      chatSurface
+    );
     if (currentThread?.incognito) {
-      await this.endPrivateSession(actorUserId);
-      await this.deps.persistence.openNewConversation(actorUserId, options);
+      await this.endPrivateSession(actorUserId, chatSurface);
+      await this.deps.persistence.openNewConversation(actorUserId, options, chatSurface);
       return;
     }
 
-    const session = this.sessions.get(actorUserId);
+    const session = this.sessions.get(sessionKey);
     if (session) {
       await session.engine.kill();
-      this.sessions.delete(actorUserId);
-      this.deps.revokeMcpToken?.(actorUserId);
+      this.sessions.delete(sessionKey);
+      this.deps.revokeMcpToken?.(sessionKey);
     }
-    await this.deps.persistence.openNewConversation(actorUserId, options);
+    await this.deps.persistence.openNewConversation(actorUserId, options, chatSurface);
   }
 
-  async endPrivateSession(actorUserId: string): Promise<void> {
-    const currentThread = await this.deps.persistence.getCurrentThreadState?.(actorUserId);
+  async endPrivateSession(actorUserId: string, surface?: string): Promise<void> {
+    const chatSurface = normalizeChatSurface(surface);
+    const currentThread = await this.deps.persistence.getCurrentThreadState?.(
+      actorUserId,
+      chatSurface
+    );
     if (!currentThread?.incognito) return;
 
-    await this.cleanupPrivateSession(actorUserId, currentThread.id, this.sessions.get(actorUserId));
+    await this.cleanupPrivateSession(
+      actorUserId,
+      chatSurface,
+      currentThread.id,
+      this.sessions.get(surfaceSessionKey(actorUserId, chatSurface))
+    );
   }
 
-  async getPrivacyState(actorUserId: string): Promise<{ readonly incognito: boolean }> {
-    const currentThread = await this.deps.persistence.getCurrentThreadState?.(actorUserId);
+  async getPrivacyState(
+    actorUserId: string,
+    surface?: string
+  ): Promise<{ readonly incognito: boolean }> {
+    const currentThread = await this.deps.persistence.getCurrentThreadState?.(
+      actorUserId,
+      normalizeChatSurface(surface)
+    );
     return { incognito: currentThread?.incognito ?? false };
   }
 
-  /**
-   * Resume a past thread: stop any in-flight turn, kill the current engine (so the
-   * next submitTurn replays the resumed thread's messages), then touch the target
-   * thread so `getCurrentThread` (which sorts by `last_active_at DESC`) returns it.
-   * Throws `ChatThreadNotFoundError` when the thread is absent or belongs to another user.
-   */
-  async resumeThread(actorUserId: string, threadId: string): Promise<void> {
+  /** Resume an owned thread for this actor + surface. */
+  async resumeThread(actorUserId: string, threadId: string, surface?: string): Promise<void> {
+    const chatSurface = normalizeChatSurface(surface);
+    const sessionKey = surfaceSessionKey(actorUserId, chatSurface);
     // Validate ownership FIRST — a stale or foreign id must NOT disrupt the active session.
     // Only after confirming the thread exists and belongs to this user do we stop/drop.
-    const found = await this.deps.persistence.touchExistingThread(actorUserId, threadId);
+    const found = await this.deps.persistence.touchExistingThread(
+      actorUserId,
+      threadId,
+      chatSurface
+    );
     if (!found) {
       throw new ChatThreadNotFoundError();
     }
 
     // Thread confirmed valid. Stop any in-flight turn (idempotent no-op when none is in flight).
-    await this.stopTurn(actorUserId);
+    await this.stopTurn(actorUserId, chatSurface);
 
     // Drop the live engine so the next submitTurn launches fresh from the resumed thread.
-    const session = this.sessions.get(actorUserId);
+    const session = this.sessions.get(sessionKey);
     if (session) {
       try {
         await session.engine.kill();
       } catch {
         // best-effort: session is dropped below regardless
       }
-      this.sessions.delete(actorUserId);
-      this.deps.revokeMcpToken?.(actorUserId);
+      this.sessions.delete(sessionKey);
+      this.deps.revokeMcpToken?.(sessionKey);
     }
-    this.pendingForcedReplay.add(actorUserId);
+    this.pendingForcedReplay.add(sessionKey);
   }
 
-  /**
-   * Switch to the user's now-changed active provider: kill the current engine,
-   * drop cached state, and re-ensure (which resolves the new provider and
-   * replays prior turns into the new provider's engine). Same conversation.
-   */
-  async switchProvider(actorUserId: string, userName: string): Promise<void> {
-    const session = this.sessions.get(actorUserId);
+  /** Switch provider without resetting the surface's conversation. */
+  async switchProvider(actorUserId: string, userName: string, surface?: string): Promise<void> {
+    const chatSurface = normalizeChatSurface(surface);
+    const sessionKey = surfaceSessionKey(actorUserId, chatSurface);
+    const session = this.sessions.get(sessionKey);
     if (session) {
       await session.engine.kill();
-      this.sessions.delete(actorUserId);
-      this.deps.revokeMcpToken?.(actorUserId);
+      this.sessions.delete(sessionKey);
+      this.deps.revokeMcpToken?.(sessionKey);
     }
-    await this.ensureSession(actorUserId, userName, { forceReplay: true });
+    await this.ensureSession(actorUserId, userName, { forceReplay: true }, chatSurface);
   }
 
-  /**
-   * #1081 H2: drop every LIVE session bound to `provider` after an admin-triggered
-   * reinstall REPLACED that provider's binary (`RpcInstallProviderResult.binaryChanged`) —
-   * a running engine process still holds the STALE binary in its exec image. Unlike
-   * `clear()`, this does NOT reset the conversation: the transcript persists, and the next
-   * `submitTurn`'s lazy relaunch (`ensureSession`) replays prior turns into a FRESH engine
-   * process that execs the just-installed binary — same reasoning as `switchProvider`
-   * above (provider changed under the session, keep the conversation). The boot-time
-   * reconcile path (`InstallService.reconcileInstalledProviders`, #1081 H1) never needs
-   * this: `startupSweep` runs before any session exists.
-   *
-   * Runs under the shared §5.4 maintenance mutex (same as reapIdle/reconcileLiveSessions)
-   * since it mutates `sessions` + revokes tokens.
-   */
+  /** #1081 — drop live sessions after a provider binary replacement. */
   async dropSessionsForProvider(provider: ProviderKind): Promise<void> {
     await this.withMaintenanceLock(async () => {
       for (const [actorUserId, session] of this.sessions) {
@@ -743,27 +735,31 @@ export class ChatSessionManager {
     });
   }
 
-  /**
-   * Register a subscriber for the user's transcript records. Returns an
-   * unsubscribe handle. Multiple subscribers (multi-tab) all receive records.
-   */
-  subscribe(actorUserId: string, fn: Subscriber): () => void {
-    this.clearPrivateDetachTimer(actorUserId);
-    let set = this.subscribers.get(actorUserId);
+  /** Register one surface subscriber and return its unsubscribe handle. */
+  subscribe(actorUserId: string, fn: Subscriber, surface?: string): () => void {
+    const chatSurface = normalizeChatSurface(surface);
+    const sessionKey = surfaceSessionKey(actorUserId, chatSurface);
+    this.clearPrivateDetachTimer(sessionKey);
+    let set = this.subscribers.get(sessionKey);
     if (!set) {
       set = new Set();
-      this.subscribers.set(actorUserId, set);
+      this.subscribers.set(sessionKey, set);
     }
     if (set.size >= MAX_SUBSCRIBERS_PER_ACTOR) {
       throw new ChatStreamLimitError();
     }
+    if (this.countSubscribers(actorUserId) >= MAX_SUBSCRIBERS_TOTAL_PER_ACTOR) {
+      throw new ChatStreamLimitError();
+    }
     set.add(fn);
     return () => {
-      const current = this.subscribers.get(actorUserId);
+      const current = this.subscribers.get(sessionKey);
       current?.delete(fn);
       if (current && current.size === 0) {
-        this.subscribers.delete(actorUserId);
-        if (this.sessions.get(actorUserId)?.incognito) this.schedulePrivateEnd(actorUserId);
+        this.subscribers.delete(sessionKey);
+        if (this.sessions.get(sessionKey)?.incognito) {
+          this.schedulePrivateEnd(actorUserId, chatSurface);
+        }
       }
     };
   }
@@ -773,8 +769,8 @@ export class ChatSessionManager {
    * MCP gateway notifier (Phase 2) to push action_request and action_result
    * records into the live transcript stream without going through the engine.
    */
-  injectRecord(actorUserId: string, record: TranscriptRecord): void {
-    this.emit(actorUserId, record);
+  injectRecord(actorUserId: string, record: TranscriptRecord, surface?: string): void {
+    this.emit(actorUserId, normalizeChatSurface(surface), record);
   }
 
   /**
@@ -787,18 +783,18 @@ export class ChatSessionManager {
   async reapIdle(): Promise<void> {
     await this.withMaintenanceLock(async () => {
       const now = this.deps.clock.now();
-      for (const [userId, session] of this.sessions) {
-        if (session.incognito && (this.subscribers.get(userId)?.size ?? 0) > 0) {
+      for (const [sessionKey, session] of this.sessions) {
+        if (session.incognito && (this.subscribers.get(sessionKey)?.size ?? 0) > 0) {
           continue;
         }
         if (now - session.lastActivity > this.deps.idleMs) {
           if (session.incognito) {
-            await this.endPrivateSession(userId);
+            await this.endPrivateSession(session.actorUserId, session.surface);
             continue;
           }
           await session.engine.kill();
-          this.sessions.delete(userId);
-          this.deps.revokeMcpToken?.(userId);
+          this.sessions.delete(sessionKey);
+          this.deps.revokeMcpToken?.(sessionKey);
         }
       }
     });
@@ -825,9 +821,13 @@ export class ChatSessionManager {
       for (const [sessionKey, session] of this.sessions) {
         if (!effectiveLive.has(sessionKey)) {
           if (session.incognito) {
-            const thread = await this.deps.persistence.getCurrentThreadState?.(sessionKey);
+            const thread = await this.deps.persistence.getCurrentThreadState?.(
+              session.actorUserId,
+              session.surface
+            );
             await this.cleanupPrivateSession(
-              sessionKey,
+              session.actorUserId,
+              session.surface,
               thread?.incognito ? thread.id : undefined,
               session
             );
@@ -871,8 +871,6 @@ export class ChatSessionManager {
     return () => clearInterval(handle);
   }
 
-  // ─── helpers ───────────────────────────────────────────────────────────────
-
   /**
    * Run `fn` under the shared §5.4 maintenance mutex (a serialized promise chain), so the two
    * session-map-mutating maintenance paths — reconciliation and idle reaping — are mutually
@@ -889,19 +887,34 @@ export class ChatSessionManager {
     return run;
   }
 
-  private emit(actorUserId: string, record: TranscriptRecord): void {
-    const set = this.subscribers.get(actorUserId);
+  private emit(actorUserId: string, surface: ChatSurface, record: TranscriptRecord): void {
+    const set = this.subscribers.get(surfaceSessionKey(actorUserId, surface));
     if (!set) return;
     for (const fn of set) fn(record);
   }
 
-  private schedulePrivateEnd(actorUserId: string): void {
+  private countSubscribers(actorUserId: string): number {
+    let count = 0;
+    for (const [sessionKey, subscribers] of this.subscribers) {
+      try {
+        if (parseSurfaceSessionKey(sessionKey).actorUserId === actorUserId) {
+          count += subscribers.size;
+        }
+      } catch {
+        // A malformed external reconciliation key cannot belong to this actor.
+      }
+    }
+    return count;
+  }
+
+  private schedulePrivateEnd(actorUserId: string, surface: ChatSurface): void {
+    const sessionKey = surfaceSessionKey(actorUserId, surface);
     const timer = setTimeout(() => {
-      this.privateDetachTimers.delete(actorUserId);
-      void this.endPrivateSession(actorUserId).catch(() => {});
+      this.privateDetachTimers.delete(sessionKey);
+      void this.endPrivateSession(actorUserId, surface).catch(() => {});
     }, PRIVATE_DETACH_GRACE_MS);
     timer.unref?.();
-    this.privateDetachTimers.set(actorUserId, timer);
+    this.privateDetachTimers.set(sessionKey, timer);
   }
 
   private clearPrivateDetachTimer(actorUserId: string): void {
@@ -913,9 +926,11 @@ export class ChatSessionManager {
 
   private async cleanupPrivateSession(
     actorUserId: string,
+    surface: ChatSurface,
     threadId: string | undefined,
     session: UserSession | undefined
   ): Promise<void> {
+    const sessionKey = surfaceSessionKey(actorUserId, surface);
     // #744/#1086 — the incognito row is the boot sweep's ONLY reclaim handle. A live CLI can
     // recreate its transcript after rm, so only the engine-less post-exit sweep may clear it.
     let purged = false;
@@ -930,20 +945,20 @@ export class ChatSessionManager {
       try {
         const killArgs: [EngineKillOpts?] = [{ preserveNeutralDir: true }];
         await (this.deps.killSession
-          ? this.deps.killSession(actorUserId, ...killArgs)
+          ? this.deps.killSession(sessionKey, ...killArgs)
           : session.engine.kill(...killArgs));
       } catch {
         /* best-effort private kill */
       }
       // Process teardown is unconditional. The marker and row survive until a later sweep can
       // prove the process is gone and purge without a recreate race (#1086).
-      this.sessions.delete(actorUserId);
-      this.clearPrivateDetachTimer(actorUserId);
-      this.deps.revokeMcpToken?.(actorUserId);
+      this.sessions.delete(sessionKey);
+      this.clearPrivateDetachTimer(sessionKey);
+      this.deps.revokeMcpToken?.(sessionKey);
     } else {
       try {
         if (this.deps.purgePrivateTranscripts) {
-          await this.deps.purgePrivateTranscripts(actorUserId);
+          await this.deps.purgePrivateTranscripts(sessionKey);
           purged = true;
         }
       } catch {
@@ -951,19 +966,20 @@ export class ChatSessionManager {
       }
     }
     if (purged && threadId) {
-      await this.deps.persistence.deleteThread?.(actorUserId, threadId);
+      await this.deps.persistence.deleteThread?.(actorUserId, threadId, surface);
     }
   }
 
   private async sweepOrphanedPrivateThreads(effectiveLive: ReadonlySet<string>): Promise<void> {
     const rows = (await this.deps.persistence.listIncognitoThreadStates?.()) ?? [];
     for (const row of rows) {
-      if (effectiveLive.has(row.actorUserId) || this.sessions.has(row.actorUserId)) continue;
-      await this.cleanupPrivateSession(row.actorUserId, row.threadId, undefined);
+      const surface = normalizeChatSurface(row.surface);
+      const sessionKey = surfaceSessionKey(row.actorUserId, surface);
+      if (effectiveLive.has(sessionKey) || this.sessions.has(sessionKey)) continue;
+      await this.cleanupPrivateSession(row.actorUserId, surface, row.threadId, undefined);
     }
   }
 
-  /** Poll readNew until complete, discarding records; returns the new offset. */
   private async drain(engine: CliChatEngine, fromOffset: number): Promise<number> {
     let offset = fromOffset;
     for (;;) {

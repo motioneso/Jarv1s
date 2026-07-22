@@ -39,9 +39,12 @@ describe("ChatSessionManager.dropSessionsForProvider (#1081 H2)", () => {
     };
     const manager = new ChatSessionManager(
       makeMinimalDeps({
-        engineFactory: (provider: "anthropic" | "openai-compatible" | "google", userId: string) => {
+        engineFactory: (
+          provider: "anthropic" | "openai-compatible" | "google",
+          sessionKey: string
+        ) => {
           const engine = makeEngine(provider);
-          engines.set(userId, engine);
+          engines.set(sessionKey, engine);
           return engine;
         },
         revokeMcpToken,
@@ -59,15 +62,15 @@ describe("ChatSessionManager.dropSessionsForProvider (#1081 H2)", () => {
 
     await manager.dropSessionsForProvider("anthropic");
 
-    expect(engines.get("u-claude-1")?.kill).toHaveBeenCalledTimes(1);
-    expect(engines.get("u-claude-2")?.kill).toHaveBeenCalledTimes(1);
-    expect(engines.get("u-codex")?.kill).not.toHaveBeenCalled();
+    expect(engines.get("u-claude-1:drawer")?.kill).toHaveBeenCalledTimes(1);
+    expect(engines.get("u-claude-2:drawer")?.kill).toHaveBeenCalledTimes(1);
+    expect(engines.get("u-codex:drawer")?.kill).not.toHaveBeenCalled();
 
     // The dropped anthropic sessions relaunch (fresh engine) on the next ensureSession — the
     // codex session was never touched, so a fresh ensureSession for it must NOT relaunch.
-    const codexEngineBefore = engines.get("u-codex");
+    const codexEngineBefore = engines.get("u-codex:drawer");
     await manager.ensureSession("u-codex", "Cara");
-    expect(engines.get("u-codex")).toBe(codexEngineBefore); // same engine instance, no relaunch
+    expect(engines.get("u-codex:drawer")).toBe(codexEngineBefore); // same engine instance, no relaunch
   });
 
   it("revokes the MCP token for every dropped session, not for untouched ones", async () => {
@@ -78,8 +81,8 @@ describe("ChatSessionManager.dropSessionsForProvider (#1081 H2)", () => {
 
     await manager.dropSessionsForProvider("anthropic");
 
-    expect(revokeMcpToken).toHaveBeenCalledWith("u-claude-1");
-    expect(revokeMcpToken).not.toHaveBeenCalledWith("u-codex");
+    expect(revokeMcpToken).toHaveBeenCalledWith("u-claude-1:drawer");
+    expect(revokeMcpToken).not.toHaveBeenCalledWith("u-codex:drawer");
   });
 
   it("does NOT clear the conversation (no openNewConversation call) — only kill+drop", async () => {
@@ -97,6 +100,6 @@ describe("ChatSessionManager.dropSessionsForProvider (#1081 H2)", () => {
     await manager.ensureSession("u-codex", "Cara");
 
     await expect(manager.dropSessionsForProvider("anthropic")).resolves.toBeUndefined();
-    expect(engines.get("u-codex")?.kill).not.toHaveBeenCalled();
+    expect(engines.get("u-codex:drawer")?.kill).not.toHaveBeenCalled();
   });
 });

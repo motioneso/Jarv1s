@@ -169,7 +169,7 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
 
     await manager.ensureSession("u1", "Ben");
 
-    expect(engineFactory).toHaveBeenCalledWith("openai-compatible", "u1", {
+    expect(engineFactory).toHaveBeenCalledWith("openai-compatible", "u1:drawer", {
       executionMode: "non_interactive"
     });
   });
@@ -450,7 +450,7 @@ describe("ChatSessionManager.submitTurn turn-lock release (#445)", () => {
     expect(first.submitted).toEqual(["first"]);
     expect(second.submitted).toEqual(["second"]);
     expect(engineFactory).toHaveBeenCalledTimes(2);
-    expect(revokeMcpToken).toHaveBeenCalledWith("u1");
+    expect(revokeMcpToken).toHaveBeenCalledWith("u1:drawer");
   });
 });
 
@@ -508,7 +508,8 @@ describe("ChatSessionManager passive retrieval", () => {
         provider: "anthropic",
         model: "sonnet"
       },
-      { invokedToolNames: expect.any(Set) }
+      { invokedToolNames: expect.any(Set), answerProvenance: undefined, attachments: undefined },
+      "drawer"
     );
   });
 
@@ -665,10 +666,10 @@ describe("ChatSessionManager.reconcileLiveSessions (#342 §5.3)", () => {
     await manager.reconcileLiveSessions(new Set(["uOrphan"]));
 
     // Step 3 used the guard-bypassing killSession for the stale key, NOT the gated engine.kill().
-    expect(killSession).toHaveBeenCalledWith("uStale");
+    expect(killSession).toHaveBeenCalledWith("uStale:drawer");
     expect(staleEngine.kill).not.toHaveBeenCalled();
     // The stale session was still dropped and its token revoked despite the kill path.
-    expect(revokeMcpToken).toHaveBeenCalledWith("uStale");
+    expect(revokeMcpToken).toHaveBeenCalledWith("uStale:drawer");
     // Step 4 still fired (it was NOT aborted by a step-3 throw): the api-unknown orphan was
     // reaped by mux name.
     expect(killSession).toHaveBeenCalledWith("uOrphan");

@@ -22,6 +22,7 @@ import type {
   AnswerProvenanceMetadataV1,
   AiProviderExecutionMode,
   ChatAttachmentDto,
+  ChatSurface,
   SourceFreshnessEntry,
   SourceFreshnessV1
 } from "@jarv1s/shared";
@@ -38,6 +39,7 @@ import {
 import { containsSensitiveMemoryText } from "../memory-distillation.js";
 import type { ChatPersistencePort } from "./chat-session-manager.js";
 import type { ChatRepository } from "../repository.js";
+import { normalizeChatSurface } from "./chat-surface.js";
 
 /** Provider-kinds the live CLI runtime can drive (the narrow ProviderKind set). */
 const LIVE_PROVIDER_KINDS: readonly ProviderKind[] = ["anthropic", "openai-compatible", "google"];
@@ -152,13 +154,15 @@ export class DataContextChatPersistence implements ChatPersistencePort {
 
   async listPriorTurns(
     actorUserId: string,
-    opts?: { readonly forceReplay?: boolean }
+    opts?: { readonly forceReplay?: boolean },
+    surface?: ChatSurface
   ): Promise<{
     recent: readonly { role: "user" | "assistant"; content: string }[];
     oldSummary: string | null;
   }> {
+    const chatSurface = normalizeChatSurface(surface);
     return this.run(actorUserId, "list-prior-turns", async (scopedDb) => {
-      const thread = await this.chat.getCurrentThread(scopedDb, actorUserId);
+      const thread = await this.chat.getCurrentThread(scopedDb, actorUserId, chatSurface);
       if (!thread) return { recent: [], oldSummary: null };
 
       const messages = await this.chat.listMessages(scopedDb, thread.id);
@@ -189,12 +193,17 @@ export class DataContextChatPersistence implements ChatPersistencePort {
       readonly invokedToolNames?: ReadonlySet<string>;
       readonly answerProvenance?: AnswerProvenanceMetadataV1;
       readonly attachments?: readonly ChatAttachmentDto[];
-    }
+    },
+    surface?: ChatSurface
   ): Promise<{ readonly userMessageId: string; readonly assistantMessageId: string } | undefined> {
+    const chatSurface = normalizeChatSurface(surface);
     return this.run(actorUserId, "record-turn", async (scopedDb) => {
       const thread =
-        (await this.chat.getCurrentThread(scopedDb, actorUserId)) ??
-        (await this.chat.openNewThread(scopedDb, { title: DEFAULT_CONVERSATION_TITLE }));
+        (await this.chat.getCurrentThread(scopedDb, actorUserId, chatSurface)) ??
+        (await this.chat.openNewThread(scopedDb, {
+          title: DEFAULT_CONVERSATION_TITLE,
+          surface: chatSurface
+        }));
 
       const capturedAt = new Date();
       const sourceFreshness = opts?.invokedToolNames
@@ -215,7 +224,8 @@ export class DataContextChatPersistence implements ChatPersistencePort {
               sourceFreshness,
               answerProvenance: opts?.answerProvenance,
               attachments: opts?.attachments
-            }
+            },
+            chatSurface
           );
       await this.chat.touchThread(scopedDb, thread.id);
 
@@ -272,32 +282,45 @@ export class DataContextChatPersistence implements ChatPersistencePort {
     });
   }
 
-  async openNewConversation(actorUserId: string, options?: { incognito?: boolean }): Promise<void> {
+  async openNewConversation(
+    actorUserId: string,
+    options?: { incognito?: boolean },
+    surface?: ChatSurface
+  ): Promise<void> {
+    const chatSurface = normalizeChatSurface(surface);
     await this.run(actorUserId, "open-new-conversation", (scopedDb) =>
       this.chat.openNewThread(scopedDb, {
         title: DEFAULT_CONVERSATION_TITLE,
-        incognito: options?.incognito
+        incognito: options?.incognito,
+        surface: chatSurface
       })
     );
   }
 
-  async touchExistingThread(actorUserId: string, threadId: string): Promise<boolean> {
+  async touchExistingThread(
+    actorUserId: string,
+    threadId: string,
+    surface?: ChatSurface
+  ): Promise<boolean> {
+    const chatSurface = normalizeChatSurface(surface);
     const found = await this.run(actorUserId, "touch-existing-thread", (scopedDb) =>
-      this.chat.touchThread(scopedDb, threadId)
+      this.chat.touchThread(scopedDb, threadId, chatSurface)
     );
     return found !== undefined;
   }
 
   async getCurrentThreadState(
-    actorUserId: string
+    actorUserId: string,
+    surface?: ChatSurface
   ): Promise<{ readonly id: string; readonly incognito: boolean } | undefined> {
+    const chatSurface = normalizeChatSurface(surface);
     return this.run(actorUserId, "get-current-thread-state", async (scopedDb) => {
-      const thread = await this.chat.getCurrentThread(scopedDb, actorUserId);
+      const thread = await this.chat.getCurrentThread(scopedDb, actorUserId, chatSurface);
       return thread ? { id: thread.id, incognito: thread.incognito } : undefined;
     });
   }
 
-  async deleteThread(actorUserId: string, threadId: string): Promise<void> {
+  async deleteThread(actorUserId: string, threadId: string, _surface?: ChatSurface): Promise<void> {
     await this.run(actorUserId, "delete-thread", (scopedDb) =>
       sql`SELECT app.delete_incognito_chat_thread_for_cleanup(${threadId}::uuid)`.execute(
         scopedDb.db
@@ -306,22 +329,32 @@ export class DataContextChatPersistence implements ChatPersistencePort {
   }
 
   async listIncognitoThreadStates(): Promise<
-    readonly { readonly actorUserId: string; readonly threadId: string }[]
+    readonly {
+      readonly actorUserId: string;
+      readonly threadId: string;
+      readonly surface: ChatSurface;
+    }[]
   > {
     if (!this.rootDb) return [];
-    const result = await sql<{ actorUserId: string; threadId: string }>`
-      SELECT actor_user_id AS "actorUserId", thread_id AS "threadId"
+    const result = await sql<{
+      actorUserId: string;
+      threadId: string;
+      surface: ChatSurface;
+    }>`
+      SELECT actor_user_id AS "actorUserId", thread_id AS "threadId", surface
       FROM app.list_incognito_chat_threads_for_cleanup()
     `.execute(this.rootDb);
     return result.rows;
   }
 
   async getThreadContext(
-    actorUserId: string
+    actorUserId: string,
+    surface?: ChatSurface
   ): Promise<{ threadTitle: string | null; localTimezone: string | null }> {
+    const chatSurface = normalizeChatSurface(surface);
     return this.run(actorUserId, "get-thread-context", async (scopedDb) => {
       const [thread, localeRaw] = await Promise.all([
-        this.chat.getCurrentThread(scopedDb, actorUserId),
+        this.chat.getCurrentThread(scopedDb, actorUserId, chatSurface),
         this.localePreferences?.get(scopedDb, "locale") ?? null
       ]);
       const title = thread?.title ?? null;
