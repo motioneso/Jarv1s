@@ -49,10 +49,12 @@ describe("job-search manifest contract (#930)", () => {
     expect(result.manifest.storage?.every((entry) => entry.scopes[0] === "user")).toBe(true);
     // No MVP credentials: the auth section must be absent entirely.
     expect(result.manifest.auth).toBeUndefined();
+    // JS-10 (#1229): freehire.dev added for the keyless broad-discovery provider.
     expect(result.manifest.fetchHosts).toEqual([
       "boards-api.greenhouse.io",
       "api.lever.co",
-      "api.ashbyhq.com"
+      "api.ashbyhq.com",
+      "freehire.dev"
     ]);
     // JS-05 (#934): run-now enablement + hourly tick (KV due-check bounds real work).
     expect(result.manifest.worker?.queues).toEqual([
@@ -79,8 +81,14 @@ describe("job-search manifest contract (#930)", () => {
     expect(result.manifest.assistantOnboarding?.guidance).toContain(
       "titles -> profile.save-draft.fields.targetTitles"
     );
+    // JS-10 (#1229): sources_schedule guidance now leads with broad
+    // discovery (freehire, keyless, on by default); board watches are the
+    // optional add-on.
     expect(result.manifest.assistantOnboarding?.guidance).toContain(
-      "sources -> monitor.save per enabled board"
+      "sources -> broad discovery leads and is ON by default"
+    );
+    expect(result.manifest.assistantOnboarding?.guidance).toContain(
+      "Company board watches are an optional add-on below broad"
     );
   });
 

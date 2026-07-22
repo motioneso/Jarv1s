@@ -9,7 +9,7 @@
     "jarv1s": ">=0.1.0"
   },
   "assistantOnboarding": {
-    "guidance": "Checkpoint order: resume_intake -> resume_critique -> resume_approval -> profile -> sources_schedule -> review_enable. Profile sub-steps: titles -> profile.save-draft.fields.targetTitles; comp -> profile.save-draft.fields.compensation; workmode -> profile.save-draft.fields.remotePreference; locations -> profile.save-draft.fields.locations; dealbreakers -> profile.save-draft.fields.dealbreakers. Buffer profile values, then call profile.save-draft and profile.approve. sources -> monitor.save per enabled board using adapterId, query, timezone, and dueTime. Board ids: greenhouse, lever, ashby. Resume attachment -> resume.import-attachment using its attachmentId; pasted resume text -> resume.save-draft mode manual; critique -> resume.save-draft mode critique; approval -> resume.approve. Voice: first person, calm, lightly dry, sentence case, no emoji; answer briefly and steer back to the active step. Never invent profile or resume claims and never enable monitoring before sources are confirmed."
+    "guidance": "Checkpoint order: resume_intake -> resume_critique -> resume_approval -> profile -> sources_schedule -> review_enable. Profile sub-steps: titles -> profile.save-draft.fields.targetTitles; comp -> profile.save-draft.fields.compensation; workmode -> profile.save-draft.fields.remotePreference; locations -> profile.save-draft.fields.locations; dealbreakers -> profile.save-draft.fields.dealbreakers. Buffer profile values, then call profile.save-draft and profile.approve. sources -> broad discovery leads and is ON by default (JS-10 #1229): call monitor.save with adapterId freehire and query {kind: 'broad', titles, locations, remote, country, maxResults: 50} derived from the approved profile (titles/locations from the profile fields, remote as a coarse true/false from remotePreference, country defaults 'us') — freehire is keyless, no credential is ever collected or sent. Company board watches are an optional add-on below broad: call monitor.save per confirmed board using adapterId, query, timezone, and dueTime (query has no kind). Board ids: greenhouse, lever, ashby. A user may confirm zero board watches and still complete onboarding on broad alone; never send salary, dealbreakers, excluded companies, or employment type in the broad query. Resume attachment -> resume.import-attachment using its attachmentId; pasted resume text -> resume.save-draft mode manual; critique -> resume.save-draft mode critique; approval -> resume.approve. Voice: first person, calm, lightly dry, sentence case, no emoji; answer briefly and steer back to the active step. Never invent profile or resume claims and never enable monitoring before sources are confirmed."
   },
   "navigation": [{ "id": "job-search", "label": "Job Search", "path": "/", "icon": "briefcase" }],
   "storage": [
@@ -571,5 +571,5 @@
       }
     ]
   },
-  "fetchHosts": ["boards-api.greenhouse.io", "api.lever.co", "api.ashbyhq.com"]
+  "fetchHosts": ["boards-api.greenhouse.io", "api.lever.co", "api.ashbyhq.com", "freehire.dev"]
 }
