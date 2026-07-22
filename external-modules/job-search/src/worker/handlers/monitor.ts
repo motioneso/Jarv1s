@@ -14,11 +14,25 @@
 // config — adapter.validateConfig is the single gate deciding what a query
 // may contain, so extra keys never reach storage.
 //
+// JS-10 (#1229): a submitted `query.kind === "broad"` routes to the discovery
+// sibling instead — getDiscoveryProvider/parseBroadQuery — before the board
+// adapter is ever consulted. The stored document then carries an explicit
+// `kind: "broad"` discriminator (run.ts:branches on this same field) so a
+// board config and a broad config are never ambiguous once persisted. Missing
+// `kind` (or any value other than "broad") is the existing board path,
+// byte-for-byte unchanged — this is additive, no data migration needed.
+//
 // Isolation: this module reads approval state through the domain barrel only;
 // it must never import the resume/profile handlers or the confirmations
 // machinery (enforced by a source-grep test). The adapters barrel is module-
 // internal shared code, not a sibling handler — importing it is fine.
-import { getSourceAdapter, listSourceAdapters } from "../../adapters/index.js";
+import {
+  getDiscoveryProvider,
+  getSourceAdapter,
+  listDiscoveryProviders,
+  listSourceAdapters,
+  parseBroadQuery
+} from "../../adapters/index.js";
 import type { MonitorConfig } from "../../domain/index.js";
 import {
   DEFAULT_DUE_TIME,
@@ -44,24 +58,55 @@ export function saveMonitorHandler(ports: WorkerPorts) {
     assertId(monitorId);
     const adapterId = readString(input, "adapterId", { required: true });
     assertId(adapterId);
-    // Registry gate: only compliance-allowed, non-kill-switched adapters may
-    // back a monitor. A question (not an error) so the assistant can present
-    // the valid choices instead of dead-ending.
-    const adapter = getSourceAdapter(adapterId);
-    if (adapter === null) {
-      const available = listSourceAdapters()
-        .filter((a) => a.enabled)
-        .map((a) => a.adapterId)
-        .join(", ");
-      return {
-        status: "question",
-        question: `Unknown or disabled source adapter. Available adapters: ${available}.`
-      };
+    const rawQuery = readPlainObject(input, "query", { required: true });
+
+    // JS-10 (#1229): a submitted query.kind of "broad" routes to the discovery
+    // registry/validator instead of the board adapter — read BEFORE either
+    // registry lookup so the branch decision itself never touches storage.
+    // Anything other than the literal "broad" (including absent) is the
+    // pre-existing board path below, unchanged.
+    let query: Record<string, unknown>;
+    if (rawQuery.kind === "broad") {
+      // Same fail-closed shape as the board branch: unknown/disabled provider
+      // is a question naming the enabled discovery ids, not an error.
+      const provider = getDiscoveryProvider(adapterId);
+      if (provider === null) {
+        const available = listDiscoveryProviders()
+          .filter((p) => p.enabled)
+          .map((p) => p.adapterId)
+          .join(", ");
+        return {
+          status: "question",
+          question: `Unknown or disabled discovery provider. Available providers: ${available}.`
+        };
+      }
+      // parseBroadQuery is the single gate deciding what a broad query may
+      // contain (titles/locations/remote/country/maxResults only) — the
+      // explicit kind:"broad" discriminator is added back on persist so
+      // run.ts (and a future monitor.get reader) can tell the two config
+      // shapes apart without inspecting adapterId.
+      const parsed = parseBroadQuery(rawQuery);
+      query = { kind: "broad", ...parsed };
+    } else {
+      // Registry gate: only compliance-allowed, non-kill-switched adapters may
+      // back a monitor. A question (not an error) so the assistant can present
+      // the valid choices instead of dead-ending.
+      const adapter = getSourceAdapter(adapterId);
+      if (adapter === null) {
+        const available = listSourceAdapters()
+          .filter((a) => a.enabled)
+          .map((a) => a.adapterId)
+          .join(", ");
+        return {
+          status: "question",
+          question: `Unknown or disabled source adapter. Available adapters: ${available}.`
+        };
+      }
+      // The adapter owns the config shape: validateConfig throws InputError on
+      // anything malformed and returns the normalized document — that exact
+      // shape is what persists (extra keys are dropped here, by construction).
+      query = { ...adapter.validateConfig(rawQuery) };
     }
-    // The adapter owns the config shape: validateConfig throws InputError on
-    // anything malformed and returns the normalized document — that exact
-    // shape is what persists (extra keys are dropped here, by construction).
-    const query = adapter.validateConfig(readPlainObject(input, "query", { required: true }));
     const enabled = readBool(input, "enabled") ?? false;
 
     // JS-05 (#934): schedule fields. Omitted on update → preserve, else
@@ -106,8 +151,9 @@ export function saveMonitorHandler(ports: WorkerPorts) {
       monitorId,
       adapterId,
       enabled,
-      // Spread: BoardConfig is an interface (no index signature), and this
-      // also decouples the stored document from the adapter's return value.
+      // Spread: `query` is already a plain object (board branch: BoardConfig
+      // has no index signature; broad branch: {kind, ...DiscoveryQuery}) —
+      // this copy just decouples the stored document from either source.
       query: { ...query },
       timezone,
       dueTime,

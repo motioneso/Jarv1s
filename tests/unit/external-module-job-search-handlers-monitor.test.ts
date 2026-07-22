@@ -10,6 +10,11 @@
 // the source-adapter registry (unknown/disabled → question naming the enabled
 // ids) and persists the adapter-NORMALIZED board config — extra query keys
 // never survive into storage.
+//
+// JS-10 (#1229): a submitted query.kind of "broad" routes to the discovery
+// registry/validator instead — see the "monitor.save broad discovery branch"
+// describe block below. The board-path tests above/below this comment must
+// stay passing unmodified: the broad branch is strictly additive.
 import { describe, expect, it } from "vitest";
 
 import {
@@ -258,6 +263,174 @@ describe("monitor.save handler", () => {
     expect(noQuery.status).toBe("error");
     expect(noQuery.message).toMatch(/query/);
     expect(kv.dump().size).toBe(0);
+  });
+});
+
+// JS-10 (#1229): the broad discovery branch — a submitted query.kind of
+// "broad" must route to getDiscoveryProvider/parseBroadQuery instead of the
+// board adapter registry, and persist the outbound-minimized DiscoveryQuery
+// plus the kind discriminator. Every board-path test above stays unmodified,
+// which is itself the proof the two branches don't interfere.
+describe("monitor.save broad discovery branch", () => {
+  const BROAD_QUERY = {
+    kind: "broad" as const,
+    titles: ["Staff Engineer", "Principal Engineer"],
+    locations: ["Remote"],
+    remote: true,
+    country: "us",
+    maxResults: 50
+  };
+
+  it("persists query.kind:'broad' plus the parsed DiscoveryQuery, nothing extra", async () => {
+    const kv = createMemoryKv();
+    const result = await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "freehire",
+      query: BROAD_QUERY
+    });
+    expect(result).toEqual({
+      status: "ok",
+      monitorId: "m1",
+      enabled: false,
+      timezone: "UTC",
+      dueTime: "07:00"
+    });
+    const stored = await getMonitor(kv, "m1");
+    expect(stored).toEqual({
+      schemaVersion: 1,
+      monitorId: "m1",
+      adapterId: "freehire",
+      enabled: false,
+      query: {
+        kind: "broad",
+        titles: ["Staff Engineer", "Principal Engineer"],
+        locations: ["Remote"],
+        remote: true,
+        country: "us",
+        maxResults: 50
+      },
+      timezone: "UTC",
+      dueTime: "07:00",
+      createdAt: NOW.toISOString(),
+      updatedAt: NOW.toISOString()
+    });
+  });
+
+  it("outbound minimization: salary/dealbreakers/company/employmentType never reach storage", async () => {
+    const kv = createMemoryKv();
+    await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "freehire",
+      query: {
+        kind: "broad",
+        titles: ["Staff Engineer"],
+        locations: ["Remote"],
+        country: "us",
+        // These must all be dropped by parseBroadQuery — never stored, never
+        // able to leave via buildRequests (spec AC5).
+        salary: { min: 200000 },
+        dealbreakers: ["no on-call"],
+        company: "Acme",
+        employmentType: "full-time"
+      }
+    });
+    const stored = await getMonitor(kv, "m1");
+    expect(Object.keys(stored!.query).sort()).toEqual([
+      "country",
+      "kind",
+      "locations",
+      "maxResults",
+      "titles"
+    ]);
+  });
+
+  it("rejects an unknown/disabled discovery provider: question names enabled providers, nothing persisted", async () => {
+    const kv = createMemoryKv();
+    const result = await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "indeed",
+      query: BROAD_QUERY
+    });
+    expect(result.status).toBe("question");
+    expect(result.question).toContain("freehire");
+    expect(kv.dump().size).toBe(0);
+  });
+
+  it("rejects a broad query with no titles: invalid_input, nothing persisted", async () => {
+    const kv = createMemoryKv();
+    const result = await wrap(saveMonitorHandler(portsAt(kv, NOW)))({
+      monitorId: "m1",
+      adapterId: "freehire",
+      query: { kind: "broad", titles: [], country: "us" }
+    });
+    expect(result.status).toBe("error");
+    expect(result.code).toBe("invalid_input");
+    expect(kv.dump().size).toBe(0);
+  });
+
+  it("respects the same enable gate as the board path (missing approvals blocks enabled save)", async () => {
+    const kv = createMemoryKv();
+    const result = await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "freehire",
+      query: BROAD_QUERY,
+      enabled: true
+    });
+    expect(result.status).toBe("question");
+    expect(result.question).toMatch(/resume/i);
+    expect(result.question).toMatch(/profile/i);
+    expect(kv.dump().size).toBe(0);
+  });
+
+  it("after both approvals an enabled broad save persists and completes onboarding", async () => {
+    const kv = createMemoryKv();
+    // Approvals go through the HANDLERS (not the approveBoth domain helper)
+    // so the onboarding checkpoint flags advance the same way they do in
+    // production — mirrors the equivalent board-path test above.
+    await saveOriginalResume(kv, "Line one", NOW);
+    await approveResumeHandler(portsAt(kv, NOW))({ revisionId: "0" });
+    await saveProfileRevision(kv, {
+      schemaVersion: 1,
+      revisionId: "p1",
+      createdAt: NOW.toISOString(),
+      provenance: "user",
+      fields: { targetTitles: ["Staff Engineer"] }
+    });
+    await approveProfileHandler(portsAt(kv, NOW))({ revisionId: "p1" });
+
+    const result = await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "freehire",
+      query: BROAD_QUERY,
+      enabled: true
+    });
+    expect(result.status).toBe("ok");
+    expect((await getMonitor(kv, "m1"))?.enabled).toBe(true);
+    const state = await getStateHandler(portsAt(kv, NOW))({});
+    expect(state.step).toBe("done");
+  });
+
+  it("board path is unaffected: no kind (or kind !== 'broad') still resolves via the board adapter registry", async () => {
+    const kv = createMemoryKv();
+    // Absent kind: existing board behavior, byte-for-byte.
+    const noKind = await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m1",
+      adapterId: "greenhouse",
+      query: QUERY
+    });
+    expect(noKind.status).toBe("ok");
+    expect((await getMonitor(kv, "m1"))?.query).toEqual(QUERY);
+
+    // Explicit non-"broad" kind: still routes to the board adapter, which
+    // silently drops the unrecognized key the same way validateConfig always
+    // has (see "persists the NORMALIZED query exactly" above).
+    const wrongKind = await saveMonitorHandler(portsAt(kv, NOW))({
+      monitorId: "m2",
+      adapterId: "greenhouse",
+      query: { ...QUERY, kind: "board" }
+    });
+    expect(wrongKind.status).toBe("ok");
+    expect((await getMonitor(kv, "m2"))?.query).toEqual(QUERY);
   });
 });
 
