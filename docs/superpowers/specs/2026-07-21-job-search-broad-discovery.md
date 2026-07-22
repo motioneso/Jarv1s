@@ -95,7 +95,7 @@ These are load-bearing invariants the broad source must honor, verified in code:
 7. **Metadata-only everywhere.** Run records and job payloads carry ids, counts, and error **codes**
    only — never external text (titles, descriptions, URLs, transport errors). Monitor sweep runs on
    one hourly cron as a **due-check**, at most one discovery run per monitor per local day.
-8. **Keyless today.** No job source currently needs a credential. The recommended broad-discovery lean
+8. **Keyless today.** No job source currently needs a credential. The **selected** broad source
    (Path B′ freehire.dev) and the scrape fallback (Path B) stay keyless; only the **Path A (Adzuna)**
    fork would introduce this module's **first credentialed source** — a genuinely new capability,
    handled per §7. The design keeps that machinery on the Path A branch so a keyless choice adds none.
@@ -147,21 +147,21 @@ lower-maintenance than scraping when one exists):
 
 ### 4.2 Candidate sources — APIs (primary-doc verified) and scrape targets
 
-| Provider                               | Access                                                                                       | Coverage                                                                                                                                           | Filters                                                                              | Provenance                                                                                                                                            | Rate limit                                     | Verdict                                                                                                                                 |
-| -------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **freehire.dev** (`strelov1/freehire`) | **keyless public REST** for read (search/job/company); free key only for per-user save/apply | **aggregates many company ATS boards** (Greenhouse, Lever, Ashby, iCIMS, Workday-likes); **tech-focused**, ~3M jobs; US present but not quantified | keyword, location, remote, stack/seniority tags                                      | **canonical employer boards** (ingests ATS directly); deduped upstream                                                                                | public API; self-hostable (`FREEHIRE_API_URL`) | **New — recommended lean (Path B′)**: keyless, canonical, ATS-sourced, MIT, self-hostable; caveats = tech-only coverage + young project |
-| **Adzuna**                             | Self-serve `app_id`+`app_key`; commercial use past a **14-day trial** may need a licence     | **Aggregator, 16 countries** incl. full US                                                                                                         | keywords, title, location+radius, salary min/max, contract type, category, date sort | company name, salary min/max, category, posted date, geo; **`redirect_url` is a tracking redirect, not employer canonical**; description is a snippet | 25/min, 2,500/mo default (raisable)            | **Recommended API fallback (Path A)**                                                                                                   |
-| **USAJOBS**                            | Free API key + registered email                                                              | **US federal only**                                                                                                                                | keyword, title, location+radius, salary bands, series                                | **canonical** `PositionURI` + `ApplyURI`, org, salary                                                                                                 | generous                                       | Optional federal supplement; **"no derivative works / registered-company-only"** clause is a redistribution flag → deferred             |
-| The Muse                               | Optional key                                                                                 | curated multi-country, US-heavy                                                                                                                    | **no keyword/salary filter**                                                         | canonical `landing_page`                                                                                                                              | 3,600/hr keyed                                 | Too narrow (no keyword search)                                                                                                          |
-| Remotive                               | No auth                                                                                      | **remote-only**, 24h lag                                                                                                                           | search, category                                                                     | canonical `url`                                                                                                                                       | ~2/min                                         | Remote-only + delayed                                                                                                                   |
-| Findwork.dev                           | Free, login-walled docs                                                                      | **tech only**                                                                                                                                      | search, location, remote                                                             | `url`                                                                                                                                                 | ~60/min (unverified)                           | Tech-only; terms behind login                                                                                                           |
-| Arbeitnow                              | No auth                                                                                      | **DE/EU-centric**                                                                                                                                  | none (feed)                                                                          | `url`                                                                                                                                                 | undocumented                                   | No query filters; wrong region                                                                                                          |
-| Jooble                                 | **Approval-gated** key                                                                       | ~70 countries                                                                                                                                      | keyword, location                                                                    | undocumented                                                                                                                                          | undocumented                                   | Terms/fields unverifiable pre-approval                                                                                                  |
-| Careerjet                              | **Publisher/affiliate-gated**                                                                | ~90 countries                                                                                                                                      | keyword, location, salary                                                            | `url` + salary                                                                                                                                        | undocumented                                   | Affiliate model; passes end-user IP/UA                                                                                                  |
-| Greenhouse / Lever                     | Public per-board                                                                             | one employer per request                                                                                                                           | none across companies                                                                | canonical                                                                                                                                             | —                                              | **Confirmed no cross-company search endpoint** — cannot serve broad discovery                                                           |
-| **Scrape — structured (JSON-LD)**      | none; parse `schema.org/JobPosting` from public search/posting pages                         | depends on target; potentially very high                                                                                                           | as good as the page exposes                                                          | **canonical** (JSON-LD carries `url`, `hiringOrganization`, `baseSalary`, `datePosted`)                                                               | self-throttle                                  | **Now permitted; strong candidate** — most stable scrape signal, no license/attribution                                                 |
-| **Scrape — Indeed public search**      | none; parse public results pages                                                             | **very high (US-broad)**                                                                                                                           | keyword, location, salary, date via URL params                                       | company/title/snippet; canonical needs a second fetch; Cloudflare-fronted                                                                             | self-throttle                                  | Permitted; high coverage but **Cloudflare + brittle DOM**, ToS forbids automated access                                                 |
-| **Scrape — LinkedIn public search**    | none                                                                                         | very high                                                                                                                                          | keyword, location                                                                    | brittle; heavy anti-bot                                                                                                                               | self-throttle                                  | Permitted but **worst maintenance/legal posture** — do not lead with this                                                               |
+| Provider                               | Access                                                                                       | Coverage                                                                                                                                           | Filters                                                                              | Provenance                                                                                                                                            | Rate limit                                  | Verdict                                                                                                                     |
+| -------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **freehire.dev** (`strelov1/freehire`) | **keyless public REST** for read (search/job/company); free key only for per-user save/apply | **aggregates many company ATS boards** (Greenhouse, Lever, Ashby, iCIMS, Workday-likes); **tech-focused**, ~3M jobs; US present but not quantified | keyword, location, remote, stack/seniority tags                                      | **canonical employer boards** (ingests ATS directly); deduped upstream                                                                                | public API; MIT, self-hostable (Go service) | **SELECTED (Path B′)**: keyless, canonical, ATS-sourced, MIT, self-hostable; accepted caveat = tech-focused coverage        |
+| **Adzuna**                             | Self-serve `app_id`+`app_key`; commercial use past a **14-day trial** may need a licence     | **Aggregator, 16 countries** incl. full US                                                                                                         | keywords, title, location+radius, salary min/max, contract type, category, date sort | company name, salary min/max, category, posted date, geo; **`redirect_url` is a tracking redirect, not employer canonical**; description is a snippet | 25/min, 2,500/mo default (raisable)         | **Recommended API fallback (Path A)**                                                                                       |
+| **USAJOBS**                            | Free API key + registered email                                                              | **US federal only**                                                                                                                                | keyword, title, location+radius, salary bands, series                                | **canonical** `PositionURI` + `ApplyURI`, org, salary                                                                                                 | generous                                    | Optional federal supplement; **"no derivative works / registered-company-only"** clause is a redistribution flag → deferred |
+| The Muse                               | Optional key                                                                                 | curated multi-country, US-heavy                                                                                                                    | **no keyword/salary filter**                                                         | canonical `landing_page`                                                                                                                              | 3,600/hr keyed                              | Too narrow (no keyword search)                                                                                              |
+| Remotive                               | No auth                                                                                      | **remote-only**, 24h lag                                                                                                                           | search, category                                                                     | canonical `url`                                                                                                                                       | ~2/min                                      | Remote-only + delayed                                                                                                       |
+| Findwork.dev                           | Free, login-walled docs                                                                      | **tech only**                                                                                                                                      | search, location, remote                                                             | `url`                                                                                                                                                 | ~60/min (unverified)                        | Tech-only; terms behind login                                                                                               |
+| Arbeitnow                              | No auth                                                                                      | **DE/EU-centric**                                                                                                                                  | none (feed)                                                                          | `url`                                                                                                                                                 | undocumented                                | No query filters; wrong region                                                                                              |
+| Jooble                                 | **Approval-gated** key                                                                       | ~70 countries                                                                                                                                      | keyword, location                                                                    | undocumented                                                                                                                                          | undocumented                                | Terms/fields unverifiable pre-approval                                                                                      |
+| Careerjet                              | **Publisher/affiliate-gated**                                                                | ~90 countries                                                                                                                                      | keyword, location, salary                                                            | `url` + salary                                                                                                                                        | undocumented                                | Affiliate model; passes end-user IP/UA                                                                                      |
+| Greenhouse / Lever                     | Public per-board                                                                             | one employer per request                                                                                                                           | none across companies                                                                | canonical                                                                                                                                             | —                                           | **Confirmed no cross-company search endpoint** — cannot serve broad discovery                                               |
+| **Scrape — structured (JSON-LD)**      | none; parse `schema.org/JobPosting` from public search/posting pages                         | depends on target; potentially very high                                                                                                           | as good as the page exposes                                                          | **canonical** (JSON-LD carries `url`, `hiringOrganization`, `baseSalary`, `datePosted`)                                                               | self-throttle                               | **Now permitted; strong candidate** — most stable scrape signal, no license/attribution                                     |
+| **Scrape — Indeed public search**      | none; parse public results pages                                                             | **very high (US-broad)**                                                                                                                           | keyword, location, salary, date via URL params                                       | company/title/snippet; canonical needs a second fetch; Cloudflare-fronted                                                                             | self-throttle                               | Permitted; high coverage but **Cloudflare + brittle DOM**, ToS forbids automated access                                     |
+| **Scrape — LinkedIn public search**    | none                                                                                         | very high                                                                                                                                          | keyword, location                                                                    | brittle; heavy anti-bot                                                                                                                               | self-throttle                               | Permitted but **worst maintenance/legal posture** — do not lead with this                                                   |
 
 Greenhouse and Lever were explicitly re-verified: both are strictly per-employer
 (`board_token` / `site` in the path), and Lever's docs state outright that the postings API _does not_
@@ -175,19 +175,26 @@ The MVP choice is a **fork between three viable single-source paths**. All feed 
 downstream pipeline (§2), so the choice is contained to how one source is fetched and normalized — it
 does not ripple into identity, gate, evaluation, or feed.
 
-- **Path B′ — Keyless aggregator (freehire.dev, recommended lean).** `strelov1/freehire` is an
-  open-source (MIT) aggregator that ingests **many company ATS boards directly** — Greenhouse, Lever,
-  Ashby, iCIMS, Workday-likes — deduplicates upstream, and exposes a **keyless public REST API** for
-  read (search/job/company); a free key is needed only for opt-in per-user save/apply, which we do not
-  use. **Pro:** no license/attribution obligation, no per-key rate budget for search, **canonical
-  employer URLs** (it reads the same public ATS boards we already trust), upstream dedup, and it is
-  **self-hostable** (`FREEHIRE_API_URL`) — an operator can run the aggregator in-house and keep the
-  entire data path private, which is an exceptional fit for our self-hosted, privacy-by-default model.
-  It is also the most **on-brand** option: it extends the exact public-ATS posture of the existing
-  company-watch adapters to broad discovery, with **no scraping we author**. **Con:** coverage is
-  **tech/IT-focused** (weak for non-technical roles), US coverage is present but **not quantified**,
-  and it is a **young project** — operational longevity and API stability are unproven. Depending on a
-  third-party service also adds an availability dependency (mitigated by the self-host option).
+- **Path B′ — Keyless aggregator (freehire.dev) — SELECTED (product-owner decision, 2026-07-21).**
+  `strelov1/freehire` is an open-source (MIT) aggregator that ingests **many company ATS boards
+  directly** — Greenhouse, Lever, Ashby, iCIMS, Workday-likes — deduplicates upstream, and exposes a
+  **keyless public REST API** for read; a free key is needed only for opt-in per-user save/apply, which
+  we do not use. Read endpoints (primary-doc verified, `github.com/strelov1/freehire`, base
+  `https://freehire.dev`): `GET /api/v1/jobs/search` (keyword/location/remote/tag filters + pagination),
+  `GET /api/v1/jobs/:slug`, `GET /api/v1/companies`, `GET /api/v1/companies/:slug`, `GET /health` — all
+  **no-auth**. Only `POST/PATCH/DELETE` write endpoints (`/view`, `/apply`, `/save`, `/track`,
+  `/me/*`) require a key, and this design uses none of them. **Pro:** no license/attribution
+  obligation, no per-key rate budget for search, **canonical employer URLs** (it reads the same public
+  ATS boards we already trust), upstream dedup, and it is **self-hostable** (run the Go service with
+  its own `DATABASE_URL`/`JWT_SECRET`/`SOURCES_FILE`; our module simply points its base URL at the
+  self-hosted host) — an operator can run the aggregator in-house and keep the entire data path
+  private, an exceptional fit for our self-hosted, privacy-by-default model. It is also the most
+  **on-brand** option: it extends the exact public-ATS posture of the existing company-watch adapters
+  to broad discovery, with **no scraping we author**. **Con (accepted):** coverage is
+  **tech/IT-focused** (weak for non-technical roles) and it is a **young project** — a third-party
+  availability dependency, mitigated by the self-host escape hatch. The exact search query params and
+  per-job JSON field names are not in the README and must be read from the service's handler code
+  during build — an **implementation detail, not a feasibility risk**.
 
 - **Path B — Structured public scrape.** Read public, unauthenticated pages at courteous low volume,
   preferring `schema.org/JobPosting` JSON-LD; a lighter concrete variant is **LinkedIn's public,
@@ -204,22 +211,19 @@ does not ripple into identity, gate, evaluation, or feed.
   **Con:** licensing friction for a self-hosted, redistributable app (§4.4), mandatory "Jobs by Adzuna"
   attribution, per-key rate budget.
 
-**Recommended lean: Path B′ (freehire.dev), with Path A (Adzuna) as the broad-coverage fallback and
-Path B (structured scrape) as the no-dependency fallback.** Rationale: freehire.dev uniquely combines
-keyless access, canonical ATS provenance, upstream dedup, and a self-host escape hatch — it removes
-both the licensing unknown (Adzuna) and the brittleness/maintenance unknown (raw scraping) in one move,
-and it matches the module's existing public-ATS compliance posture almost exactly. **The lean is
-contingent on a feasibility spike** confirming (a) adequate **US and role coverage for the target
-audience** — freehire is tech-heavy, so a non-technical user may see thin results — and (b) acceptable
-**API stability/terms** for a self-hosted consumer (ideally validated by standing up the self-hosted
-aggregator). If the audience is broader than tech, **Adzuna (Path A)** is the better coverage choice
-despite its licensing work; if neither is acceptable, **structured scrape (Path B)** remains.
+**Decision: Path B′ (freehire.dev) is the MVP broad source** (product owner, 2026-07-21 — no spike
+required). Rationale: freehire.dev uniquely combines keyless access, canonical ATS provenance, upstream
+dedup, and a self-host escape hatch — it removes both the licensing unknown (Adzuna) and the
+brittleness/maintenance unknown (raw scraping) in one move, and it matches the module's existing
+public-ATS compliance posture almost exactly. **Adzuna (Path A)** is retained in this spec only as the
+documented fallback if broad **non-tech** coverage later proves necessary; **structured scrape (Path
+B)** as a no-dependency fallback. Neither is built for the MVP.
 
-Because the three paths trade off along **coverage vs licensing vs maintenance** and the decision is a
-**product/operations call, not a purely technical one**, the fork is the **top open question (§12,
-Q1)** for explicit product-owner confirmation. The rest of this spec is **source-agnostic**: it uses
-Adzuna as the worked example for a credentialed API source and calls out where a keyless/scrape source
-differs (credentials, identity, provenance, freshness), so no branch is blocked by the others.
+The accepted tradeoff is coverage (freehire is tech-heavy — see §12 Q1 for the non-tech follow-up).
+The rest of this spec stays **source-agnostic** where it is cheap to: it uses Adzuna as the worked
+example for a _credentialed_ API source and calls out where the selected keyless source differs
+(credentials, identity, provenance, freshness), so the fallback paths remain documented without
+blocking the freehire build.
 
 **One dependable source, not a framework** (holds for either path). We implement the chosen source
 concretely behind a **thin internal `JobDiscoveryProvider` seam** (one implementation) so the source is
@@ -428,7 +432,7 @@ change; everything downstream is identical. The differences:
   material UX simplification in both keyless paths' favor. (Path B′ needs a free key **only** for opt-in
   per-user save/apply, which this design does not use.)
 - **Fetch:** still through the single host-pinned safe reader (§3). `fetchHosts` lists the source
-  host(s) — `freehire.dev` (or the self-hosted `FREEHIRE_API_URL` host) for Path B′, or the scrape
+  host(s) — `freehire.dev` (or the operator's self-hosted freehire host) for Path B′, or the scrape
   target's host(s) for Path B — instead of `api.adzuna.com`. Requests are courteous, low-volume (one
   run/day), and send a plain, honest user agent — **no anti-bot evasion** (scope guardrail, §4.1).
 - **Parsing:** Path B′ consumes freehire's structured JSON directly (already normalized and
@@ -540,9 +544,9 @@ adapters and `false` for the broad provider; `markFreshnessAfterRun` skips stale
 
 ### 9.1 MVP (this milestone)
 
-- **One broad source**, selected by the §4.3 fork (recommended lean: **Path B′ freehire.dev**;
-  fallbacks **Path A Adzuna** for broad non-tech coverage, **Path B structured scrape** for
-  no-dependency), behind a thin internal `JobDiscoveryProvider` seam.
+- **One broad source — freehire.dev (Path B′, selected §4.3)**, behind a thin internal
+  `JobDiscoveryProvider` seam. (Documented, unbuilt fallbacks: **Path A Adzuna** for broad non-tech
+  coverage, **Path B structured scrape** for no-dependency.)
 - **Credential handling per path:** the **keyless paths (B′ and B) need none** (public read, no
   operator setup); **Path A** uses an **instance-scoped, encrypted operator credential**, metadata-only
   surfaces, secrets never escape.
@@ -689,11 +693,10 @@ Per the module's exit-criteria rule (#999/#1000 e2e-on-real-dev-instance) and th
 **early dev HITL gate** mandate, the primary journey is validated on the **built, live dev module**
 before human UAT:
 
-1. Stand up the **real chosen source** against the dev instance: _(Path B′)_ point the provider at live
-   `freehire.dev` (or a self-hosted `FREEHIRE_API_URL`) — no credential; _(Path A)_ provision a real
-   Adzuna `app_id`/`app_key` in the encrypted credential store (surfaces §12 Q1); _(Path B)_ point the
-   scrape source at the **live target** confirmed by the feasibility spike (§12 Q1). No mock source
-   stands in.
+1. Stand up the **selected source** against the dev instance: point the provider's base URL at live
+   `https://freehire.dev` (or the operator's self-hosted freehire host) — no credential. No mock source
+   stands in. (Fallback paths, not built for MVP: _Path A_ would provision a real Adzuna
+   `app_id`/`app_key`; _Path B_ would point at a live scrape target.)
 2. From **fresh user data** and a **fresh assistant session**, run onboarding end to end: upload a real
    resume, approve the critique and profile, reach the source step, leave broad **on**, add **no**
    company URL, finish.
@@ -710,26 +713,21 @@ acceptance run itself must hit the real source.
 
 ## 12. Open questions (unresolved product/policy choices)
 
-1. **THE FORK — keyless aggregator (Path B′) vs licensed API (Path A) vs structured scrape (Path B)
-   for the MVP broad source.** Now that the product owner has permitted scraping (2026-07-21), this is
-   the pivotal decision the rest of the design is written to absorb. **Recommended lean: Path B′
-   (freehire.dev / `strelov1/freehire`)** — keyless public REST, canonical ATS-sourced URLs, upstream
-   dedup, MIT, self-hostable (`FREEHIRE_API_URL`); it removes both the Adzuna licensing unknown and the
-   raw-scrape maintenance unknown and matches the module's existing public-ATS compliance posture.
-   **Contingent on a short feasibility spike** confirming (a) adequate **US and role coverage for the
-   intended audience** — freehire is tech-heavy, so non-technical users may see thin results — and (b)
-   acceptable **API stability/terms** for a self-hosted consumer, ideally by standing up the self-hosted
-   aggregator. If the audience is broader than tech, **Path A (Adzuna)** is the better coverage choice
-   despite its licensing work (Q2); if a third-party dependency is unacceptable and self-hosting
-   freehire is not pursued, **Path B (structured scrape)** remains. _Needs product-owner confirmation of
-   the lean, the target audience breadth, and whether to self-host freehire._
-2. **(Path A only) Adzuna licensing for self-hosted redistribution (blocking for GA on that path).**
-   Past the 14-day trial, commercial use "may require a licence." Does a per-instance operator key under
-   the operator's own Adzuna account satisfy the "requesting company" framing, or does our distribution
-   model need a negotiated agreement? Plus attribution placement (see Q7). Moot if Path B is chosen.
-3. **(Path A only) Credential ownership: instance-operator single key (recommended) vs per-user BYO
-   key.** Rate budget (25/min, 2,500/mo default) is per key; a shared instance key throttles under many
-   active users, while per-user keys push license/setup burden onto users. Moot on Path B (no key).
+1. **RESOLVED (2026-07-21): freehire.dev is the MVP broad source.** The product owner selected Path B′
+   (`strelov1/freehire`) and waived the feasibility spike. Adzuna (Path A) and structured scrape (Path
+   B) remain documented fallbacks, not built. The residual, non-blocking follow-ups are: **(a)
+   non-tech coverage** — freehire is tech-focused, so if the audience broadens, revisit Path A as a
+   supplement; **(b) self-host vs public** — decide whether the operator runs freehire in-house (fully
+   private data path) or the module calls public `freehire.dev` for the MVP (recommendation: public for
+   MVP, self-host documented as an option); **(c) wire contract** — the exact `/api/v1/jobs/search`
+   query params and per-job JSON field names must be read from the freehire handler code during build
+   (implementation detail).
+2. **(Fallback, Path A only) Adzuna licensing for self-hosted redistribution.** Not on the MVP path;
+   retained only if a future non-tech supplement revives Adzuna. Does a per-instance operator key
+   satisfy the "requesting company" framing, or is a negotiated agreement needed? Plus attribution
+   placement (Q7).
+3. **(Fallback, Path A only) Credential ownership: instance-operator single key vs per-user BYO key.**
+   Not on the MVP path (freehire is keyless). Retained for the Adzuna fallback only.
 4. **Cross-source duplicate tolerance.** Accept rare duplicates with honest provenance (recommended,
    MVP) vs invest in canonical-URL resolution to converge exact matches. Note Path B already converges
    scrape-vs-scrape via url-path identity (§6.6); the residual is broad-vs-ATS-board only.
@@ -748,8 +746,10 @@ acceptance run itself must hit the real source.
 
 ## Appendix A — Primary sources cited
 
-- freehire.dev (Path B′ aggregator): `freehire.dev`, `github.com/strelov1/freehire` (MIT; keyless
-  public read API; self-host via `FREEHIRE_API_URL`)
+- freehire.dev (**selected** broad source): `freehire.dev`, `github.com/strelov1/freehire` (MIT;
+  keyless public read — `GET /api/v1/jobs/search`, `/api/v1/jobs/:slug`, `/api/v1/companies[/:slug]`,
+  `/health`; write endpoints `/view`,`/apply`,`/save`,`/track`,`/me/*` need a key and are unused;
+  self-hostable Go service configured via `DATABASE_URL`/`JWT_SECRET`/`SOURCES_FILE`)
 - Prior art (approach reference, not a dependency): `github.com/MadsLorentzen/ai-job-search`
 - Adzuna: `developer.adzuna.com/overview`, `developer.adzuna.com/docs/search`,
   `developer.adzuna.com/docs/terms_of_service`, `developer.adzuna.com/activedocs`
