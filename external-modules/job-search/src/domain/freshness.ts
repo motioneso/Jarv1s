@@ -26,6 +26,16 @@ export interface FreshnessRunContext {
   /** Identity hashes present in that fetch. */
   readonly seenIdentityHashes: ReadonlySet<string>;
   readonly now: Date;
+  /**
+   * JS-10 (#1229) broad-discovery carve-out. A board watch enumerates ONE
+   * company's live listings, so a record absent from the fetch is genuinely
+   * gone → stale. A broad SEARCH returns only the top-N of a moving window
+   * (spec §6.5), so absence means "fell out of this window", NOT "posting
+   * closed" — marking those stale would wrongly retire live opportunities.
+   * Default true preserves board behavior; broad runs pass false, which keeps
+   * seen → active but suppresses the unseen → stale transition entirely.
+   */
+  readonly absenceImpliesClosure?: boolean;
 }
 
 /**
@@ -44,7 +54,9 @@ export function transitionFreshness(
   if (ctx.seenIdentityHashes.has(record.identityHash)) {
     return { ...record, freshness: "active", lastLivenessAt: nowIso };
   }
-  if (record.sourceKey === ctx.sourceKey) {
+  // Broad sources (absenceImpliesClosure === false) never stale on absence:
+  // the record simply fell out of the search window, not out of existence.
+  if (record.sourceKey === ctx.sourceKey && ctx.absenceImpliesClosure !== false) {
     const staleStatus =
       record.status === "new" || record.status === "passed"
         ? { status: "stale" as const, statusAt: nowIso }

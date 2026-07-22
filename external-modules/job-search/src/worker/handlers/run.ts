@@ -14,12 +14,20 @@
 //     fetch, scoped to this run's (adapterId, board) sourceKey — records have
 //     no monitorId, so absence is only meaningful per board, and fetch
 //     failure never implies stale.
-import type { BoardConfig, NormalizedPosting } from "../../adapters/index.js";
+import type {
+  BoardConfig,
+  DiscoveryQuery,
+  FetchEvidence,
+  NormalizedPosting
+} from "../../adapters/index.js";
 import {
   JobSearchFetchError,
   LOCATION_MAX_CHARS,
   fetchBoard,
+  fetchDiscovery,
+  getDiscoveryProvider,
   getSourceAdapter,
+  parseBroadQuery,
   sanitizeInlineField
 } from "../../adapters/index.js";
 import type { MonitorConfig, OpportunityInput } from "../../domain/index.js";
@@ -60,6 +68,21 @@ export type DiscoveryOutcome =
       readonly errorCode: string;
       readonly runId: string;
     };
+
+/**
+ * JS-10 (#1229): the resolved fetch plan for one monitor run. Abstracts over
+ * board watch vs broad search so the shared pipeline (upsert → freshness →
+ * retention → eval → feed) is written once. `board` is the sourceKey board
+ * token ("broad" for discovery); `absenceImpliesClosure` gates the freshness
+ * stale transition (§6.5).
+ */
+interface FetchPlan {
+  readonly board: string;
+  readonly absenceImpliesClosure: boolean;
+  run(
+    lastCheckedAt?: string
+  ): Promise<{ postings: readonly NormalizedPosting[]; evidence: FetchEvidence }>;
+}
 
 /**
  * Deterministic run id from the pg-boss delivery's idempotency key: a
@@ -131,30 +154,60 @@ export async function runMonitorDiscovery(
     return { ran: false, reason: "error", errorCode, runId: opts.runId };
   };
 
-  const adapter = getSourceAdapter(config.adapterId);
-  if (adapter === null) return fail("adapter_disabled");
   const fetch = ports.fetch ?? null;
   if (fetch === null) return fail("fetch_unavailable");
 
-  // Re-validate the stored query at run time: storage drift must never
-  // reach buildUrl (defense in depth on the SSRF boundary).
-  let boardConfig: BoardConfig;
-  try {
-    boardConfig = adapter.validateConfig(config.query);
-  } catch {
-    return fail("invalid_config");
+  // JS-10 (#1229): resolve the fetch plan for this monitor's query kind. Board
+  // watches and broad searches share the ENTIRE downstream pipeline (upsert →
+  // freshness → retention → eval → feed); only adapter resolution, stored-query
+  // re-validation, and the fetch call differ. `absenceImpliesClosure` carries
+  // the freshness carve-out (§6.5): a board absence ⇒ stale, a broad absence ⇒
+  // still live (the posting fell out of the search window, not out of existence).
+  // The discriminator defaults to "board" (additive; schemaVersion stays 1, no
+  // data migration) — any stored query without an explicit "broad" is a board.
+  const kind = config.query.kind === "broad" ? "broad" : "board";
+  let plan: FetchPlan;
+  if (kind === "broad") {
+    const provider = getDiscoveryProvider(config.adapterId);
+    if (provider === null) return fail("adapter_disabled");
+    // Re-validate the stored broad query at run time: storage drift must never
+    // reach buildRequests (defense in depth on outbound minimization).
+    let discoveryQuery: DiscoveryQuery;
+    try {
+      discoveryQuery = parseBroadQuery(config.query);
+    } catch {
+      return fail("invalid_config");
+    }
+    plan = {
+      board: "broad",
+      absenceImpliesClosure: false,
+      run: (lastCheckedAt) =>
+        fetchDiscovery({ fetch, now: () => ports.now() }, provider, discoveryQuery, lastCheckedAt)
+    };
+  } else {
+    const adapter = getSourceAdapter(config.adapterId);
+    if (adapter === null) return fail("adapter_disabled");
+    // Re-validate the stored query at run time: storage drift must never
+    // reach buildUrl (defense in depth on the SSRF boundary).
+    let boardConfig: BoardConfig;
+    try {
+      boardConfig = adapter.validateConfig(config.query);
+    } catch {
+      return fail("invalid_config");
+    }
+    plan = {
+      board: boardConfig.board,
+      absenceImpliesClosure: true,
+      run: (lastCheckedAt) =>
+        fetchBoard({ fetch, now: () => ports.now() }, adapter, boardConfig, lastCheckedAt)
+    };
   }
 
   const cursor = await getMonitorCursor(kv, config.monitorId);
 
   let fetched;
   try {
-    fetched = await fetchBoard(
-      { fetch, now: () => ports.now() },
-      adapter,
-      boardConfig,
-      cursor?.lastCheckedAt
-    );
+    fetched = await plan.run(cursor?.lastCheckedAt);
   } catch (error) {
     if (error instanceof JobSearchFetchError) {
       if (error.code === "courtesy_not_due") {
@@ -181,7 +234,7 @@ export async function runMonitorDiscovery(
   let suppressed = 0;
   const seenIdentityHashes = new Set<string>();
   for (const posting of fetched.postings) {
-    const input = postingToOpportunity(adapter.id, boardConfig.board, posting);
+    const input = postingToOpportunity(config.adapterId, plan.board, posting);
     // Every posting in a successful fetch counts as "seen" for freshness —
     // including tombstone-suppressed ones (the board still lists them; the
     // user deleted them, which is a status decision, not a liveness fact).
@@ -218,9 +271,11 @@ export async function runMonitorDiscovery(
   //     second rebuild is cheap (in-memory sort over the survivors) and makes
   //     fresh fit bands rank the feed this run.
   const freshness = await markFreshnessAfterRun(kv, {
-    sourceKey: sourceKey(adapter.id, boardConfig.board),
+    sourceKey: sourceKey(config.adapterId, plan.board),
     seenIdentityHashes,
-    now: ports.now()
+    now: ports.now(),
+    // Broad sources are exempt from absence-implies-stale (§6.5 carve-out).
+    absenceImpliesClosure: plan.absenceImpliesClosure
   });
   await runRetentionPass(kv, ports.now());
   const evaluation = await runEvaluationSweep(ports);
