@@ -2,10 +2,22 @@
 
 **Pointer handoff. Read the spec + linked files; no full recap here.**
 
-## State: BUILDING (spine started)
+## State: SPINE + SLICE 2 + SLICE 3 DONE & VERIFIED — remaining = UAT + PR
 
 - Worktree `.claude/worktrees/job-search-broad-discovery-build`, branch
-  `build/job-search-broad-discovery`, tip `d033584d`.
+  `build/job-search-broad-discovery`, tip `f81ad7a6`.
+- Verified by lead (Opus): tsc exit 0; full job-search suite **632/632 across 40 files**
+  (board regression clean); `monitor.ts` save-branch read line-by-line = correct/secure; largest
+  file 852 lines.
+- **Remaining exit gates (do these next):**
+  1. Real-dev-UAT via **#1000 harness** on a live dev instance: fresh user, NO company URL →
+     real matches from live `https://freehire.dev` (AC1; mocks insufficient). This is the hard
+     UI/UX exit criterion (Ben rule).
+  2. Full `pnpm verify:foundation` green.
+  3. Push branch + open PR (Part of #1229 / epic #913). NOT done yet — no PR exists.
+- All slices below are COMPLETE (commits `d033584d` seam, `f0ac652a` provider+fetch,
+  `6b213398` run-branch+freshness, `8bf8f2ae` monitor save-branch, `08c982c9` manifest,
+  `c2c5dc0b` provenance chip, `f81ad7a6` onboarding step).
 - Task issue **#1229** (Part of epic **#913**). Spec approved (Ben: "start the build").
 - Spec: `docs/superpowers/specs/2026-07-21-job-search-broad-discovery.md` (authoritative).
 - agentmemory: recall `"jarvis broad discovery freehire"` → `spec-job-search-broad-discovery`.
