@@ -369,6 +369,16 @@ Both source kinds emit the **same `NormalizedPosting`** (`src/adapters/types.ts`
 evaluation, feed, and retention consume them identically. The registry gains a second fail-closed list
 for discovery providers, gated on the same compliance metadata.
 
+**Hosting (decided 2026-07-21): consume hosted `freehire.dev` for the MVP; self-host later behind the
+same seam.** The freehire provider carries an **operator-configurable base URL**, defaulting to
+`https://freehire.dev`; its `buildRequests` hits `GET /api/v1/jobs/search` (keyless). Standing up a
+self-hosted freehire (its own Go/Postgres/Meilisearch stack — a separate, later infra effort, §9) is
+then a **config change, not a module change**: repoint the base URL and add the self-host host to the
+provider `fetchHosts` + `jarvis.module.json` `fetchHosts` (host-pinning requires the host be listed).
+The base URL is **instance configuration, not a secret** — no credential exists on this path. This
+keeps the module's code identical whether freehire runs on their infra or ours, so the hosting choice
+never has to be re-made in code.
+
 ### 6.2 Adzuna request mapping
 
 - **Endpoint:** `GET https://api.adzuna.com/v1/api/jobs/{country}/search/{page}`
@@ -563,6 +573,9 @@ adapters and `false` for the broad provider; `markFreshnessAfterRun` skips stale
 ### 9.2 Non-goals (explicitly deferred)
 
 - A generic multi-provider **adapter/authoring framework** or provider marketplace.
+- **Self-hosting the freehire service** (its Go/Postgres/Meilisearch/ingest-cron stack) as a bundled
+  Jarvis deployment component. MVP consumes public `freehire.dev`; self-host is a separate later infra
+  milestone, reachable without module code changes (repoint the provider base URL, §6.1).
 - **USAJOBS** federal source and any second/parallel broad source (run one, not both).
 - **Per-user** provider keys / BYO-key UX (Path A only).
 - **Logged-in / credentialed scraping** of a user's personal LinkedIn/Indeed account; **anti-bot
@@ -717,9 +730,10 @@ acceptance run itself must hit the real source.
    (`strelov1/freehire`) and waived the feasibility spike. Adzuna (Path A) and structured scrape (Path
    B) remain documented fallbacks, not built. The residual, non-blocking follow-ups are: **(a)
    non-tech coverage** — freehire is tech-focused, so if the audience broadens, revisit Path A as a
-   supplement; **(b) self-host vs public** — decide whether the operator runs freehire in-house (fully
-   private data path) or the module calls public `freehire.dev` for the MVP (recommendation: public for
-   MVP, self-host documented as an option); **(c) wire contract** — the exact `/api/v1/jobs/search`
+   supplement; **(b) self-host vs public — RESOLVED
+   (2026-07-21):** consume public `freehire.dev` for the MVP; self-hosting freehire is a documented
+   later option behind the same provider seam (§6.1, §9) — a config change, not a module change;
+   **(c) wire contract** — the exact `/api/v1/jobs/search`
    query params and per-job JSON field names must be read from the freehire handler code during build
    (implementation detail).
 2. **(Fallback, Path A only) Adzuna licensing for self-hosted redistribution.** Not on the MVP path;
