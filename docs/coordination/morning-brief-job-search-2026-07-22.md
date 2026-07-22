@@ -67,12 +67,37 @@ paper. I did not file it autonomously — say the word and I will.
 - No push, no PR, no merge.
 - No `verify:foundation` full gate yet (PG in use).
 
-## To seed your AC1 instance
+## Staged — ready for your AC1 instance ✅
 
-`pnpm build:external:job-search` in the reland worktree, stage `external-modules/job-search/dist/`
-into the dev modules dir (`data/modules/job-search` or `JARVIS_MODULES_DIR`), enable via
-Settings → Admin → Instance modules, ensure a chat model is configured for the test user, and
-confirm freehire.dev egress. Full steps in the UAT doc. Tell me to stage it and I'll set it up.
+The reland bundle (`cde5475d`, with the seed fix) is **built and staged** into the dev modules
+discovery dir:
+
+- **Path:** `~/Jarv1s/data/modules/job-search/` — `jarvis.module.json` + `package.json` +
+  `dist/worker.js` + `dist/web/index.js` (all four parity-checked against the reland source).
+- **packageHash:** `sha256:dd4611f674bf2d8cc6609dd8d939d80bc4523b737e07bbeaf0d115ef692a66d2`
+  (self-consistent; drift-guard #917 won't disable it as long as the files aren't touched again).
+- The staged dir is untracked/gitignored — staging did **not** dirty the shared tree.
+
+**No dev instance is currently running** — the only live Jarvis is prod (`:1533`, untouched). To
+run AC1 you need to launch dev yourself (fresh user + real chat model + freehire egress are all
+intrinsically yours to drive). Recipe:
+
+```
+# from a checkout you control (dev PG jarv1s-postgres is already up on :55433)
+JARVIS_ENABLE_EXTERNAL_MODULES=1 \
+JARVIS_MODULES_DIR=~/Jarv1s/data/modules \
+pnpm dev:api   # + pnpm dev:web  + pnpm dev:worker  (bind --host for LAN)
+```
+
+Then: boot-reconcile should discover `job-search`; if it isn't auto-enabled, enable via
+**Settings → Admin → Instance modules**. Ensure the test user has a chat model configured (the
+assistant must be able to fire `monitor.save`). Full step-by-step + PASS criteria in the UAT doc.
+
+> Note: the shared main checkout `~/Jarv1s` is currently on another session's branch
+> (`spec/964-module-distribution`) — don't switch its branch. The staged module bundle is
+> self-contained/prebuilt, so the host can run from main or any branch ≥ `86b6bc2d` (which already
+> passes `assistantSurface` to every module Root); the reland's changes are entirely inside the
+> module bundle.
 
 ---
 
