@@ -46,3 +46,33 @@ export async function invokeTool<T extends Record<string, unknown>>(
   }
   return { kind: "error", message: `Request failed (${response.status})` };
 }
+
+export type RunOutcome =
+  | { kind: "queued" }
+  | { kind: "already-queued" }
+  | { kind: "disabled" }
+  | { kind: "error"; message: string };
+
+export async function runQueue(
+  queueName: string,
+  jobKind: string,
+  params?: Record<string, unknown>
+): Promise<RunOutcome> {
+  let response: { status: number; json: () => Promise<unknown> };
+  try {
+    response = await fetch(`/api/modules/job-search/queues/${encodeURIComponent(queueName)}/run`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jobKind, ...(params ? { params } : {}) })
+    });
+  } catch {
+    return { kind: "error", message: "Network error" };
+  }
+  if (response.status === 202) {
+    const body = (await parseJson(response)) as { jobId?: string | null } | null;
+    return body?.jobId ? { kind: "queued" } : { kind: "already-queued" };
+  }
+  if (response.status === 404) return { kind: "disabled" };
+  return { kind: "error", message: `Request failed (${response.status})` };
+}
