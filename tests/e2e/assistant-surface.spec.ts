@@ -23,10 +23,17 @@ test("embedded assistant owns chat presence and restores the drawer on unmount (
     toolName: "job-search.profile.approve",
     summary: "Approve profile"
   });
-  let streamServed = false;
-  await page.route("**/api/chat/stream", async (route) => {
-    if (streamServed) return;
-    streamServed = true;
+  await page.route("**/api/chat/stream*", async (route) => {
+    const surface = new URL(route.request().url()).searchParams.get("surface");
+    if (surface !== "job-search") {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        headers: { "cache-control": "no-cache" },
+        body: ""
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: "text/event-stream",
@@ -49,7 +56,7 @@ test("embedded assistant owns chat presence and restores the drawer on unmount (
 
   const surface = page.locator(".assistant-surface");
   await expect(surface).toBeVisible();
-  await expect(chatToggle).toBeDisabled();
+  await expect(chatToggle).toBeEnabled();
   await expect(page.getByRole("dialog", { name: "Chat with Jarvis" })).toHaveCount(0);
   await expect(surface.locator(".chatd-md strong")).toHaveText("Embedded reply");
   await expect(surface.locator(".action-request-card")).toBeVisible();
@@ -95,6 +102,12 @@ test("embedded assistant owns chat presence and restores the drawer on unmount (
   await expect
     .poll(() => turnTexts)
     .toEqual(["Enter sends once", "Line one\nLine two", "Composing text"]);
+
+  await chatToggle.click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await expect(drawer).toBeVisible();
+  await expect(drawer).not.toContainText("Embedded reply");
+  await chatToggle.click();
 
   await page.getByRole("link", { name: "Today" }).click();
   await expect(chatToggle).toBeEnabled();

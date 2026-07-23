@@ -77,7 +77,10 @@ function isChatRecordKind(value: string): value is ChatRecordKind {
  * reconnect automatically; we just append parsed records to local state and close on
  * unmount. `clearRecords` resets the local log (used by the "New chat" action).
  */
-export function useChatStream(surface?: ChatSurface): {
+export function useChatStream(
+  surface?: ChatSurface,
+  enabled = true
+): {
   readonly records: readonly TranscriptRecord[];
   readonly clearRecords: () => void;
   readonly streamErrorCount: number;
@@ -88,6 +91,7 @@ export function useChatStream(surface?: ChatSurface): {
   const clearRecords = useCallback(() => setRecords([]), []);
 
   useEffect(() => {
+    if (!enabled) return;
     const source = new EventSource(chatStreamUrl(surface), { withCredentials: true });
 
     source.onmessage = (event) => {
@@ -112,10 +116,10 @@ export function useChatStream(surface?: ChatSurface): {
     source.onerror = () => setStreamErrorCount((count) => count + 1);
 
     return () => source.close();
-  }, [surface]);
+  }, [enabled, surface]);
 
   useEffect(() => {
-    if (!surface) return;
+    if (!surface || !enabled) return;
     let active = true;
     void (async () => {
       try {
@@ -133,7 +137,7 @@ export function useChatStream(surface?: ChatSurface): {
     return () => {
       active = false;
     };
-  }, [surface]);
+  }, [enabled, surface]);
 
   return { records, clearRecords, streamErrorCount };
 }

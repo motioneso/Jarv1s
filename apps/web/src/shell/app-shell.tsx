@@ -131,7 +131,10 @@ export function AppShell(props: AppShellProps) {
   const { records, clearRecords, streamErrorCount } = useChatStream();
   // #1232 — the Job Search page has a second shell-owned stream. It keeps drawer and module
   // transcripts isolated while the app frame remains mounted around both.
-  const { records: jobSearchRecords } = useChatStream(JOB_SEARCH_SURFACE);
+  const { records: jobSearchRecords } = useChatStream(
+    JOB_SEARCH_SURFACE,
+    location.pathname.startsWith("/m/job-search")
+  );
   const assistantRecordListeners = useRef({
     drawer: new Set<(records: readonly AssistantRecordV1[]) => void>(),
     "job-search": new Set<(records: readonly AssistantRecordV1[]) => void>()
@@ -326,7 +329,6 @@ export function AppShell(props: AppShellProps) {
               className={`icon-button ${chatOpen ? "active" : ""}`}
               title="Ask Jarvis"
               type="button"
-              disabled={assistantSurfacePresent}
               onClick={() => setChatOpen((open) => !open)}
             >
               <MessageSquare size={19} aria-hidden="true" />
