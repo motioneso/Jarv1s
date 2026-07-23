@@ -100,7 +100,6 @@ export function AppShell(props: AppShellProps) {
   const [moduleDraft, setModuleDraft] = useState<string | undefined>(undefined);
   const [focusActionRequestId, setFocusActionRequestId] = useState<string | null>(null);
   const embeddedComposerRef = useRef<((draft: string) => void) | null>(null);
-  const [assistantSurfacePresent, setAssistantSurfacePresent] = useState(false);
   const [theme] = useState<ShellTheme>(() => loadShellTheme());
   const [colorMode] = useState(() => loadShellColorMode());
   useEffect(() => {
@@ -158,12 +157,11 @@ export function AppShell(props: AppShellProps) {
     for (const listener of assistantRecordListeners.current["job-search"])
       listener(jobSearchRecords);
   }, [jobSearchRecords]);
-  // #1196 — one external route mounts at a time. Presence owns assistant focus until unmount:
-  // close the drawer, route host drafts inline, then restore the ordinary shell controls.
+  // #1196/#1232 — one external route mounts at a time. Route hosts receive drafts inline while
+  // the ordinary shell controls remain available for the visible drawer-isolation check.
   const registerAssistantComposer = useCallback<AssistantSurfaceHostValue["registerComposer"]>(
     (acceptDraft) => {
       embeddedComposerRef.current = acceptDraft;
-      setAssistantSurfacePresent(true);
       setChatOpen(false);
       setAskJarvisStarter(undefined);
       setModuleDraft(undefined);
@@ -171,7 +169,6 @@ export function AppShell(props: AppShellProps) {
       return () => {
         if (embeddedComposerRef.current !== acceptDraft) return;
         embeddedComposerRef.current = null;
-        setAssistantSurfacePresent(false);
       };
     },
     []
