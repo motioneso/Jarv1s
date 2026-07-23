@@ -28,7 +28,10 @@ describe("AI provider execution mode", () => {
     await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
   });
 
-  it("defaults providers to interactive mode", async () => {
+  // #1238/#1239: one-shot ("-p"/"exec") is the default for every provider; interactive is an
+  // opt-in per-provider fallback (proven by the create-with-non_interactive + patch-to-interactive
+  // cases below). A create that omits executionMode must resolve to non_interactive.
+  it("defaults providers to non_interactive (one-shot) mode", async () => {
     const res = await server.inject({
       method: "POST",
       url: "/api/ai/providers",
@@ -41,7 +44,7 @@ describe("AI provider execution mode", () => {
     });
 
     expect(res.statusCode).toBe(201);
-    expect(res.json().provider.executionMode).toBe("interactive");
+    expect(res.json().provider.executionMode).toBe("non_interactive");
   });
 
   it("persists provider execution mode updates", async () => {

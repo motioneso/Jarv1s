@@ -732,6 +732,8 @@ export class ChatEngineRpcClient implements CliChatEngine {
     public readonly provider: ProviderKind,
     private readonly sessionKey: string,
     private readonly conn: RpcConnection,
+    // Defensive-only default (the value is always threaded from the NOT NULL DB column in prod);
+    // the one-shot-by-default flip lives at the DB + repository write-path layer (#1238/#1239).
     private readonly executionMode: AiProviderExecutionMode = "interactive"
   ) {}
 

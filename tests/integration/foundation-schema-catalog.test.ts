@@ -295,7 +295,10 @@ describe("MVP foundation schema catalog", () => {
         { version: "0170", name: "0170_notification_reads_worker_policy_comment.sql" },
         // FIN-00 #1145 — worker-written user-scope credentials (auth.setCredential RPC):
         // INSERT+UPDATE grants for jarvis_worker_runtime, RLS owner+module-bound, user scope only.
-        { version: "0171", name: "0171_module_credentials_worker_write.sql" }
+        { version: "0171", name: "0171_module_credentials_worker_write.sql" },
+        // #1238/#1239 — default execution_mode flips 'interactive' → 'non_interactive'
+        // (one-shot engine default for all providers); interactive stays a per-provider fallback.
+        { version: "0172", name: "0172_default_execution_mode_non_interactive.sql" }
       ]);
     } finally {
       await client.end();

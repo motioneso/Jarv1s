@@ -384,7 +384,11 @@ export class AiRepository {
         base_url: input.baseUrl ?? null,
         status: input.status ?? "active",
         auth_method: input.authMethod ?? "api_key",
-        execution_mode: input.executionMode ?? "interactive",
+        // #1238/#1239: one-shot is the default for every new provider config, including
+        // auto-registered CLI providers (auto-register omits executionMode). This write-path
+        // default must match the DB default (migration 0172) — the column is always written
+        // here, so the DB DEFAULT alone would never apply. Interactive stays selectable.
+        execution_mode: input.executionMode ?? "non_interactive",
         encrypted_credential: input.encryptedCredential,
         // #874 CRIT-1: the generic create path always produces an ASSISTANT provider (DB default is
         // 'assistant'; not overridable here). The voice endpoint has its own upsert path
