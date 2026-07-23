@@ -161,11 +161,12 @@ describe("Job Search resume worker (#1233)", () => {
     });
     const record = await storedRecord(ports);
     if (!record) throw new Error("expected resume record");
-    const sourceRevisionId = (record.revisions[0] as { id: string }).id;
+    const revisions = record.revisions as Array<Record<string, unknown>>;
+    const sourceRevisionId = (revisions[0] as { id: string }).id;
     const reviewRecord = {
       ...record,
       revisions: [
-        ...record.revisions,
+        ...revisions,
         {
           id: "review-1",
           version: 1,
@@ -180,7 +181,9 @@ describe("Job Search resume worker (#1233)", () => {
     };
     await ports.kv.set(NS.resume, "record", reviewRecord);
 
-    const approved = await wrap(HANDLERS["resume-revise"]!(ports))({ revisionId: "review-1" });
+    const approved = await wrap(HANDLERS["resume-revise"]!(ports))({
+      params: { revisionId: "review-1" }
+    });
     expect(approved).toMatchObject({ state: "approved", appliedRevisionId: "review-1" });
     expect(await storedRecord(ports)).toMatchObject({
       current: { status: "approved" },
@@ -192,7 +195,7 @@ describe("Job Search resume worker (#1233)", () => {
     });
 
     await expect(
-      wrap(HANDLERS["resume-revise"]!(ports))({ revisionId: "missing" })
+      wrap(HANDLERS["resume-revise"]!(ports))({ params: { revisionId: "missing" } })
     ).resolves.toEqual({
       status: "error",
       code: "unknown_revision",

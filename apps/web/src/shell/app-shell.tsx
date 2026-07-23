@@ -173,14 +173,24 @@ export function AppShell(props: AppShellProps) {
     },
     []
   );
+  const seedAssistantComposer = useCallback((draft: string) => {
+    embeddedComposerRef.current?.(draft);
+  }, []);
   const assistantSurfaceHost = useMemo<AssistantSurfaceHostValue>(
     () => ({
       records,
       recordsForSurface: (surface) => (surface === JOB_SEARCH_SURFACE ? jobSearchRecords : records),
       registerComposer: registerAssistantComposer,
+      seedComposer: seedAssistantComposer,
       subscribeRecords: subscribeAssistantRecords
     }),
-    [records, jobSearchRecords, registerAssistantComposer, subscribeAssistantRecords]
+    [
+      records,
+      jobSearchRecords,
+      registerAssistantComposer,
+      seedAssistantComposer,
+      subscribeAssistantRecords
+    ]
   );
   const pendingNotesDelete = useMemo(() => {
     const results = new Set(

@@ -113,6 +113,25 @@ describe("ChatGatewayNotifier", () => {
     expect(record.actionRequestId).toBe("ar_1");
   });
 
+  it("keeps structured module results on the live action record", () => {
+    const manager = makeManager();
+    const notifier = new ChatGatewayNotifier(manager);
+
+    notifier.emit("u1", {
+      kind: "action_result",
+      actionRequestId: "ar_resume",
+      toolName: "job-search.resume.critique",
+      outcome: "executed",
+      result: { status: "ok", revisionId: "review-1" }
+    });
+
+    const [, record] = (manager.injectRecord as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      TranscriptRecord
+    ];
+    expect(record.result).toEqual({ status: "ok", revisionId: "review-1" });
+  });
+
   it("renders an allowed outcome as 'Allowed by YOLO'", () => {
     const manager = makeManager();
     const notifier = new ChatGatewayNotifier(manager);

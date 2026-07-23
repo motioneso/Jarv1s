@@ -8,7 +8,8 @@ import { AssistantSurface } from "./surface";
 export function createAssistantSurfaceHandle(
   moduleId: string,
   subscribeRecords: AssistantSurfaceHandleV1["subscribeRecords"],
-  surface?: string
+  surface?: string,
+  seedComposer?: (draft: string) => void
 ): AssistantSurfaceHandleV1 {
   const scopedSurface = surface as ChatSurface | undefined;
   const Surface = surface
@@ -17,6 +18,7 @@ export function createAssistantSurfaceHandle(
   return {
     Surface,
     seedOnboarding: () => seedModuleOnboarding(moduleId, scopedSurface),
+    seedComposer: (draft) => seedComposer?.(draft),
     async submitTurn(input) {
       await sendChatTurn(input.text, input.attachmentIds, input.controlContext, scopedSurface);
     },

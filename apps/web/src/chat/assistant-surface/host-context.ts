@@ -7,6 +7,7 @@ export interface AssistantSurfaceHostValue {
   /** #1232 — read the host-owned transcript for a named module surface. */
   readonly recordsForSurface?: (surface: string) => readonly AssistantRecordV1[];
   readonly registerComposer: (acceptDraft: (draft: string) => void) => () => void;
+  readonly seedComposer?: (draft: string) => void;
   readonly subscribeRecords: (
     listener: (records: readonly AssistantRecordV1[]) => void,
     surface?: string

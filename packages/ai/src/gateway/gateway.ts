@@ -17,7 +17,7 @@ import { summarizeAssistantToolInput } from "../assistant-tools.js";
 import type { AiRepository, InsertAuditLogInput } from "../repository.js";
 import type { ConfirmationRegistry } from "./confirmation-registry.js";
 import { validateToolInput } from "./input-validation.js";
-import { renderAndCap } from "./output-validation.js";
+import { renderAndCap, sanitizeAssistantToolResult } from "./output-validation.js";
 import { resolvePolicy } from "./policy.js";
 import type { AgencyPrefLookup, ActionPolicyLookup } from "./policy.js";
 import type { SessionTokenRegistry } from "./session-tokens.js";
@@ -163,7 +163,10 @@ export class AssistantToolGateway {
         kind: "action_result",
         actionRequestId: ctx.requestId,
         toolName: found.dto.name,
-        outcome: result.ok ? "executed" : "error"
+        outcome: result.ok ? "executed" : "error",
+        ...(found.dto.name === "job-search.resume.critique" && result.ok && result.structuredData
+          ? { result: result.structuredData }
+          : {})
       });
       const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
       void this.recordAudit(access, found, {
@@ -181,7 +184,10 @@ export class AssistantToolGateway {
           kind: "action_result",
           actionRequestId: ctx.requestId,
           toolName: found.dto.name,
-          outcome: result.ok ? "executed" : "error"
+          outcome: result.ok ? "executed" : "error",
+          ...(found.dto.name === "job-search.resume.critique" && result.ok && result.structuredData
+            ? { result: result.structuredData }
+            : {})
         });
         const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
         void this.recordAudit(access, found, {
@@ -429,6 +435,7 @@ export class AssistantToolGateway {
       const result = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
         found.execute(scopedDb, input, ctx, services)
       );
+      const sanitized = sanitizeAssistantToolResult(found.tool.outputSchema, result);
       return {
         ok: true,
         data: renderAndCap(
@@ -439,6 +446,7 @@ export class AssistantToolGateway {
           // externalContent: true on web.search + web.read; all others leave it unset).
           found.tool.externalContent ? found.tool.name : undefined
         ),
+        structuredData: sanitized.data,
         // #1133 — media (image bytes) bypasses renderAndCap on purpose: sanitize's schema
         // projection would drop the field and the 16k text cap would truncate base64. Size
         // is already bounded at upload (attachment caps), and the payload flows only over
@@ -531,7 +539,10 @@ export class AssistantToolGateway {
       kind: "action_result",
       actionRequestId: action.id,
       toolName: found.dto.name,
-      outcome: result.ok ? "executed" : "error"
+      outcome: result.ok ? "executed" : "error",
+      ...(found.dto.name === "job-search.resume.critique" && result.ok && result.structuredData
+        ? { result: result.structuredData }
+        : {})
     });
     void this.recordAudit(access, found, {
       approvalMode: "confirmed",

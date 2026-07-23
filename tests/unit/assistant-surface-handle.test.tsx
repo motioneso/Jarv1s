@@ -31,11 +31,19 @@ describe("createAssistantSurfaceHandle", () => {
     vi.stubGlobal("fetch", fetchMock);
     const unsubscribe = vi.fn();
     const subscribeRecords = vi.fn(() => unsubscribe);
-    const handle = createAssistantSurfaceHandle("job-search", subscribeRecords);
+    const seedComposer = vi.fn();
+    const handle = createAssistantSurfaceHandle(
+      "job-search",
+      subscribeRecords,
+      undefined,
+      seedComposer
+    );
 
     expect(handle.Surface).toBe(AssistantSurface);
     expect(handle.subscribeRecords).toBe(subscribeRecords);
     expect(handle.subscribeRecords(vi.fn())).toBe(unsubscribe);
+    handle.seedComposer("Please revise the summary");
+    expect(seedComposer).toHaveBeenCalledWith("Please revise the summary");
 
     await expect(handle.seedOnboarding()).resolves.toEqual({ ok: true });
     await handle.submitTurn({

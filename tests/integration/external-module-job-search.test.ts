@@ -8,12 +8,14 @@ import { sql, type Kysely } from "kysely";
 
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import {
+  createModuleCredentialSecretCipher,
   deleteModuleKvKey,
   getModuleKvValue,
   listModuleKvKeys,
   setModuleKvValue
 } from "@jarv1s/settings";
 import {
+  createExternalModuleRpcHandler,
   ExternalModuleWorkerRuntime,
   getExternalModuleRegistrations,
   validateExternalModuleManifest
@@ -205,7 +207,104 @@ describe("Job Search module activation (#1232)", () => {
       await runtime.close();
     }
   });
+
+  it("keeps intake, critique, and approval owner-scoped over the real worker runtime", async () => {
+    const other = await signUp(server);
+    const discovery = getExternalModuleRegistrations({
+      modulesDir: moduleDir,
+      coreVersion: "0.1.0"
+    }).discoveries[0];
+    if (!discovery) throw new Error("Job Search discovery missing");
+
+    const runtime = new ExternalModuleWorkerRuntime({ invocationTimeoutMs: 10_000 });
+    const resumeText = "Led a migration from a legacy platform. Managed a team of six engineers.";
+    const calls: string[] = [];
+    const invokeFor = (actorUserId: string, handler: string, input: Record<string, unknown>) => {
+      const rpc = createExternalModuleRpcHandler({
+        module: discovery,
+        toolRisk: "write",
+        actorUserId,
+        requestId: `job-search-resume-${actorUserId}-${handler}`,
+        workerDataContext: new DataContextRunner(workerDb),
+        cipher: createModuleCredentialSecretCipher(),
+        isActorAdmin: async () => false,
+        ai: async (_scopedDb, request) => {
+          calls.push(request.tierHint ?? "missing");
+          return {
+            ok: true as const,
+            object: {
+              critique: [{ section: "Experience", text: "Keep the scope visible." }],
+              revisions: [
+                {
+                  section: "Summary",
+                  before: "Led a migration",
+                  after: "Led a platform migration with clear outcomes.",
+                  evidence: "Led a migration"
+                }
+              ],
+              strengths: [{ text: "Migration leadership", evidence: "Led a migration" }],
+              gaps: [{ text: "Cloud certification" }]
+            }
+          };
+        }
+      });
+      return runtime.invoke(discovery, handler, input, rpc);
+    };
+
+    const readResume = (actorUserId: string) =>
+      new DataContextRunner(workerDb).withDataContext(
+        { actorUserId, requestId: `job-search-resume-read-${actorUserId}` },
+        async (scopedDb) => {
+          await sql`SELECT set_config('app.current_module_id', ${"job-search"}, true)`.execute(
+            scopedDb.db
+          );
+          return getModuleKvValue(scopedDb, {
+            moduleId: "job-search",
+            namespace: "job-search.resume",
+            scope: "user",
+            ownerUserId: actorUserId,
+            key: "record"
+          });
+        }
+      );
+
+    try {
+      await invokeFor(userId, "resume.intake", { source: "paste", text: resumeText });
+      const critique = (await invokeFor(userId, "resume.critique", {})) as {
+        status: string;
+        revisionId: string;
+      };
+      expect(critique.status).toBe("ok");
+      expect(calls).toEqual(["reasoning"]);
+
+      const approved = (await invokeFor(userId, "resume-revise", {
+        params: { revisionId: critique.revisionId }
+      })) as { status: string; state: string };
+      expect(approved).toMatchObject({ status: "ok", state: "approved" });
+
+      await expect(readResume(other.userId)).resolves.toBeNull();
+      await expect(readResume(userId)).resolves.toMatchObject({
+        current: {
+          status: "approved",
+          text: "Led a platform migration with clear outcomes. from a legacy platform. Managed a team of six engineers."
+        },
+        revisions: [
+          { kind: "source" },
+          { kind: "review", artifact: { strengths: [{ evidence: "Led a migration" }] } },
+          {
+            kind: "approved",
+            sourceText:
+              "Led a platform migration with clear outcomes. from a legacy platform. Managed a team of six engineers."
+          }
+        ]
+      });
+    } finally {
+      await runtime.close();
+    }
+  });
 });
+
+let signUpCount = 0;
 
 async function signUp(
   target: ReturnType<typeof createApiServer>
@@ -216,7 +315,7 @@ async function signUp(
     headers: { "content-type": "application/json" },
     payload: {
       name: "Job Search Owner",
-      email: "job-search-js01@example.test",
+      email: `job-search-js01-${++signUpCount}@example.test`,
       password: "correct horse battery staple"
     }
   });

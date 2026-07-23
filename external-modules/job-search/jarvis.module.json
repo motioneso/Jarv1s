@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "job-search",
   "name": "Job Search",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "Jarvis Project",
   "lifecycle": "optional",
   "compatibility": { "jarv1s": ">=0.1.0" },
@@ -26,6 +26,31 @@
       "risk": "read",
       "inputSchema": { "type": "object", "additionalProperties": false },
       "handler": "profiles.list"
+    },
+    {
+      "name": "job-search.resume.intake",
+      "permissionId": "job-search.resume.intake",
+      "description": "Save resume text from an upload, paste, or interview.",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source"],
+        "properties": {
+          "source": { "type": "string", "enum": ["upload", "paste", "interview"] },
+          "attachmentId": { "type": "string", "format": "uuid" },
+          "text": { "type": "string", "maxLength": 120000 }
+        }
+      },
+      "handler": "resume.intake"
+    },
+    {
+      "name": "job-search.resume.critique",
+      "permissionId": "job-search.resume.critique",
+      "description": "Review the saved resume with evidence-grounded critique and revisions.",
+      "risk": "write",
+      "inputSchema": { "type": "object", "additionalProperties": false },
+      "handler": "resume.critique"
     }
   ],
   "assistantOnboarding": {
@@ -38,6 +63,13 @@
         "handler": "reset",
         "retryLimit": 1,
         "allowManualRun": false
+      },
+      {
+        "name": "job-search.resume-revise",
+        "handler": "resume-revise",
+        "retryLimit": 1,
+        "allowManualRun": true,
+        "paramsSchema": { "type": "object", "fields": { "revisionId": { "type": "identifier" } } }
       }
     ],
     "reconcileJobs": [

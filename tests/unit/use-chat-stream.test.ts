@@ -39,6 +39,19 @@ describe("parseRecord", () => {
     expect(record?.outcome).toBe("executed");
   });
 
+  it("parses a structured module result on an action_result record", () => {
+    const record = parseRecord(
+      JSON.stringify({
+        kind: "action_result",
+        text: "Executed: job-search.resume.critique",
+        toolName: "job-search.resume.critique",
+        outcome: "executed",
+        result: { status: "ok", revisionId: "review-1" }
+      })
+    );
+    expect(record?.result).toEqual({ status: "ok", revisionId: "review-1" });
+  });
+
   it("returns null for non-JSON", () => {
     expect(parseRecord("not-json")).toBeNull();
   });

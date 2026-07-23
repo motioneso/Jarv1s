@@ -17,6 +17,7 @@ describe("Job Search external module manifest (#1232)", () => {
     expect(result).toMatchObject({ ok: true });
     if (!result.ok) throw new Error(result.errors.join(", "));
 
+    expect(result.manifest.version).toBe("0.2.0");
     expect(result.manifest.storage).toEqual([
       { namespace: "job-search.profiles", scopes: ["user"] },
       { namespace: "job-search.resume", scopes: ["user"] },
@@ -34,7 +35,34 @@ describe("Job Search external module manifest (#1232)", () => {
         permissionId: "job-search.profiles.list",
         risk: "read",
         handler: "profiles.list"
+      }),
+      expect.objectContaining({
+        name: "job-search.resume.intake",
+        permissionId: "job-search.resume.intake",
+        risk: "write",
+        handler: "resume.intake"
+      }),
+      expect.objectContaining({
+        name: "job-search.resume.critique",
+        permissionId: "job-search.resume.critique",
+        risk: "write",
+        handler: "resume.critique"
       })
+    ]);
+    expect(result.manifest.worker?.queues).toEqual([
+      {
+        name: "job-search.reset",
+        handler: "reset",
+        retryLimit: 1,
+        allowManualRun: false
+      },
+      {
+        name: "job-search.resume-revise",
+        handler: "resume-revise",
+        retryLimit: 1,
+        allowManualRun: true,
+        paramsSchema: { type: "object", fields: { revisionId: { type: "identifier" } } }
+      }
     ]);
     expect(result.manifest.navigation).toEqual([
       { id: "job-search", label: "Job Search", path: "/", icon: "briefcase" }

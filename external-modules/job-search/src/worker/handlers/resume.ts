@@ -12,9 +12,8 @@ import {
 } from "../../domain/resume.js";
 import { JobSearchKvError } from "../../domain/errors.js";
 import { NS, type JobSearchKv } from "../../domain/kv-port.js";
-import type { JobSearchAiInput, WorkerPorts } from "../ports.js";
+import type { JobSearchAiInput } from "../ports.js";
 import type { ToolFactory } from "../registry.js";
-import type { ToolHandler } from "../wrap.js";
 import { InputError, readString } from "../validate.js";
 
 export const RESUME_RECORD_KEY = "record";
@@ -157,7 +156,8 @@ export const resumeCritiqueHandler: ToolFactory = (ports) => async () => {
 };
 
 export const resumeReviseHandler: ToolFactory = (ports) => async (input) => {
-  const revisionId = readString(input, "revisionId", { required: true });
+  const params = readParams(input);
+  const revisionId = readString(params, "revisionId", { required: true });
   if (!revisionId) throw new InputError("revisionId is required");
   const record = await loadResume(ports.kv, false);
   let approved;
@@ -192,4 +192,12 @@ function readSource(input: Record<string, unknown>): ResumeSource {
     throw new InputError("source must be upload, paste, or interview");
   }
   return source;
+}
+
+function readParams(input: Record<string, unknown>): Record<string, unknown> {
+  const params = input.params;
+  if (!params || typeof params !== "object" || Array.isArray(params)) {
+    throw new InputError("params are required");
+  }
+  return params as Record<string, unknown>;
 }
