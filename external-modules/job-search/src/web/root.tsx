@@ -1,4 +1,5 @@
 import { Landing } from "./landing";
+import { OnboardingScreen, type AssistantSurfaceHandle } from "./onboarding";
 import { useModulePath } from "./router";
 import { h, type ReactNodeLike } from "./runtime";
 import { MODULE_STYLES } from "./styles";
@@ -7,7 +8,7 @@ export type HostActions = { readonly openAssistant: (input: { starterPrompt: str
 
 export function Root(props: {
   hostActions: HostActions;
-  assistantSurface?: unknown;
+  assistantSurface?: AssistantSurfaceHandle;
 }): ReactNodeLike {
   const path = useModulePath();
   return (
@@ -21,6 +22,8 @@ export function Root(props: {
       </header>
       {path === "/" ? (
         <Landing />
+      ) : path === "/onboarding" ? (
+        <OnboardingScreen assistantSurface={props.assistantSurface} />
       ) : (
         <div className="jsn-skeleton jsn-skeleton--line" role="status" />
       )}

@@ -103,7 +103,7 @@ export function ChatDrawer(props: {
       // `incognito = false`) — clear the stale privateMode/privateEnded flags to match server truth.
       setPrivateMode(false);
       setPrivateEnded(false);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads() });
       void queryClient.invalidateQueries({ queryKey: queryKeys.chat.privacy });
     },
     onError: () => {
@@ -170,7 +170,7 @@ export function ChatDrawer(props: {
   const lockedModelUnavailable = chatRouteQuery.data?.route?.reason === "admin-pin-unavailable";
   const chatAvailable = hasConnectedProvider(onboardingStatusQuery.data);
   const threadsQuery = useQuery({
-    queryKey: queryKeys.chat.threads,
+    queryKey: queryKeys.chat.threads(),
     queryFn: () => listChatThreads(),
     enabled: props.open
   });
@@ -229,7 +229,7 @@ export function ChatDrawer(props: {
               (fallback) => !props.records.some((record) => sameTranscriptRecord(record, fallback))
             )
           );
-          void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads() });
         } catch (caught) {
           setPendingUser(null);
           if (isNoActiveChatModelError(caught)) {
@@ -340,7 +340,7 @@ export function ChatDrawer(props: {
     setPrivateEnded(false);
     void clearChat();
     props.clearRecords();
-    void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads() });
   };
 
   const switchToNewModelChat = () => {
@@ -364,7 +364,7 @@ export function ChatDrawer(props: {
         setFallbackRecords([]);
         props.clearRecords();
         setPrivateMode(true);
-        void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads() });
       } catch (caught) {
         setPrivateActivationError(
           caught instanceof Error ? caught.message : "Could not start a private chat"

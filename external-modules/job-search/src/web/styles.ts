@@ -25,5 +25,20 @@ export const MODULE_STYLES = `
 .jsn-skeleton--card-title { width: 68%; height: var(--text-xl); }
 .jsn-skeleton--card-line { width: 44%; height: var(--text-sm); }
 .jsn-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.jsn-onboarding-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(18rem, .75fr); align-items: start; gap: var(--space-6); }
+.jsn-conversation-column { display: grid; gap: var(--space-5); min-width: 0; }
+.jsn-conversation-heading { display: grid; gap: var(--space-2); }
+.jsn-conversation-heading p { max-width: 38rem; margin: 0; color: var(--text-muted); }
+.jsn-profile-aside { position: sticky; top: var(--space-5); display: grid; gap: var(--space-5); padding: var(--space-5); border: var(--border-w) solid var(--border); border-radius: var(--radius-md); background: var(--surface); box-shadow: var(--shadow-sm); }
+.jsn-profile-aside__heading { display: grid; gap: var(--space-2); }
+.jsn-profile-fields { display: grid; gap: var(--space-1); }
+.jsn-profile-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(5rem, .75fr); align-items: center; gap: var(--space-3); min-height: 2.75rem; border-bottom: var(--border-w) solid var(--border-subtle); }
+.jsn-profile-field__label { color: var(--text-muted); font-size: var(--text-sm); }
+.jsn-profile-field__skeleton { display: block; height: var(--text-sm); background: var(--surface-3); border-radius: var(--radius-sm); }
+.jsn-control-slots { display: grid; gap: var(--space-2); width: 100%; }
+.jsn-control-slot { min-height: var(--space-2); }
+.jsn-onboarding-error { display: grid; gap: var(--space-3); max-width: 38rem; padding: var(--space-7) 0; }
+.jsn-onboarding-error p { margin: 0; color: var(--text-muted); }
+@media (max-width: 56rem) { .jsn-onboarding-grid { grid-template-columns: 1fr; } .jsn-profile-aside { position: static; } }
 @media (max-width: 44rem) { .jsn-landing-heading { align-items: start; flex-direction: column; } .jsn-module-header { align-items: start; flex-direction: column; } }
 `;

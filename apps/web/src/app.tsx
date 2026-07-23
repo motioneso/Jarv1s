@@ -349,7 +349,7 @@ function ExternalModuleMount(props: {
   );
   // #1196 — same host-controlled binding as hostActions: module code never supplies its id.
   const assistantSurface = useMemo(
-    () => createAssistantSurfaceHandle(props.moduleId, subscribeRecords),
+    () => createAssistantSurfaceHandle(props.moduleId, subscribeRecords, props.moduleId),
     [props.moduleId, subscribeRecords]
   );
   const Component = props.Component;

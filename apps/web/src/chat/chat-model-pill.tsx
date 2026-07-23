@@ -57,7 +57,7 @@ export function ChatModelPill(props: {
       }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.chatModelOverride }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads })
+        queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads() })
       ]);
     }
   });

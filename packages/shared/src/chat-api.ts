@@ -430,6 +430,11 @@ export const listChatThreadsResponseSchema = {
 } as const;
 
 export const listChatThreadsRouteSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    properties: { surface: { type: "string", pattern: "^[a-z][a-z0-9-]{1,31}$" } }
+  },
   response: {
     200: listChatThreadsResponseSchema,
     401: errorResponseSchema
@@ -463,6 +468,11 @@ export const listChatThreadMessagesResponseSchema = {
 } as const;
 
 export const listChatThreadMessagesRouteSchema = {
+  querystring: {
+    type: "object",
+    additionalProperties: false,
+    properties: { surface: { type: "string", pattern: "^[a-z][a-z0-9-]{1,31}$" } }
+  },
   response: {
     200: listChatThreadMessagesResponseSchema,
     401: errorResponseSchema,

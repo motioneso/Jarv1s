@@ -1,9 +1,9 @@
-import type { SourceFreshnessV1 } from "@jarv1s/shared";
+import type { ChatMessageDto, ChatSurface, SourceFreshnessV1 } from "@jarv1s/shared";
 import { useCallback, useEffect, useState } from "react";
 
 import type { AnswerSourceSupportCard, ChatAttachmentDto } from "@jarv1s/shared";
 
-import { chatStreamUrl } from "../api/client.js";
+import { chatStreamUrl, listChatThreadMessages, listChatThreads } from "../api/client.js";
 
 export type ChatRecordKind =
   | "user"
@@ -77,7 +77,7 @@ function isChatRecordKind(value: string): value is ChatRecordKind {
  * reconnect automatically; we just append parsed records to local state and close on
  * unmount. `clearRecords` resets the local log (used by the "New chat" action).
  */
-export function useChatStream(): {
+export function useChatStream(surface?: ChatSurface): {
   readonly records: readonly TranscriptRecord[];
   readonly clearRecords: () => void;
   readonly streamErrorCount: number;
@@ -88,7 +88,7 @@ export function useChatStream(): {
   const clearRecords = useCallback(() => setRecords([]), []);
 
   useEffect(() => {
-    const source = new EventSource(chatStreamUrl(), { withCredentials: true });
+    const source = new EventSource(chatStreamUrl(surface), { withCredentials: true });
 
     source.onmessage = (event) => {
       const record = parseRecord(event.data);
@@ -112,9 +112,55 @@ export function useChatStream(): {
     source.onerror = () => setStreamErrorCount((count) => count + 1);
 
     return () => source.close();
-  }, []);
+  }, [surface]);
+
+  useEffect(() => {
+    if (!surface) return;
+    let active = true;
+    void (async () => {
+      try {
+        const { threads } = await listChatThreads(surface);
+        const thread = threads[0];
+        if (!thread) return;
+        const { messages } = await listChatThreadMessages(thread.id, surface);
+        if (!active) return;
+        const history = recordsFromMessages(messages);
+        setRecords((current) => (current.length === 0 ? history : current));
+      } catch {
+        // The live stream remains authoritative; an unavailable history read must not block chat.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [surface]);
 
   return { records, clearRecords, streamErrorCount };
+}
+
+function recordsFromMessages(messages: readonly ChatMessageDto[]): TranscriptRecord[] {
+  return messages.flatMap((message): TranscriptRecord[] => {
+    if (message.role === "user") {
+      return [
+        {
+          kind: "user",
+          text: message.body,
+          messageId: message.id,
+          attachments: message.attachments
+        }
+      ];
+    }
+    return [
+      {
+        kind: "reply",
+        text: message.body,
+        messageId: message.id,
+        sourceFreshness: message.sourceFreshness,
+        answerProvenance: message.answerProvenance,
+        answerProvenanceCitedIds: message.answerProvenanceCitedIds
+      }
+    ];
+  });
 }
 
 export function shouldEndPrivateChatOnStreamDisconnect(input: {

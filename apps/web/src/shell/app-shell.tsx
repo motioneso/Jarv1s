@@ -55,7 +55,7 @@ import {
   saveShellTheme,
   type ShellTheme
 } from "./theme-storage";
-import type { MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
+import type { ChatSurface, MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
 
 interface AppShellProps {
   readonly children: ReactNode;
@@ -80,6 +80,8 @@ const iconMap: Record<string, ComponentType<{ readonly size?: number }>> = {
   settings: Settings,
   trophy: Trophy
 };
+
+const JOB_SEARCH_SURFACE = "job-search" as ChatSurface;
 
 export function AppShell(props: AppShellProps) {
   usePageContextSync();
@@ -127,24 +129,32 @@ export function AppShell(props: AppShellProps) {
   // Lifted to the shell so the SSE stream + transcript persist while the drawer is
   // closed and as the user navigates between pages — the chat follows the user.
   const { records, clearRecords, streamErrorCount } = useChatStream();
-  // #1196 — external modules subscribe to this same shell-owned stream. Immediate delivery avoids
-  // a mount race when records arrived before the module bundle finished loading.
-  const assistantRecordListeners = useRef(
-    new Set<(records: readonly AssistantRecordV1[]) => void>()
-  );
-  const recordsRef = useRef(records);
-  recordsRef.current = records;
+  // #1232 — the Job Search page has a second shell-owned stream. It keeps drawer and module
+  // transcripts isolated while the app frame remains mounted around both.
+  const { records: jobSearchRecords } = useChatStream(JOB_SEARCH_SURFACE);
+  const assistantRecordListeners = useRef({
+    drawer: new Set<(records: readonly AssistantRecordV1[]) => void>(),
+    "job-search": new Set<(records: readonly AssistantRecordV1[]) => void>()
+  });
+  const recordsRef = useRef({ drawer: records, "job-search": jobSearchRecords });
+  recordsRef.current = { drawer: records, "job-search": jobSearchRecords };
   const subscribeAssistantRecords = useCallback<AssistantSurfaceHostValue["subscribeRecords"]>(
-    (listener) => {
-      assistantRecordListeners.current.add(listener);
-      listener(recordsRef.current);
-      return () => assistantRecordListeners.current.delete(listener);
+    (listener, surface) => {
+      const key = surface === JOB_SEARCH_SURFACE ? "job-search" : "drawer";
+      const listeners = assistantRecordListeners.current[key];
+      listeners.add(listener);
+      listener(recordsRef.current[key]);
+      return () => listeners.delete(listener);
     },
     []
   );
   useEffect(() => {
-    for (const listener of assistantRecordListeners.current) listener(records);
+    for (const listener of assistantRecordListeners.current.drawer) listener(records);
   }, [records]);
+  useEffect(() => {
+    for (const listener of assistantRecordListeners.current["job-search"])
+      listener(jobSearchRecords);
+  }, [jobSearchRecords]);
   // #1196 — one external route mounts at a time. Presence owns assistant focus until unmount:
   // close the drawer, route host drafts inline, then restore the ordinary shell controls.
   const registerAssistantComposer = useCallback<AssistantSurfaceHostValue["registerComposer"]>(
@@ -166,10 +176,11 @@ export function AppShell(props: AppShellProps) {
   const assistantSurfaceHost = useMemo<AssistantSurfaceHostValue>(
     () => ({
       records,
+      recordsForSurface: (surface) => (surface === JOB_SEARCH_SURFACE ? jobSearchRecords : records),
       registerComposer: registerAssistantComposer,
       subscribeRecords: subscribeAssistantRecords
     }),
-    [records, registerAssistantComposer, subscribeAssistantRecords]
+    [records, jobSearchRecords, registerAssistantComposer, subscribeAssistantRecords]
   );
   const pendingNotesDelete = useMemo(() => {
     const results = new Set(

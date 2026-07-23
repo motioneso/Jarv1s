@@ -153,7 +153,7 @@ export function TodayPage(props: {
     onSuccess: () => {
       // The seeded interview turn arrives via the global chat SSE stream; just
       // refresh the thread list. The drawer is already open (see onPrep below).
-      void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.chat.threads() });
     },
     // #891: the seed POST reaches submitTurn, which needs a configured chat model
     // and can reject (unconfigured model, provider error, rate limit). Keep a

@@ -19,6 +19,7 @@ import {
   listChatThreadMessagesRouteSchema,
   listChatThreadsRouteSchema,
   listMemoryCorrectionsRouteSchema,
+  normalizeChatSurface,
   normalizeChatSettings,
   putChatSettingsRouteSchema,
   type AiModelCapability,
@@ -420,8 +421,9 @@ export function registerChatRoutes(
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
+        const surface = readRouteSurface(request.query);
         const threads = await dependencies.dataContext.withDataContext(accessContext, (scopedDb) =>
-          repository.listThreads(scopedDb)
+          repository.listThreads(scopedDb, surface)
         );
         return { threads: threads.map(serializeThread) };
       } catch (error) {
@@ -436,10 +438,11 @@ export function registerChatRoutes(
     async (request, reply) => {
       try {
         const access = await dependencies.resolveAccessContext(request);
+        const surface = readRouteSurface(request.query);
         const messages = await dependencies.dataContext.withDataContext(
           access,
           async (scopedDb) => {
-            const thread = await repository.getThreadById(scopedDb, request.params.id);
+            const thread = await repository.getThreadById(scopedDb, request.params.id, surface);
             if (thread?.owner_user_id !== access.actorUserId) return null;
             if (!thread) return null;
             return repository.listMessages(scopedDb, thread.id);
@@ -679,6 +682,16 @@ export function registerChatRoutes(
       }
     }
   );
+}
+
+function readRouteSurface(query: unknown) {
+  const raw =
+    query && typeof query === "object" ? (query as { surface?: unknown }).surface : undefined;
+  try {
+    return normalizeChatSurface(raw);
+  } catch {
+    throw new Error("Invalid chat surface");
+  }
 }
 
 /**

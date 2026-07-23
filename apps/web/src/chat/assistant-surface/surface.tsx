@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { ChatSurface } from "@jarv1s/shared";
 
 import { sendChatTurn } from "../../api/client";
 import { BrandMark } from "../../shell/brand-mark";
@@ -17,7 +18,7 @@ const DEFAULT_RECORD_KINDS: ReadonlySet<ChatRecordKind> = new Set([
 ]);
 
 export function AssistantSurface(props: AssistantSurfaceViewProps) {
-  const { records, registerComposer } = useAssistantSurfaceHost();
+  const { records, registerComposer } = useAssistantSurfaceHost(props.surface);
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const allowed = props.recordKinds ? new Set(props.recordKinds) : DEFAULT_RECORD_KINDS;
@@ -36,7 +37,9 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
     const text = draft.trim();
     if (!text) return;
     const outcome = props.composer?.onSubmitText?.(text) ?? "send";
-    if (outcome === "send") void sendChatTurn(text);
+    if (outcome === "send") {
+      void sendChatTurn(text, undefined, undefined, props.surface as ChatSurface);
+    }
     setDraft("");
   };
 
