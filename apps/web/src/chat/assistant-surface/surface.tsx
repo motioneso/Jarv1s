@@ -38,7 +38,9 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
     if (!text) return;
     const outcome = props.composer?.onSubmitText?.(text) ?? "send";
     if (outcome === "send") {
-      void sendChatTurn(text, undefined, undefined, props.surface as ChatSurface);
+      void (props.surface
+        ? sendChatTurn(text, undefined, undefined, props.surface as ChatSurface)
+        : sendChatTurn(text));
     }
     setDraft("");
   };
