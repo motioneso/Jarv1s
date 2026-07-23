@@ -39,6 +39,8 @@ test("Job Search uses the embedded revised shell and isolates the drawer (#1232)
   await expect(
     page.getByRole("heading", { name: "Find work that fits the life you’re building." })
   ).toBeVisible();
+  await expect(page.locator(".jsn-module-header")).toHaveCount(0);
+  await expect(page.locator(".topbar-title")).toHaveText("Job Search");
   await page.getByRole("button", { name: "Start a new search" }).click();
 
   await expect(page).toHaveURL(/\/m\/job-search\/onboarding$/);

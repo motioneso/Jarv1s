@@ -14,12 +14,6 @@ export function Root(props: {
   return (
     <div className="jsn-root" data-module="job-search">
       <style>{MODULE_STYLES}</style>
-      <header className="jsn-module-header">
-        <div>
-          <span className="jsn-eyebrow">Job Search</span>
-          <p>Build a search around the work you want next.</p>
-        </div>
-      </header>
       {path === "/" ? (
         <Landing />
       ) : path === "/onboarding" ? (

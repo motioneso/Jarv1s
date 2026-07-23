@@ -248,7 +248,12 @@ export function AppShell(props: AppShellProps) {
   });
 
   const locale = useUserLocale();
-  const { title, subtitle } = resolvePageHeading(location.pathname, new Date(), locale);
+  const { title, subtitle } = resolvePageHeading(
+    location.pathname,
+    new Date(),
+    locale,
+    props.modules
+  );
   const closeMobileNav = () => setMobileNavOpen(false);
 
   return (

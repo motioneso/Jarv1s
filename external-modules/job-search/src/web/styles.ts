@@ -6,8 +6,6 @@ export const MODULE_STYLES = `
 .jsn-root h2 { font-size: var(--text-xl); line-height: var(--leading-snug); }
 .jsn-eyebrow, .jsn-new-since, .jsn-profile-card__status { font-family: var(--font-sans); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-caps); text-transform: uppercase; }
 .jsn-eyebrow { color: var(--text-muted); font-size: var(--text-2xs); font-weight: var(--weight-bold); }
-.jsn-module-header { display: flex; align-items: end; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-6); }
-.jsn-module-header p { margin: var(--space-1) 0 0; color: var(--text-muted); }
 .jsn-landing-state { display: grid; gap: var(--space-5); }
 .jsn-hero { display: grid; align-content: center; gap: var(--space-5); min-height: min(34rem, 62vh); max-width: 48rem; padding: var(--space-8) 0; }
 .jsn-hero p { max-width: 38rem; margin: 0; color: var(--text-muted); font-size: var(--text-lg); line-height: var(--leading-relaxed); }
@@ -40,5 +38,5 @@ export const MODULE_STYLES = `
 .jsn-onboarding-error { display: grid; gap: var(--space-3); max-width: 38rem; padding: var(--space-7) 0; }
 .jsn-onboarding-error p { margin: 0; color: var(--text-muted); }
 @media (max-width: 56rem) { .jsn-onboarding-grid { grid-template-columns: 1fr; } .jsn-profile-aside { position: static; } }
-@media (max-width: 44rem) { .jsn-landing-heading { align-items: start; flex-direction: column; } .jsn-module-header { align-items: start; flex-direction: column; } }
+@media (max-width: 44rem) { .jsn-landing-heading { align-items: start; flex-direction: column; } }
 `;
