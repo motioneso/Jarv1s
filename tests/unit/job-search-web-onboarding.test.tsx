@@ -167,9 +167,7 @@ describe("Job Search onboarding phase model (#1198)", () => {
   });
 
   it("treats a non-remote-first work mode as remote:false", () => {
-    expect(deriveBroadSearch({ remotePreference: ["Hybrid ok", "On-site ok"] }).remote).toBe(
-      false
-    );
+    expect(deriveBroadSearch({ remotePreference: ["Hybrid ok", "On-site ok"] }).remote).toBe(false);
   });
 });
 

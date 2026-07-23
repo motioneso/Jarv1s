@@ -354,7 +354,11 @@ export function SourcesStep(props: {
         {expanded ? "Hide company boards" : "Also watch specific company boards (optional)"}
       </button>
       {expanded ? (
-        <SourcesControl sources={props.sources} initialRunTime={dueTime} onSubmit={props.onAddBoards} />
+        <SourcesControl
+          sources={props.sources}
+          initialRunTime={dueTime}
+          onSubmit={props.onAddBoards}
+        />
       ) : null}
     </div>
   );

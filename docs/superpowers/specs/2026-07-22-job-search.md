@@ -18,7 +18,7 @@ a separate, already-built track — not part of this epic.
 ## Product goal
 
 A career-discovery module for people (primarily **unemployed, seeking full-time work** — career
-changers *and* same-field next-job seekers) that finds the **right** job, not the fast one. Jarvis
+changers _and_ same-field next-job seekers) that finds the **right** job, not the fast one. Jarvis
 acts as the user's **chief of staff**: it knows the user from their resume, an interview chat, and
 their **vault of notes**, then continuously surfaces well-aimed, non-obvious opportunities that point
 toward a "dream" job. Two halves:
@@ -31,23 +31,23 @@ toward a "dream" job. Two halves:
 
 Decisions locked during grilling (2026-07-22):
 
-| Question          | Decision                                                                          |
-| ----------------- | --------------------------------------------------------------------------------- |
-| Users             | Unemployed, full-time; career-changer **or** same-field next-job                  |
-| Scope             | Discovery + match quality; ends at the **apply link** — no auto-applications      |
-| Resume            | Intake PDF/DOCX/paste **or build from interview**; honest critique + rewrite      |
-| Truth guard       | **Never fabricate**; **do** surface real, undersold strengths                     |
-| Interaction       | Module's **own full-screen chat page**, its **own isolated session** (not drawer) |
-| Interview         | Soft-scripted profile builder, assistant-led, tangent-friendly (not a wizard)     |
+| Question          | Decision                                                                           |
+| ----------------- | ---------------------------------------------------------------------------------- |
+| Users             | Unemployed, full-time; career-changer **or** same-field next-job                   |
+| Scope             | Discovery + match quality; ends at the **apply link** — no auto-applications       |
+| Resume            | Intake PDF/DOCX/paste **or build from interview**; honest critique + rewrite       |
+| Truth guard       | **Never fabricate**; **do** surface real, undersold strengths                      |
+| Interaction       | Module's **own full-screen chat page**, its **own isolated session** (not drawer)  |
+| Interview         | Soft-scripted profile builder, assistant-led, tangent-friendly (not a wizard)      |
 | Profile ownership | A **shared data object** — editable from the job-search chat **or** general Jarvis |
-| Sources           | Generic URL/RSS extraction **+ big-board scraping**; user-added sources           |
-| Source scope (p1) | **Drop ATS/company APIs** — this phase is "right career," not "specific company"  |
-| Scraping posture  | **Permissive** ("if the user wants a source, we get it"); postings are untrusted  |
-| Cadence           | **Standing monitor, daily**; dedupe; "N new since Tuesday" re-opener              |
-| Match             | Two-stage: cheap bulk-filter → deep career-reasoning; vault-enriched              |
-| AI                | Two **provider-agnostic** capabilities (bulk-filter + career-reasoning)           |
-| Vault             | **On by default** ("we know about you"); user can toggle off; **never outbound**  |
-| Feedback          | "Not this / more like this" sharpens the profile                                  |
+| Sources           | Generic URL/RSS extraction **+ big-board scraping**; user-added sources            |
+| Source scope (p1) | **Drop ATS/company APIs** — this phase is "right career," not "specific company"   |
+| Scraping posture  | **Permissive** ("if the user wants a source, we get it"); postings are untrusted   |
+| Cadence           | **Standing monitor, daily**; dedupe; "N new since Tuesday" re-opener               |
+| Match             | Two-stage: cheap bulk-filter → deep career-reasoning; vault-enriched               |
+| AI                | Two **provider-agnostic** capabilities (bulk-filter + career-reasoning)            |
+| Vault             | **On by default** ("we know about you"); user can toggle off; **never outbound**   |
+| Feedback          | "Not this / more like this" sharpens the profile                                   |
 | Notifications     | In-app phase 1; **email is a fast-follow**                                         |
 
 ## Non-goals (this epic)
@@ -55,7 +55,7 @@ Decisions locked during grilling (2026-07-22):
 - **No generated applications** — we stop at the apply link. No autofill, no cover letters, no ATS
   submission.
 - **No ATS/company-specific integrations** (Greenhouse/Lever/Ashby APIs) — deliberately deferred;
-  this phase discovers *careers*, not openings at one named employer.
+  this phase discovers _careers_, not openings at one named employer.
 - **No email/SMS notifications in phase 1** (fast-follow slice, not this epic's exit bar).
 - **No embedded resume/document editor** — resume edits are chat-driven (house rule: no vault
   viewer/editor in the shell; artifacts show provenance + are edited by talking).
@@ -106,7 +106,7 @@ spec update before build if its shape shifts — the pattern finance uses).
 
 Design is first-class here, not a coat of paint. Everything below uses the **Park Press** system
 (`tokens.css`): warm oat paper (`--paper`/`--surface`), **forest** as the one living accent, **gold**
-as a *decorative* co-accent (straps/labels/"new" markers — never semantic), **amber** for caution
+as a _decorative_ co-accent (straps/labels/"new" markers — never semantic), **amber** for caution
 (legitimacy flags — never error-red), serif headings / mono eyebrows / sans body, `jds-*` primitives
 plus local module primitives, keyline grids. The module ships its own stylesheet using **token vars
 only** (no hex literals — that rule lives in `tokens.css`). React Query keys are `["job-search", …]`.
@@ -131,7 +131,7 @@ Chat-**primary**, full-bleed inside the module container — **not** the host dr
 session** (JS-00). Layout: a centered conversation column (the authored chat kit styling — serif
 system/user turns, mono timestamps) with **inline artifacts** rendered between turns:
 
-- The assistant **opens** with the resume step: *"Let's get your resume solid first."*
+- The assistant **opens** with the resume step: _"Let's get your resume solid first."_
 - **Artifacts render inline in the flow** (not a separate pane — keeps chat-primary honest):
   resume-review cards and match cards appear as the assistant surfaces them, scannable, then the
   conversation continues beneath.
@@ -158,11 +158,11 @@ you don't have it yet"), never silently papered over.
 
 ### 4. Match card
 
-The core discovery unit — appears inline in chat *and* as the deduped set on the landing/panel:
+The core discovery unit — appears inline in chat _and_ as the deduped set on the landing/panel:
 
 - **Header:** role title (serif) · company · location/remote (mono eyebrow).
 - **Fit badge:** a 0–100 fit score with a forest fill; the number is secondary to the reason.
-- **"Why this fits you":** 2–3 sans lines grounded in *the user* (resume + vault), not keyword echo
+- **"Why this fits you":** 2–3 sans lines grounded in _the user_ (resume + vault), not keyword echo
   — the chief-of-staff voice ("your logistics background + the ops-analytics interest in your
   notes").
 - **Gap chips:** what's missing vs the posting (neutral, not disqualifying unless a deal-breaker).
@@ -231,10 +231,10 @@ revisions are append-only so the user can see what changed.
 **Critique + rewrite.** The `career-reasoning` capability assesses the resume against the user's
 target ("what does this say about you; will it get you recognized?"). Two hard rules:
 
-- **Never fabricate** — critique only reframes, reorders, and foregrounds *real* evidence from the
+- **Never fabricate** — critique only reframes, reorders, and foregrounds _real_ evidence from the
   resume + vault. No invented skills, titles, dates, or metrics.
 - **Surface the undersold** — actively find real strengths the user buried or omitted (from resume
-  *and* vault), and propose foregrounding them, each tied to its evidence.
+  _and_ vault), and propose foregrounding them, each tied to its evidence.
 
 Edits are **chat-driven** (no editor). The artifact (design §3) shows critique, tracked revisions,
 and surfaced strengths; the user approves or asks for changes in the chat. Gaps are surfaced
@@ -256,8 +256,8 @@ toward them while following tangents. Profile schema (`job-search.profiles`, one
 ```
 
 **Shared object.** The profile is edited from the job-search chat **or** general Jarvis via
-`job-search.profile.update` (write tool). Chat *transcripts* are isolated (JS-00); the profile is
-shared *data* — general Jarvis can "bump my comp floor to 140k" without seeing the job-search
+`job-search.profile.update` (write tool). Chat _transcripts_ are isolated (JS-00); the profile is
+shared _data_ — general Jarvis can "bump my comp floor to 140k" without seeing the job-search
 conversation. Search starts once a profile is **approved** (enough fields to run); refining it later
 re-tunes the standing monitor live.
 
@@ -268,12 +268,12 @@ re-tunes the standing monitor live.
 1. **Generic URL/RSS extractor** — the "any reachable listing" path. The user names a source in chat
    ("watch this board: <url>"); the worker fetches it (or its RSS), and the `bulk-filter` capability
    extracts structured jobs `{ title, company, location, url, description, postedAt }` from arbitrary
-   HTML. This *is* the user-added-source mechanism for phase 1 (no separate management UI yet).
+   HTML. This _is_ the user-added-source mechanism for phase 1 (no separate management UI yet).
 2. **Big-board scraping** — one or two high-volume boards (Indeed/LinkedIn-class): paginated search
    by the profile's titles/keywords/location, our own TS fetchers (no third-party runtime
-   dependency), inspired by JobSpy's *techniques* only.
+   dependency), inspired by JobSpy's _techniques_ only.
 
-**Scraping posture — permissive but safe.** Ben's rule: *"if the user wants a source, we get it."*
+**Scraping posture — permissive but safe.** Ben's rule: _"if the user wants a source, we get it."_
 So we do **not** ToS-police or hard-block on robots. The one non-negotiable is **injection safety**:
 every scraped posting is **untrusted input**, defanged before it enters any AI prompt (the chat
 `defang` pattern), and can never issue tool calls. Fetch goes through the host-pinned `ctx.fetch`
@@ -301,7 +301,7 @@ land in `job-search.candidates` (short TTL).
 **Stage 2 — career-reasoning (deep, narrow).** Each shortlisted posting goes to the reasoning
 capability with **resume + interview profile + vault recall** as context, producing a structured
 match: `{ fitScore, whyItFits, gaps[], dealBreakerHit?, legitimacy: "ok"|"suspect", legitimacyReason? }`.
-This is the chief-of-staff step — the "why" is grounded in who the user *actually is*, including
+This is the chief-of-staff step — the "why" is grounded in who the user _actually is_, including
 vault context (interests, location, history). Durable results in `job-search.matches`.
 
 **Vault recall.** Career-relevant context is pulled via the existing owner-scoped memory recall
@@ -322,7 +322,7 @@ vault context (interests, location, history). Durable results in `job-search.mat
 
 ## Security & privacy
 
-- **Vault never goes outbound.** The chief-of-staff invariant: vault recall enriches the *internal*
+- **Vault never goes outbound.** The chief-of-staff invariant: vault recall enriches the _internal_
   Stage-2 reasoning (the user's own configured model) **only**. It is never placed in a scraper
   query, a source request, or any outbound fetch. The job boards learn nothing about the user beyond
   the profile's explicit search terms.
