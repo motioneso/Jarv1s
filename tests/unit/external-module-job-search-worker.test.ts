@@ -14,7 +14,13 @@ function ports(records: Record<string, Record<string, unknown>> = {}): WorkerPor
     delete: async () => false,
     list: async (namespace) => (namespace === NS.profiles ? [...values.keys()] : [])
   };
-  return { kv, fetch: null, ai: null, now: () => new Date("2026-07-22T00:00:00Z") };
+  return {
+    kv,
+    fetch: null,
+    ai: null,
+    attachments: { readText: async () => null },
+    now: () => new Date("2026-07-22T00:00:00Z")
+  };
 }
 
 describe("Job Search worker skeleton (#1232)", () => {

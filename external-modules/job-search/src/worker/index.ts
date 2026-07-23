@@ -13,6 +13,7 @@ function ports(ctx: ModuleWorkerContext): WorkerPorts {
     kv: kvFromWorkerContext(ctx.kv),
     fetch: ctx.fetch ? fetchFromWorkerContext(ctx.fetch) : null,
     ai: ctx.ai ? aiFromWorkerContext(ctx.ai) : null,
+    attachments: ctx.attachments,
     now: () => new Date()
   };
 }

@@ -134,11 +134,20 @@ export function appendReviewRevision(
 export function approveRevision(
   record: ResumeRecord,
   revisionId: string,
+  approvedId: string,
   createdAt: string
 ): { readonly record: ResumeRecord; readonly revision: ResumeRevision } {
   const revision = record.revisions.find((candidate) => candidate.id === revisionId);
-  if (!revision) throw new Error("unknown_revision");
-  const approved: ResumeRevision = { ...revision, kind: "approved", createdAt };
+  if (!revision || revision.kind !== "review" || !revision.artifact) {
+    throw new Error("unknown_revision");
+  }
+  const approved: ResumeRevision = {
+    ...revision,
+    id: approvedId,
+    kind: "approved",
+    sourceText: applyRevisions(revision.sourceText, revision.artifact.revisions),
+    createdAt
+  };
   return {
     revision: approved,
     record: {
@@ -151,6 +160,14 @@ export function approveRevision(
       revisions: [...record.revisions, approved]
     }
   };
+}
+
+function applyRevisions(sourceText: string, revisions: readonly ResumeRevisionProposal[]): string {
+  return revisions.reduce(
+    (text, revision) =>
+      text.includes(revision.before) ? text.replace(revision.before, revision.after) : text,
+    sourceText
+  );
 }
 
 export function sanitizeReviewArtifact(

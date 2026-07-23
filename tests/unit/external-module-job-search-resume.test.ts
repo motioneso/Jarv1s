@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   appendReviewRevision,
   appendSourceRevision,
+  approveRevision,
   createEmptyResume,
   sanitizeReviewArtifact,
   type ResumeReviewModelOutput
@@ -81,6 +82,49 @@ describe("Job Search resume domain (#1233)", () => {
         }
       ]
     });
+  });
+
+  it("materializes tracked additions when a review revision is approved", () => {
+    const source = appendSourceRevision(createEmptyResume(), {
+      id: "resume-0",
+      source: "paste",
+      sourceText,
+      createdAt: "2026-07-23T12:00:00.000Z"
+    });
+    const artifact = sanitizeReviewArtifact(sourceText, {
+      critique: [],
+      revisions: [
+        {
+          section: "Summary",
+          before: "Led a migration",
+          after: "Led a platform migration with clear outcomes.",
+          evidence: "Led a migration"
+        }
+      ],
+      strengths: [],
+      gaps: []
+    });
+    const review = appendReviewRevision(source.record, {
+      id: "review-1",
+      source: "paste",
+      sourceText,
+      artifact,
+      createdAt: "2026-07-23T12:01:00.000Z"
+    });
+    const approved = approveRevision(
+      review.record,
+      "review-1",
+      "approved-1",
+      "2026-07-23T12:02:00.000Z"
+    );
+
+    expect(approved.record.current).toEqual({
+      revisionId: "approved-1",
+      source: "paste",
+      status: "approved",
+      text: "Led a platform migration with clear outcomes. from a legacy platform to a service-oriented architecture.\nManaged a team of six engineers."
+    });
+    expect(approved.record.revisions.at(-1)).toMatchObject({ id: "approved-1", kind: "approved" });
   });
 
   it("drops fabricated evidence and unknown model keys structurally", () => {

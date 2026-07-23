@@ -21,11 +21,22 @@ export interface WorkerPorts {
   readonly kv: JobSearchKv;
   readonly fetch: JobSearchFetch | null;
   readonly ai: JobSearchAi | null;
+  readonly attachments: JobSearchAttachments;
   now(): Date;
 }
 
 export interface JobSearchFetch {
   request(input: ModuleFetchRequest): Promise<ModuleFetchResponse>;
+}
+
+export interface JobSearchAttachmentText {
+  readonly fileName: string;
+  readonly mimeType: string;
+  readonly text: string;
+}
+
+export interface JobSearchAttachments {
+  readText(attachmentId: string): Promise<JobSearchAttachmentText | null>;
 }
 
 export function aiFromWorkerContext(ai: JobSearchAi): JobSearchAi {
