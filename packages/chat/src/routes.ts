@@ -19,7 +19,6 @@ import {
   listChatThreadMessagesRouteSchema,
   listChatThreadsRouteSchema,
   listMemoryCorrectionsRouteSchema,
-  normalizeChatSurface,
   normalizeChatSettings,
   putChatSettingsRouteSchema,
   type AiModelCapability,
@@ -76,6 +75,7 @@ const YOLO_ENABLED_PREF_KEY = "yolo.enabled";
 import { buildCalendarWriteService } from "./calendar-write-impl.js";
 import { buildEmailWriteService } from "./email-write-impl.js";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
+import { readRouteSurface } from "./live/chat-surface.js";
 import { registerChatLiveRoutes, type EveningInterviewSeed } from "./live-routes.js";
 import { CliChatUnavailableError } from "./live/errors.js";
 import { NATIVE_CONFIRM_TIMEOUT_MS } from "./live/claude-permission-hook.js";
@@ -682,16 +682,6 @@ export function registerChatRoutes(
       }
     }
   );
-}
-
-function readRouteSurface(query: unknown) {
-  const raw =
-    query && typeof query === "object" ? (query as { surface?: unknown }).surface : undefined;
-  try {
-    return normalizeChatSurface(raw);
-  } catch {
-    throw new Error("Invalid chat surface");
-  }
 }
 
 /**
