@@ -198,11 +198,17 @@ no human is in the loop), decided **locally in the hook with no gateway round-tr
 - Tests: unit cover the new local allow/deny decisions; keep the existing interactive-hook deadline
   test green (untouched path).
 
-### 9.5 Decision required before build (spec gate)
+### 9.5 Decision (2026-07-23, Ben) — APPROVED
 
-**Bash in the one-shot chat envelope:** (a) auto-deny Bash entirely (recommended — smallest dangerous
-surface; chat rarely needs raw shell), or (b) auto-allow a narrow, explicitly-listed safe subset.
-Everything else in §9.3 follows Ben's already-stated posture and needs only confirmation.
+**Bash in the one-shot chat envelope: option (a) — auto-deny Bash entirely, for now.** Raw shell in an
+unattended headless turn is the one genuinely dangerous surface, and dangerous-command denylists leak,
+so Bash is off the allow set on the one-shot chat path. Ben: _"a for now, yolo gets them bash"_ — a
+future explicit **YOLO / full-access mode** is the path that grants Bash (and any other elevated
+tools); it is out of scope here and gets its own spec + task when built. Everything else in §9.3 is
+approved as written (auto-allow `mcp__jarvis__*`, vault reads, and sandboxed file writes/edits;
+auto-deny everything else, surfaced in the transcript, never a card).
+
+Build is unblocked: implement §9.4 with Bash auto-denied.
 
 ### 9.6 Tracking
 
