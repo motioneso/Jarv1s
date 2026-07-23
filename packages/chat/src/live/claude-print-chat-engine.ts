@@ -1,3 +1,4 @@
+import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -6,17 +7,14 @@ import {
   DEFAULT_MODEL_SENTINEL,
   parseTranscript,
   transcriptGlobDir,
-  TmuxMultiplexer,
   type Multiplexer,
-  type MuxHandle,
   type TmuxIo
 } from "@jarv1s/ai";
 
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
-import { writeClaudePermissionHook } from "./claude-permission-hook.js";
+import { writeClaudeOneShotPermissionHook } from "./claude-permission-hook.js";
 import { vaultReadOnlyToolPatterns } from "./vault-allowlist.js";
 
-const SESSION_PREFIX = "jarv1s-live-";
 const PROMPT_FILENAME = ".jarvis-claude-print-prompt.txt";
 const PERSONA_FILENAME = "persona.md";
 const CLAUDE_MCP_FILENAME = ".jarvis-claude-mcp.json";
@@ -31,7 +29,6 @@ export interface ClaudePrintChatEngineOpts {
 export class ClaudePrintChatEngine implements CliChatEngine {
   readonly provider = "anthropic" as const;
 
-  private readonly mux: Multiplexer;
   private readonly homeBase?: string;
   private readonly credentialFile?: string;
   private readonly sessionId: string;
@@ -39,15 +36,14 @@ export class ClaudePrintChatEngine implements CliChatEngine {
   private launchOpts: EngineLaunchOpts | null = null;
   private personaPath: string | null = null;
   private transcriptPathValue: string | null = null;
-  private currentHandle: MuxHandle | null = null;
+  private currentProcess: ChildProcess | null = null;
   private hasSubmitted = false;
 
   constructor(
-    private readonly threadKey: string,
+    _threadKey: string,
     private readonly io: TmuxIo,
     opts: ClaudePrintChatEngineOpts = {}
   ) {
-    this.mux = opts.mux ?? new TmuxMultiplexer(io, { homeBase: opts.homeBase });
     this.homeBase = opts.homeBase;
     this.credentialFile = opts.credentialFile;
     this.sessionId = opts.sessionId ?? randomUUID();
@@ -70,12 +66,13 @@ export class ClaudePrintChatEngine implements CliChatEngine {
     await this.io.writeFile(promptPath, sanitizeInput(text));
     const launchLine = await this.buildCommand(this.launchOpts, promptPath);
 
-    this.currentHandle = await this.mux.open({
-      name: `${SESSION_PREFIX}${this.threadKey}`,
-      cols: 220,
-      rows: 50,
-      launchLine
+    this.currentProcess = spawn("bash", ["-lc", launchLine], {
+      cwd: this.launchOpts.neutralDir,
+      detached: true,
+      stdio: "ignore"
     });
+    this.currentProcess.on("error", () => undefined);
+    this.currentProcess.unref();
     this.hasSubmitted = true;
   }
 
@@ -105,18 +102,20 @@ export class ClaudePrintChatEngine implements CliChatEngine {
   }
 
   async isAlive(): Promise<boolean> {
-    return this.currentHandle !== null ? this.mux.isAlive(this.currentHandle) : false;
+    return (
+      this.currentProcess !== null &&
+      this.currentProcess.exitCode === null &&
+      this.currentProcess.signalCode === null
+    );
   }
 
   async interrupt(): Promise<void> {
-    if (this.currentHandle !== null) await this.mux.interrupt(this.currentHandle);
+    if (this.currentProcess !== null) this.currentProcess.kill("SIGINT");
   }
 
   async kill(): Promise<void> {
-    if (this.currentHandle !== null) {
-      await this.mux.kill(this.currentHandle);
-    }
-    this.currentHandle = null;
+    if (this.currentProcess !== null) this.currentProcess.kill();
+    this.currentProcess = null;
   }
 
   private async resolvePersonaPath(opts: EngineLaunchOpts): Promise<string> {
@@ -141,15 +140,13 @@ export class ClaudePrintChatEngine implements CliChatEngine {
       claudeCmd,
       "-p",
       sessionFlag,
-      "--permission-mode default"
+      "--permission-mode dontAsk"
     ];
 
     if (opts.mcpToken && opts.mcpServerUrl) {
       const mcpConfigPath = await this.writeClaudeMcpConfig(opts);
-      const settingsPath = await writeClaudePermissionHook(this.io, {
-        neutralDir: opts.neutralDir,
-        mcpToken: opts.mcpToken,
-        mcpServerUrl: opts.mcpServerUrl
+      const settingsPath = await writeClaudeOneShotPermissionHook(this.io, {
+        neutralDir: opts.neutralDir
       });
       parts.push(`--mcp-config ${shellQuote(mcpConfigPath)}`);
       parts.push(`--settings ${shellQuote(settingsPath)}`);

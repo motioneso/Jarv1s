@@ -7,13 +7,16 @@ import { spawn } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  CLAUDE_ONE_SHOT_PERMISSION_HOOK_SOURCE,
   CLAUDE_PERMISSION_HOOK_SOURCE,
   CLAUDE_PERMISSION_SETTINGS_FILENAME,
+  CLAUDE_PERMISSION_HOOK_FILENAME,
   CLAUDE_PERMISSION_TOKEN_FILENAME,
   HOOK_INTERNAL_DEADLINE_S,
   HOOK_TIMEOUT_SECONDS,
   NATIVE_CONFIRM_TIMEOUT_MS,
   deriveClaudePermissionUrl,
+  writeClaudeOneShotPermissionHook,
   writeClaudePermissionHook
 } from "../../packages/chat/src/live/claude-permission-hook.js";
 import type { TmuxIo } from "@jarv1s/ai";
@@ -48,6 +51,49 @@ async function runHook(
   const dir = await mkdtemp(join(tmpdir(), "jarvis-hook-"));
   const hookPath = join(dir, "hook.mjs");
   await writeFile(hookPath, CLAUDE_PERMISSION_HOOK_SOURCE);
+  try {
+    const child = spawn(process.execPath, [hookPath], {
+      env: { ...process.env, ...env },
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+    child.stdin.end(JSON.stringify(input));
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
+    return { code, stdout, stderr };
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+async function runOneShotHook(
+  input: unknown,
+  env: Record<string, string | undefined>
+): Promise<{ code: number | null; decision: string; stdout: string; stderr: string }> {
+  const result = await runGeneratedHook(CLAUDE_ONE_SHOT_PERMISSION_HOOK_SOURCE, input, env);
+  const output = JSON.parse(result.stdout) as {
+    hookSpecificOutput: { permissionDecision: string };
+  };
+  return {
+    ...result,
+    decision: output.hookSpecificOutput.permissionDecision
+  };
+}
+
+async function runGeneratedHook(
+  source: string,
+  input: unknown,
+  env: Record<string, string | undefined>
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  const dir = await mkdtemp(join(tmpdir(), "jarvis-hook-"));
+  const hookPath = join(dir, "hook.mjs");
+  await writeFile(hookPath, source);
   try {
     const child = spawn(process.execPath, [hookPath], {
       env: { ...process.env, ...env },
@@ -201,5 +247,75 @@ describe("Claude PreToolUse permission hook", () => {
       server.close();
       await rm(dir, { recursive: true, force: true });
     }
+  });
+
+  it.each([
+    ["Read", { file_path: "/vault/a.md" }],
+    ["Glob", { pattern: "/vault/**/*.md" }],
+    ["Grep", { path: "/vault" }]
+  ])("one-shot allows %s under JARVIS_NOTES_ROOTS", async (tool_name, tool_input) => {
+    const result = await runOneShotHook(
+      { tool_name, tool_input },
+      { JARVIS_SESSION_ROOT: "/tmp/session", JARVIS_NOTES_ROOTS: "/vault" }
+    );
+    expect(result.code).toBe(0);
+    expect(result.decision).toBe("allow");
+  });
+
+  it.each(["Write", "Edit", "MultiEdit", "NotebookEdit"])(
+    "one-shot allows %s inside the session root",
+    async (tool_name) => {
+      const result = await runOneShotHook(
+        { tool_name, tool_input: { file_path: "/tmp/session/output.md" } },
+        { JARVIS_SESSION_ROOT: "/tmp/session" }
+      );
+      expect(result.code).toBe(0);
+      expect(result.decision).toBe("allow");
+    }
+  );
+
+  it("one-shot allows Jarv1s MCP without a gateway round-trip", async () => {
+    const result = await runOneShotHook(
+      { tool_name: "mcp__jarvis__get_notes", tool_input: {} },
+      { JARVIS_SESSION_ROOT: "/tmp/session" }
+    );
+    expect(result.code).toBe(0);
+    expect(result.decision).toBe("allow");
+  });
+
+  it.each([
+    ["Bash", { command: "echo hi" }],
+    ["Write", { file_path: "/etc/jarvis.conf" }],
+    ["Read", { file_path: "/etc/passwd" }],
+    ["Read", { file_path: "/tmp/session/private.md" }],
+    ["WebFetch", { url: "https://example.com" }]
+  ])("one-shot denies %s without a card", async (tool_name, tool_input) => {
+    const result = await runOneShotHook(
+      { tool_name, tool_input },
+      { JARVIS_SESSION_ROOT: "/tmp/session", JARVIS_NOTES_ROOTS: "/vault" }
+    );
+    expect(result.code).toBe(0);
+    expect(result.decision).toBe("deny");
+  });
+
+  it("writes one-shot settings without gateway/deadline plumbing", async () => {
+    const io = fakeIo();
+
+    const settingsPath = await writeClaudeOneShotPermissionHook(io, {
+      neutralDir: "/tmp/session"
+    });
+
+    expect(settingsPath).toBe("/tmp/session/" + CLAUDE_PERMISSION_SETTINGS_FILENAME);
+    expect(io.writes.get(settingsPath)).not.toContain("JARVIS_PERM");
+    expect(io.writes.get("/tmp/session/" + CLAUDE_PERMISSION_HOOK_FILENAME)).toBe(
+      CLAUDE_ONE_SHOT_PERMISSION_HOOK_SOURCE
+    );
+    expect(io.writes.get("/tmp/session/" + CLAUDE_PERMISSION_HOOK_FILENAME)).not.toContain(
+      "postPermission"
+    );
+    expect(io.runs).toContainEqual([
+      "chmod",
+      ["600", "/tmp/session/" + CLAUDE_PERMISSION_HOOK_FILENAME]
+    ]);
   });
 });

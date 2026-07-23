@@ -1,9 +1,40 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgyPrintChatEngine } from "../../packages/chat/src/live/agy-print-chat-engine.js";
 import { AGY_SESSION_LOG_FILENAME } from "../../packages/chat/src/live/private-transcript-cleanup.js";
 import { createRealEngineFactory } from "../../packages/chat/src/live/runtime.js";
 import type { Multiplexer, MuxHandle, TmuxIo } from "@jarv1s/ai";
+
+const spawnMock = vi.hoisted(() => vi.fn());
+
+vi.mock("node:child_process", async () => ({
+  ...(await vi.importActual("node:child_process")),
+  spawn: spawnMock
+}));
+
+function fakeChild() {
+  const child = {
+    exitCode: null,
+    signalCode: null,
+    kill: vi.fn(() => true),
+    on: vi.fn(),
+    unref: vi.fn()
+  };
+  child.on.mockReturnValue(child);
+  return child;
+}
+
+let currentChild: ReturnType<typeof fakeChild>;
+
+beforeEach(() => {
+  currentChild = fakeChild();
+  spawnMock.mockReset();
+  spawnMock.mockReturnValue(currentChild);
+});
+
+function launchLineAt(index = 0): string {
+  return String(spawnMock.mock.calls[index]?.[1]?.[1] ?? "");
+}
 
 function fakeIo(
   files: Record<string, string> = {}
@@ -72,9 +103,27 @@ describe("AgyPrintChatEngine", () => {
     });
     await engine.submit("read ./word.txt");
 
-    expect(mux.opened[0]).toContain("agy --dangerously-skip-permissions --print");
-    expect(mux.opened[0]).toContain("cd '/tmp/jarvis-neutral'");
-    expect(mux.opened[0]).toContain(`--log-file '/tmp/jarvis-neutral/${AGY_SESSION_LOG_FILENAME}'`);
+    expect(launchLineAt()).toContain("agy --dangerously-skip-permissions --print");
+    expect(launchLineAt()).toContain("cd '/tmp/jarvis-neutral'");
+    expect(launchLineAt()).toContain(
+      `--log-file '/tmp/jarvis-neutral/${AGY_SESSION_LOG_FILENAME}'`
+    );
+    expect(mux.opened).toEqual([]);
+    expect(spawnMock).toHaveBeenCalledWith(
+      "bash",
+      ["-lc", expect.stringContaining("agy --dangerously-skip-permissions --print")],
+      expect.objectContaining({
+        cwd: "/tmp/jarvis-neutral",
+        detached: true,
+        stdio: "ignore"
+      })
+    );
+    expect(await engine.isAlive()).toBe(true);
+    await engine.interrupt();
+    expect(currentChild.kill).toHaveBeenCalledWith("SIGINT");
+    await engine.kill();
+    expect(currentChild.kill).toHaveBeenCalledWith();
+    expect(await engine.isAlive()).toBe(false);
   });
 
   it("reads Antigravity print transcripts through parseTranscript", async () => {
@@ -123,8 +172,8 @@ describe("AgyPrintChatEngine", () => {
     await engine.submit("first");
     await engine.submit("second");
 
-    expect(mux.opened[1]).toContain(`--conversation ${uuid}`);
-    expect(mux.opened[1]).not.toContain("--continue");
+    expect(launchLineAt(1)).toContain(`--conversation ${uuid}`);
+    expect(launchLineAt(1)).not.toContain("--continue");
   });
 
   it("hard-stops continuation when exact identity was not captured", async () => {
@@ -139,8 +188,8 @@ describe("AgyPrintChatEngine", () => {
     await engine.submit("first");
 
     await expect(engine.submit("second")).rejects.toThrow("identity unavailable");
-    expect(mux.opened).toHaveLength(1);
-    expect(mux.opened[0]).not.toContain("--continue");
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(launchLineAt()).not.toContain("--continue");
   });
 
   it("purges only its captured brain directory before graceful kill", async () => {

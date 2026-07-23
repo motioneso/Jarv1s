@@ -248,3 +248,173 @@ async function main() {
 
 void main();
 `;
+
+export interface ClaudeOneShotPermissionHookOpts {
+  readonly neutralDir: string;
+}
+
+export async function writeClaudeOneShotPermissionHook(
+  io: Pick<TmuxIo, "run" | "writeFile">,
+  opts: ClaudeOneShotPermissionHookOpts
+): Promise<string> {
+  await io.run("mkdir", ["-p", opts.neutralDir]);
+
+  const settingsPath = join(opts.neutralDir, CLAUDE_PERMISSION_SETTINGS_FILENAME);
+  const hookPath = join(opts.neutralDir, CLAUDE_PERMISSION_HOOK_FILENAME);
+  const command = [
+    "JARVIS_SESSION_ROOT=" + shellQuote(opts.neutralDir),
+    "node",
+    shellQuote(hookPath)
+  ].join(" ");
+  const settings = JSON.stringify(
+    {
+      hooks: {
+        PreToolUse: [
+          {
+            matcher: "*",
+            hooks: [{ type: "command", command }]
+          }
+        ]
+      }
+    },
+    null,
+    2
+  );
+
+  await io.writeFile(hookPath, CLAUDE_ONE_SHOT_PERMISSION_HOOK_SOURCE);
+  await io.writeFile(settingsPath, settings);
+
+  for (const path of [hookPath, settingsPath]) {
+    const chmod = await io.run("chmod", ["600", path]);
+    if (chmod.code !== 0) {
+      await io.run("rm", ["-f", hookPath, settingsPath]);
+      throw new Error(
+        ("Could not lock down Claude one-shot permission hook file: " + (chmod.stderr ?? "")).trim()
+      );
+    }
+  }
+
+  return settingsPath;
+}
+
+export const CLAUDE_ONE_SHOT_PERMISSION_HOOK_SOURCE = `import path from "node:path";
+
+const ROOT_PATTERN = /^\\/[\\w.-][\\w./-]*$/;
+
+function decide(permissionDecision, permissionDecisionReason) {
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision,
+      permissionDecisionReason
+    }
+  }));
+  process.exit(0);
+}
+
+function validRoot(root) {
+  if (root === "/" || !ROOT_PATTERN.test(root) || root.includes("..")) return false;
+  if (root.length > 1 && root.endsWith("/")) return false;
+  return path.posix.normalize(root) === root;
+}
+
+function roots() {
+  return [process.env.JARVIS_SESSION_ROOT ?? "", ...vaultRoots()]
+    .map((root) => root.trim())
+    .filter((root) => root.length > 0)
+    .filter(validRoot);
+}
+
+function vaultRoots() {
+  return (process.env.JARVIS_NOTES_ROOTS ?? "").split(",");
+}
+
+function underRoot(candidate, root) {
+  if (typeof candidate !== "string" || !candidate.startsWith("/") || candidate.includes("\\0")) {
+    return false;
+  }
+  const normalized = path.posix.normalize(candidate);
+  return normalized === root || normalized.startsWith(root + "/");
+}
+
+function readCandidate(tool, input) {
+  if (tool === "Read") return input.file_path;
+  if (tool === "Glob") return input.path ?? input.pattern;
+  if (tool === "Grep") return input.path;
+  return undefined;
+}
+
+function safeVaultRead(tool, input) {
+  if (tool !== "Read" && tool !== "Glob" && tool !== "Grep") return false;
+  const candidate = readCandidate(tool, input);
+  return vaultRoots()
+    .map((root) => root.trim())
+    .filter((root) => root.length > 0)
+    .filter(validRoot)
+    .some((root) => underRoot(candidate, root));
+}
+
+function writeCandidate(tool, input) {
+  if (
+    tool !== "Write" &&
+    tool !== "Edit" &&
+    tool !== "MultiEdit" &&
+    tool !== "NotebookEdit"
+  ) {
+    return undefined;
+  }
+  return input.file_path ?? input.notebook_path ?? input.path;
+}
+
+function safeWorkspaceWrite(tool, input) {
+  const candidate = writeCandidate(tool, input);
+  return candidate !== undefined && roots().some((root) => underRoot(candidate, root));
+}
+
+function stdinText() {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk) => {
+      body += chunk;
+    });
+    process.stdin.on("end", () => resolve(body));
+    process.stdin.on("error", reject);
+  });
+}
+
+async function main() {
+  let event;
+  try {
+    event = JSON.parse(await stdinText());
+  } catch {
+    decide("deny", "unparseable hook input");
+  }
+
+  const tool = typeof event?.tool_name === "string" ? event.tool_name : "?";
+  const input =
+    event?.tool_input && typeof event.tool_input === "object" && !Array.isArray(event.tool_input)
+      ? event.tool_input
+      : {};
+
+  if (tool.startsWith("mcp__jarvis__")) {
+    decide("allow", "pre-approved Jarv1s MCP tool");
+  }
+  if (safeVaultRead(tool, input)) {
+    decide("allow", "pre-approved read-only vault path");
+  }
+  if (safeWorkspaceWrite(tool, input)) {
+    decide("allow", "pre-approved session workspace write");
+  }
+  decide(
+    "deny",
+    tool === "Bash"
+      ? "Bash is disabled for one-shot turns"
+      : "tool not allowed for one-shot turns"
+  );
+}
+
+process.on("uncaughtException", () => decide("deny", "hook exception"));
+process.on("unhandledRejection", () => decide("deny", "hook exception"));
+void main();
+`;
