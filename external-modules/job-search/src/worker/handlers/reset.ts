@@ -1,10 +1,7 @@
-import {
-  NS,
-  RESET_MARKER_KEY,
-  type JobSearchKv
-} from "../../domain/kv-port.js";
+import { NS, RESET_MARKER_KEY, type JobSearchKv } from "../../domain/kv-port.js";
 
 export interface ResetResult {
+  readonly [key: string]: unknown;
   readonly status: "ok";
   readonly resetDone: true;
   readonly deleted: number;
@@ -25,4 +22,3 @@ export async function resetJob(kv: JobSearchKv): Promise<ResetResult> {
   await kv.set(NS.meta, RESET_MARKER_KEY, { resetDone: true });
   return { status: "ok", resetDone: true, deleted };
 }
-

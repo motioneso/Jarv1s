@@ -11,6 +11,7 @@
     "skipLibCheck": true,
     "types": ["node"],
     "paths": {
+      "@jarv1s/module-sdk": ["../../packages/module-sdk/src/index.ts"],
       "@jarv1s/module-sdk/worker": ["../../packages/module-sdk/src/worker.ts"]
     }
   },

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { resetJob, type JobSearchKv } from "../../external-modules/job-search/src/worker/handlers/reset.js";
-import { NS, RESET_MARKER_KEY } from "../../external-modules/job-search/src/domain/kv-port.js";
+import { resetJob } from "../../external-modules/job-search/src/worker/handlers/reset.js";
+import {
+  NS,
+  RESET_MARKER_KEY,
+  type JobSearchKv
+} from "../../external-modules/job-search/src/domain/kv-port.js";
 
 function fakeKv(seed: Record<string, Record<string, Record<string, unknown>>>): JobSearchKv & {
   deleted: string[];
@@ -38,9 +42,7 @@ function fakeKv(seed: Record<string, Record<string, Record<string, unknown>>>): 
 describe("job-search.reset", () => {
   it("wipes every declared namespace once and records an idempotency marker", async () => {
     const kv = fakeKv(
-      Object.fromEntries(
-        Object.values(NS).map((namespace) => [namespace, { stale: { value: 1 } }])
-      )
+      Object.fromEntries(Object.values(NS).map((namespace) => [namespace, { stale: { value: 1 } }]))
     );
 
     await expect(resetJob(kv)).resolves.toMatchObject({ status: "ok", resetDone: true });

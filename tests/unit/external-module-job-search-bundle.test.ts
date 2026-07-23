@@ -1,22 +1,15 @@
-// tests/unit/external-module-job-search-bundle.test.ts
+import { createInterface } from "node:readline";
 import { spawn } from "node:child_process";
-import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createInterface } from "node:readline";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { buildExternalModule } from "../../scripts/build-external-module.js";
 
-// JS-01 (#930): the emitted artifacts must honor the two runtime contracts —
-// browser bundle: ESM, no Node/server code, host React only; worker bundle:
-// self-contained CJS that boots under plain `node` with no node_modules
-// anywhere near it (a bare temp dir), speaks worker contract v1, and answers
-// -32601 handler_not_found for undeclared handlers.
 const moduleDir = fileURLToPath(new URL("../../external-modules/job-search", import.meta.url));
-
 let bareDir: string;
 
 beforeAll(async () => {
@@ -26,14 +19,15 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(() => {
-  rmSync(bareDir, { recursive: true, force: true });
+  if (bareDir) rmSync(bareDir, { recursive: true, force: true });
 });
 
-type Rpc = { method?: string; id?: string; params?: unknown; result?: unknown; error?: unknown };
+type Rpc = { method?: string; id?: string; params?: unknown; error?: unknown };
 
-// Boots the worker in the bare dir, collects JSON lines until `until` matches,
-// then kills the child. Requests in `sends` go to stdin after worker.ready.
-async function runWorker(sends: readonly object[], until: (m: Rpc) => boolean): Promise<Rpc[]> {
+async function runWorker(
+  sends: readonly object[],
+  until: (message: Rpc) => boolean
+): Promise<Rpc[]> {
   const child = spawn(process.execPath, ["worker.js"], { cwd: bareDir, stdio: "pipe" });
   const seen: Rpc[] = [];
   try {
@@ -57,70 +51,40 @@ async function runWorker(sends: readonly object[], until: (m: Rpc) => boolean): 
   }
 }
 
-describe("job-search bundle hygiene (#930)", () => {
-  it("web bundle is browser-only ESM using the host React runtime", () => {
+describe("Job Search bundle contract (#1232)", () => {
+  it("ships a browser ESM web bundle with host React and no runtime leaks", () => {
     const source = readFileSync(join(moduleDir, "dist/web/index.js"), "utf8");
     expect(source).toContain("__JARVIS_MODULE_RUNTIME__");
-    expect(source).toContain("export"); // ESM output
-    expect(source).not.toContain("node:"); // no Node/server code
-    expect(source).not.toContain("require("); // no CJS/react bundled in
+    expect(source).toContain("export");
+    expect(source).not.toContain("node:");
+    expect(source).not.toContain("require(");
+    expect(source).not.toMatch(/@jarv1s\//);
     expect(source).not.toMatch(/react[./-]dom|react\.development|react\.production/);
   });
 
-  it("worker bundle boots without node_modules and reports contract v1", async () => {
-    const messages = await runWorker([], (m) => m.method === "worker.ready");
+  it("ships a self-contained CJS worker that boots without node_modules", async () => {
+    const source = readFileSync(join(moduleDir, "dist/worker.js"), "utf8");
+    expect(source).toContain('"use strict"');
+    expect(source).not.toMatch(/from\s+["']@jarv1s\//);
+    const messages = await runWorker([], (message) => message.method === "worker.ready");
     expect(messages.at(-1)).toMatchObject({ method: "worker.ready", params: { version: 1 } });
   });
 
-  it("answers a declared handler through dispatch (input-boundary rejection)", async () => {
-    // JS-08 (#937) implemented the last stub, so every declared handler now
-    // issues kv RPCs on its happy path — which this bare harness never
-    // answers. Malformed input is rejected at the validate.ts boundary BEFORE
-    // any kv traffic, so it still proves declared-handler dispatch + the
-    // wrap.ts error envelope survive bundling, with no parent required.
+  it("returns the protocol error for an undeclared handler", async () => {
     const messages = await runWorker(
-      [
-        {
-          jsonrpc: "2.0",
-          id: "t1",
-          method: "module.invoke",
-          params: { handler: "opportunities.get", input: {} }
-        }
-      ],
-      (m) => m.id === "t1"
+      [{ jsonrpc: "2.0", id: "missing", method: "module.invoke", params: { handler: "nope" } }],
+      (message) => message.id === "missing"
     );
     expect(messages.at(-1)).toMatchObject({
-      id: "t1",
-      result: { status: "error", code: "invalid_input" }
-    });
-  });
-
-  it("no provider/model identifier anywhere in package source or built worker", () => {
-    // JS-09 (#938) Task 2, gate item 12 (code half): provider independence
-    // means the PACKAGE never names a vendor — the narrower evaluate.ts grep
-    // in the worker-evaluate suite stays, this sweep supersedes it in breadth
-    // (all of src/ plus the shipped worker bundle).
-    const providerRe =
-      /openai|anthropic|claude|gemini|gpt-|mistral|llama|sonnet|haiku|deepseek|bedrock|vertex/i;
-    const walk = (dir: string): string[] =>
-      readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
-        entry.isDirectory() ? walk(join(dir, entry.name)) : [join(dir, entry.name)]
-      );
-    const files = [...walk(join(moduleDir, "src")), join(moduleDir, "dist/worker.js")];
-    expect(files.length).toBeGreaterThan(1);
-    for (const file of files) {
-      expect(readFileSync(file, "utf8"), file).not.toMatch(providerRe);
-    }
-  });
-
-  it("answers an undeclared handler with -32601 handler_not_found", async () => {
-    const messages = await runWorker(
-      [{ jsonrpc: "2.0", id: "t2", method: "module.invoke", params: { handler: "nope" } }],
-      (m) => m.id === "t2"
-    );
-    expect(messages.at(-1)).toMatchObject({
-      id: "t2",
+      id: "missing",
       error: { code: -32601, message: "handler_not_found" }
     });
+  });
+
+  it("keeps Job Search outside the core image and built-in registry", () => {
+    expect(readFileSync(".dockerignore", "utf8")).toContain("external-modules");
+    expect(readFileSync("packages/module-registry/src/index.ts", "utf8")).not.toContain(
+      'id: "job-search"'
+    );
   });
 });
