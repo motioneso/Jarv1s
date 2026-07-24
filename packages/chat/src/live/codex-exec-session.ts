@@ -71,8 +71,23 @@ export class CodexExecSession {
     }
 
     if (result.code !== 0) {
+      // #1242: codex-cli prints an informational "Reading prompt from stdin..." line to stderr on
+      // EVERY exec run. The old `result.stderr ?? result.stdout` therefore always surfaced that
+      // benign line as the failure cause, masking the real error (codex writes genuine failures as
+      // later stderr lines or as JSON error events on stdout) and making live failures undiagnosable.
+      // Strip the info line, prefer real stderr, then fall back to stdout, then an explicit
+      // no-output marker (a non-zero exit with empty stdout points at a launch/auth/network failure).
+      const stderrReal = (result.stderr ?? "")
+        .split("\n")
+        .filter((line) => line.trim() && line.trim() !== "Reading prompt from stdin...")
+        .join("\n")
+        .trim();
+      const cause =
+        stderrReal ||
+        result.stdout?.trim() ||
+        "codex exec exited non-zero with no diagnostic output";
       throw new CliChatUnavailableError("codex exec failed", {
-        cause: redactCause(result.stderr ?? result.stdout)
+        cause: redactCause(cause)
       });
     }
   }
