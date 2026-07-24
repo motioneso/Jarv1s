@@ -71,8 +71,23 @@ export class CodexExecSession {
     }
 
     if (result.code !== 0) {
+      // #1242: codex-cli prints an informational "Reading prompt from stdin..." line to stderr on
+      // EVERY exec run. The old `result.stderr ?? result.stdout` therefore always surfaced that
+      // benign line as the failure cause, masking the real error (codex writes genuine failures as
+      // later stderr lines or as JSON error events on stdout) and making live failures undiagnosable.
+      // Strip the info line, prefer real stderr, then fall back to stdout, then an explicit
+      // no-output marker (a non-zero exit with empty stdout points at a launch/auth/network failure).
+      const stderrReal = (result.stderr ?? "")
+        .split("\n")
+        .filter((line) => line.trim() && line.trim() !== "Reading prompt from stdin...")
+        .join("\n")
+        .trim();
+      const cause =
+        stderrReal ||
+        result.stdout?.trim() ||
+        "codex exec exited non-zero with no diagnostic output";
       throw new CliChatUnavailableError("codex exec failed", {
-        cause: redactCause(result.stderr ?? result.stdout)
+        cause: redactCause(cause)
       });
     }
   }
@@ -119,7 +134,19 @@ export class CodexExecSession {
 
     const modelFlag = modelOverrideFlag(this.launchOpts);
     if (modelFlag) parts.push(modelFlag);
-    parts.push("--disable apps", "--sandbox read-only", "-a never", `-c 'approval_policy="never"'`);
+    // #1242: codex-cli 0.139.0's `exec` subcommand dropped the top-level `-a/--ask-for-approval`
+    // flag — passing `-a never` now aborts the launch with "unexpected argument '-a'". Approval is
+    // instead set through the `approval_policy` config override below (non-interactive exec never
+    // prompts anyway). `exec` also refuses to run outside a *trusted git dir* unless
+    // `--skip-git-repo-check` is passed, and the per-session neutralDir is a scratch dir, not a git
+    // repo — so the headless engine must opt out of the repo-trust gate explicitly or every codex
+    // turn 503s. See epic #1238 / P-02a.
+    parts.push(
+      "--skip-git-repo-check",
+      "--disable apps",
+      "--sandbox read-only",
+      `-c 'approval_policy="never"'`
+    );
     parts.push(`< ${shellQuote(promptPath)}`);
     return parts.join(" ");
   }

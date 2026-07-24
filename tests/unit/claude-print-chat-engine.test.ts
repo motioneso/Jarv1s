@@ -1,8 +1,27 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Multiplexer, MuxHandle, TmuxIo } from "@jarv1s/ai";
 
 import { ClaudePrintChatEngine } from "../../packages/chat/src/live/claude-print-chat-engine.js";
+
+const spawnMock = vi.hoisted(() => vi.fn());
+
+vi.mock("node:child_process", async () => ({
+  ...(await vi.importActual("node:child_process")),
+  spawn: spawnMock
+}));
+
+function fakeChild() {
+  const child = {
+    exitCode: null,
+    signalCode: null,
+    kill: vi.fn(() => true),
+    on: vi.fn(),
+    unref: vi.fn()
+  };
+  child.on.mockReturnValue(child);
+  return child;
+}
 
 function fakeIo(files: Record<string, string> = {}): TmuxIo & { writes: Record<string, string> } {
   return {
@@ -20,6 +39,18 @@ function fakeIo(files: Record<string, string> = {}): TmuxIo & { writes: Record<s
     },
     async sleep() {}
   };
+}
+
+let currentChild: ReturnType<typeof fakeChild>;
+
+beforeEach(() => {
+  currentChild = fakeChild();
+  spawnMock.mockReset();
+  spawnMock.mockReturnValue(currentChild);
+});
+
+function launchLineAt(index = 0): string {
+  return String(spawnMock.mock.calls[index]?.[1]?.[1] ?? "");
 }
 
 function fakeMux(): Multiplexer & { opened: string[]; killed: MuxHandle[] } {
@@ -71,11 +102,28 @@ describe("ClaudePrintChatEngine", () => {
     });
     await engine.submit("hello");
 
-    expect(mux.opened[0]).toContain("claude -p");
-    expect(mux.opened[0]).toContain("--session-id 00000000-0000-4000-8000-000000000001");
-    expect(mux.opened[0]).toContain("--permission-mode default");
-    expect(mux.opened[0]).toContain("--strict-mcp-config");
-    expect(mux.opened[0]).not.toContain("--no-session-persistence");
+    expect(launchLineAt()).toContain("claude -p");
+    expect(launchLineAt()).toContain("--session-id 00000000-0000-4000-8000-000000000001");
+    expect(launchLineAt()).toContain("--permission-mode dontAsk");
+    expect(launchLineAt()).toContain("--strict-mcp-config");
+    expect(launchLineAt()).not.toContain("--permission-mode default");
+    expect(launchLineAt()).not.toContain("--no-session-persistence");
+    expect(mux.opened).toEqual([]);
+    expect(spawnMock).toHaveBeenCalledWith(
+      "bash",
+      ["-lc", expect.stringContaining("claude -p")],
+      expect.objectContaining({
+        cwd: "/tmp/jarvis-neutral",
+        detached: true,
+        stdio: "ignore"
+      })
+    );
+    expect(await engine.isAlive()).toBe(true);
+    await engine.interrupt();
+    expect(currentChild.kill).toHaveBeenCalledWith("SIGINT");
+    await engine.kill();
+    expect(currentChild.kill).toHaveBeenCalledWith();
+    expect(await engine.isAlive()).toBe(false);
   });
 
   it("uses --resume on later submitted turns", async () => {
@@ -95,7 +143,7 @@ describe("ClaudePrintChatEngine", () => {
     await engine.submit("first");
     await engine.submit("second");
 
-    expect(mux.opened[1]).toContain("--resume 00000000-0000-4000-8000-000000000001");
+    expect(launchLineAt(1)).toContain("--resume 00000000-0000-4000-8000-000000000001");
   });
 
   it("reads Claude transcript JSONL through the existing parser", async () => {
@@ -159,15 +207,15 @@ describe("ClaudePrintChatEngine — vault read-only allowlist (#634)", () => {
     });
     await engine.submit("hello");
 
-    expect(mux.opened[0]).toContain("Read(/data/external-notes/**)");
-    expect(mux.opened[0]).toContain("Glob(/data/external-notes/**)");
-    expect(mux.opened[0]).toContain("Grep(/data/external-notes/**)");
-    expect(mux.opened[0]).toContain("mcp__jarvis__*");
-    expect(mux.opened[0]).toContain(
+    expect(launchLineAt()).toContain("Read(/data/external-notes/**)");
+    expect(launchLineAt()).toContain("Glob(/data/external-notes/**)");
+    expect(launchLineAt()).toContain("Grep(/data/external-notes/**)");
+    expect(launchLineAt()).toContain("mcp__jarvis__*");
+    expect(launchLineAt()).toContain(
       "--settings '/tmp/jarvis-neutral/.jarvis-claude-settings.json'"
     );
-    expect(mux.opened[0]).not.toContain("jst_abc");
-    expect(io.writes["/tmp/jarvis-neutral/.jarvis-claude-permission-token"]).toBe("jst_abc\n");
+    expect(launchLineAt()).not.toContain("jst_abc");
+    expect(io.writes["/tmp/jarvis-neutral/.jarvis-claude-permission-token"]).toBeUndefined();
   });
 
   it("DENY: no vault patterns are granted when no vault is mounted (no roots configured)", async () => {
@@ -189,10 +237,10 @@ describe("ClaudePrintChatEngine — vault read-only allowlist (#634)", () => {
     });
     await engine.submit("hello");
 
-    expect(mux.opened[0]).not.toContain("Read(");
-    expect(mux.opened[0]).not.toContain("Glob(");
-    expect(mux.opened[0]).not.toContain("Grep(");
-    expect(mux.opened[0]).toContain("mcp__jarvis__*");
+    expect(launchLineAt()).not.toContain("Read(");
+    expect(launchLineAt()).not.toContain("Glob(");
+    expect(launchLineAt()).not.toContain("Grep(");
+    expect(launchLineAt()).toContain("mcp__jarvis__*");
   });
 
   it("DENY: never grants write or execute tools, even with a vault configured", async () => {
@@ -214,9 +262,9 @@ describe("ClaudePrintChatEngine — vault read-only allowlist (#634)", () => {
     });
     await engine.submit("hello");
 
-    expect(mux.opened[0]).not.toMatch(/\bWrite\b/);
-    expect(mux.opened[0]).not.toMatch(/\bEdit\b/);
-    expect(mux.opened[0]).not.toMatch(/\bBash\b/);
+    expect(launchLineAt()).not.toMatch(/\bWrite\b/);
+    expect(launchLineAt()).not.toMatch(/\bEdit\b/);
+    expect(launchLineAt()).not.toMatch(/\bBash\b/);
   });
 
   it("DENY: a malicious root cannot smuggle a separate Bash(* tool grant (security fix)", async () => {
@@ -238,8 +286,8 @@ describe("ClaudePrintChatEngine — vault read-only allowlist (#634)", () => {
     });
     await engine.submit("hello");
 
-    expect(mux.opened[0]).not.toMatch(/\bBash\b/);
-    expect(mux.opened[0]).not.toContain("Read(/vault)");
-    expect(mux.opened[0]).toContain("mcp__jarvis__*");
+    expect(launchLineAt()).not.toMatch(/\bBash\b/);
+    expect(launchLineAt()).not.toContain("Read(/vault)");
+    expect(launchLineAt()).toContain("mcp__jarvis__*");
   });
 });

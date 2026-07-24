@@ -174,6 +174,11 @@ export class CliChatEngineImpl implements CliChatEngine {
     this.verifiedSubmitMs = opts.verifiedSubmitMs ?? 35_000;
     this.nudgeAfterMs = opts.nudgeAfterMs ?? 7_000;
     this.muxCallMs = opts.muxCallMs ?? 10_000;
+    // In production executionMode is always threaded in from the NOT NULL DB column
+    // (persistence → factory → engine), so this fallback is defensive-only and never fires.
+    // It stays "interactive" as the conservative full-session default for direct construction;
+    // the one-shot-by-default flip lives at the DB + repository write-path layer (#1238/#1239,
+    // migration 0172). See #1239 for why flipping it here buys nothing in prod.
     this.executionMode = opts.executionMode ?? "interactive";
     this.onDiagnostic = opts.onDiagnostic;
   }

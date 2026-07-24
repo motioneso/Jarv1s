@@ -226,6 +226,17 @@ function mapCodexRecord(
   events: ChatActivityEvent[],
   onFinal: (text: string) => void
 ): void {
+  // #1242: codex-cli's `exec --json` stdout stream (0.139.0+) is a DIFFERENT schema from the
+  // rollout-session file documented above. It emits, per turn: thread.started → turn.started →
+  // item.completed{item:{type,text}} → turn.completed. The final assistant reply is the
+  // agent_message item's text; reasoning items are thinking activity; command/tool items are tool
+  // activity. Its `type` values are disjoint from the rollout schema (`event_msg`/`response_item`),
+  // so both are handled by this one mapper without either clobbering the other. This is the schema
+  // the headless one-shot CodexExecSession (P-02a / epic #1238) parses.
+  if (rec["type"] === "item.completed") {
+    mapCodexExecItem(rec, events, onFinal);
+    return;
+  }
   if (rec["type"] === "response_item") {
     mapCodexResponseItem(rec, events);
     return;
@@ -276,6 +287,41 @@ function mapCodexResponseItem(rec: Record<string, unknown>, events: ChatActivity
 
   if (payload["type"] === "function_call_output") {
     events.push({ kind: "tool", text: "function_call_output" });
+  }
+}
+
+/**
+ * #1242: map one codex `exec --json` `item.completed` record (0.139.0+ schema). The agent_message
+ * item carries the FINAL assistant reply; reasoning items are thinking activity; command/tool items
+ * are tool activity. Unknown item types are ignored. Completion is signaled to the caller by firing
+ * `onFinal` with the reply text (mirrors the rollout `task_complete` path) — `turn.completed` carries
+ * only usage, no text, so the reply must be captured here.
+ */
+function mapCodexExecItem(
+  rec: Record<string, unknown>,
+  events: ChatActivityEvent[],
+  onFinal: (text: string) => void
+): void {
+  const item = rec["item"];
+  if (!isRecord(item)) return;
+  const itemType = typeof item["type"] === "string" ? item["type"] : "";
+  const text = typeof item["text"] === "string" ? item["text"] : "";
+  if (itemType === "agent_message") {
+    if (text) onFinal(text);
+    return;
+  }
+  if (itemType === "reasoning") {
+    if (text) events.push({ kind: "thinking", text });
+    return;
+  }
+  if (itemType === "command_execution" || itemType === "mcp_tool_call") {
+    const label =
+      typeof item["command"] === "string"
+        ? item["command"]
+        : typeof item["tool"] === "string"
+          ? item["tool"]
+          : itemType;
+    events.push({ kind: "tool", text: label });
   }
 }
 

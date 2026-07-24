@@ -1,13 +1,7 @@
+import { spawn, type ChildProcess } from "node:child_process";
 import { join } from "node:path";
 
-import {
-  agyPrintTranscriptRoot,
-  parseTranscript,
-  TmuxMultiplexer,
-  type Multiplexer,
-  type MuxHandle,
-  type TmuxIo
-} from "@jarv1s/ai";
+import { agyPrintTranscriptRoot, parseTranscript, type Multiplexer, type TmuxIo } from "@jarv1s/ai";
 
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
 import {
@@ -26,19 +20,17 @@ export interface AgyPrintChatEngineOpts {
 
 export class AgyPrintChatEngine implements CliChatEngine {
   readonly provider = "google" as const;
-  private readonly mux: Multiplexer;
   private readonly homeBase?: string;
   private neutralDir: string | null = null;
   private conversationUuid: string | null = null;
-  private currentHandle: MuxHandle | null = null;
+  private currentProcess: ChildProcess | null = null;
   private hasSubmitted = false;
 
   constructor(
-    private readonly threadKey: string,
+    _threadKey: string,
     private readonly io: TmuxIo,
     opts: AgyPrintChatEngineOpts = {}
   ) {
-    this.mux = opts.mux ?? new TmuxMultiplexer(io, { homeBase: opts.homeBase });
     this.homeBase = opts.homeBase;
   }
 
@@ -65,15 +57,17 @@ export class AgyPrintChatEngine implements CliChatEngine {
       : "";
     this.hasSubmitted = true;
     const logPath = join(this.neutralDir, AGY_SESSION_LOG_FILENAME);
-    this.currentHandle = await this.mux.open({
-      name: `jarv1s-live-${this.threadKey}`,
-      cols: 220,
-      rows: 50,
-      launchLine:
-        `cd ${shellQuote(this.neutralDir)} && ` +
-        `agy --dangerously-skip-permissions ${conversationFlag}--print ` +
-        `--log-file ${shellQuote(logPath)} "$(cat ${shellQuote(promptPath)})"`
+    const launchLine =
+      `cd ${shellQuote(this.neutralDir)} && ` +
+      `agy --dangerously-skip-permissions ${conversationFlag}--print ` +
+      `--log-file ${shellQuote(logPath)} "$(cat ${shellQuote(promptPath)})"`;
+    this.currentProcess = spawn("bash", ["-lc", launchLine], {
+      cwd: this.neutralDir,
+      detached: true,
+      stdio: "ignore"
     });
+    this.currentProcess.on("error", () => undefined);
+    this.currentProcess.unref();
     // #1086 — capture at spawn, not first readNew: teardown can race before the reader polls.
     this.conversationUuid ??= await captureAgyConversationIdentity(this.io, this.neutralDir);
   }
@@ -100,16 +94,20 @@ export class AgyPrintChatEngine implements CliChatEngine {
   }
 
   async isAlive(): Promise<boolean> {
-    return this.currentHandle !== null ? this.mux.isAlive(this.currentHandle) : false;
+    return (
+      this.currentProcess !== null &&
+      this.currentProcess.exitCode === null &&
+      this.currentProcess.signalCode === null
+    );
   }
 
   async interrupt(): Promise<void> {
-    if (this.currentHandle !== null) await this.mux.interrupt(this.currentHandle);
+    if (this.currentProcess !== null) this.currentProcess.kill("SIGINT");
   }
 
   async kill(): Promise<void> {
-    if (this.currentHandle !== null) await this.mux.kill(this.currentHandle);
-    this.currentHandle = null;
+    if (this.currentProcess !== null) this.currentProcess.kill();
+    this.currentProcess = null;
   }
 
   async purgeTranscripts(): Promise<void> {
