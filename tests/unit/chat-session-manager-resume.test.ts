@@ -68,9 +68,9 @@ describe("ChatSessionManager.resumeThread", () => {
 
     await manager.resumeThread("u1", "thread-abc");
 
-    expect(deps.persistence.touchExistingThread).toHaveBeenCalledWith("u1", "thread-abc");
+    expect(deps.persistence.touchExistingThread).toHaveBeenCalledWith("u1", "thread-abc", "drawer");
     expect(engine.killed).toBe(true);
-    expect(revokeMcpToken).toHaveBeenCalledWith("u1");
+    expect(revokeMcpToken).toHaveBeenCalledWith("u1:drawer");
   });
 
   it("forces a replay on the next turn's relaunch after an explicit resume", async () => {
@@ -83,7 +83,11 @@ describe("ChatSessionManager.resumeThread", () => {
     deps.persistence.listPriorTurns.mockClear();
     await manager.ensureSession("u1", "Ben");
 
-    expect(deps.persistence.listPriorTurns).toHaveBeenCalledWith("u1", { forceReplay: true });
+    expect(deps.persistence.listPriorTurns).toHaveBeenCalledWith(
+      "u1",
+      { forceReplay: true },
+      "drawer"
+    );
   });
 
   it("does not force replay on an ordinary relaunch with no prior resume", async () => {
@@ -93,9 +97,11 @@ describe("ChatSessionManager.resumeThread", () => {
     deps.persistence.listPriorTurns.mockClear();
     await manager.ensureSession("u1", "Ben");
 
-    expect(deps.persistence.listPriorTurns).toHaveBeenCalledWith("u1", {
-      forceReplay: false
-    });
+    expect(deps.persistence.listPriorTurns).toHaveBeenCalledWith(
+      "u1",
+      { forceReplay: false },
+      "drawer"
+    );
   });
 
   it("not-found: touchExistingThread returns false → ChatThreadNotFoundError, active session untouched", async () => {

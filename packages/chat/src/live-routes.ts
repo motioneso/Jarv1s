@@ -2,8 +2,8 @@
  * Live-chat HTTP/SSE routes: drive the in-process ChatSessionManager rather than
  * the pg-boss worker. Every handler resolves the AccessContext first (401 when the
  * session is missing/expired) and only ever acts on the caller's own actorUserId —
- * the manager keys sessions and subscriptions by actor, so there is no cross-user
- * path (a user can only stream their own transcript).
+ * the manager keys sessions and subscriptions by actor + surface, so there is no
+ * cross-user or cross-surface transcript path.
  *
  * Handler bodies are wrapped in try/catch and mapped through handleLiveRouteError:
  * known configuration/launch failures become a sanitized 4xx (no active model →
@@ -30,6 +30,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AccessContext } from "@jarv1s/db";
 import { sessionRateLimitKey } from "@jarv1s/module-sdk";
 import {
+  type ChatSurface,
+  normalizeChatSurface,
   type GetChatPrivacyStateResponse,
   getChatPrivacyStateRouteSchema,
   parsePositiveIntEnv
@@ -124,7 +126,7 @@ export function registerChatLiveRoutes(
       if ("error" in bodyResult) {
         return reply.code(400).send({ error: bodyResult.error });
       }
-      const { text, attachmentIds, moduleControl } = bodyResult;
+      const { text, attachmentIds, moduleControl, surface } = bodyResult;
 
       try {
         // #1133 — resolve attachment ids to vault-backed metadata before the turn
@@ -139,7 +141,7 @@ export function registerChatLiveRoutes(
           // Server-side guard mirroring the hidden composer button: private/incognito
           // turns must never reference vault files (the thread leaves no record that
           // could explain the attachment later).
-          const privacy = await runtime.manager.getPrivacyState(access.actorUserId);
+          const privacy = await runtime.manager.getPrivacyState(access.actorUserId, surface);
           if (privacy.incognito) {
             return reply
               .code(400)
@@ -171,7 +173,8 @@ export function registerChatLiveRoutes(
           access.actorUserId,
           userName,
           text,
-          attachments || moduleControl ? { attachments, moduleControl } : undefined
+          attachments || moduleControl ? { attachments, moduleControl } : undefined,
+          surface
         );
 
         return reply.send({
@@ -203,10 +206,15 @@ export function registerChatLiveRoutes(
 
       try {
         const rawIncognito = (request.query as Record<string, unknown>).incognito;
+        const surfaceResult = readOptionalSurface(
+          (request.query as Record<string, unknown>).surface
+        );
+        if ("error" in surfaceResult) return reply.code(400).send({ error: surfaceResult.error });
         const incognito = rawIncognito === "true" || rawIncognito === "1";
         await runtime.manager.clear(
           access.actorUserId,
-          incognito ? { incognito: true } : undefined
+          incognito ? { incognito: true } : undefined,
+          surfaceResult.surface
         );
 
         return reply.code(204).send();
@@ -232,7 +240,11 @@ export function registerChatLiveRoutes(
       if (!access) return reply;
 
       try {
-        await runtime.manager.endPrivateSession(access.actorUserId);
+        const surfaceResult = readOptionalSurface(
+          (request.query as Record<string, unknown>).surface
+        );
+        if ("error" in surfaceResult) return reply.code(400).send({ error: surfaceResult.error });
+        await runtime.manager.endPrivateSession(access.actorUserId, surfaceResult.surface);
         return reply.code(204).send();
       } catch (error) {
         return handleLiveRouteError(error, reply);
@@ -248,7 +260,14 @@ export function registerChatLiveRoutes(
       if (!access) return reply;
 
       try {
-        const state = await runtime.manager.getPrivacyState(access.actorUserId);
+        const surfaceResult = readOptionalSurface(
+          (request.query as Record<string, unknown>).surface
+        );
+        if ("error" in surfaceResult) return reply.code(400).send({ error: surfaceResult.error });
+        const state = await runtime.manager.getPrivacyState(
+          access.actorUserId,
+          surfaceResult.surface
+        );
         return state satisfies GetChatPrivacyStateResponse;
       } catch (error) {
         return handleLiveRouteError(error, reply);
@@ -273,7 +292,11 @@ export function registerChatLiveRoutes(
 
       try {
         const userName = await runtime.resolveUserName(access.actorUserId);
-        await runtime.manager.switchProvider(access.actorUserId, userName);
+        const surfaceResult = readOptionalSurface(
+          (request.query as Record<string, unknown>).surface
+        );
+        if ("error" in surfaceResult) return reply.code(400).send({ error: surfaceResult.error });
+        await runtime.manager.switchProvider(access.actorUserId, userName, surfaceResult.surface);
 
         return reply.code(200).send({ ok: true });
       } catch (error) {
@@ -302,7 +325,11 @@ export function registerChatLiveRoutes(
       if (!access) return reply;
 
       try {
-        await runtime.manager.stopTurn(access.actorUserId);
+        const surfaceResult = readOptionalSurface(
+          (request.query as Record<string, unknown>).surface
+        );
+        if ("error" in surfaceResult) return reply.code(400).send({ error: surfaceResult.error });
+        await runtime.manager.stopTurn(access.actorUserId, surfaceResult.surface);
         return reply.code(200).send({ ok: true });
       } catch (error) {
         return handleLiveRouteError(error, reply);
@@ -332,7 +359,11 @@ export function registerChatLiveRoutes(
       }
 
       try {
-        await runtime.manager.resumeThread(access.actorUserId, threadId);
+        const surfaceResult = readOptionalSurface(
+          (request.query as Record<string, unknown>).surface
+        );
+        if ("error" in surfaceResult) return reply.code(400).send({ error: surfaceResult.error });
+        await runtime.manager.resumeThread(access.actorUserId, threadId, surfaceResult.surface);
         return reply.code(204).send();
       } catch (error) {
         return handleLiveRouteError(error, reply);
@@ -367,12 +398,24 @@ export function registerChatLiveRoutes(
             access.actorUserId,
             bodyResult.briefingRunId
           )) ?? buildEveningInterviewSeed(null);
-        await runtime.manager.seedContext(access.actorUserId, userName, seed.context);
+        await runtime.manager.seedContext(
+          access.actorUserId,
+          userName,
+          seed.context,
+          undefined,
+          bodyResult.surface
+        );
         const {
           reply: assistantReply,
           userMessageId,
           assistantMessageId
-        } = await runtime.manager.submitTurn(access.actorUserId, userName, seed.openingPrompt);
+        } = await runtime.manager.submitTurn(
+          access.actorUserId,
+          userName,
+          seed.openingPrompt,
+          undefined,
+          bodyResult.surface
+        );
 
         return reply.send({ reply: assistantReply, userMessageId, assistantMessageId });
       } catch (error) {
@@ -396,7 +439,11 @@ export function registerChatLiveRoutes(
       const access = await resolveOr401(dependencies, request, reply);
       if (!access) return reply;
 
-      const moduleId = readModuleOnboardingBody(request.body);
+      const moduleBody = readModuleOnboardingBody(request.body);
+      if (moduleBody && "error" in moduleBody) {
+        return reply.code(400).send({ error: moduleBody.error });
+      }
+      const moduleId = moduleBody?.moduleId;
       if (!moduleId) return reply.code(404).send({ error: "Not found" });
 
       let source: ModuleOnboardingSeedSource | undefined;
@@ -415,7 +462,8 @@ export function registerChatLiveRoutes(
           access.actorUserId,
           userName,
           buildModuleOnboardingSeed(source),
-          `module-onboarding:${source.moduleId}`
+          `module-onboarding:${source.moduleId}`,
+          moduleBody?.surface
         );
         return reply.send({ ok: true });
       } catch (error) {
@@ -453,14 +501,21 @@ export function registerChatLiveRoutes(
     const access = await resolveOr401(dependencies, request, reply);
     if (!access) return reply;
 
-    // Subscriptions are keyed by the caller's actorUserId — a stream only ever
+    const surfaceResult = readOptionalSurface((request.query as Record<string, unknown>).surface);
+    if ("error" in surfaceResult) return reply.code(400).send({ error: surfaceResult.error });
+
+    // Subscriptions are keyed by the caller's actor + surface — a stream only ever
     // receives that actor's transcript records, never another user's.
     let unsubscribe: () => void;
     try {
-      unsubscribe = runtime.manager.subscribe(access.actorUserId, (record) => {
-        if (reply.raw.destroyed || reply.raw.writableEnded) return;
-        reply.raw.write(`data: ${JSON.stringify(record)}\n\n`);
-      });
+      unsubscribe = runtime.manager.subscribe(
+        access.actorUserId,
+        (record) => {
+          if (reply.raw.destroyed || reply.raw.writableEnded) return;
+          reply.raw.write(`data: ${JSON.stringify(record)}\n\n`);
+        },
+        surfaceResult.surface
+      );
     } catch (error) {
       return handleLiveRouteError(error, reply);
     }
@@ -517,25 +572,44 @@ export function buildModuleOnboardingSeed(source: ModuleOnboardingSeedSource): s
   );
 }
 
-function readEveningInterviewBody(body: unknown): { briefingRunId?: string } | { error: string } {
-  if (body === undefined) return {};
+function readEveningInterviewBody(
+  body: unknown
+): { briefingRunId?: string; surface: ChatSurface } | { error: string } {
+  if (body === undefined) return { surface: normalizeChatSurface() };
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
     return { error: "Expected JSON object body" };
   }
-  const raw = (body as Record<string, unknown>).briefingRunId;
-  if (raw === undefined) return {};
+  const record = body as Record<string, unknown>;
+  const surfaceResult = readOptionalSurface(record.surface);
+  if ("error" in surfaceResult) return surfaceResult;
+  const raw = record.briefingRunId;
+  if (raw === undefined) return { surface: surfaceResult.surface };
   if (typeof raw !== "string" || raw.trim() === "") {
     return { error: "briefingRunId must be a non-empty string" };
   }
-  return { briefingRunId: raw.trim() };
+  return { briefingRunId: raw.trim(), surface: surfaceResult.surface };
 }
 
-function readModuleOnboardingBody(body: unknown): string | undefined {
+function readModuleOnboardingBody(
+  body: unknown
+): { moduleId: string; surface: ChatSurface } | { error: string } | undefined {
   if (!body || typeof body !== "object" || Array.isArray(body)) return undefined;
-  const moduleId = (body as Record<string, unknown>).moduleId;
-  return typeof moduleId === "string" && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(moduleId)
-    ? moduleId
-    : undefined;
+  const record = body as Record<string, unknown>;
+  const moduleId = record.moduleId;
+  if (typeof moduleId !== "string" || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(moduleId)) {
+    return undefined;
+  }
+  const surfaceResult = readOptionalSurface(record.surface);
+  if ("error" in surfaceResult) return surfaceResult;
+  return { moduleId, surface: surfaceResult.surface };
+}
+
+function readOptionalSurface(value: unknown): { surface: ChatSurface } | { error: string } {
+  try {
+    return { surface: normalizeChatSurface(value) };
+  } catch {
+    return { error: "surface must be a valid slug" };
+  }
 }
 
 /**
@@ -612,12 +686,19 @@ function handleLiveRouteError(error: unknown, reply: FastifyReply) {
  * the engine still receives the server-composed attachments manifest). Ids are
  * shape-checked as UUIDs here so nothing unvalidated ever reaches a vault path.
  */
-function readTurnBody(
-  body: unknown
-): { text: string; attachmentIds: readonly string[]; moduleControl?: string } | { error: string } {
+function readTurnBody(body: unknown):
+  | {
+      text: string;
+      attachmentIds: readonly string[];
+      moduleControl?: string;
+      surface: ChatSurface;
+    }
+  | { error: string } {
   if (!body || typeof body !== "object" || Array.isArray(body))
     return { error: "text is required" };
   const record = body as Record<string, unknown>;
+  const surfaceResult = readOptionalSurface(record.surface);
+  if ("error" in surfaceResult) return surfaceResult;
   const control = renderModuleControlContext(record.controlContext);
   if (!control.ok) return { error: control.error };
 
@@ -643,7 +724,12 @@ function readTurnBody(
   const hasAttachments = attachmentIds.length > 0;
   if (typeof value !== "string") {
     if (value === undefined && hasAttachments) {
-      return { text: "", attachmentIds, ...(control.text ? { moduleControl: control.text } : {}) };
+      return {
+        text: "",
+        attachmentIds,
+        surface: surfaceResult.surface,
+        ...(control.text ? { moduleControl: control.text } : {})
+      };
     }
     return { error: "text is required" };
   }
@@ -655,6 +741,7 @@ function readTurnBody(
   return {
     text: trimmed,
     attachmentIds,
+    surface: surfaceResult.surface,
     ...(control.text ? { moduleControl: control.text } : {})
   };
 }

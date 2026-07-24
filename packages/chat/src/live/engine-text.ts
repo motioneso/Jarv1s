@@ -4,7 +4,7 @@
  * (already substantial) retrieval orchestration lives in its own module rather than
  * growing the manager class further.
  */
-import type { AnswerSourceSupport } from "@jarv1s/shared";
+import type { AnswerSourceSupport, ChatSurface } from "@jarv1s/shared";
 import type { MemoryRecallItem } from "@jarv1s/memory";
 import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
 
@@ -29,15 +29,16 @@ export interface EngineTextDeps {
 export async function buildEngineText(
   deps: EngineTextDeps,
   actorUserId: string,
-  text: string
+  text: string,
+  surface?: ChatSurface
 ): Promise<{ text: string; pendingItems: AnswerSourceSupport[] }> {
   if (!deps.passiveRetrieval && !deps.crossToolRead) {
     return { text, pendingItems: [] };
   }
   try {
     const [{ recent }, threadCtx] = await Promise.all([
-      deps.persistence.listPriorTurns(actorUserId),
-      deps.persistence.getThreadContext(actorUserId)
+      deps.persistence.listPriorTurns(actorUserId, undefined, surface),
+      deps.persistence.getThreadContext(actorUserId, surface)
     ]);
 
     const localNow = new Date().toISOString();

@@ -23,6 +23,7 @@ import {
   type JarvisDatabase
 } from "@jarv1s/db";
 import { ChatStreamLimitError } from "../../packages/chat/src/live/chat-session-manager.js";
+import { normalizeChatSurface } from "../../packages/chat/src/live/chat-surface.js";
 import type {
   CliChatEngine,
   EngineLaunchOpts,
@@ -402,6 +403,69 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     expect(bRecords).toHaveLength(0);
   });
 
+  it("keeps drawer and surface sessions independent, including their persisted transcripts", async () => {
+    const { createChatSessionRuntime } = await import("@jarv1s/chat");
+    const drawerSurface = normalizeChatSurface("drawer");
+    const jobSearchSurface = normalizeChatSurface("job-search");
+    const runtime = createChatSessionRuntime({
+      dataContext,
+      engineFactory: fakeEngineFactory
+    });
+
+    const drawerRecords: TranscriptRecord[] = [];
+    const surfaceRecords: TranscriptRecord[] = [];
+    const unsubscribeDrawer = runtime.manager.subscribe(
+      ids.userA,
+      (record) => {
+        drawerRecords.push(record);
+      },
+      "drawer"
+    );
+    const unsubscribeSurface = runtime.manager.subscribe(
+      ids.userA,
+      (record) => {
+        surfaceRecords.push(record);
+      },
+      "job-search"
+    );
+
+    try {
+      await runtime.manager.submitTurn(ids.userA, "User A", "drawer-only", undefined, "drawer");
+      await runtime.manager.submitTurn(
+        ids.userA,
+        "User A",
+        "surface-only",
+        undefined,
+        "job-search"
+      );
+
+      expect(drawerRecords.map((record) => record.text).join("\n")).toContain("drawer-only");
+      expect(drawerRecords.map((record) => record.text).join("\n")).not.toContain("surface-only");
+      expect(surfaceRecords.map((record) => record.text).join("\n")).toContain("surface-only");
+      expect(surfaceRecords.map((record) => record.text).join("\n")).not.toContain("drawer-only");
+
+      const drawerBeforeClear = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+        repository.listThreadsByActivity(scopedDb, 50, drawerSurface)
+      );
+      const drawerThreadId = drawerBeforeClear[0]?.id;
+      await runtime.manager.clear(ids.userA, undefined, "job-search");
+
+      const [surfaceThreads, drawerThreads] = await dataContext.withDataContext(
+        userAContext(),
+        async (scopedDb) => [
+          await repository.listThreadsByActivity(scopedDb, 50, jobSearchSurface),
+          await repository.listThreadsByActivity(scopedDb, 50, drawerSurface)
+        ]
+      );
+      expect(surfaceThreads.length).toBeGreaterThan(0);
+      expect(drawerThreads.some((thread) => thread.id === drawerThreadId)).toBe(true);
+    } finally {
+      unsubscribeDrawer();
+      unsubscribeSurface();
+      runtime.shutdown();
+    }
+  });
+
   it("GET /api/chat/stream returns 429 when the actor has too many open streams", async () => {
     const app = Fastify({ logger: false });
     registerChatLiveRoutes(app, {
@@ -450,7 +514,7 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
       });
 
       expect(response.statusCode).toBe(204);
-      expect(endPrivateSession).toHaveBeenCalledWith(ids.userA);
+      expect(endPrivateSession).toHaveBeenCalledWith(ids.userA, "drawer");
     } finally {
       await app.close();
     }
@@ -474,7 +538,7 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual({ incognito: true });
-      expect(getPrivacyState).toHaveBeenCalledWith(ids.userA);
+      expect(getPrivacyState).toHaveBeenCalledWith(ids.userA, "drawer");
     } finally {
       await app.close();
     }

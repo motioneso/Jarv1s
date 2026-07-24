@@ -133,7 +133,7 @@ describe("ChatSessionManager self-heal (#1157)", () => {
       CliChatDeliveryUnknownError
     );
     expect(factoryCalls).toHaveLength(1); // never relaunched
-    expect(revoked).toContain("u1");
+    expect(revoked).toContain("u1:drawer");
   });
 
   it("heals a failed LAUNCH once", async () => {

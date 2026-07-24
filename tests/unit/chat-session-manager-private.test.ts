@@ -73,7 +73,7 @@ describe("ChatSessionManager private cleanup", () => {
     expect(engine.events).toEqual(["purge", "kill"]);
     expect(engine.preserveNeutralDir).toBe(true);
     expect(deps.persistence.deleteThread).not.toHaveBeenCalled();
-    expect(revoke).toHaveBeenCalledWith("u1");
+    expect(revoke).toHaveBeenCalledWith("u1:drawer");
   });
 
   it("retains a row across a live recreate race, then clears it after the post-exit sweep", async () => {
@@ -101,9 +101,9 @@ describe("ChatSessionManager private cleanup", () => {
 
     await manager.reconcileLiveSessions(new Set());
 
-    expect(purgePrivateTranscripts).toHaveBeenCalledWith("u1");
+    expect(purgePrivateTranscripts).toHaveBeenCalledWith("u1:drawer");
     expect(transcriptExists).toBe(false);
-    expect(deps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private");
+    expect(deps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private", "drawer");
   });
 
   // #744 — the bookkeeping-row delete is GATED on purge success. If purge fails (throws) or
@@ -127,7 +127,7 @@ describe("ChatSessionManager private cleanup", () => {
     expect(engine.preserveNeutralDir).toBe(true);
     expect(deps.persistence.deleteThread).not.toHaveBeenCalled();
     // teardown still happens — a failed purge must not leave a dead engine live.
-    expect(revoke).toHaveBeenCalledWith("u1");
+    expect(revoke).toHaveBeenCalledWith("u1:drawer");
   });
 
   it("refuses a private launch when the engine has no purge method", async () => {
@@ -153,7 +153,7 @@ describe("ChatSessionManager private cleanup", () => {
 
     await manager.reconcileLiveSessions(new Set());
 
-    expect(purgePrivateTranscripts).toHaveBeenCalledWith("u1");
+    expect(purgePrivateTranscripts).toHaveBeenCalledWith("u1:drawer");
     expect(deps.persistence.deleteThread).not.toHaveBeenCalled();
   });
 
@@ -186,10 +186,10 @@ describe("ChatSessionManager private cleanup", () => {
 
     await manager.reconcileLiveSessions(new Set());
 
-    expect(killSession).toHaveBeenCalledWith("u1", { preserveNeutralDir: true });
+    expect(killSession).toHaveBeenCalledWith("u1:drawer", { preserveNeutralDir: true });
     expect(engine.purged).toBe(true);
     expect(deps.persistence.deleteThread).not.toHaveBeenCalled();
-    expect(revoke).toHaveBeenCalledWith("u1");
+    expect(revoke).toHaveBeenCalledWith("u1:drawer");
   });
 
   it("reconcileLiveSessions sweeps orphaned private bookkeeping rows after api restart", async () => {
@@ -204,8 +204,8 @@ describe("ChatSessionManager private cleanup", () => {
 
     await manager.reconcileLiveSessions(new Set());
 
-    expect(purgePrivateTranscripts).toHaveBeenCalledWith("u1");
-    expect(deps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private");
+    expect(purgePrivateTranscripts).toHaveBeenCalledWith("u1:drawer");
+    expect(deps.persistence.deleteThread).toHaveBeenCalledWith("u1", "thread-private", "drawer");
   });
 
   it("clear retains outgoing private bookkeeping until a later sweep", async () => {
@@ -219,7 +219,7 @@ describe("ChatSessionManager private cleanup", () => {
     expect(engine.killed).toBe(true);
     expect(engine.purged).toBe(true);
     expect(deps.persistence.deleteThread).not.toHaveBeenCalled();
-    expect(deps.persistence.openNewConversation).toHaveBeenCalledWith("u1", undefined);
+    expect(deps.persistence.openNewConversation).toHaveBeenCalledWith("u1", undefined, "drawer");
   });
 
   it("reapIdle skips private sessions with subscribers and reaps private sessions without subscribers", async () => {

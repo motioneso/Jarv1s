@@ -12,12 +12,15 @@ import {
 import type {
   AnswerProvenanceMetadataV1,
   ChatAttachmentDto,
+  ChatSurface,
   SourceFreshnessV1
 } from "@jarv1s/shared";
+import { normalizeChatSurface } from "./live/chat-surface.js";
 
 export interface CreateChatThreadInput {
   readonly title: string;
   readonly incognito?: boolean;
+  readonly surface?: ChatSurface;
 }
 
 /**
@@ -27,13 +30,15 @@ export interface CreateChatThreadInput {
  * removed in the retire-legacy-chat-model change.
  */
 export class ChatRepository {
-  async listThreads(scopedDb: DataContextDb): Promise<ChatThread[]> {
+  async listThreads(scopedDb: DataContextDb, surface?: ChatSurface): Promise<ChatThread[]> {
     assertDataContextDb(scopedDb);
+    const chatSurface = normalizeChatSurface(surface);
 
     return scopedDb.db
       .selectFrom("app.chat_threads")
       .selectAll()
       .where("incognito", "=", false)
+      .where("surface", "=", chatSurface)
       .orderBy("last_active_at", "desc")
       .orderBy("id")
       .execute();
@@ -45,25 +50,37 @@ export class ChatRepository {
    * today's-chats scan so a long-lived thread active today is never dropped — the
    * existing listThreads orders by updated_at, which is NOT bumped on a turn.
    */
-  async listThreadsByActivity(scopedDb: DataContextDb, limit: number): Promise<ChatThread[]> {
+  async listThreadsByActivity(
+    scopedDb: DataContextDb,
+    limit: number,
+    surface?: ChatSurface
+  ): Promise<ChatThread[]> {
     assertDataContextDb(scopedDb);
+    const chatSurface = normalizeChatSurface(surface);
 
     return scopedDb.db
       .selectFrom("app.chat_threads")
       .selectAll()
+      .where("surface", "=", chatSurface)
       .orderBy("last_active_at", "desc")
       .orderBy("id")
       .limit(limit)
       .execute();
   }
 
-  async getThreadById(scopedDb: DataContextDb, threadId: string): Promise<ChatThread | undefined> {
+  async getThreadById(
+    scopedDb: DataContextDb,
+    threadId: string,
+    surface?: ChatSurface
+  ): Promise<ChatThread | undefined> {
     assertDataContextDb(scopedDb);
+    const chatSurface = normalizeChatSurface(surface);
 
     return scopedDb.db
       .selectFrom("app.chat_threads")
       .selectAll()
       .where("id", "=", threadId)
+      .where("surface", "=", chatSurface)
       .executeTakeFirst();
   }
 
@@ -130,14 +147,17 @@ export class ChatRepository {
    */
   async getCurrentThread(
     scopedDb: DataContextDb,
-    actorUserId: string
+    actorUserId: string,
+    surface?: ChatSurface
   ): Promise<ChatThread | undefined> {
     assertDataContextDb(scopedDb);
+    const chatSurface = normalizeChatSurface(surface);
 
     return scopedDb.db
       .selectFrom("app.chat_threads")
       .selectAll()
       .where("owner_user_id", "=", actorUserId)
+      .where("surface", "=", chatSurface)
       .orderBy("last_active_at", "desc")
       .orderBy("id")
       .limit(1)
@@ -150,6 +170,7 @@ export class ChatRepository {
    */
   async openNewThread(scopedDb: DataContextDb, input: CreateChatThreadInput): Promise<ChatThread> {
     assertDataContextDb(scopedDb);
+    const surface = normalizeChatSurface(input.surface);
 
     const now = new Date();
 
@@ -160,6 +181,7 @@ export class ChatRepository {
         owner_user_id: sql<string>`app.current_actor_user_id()`,
         title: input.title,
         incognito: input.incognito ?? false,
+        surface,
         created_at: now,
         updated_at: now,
         last_active_at: now
@@ -186,11 +208,12 @@ export class ChatRepository {
       readonly answerProvenance?: AnswerProvenanceMetadataV1;
       /** #1133 — attachment display metadata (id/name/mime/size) — never bytes. */
       readonly attachments?: readonly ChatAttachmentDto[];
-    }
+    },
+    surface?: ChatSurface
   ): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage } | undefined> {
     assertDataContextDb(scopedDb);
 
-    const thread = await this.getThreadById(scopedDb, threadId);
+    const thread = await this.getThreadById(scopedDb, threadId, surface);
 
     if (!thread) {
       return undefined;
@@ -258,13 +281,19 @@ export class ChatRepository {
    * Bumps a thread's last_active_at to now so it becomes the current conversation.
    * Owner-scoped via RLS; app_runtime holds UPDATE on chat_threads.
    */
-  async touchThread(scopedDb: DataContextDb, threadId: string): Promise<ChatThread | undefined> {
+  async touchThread(
+    scopedDb: DataContextDb,
+    threadId: string,
+    surface?: ChatSurface
+  ): Promise<ChatThread | undefined> {
     assertDataContextDb(scopedDb);
+    const chatSurface = normalizeChatSurface(surface);
 
     return scopedDb.db
       .updateTable("app.chat_threads")
       .set({ last_active_at: new Date() })
       .where("id", "=", threadId)
+      .where("surface", "=", chatSurface)
       .returningAll()
       .executeTakeFirst();
   }
