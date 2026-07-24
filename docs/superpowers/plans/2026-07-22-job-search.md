@@ -316,63 +316,115 @@ revisionId, idempotencyKey }` only; never resume text.
 **Goal:** a soft-scripted interview yields an approved search profile that is one shared data
 object, refinable from the job-search chat or general Jarvis — without transcript bleed.
 
+> **Grounded against `origin/main` @ `6f82554e`** (JS-00/01/02 landed). Refined after a JS-03
+> adversarial plan review (Fable, 2026-07-23): 1 blocker + 4 major folded in below.
+> `job-search.profiles` is a **KV namespace** (shipped manifest `storage[]`, user scope,
+> `NS.profiles`) — **not a table**: no migration in this phase.
+
+### Pinned decisions (from the JS-03 review — resolve before build, do not re-litigate mid-flight)
+
+- **Confirm-per-write is accepted (not frictionless).** `job-search.profile.update` is write-risk
+  and external-module tools **cannot** declare `actionFamilyId`/`executionPolicy` (the
+  `createExternalToolManifests` bridge drops them; gateway `policy.ts` then resolves write-risk to
+  `confirm`). So **every** `profile.update` raises one Approve/Deny card, in both surfaces. This is
+  the **same consent pattern JS-02 shipped** for `resume.intake`/`critique` — **the card IS the
+  user's consent.** We do NOT plumb action families through the external bridge this phase (net-new
+  host surface, out of scope). Interview guidance, e2e, and UAT all account for the card.
+- **Addressing & creation.** `profile.update` input = `{ profileId?, …fields }`. Omitted `profileId`
+  targets the user's sole `building` profile; if none exists it **creates one** (server-minted
+  uuid, `status: "building"`); if several match, it returns a typed `ambiguous_profile` error
+  listing `{ id, title }`. Single building profile is the common case; ambiguity surfaces a
+  pick-list (the drawer path has no transcript to disambiguate from, so this rule is load-bearing).
+- **Merge semantics.** Shallow merge per top-level key; **array fields replace** (not append);
+  explicit `null` clears a nullable field.
+- **Approval.** Approval = a user-consented `profile.update { status: "active" }`, valid **only when
+  `isApproved()` is true** (typed error otherwise); the Approve/Deny card is the consent act.
+  `isApproved()` requires `titles.length ≥ 1`, `compFloor ≠ null`, `location ≠ null`, **and** a
+  current résumé present — a **cross-object read** of the `job-search.resume` KV namespace (JS-02).
+  `industries` / `keywords` / `dealBreakers` are optional (dealBreakers may legitimately be empty).
+- **Schema caps (pinned).** `compFloor` = `{ amount: positive int ≤ 10_000_000, currency: 3-letter
+uppercase, period ∈ {"year","month","hour"} }`. `location` = `{ mode ∈
+{"remote","hybrid","onsite"}, places: string[] ≤ 10 }`. List caps: `titles ≤ 10`, `industries ≤
+10`, `keywords ≤ 25`, `dealBreakers ≤ 15`; each free-text string ≤ 120 chars. `status ∈
+{"building","active","paused"}` (no separate "approved" state — approval flips to `active`).
+
 ### Scope / tasks
 
-- [ ] **Task 1 — Domain: profile schema + validation.** `src/domain/profile.ts` implementing
-      the spec schema (titles / industries / keywords / compFloor / location / dealBreakers /
-      vaultEnabled / status …) with pure validators, an `isApproved` completeness rule (enough
-      fields to run), and a `completeness()` readout feeding the progress rail. Multiple
-      profiles per user (one per search) in `job-search.profiles`.
-- [ ] **Task 2 — Tools.** Manifest v3: `job-search.profile.update` (write — **the shared
-      seam**: callable from general Jarvis too, so the drawer can "bump my comp floor to
-      140k" without ever seeing the job-search transcript) with a strict input schema
-      (unknown keys rejected, per-field validation in the handler); extend
-      `job-search.profiles.list` to return completeness + status.
-- [ ] **Task 3 — Soft-scripted interview.** Extend the surface seed guidance: the assistant
-      knows the unfilled fields (from `profiles.list`), steers toward them
-      tangent-friendly, writes via `profile.update` as facts land, and proposes approval when
-      complete. No wizard component — the script lives in guidance + tools.
-- [ ] **Task 4 — Progress rail (real).** Wire the JS-01 rail to profile state:
-      `Resume ✓ · Titles ✓ · Comp — · Location — · Deal-breakers —` (mono, status readout,
-      not clickable). Landing profile cards now show real title/eyebrow/status from the
-      store.
+- [ ] **Task 1 — Domain: profile schema + validation.** `src/domain/profile.ts` implementing the
+      **pinned schema above** with pure validators (per-field enums/caps, unknown-key rejection), an
+      `isApproved()` rule (the required set above), and a `completeness()` readout (per-field
+      filled/empty) feeding the progress rail. Multiple profiles per user (one per search) in the
+      `job-search.profiles` KV namespace. `completeness()`/`isApproved()` **read the
+      `job-search.resume` namespace** for the current-résumé signal (cross-object dependency — wire
+      it here).
+- [ ] **Task 2 — Tools (manifest v3).** Add `job-search.profile.update` (write; **the shared seam**
+      — callable from general Jarvis too, so the drawer can "bump my comp floor to 140k" without
+      ever seeing the job-search transcript) with the pinned strict input schema (unknown keys
+      rejected; per-field validation + create/addressing/merge in the handler). Write its
+      **description for ToolSearch discoverability** ("update your job-search profile: comp floor,
+      target titles, location, deal-breakers …") — the drawer gets no job-search guidance seed, so
+      the model finds the tool by description. Extend `job-search.profiles.list` to return
+      `completeness`, `status`, **and the eyebrow fields** `industries` / `location` / `compFloor`;
+      extend `ProfileCard` (`landing-model.ts`) accordingly.
+- [ ] **Task 3 — Soft-scripted interview.** Extend the surface seed guidance so the assistant knows
+      the unfilled fields, steers toward them (tangent-friendly), writes via `profile.update` as
+      facts land, and proposes approval when `isApproved()`. **Prefer the purpose-built seed hook:**
+      declare `job-search.onboarding.get-state` — `packages/chat/src/module-onboarding-seed.ts`
+      looks up exactly `${moduleId}.onboarding.get-state` to inject module state into the surface
+      seed — so the assistant has profile state at turn 1 instead of relying on a first-turn
+      `profiles.list` call. No wizard component — the script lives in guidance + tools.
+- [ ] **Task 4 — Progress rail (real).** Rework JS-01's shipped **`ProfileAside`** (`PROFILE_FIELDS`
+      in `onboarding-model.ts`, currently 8 fields) into the status readout `Resume ✓ · Titles ✓ ·
+Comp — · Location — · Deal-breakers —` wired to `completeness()`; **drop `experience`** (no
+      home in the schema) and **fold `search-status` into the profile `status`**. Style with
+      `--font-sans` + `tabular-nums` (matches shipped `.jsn-eyebrow`; **not mono** — retired
+      2026-07-08), status readout, not clickable. Landing profile cards show real title + eyebrow
+      (`industry · location · comp floor`, `--font-sans` + `tabular-nums`) + status from the store.
 
 ### Invariants touched
 
-- **Private by default** — profiles owner-only; the _shared_ in "shared object" means shared
-  across the user's own surfaces, never cross-user.
+- **Private by default** — profiles owner-only; the _shared_ in "shared object" means shared across
+  the user's own surfaces, never cross-user.
 - **Module isolation** — general-Jarvis access is exclusively via the declared assistant tool
-  (`permissionId` gated), never via module internals.
+  (`permissionId` gated), never via module internals. (Transcript isolation is **structural** —
+  JS-00 surface-keyed sessions — and is not re-proven in this phase.)
 - **Metadata-only payloads** — no jobs in this phase.
-- **LLM-field guards** — `profile.update` inputs originate from a model turn; strict schema +
-  unknown-key rejection + range caps in the handler.
+- **LLM-field guards** — `profile.update` inputs originate from a model turn: strict schema +
+  unknown-key rejection + range caps in the handler; the confirm card is the consent gate.
 
 ### Tests / verification
 
-- [ ] Domain unit: schema validation (comp floor shapes, location modes, deal-breaker list
-      caps); approval rule; completeness readout.
-- [ ] Worker fixture: `profile.update` merge semantics (partial update never clobbers other
-      fields); invalid input rejected with typed error; `profiles.list` completeness.
-- [ ] Integration: create + update from the worker runtime path; owner-only (second user
-      blind); **cross-surface proof** — an update issued via the drawer's tool path lands in
-      the same profile the job-search page reads.
-- [ ] **e2e #1000-harness:** drive the interview to an approved profile (scripted turns);
-      progress rail ticks as fields fill; landing shows the profile card with eyebrow.
+- [ ] Domain unit: schema validation (comp-floor shape/enums, location mode + places cap, list
+      caps, string caps); `isApproved()` required-set (incl. the résumé-present cross-read);
+      `completeness()` readout.
+- [ ] Worker fixture: `profile.update` **create-on-first-write**; addressing (targets the sole
+      `building` profile when `profileId` omitted; `ambiguous_profile` error with two profiles);
+      **merge semantics** (partial update never clobbers other fields; arrays replace; `null`
+      clears); invalid input rejected with typed error; `profiles.list` returns
+      completeness/status/eyebrow fields.
+- [ ] Integration: create + update from the worker runtime path; owner-only (second user blind);
+      **shared-data proof** — a second chat-session-id through the same gateway path lands in the
+      same KV profile the job-search page reads (this proves shared KV; **transcript isolation is
+      JS-00's anti-bleed test**, not re-proven here).
+- [ ] **e2e #1000-harness:** one natural interview turn as the smoke check; then reach an approved
+      profile via the **minimum deterministic turns**, **clicking Approve on each `profile.update`
+      card**; progress rail ticks as fields fill; landing shows the profile card with eyebrow.
 - [ ] `pnpm verify:foundation` exit 0 (fresh gate DB).
 
 ### ⛔ UAT GATE JS-03 (Ben) — sign-off required before JS-04
 
-- [ ] Over LAN, in Job Search chat: answer the interview naturally (titles, industry, comp
-      floor, location, deal-breakers) — including at least one tangent; the assistant follows
-      it and still steers back.
-- [ ] Watch the **progress rail** fill as facts land; when complete the assistant proposes
-      approval — approve it.
-- [ ] Back on the landing: the profile card shows the search title + mono eyebrow
-      (`industry · location · comp floor`).
-- [ ] In the **drawer**: say "raise my job-search comp floor to $X" → it succeeds.
+- [ ] Over LAN, in Job Search chat: answer the interview naturally (titles, industry, comp floor,
+      location, deal-breakers) — including at least one tangent; the assistant follows it and still
+      steers back. **Approve the profile-update card(s)** as facts land.
+- [ ] Watch the **progress rail** fill as facts land; when complete the assistant proposes approval
+      — approve it (approval flips `status` → `active` via a consented update).
+- [ ] Back on the landing: the profile card shows the search title + eyebrow
+      (`industry · location · comp floor`, `--font-sans` + `tabular-nums`).
+- [ ] In the **drawer**: say "raise my job-search comp floor to $X" → an Approve/Deny card appears;
+      approve it → it succeeds.
 - [ ] Re-open Job Search → the profile shows the new floor **and** the drawer never saw the
-      job-search conversation itself (ask it — it shouldn't know the interview details beyond
-      the profile data).
+      job-search conversation itself (ask it — it shouldn't know the interview details beyond the
+      profile data).
 
 **The next phase does not start until Ben signs off on this gate.**
 
