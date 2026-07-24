@@ -5,6 +5,16 @@ const SESSION_KEY_DELIMITER = ":";
 export { DEFAULT_CHAT_SURFACE, normalizeChatSurface };
 export type { ChatSurface };
 
+export function readRouteSurface(query: unknown): ChatSurface {
+  const raw =
+    query && typeof query === "object" ? (query as { surface?: unknown }).surface : undefined;
+  try {
+    return normalizeChatSurface(raw);
+  } catch {
+    throw new Error("Invalid chat surface");
+  }
+}
+
 export function surfaceSessionKey(
   actorUserId: string,
   surface: ChatSurface | string = DEFAULT_CHAT_SURFACE

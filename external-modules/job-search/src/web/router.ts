@@ -1,8 +1,3 @@
-// external-modules/job-search/src/web/router.ts
-// JS-06 (#935): the host exposes no react-router on the runtime global, so the
-// Root owns a minimal pushState router under the fixed /m/job-search base. The
-// host's /m/:moduleId/* route keeps matching for every internal path, and the
-// browser back button works because the host re-renders on popstate.
 import { h, useCallback, useSyncExternalStore, type ReactNodeLike } from "./runtime";
 
 export const MODULE_BASE = "/m/job-search";
@@ -45,16 +40,12 @@ export function useModulePath(): string {
 export function ModuleLink(props: {
   to: string;
   className?: string;
-  "aria-current"?: string;
   children?: unknown;
-  // Accepted at the call site for list rendering; host React extracts it at
-  // createElement time, so the component body never sees it.
-  key?: string;
+  "aria-current"?: string;
 }): ReactNodeLike {
   const { to, children, ...rest } = props;
   const onClick = useCallback(
     (event: { preventDefault: () => void; metaKey?: boolean; ctrlKey?: boolean }) => {
-      // Let modifier-clicks open a real tab; plain clicks stay in-app.
       if (event.metaKey || event.ctrlKey) return;
       event.preventDefault();
       navigate(to);

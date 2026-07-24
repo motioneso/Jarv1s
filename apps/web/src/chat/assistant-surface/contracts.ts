@@ -12,6 +12,8 @@ export interface LocalRow {
 }
 
 export interface AssistantSurfaceViewProps {
+  /** #1232 — host-bound surface name; absent means the drawer. */
+  readonly surface?: string;
   readonly localRows?: readonly LocalRow[];
   readonly activeControl?: ReactNodeLike;
   readonly recordKinds?: readonly ChatRecordKind[];
@@ -25,11 +27,15 @@ export interface AssistantSurfaceViewProps {
 export interface AssistantSurfaceHandleV1 {
   readonly Surface: ComponentType<AssistantSurfaceViewProps>;
   seedOnboarding(): Promise<{ ok: boolean }>;
+  seedComposer(draft: string): void;
   submitTurn(input: {
     readonly text: string;
     readonly controlContext?: Record<string, unknown>;
     readonly attachmentIds?: readonly string[];
   }): Promise<void>;
   uploadAttachment(file: File): Promise<{ id: string; fileName: string; sizeBytes: number }>;
-  subscribeRecords(listener: (records: readonly AssistantRecordV1[]) => void): () => void;
+  subscribeRecords(
+    listener: (records: readonly AssistantRecordV1[]) => void,
+    surface?: string
+  ): () => void;
 }

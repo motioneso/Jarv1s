@@ -61,6 +61,14 @@ describe("web route metadata", () => {
     });
   });
 
+  it("uses a runtime external module label for its embedded route heading", () => {
+    expect(
+      resolvePageHeading("/m/job-search/onboarding", new Date("2026-06-14T16:42:00Z"), undefined, [
+        moduleWithNav("job-search", "Job Search", "/m/job-search", "briefcase", 0, true)
+      ])
+    ).toEqual({ title: "Job Search", subtitle: "" });
+  });
+
   it("defines concrete app routes without synthetic shell-only entries", () => {
     expect(webRoutes.map((route) => route.path)).toEqual([
       "/today",

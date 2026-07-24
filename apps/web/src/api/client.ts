@@ -750,15 +750,18 @@ export async function listCalendarEvents(): Promise<ListCalendarEventsResponse> 
   return requestJson<ListCalendarEventsResponse>("/api/calendar/events");
 }
 
-export async function listChatThreads(): Promise<ListChatThreadsResponse> {
-  return requestJson<ListChatThreadsResponse>("/api/chat/threads");
+export async function listChatThreads(surface?: ChatSurface): Promise<ListChatThreadsResponse> {
+  const query = surface ? `?surface=${encodeURIComponent(surface)}` : "";
+  return requestJson<ListChatThreadsResponse>(`/api/chat/threads${query}`);
 }
 
 export async function listChatThreadMessages(
-  threadId: string
+  threadId: string,
+  surface?: ChatSurface
 ): Promise<ListChatThreadMessagesResponse> {
+  const query = surface ? `?surface=${encodeURIComponent(surface)}` : "";
   return requestJson<ListChatThreadMessagesResponse>(
-    `/api/chat/threads/${encodeURIComponent(threadId)}/messages`
+    `/api/chat/threads/${encodeURIComponent(threadId)}/messages${query}`
   );
 }
 

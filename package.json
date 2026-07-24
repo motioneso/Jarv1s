@@ -30,7 +30,6 @@
     "delete:user": "tsx scripts/delete-user-data-cli.ts",
     "audit:preflight": "bash scripts/check-tree-fresh.sh",
     "audit:release-hardening": "tsx scripts/audit-release-hardening.ts",
-    "evidence:job-search": "tsx scripts/job-search-acceptance-evidence.ts",
     "smoke:compose": "tsx scripts/smoke-compose.ts",
     "dev:api": "pnpm --filter @jarv1s/api dev",
     "dev:web": "pnpm --filter @jarv1s/web dev",

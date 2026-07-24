@@ -19,6 +19,8 @@ export interface TranscriptRecord {
   readonly toolName?: string;
   readonly summary?: string;
   readonly outcome?: "executed" | "denied" | "error" | "allowed";
+  /** Live-only structured result for a module-owned inline artifact. */
+  readonly result?: Record<string, unknown>;
   readonly sourceFreshness?: SourceFreshnessV1 | null;
   /**
    * Optional rich, server-derived Approve/Deny card preview (email reply recipient/subject/body).

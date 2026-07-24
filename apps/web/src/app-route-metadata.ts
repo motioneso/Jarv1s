@@ -158,8 +158,18 @@ export function buildShellNavigation(
 export function resolvePageHeading(
   pathname: string,
   now = new Date(),
-  locale: LocaleSettingsDto = DEFAULT_LOCALE
+  locale: LocaleSettingsDto = DEFAULT_LOCALE,
+  runtimeModules: readonly ModuleDto[] = []
 ): { title: string; subtitle: string } {
+  const moduleId = pathname.match(/^\/m\/([^/]+)/)?.[1];
+  const runtimeModule = runtimeModules.find(
+    (module) => module.external === true && module.id === moduleId
+  );
+  const navigationEntry = runtimeModule?.navigation.find(
+    (entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`)
+  );
+  if (navigationEntry) return { title: navigationEntry.label, subtitle: "" };
+
   const route = webRoutes.find((item) => item.match(pathname)) ?? webRoutes[0];
   if (!route) throw new Error("At least one web route must be defined");
   return { title: route.title, subtitle: route.subtitle(now, locale) };

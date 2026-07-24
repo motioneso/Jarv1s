@@ -75,4 +75,25 @@ describe("AssistantSurface", () => {
     expect(html).not.toContain("Streamed user");
     expect(html).not.toContain("Approve profile");
   });
+
+  it("renders records from the requested surface only", () => {
+    const html = renderToString(
+      createElement(
+        AssistantSurfaceHostProvider,
+        {
+          value: {
+            records,
+            recordsForSurface: (surface) =>
+              surface === "job-search" ? [{ kind: "reply", text: "Job Search reply" }] : records,
+            registerComposer: () => () => undefined,
+            subscribeRecords: () => () => undefined
+          }
+        },
+        createElement(AssistantSurface, { surface: "job-search" })
+      )
+    );
+
+    expect(html).toContain("Job Search reply");
+    expect(html).not.toContain("Streamed reply");
+  });
 });

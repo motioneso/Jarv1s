@@ -40,6 +40,8 @@ export type GatewaySessionRecord =
       readonly actionRequestId: string;
       readonly toolName: string;
       readonly outcome: "executed" | "denied" | "error" | "allowed";
+      /** Structured, sanitized result for a module-owned inline artifact. Live only. */
+      readonly result?: Record<string, unknown>;
     };
 
 export interface SessionNotifier {
@@ -53,6 +55,7 @@ export type GatewayToolResponse =
   | {
       readonly ok: true;
       readonly data: Record<string, unknown>;
+      readonly structuredData?: Record<string, unknown>;
       readonly media?: ToolResultMedia;
     }
   | { readonly ok: false; readonly denied: true; readonly reason: string }

@@ -342,15 +342,16 @@ function ExternalModuleMount(props: {
   readonly actorScopeKey: string;
 }) {
   const { openAssistantWithDraft } = useChatControls();
-  const { subscribeRecords } = useAssistantSurfaceHost();
+  const { subscribeRecords, seedComposer } = useAssistantSurfaceHost();
   const hostActions = useMemo(
     () => createModuleHostActions(props.moduleId, openAssistantWithDraft, props.actorScopeKey),
     [props.moduleId, props.actorScopeKey, openAssistantWithDraft]
   );
   // #1196 — same host-controlled binding as hostActions: module code never supplies its id.
   const assistantSurface = useMemo(
-    () => createAssistantSurfaceHandle(props.moduleId, subscribeRecords),
-    [props.moduleId, subscribeRecords]
+    () =>
+      createAssistantSurfaceHandle(props.moduleId, subscribeRecords, props.moduleId, seedComposer),
+    [props.moduleId, seedComposer, subscribeRecords]
   );
   const Component = props.Component;
   return <Component hostActions={hostActions} assistantSurface={assistantSurface} />;

@@ -31,11 +31,19 @@ describe("createAssistantSurfaceHandle", () => {
     vi.stubGlobal("fetch", fetchMock);
     const unsubscribe = vi.fn();
     const subscribeRecords = vi.fn(() => unsubscribe);
-    const handle = createAssistantSurfaceHandle("job-search", subscribeRecords);
+    const seedComposer = vi.fn();
+    const handle = createAssistantSurfaceHandle(
+      "job-search",
+      subscribeRecords,
+      undefined,
+      seedComposer
+    );
 
     expect(handle.Surface).toBe(AssistantSurface);
     expect(handle.subscribeRecords).toBe(subscribeRecords);
     expect(handle.subscribeRecords(vi.fn())).toBe(unsubscribe);
+    handle.seedComposer("Please revise the summary");
+    expect(seedComposer).toHaveBeenCalledWith("Please revise the summary");
 
     await expect(handle.seedOnboarding()).resolves.toEqual({ ok: true });
     await handle.submitTurn({
@@ -74,6 +82,33 @@ describe("createAssistantSurfaceHandle", () => {
           attachmentIds: ["attachment-1"]
         })
       })
+    );
+  });
+
+  it("binds module onboarding to its host-controlled chat surface", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/api/chat/module-onboarding")) return Response.json({ ok: true });
+      return Response.json({ reply: "ok" });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const unsubscribe = vi.fn();
+    const subscribeRecords = vi.fn(() => unsubscribe);
+    const handle = createAssistantSurfaceHandle("job-search", subscribeRecords, "job-search");
+
+    handle.subscribeRecords(vi.fn());
+    await handle.seedOnboarding();
+    await handle.submitTurn({ text: "hello" });
+
+    expect(subscribeRecords).toHaveBeenCalledWith(expect.any(Function), "job-search");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/chat/module-onboarding",
+      expect.objectContaining({
+        body: JSON.stringify({ moduleId: "job-search", surface: "job-search" })
+      })
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/chat/turn",
+      expect.objectContaining({ body: JSON.stringify({ text: "hello", surface: "job-search" }) })
     );
   });
 });

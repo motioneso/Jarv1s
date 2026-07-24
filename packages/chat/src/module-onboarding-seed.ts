@@ -11,11 +11,12 @@ export function createModuleOnboardingSeedResolver(input: {
       (candidate) => candidate.id === moduleId && candidate.assistantOnboarding?.guidance
     );
     if (!manifest?.assistantOnboarding) return undefined;
-    const state = await input.gateway.runReadToolForActor(
-      actorUserId,
-      `${moduleId}.onboarding.get-state`,
-      {}
+    const stateTool = manifest.assistantTools?.find(
+      (tool) => tool.name === `${moduleId}.onboarding.get-state`
     );
+    const state = stateTool
+      ? await input.gateway.runReadToolForActor(actorUserId, stateTool.name, {})
+      : { ok: true as const, data: {} };
     if (!state.ok) return undefined;
     return {
       moduleId,

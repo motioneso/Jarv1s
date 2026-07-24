@@ -4,9 +4,13 @@ import type { AssistantRecordV1 } from "./contracts";
 
 export interface AssistantSurfaceHostValue {
   readonly records: readonly AssistantRecordV1[];
+  /** #1232 — read the host-owned transcript for a named module surface. */
+  readonly recordsForSurface?: (surface: string) => readonly AssistantRecordV1[];
   readonly registerComposer: (acceptDraft: (draft: string) => void) => () => void;
+  readonly seedComposer?: (draft: string) => void;
   readonly subscribeRecords: (
-    listener: (records: readonly AssistantRecordV1[]) => void
+    listener: (records: readonly AssistantRecordV1[]) => void,
+    surface?: string
   ) => () => void;
 }
 
@@ -14,8 +18,9 @@ const AssistantSurfaceHostContext = createContext<AssistantSurfaceHostValue | nu
 
 export const AssistantSurfaceHostProvider = AssistantSurfaceHostContext.Provider;
 
-export function useAssistantSurfaceHost(): AssistantSurfaceHostValue {
+export function useAssistantSurfaceHost(surface?: string): AssistantSurfaceHostValue {
   const value = useContext(AssistantSurfaceHostContext);
   if (!value) throw new Error("AssistantSurface must be rendered inside AppShell");
-  return value;
+  if (!surface || !value.recordsForSurface) return value;
+  return { ...value, records: value.recordsForSurface(surface) };
 }

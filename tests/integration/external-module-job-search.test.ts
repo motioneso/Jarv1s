@@ -1,218 +1,329 @@
-// tests/integration/external-module-job-search.test.ts
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { OutgoingHttpHeaders } from "node:http";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import {
+  createModuleCredentialSecretCipher,
+  deleteModuleKvKey,
+  getModuleKvValue,
+  listModuleKvKeys,
+  setModuleKvValue
+} from "@jarv1s/settings";
+import {
+  createExternalModuleRpcHandler,
+  ExternalModuleWorkerRuntime,
+  getExternalModuleRegistrations,
+  validateExternalModuleManifest
+} from "@jarv1s/module-registry/node";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 import { buildExternalModule } from "../../scripts/build-external-module.js";
+import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
-// JS-01 (#930): full activation lifecycle of the REAL Job Search artifact against
-// the real server — discovered→enable→active (web asset served, member-visible)
-// →tamper→drift auto-disable→re-enable (new hash baseline)→explicit disable.
-// Harness mirrors tests/integration/external-modules-routes.test.ts (better-auth
-// first-signup bootstraps the admin) — do not invent a new auth path.
 const sourceDir = fileURLToPath(new URL("../../external-modules/job-search", import.meta.url));
 
-let root: string;
-let modulesDir: string;
-let installedDir: string;
 let appDb: Kysely<JarvisDatabase>;
-let boss: PgBoss;
+let workerDb: Kysely<JarvisDatabase>;
 let server: ReturnType<typeof createApiServer>;
-let adminCookie: string;
-let memberCookie: string;
-let memberUserId: string;
-
-// Discovery (incl. the trust hash) is a BOOT-TIME snapshot (server.ts
-// discoverExternalModules → reconcile.ts compares the persisted enable-time
-// hash against it). Filesystem tamper mid-run is invisible to a live server;
-// drift manifests when a server boots over the changed package. So the drift
-// leg of this fixture restarts the API over the same DB + modules dir —
-// test-side only, mirroring a real operator restart.
-const bootServer = async (): Promise<void> => {
-  server = createApiServer({
-    appDb,
-    boss,
-    logger: false,
-    apiServerConfig: {
-      host: "0.0.0.0",
-      port: 0,
-      mcpServerUrl: "http://127.0.0.1:0/api/mcp",
-      externalModulesDir: modulesDir
-    }
-  });
-  await server.ready();
-};
+let moduleDir: string;
+let cookie: string;
+let userId: string;
 
 beforeAll(async () => {
   await resetEmptyFoundationDatabase();
   await buildExternalModule(sourceDir);
 
-  root = mkdtempSync(join(tmpdir(), "job-search-int-"));
-  modulesDir = join(root, "modules");
-  installedDir = join(modulesDir, "job-search");
-  mkdirSync(installedDir, { recursive: true });
-  cpSync(join(sourceDir, "jarvis.module.json"), join(installedDir, "jarvis.module.json"));
-  cpSync(join(sourceDir, "dist"), join(installedDir, "dist"), { recursive: true });
+  const root = mkdtempSync(join(tmpdir(), "job-search-module-"));
+  moduleDir = join(root, "modules");
+  mkdirSync(join(moduleDir, "job-search"), { recursive: true });
+  cpSync(join(sourceDir, "jarvis.module.json"), join(moduleDir, "job-search/jarvis.module.json"));
+  cpSync(join(sourceDir, "dist"), join(moduleDir, "job-search/dist"), { recursive: true });
 
   appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-  // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
-  // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
-  // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
-  // under-hookTimeout override so a slow-but-healthy CI connection isn't killed prematurely.
-  // Test-only — production callers of createApiServer() are unaffected. One boss instance is
-  // reused across bootServer() restarts (the server is recreated over the same appDb + boss).
-  boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
-  await bootServer();
-
-  const admin = await signUp(server, "owner@job-search.test", "Owner");
-  adminCookie = admin.cookie;
-  const member = await signUp(server, "member@job-search.test", "Member");
-  memberCookie = member.cookie;
-  memberUserId = member.userId;
-  const approve = await server.inject({
-    method: "POST",
-    url: `/api/admin/users/${memberUserId}/approve`,
-    headers: { cookie: adminCookie }
+  workerDb = createDatabase({ connectionString: connectionStrings.worker, maxConnections: 1 });
+  server = createApiServer({
+    appDb,
+    logger: false,
+    apiServerConfig: {
+      host: "0.0.0.0",
+      port: 0,
+      mcpServerUrl: "http://127.0.0.1:0/api/mcp",
+      externalModulesDir: moduleDir
+    }
   });
-  expect(approve.statusCode).toBe(200);
+  await server.ready();
+
+  const signedUp = await signUp(server);
+  cookie = signedUp.cookie;
+  userId = signedUp.userId;
+  const enabled = await server.inject({
+    method: "POST",
+    url: "/api/admin/external-modules/job-search",
+    headers: { cookie, "content-type": "application/json" },
+    payload: { enabled: true }
+  });
+  expect(enabled.statusCode).toBe(200);
 }, 120_000);
 
 afterAll(async () => {
-  await Promise.allSettled([server?.close(), appDb?.destroy(), boss?.stop({ graceful: false })]);
-  rmSync(root, { recursive: true, force: true });
+  await Promise.allSettled([server?.close(), appDb?.destroy(), workerDb?.destroy()]);
+  if (moduleDir) rmSync(moduleDir, { recursive: true, force: true });
 });
 
-const setEnabled = (enabled: boolean) =>
-  server.inject({
+async function seedKv(
+  namespace: string,
+  key: string,
+  value: Record<string, unknown>
+): Promise<void> {
+  await new DataContextRunner(workerDb).withDataContext(
+    { actorUserId: userId, requestId: `job-search-seed-${key}` },
+    async (scopedDb) => {
+      await sql`SELECT set_config('app.current_module_id', ${"job-search"}, true)`.execute(
+        scopedDb.db
+      );
+      await setModuleKvValue(
+        scopedDb,
+        {
+          moduleId: "job-search",
+          namespace,
+          scope: "user",
+          ownerUserId: userId,
+          key
+        },
+        value
+      );
+    }
+  );
+}
+
+function invokeTool(name: string) {
+  return server.inject({
     method: "POST",
-    url: "/api/admin/external-modules/job-search",
-    headers: { cookie: adminCookie, "content-type": "application/json" },
-    payload: { enabled }
+    url: `/api/ai/assistant-tools/${name}/invoke`,
+    headers: { cookie, "content-type": "application/json" },
+    payload: { input: {} }
   });
+}
 
-const adminView = async (): Promise<Record<string, unknown>> => {
-  const res = await server.inject({
-    method: "GET",
-    url: "/api/admin/external-modules",
-    headers: { cookie: adminCookie }
-  });
-  expect(res.statusCode).toBe(200);
-  const modules = res.json<{ modules: Array<Record<string, unknown> & { id: string }> }>().modules;
-  const found = modules.find((module) => module.id === "job-search");
-  expect(found).toBeDefined();
-  return found!;
-};
-
-const memberSeesModule = async (): Promise<boolean> => {
-  const res = await server.inject({
-    method: "GET",
-    url: "/api/modules",
-    headers: { cookie: memberCookie }
-  });
-  expect(res.statusCode).toBe(200);
-  return res
-    .json<{ modules: Array<{ id: string }> }>()
-    .modules.some((module) => module.id === "job-search");
-};
-
-describe("job-search activation lifecycle (#930)", () => {
-  it("is discovered but inactive before any enablement row exists", async () => {
-    expect(await adminView()).toMatchObject({ status: "discovered", active: false });
-    expect(await memberSeesModule()).toBe(false);
-  });
-
-  it("enable → active; web asset served; member sees the module", async () => {
-    const res = await setEnabled(true);
-    expect(res.statusCode).toBe(200);
-    expect(res.json().module).toMatchObject({ status: "enabled", active: true });
-
-    // The declared web contribution is actually servable, end to end.
-    const asset = await server.inject({
-      method: "GET",
-      url: "/api/modules/job-search/web/dist/web/index.js",
-      headers: { cookie: memberCookie }
+describe("Job Search module activation (#1232)", () => {
+  it("installs and enables through the real path, then lists a seeded profile", async () => {
+    await seedKv("job-search.profiles", "profile-1", {
+      id: "profile-1",
+      title: "Operations leadership",
+      status: "building"
     });
-    expect(asset.statusCode).toBe(200);
-    expect(String(asset.headers["content-type"])).toContain("javascript");
-    expect(asset.body).toContain("__JARVIS_MODULE_RUNTIME__");
 
-    expect(await memberSeesModule()).toBe(true);
-  });
-
-  it("post-enable artifact tamper → drift auto-disable; contributions vanish", async () => {
-    const workerPath = join(installedDir, "dist/worker.js");
-    writeFileSync(workerPath, `${readFileSync(workerPath, "utf8")}\n// tampered`);
-
-    // Re-boot so discovery re-hashes the tampered package (see bootServer note).
-    await server.close();
-    await bootServer();
-
-    expect(await adminView()).toMatchObject({
-      status: "disabled",
-      active: false,
-      drifted: true,
-      disabledReason: "package changed since it was enabled"
+    const response = await invokeTool("job-search.profiles.list");
+    expect(response.statusCode).toBe(200);
+    expect(response.json().invocation).toMatchObject({
+      status: "succeeded",
+      result: {
+        profiles: [{ id: "profile-1", title: "Operations leadership", status: "building" }]
+      }
     });
-    expect(await memberSeesModule()).toBe(false);
-    const asset = await server.inject({
-      method: "GET",
-      url: "/api/modules/job-search/web/dist/web/index.js",
-      headers: { cookie: memberCookie }
-    });
-    expect(asset.statusCode).toBe(404);
   });
 
-  it("re-enable accepts the current package as the new hash baseline", async () => {
-    const res = await setEnabled(true);
-    expect(res.statusCode).toBe(200);
-    expect(res.json().module).toMatchObject({ status: "enabled", active: true });
-    expect(await memberSeesModule()).toBe(true);
+  it("runs the reset handler over the real worker runtime and clears every namespace", async () => {
+    const namespaces = [
+      "job-search.profiles",
+      "job-search.resume",
+      "job-search.sources",
+      "job-search.candidates",
+      "job-search.matches",
+      "job-search.feedback",
+      "job-search.settings",
+      "job-search.meta"
+    ];
+    for (const namespace of namespaces)
+      await seedKv(namespace, `stale-${namespace}`, { stale: true });
+
+    const rawManifest = JSON.parse(
+      readFileSync(join(moduleDir, "job-search/jarvis.module.json"), "utf8")
+    ) as Record<string, unknown>;
+    const validated = validateExternalModuleManifest(rawManifest, "job-search", "0.1.0");
+    if (!validated.ok) throw new Error(validated.errors.join(", "));
+    const discovery = getExternalModuleRegistrations({
+      modulesDir: moduleDir,
+      coreVersion: "0.1.0"
+    }).discoveries[0];
+    if (!discovery) throw new Error("Job Search discovery missing");
+    const runtime = new ExternalModuleWorkerRuntime({ invocationTimeoutMs: 10_000 });
+    const rpc = async (method: string, params: unknown) => {
+      const value = params as {
+        scope: "user";
+        namespace: string;
+        key?: string;
+        value?: Record<string, unknown>;
+      };
+      return new DataContextRunner(workerDb).withDataContext(
+        { actorUserId: userId, requestId: "job-search-reset-runtime" },
+        async (scopedDb) => {
+          await sql`SELECT set_config('app.current_module_id', ${"job-search"}, true)`.execute(
+            scopedDb.db
+          );
+          const base = {
+            moduleId: "job-search",
+            namespace: value.namespace,
+            scope: value.scope,
+            ownerUserId: userId
+          } as const;
+          if (method === "kv.get") return getModuleKvValue(scopedDb, { ...base, key: value.key! });
+          if (method === "kv.list") return listModuleKvKeys(scopedDb, base);
+          if (method === "kv.delete")
+            return deleteModuleKvKey(scopedDb, { ...base, key: value.key! });
+          if (method === "kv.set")
+            return setModuleKvValue(scopedDb, { ...base, key: value.key! }, value.value!);
+          throw new Error("unexpected rpc");
+        }
+      );
+    };
+
+    try {
+      await runtime.invoke(discovery, "reset", { jobKind: "job-search.reset" }, rpc);
+      for (const namespace of namespaces) {
+        await expect(
+          new DataContextRunner(workerDb).withDataContext(
+            { actorUserId: userId, requestId: `job-search-reset-check-${namespace}` },
+            async (scopedDb) => {
+              await sql`SELECT set_config('app.current_module_id', ${"job-search"}, true)`.execute(
+                scopedDb.db
+              );
+              return listModuleKvKeys(scopedDb, {
+                moduleId: "job-search",
+                namespace,
+                scope: "user",
+                ownerUserId: userId
+              });
+            }
+          )
+        ).resolves.toEqual(namespace === "job-search.meta" ? ["resetDone"] : []);
+      }
+    } finally {
+      await runtime.close();
+    }
   });
 
-  it("explicit admin disable → inactive without a drift reason", async () => {
-    const res = await setEnabled(false);
-    expect(res.statusCode).toBe(200);
-    expect(await adminView()).toMatchObject({ status: "disabled", active: false, drifted: false });
-    expect(await memberSeesModule()).toBe(false);
+  it("keeps intake, critique, and approval owner-scoped over the real worker runtime", async () => {
+    const other = await signUp(server);
+    const discovery = getExternalModuleRegistrations({
+      modulesDir: moduleDir,
+      coreVersion: "0.1.0"
+    }).discoveries[0];
+    if (!discovery) throw new Error("Job Search discovery missing");
+
+    const runtime = new ExternalModuleWorkerRuntime({ invocationTimeoutMs: 10_000 });
+    const resumeText = "Led a migration from a legacy platform. Managed a team of six engineers.";
+    const calls: string[] = [];
+    const invokeFor = (actorUserId: string, handler: string, input: Record<string, unknown>) => {
+      const rpc = createExternalModuleRpcHandler({
+        module: discovery,
+        toolRisk: "write",
+        actorUserId,
+        requestId: `job-search-resume-${actorUserId}-${handler}`,
+        workerDataContext: new DataContextRunner(workerDb),
+        cipher: createModuleCredentialSecretCipher(),
+        isActorAdmin: async () => false,
+        ai: async (_scopedDb, request) => {
+          calls.push(request.tierHint ?? "missing");
+          return {
+            ok: true as const,
+            object: {
+              critique: [{ section: "Experience", text: "Keep the scope visible." }],
+              revisions: [
+                {
+                  section: "Summary",
+                  before: "Led a migration",
+                  after: "Led a platform migration with clear outcomes.",
+                  evidence: "Led a migration"
+                }
+              ],
+              strengths: [{ text: "Migration leadership", evidence: "Led a migration" }],
+              gaps: [{ text: "Cloud certification" }]
+            }
+          };
+        }
+      });
+      return runtime.invoke(discovery, handler, input, rpc);
+    };
+
+    const readResume = (actorUserId: string) =>
+      new DataContextRunner(workerDb).withDataContext(
+        { actorUserId, requestId: `job-search-resume-read-${actorUserId}` },
+        async (scopedDb) => {
+          await sql`SELECT set_config('app.current_module_id', ${"job-search"}, true)`.execute(
+            scopedDb.db
+          );
+          return getModuleKvValue(scopedDb, {
+            moduleId: "job-search",
+            namespace: "job-search.resume",
+            scope: "user",
+            ownerUserId: actorUserId,
+            key: "record"
+          });
+        }
+      );
+
+    try {
+      await invokeFor(userId, "resume.intake", { source: "paste", text: resumeText });
+      const critique = (await invokeFor(userId, "resume.critique", {})) as {
+        status: string;
+        revisionId: string;
+      };
+      expect(critique.status).toBe("ok");
+      expect(calls).toEqual(["reasoning"]);
+
+      const approved = (await invokeFor(userId, "resume-revise", {
+        params: { revisionId: critique.revisionId }
+      })) as { status: string; state: string };
+      expect(approved).toMatchObject({ status: "ok", state: "approved" });
+
+      await expect(readResume(other.userId)).resolves.toBeNull();
+      await expect(readResume(userId)).resolves.toMatchObject({
+        current: {
+          status: "approved",
+          text: "Led a platform migration with clear outcomes. from a legacy platform. Managed a team of six engineers."
+        },
+        revisions: [
+          { kind: "source" },
+          { kind: "review", artifact: { strengths: [{ evidence: "Led a migration" }] } },
+          {
+            kind: "approved",
+            sourceText:
+              "Led a platform migration with clear outcomes. from a legacy platform. Managed a team of six engineers."
+          }
+        ]
+      });
+    } finally {
+      await runtime.close();
+    }
   });
 });
+
+let signUpCount = 0;
 
 async function signUp(
-  target: ReturnType<typeof createApiServer>,
-  email: string,
-  name: string
+  target: ReturnType<typeof createApiServer>
 ): Promise<{ cookie: string; userId: string }> {
-  const res = await target.inject({
+  const response = await target.inject({
     method: "POST",
     url: "/api/auth/sign-up/email",
     headers: { "content-type": "application/json" },
-    payload: { name, email, password: "correct horse battery staple" }
+    payload: {
+      name: "Job Search Owner",
+      email: `job-search-js01-${++signUpCount}@example.test`,
+      password: "correct horse battery staple"
+    }
   });
-  if (res.statusCode !== 200) {
-    throw new Error(`sign-up for ${email} failed (${res.statusCode}): ${res.body}`);
-  }
+  if (response.statusCode !== 200) throw new Error(`sign-up failed: ${response.body}`);
+  const setCookie = response.headers["set-cookie"];
+  const cookies = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
   return {
-    cookie: cookieHeader(res.headers),
-    userId: res.json<{ user: { id: string } }>().user.id
+    cookie: cookies.map((item) => item.split(";")[0]).join("; "),
+    userId: response.json<{ user: { id: string } }>().user.id
   };
-}
-
-function cookieHeader(headers: OutgoingHttpHeaders): string {
-  const setCookie = headers["set-cookie"];
-  const cookies = Array.isArray(setCookie)
-    ? setCookie
-    : typeof setCookie === "string" || typeof setCookie === "number"
-      ? [String(setCookie)]
-      : [];
-  return cookies.map((cookie) => cookie.split(";", 1)[0]).join("; ");
 }

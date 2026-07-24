@@ -78,9 +78,10 @@ export const queryKeys = {
   },
   chat: {
     settings: ["chat", "settings"] as const,
-    threads: ["chat", "threads"] as const,
+    threads: (surface?: string) => ["chat", "threads", surface ?? "drawer"] as const,
     privacy: ["chat", "privacy"] as const,
-    messages: (threadId: string) => ["chat", "threads", threadId, "messages"] as const,
+    messages: (threadId: string, surface?: string) =>
+      ["chat", "threads", threadId, "messages", surface ?? "drawer"] as const,
     memorySettings: ["chat", "memory-settings"] as const,
     memoryFacts: ["chat", "memory-facts"] as const,
     memoryCorrections: ["chat", "memory-corrections"] as const,

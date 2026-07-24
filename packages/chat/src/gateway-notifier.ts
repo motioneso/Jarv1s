@@ -48,7 +48,8 @@ function toTranscriptRecord(record: GatewaySessionRecord): TranscriptRecord | nu
       text: `${verb}: ${record.toolName}`,
       actionRequestId: record.actionRequestId,
       toolName: record.toolName,
-      outcome: record.outcome
+      outcome: record.outcome,
+      ...(record.result ? { result: record.result } : {})
     };
   }
   return null;
