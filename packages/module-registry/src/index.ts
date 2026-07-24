@@ -2020,11 +2020,16 @@ export function registerBuiltInApiRoutes(
   let resolvedChatFactory: ChatEngineFactory | null = null;
   const chatEngineFactory: ChatEngineFactory =
     dependencies.chatEngineFactory ??
-    ((provider, key) => {
+    ((provider, key, engineOptions) => {
       if (!resolvedChatFactory) {
         throw new CliChatUnavailableError("chat engine factory is not resolved yet");
       }
-      return resolvedChatFactory(provider, key);
+      // #1242 / epic #1238: this late-bound bridge MUST forward `engineOptions` (carries
+      // `executionMode`) to the resolved factory. Dropping it made the runtime.ts:97 print-engine
+      // gate see `executionMode === undefined`, so every anthropic turn fell through to the
+      // interactive CliChatEngineImpl (mux → herdr pane) even when the provider was configured
+      // `non_interactive` — the exact "one-shot still opens a pane" P-02 UAT failure.
+      return resolvedChatFactory(provider, key, engineOptions);
     });
 
   const structuredChatEngineFactory = createStructuredChatEngineFactory({
