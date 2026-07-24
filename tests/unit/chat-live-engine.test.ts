@@ -165,7 +165,14 @@ describe("CliChatEngineImpl — launch", () => {
     const all = flat(io);
     expect(all).toContain("codex exec --json");
     expect(all).toContain("--sandbox read-only");
-    expect(all).toContain("-a never");
+    // #1242: codex-cli 0.139.0 dropped `exec`'s top-level `-a/--ask-for-approval` flag (passing
+    // `-a never` now aborts the launch with "unexpected argument '-a'") and refuses to run outside a
+    // trusted git dir. Approval is set via the `approval_policy` config override, and the scratch
+    // neutralDir is opted out of the git-trust gate with `--skip-git-repo-check`. Assert the new
+    // surface and guard against the old flag creeping back.
+    expect(all).toContain("--skip-git-repo-check");
+    expect(all).toContain(`approval_policy="never"`);
+    expect(all).not.toContain("-a never");
     // #1083 F1: shell_tool/apply_patch_tool must be denied on every codex exec launch, even
     // here where no mcpToken/mcpServerUrl is configured (this launch() call passes neither) —
     // all tool use must route through the gateway, never codex's native shell/apply-patch tools.

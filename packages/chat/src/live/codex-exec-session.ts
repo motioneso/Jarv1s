@@ -119,7 +119,19 @@ export class CodexExecSession {
 
     const modelFlag = modelOverrideFlag(this.launchOpts);
     if (modelFlag) parts.push(modelFlag);
-    parts.push("--disable apps", "--sandbox read-only", "-a never", `-c 'approval_policy="never"'`);
+    // #1242: codex-cli 0.139.0's `exec` subcommand dropped the top-level `-a/--ask-for-approval`
+    // flag — passing `-a never` now aborts the launch with "unexpected argument '-a'". Approval is
+    // instead set through the `approval_policy` config override below (non-interactive exec never
+    // prompts anyway). `exec` also refuses to run outside a *trusted git dir* unless
+    // `--skip-git-repo-check` is passed, and the per-session neutralDir is a scratch dir, not a git
+    // repo — so the headless engine must opt out of the repo-trust gate explicitly or every codex
+    // turn 503s. See epic #1238 / P-02a.
+    parts.push(
+      "--skip-git-repo-check",
+      "--disable apps",
+      "--sandbox read-only",
+      `-c 'approval_policy="never"'`
+    );
     parts.push(`< ${shellQuote(promptPath)}`);
     return parts.join(" ");
   }

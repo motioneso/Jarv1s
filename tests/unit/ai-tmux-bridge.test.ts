@@ -127,6 +127,30 @@ const CODEX_EXEC_FUNCTION_OUTPUT = JSON.stringify({
   }
 });
 
+// ─── codex `exec --json` stream fixtures (codex-cli 0.139.0+, #1242) ──────────
+// A DIFFERENT schema from the rollout-session file above: thread.started → turn.started →
+// item.completed{item:{type,text}} → turn.completed. This is what the headless one-shot
+// CodexExecSession (P-02a / epic #1238) parses from `codex exec --json` stdout.
+
+const CODEX_EXECJSON_THREAD = JSON.stringify({ type: "thread.started", thread_id: "t-abc" });
+const CODEX_EXECJSON_TURN_START = JSON.stringify({ type: "turn.started" });
+const CODEX_EXECJSON_REASONING = JSON.stringify({
+  type: "item.completed",
+  item: { type: "reasoning", text: "considering the request" }
+});
+const CODEX_EXECJSON_TOOL = JSON.stringify({
+  type: "item.completed",
+  item: { type: "command_execution", command: "git status --short" }
+});
+const CODEX_EXECJSON_AGENT_MESSAGE = JSON.stringify({
+  type: "item.completed",
+  item: { type: "agent_message", text: "PONG from codex." }
+});
+const CODEX_EXECJSON_TURN_DONE = JSON.stringify({
+  type: "turn.completed",
+  usage: { input_tokens: 10, output_tokens: 2 }
+});
+
 // ─── google / Gemini CLI fixtures ────────────────────────────────────────────
 
 const GEMINI_FIXTURE_THINKING = JSON.stringify({
@@ -244,6 +268,36 @@ describe("parseTranscript — openai-compatible (Codex JSONL schema)", () => {
     expect(result.events[1]?.text).toContain("function_call_output");
     expect(result.complete).toBe(true);
     expect(result.reply).toBe("All done, sir.");
+  });
+
+  // #1242: codex-cli 0.139.0 `exec --json` stdout — the schema the headless one-shot engine reads.
+  it("returns the agent_message item as the final reply on the exec --json stream", () => {
+    const jsonl = [
+      CODEX_EXECJSON_THREAD,
+      CODEX_EXECJSON_TURN_START,
+      CODEX_EXECJSON_REASONING,
+      CODEX_EXECJSON_TOOL,
+      CODEX_EXECJSON_AGENT_MESSAGE,
+      CODEX_EXECJSON_TURN_DONE
+    ].join("\n");
+
+    const result = parseTranscript("openai-compatible", jsonl, 0);
+
+    expect(result.events.map((e) => e.kind)).toEqual(["thinking", "tool"]);
+    expect(result.events[1]?.text).toContain("git status");
+    expect(result.reply).toBe("PONG from codex.");
+    expect(result.complete).toBe(true);
+  });
+
+  it("reports incomplete on the exec --json stream before the agent_message item", () => {
+    const jsonl = [CODEX_EXECJSON_THREAD, CODEX_EXECJSON_TURN_START, CODEX_EXECJSON_REASONING].join(
+      "\n"
+    );
+
+    const result = parseTranscript("openai-compatible", jsonl, 0);
+
+    expect(result.complete).toBe(false);
+    expect(result.reply).toBeNull();
   });
 });
 
