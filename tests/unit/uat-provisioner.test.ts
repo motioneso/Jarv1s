@@ -158,10 +158,10 @@ describe("expectedUatVolumeNames", () => {
 
 describe("buildSeedHookInput", () => {
   it("forwards excludeChunks into the seed hook input (#1026: previously dropped by main())", () => {
-    expect(buildSeedHookInput("uat-abc", "admin+data", { excludeChunks: ["job-search"] })).toEqual({
+    expect(buildSeedHookInput("uat-abc", "admin+data", { excludeChunks: ["finance"] })).toEqual({
       projectName: "uat-abc",
       level: "admin+data",
-      excludeChunks: ["job-search"]
+      excludeChunks: ["finance"]
     });
   });
 

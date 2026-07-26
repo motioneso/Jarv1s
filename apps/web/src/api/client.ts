@@ -854,17 +854,6 @@ export async function sendChatTurn(
   });
 }
 
-/** #1196 — seed core-authored onboarding context for one host-bound external module. */
-export function seedModuleOnboarding(
-  moduleId: string,
-  surface?: ChatSurface
-): Promise<{ ok: boolean }> {
-  return requestJson<{ ok: boolean }>("/api/chat/module-onboarding", {
-    method: "POST",
-    body: { moduleId, ...(surface ? { surface } : {}) }
-  });
-}
-
 /**
  * #1133 — stages a file for the next chat turn. Goes around `requestJson` like
  * `transcribeAudio()`: the body is the raw bytes as application/octet-stream, with the

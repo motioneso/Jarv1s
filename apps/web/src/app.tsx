@@ -347,10 +347,10 @@ function ExternalModuleMount(props: {
     () => createModuleHostActions(props.moduleId, openAssistantWithDraft, props.actorScopeKey),
     [props.moduleId, props.actorScopeKey, openAssistantWithDraft]
   );
-  // #1196 — same host-controlled binding as hostActions: module code never supplies its id.
+  // #1196 — same host-controlled binding as hostActions: the surface name comes from the host
+  // mount, never from module code.
   const assistantSurface = useMemo(
-    () =>
-      createAssistantSurfaceHandle(props.moduleId, subscribeRecords, props.moduleId, seedComposer),
+    () => createAssistantSurfaceHandle(subscribeRecords, props.moduleId, seedComposer),
     [props.moduleId, seedComposer, subscribeRecords]
   );
   const Component = props.Component;

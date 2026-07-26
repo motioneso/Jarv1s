@@ -21,7 +21,7 @@ describe("parseUatExcludeChunks", () => {
   });
 
   it("parses a comma-separated list of known chunk names", () => {
-    expect(parseUatExcludeChunks("news, job-search")).toEqual(["news", "job-search"]);
+    expect(parseUatExcludeChunks("news, finance")).toEqual(["news", "finance"]);
   });
 
   it("fails closed on a typo'd chunk name instead of silently no-op'ing", () => {

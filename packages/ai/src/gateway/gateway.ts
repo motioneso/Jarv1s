@@ -164,9 +164,6 @@ export class AssistantToolGateway {
         actionRequestId: ctx.requestId,
         toolName: found.dto.name,
         outcome: result.ok ? "executed" : "error",
-        ...(found.dto.name === "job-search.resume.critique" && result.ok && result.structuredData
-          ? { result: result.structuredData }
-          : {})
       });
       const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
       void this.recordAudit(access, found, {
@@ -185,9 +182,6 @@ export class AssistantToolGateway {
           actionRequestId: ctx.requestId,
           toolName: found.dto.name,
           outcome: result.ok ? "executed" : "error",
-          ...(found.dto.name === "job-search.resume.critique" && result.ok && result.structuredData
-            ? { result: result.structuredData }
-            : {})
         });
         const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
         void this.recordAudit(access, found, {
@@ -540,9 +534,6 @@ export class AssistantToolGateway {
       actionRequestId: action.id,
       toolName: found.dto.name,
       outcome: result.ok ? "executed" : "error",
-      ...(found.dto.name === "job-search.resume.critique" && result.ok && result.structuredData
-        ? { result: result.structuredData }
-        : {})
     });
     void this.recordAudit(access, found, {
       approvalMode: "confirmed",

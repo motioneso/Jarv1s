@@ -2,14 +2,14 @@ import { expect, test } from "@playwright/test";
 import { restartUatStack } from "../provisioner.js";
 import { UAT_ADMIN_EMAIL, UAT_ADMIN_PASSWORD } from "../seed/admin.js";
 
-export const uatLevel = { level: "admin+data", without: ["job-search"] } as const;
+export const uatLevel = { level: "admin+data", without: ["finance"] } as const;
 
-// #1026/#1000/#999: happy-path proof that Job Search installs end-to-end against a real,
+// #1026/#1000/#999: happy-path proof that an external module installs end-to-end against a real,
 // prod-shaped instance (no mocked API calls — playwright.uat.config.ts has no webServer/mocks).
 // Real nav only, no page.goto beyond the one unavoidable initial load: apps/web/src/app.tsx gates
 // every route behind a 401 check (myModulesEnabled()), so a goto("/settings") shortcut would
 // silently skip that fail-closed check instead of exercising it.
-test("installing Job Search from Settings reaches installed-enabled after a real restart", async ({
+test("installing Finance from Settings reaches installed-enabled after a real restart", async ({
   page
 }) => {
   const projectName = process.env.JARVIS_UAT_PROJECT_NAME;
@@ -42,18 +42,18 @@ test("installing Job Search from Settings reaches installed-enabled after a real
 
   // #1187 rewrite: registry rows render via the shared Group/Row primitives, not a
   // <ul aria-label="Module registry">/<li> list — scope to the "Module library" card, then
-  // the .set-row whose text contains "Job Search" (settings-module-registry-section.tsx).
+  // the .set-row whose text contains "Finance" (settings-module-registry-section.tsx).
   const moduleLibraryCard = page.locator(".pane__card", { hasText: "Module library" });
-  const jobSearchRow = moduleLibraryCard.locator(".set-row", { hasText: "Job Search" });
+  const financeRow = moduleLibraryCard.locator(".set-row", { hasText: "Finance" });
 
   // No "Not installed" assertion: libraryAction() renders only a button for the
   // not-installed state, never that text (settings-module-registry-section.tsx:85-87).
-  await jobSearchRow.getByRole("button", { name: "Download and install" }).click();
-  const installDialog = page.getByRole("dialog", { name: "Install Job Search?" });
+  await financeRow.getByRole("button", { name: "Download and install" }).click();
+  const installDialog = page.getByRole("dialog", { name: "Install Finance?" });
   await expect(installDialog).toBeVisible();
   await installDialog.getByRole("button", { name: "Download" }).click();
 
-  await expect(jobSearchRow.getByText("Downloaded — restart to apply")).toBeVisible({
+  await expect(financeRow.getByText("Downloaded — restart to apply")).toBeVisible({
     timeout: 30_000
   });
 
@@ -63,9 +63,9 @@ test("installing Job Search from Settings reaches installed-enabled after a real
   await page.reload();
 
   await openInstanceModules();
-  const jobSearchRowAfterRestart = page
+  const financeRowAfterRestart = page
     .locator(".pane__card", { hasText: "Module library" })
-    .locator(".set-row", { hasText: "Job Search" });
+    .locator(".set-row", { hasText: "Finance" });
 
   // No "Installed" text assertion either: installed-enabled + latestVersion != null (this
   // registry-known row's case) renders only the Switch, never that text
@@ -76,11 +76,11 @@ test("installing Job Search from Settings reaches installed-enabled after a real
   // `status = 'enabled'` unconditionally when a staged download is accepted on restart —
   // a registry install has no separate manual-enable step, so "installed-enabled" (this
   // test's own name) means the switch already reads checked once the restart lands.
-  const enableSwitch = jobSearchRowAfterRestart.getByRole("checkbox", {
-    name: /enable job search/i
+  const enableSwitch = financeRowAfterRestart.getByRole("checkbox", {
+    name: /enable finance/i
   });
   await expect(enableSwitch).toBeChecked({ timeout: 30_000 });
   await expect(
-    jobSearchRowAfterRestart.getByRole("button", { name: "Download and install" })
+    financeRowAfterRestart.getByRole("button", { name: "Download and install" })
   ).not.toBeVisible();
 });

@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const resolver = fileURLToPath(
   new URL("../../.claude/skills/coordinate/resolve-uat-triggers.sh", import.meta.url)
 );
-const expected = "blocking\ttests/uat/specs/job-search-install.uat.spec.ts";
+const expected = "blocking\ttests/uat/specs/module-install.uat.spec.ts";
 
 function resolve(path: string): string {
   const result = spawnSync("bash", [resolver], { input: `${path}\n`, encoding: "utf8" });
@@ -24,7 +24,7 @@ describe("coordinate UAT trigger lookup (#1027/#1000)", () => {
     "scripts/module-reconcile.ts",
     "scripts/start-jarv1s.ts",
     "apps/web/src/settings/settings-module-registry-section.tsx"
-  ])("maps runtime path %s to the blocking job-search UAT", (path) => {
+  ])("maps runtime path %s to the blocking module-install UAT", (path) => {
     if (!existsSync(resolver)) return;
     expect(resolve(path)).toBe(expected);
   });

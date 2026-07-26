@@ -22,7 +22,6 @@ vi.mock("../uat/seed/chunks/sports.js", () => ({ seedSportsChunk: vi.fn() }));
 vi.mock("../uat/seed/chunks/tasks.js", () => ({ seedTasksChunk: vi.fn() }));
 vi.mock("../uat/seed/chunks/calendar.js", () => ({ seedCalendarChunk: vi.fn() }));
 vi.mock("../uat/seed/chunks/notes.js", () => ({ seedNotesChunk: vi.fn() }));
-vi.mock("../uat/seed/chunks/job-search.js", () => ({ seedJobSearchChunk: vi.fn() }));
 
 import { seedLevel } from "../uat/seed/levels.js";
 

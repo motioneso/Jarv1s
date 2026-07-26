@@ -23,7 +23,6 @@ export type UatSeedChunk =
   | "tasks"
   | "calendar"
   | "notes"
-  | "job-search"
   | "finance";
 
 // #1087 finding 5: canonical chunk names accepted in excludeChunks — see
@@ -34,13 +33,12 @@ export const UAT_SEED_CHUNKS: readonly UatSeedChunk[] = [
   "tasks",
   "calendar",
   "notes",
-  "job-search",
   "finance"
 ];
 
 export interface SeedOptions {
   readonly level: UatSeedLevel;
-  /** #1025: e.g. omit "job-search" to prove the absent-module UI path. */
+  /** #1025: e.g. omit a chunk to prove the absent-module UI path. */
   readonly excludeChunks?: readonly UatSeedChunk[];
   /** #1110: leave module.news unbound to a JSON-capable model, to prove the prerequisite-error path. */
   readonly withoutNewsJsonBinding?: boolean;

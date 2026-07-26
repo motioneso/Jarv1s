@@ -31,7 +31,7 @@ describe("seedLevel", () => {
   });
 
   it("admin+data excludes named chunks", async () => {
-    await seedLevel({ level: "admin+data", excludeChunks: ["job-search"] });
+    await seedLevel({ level: "admin+data", excludeChunks: ["news"] });
     const db = createMigrationOwnerDb();
     try {
       const admin = await db
@@ -45,28 +45,25 @@ describe("seedLevel", () => {
     }
   });
 
-  // #1087 finding 3: admin+data must leave job-search NOT installed by default
-  // (spec §4.4's absent-module UI path for #1026) even when the caller passes
-  // no excludeChunks at all — the old code only excluded job-search when a
-  // caller remembered to say so, so it silently installed by default.
-  it("admin+data does not install job-search when no excludeChunks is passed", async () => {
+  // #1087 finding 3: admin+data must leave EVERY external module NOT installed by
+  // default (spec §4.4's absent-module UI path for #1026) even when the caller passes
+  // no excludeChunks at all. The old code excluded the installing chunk only when a
+  // caller remembered to say so, so it silently installed by default. Asserting the
+  // whole table is empty keeps this true for any module added later.
+  it("admin+data installs no external module when no excludeChunks is passed", async () => {
     await seedLevel({ level: "admin+data" });
     const db = createMigrationOwnerDb();
     try {
-      const row = await db
-        .selectFrom("app.external_modules")
-        .select(["id", "status"])
-        .where("id", "=", "job-search")
-        .executeTakeFirst();
-      expect(row).toBeUndefined();
+      const rows = await db.selectFrom("app.external_modules").select(["id", "status"]).execute();
+      expect(rows).toEqual([]);
     } finally {
       await db.destroy();
     }
   });
 
   it("seeds idempotent private data plus one explicit cross-user share", async () => {
-    await seedLevel({ level: "multi-user", excludeChunks: ["job-search"] });
-    await seedLevel({ level: "multi-user", excludeChunks: ["job-search"] });
+    await seedLevel({ level: "multi-user", excludeChunks: ["news"] });
+    await seedLevel({ level: "multi-user", excludeChunks: ["news"] });
 
     const migrationDb = createMigrationOwnerDb();
     let users: Array<{ id: string; email: string }>;

@@ -20,12 +20,12 @@ test("embedded assistant owns chat presence and restores the drawer on unmount (
     kind: "action_request",
     text: "Approve profile",
     actionRequestId: "action-1",
-    toolName: "job-search.profile.approve",
+    toolName: "demo-module.profile.approve",
     summary: "Approve profile"
   });
   await page.route("**/api/chat/stream*", async (route) => {
     const surface = new URL(route.request().url()).searchParams.get("surface");
-    if (surface !== "job-search") {
+    if (surface !== "demo-module") {
       await route.fulfill({
         status: 200,
         contentType: "text/event-stream",
@@ -52,7 +52,7 @@ test("embedded assistant owns chat presence and restores the drawer on unmount (
   await chatToggle.click();
   await expect(page.getByRole("dialog", { name: "Chat with Jarvis" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Job Search" }).click();
+  await page.getByRole("link", { name: "Demo Module" }).click();
 
   const surface = page.locator(".assistant-surface");
   await expect(surface).toBeVisible();

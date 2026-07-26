@@ -130,7 +130,7 @@ export interface ModuleMigrationFile {
 /**
  * Loads every `.sql` file in `directory`, sorted by filename, validating each against the wire
  * contract. A missing `directory` returns `[]` rather than throwing: external modules with no
- * database tables (e.g. job-search) ship no `sql/` dir at all, which is a valid, common shape —
+ * database tables ship no `sql/` dir at all, which is a valid, common shape —
  * not an error. Reconcile (#1007) was pinning every DB-less module `disabled` /
  * `database install failed` because the raw ENOENT propagated as a hard failure. Any other
  * readdir error (permissions, not-a-directory, etc.) still rethrows.

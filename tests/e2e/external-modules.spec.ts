@@ -68,7 +68,7 @@ test.describe("External module host starter action (#916)", () => {
     });
     await mockExternalWebModule(page);
 
-    await page.goto("/m/job-search");
+    await page.goto("/m/demo-module");
 
     await expect(page.locator('[data-assistant-surface="available"]')).toHaveText(
       "Assistant surface available"
@@ -81,7 +81,7 @@ test.describe("External module host starter action (#916)", () => {
 
     // The drawer opened and the composer holds the exact starter as an editable, focused draft.
     const composer = page.getByRole("textbox", { name: "Message Jarvis" });
-    await expect(composer).toHaveValue("Help me start my job search.");
+    await expect(composer).toHaveValue("Help me start.");
     await expect(composer).toBeFocused();
 
     // No message was submitted and no tool ran — send stays a manual action.

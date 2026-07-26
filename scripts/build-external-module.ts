@@ -50,7 +50,7 @@ export async function buildExternalModule(moduleDir: string): Promise<void> {
   });
 }
 
-// CLI: `tsx scripts/build-external-module.ts external-modules/job-search`
+// CLI: `tsx scripts/build-external-module.ts external-modules/finance`
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const target = process.argv[2];
   if (!target) {

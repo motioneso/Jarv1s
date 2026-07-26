@@ -15,15 +15,12 @@ import type { SeedOptions, UatSeedChunk } from "./types.js";
 // #1025 spec §4.3: the level ladder is additive — this is the single source of
 // truth for "which chunks exist at admin+data".
 //
-// #1087 finding 3: job-search is deliberately NOT in this default set. Per spec
-// §4.4, "not installed" is the admin+data DEFAULT (it proves #1026's
-// absent-module UI path) — job-search.ts's own doc comment already said this,
-// but this list used to include it and force callers to remember to pass
-// `excludeChunks: ["job-search"]` on every admin+data/multi-user seed, which
-// fails OPEN (silently installs) the moment any caller forgets. seedJobSearchChunk
-// (chunks/job-search.ts) is still exported for direct use — a future level
-// composition can call it explicitly if a spec ever needs job-search
-// pre-installed — it's just no longer wired into the always-on ladder.
+// #1087 finding 3: a chunk that INSTALLS a module must never join this default
+// set. Per spec §4.4, "not installed" is the admin+data DEFAULT (it proves
+// #1026's absent-module UI path), and a per-caller `excludeChunks` opt-out fails
+// OPEN (silently installs) the moment any caller forgets to pass it. Data-only
+// chunks are safe here; module-installing ones must be called explicitly by the
+// one level composition that needs them.
 const ADMIN_DATA_CHUNKS: ReadonlyArray<{
   key: UatSeedChunk;
   run: (runner: ReturnType<typeof createAppRuntimeRunner>, actorUserId: string) => Promise<void>;
@@ -33,7 +30,7 @@ const ADMIN_DATA_CHUNKS: ReadonlyArray<{
   { key: "tasks", run: (runner, actorUserId) => seedTasksChunk(runner, actorUserId) },
   { key: "calendar", run: (runner, actorUserId) => seedCalendarChunk(runner, actorUserId) },
   { key: "notes", run: (runner, actorUserId) => seedNotesChunk(runner, actorUserId) },
-  // FIN-02 (#1147): unlike job-search (see above), finance IS safe in the
+  // FIN-02 (#1147): finance IS safe in the
   // always-on ladder — its chunk writes only user-scoped module_kv DATA rows and
   // never installs the module (no external_modules row), so the #1087/#1026
   // "not installed by default" ruling still holds; the rows are invisible until
@@ -94,7 +91,7 @@ export async function seedLevel(options: SeedOptions): Promise<void> {
         throw new Error("seedLevel: multi-user owner bootstrap did not return an id");
       }
 
-      // #1087 finding 3: job-search is no longer in ADMIN_DATA_CHUNKS at all (see
+      // #1087 finding 3: no module-installing chunk is in ADMIN_DATA_CHUNKS (see
       // above), so there is nothing instance-level to re-exclude here for the
       // second owner — `exclude` alone is already correct for seedDataChunks.
       //

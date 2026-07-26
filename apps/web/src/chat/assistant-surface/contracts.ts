@@ -26,7 +26,6 @@ export interface AssistantSurfaceViewProps {
 
 export interface AssistantSurfaceHandleV1 {
   readonly Surface: ComponentType<AssistantSurfaceViewProps>;
-  seedOnboarding(): Promise<{ ok: boolean }>;
   seedComposer(draft: string): void;
   submitTurn(input: {
     readonly text: string;

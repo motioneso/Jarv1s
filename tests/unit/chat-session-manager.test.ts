@@ -363,12 +363,12 @@ describe("ChatSessionManager.launchSession — personaText + replayBatch + offse
     expect(recordTurn).not.toHaveBeenCalled();
   });
 
-  it("seeds a module onboarding context once per live engine session (#1194)", async () => {
+  it("seeds a keyed context at most once per live engine session (#1194)", async () => {
     const engine = new FakeEngine(0);
     const manager = new ChatSessionManager(depsWith(engine));
 
-    await manager.seedContext("u1", "Ben", "seed", "module-onboarding:job-search");
-    await manager.seedContext("u1", "Ben", "seed", "module-onboarding:job-search");
+    await manager.seedContext("u1", "Ben", "seed", "module-context:demo-module");
+    await manager.seedContext("u1", "Ben", "seed", "module-context:demo-module");
 
     expect(engine.submitted).toEqual(["seed"]);
   });

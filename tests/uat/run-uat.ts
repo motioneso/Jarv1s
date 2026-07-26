@@ -12,7 +12,6 @@ const CHUNKS = new Set<UatSeedChunk>([
   "tasks",
   "calendar",
   "notes",
-  "job-search",
   "finance"
 ]);
 

@@ -73,12 +73,6 @@ export interface EveningInterviewSeed {
   readonly openingPrompt: string;
 }
 
-export interface ModuleOnboardingSeedSource {
-  readonly moduleId: string;
-  readonly guidance: string;
-  readonly state: Record<string, unknown>;
-}
-
 export interface ChatLiveRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly runtime: ChatSessionRuntime & {
@@ -86,10 +80,6 @@ export interface ChatLiveRoutesDependencies {
       actorUserId: string,
       briefingRunId?: string
     ) => Promise<EveningInterviewSeed>;
-    readonly resolveModuleOnboardingSeed?: (
-      actorUserId: string,
-      moduleId: string
-    ) => Promise<ModuleOnboardingSeedSource | undefined>;
   };
   /** #1109 — TTL-backed store the pull-based chat.getCurrentView tool reads from. */
   readonly pageContextStore: PageContextStore;
@@ -424,54 +414,6 @@ export function registerChatLiveRoutes(
     }
   );
 
-  server.post(
-    "/api/chat/module-onboarding",
-    {
-      config: {
-        rateLimit: {
-          max: CHAT_MUTATION_MAX,
-          timeWindow: "1 minute",
-          keyGenerator: sessionRateLimitKey
-        }
-      }
-    },
-    async (request, reply) => {
-      const access = await resolveOr401(dependencies, request, reply);
-      if (!access) return reply;
-
-      const moduleBody = readModuleOnboardingBody(request.body);
-      if (moduleBody && "error" in moduleBody) {
-        return reply.code(400).send({ error: moduleBody.error });
-      }
-      const moduleId = moduleBody?.moduleId;
-      if (!moduleId) return reply.code(404).send({ error: "Not found" });
-
-      let source: ModuleOnboardingSeedSource | undefined;
-      try {
-        source = await runtime.resolveModuleOnboardingSeed?.(access.actorUserId, moduleId);
-      } catch {
-        // #1194 — missing, inactive, unsupported, and failed state reads intentionally
-        // collapse to one 404 so callers cannot probe module availability.
-        return reply.code(404).send({ error: "Not found" });
-      }
-      if (!source) return reply.code(404).send({ error: "Not found" });
-
-      try {
-        const userName = await runtime.resolveUserName(access.actorUserId);
-        await runtime.manager.seedContext(
-          access.actorUserId,
-          userName,
-          buildModuleOnboardingSeed(source),
-          `module-onboarding:${source.moduleId}`,
-          moduleBody?.surface
-        );
-        return reply.send({ ok: true });
-      } catch (error) {
-        return handleLiveRouteError(error, reply);
-      }
-    }
-  );
-
   // #1109 — client PUTs its current view here (debounced, on navigation/change); an AI tool
   // pulls it on demand rather than the client pushing it on every chat turn.
   server.put(
@@ -550,31 +492,6 @@ export function buildEveningInterviewSeed(reviewText: string | null): EveningInt
   };
 }
 
-export function buildModuleOnboardingSeed(source: ModuleOnboardingSeedSource): string {
-  const defang = (value: string) => sanitizeExternalData(neutralizeSeedFraming(value));
-  const guidance = defang(source.guidance);
-  const state = defang(JSON.stringify(source.state));
-  return (
-    "<trusted_instructions>\n" +
-    "This module onboarding guidance and state apply only when the current turn includes a " +
-    "<module_control> block. For every other turn, ignore this module onboarding context " +
-    "completely, answer the user's current request normally, and never steer back to this " +
-    "module. The active module screen leads a controlled onboarding turn. When a turn includes a " +
-    "<module_control> block, perform exactly its described tool calls with values verbatim and " +
-    "reply in at most one short sentence. Every write is only a proposal for the user's action " +
-    "request approval; never retry a denied action unprompted. For an attached resume call " +
-    "job-search.resume.import-attachment with its attachmentId and never re-type its contents. " +
-    "Only user-pasted resume text may use resume.save-draft mode manual verbatim. Answer free text " +
-    "briefly in first person, calm and lightly dry, sentence case, without emoji, then steer back. " +
-    "Never fabricate resume or profile content; ask about unsupported claims. Never enable " +
-    "monitoring before sources are confirmed.\n" +
-    "</trusted_instructions>\n\n" +
-    `<external_source type="module_onboarding" module="${defang(source.moduleId)}">\n` +
-    `${guidance}\n</external_source>\n\n` +
-    `<module_onboarding_state>\n${state}\n</module_onboarding_state>`
-  );
-}
-
 function readEveningInterviewBody(
   body: unknown
 ): { briefingRunId?: string; surface: ChatSurface } | { error: string } {
@@ -591,20 +508,6 @@ function readEveningInterviewBody(
     return { error: "briefingRunId must be a non-empty string" };
   }
   return { briefingRunId: raw.trim(), surface: surfaceResult.surface };
-}
-
-function readModuleOnboardingBody(
-  body: unknown
-): { moduleId: string; surface: ChatSurface } | { error: string } | undefined {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return undefined;
-  const record = body as Record<string, unknown>;
-  const moduleId = record.moduleId;
-  if (typeof moduleId !== "string" || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(moduleId)) {
-    return undefined;
-  }
-  const surfaceResult = readOptionalSurface(record.surface);
-  if ("error" in surfaceResult) return surfaceResult;
-  return { moduleId, surface: surfaceResult.surface };
 }
 
 function readOptionalSurface(value: unknown): { surface: ChatSurface } | { error: string } {

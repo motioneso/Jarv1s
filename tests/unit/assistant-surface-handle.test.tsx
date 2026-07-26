@@ -7,12 +7,9 @@ import { createAssistantSurfaceHandle } from "../../apps/web/src/chat/assistant-
 afterEach(() => vi.unstubAllGlobals());
 
 describe("createAssistantSurfaceHandle", () => {
-  it("binds seed, turn, upload, surface, and record subscription to host services", async () => {
+  it("binds turn, upload, composer, and record subscription to host services", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
-      if (url.endsWith("/api/chat/module-onboarding")) {
-        return Response.json({ ok: true });
-      }
       if (url.endsWith("/api/chat/turn")) {
         return Response.json({ reply: "ok" });
       }
@@ -20,7 +17,7 @@ describe("createAssistantSurfaceHandle", () => {
         return Response.json({
           attachment: {
             id: "attachment-1",
-            fileName: "resume.pdf",
+            fileName: "report.pdf",
             mimeType: "application/pdf",
             sizeBytes: 3
           }
@@ -32,12 +29,7 @@ describe("createAssistantSurfaceHandle", () => {
     const unsubscribe = vi.fn();
     const subscribeRecords = vi.fn(() => unsubscribe);
     const seedComposer = vi.fn();
-    const handle = createAssistantSurfaceHandle(
-      "job-search",
-      subscribeRecords,
-      undefined,
-      seedComposer
-    );
+    const handle = createAssistantSurfaceHandle(subscribeRecords, undefined, seedComposer);
 
     expect(handle.Surface).toBe(AssistantSurface);
     expect(handle.subscribeRecords).toBe(subscribeRecords);
@@ -45,70 +37,42 @@ describe("createAssistantSurfaceHandle", () => {
     handle.seedComposer("Please revise the summary");
     expect(seedComposer).toHaveBeenCalledWith("Please revise the summary");
 
-    await expect(handle.seedOnboarding()).resolves.toEqual({ ok: true });
     await handle.submitTurn({
       text: "Use these titles",
-      controlContext: {
-        step: "profile",
-        action: "save",
-        values: { targetTitles: ["Staff Product Designer"] }
-      },
+      controlContext: { step: "profile", action: "save" },
       attachmentIds: ["attachment-1"]
     });
     await expect(
-      handle.uploadAttachment(new File(["pdf"], "resume.pdf", { type: "application/pdf" }))
-    ).resolves.toEqual({ id: "attachment-1", fileName: "resume.pdf", sizeBytes: 3 });
+      handle.uploadAttachment(new File(["pdf"], "report.pdf", { type: "application/pdf" }))
+    ).resolves.toEqual({ id: "attachment-1", fileName: "report.pdf", sizeBytes: 3 });
 
-    const seedCall = fetchMock.mock.calls.find(([url]) =>
-      String(url).endsWith("/api/chat/module-onboarding")
-    );
-    expect(seedCall?.[1]).toEqual(
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ moduleId: "job-search" })
-      })
-    );
     const turnCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/api/chat/turn"));
     expect(turnCall?.[1]).toEqual(
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
           text: "Use these titles",
-          controlContext: {
-            step: "profile",
-            action: "save",
-            values: { targetTitles: ["Staff Product Designer"] }
-          },
+          controlContext: { step: "profile", action: "save" },
           attachmentIds: ["attachment-1"]
         })
       })
     );
   });
 
-  it("binds module onboarding to its host-controlled chat surface", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).endsWith("/api/chat/module-onboarding")) return Response.json({ ok: true });
-      return Response.json({ reply: "ok" });
-    });
+  it("scopes turns and record subscription to its host-controlled chat surface", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ reply: "ok" }));
     vi.stubGlobal("fetch", fetchMock);
     const unsubscribe = vi.fn();
     const subscribeRecords = vi.fn(() => unsubscribe);
-    const handle = createAssistantSurfaceHandle("job-search", subscribeRecords, "job-search");
+    const handle = createAssistantSurfaceHandle(subscribeRecords, "demo-module");
 
     handle.subscribeRecords(vi.fn());
-    await handle.seedOnboarding();
     await handle.submitTurn({ text: "hello" });
 
-    expect(subscribeRecords).toHaveBeenCalledWith(expect.any(Function), "job-search");
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/chat/module-onboarding",
-      expect.objectContaining({
-        body: JSON.stringify({ moduleId: "job-search", surface: "job-search" })
-      })
-    );
+    expect(subscribeRecords).toHaveBeenCalledWith(expect.any(Function), "demo-module");
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/chat/turn",
-      expect.objectContaining({ body: JSON.stringify({ text: "hello", surface: "job-search" }) })
+      expect.objectContaining({ body: JSON.stringify({ text: "hello", surface: "demo-module" }) })
     );
   });
 });

@@ -81,8 +81,6 @@ const iconMap: Record<string, ComponentType<{ readonly size?: number }>> = {
   trophy: Trophy
 };
 
-const JOB_SEARCH_SURFACE = "job-search" as ChatSurface;
-
 export function AppShell(props: AppShellProps) {
   usePageContextSync();
   const queryClient = useQueryClient();
@@ -128,35 +126,26 @@ export function AppShell(props: AppShellProps) {
   // Lifted to the shell so the SSE stream + transcript persist while the drawer is
   // closed and as the user navigates between pages — the chat follows the user.
   const { records, clearRecords, streamErrorCount } = useChatStream();
-  // #1232 — the Job Search page has a second shell-owned stream. It keeps drawer and module
-  // transcripts isolated while the app frame remains mounted around both.
-  const { records: jobSearchRecords } = useChatStream(
-    JOB_SEARCH_SURFACE,
-    location.pathname.startsWith("/m/job-search")
+  // The shell owns exactly one stream today (the drawer). `subscribeRecords`/`recordsForSurface`
+  // still take a surface so a future module can be given its own shell-owned stream without
+  // reshaping the host contract — but no surface-specific branch lives here.
+  const assistantRecordListeners = useRef(
+    new Set<(records: readonly AssistantRecordV1[]) => void>()
   );
-  const assistantRecordListeners = useRef({
-    drawer: new Set<(records: readonly AssistantRecordV1[]) => void>(),
-    "job-search": new Set<(records: readonly AssistantRecordV1[]) => void>()
-  });
-  const recordsRef = useRef({ drawer: records, "job-search": jobSearchRecords });
-  recordsRef.current = { drawer: records, "job-search": jobSearchRecords };
+  const recordsRef = useRef(records);
+  recordsRef.current = records;
   const subscribeAssistantRecords = useCallback<AssistantSurfaceHostValue["subscribeRecords"]>(
-    (listener, surface) => {
-      const key = surface === JOB_SEARCH_SURFACE ? "job-search" : "drawer";
-      const listeners = assistantRecordListeners.current[key];
+    (listener) => {
+      const listeners = assistantRecordListeners.current;
       listeners.add(listener);
-      listener(recordsRef.current[key]);
+      listener(recordsRef.current);
       return () => listeners.delete(listener);
     },
     []
   );
   useEffect(() => {
-    for (const listener of assistantRecordListeners.current.drawer) listener(records);
+    for (const listener of assistantRecordListeners.current) listener(records);
   }, [records]);
-  useEffect(() => {
-    for (const listener of assistantRecordListeners.current["job-search"])
-      listener(jobSearchRecords);
-  }, [jobSearchRecords]);
   // #1196/#1232 — one external route mounts at a time. Route hosts receive drafts inline while
   // the ordinary shell controls remain available for the visible drawer-isolation check.
   const registerAssistantComposer = useCallback<AssistantSurfaceHostValue["registerComposer"]>(
@@ -179,18 +168,12 @@ export function AppShell(props: AppShellProps) {
   const assistantSurfaceHost = useMemo<AssistantSurfaceHostValue>(
     () => ({
       records,
-      recordsForSurface: (surface) => (surface === JOB_SEARCH_SURFACE ? jobSearchRecords : records),
+      recordsForSurface: () => records,
       registerComposer: registerAssistantComposer,
       seedComposer: seedAssistantComposer,
       subscribeRecords: subscribeAssistantRecords
     }),
-    [
-      records,
-      jobSearchRecords,
-      registerAssistantComposer,
-      seedAssistantComposer,
-      subscribeAssistantRecords
-    ]
+    [records, registerAssistantComposer, seedAssistantComposer, subscribeAssistantRecords]
   );
   const pendingNotesDelete = useMemo(() => {
     const results = new Set(

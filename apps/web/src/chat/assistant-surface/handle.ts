@@ -1,12 +1,11 @@
-import { seedModuleOnboarding, sendChatTurn, uploadChatAttachment } from "../../api/client";
+import { sendChatTurn, uploadChatAttachment } from "../../api/client";
 import type { ChatSurface } from "@jarv1s/shared";
 
 import type { AssistantSurfaceHandleV1, AssistantSurfaceViewProps } from "./contracts";
 import { AssistantSurface } from "./surface";
 
-/** #1196 — build one AssistantSurface handle whose module id is fixed by the host mount. */
+/** #1196 — build one AssistantSurface handle bound to the surface its host mount owns. */
 export function createAssistantSurfaceHandle(
-  moduleId: string,
   subscribeRecords: AssistantSurfaceHandleV1["subscribeRecords"],
   surface?: string,
   seedComposer?: (draft: string) => void
@@ -17,7 +16,6 @@ export function createAssistantSurfaceHandle(
     : AssistantSurface;
   return {
     Surface,
-    seedOnboarding: () => seedModuleOnboarding(moduleId, scopedSurface),
     seedComposer: (draft) => seedComposer?.(draft),
     async submitTurn(input) {
       await sendChatTurn(input.text, input.attachmentIds, input.controlContext, scopedSurface);
