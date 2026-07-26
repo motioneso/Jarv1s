@@ -27,7 +27,7 @@ nothing.
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| `docs/superpowers/specs/2026-07-26-module-self-operation-settings-commands.md` (chassis half) | #1263 | security | building (spawned 2026-07-26) | `chassis-1263` | `w1:p11Q` (tab `w1:t3J` = "agents") | `1263-self-operation-chassis` | — |
+| `docs/superpowers/specs/2026-07-26-module-self-operation-settings-commands.md` (chassis half) | #1263 | security | planning (builder #1 reaped, plan being rewritten) | `planner-1263` (builder TBD) | `w1:p11W` (tab `w1:t3J` = "agents") | `1263-self-operation-chassis` | — |
 | `docs/superpowers/specs/2026-07-26-module-self-operation-settings-commands.md` | #1264 | security | gated on #1263 merge | — | — | `1264-settings-self-operation` | — |
 | `docs/superpowers/specs/2026-07-26-module-self-operation-content-commands.md` | #1265 | security | gated on #1263 merge | — | — | `1265-module-content-self-operation` | — |
 | **no spec yet — DO NOT SPAWN** | #1266 | tbd | blocked on spec gate | — | — | — | — |
@@ -121,6 +121,25 @@ carries them.
   classifies on the evidence. Exact-prior-state restore → `granted_at_install`; anything less →
   escalate to Ben rather than guess. (Both are `risk: "destructive"`, so both confirm today
   regardless.)
+
+## Ben's mid-run rulings
+
+- **2026-07-26 — no successor relay.** "No don't worry about successor's, keep going here." Cancels
+  the `coordinate` skill's mandatory 70% relay for this run; coordinator session
+  `43e5f5e2-…` drives to the end.
+- **2026-07-26 — Sonnet never writes plans; a `gpt-5.6-sol high` planner does.** Verbatim: "oh hey,
+  sonnet should never write plans. They are builders. Let's have 5.6-sol high write it please." This
+  splits the `coordinated-build` skill's plan→approve→build loop into two agents: a **planner**
+  (codex, `gpt-5.6-sol` at `high` — the `~/.codex/config.toml` default, so a bare `codex` spawn
+  already is one) writes the plan and stops; a **fresh Sonnet builder** executes it task-by-task
+  without re-deriving it. Consequences for anyone adopting this run:
+  - The plan must be written **for an executor**: exact files, symbols, and test names per task, in
+    dependency order, each independently committable. A plan that assumes the reader will re-read
+    the spec defeats the split.
+  - This does **not** contradict the standing memory that `sol xhigh` is banned for _build_ — sol is
+    sanctioned for **planning** only, and at `high`, not `xhigh`.
+  - Coordinator approval of the plan still applies; it now gates the builder's spawn rather than the
+    builder's first commit.
 
 ## Phase-0 findings that needed Ben before spawning
 
@@ -226,7 +245,13 @@ stop-the-line + file an issue (no waiver).
 
 ## Reaped sessions
 
-- <none yet>
+- **`chassis-1263`** (Sonnet 5 builder #1), pane `w1:p11Q`, session
+  `6c9e4e26-2f15-47de-93c1-c524645901c4` — reaped 2026-07-26 with **zero code written**. It spent
+  its whole context reading and auto-compacted at 72%, then Ben's planner ruling (below) made its
+  self-authored plan invalid anyway. Nothing was lost: the worktree held no uncommitted work beyond
+  `.claude/context-meter.log`, and its one real output (`docs/superpowers/plans/1263-chassis-plan.md`
+  at `e00f6c89`) survives on the branch as research input for the planner. A compacted builder that
+  has produced nothing is worth less than a fresh one — replace, do not nurse.
 
 ## Continuation note
 
