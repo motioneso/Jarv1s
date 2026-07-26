@@ -27,7 +27,7 @@ nothing.
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| `docs/superpowers/specs/2026-07-26-module-self-operation-settings-commands.md` (chassis half) | #1263 | security | queued (awaiting Ben OK) | — | — | `1263-self-operation-chassis` | — |
+| `docs/superpowers/specs/2026-07-26-module-self-operation-settings-commands.md` (chassis half) | #1263 | security | building (spawned 2026-07-26) | `chassis-1263` | `w1:p11Q` (tab `w1:t3J` = "agents") | `1263-self-operation-chassis` | — |
 | `docs/superpowers/specs/2026-07-26-module-self-operation-settings-commands.md` | #1264 | security | gated on #1263 merge | — | — | `1264-settings-self-operation` | — |
 | `docs/superpowers/specs/2026-07-26-module-self-operation-content-commands.md` | #1265 | security | gated on #1263 merge | — | — | `1265-module-content-self-operation` | — |
 | **no spec yet — DO NOT SPAWN** | #1266 | tbd | blocked on spec gate | — | — | — | — |
@@ -214,30 +214,50 @@ stop-the-line + file an issue (no waiver).
 
 ## Continuation note
 
-**2026-07-26, coordinator #1 (session `43e5f5e2-…`) — relayed at the 70% context warning before
-spawning anything. Nothing is in flight; the fleet is empty.**
+**2026-07-26, coordinator #1 (session `43e5f5e2-…`) — the relay was CANCELLED by Ben ("don't worry
+about successors, keep going here"), so this session continues to drive. Phase 1 is done: #1263 is
+spawned and building. Phase 2 (supervision) is live.**
 
-Phase 0 is **complete**: lock claimed, both specs and all three issues read in full, collision
-surface verified in code, three forks raised and **answered by Ben**, epic updated, #1266 filed.
+**Manifest approval:** Ben did not sign the manifest as a document, but he answered all three
+Phase-0 forks explicitly and instructed "Begin now" / "keep going here". Those answers ARE the
+substance of the manifest, so the Phase-0 pause is treated as satisfied. Recorded here so a
+successor does not re-pause on it.
+
+**What is in flight:**
+
+- **#1263** — agent `chassis-1263`, pane `w1:p11Q`, tab `w1:t3J` (relabelled "agents"), session
+  `6c9e4e26-2f15-47de-93c1-c524645901c4`, branch `1263-self-operation-chassis`, worktree
+  `~/Jarv1s/.claude/worktrees/1263-self-operation-chassis`. Verified **Sonnet 5**, high effort,
+  bypass-permissions on. Handoff committed to its branch at `39c0acee`
+  (`docs/coordination/handoff-1263-self-operation-chassis.md`, prettier-clean).
+- `main` CI re-verified **green** before the spawn (run `30224954273`, success, 21m27s).
 
 **Your next action, in order:**
 
-1. Re-check `main` CI is green before spawning — run `30224954273` was still in progress at Phase 0
-   (`gh run list --branch main --workflow=CI --limit 2`). Ignore `modules-registry / publish`; it is
-   pre-existing red and non-required (see CI state section).
-2. Write the #1263 handoff doc from `.claude/skills/coordinate/templates/handoff.md`. It **must**
-   carry, verbatim, the "Ben's Phase-0 rulings" section above — especially the `memory.forget`
-   exception (the epic handoff tells agents that any `confirm_always` proposal is wrong; this is the
-   one Ben approved) and the `allowedTiers` / install-grant-precedence requirements. Also carry the
-   epic handoff's traps section and the ban on touching `docs/coordination/` or running broad
-   `git add` / `pnpm format`. Prettier it before committing.
-3. `git worktree add .claude/worktrees/1263-self-operation-chassis -b 1263-self-operation-chassis origin/main`
-4. Spawn **#1263 alone**, `--model sonnet`, into the agents tab in `w1` (create one if absent — the
-   coordinator tab is `w1:t3K` and stays coordinator-only). Confirm the pane says "Sonnet".
-5. Hold #1264 and #1265 until #1263 **merges**. Both are `security` tier → Opus QA + `gh pr comment`
-   verdict + **Ben's explicit merge sign-off**. Do not auto-merge anything in this run.
+1. **Wait for the plan escalation** from `chassis-1263`. It was booted with an explicit "do NOT
+   write code until the coordinator approves your plan". Approve only if the plan stays inside the
+   spec's locked decisions **and** the six scope parts in its handoff. A plan that proposes a
+   parallel command registry, a second `confirm_always`, or moving `resolvePolicy` ahead of YOLO is
+   wrong — cite the rulings section and send it back.
+2. When it reports done (PR open): spawn **Opus** `coordinated-qa` (security tier) → it must
+   `gh pr comment` its verdict → surface PR + verdict to Ben with "security-tier — your merge
+   sign-off?" → **PAUSE**. Never auto-merge in this run.
+3. After #1263 **merges**: spawn #1264 and #1265 in parallel, separate worktrees, both `--model
+   sonnet`, both into the agents tab `w1:t3J`. Never into the coordinator tab `w1:t3K`.
+4. `#1266` stays unspawnable until Ben approves a spec for it.
 
-**Scope reminder the #1263 agent will need:** #1263 is bigger than its issue title implies — it now
-owns the 39-tool retrofit classification, the `allowedTiers` assertion, install-grant precedence, and
-the `people.merge`/`splitIdentity` round-trip verification, on top of the declaration field, denylist,
+**Scope reminder (already in the #1263 handoff, repeated here so it survives):** #1263 is bigger
+than its issue title implies — it owns the 39-tool retrofit classification, the `allowedTiers`
+must-include-`always_confirm` assertion, install-grant precedence over a user-set tier, and the
+`people.merge`/`splitIdentity` round-trip verification, on top of the declaration field, denylist,
 build assertion and gateway hoist.
+
+**Fleet-mechanics notes for a successor (learned this session):** `herdr agent start` has **no
+`--tab` and no `--cwd`** flag in this build. The working recipe is: pick/create a pane in the agents
+tab → `herdr pane run <pane> "cd <worktree>"` → `herdr agent start <name> --kind claude --pane
+<pane> -- --model sonnet --permission-mode bypassPermissions` → confirm the status line says
+"Sonnet" → send the boot prompt with `herdr pane run`. Agent names must **start with a lowercase
+letter** — `1263-chassis` was rejected (`invalid_agent_name`), which is why the label is
+`chassis-1263`. Fresh build worktrees have **no `node_modules`**, so run prettier from this coord
+worktree against the build worktree's path before committing there. `git worktree add` resolves
+relative to your cwd, so pass an absolute path or you get a worktree nested inside this one.
