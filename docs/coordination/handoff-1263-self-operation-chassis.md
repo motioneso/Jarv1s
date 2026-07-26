@@ -51,7 +51,7 @@ bulk of the work.
    on → run, still bypassing `confirm_always`, `risk: "destructive"` and `requiresConfirmation`;
    otherwise → ordinary policy, unchanged.
 5. **Install-time grant.** No SDK type widening. `defaultTier` is typed
-   `"ask_each_time" | "always_confirm"`, so `trusted_auto` can never be a *declared* default — but
+   `"ask_each_time" | "always_confirm"`, so `trusted_auto` can never be a _declared_ default — but
    `policy.ts:47` reads `(await lookup.getFamilyTier(...)) ?? manifest.defaultTier`, so the **stored**
    tier wins. Install persists `trusted_auto` for families whose `allowedTiers` already permit it.
 6. **Classify every already-shipped write tool** (moved here from #1265). Your build assertion and
@@ -92,33 +92,33 @@ coordinator and keep building the rest.
   destructive): **verify the round-trip before classifying.** If `splitIdentity` restores exact prior
   state → `granted_at_install`. If it does not → escalate to the coordinator, do not guess. "A
   reverse exists" and "the reverse restores exact prior state" are different claims and the spec
-  demands a *tested* reverse.
+  demands a _tested_ reverse.
 
 ## The write-tool inventory — the specs undercount it
 
 The specs say 29. Measured on `main` at Phase 0
 (`grep -rn 'risk: *"write"\|risk: *"destructive"' packages/*/src`): **39 tools across 11 packages.**
 
-| Package | Tools | In spec 2's list? |
-| ------- | ----- | ----------------- |
-| tasks | 13 | yes |
-| news | 5 | yes |
-| **people** | **4** | **no** |
-| notes | 3 | yes |
-| goals | 3 | yes |
-| commitments | 3 | yes |
-| **memory** | **2** | **no** |
-| email | 2 | yes |
-| calendar | 2 | yes |
-| **web-research** | **1** | **no** |
-| ai | 1 | yes |
+| Package          | Tools | In spec 2's list? |
+| ---------------- | ----- | ----------------- |
+| tasks            | 13    | yes               |
+| news             | 5     | yes               |
+| **people**       | **4** | **no**            |
+| notes            | 3     | yes               |
+| goals            | 3     | yes               |
+| commitments      | 3     | yes               |
+| **memory**       | **2** | **no**            |
+| email            | 2     | yes               |
+| calendar         | 2     | yes               |
+| **web-research** | **1** | **no**            |
+| ai               | 1     | yes               |
 
 Re-measure on your own branch rather than trusting this table — it is a Phase-0 snapshot, and it is
 here so you size the work correctly, not so you skip the count.
 
 ## Traps that will cost you a day each
 
-- **The auto-run trap.** `trusted_auto` can never be a *declared* default (the `defaultTier` type
+- **The auto-run trap.** `trusted_auto` can never be a _declared_ default (the `defaultTier` type
   forbids it). The stored tier wins. Install persists it as **data**. No SDK widening.
 - **The silent-prompt combination.** `granted_at_install` without `executionPolicy: "auto"` prompts
   forever and **no test catches it** unless your assertion does. This is why part 3 is explicit.
