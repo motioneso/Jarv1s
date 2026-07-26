@@ -19,11 +19,11 @@ import {
 
 describe("surface session keys", () => {
   it("round-trips actor ids containing the key delimiter", () => {
-    const key = surfaceSessionKey("actor:with:delimiters", "job-search");
+    const key = surfaceSessionKey("actor:with:delimiters", "demo-module");
 
     expect(parseSurfaceSessionKey(key)).toEqual({
       actorUserId: "actor:with:delimiters",
-      surface: "job-search"
+      surface: "demo-module"
     });
   });
 
@@ -129,19 +129,19 @@ describe("surface-scoped ChatSessionManager state", () => {
       })
     );
 
-    await manager.seedContext("u1", "Ben", "seed", "job-search-onboarding");
-    await manager.seedContext("u1", "Ben", "seed", "job-search-onboarding");
-    await manager.seedContext("u1", "Ben", "seed", "job-search-onboarding", "job-search");
+    await manager.seedContext("u1", "Ben", "seed", "demo-module-onboarding");
+    await manager.seedContext("u1", "Ben", "seed", "demo-module-onboarding");
+    await manager.seedContext("u1", "Ben", "seed", "demo-module-onboarding", "demo-module");
 
     expect(engines.get("u1:drawer")?.submitted).toEqual(["seed"]);
-    expect(engines.get("u1:job-search")?.submitted).toEqual(["seed"]);
+    expect(engines.get("u1:demo-module")?.submitted).toEqual(["seed"]);
   });
 
   it("locks turns per surface while allowing the other surface to proceed", async () => {
     const engines = new Map<string, BlockingEngine>();
     const manager = new ChatSessionManager(
       makeDeps((_provider, sessionKey) => {
-        const engine = new BlockingEngine(sessionKey.endsWith(":job-search") ? "job" : "drawer");
+        const engine = new BlockingEngine(sessionKey.endsWith(":demo-module") ? "job" : "drawer");
         engines.set(sessionKey, engine);
         return engine;
       })
@@ -158,12 +158,12 @@ describe("surface-scoped ChatSessionManager state", () => {
       "Ben",
       "surface question",
       undefined,
-      "job-search"
+      "demo-module"
     );
-    await vi.waitFor(() => expect(engines.get("u1:job-search")).toBeDefined());
+    await vi.waitFor(() => expect(engines.get("u1:demo-module")).toBeDefined());
 
     engines.get("u1:drawer")?.release();
-    engines.get("u1:job-search")?.release();
+    engines.get("u1:demo-module")?.release();
     await expect(drawerTurn).resolves.toMatchObject({ reply: "drawer" });
     await expect(surfaceTurn).resolves.toMatchObject({ reply: "job" });
   });
@@ -175,7 +175,7 @@ describe("surface-scoped ChatSessionManager state", () => {
     for (let i = 0; i < 5; i += 1) subscribe("drawer");
     expect(() => subscribe("drawer")).toThrow(ChatStreamLimitError);
 
-    for (let i = 0; i < 5; i += 1) subscribe("job-search");
-    expect(() => subscribe("job-search")).toThrow(ChatStreamLimitError);
+    for (let i = 0; i < 5; i += 1) subscribe("demo-module");
+    expect(() => subscribe("demo-module")).toThrow(ChatStreamLimitError);
   });
 });

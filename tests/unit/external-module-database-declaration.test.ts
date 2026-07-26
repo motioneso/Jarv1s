@@ -12,8 +12,8 @@ import {
 
 const baseManifest = {
   schemaVersion: 1,
-  id: "job-search",
-  name: "Job Search",
+  id: "demo-module",
+  name: "Demo Module",
   version: "1.0.0",
   publisher: "Jarvis Labs",
   lifecycle: "optional",
@@ -25,28 +25,28 @@ describe("manifest database.ownedTables validation (#964)", () => {
     const result = validateExternalModuleManifest(
       {
         ...baseManifest,
-        database: { ownedTables: ["app.job_search_listings", "app.job_search_notes"] }
+        database: { ownedTables: ["app.demo_module_listings", "app.demo_module_notes"] }
       },
-      "job-search"
+      "demo-module"
     );
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.manifest.database?.ownedTables).toEqual([
-        "app.job_search_listings",
-        "app.job_search_notes"
+        "app.demo_module_listings",
+        "app.demo_module_notes"
       ]);
     }
   });
 
   it("still accepts a manifest with no database block (metadata-only module)", () => {
-    expect(validateExternalModuleManifest(baseManifest, "job-search").ok).toBe(true);
+    expect(validateExternalModuleManifest(baseManifest, "demo-module").ok).toBe(true);
   });
 
   it("rejects tables outside the module's slug prefix (cross-module claim)", () => {
-    for (const table of ["app.users", "app.notes_items", "app.jobsearch_x", "app.job_searchx"]) {
+    for (const table of ["app.users", "app.notes_items", "app.demomodule_x", "app.demo_modulex"]) {
       const result = validateExternalModuleManifest(
         { ...baseManifest, database: { ownedTables: [table] } },
-        "job-search"
+        "demo-module"
       );
       expect(result.ok).toBe(false);
     }
@@ -54,31 +54,31 @@ describe("manifest database.ownedTables validation (#964)", () => {
 
   it("rejects unqualified, non-app-schema, and malformed table names", () => {
     for (const table of [
-      "job_search_x",
-      "public.job_search_x",
-      "app.Job_Search",
-      "app.job-search-x",
+      "demo_module_x",
+      "public.demo_module_x",
+      "app.Demo_Module",
+      "app.demo-module-x",
       'app."x"; DROP TABLE app.users'
     ]) {
       const result = validateExternalModuleManifest(
         { ...baseManifest, database: { ownedTables: [table] } },
-        "job-search"
+        "demo-module"
       );
       expect(result.ok).toBe(false);
     }
   });
 
   it("rejects empty, oversized, duplicate, and unknown-key database blocks", () => {
-    const tooMany = Array.from({ length: 33 }, (_, i) => `app.job_search_t${i}`);
+    const tooMany = Array.from({ length: 33 }, (_, i) => `app.demo_module_t${i}`);
     for (const database of [
       { ownedTables: [] },
       { ownedTables: tooMany },
-      { ownedTables: ["app.job_search_a", "app.job_search_a"] },
-      { ownedTables: ["app.job_search_a"], migrations: "sql/" },
-      { ownedTables: "app.job_search_a" },
+      { ownedTables: ["app.demo_module_a", "app.demo_module_a"] },
+      { ownedTables: ["app.demo_module_a"], migrations: "sql/" },
+      { ownedTables: "app.demo_module_a" },
       []
     ]) {
-      const result = validateExternalModuleManifest({ ...baseManifest, database }, "job-search");
+      const result = validateExternalModuleManifest({ ...baseManifest, database }, "demo-module");
       expect(result.ok).toBe(false);
     }
   });
@@ -93,7 +93,7 @@ describe("hashExternalPackage covers sql/** (#964)", () => {
     mkdirSync(join(dir, "sql"));
     writeFileSync(
       join(dir, "sql", "0001_init.sql"),
-      "CREATE TABLE app.job_search_listings (id uuid);"
+      "CREATE TABLE app.demo_module_listings (id uuid);"
     );
     return dir;
   };
@@ -106,7 +106,7 @@ describe("hashExternalPackage covers sql/** (#964)", () => {
     const before = hashExternalPackage(dir);
     writeFileSync(
       join(dir, "sql", "0001_init.sql"),
-      "CREATE TABLE app.job_search_listings (id uuid, x int);"
+      "CREATE TABLE app.demo_module_listings (id uuid, x int);"
     );
     expect(hashExternalPackage(dir)).not.toBe(before);
   });
@@ -116,7 +116,7 @@ describe("hashExternalPackage covers sql/** (#964)", () => {
     const before = hashExternalPackage(dir);
     writeFileSync(
       join(dir, "sql", "0002_more.sql"),
-      "ALTER TABLE app.job_search_listings ADD COLUMN y int;"
+      "ALTER TABLE app.demo_module_listings ADD COLUMN y int;"
     );
     expect(hashExternalPackage(dir)).not.toBe(before);
   });

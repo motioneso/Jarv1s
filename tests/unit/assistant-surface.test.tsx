@@ -16,7 +16,7 @@ const records: readonly TranscriptRecord[] = [
     kind: "action_request",
     text: "Approve profile",
     actionRequestId: "ar-1",
-    toolName: "job-search.profile.approve",
+    toolName: "demo-module.profile.approve",
     summary: "Approve profile"
   },
   { kind: "action_result", text: "Profile approved", outcome: "executed" },
@@ -84,16 +84,16 @@ describe("AssistantSurface", () => {
           value: {
             records,
             recordsForSurface: (surface) =>
-              surface === "job-search" ? [{ kind: "reply", text: "Job Search reply" }] : records,
+              surface === "demo-module" ? [{ kind: "reply", text: "Demo Module reply" }] : records,
             registerComposer: () => () => undefined,
             subscribeRecords: () => () => undefined
           }
         },
-        createElement(AssistantSurface, { surface: "job-search" })
+        createElement(AssistantSurface, { surface: "demo-module" })
       )
     );
 
-    expect(html).toContain("Job Search reply");
+    expect(html).toContain("Demo Module reply");
     expect(html).not.toContain("Streamed reply");
   });
 });

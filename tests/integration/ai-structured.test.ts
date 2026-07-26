@@ -129,14 +129,14 @@ describe("module service binding CRUD (repository)", () => {
       );
       await repository.setServiceBinding(
         scopedDb,
-        "module.job-search",
+        "module.demo-module",
         { kind: "model", modelId: modelEconomyJsonId },
         ids.adminUser
       );
 
       expect(await repository.listModuleServiceBindings(scopedDb)).toEqual({
         "module.worker": { kind: "mode", tier: "economy" },
-        "module.job-search": { kind: "model", modelId: modelEconomyJsonId }
+        "module.demo-module": { kind: "model", modelId: modelEconomyJsonId }
       });
       expect(await repository.getModuleServiceBinding(scopedDb, "module.worker")).toEqual({
         kind: "mode",
@@ -147,8 +147,8 @@ describe("module service binding CRUD (repository)", () => {
         tier: "interactive"
       });
 
-      await repository.deleteModuleServiceBinding(scopedDb, "module.job-search", ids.adminUser);
-      expect(await repository.getModuleServiceBinding(scopedDb, "module.job-search")).toBeNull();
+      await repository.deleteModuleServiceBinding(scopedDb, "module.demo-module", ids.adminUser);
+      expect(await repository.getModuleServiceBinding(scopedDb, "module.demo-module")).toBeNull();
       expect(await repository.getServiceBinding(scopedDb, "chat")).toEqual({
         kind: "mode",
         tier: "interactive"
@@ -179,7 +179,7 @@ describe("resolveModelForService precedence", () => {
     );
 
   it("unbound service resolves exactly like an automatic worker capability", async () => {
-    const route = await resolve("module.job-search");
+    const route = await resolve("module.demo-module");
     expect(route.reason).toBe("matched-active-model");
     expect(route.model?.id).toBe(modelEconomyJsonId);
   });
@@ -193,7 +193,7 @@ describe("resolveModelForService precedence", () => {
         ids.adminUser
       )
     );
-    const route = await resolve("module.job-search");
+    const route = await resolve("module.demo-module");
     expect(route.reason).toBe("matched-active-model");
     expect(route.model?.id).toBe(modelReasoningJsonId);
   });
@@ -202,12 +202,12 @@ describe("resolveModelForService precedence", () => {
     await dataContext.withDataContext(adminContext(), (scopedDb) =>
       repository.setServiceBinding(
         scopedDb,
-        "module.job-search",
+        "module.demo-module",
         { kind: "model", modelId: modelChatJsonId },
         ids.adminUser
       )
     );
-    const specific = await resolve("module.job-search");
+    const specific = await resolve("module.demo-module");
     expect(specific.reason).toBe("manual-route");
     expect(specific.model?.id).toBe(modelChatJsonId);
 
@@ -224,7 +224,7 @@ describe("resolveModelForService precedence", () => {
     });
     expect(disable.statusCode).toBe(200);
 
-    const route = await resolve("module.job-search");
+    const route = await resolve("module.demo-module");
     // #1083 F2: service bindings are UUIDs in a blob with no FK. Disabled/deleted rows must degrade
     // to the configured provider's capable default instead of breaking structured module work.
     expect(route.reason).toBe("matched-active-model");
@@ -243,22 +243,22 @@ describe("resolveModelForService precedence", () => {
     await dataContext.withDataContext(adminContext(), async (scopedDb) => {
       await repository.setServiceBinding(
         scopedDb,
-        "module.job-search",
+        "module.demo-module",
         { kind: "model", modelId: modelEconomyJsonId },
         ids.adminUser
       );
       await repository.setAdminPinnedModel(scopedDb, modelChatJsonId);
     });
 
-    const pinned = await resolve("module.job-search");
+    const pinned = await resolve("module.demo-module");
     expect(pinned.model?.id).toBe(modelChatJsonId);
 
     await dataContext.withDataContext(adminContext(), async (scopedDb) => {
       await repository.setAdminPinnedModel(scopedDb, null);
-      await repository.deleteModuleServiceBinding(scopedDb, "module.job-search", ids.adminUser);
+      await repository.deleteModuleServiceBinding(scopedDb, "module.demo-module", ids.adminUser);
       await repository.deleteModuleServiceBinding(scopedDb, "module.worker", ids.adminUser);
     });
-    const restored = await resolve("module.job-search");
+    const restored = await resolve("module.demo-module");
     expect(restored.model?.id).toBe(modelEconomyJsonId);
   });
 });
@@ -394,7 +394,7 @@ describe("generateStructured end-to-end", () => {
       generateStructured(
         scopedDb,
         {
-          service: "module.job-search",
+          service: "module.demo-module",
           prompt: "Extract the job title.",
           schema: {
             type: "object",

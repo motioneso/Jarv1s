@@ -17,14 +17,14 @@ import {
 
 const ref = (version: string): ModuleRegistryArtifactRef => ({
   version,
-  artifact: `job-search-${version}.tgz`,
+  artifact: `demo-module-${version}.tgz`,
   sha256: "a".repeat(64),
   sizeBytes: 10
 });
 
 const entry = (version: string, previous: ModuleRegistryArtifactRef[]): ModuleRegistryEntry => ({
-  id: "job-search",
-  name: "Job Search",
+  id: "demo-module",
+  name: "Demo Module",
   description: null,
   requiresCore: ">=0.0.0",
   capabilities: { permissions: [], fetchHosts: [], tools: [], ownsTables: [] },
@@ -51,7 +51,7 @@ describe("mergePreviousVersions", () => {
   });
 
   it.each([
-    ["artifact", { artifact: "job-search-1.0.0-rebuilt.tgz" }],
+    ["artifact", { artifact: "demo-module-1.0.0-rebuilt.tgz" }],
     ["sha256", { sha256: "b".repeat(64) }],
     ["sizeBytes", { sizeBytes: 11 }]
   ])("rejects same-version republishing when %s differs", (_field, changed) => {
@@ -86,8 +86,8 @@ describe("packModuleArtifact", () => {
     writeFileSync(join(dir, "sql", "0001_init.sql"), "CREATE TABLE app.job_search_x (id uuid);");
     writeFileSync(join(dir, "README.md"), "must NOT be packed");
 
-    const packed = await packModuleArtifact(dir, out, "job-search", "1.0.0");
-    expect(packed.artifact).toBe("job-search-1.0.0.tgz");
+    const packed = await packModuleArtifact(dir, out, "demo-module", "1.0.0");
+    expect(packed.artifact).toBe("demo-module-1.0.0.tgz");
     expect(packed.sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(packed.sizeBytes).toBeGreaterThan(0);
 

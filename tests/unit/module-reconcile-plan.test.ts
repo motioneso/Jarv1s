@@ -10,22 +10,24 @@ import {
 
 describe("assertQualifiedModuleTable", () => {
   it("accepts app-schema tables owned by the module prefix", () => {
-    expect(() => assertQualifiedModuleTable("app.job_search_leads", "job-search")).not.toThrow();
-    expect(() => assertQualifiedModuleTable("app.job_search_notes_v2", "job-search")).not.toThrow();
+    expect(() => assertQualifiedModuleTable("app.demo_module_leads", "demo-module")).not.toThrow();
+    expect(() =>
+      assertQualifiedModuleTable("app.demo_module_notes_v2", "demo-module")
+    ).not.toThrow();
   });
 
   it("rejects tables outside the module's prefix (cross-module DROP attempt)", () => {
-    expect(() => assertQualifiedModuleTable("app.users", "job-search")).toThrow(/prefix/);
-    expect(() => assertQualifiedModuleTable("app.notes_items", "job-search")).toThrow(/prefix/);
+    expect(() => assertQualifiedModuleTable("app.users", "demo-module")).toThrow(/prefix/);
+    expect(() => assertQualifiedModuleTable("app.notes_items", "demo-module")).toThrow(/prefix/);
   });
 
   it("rejects non-app schemas, quoting tricks, and injection shapes", () => {
-    expect(() => assertQualifiedModuleTable("public.job_search_leads", "job-search")).toThrow();
-    expect(() => assertQualifiedModuleTable('app."job_search_leads"', "job-search")).toThrow();
+    expect(() => assertQualifiedModuleTable("public.demo_module_leads", "demo-module")).toThrow();
+    expect(() => assertQualifiedModuleTable('app."demo_module_leads"', "demo-module")).toThrow();
     expect(() =>
-      assertQualifiedModuleTable("app.job_search_leads; DROP TABLE app.users", "job-search")
+      assertQualifiedModuleTable("app.demo_module_leads; DROP TABLE app.users", "demo-module")
     ).toThrow();
-    expect(() => assertQualifiedModuleTable("app.job_search_leads--", "job-search")).toThrow();
+    expect(() => assertQualifiedModuleTable("app.demo_module_leads--", "demo-module")).toThrow();
   });
 });
 

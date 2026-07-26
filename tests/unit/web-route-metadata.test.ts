@@ -30,7 +30,7 @@ describe("web route metadata", () => {
     const modules: ModuleDto[] = [
       moduleWithNav("tasks", "Tasks", "/tasks", "check-square", 20),
       moduleWithNav("wellness", "Wellness", "/wellness", "heart-pulse", 50),
-      moduleWithNav("job-search", "Job Search", "/m/job-search", "briefcase", 0, true)
+      moduleWithNav("demo-module", "Demo Module", "/m/demo-module", "briefcase", 0, true)
     ];
 
     const sections = buildShellNavigation(modules, []);
@@ -38,7 +38,13 @@ describe("web route metadata", () => {
     const modulesSection = sections.find((section) => section.key === "Modules");
     expect(modulesSection?.label).toBe("Modules");
     expect(modulesSection?.items).toEqual([
-      { id: "job-search", label: "Job Search", path: "/m/job-search", icon: "briefcase", order: 0 }
+      {
+        id: "demo-module",
+        label: "Demo Module",
+        path: "/m/demo-module",
+        icon: "briefcase",
+        order: 0
+      }
     ]);
   });
 
@@ -63,10 +69,10 @@ describe("web route metadata", () => {
 
   it("uses a runtime external module label for its embedded route heading", () => {
     expect(
-      resolvePageHeading("/m/job-search/onboarding", new Date("2026-06-14T16:42:00Z"), undefined, [
-        moduleWithNav("job-search", "Job Search", "/m/job-search", "briefcase", 0, true)
+      resolvePageHeading("/m/demo-module/onboarding", new Date("2026-06-14T16:42:00Z"), undefined, [
+        moduleWithNav("demo-module", "Demo Module", "/m/demo-module", "briefcase", 0, true)
       ])
-    ).toEqual({ title: "Job Search", subtitle: "" });
+    ).toEqual({ title: "Demo Module", subtitle: "" });
   });
 
   it("defines concrete app routes without synthetic shell-only entries", () => {

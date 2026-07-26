@@ -42,7 +42,7 @@ describe("external module AI bridge", () => {
       createCliStructuredAdapter
     });
 
-    const result = await bridge({} as DataContextDb, "job-search", {
+    const result = await bridge({} as DataContextDb, "demo-module", {
       schema: {
         type: "object",
         additionalProperties: false,

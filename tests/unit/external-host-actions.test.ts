@@ -13,8 +13,8 @@ import {
 // whole fail-closed surface is unit-testable in the node env — no jsdom/RTL.
 describe("sanitizeStarterPrompt (#916 validation + hard cap, fail closed)", () => {
   it("trims and returns a valid single-line prompt", () => {
-    expect(sanitizeStarterPrompt("  Help me start my job search.  ")).toBe(
-      "Help me start my job search."
+    expect(sanitizeStarterPrompt("  Help me start my demo module.  ")).toBe(
+      "Help me start my demo module."
     );
   });
 
@@ -54,7 +54,7 @@ describe("sanitizeStarterPrompt (#916 validation + hard cap, fail closed)", () =
 describe("createModuleHostActions (#916 host-bound module id, fail closed)", () => {
   it("opens the assistant with the sanitized prompt on valid input", () => {
     const open = vi.fn();
-    const actions = createModuleHostActions("job-search", open, "actor-a");
+    const actions = createModuleHostActions("demo-module", open, "actor-a");
     actions.openAssistant({ starterPrompt: "  Find me a job.  " });
     expect(open).toHaveBeenCalledExactlyOnceWith("Find me a job.");
     expect(actions.actorScopeKey).toBe("actor-a");
@@ -62,7 +62,7 @@ describe("createModuleHostActions (#916 host-bound module id, fail closed)", () 
 
   it("does NOT open the assistant on an invalid/oversize prompt (fail closed)", () => {
     const open = vi.fn();
-    const actions = createModuleHostActions("job-search", open, "actor-a");
+    const actions = createModuleHostActions("demo-module", open, "actor-a");
     actions.openAssistant({ starterPrompt: "   " });
     actions.openAssistant({ starterPrompt: "a".repeat(MAX_STARTER_PROMPT_LENGTH + 1) });
     // @ts-expect-error — the contract input has no other field; a module cannot pass a moduleId.

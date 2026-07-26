@@ -395,7 +395,7 @@ describe("finance manifest contract (#1146)", () => {
     const storage = manifest.storage as Array<Record<string, unknown>>;
     const mutated = {
       ...manifest,
-      storage: [...storage, { namespace: "job-search.feed", scopes: ["user"] }]
+      storage: [...storage, { namespace: "demo-module.feed", scopes: ["user"] }]
     };
     const result = validateExternalModuleManifest(mutated, "finance", "0.1.0");
     expect(result.ok).toBe(false);

@@ -24,7 +24,7 @@ describe("first-party Jarvis MCP transport", () => {
 
     await expect(
       gateway.requestNativeToolPermission(token, {
-        toolName: "  mcp__jarvis__job_search_resume_import  ",
+        toolName: "  mcp__jarvis__demo_module_resume_import  ",
         toolInput: { attachmentId: "attachment-1" }
       })
     ).resolves.toEqual({ decision: "allow", reason: "First-party Jarvis MCP transport." });
@@ -36,7 +36,7 @@ describe("first-party Jarvis MCP transport", () => {
 
   it.each([
     "mcp__jarvis__",
-    "mcp__jarviss__job_search_resume_import",
+    "mcp__jarviss__demo_module_resume_import",
     "mcp__github__get_issue",
     "Bash"
   ])("keeps non-Jarvis transport name %j behind native confirmation", async (toolName) => {
@@ -79,17 +79,17 @@ describe("logical action terminal results", () => {
     const gateway = new AssistantToolGateway({
       resolveActiveModules: async () => [
         {
-          id: "job-search",
-          name: "Job Search",
+          id: "demo-module",
+          name: "Demo Module",
           version: "1.0.0",
           publisher: "Jarv1s",
           lifecycle: "optional",
           compatibility: { jarv1s: "*" },
           assistantTools: [
             {
-              name: "job-search.resume.import",
+              name: "demo-module.resume.import",
               description: "Import a resume.",
-              permissionId: "job-search.resume.write",
+              permissionId: "demo-module.resume.write",
               actionFamilyId: "resume_changes",
               risk: "write",
               executionPolicy: "auto",
@@ -117,7 +117,7 @@ describe("logical action terminal results", () => {
         getFamilyManifest: async () => ({
           id: "resume_changes",
           label: "Resume changes",
-          description: "Changes to a Job Search resume.",
+          description: "Changes to a Demo Module resume.",
           defaultTier: "ask_each_time",
           allowedTiers: ["ask_each_time", "trusted_auto"]
         })
@@ -138,14 +138,14 @@ describe("logical action terminal results", () => {
   it("emits one standalone executed result for a successful YOLO action", async () => {
     const { gateway, token, emitted, handlerRequestIds } = createGateway({ yolo: true });
 
-    await expect(gateway.callTool(token, "job-search.resume.import", {})).resolves.toMatchObject({
+    await expect(gateway.callTool(token, "demo-module.resume.import", {})).resolves.toMatchObject({
       ok: true
     });
     expect(emitted).toEqual([
       {
         kind: "action_result",
         actionRequestId: handlerRequestIds[0],
-        toolName: "job-search.resume.import",
+        toolName: "demo-module.resume.import",
         outcome: "executed"
       }
     ]);
@@ -155,14 +155,14 @@ describe("logical action terminal results", () => {
   it("emits one standalone executed result for a successful trusted-auto action", async () => {
     const { gateway, token, emitted, handlerRequestIds } = createGateway({ yolo: false });
 
-    await expect(gateway.callTool(token, "job-search.resume.import", {})).resolves.toMatchObject({
+    await expect(gateway.callTool(token, "demo-module.resume.import", {})).resolves.toMatchObject({
       ok: true
     });
     expect(emitted).toEqual([
       {
         kind: "action_result",
         actionRequestId: handlerRequestIds[0],
-        toolName: "job-search.resume.import",
+        toolName: "demo-module.resume.import",
         outcome: "executed"
       }
     ]);
@@ -174,14 +174,14 @@ describe("logical action terminal results", () => {
       handlerError: true
     });
 
-    await expect(gateway.callTool(token, "job-search.resume.import", {})).resolves.toMatchObject({
+    await expect(gateway.callTool(token, "demo-module.resume.import", {})).resolves.toMatchObject({
       ok: false
     });
     expect(emitted).toEqual([
       {
         kind: "action_result",
         actionRequestId: handlerRequestIds[0],
-        toolName: "job-search.resume.import",
+        toolName: "demo-module.resume.import",
         outcome: "error"
       }
     ]);

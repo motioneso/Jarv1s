@@ -32,7 +32,7 @@ describe("external-module staging + purge state (#964)", () => {
       updateExternalModuleStaging(
         db,
         {
-          id: "job-search",
+          id: "demo-module",
           stagedVersion: "1.2.0",
           stagedPackageHash: "sha256:" + "a".repeat(64),
           actorUserId: ids.adminUser,
@@ -46,7 +46,7 @@ describe("external-module staging + purge state (#964)", () => {
       { actorUserId: ids.adminUser, requestId: "stage-r1" },
       (db) => listExternalModuleAdminStates(db)
     );
-    expect(states.find((s) => s.id === "job-search")).toMatchObject({
+    expect(states.find((s) => s.id === "demo-module")).toMatchObject({
       status: "disabled",
       stagedVersion: "1.2.0",
       stagedSource: "admin-download",
@@ -61,7 +61,7 @@ describe("external-module staging + purge state (#964)", () => {
       db.db
         .updateTable("app.external_modules")
         .set({ last_install_error: "boom" })
-        .where("id", "=", "job-search")
+        .where("id", "=", "demo-module")
         .execute()
     );
 
@@ -69,7 +69,7 @@ describe("external-module staging + purge state (#964)", () => {
       updateExternalModuleStaging(
         db,
         {
-          id: "job-search",
+          id: "demo-module",
           stagedVersion: "1.3.0",
           stagedPackageHash: "sha256:" + "b".repeat(64),
           actorUserId: ids.adminUser,
@@ -83,7 +83,7 @@ describe("external-module staging + purge state (#964)", () => {
       { actorUserId: ids.adminUser, requestId: "stage-r2" },
       (db) => listExternalModuleAdminStates(db)
     );
-    expect(states.find((s) => s.id === "job-search")).toMatchObject({
+    expect(states.find((s) => s.id === "demo-module")).toMatchObject({
       stagedVersion: "1.3.0",
       lastInstallError: null
     });
@@ -95,7 +95,7 @@ describe("external-module staging + purge state (#964)", () => {
       (db) =>
         setExternalModulePurgeRequested(
           db,
-          { id: "job-search", requested: true, actorUserId: ids.adminUser, requestId: "purge-1" },
+          { id: "demo-module", requested: true, actorUserId: ids.adminUser, requestId: "purge-1" },
           repo.externalModuleAuditWriter(db)
         )
     );
@@ -105,12 +105,12 @@ describe("external-module staging + purge state (#964)", () => {
       { actorUserId: ids.adminUser, requestId: "purge-r1" },
       (db) => listExternalModuleAdminStates(db)
     );
-    expect(states.find((s) => s.id === "job-search")?.purgeRequestedAt).toBeInstanceOf(Date);
+    expect(states.find((s) => s.id === "demo-module")?.purgeRequestedAt).toBeInstanceOf(Date);
 
     await runner.withDataContext({ actorUserId: ids.adminUser, requestId: "purge-2" }, (db) =>
       setExternalModulePurgeRequested(
         db,
-        { id: "job-search", requested: false, actorUserId: ids.adminUser, requestId: "purge-2" },
+        { id: "demo-module", requested: false, actorUserId: ids.adminUser, requestId: "purge-2" },
         repo.externalModuleAuditWriter(db)
       )
     );
@@ -118,13 +118,13 @@ describe("external-module staging + purge state (#964)", () => {
       { actorUserId: ids.adminUser, requestId: "purge-r2" },
       (db) => listExternalModuleAdminStates(db)
     );
-    expect(states.find((s) => s.id === "job-search")?.purgeRequestedAt).toBeNull();
+    expect(states.find((s) => s.id === "demo-module")?.purgeRequestedAt).toBeNull();
 
     const audit = await runner.withDataContext(
       { actorUserId: ids.adminUser, requestId: "purge-r3" },
       (db) => repo.listAdminAuditEvents(db)
     );
-    const actions = audit.filter((e) => e.target_id === "job-search").map((e) => e.action);
+    const actions = audit.filter((e) => e.target_id === "demo-module").map((e) => e.action);
     expect(actions).toContain("module.external_stage");
     expect(actions).toContain("module.external_purge_request");
     expect(actions).toContain("module.external_purge_cancel");

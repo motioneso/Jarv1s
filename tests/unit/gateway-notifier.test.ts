@@ -14,7 +14,7 @@ describe("ChatGatewayNotifier", () => {
     const manager = makeManager();
     const notifier = new ChatGatewayNotifier(manager);
 
-    notifier.emit(surfaceSessionKey("u:1", "job-search"), {
+    notifier.emit(surfaceSessionKey("u:1", "demo-module"), {
       kind: "action_request",
       actionRequestId: "ar_surface",
       toolName: "example.read",
@@ -24,7 +24,7 @@ describe("ChatGatewayNotifier", () => {
     expect(manager.injectRecord).toHaveBeenCalledWith(
       "u:1",
       expect.objectContaining({ actionRequestId: "ar_surface" }),
-      "job-search"
+      "demo-module"
     );
   });
 
@@ -120,7 +120,7 @@ describe("ChatGatewayNotifier", () => {
     notifier.emit("u1", {
       kind: "action_result",
       actionRequestId: "ar_resume",
-      toolName: "job-search.resume.critique",
+      toolName: "demo-module.resume.critique",
       outcome: "executed",
       result: { status: "ok", revisionId: "review-1" }
     });

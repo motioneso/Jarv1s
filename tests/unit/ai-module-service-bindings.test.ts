@@ -6,7 +6,7 @@ import { parseModuleServiceBindingMap } from "../../packages/ai/src/service-bind
 describe("isModuleServiceKey", () => {
   it("accepts module.worker and module.<id> keys", () => {
     expect(isModuleServiceKey(MODULE_WORKER_SERVICE_KEY)).toBe(true);
-    expect(isModuleServiceKey("module.job-search")).toBe(true);
+    expect(isModuleServiceKey("module.demo-module")).toBe(true);
     expect(isModuleServiceKey("module.notes_2.beta")).toBe(true);
   });
 
@@ -27,7 +27,7 @@ describe("parseModuleServiceBindingMap", () => {
     const parsed = parseModuleServiceBindingMap({
       chat: { kind: "mode", tier: "reasoning" },
       "module.worker": { kind: "mode", tier: "economy" },
-      "module.job-search": {
+      "module.demo-module": {
         kind: "model",
         modelId: "11111111-1111-4111-8111-111111111111"
       },
@@ -38,7 +38,7 @@ describe("parseModuleServiceBindingMap", () => {
 
     expect(parsed).toEqual({
       "module.worker": { kind: "mode", tier: "economy" },
-      "module.job-search": {
+      "module.demo-module": {
         kind: "model",
         modelId: "11111111-1111-4111-8111-111111111111"
       }

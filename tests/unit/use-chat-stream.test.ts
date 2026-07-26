@@ -43,8 +43,8 @@ describe("parseRecord", () => {
     const record = parseRecord(
       JSON.stringify({
         kind: "action_result",
-        text: "Executed: job-search.resume.critique",
-        toolName: "job-search.resume.critique",
+        text: "Executed: demo-module.resume.critique",
+        toolName: "demo-module.resume.critique",
         outcome: "executed",
         result: { status: "ok", revisionId: "review-1" }
       })

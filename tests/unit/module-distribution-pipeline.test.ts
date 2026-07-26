@@ -26,8 +26,8 @@ afterAll(() => {
 
 const manifest = {
   schemaVersion: 1,
-  id: "job-search",
-  name: "Job Search",
+  id: "demo-module",
+  name: "Demo Module",
   version: "1.2.0",
   publisher: "Jarvis Labs",
   lifecycle: "optional",
@@ -46,7 +46,7 @@ async function makeFixture(overrides?: { manifestVersion?: string }): Promise<{
   );
   mkdirSync(join(src, "dist"));
   writeFileSync(join(src, "dist", "worker.js"), "// w");
-  const tarball = join(tmp("pipe-tar-"), "job-search-1.2.0.tgz");
+  const tarball = join(tmp("pipe-tar-"), "demo-module-1.2.0.tgz");
   await tar.create({ gzip: true, portable: true, cwd: src, file: tarball }, [
     "jarvis.module.json",
     "dist"
@@ -59,11 +59,11 @@ async function makeFixture(overrides?: { manifestVersion?: string }): Promise<{
       generatedAt: "2026-07-12T00:00:00.000Z",
       modules: [
         {
-          id: "job-search",
-          name: "Job Search",
+          id: "demo-module",
+          name: "Demo Module",
           description: null,
           version: "1.2.0",
-          artifact: "job-search-1.2.0.tgz",
+          artifact: "demo-module-1.2.0.tgz",
           sha256: createHash("sha256").update(tarballBytes).digest("hex"),
           sizeBytes: tarballBytes.length,
           requiresCore: ">=0.0.0",
@@ -111,7 +111,7 @@ describe("fetchRegistryIndex (#964)", () => {
       env: {} as NodeJS.ProcessEnv,
       fetchFn: fakeFetch(index, tarballBytes)
     });
-    expect(result.index?.modules[0]?.id).toBe("job-search");
+    expect(result.index?.modules[0]?.id).toBe("demo-module");
   });
   it("fails closed on an oversized index", async () => {
     const big: typeof fetch = async () =>
@@ -132,18 +132,18 @@ describe("downloadAndStageModule (#964)", () => {
     const { index, tarballBytes } = await makeFixture();
     const modulesDir = tmp("pipe-mods-");
     const result = await downloadAndStageModule({
-      moduleId: "job-search",
+      moduleId: "demo-module",
       modulesDir,
       env: {} as NodeJS.ProcessEnv,
       fetchFn: fakeFetch(index, tarballBytes)
     });
     expect(result.version).toBe("1.2.0");
     expect(result.packageHash).toMatch(/^sha256:[a-f0-9]{64}$/);
-    expect(existsSync(join(modulesDir, "job-search", "jarvis.module.json"))).toBe(true);
+    expect(existsSync(join(modulesDir, "demo-module", "jarvis.module.json"))).toBe(true);
     expect(
-      JSON.parse(readFileSync(join(modulesDir, "job-search", "package.json"), "utf8"))
+      JSON.parse(readFileSync(join(modulesDir, "demo-module", "package.json"), "utf8"))
     ).toEqual({ type: "commonjs" });
-    expect(existsSync(join(modulesDir, ".staging-job-search"))).toBe(false);
+    expect(existsSync(join(modulesDir, ".staging-demo-module"))).toBe(false);
   });
 
   it("rejects on sha256 mismatch without touching the modules dir", async () => {
@@ -155,13 +155,13 @@ describe("downloadAndStageModule (#964)", () => {
     const modulesDir = tmp("pipe-mods-");
     await expect(
       downloadAndStageModule({
-        moduleId: "job-search",
+        moduleId: "demo-module",
         modulesDir,
         env: {} as NodeJS.ProcessEnv,
         fetchFn: fakeFetch(tampered, tarballBytes)
       })
     ).rejects.toMatchObject({ code: "integrity-mismatch" });
-    expect(existsSync(join(modulesDir, "job-search"))).toBe(false);
+    expect(existsSync(join(modulesDir, "demo-module"))).toBe(false);
   });
 
   it("rejects when the inner manifest version disagrees with the index", async () => {
@@ -181,7 +181,7 @@ describe("downloadAndStageModule (#964)", () => {
     };
     await expect(
       downloadAndStageModule({
-        moduleId: "job-search",
+        moduleId: "demo-module",
         modulesDir: tmp("pipe-mods-"),
         env: {} as NodeJS.ProcessEnv,
         fetchFn: fakeFetch(lying, tarballBytes)

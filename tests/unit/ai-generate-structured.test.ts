@@ -58,7 +58,7 @@ function makeDeps(overrides: DepsOverrides = {}): GenerateStructuredDeps {
 }
 
 function makeInput(overrides: Record<string, unknown> = {}) {
-  return { service: "module.job-search" as const, schema, prompt: "extract", ...overrides };
+  return { service: "module.demo-module" as const, schema, prompt: "extract", ...overrides };
 }
 
 describe("generateStructured", () => {
@@ -82,7 +82,7 @@ describe("generateStructured", () => {
     expect(adapter.generateStructured).toHaveBeenCalledTimes(1);
     expect(info).toHaveBeenCalledWith(
       {
-        service: "module.job-search",
+        service: "module.demo-module",
         modelId: "model-1",
         inputTokens: 10,
         outputTokens: 5,

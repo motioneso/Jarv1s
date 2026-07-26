@@ -9,11 +9,11 @@ import {
 } from "../../packages/module-registry/src/node.js";
 
 const goodEntry = {
-  id: "job-search",
-  name: "Job Search",
+  id: "demo-module",
+  name: "Demo Module",
   description: "Track job applications",
   version: "1.2.0",
-  artifact: "job-search-1.2.0.tgz",
+  artifact: "demo-module-1.2.0.tgz",
   sha256: "a".repeat(64),
   sizeBytes: 1024,
   requiresCore: ">=0.1.0",
@@ -21,11 +21,11 @@ const goodEntry = {
     permissions: ["storage"],
     fetchHosts: [],
     tools: [],
-    ownsTables: ["app.job_search_listings"]
+    ownsTables: ["app.demo_module_listings"]
   },
   signature: null,
   previousVersions: [
-    { version: "1.1.0", artifact: "job-search-1.1.0.tgz", sha256: "b".repeat(64), sizeBytes: 900 }
+    { version: "1.1.0", artifact: "demo-module-1.1.0.tgz", sha256: "b".repeat(64), sizeBytes: 900 }
   ]
 };
 
@@ -40,7 +40,7 @@ describe("validateRegistryIndex", () => {
     const result = validateRegistryIndex(goodIndex);
     expect(result.errors).toEqual([]);
     expect(result.index?.modules).toHaveLength(1);
-    expect(result.index?.modules[0]?.id).toBe("job-search");
+    expect(result.index?.modules[0]?.id).toBe("demo-module");
     expect(result.index?.modules[0]?.previousVersions).toHaveLength(1);
   });
 
@@ -90,7 +90,7 @@ describe("validateRegistryIndex", () => {
       ]
     };
     const result = validateRegistryIndex(raw);
-    expect(result.index?.modules.map((m) => m.id)).toEqual(["job-search"]);
+    expect(result.index?.modules.map((m) => m.id)).toEqual(["demo-module"]);
     expect(result.errors).toHaveLength(6);
   });
 
@@ -116,29 +116,29 @@ describe("resolveRegistryArtifact", () => {
   const index = validateRegistryIndex(goodIndex).index as ModuleRegistryIndex;
 
   it("resolves the current version when no pin is given", () => {
-    const hit = resolveRegistryArtifact(index, "job-search");
+    const hit = resolveRegistryArtifact(index, "demo-module");
     expect(hit?.ref.version).toBe("1.2.0");
-    expect(hit?.entry.id).toBe("job-search");
+    expect(hit?.entry.id).toBe("demo-module");
   });
 
   it("resolves a pinned previous version", () => {
-    expect(resolveRegistryArtifact(index, "job-search", "1.1.0")?.ref.artifact).toBe(
-      "job-search-1.1.0.tgz"
+    expect(resolveRegistryArtifact(index, "demo-module", "1.1.0")?.ref.artifact).toBe(
+      "demo-module-1.1.0.tgz"
     );
   });
 
   it("returns null for unknown module or unknown version", () => {
     expect(resolveRegistryArtifact(index, "nope")).toBeNull();
-    expect(resolveRegistryArtifact(index, "job-search", "0.0.1")).toBeNull();
+    expect(resolveRegistryArtifact(index, "demo-module", "0.0.1")).toBeNull();
   });
 });
 
 describe("parseModulesEnsure", () => {
   it("parses comma/whitespace separated ids with optional @version pins", () => {
-    const result = parseModulesEnsure("job-search, weather-plus@1.1.0\n  notes-extra");
+    const result = parseModulesEnsure("demo-module, weather-plus@1.1.0\n  notes-extra");
     expect(result.errors).toEqual([]);
     expect(result.entries).toEqual([
-      { id: "job-search" },
+      { id: "demo-module" },
       { id: "weather-plus", version: "1.1.0" },
       { id: "notes-extra" }
     ]);
@@ -151,8 +151,8 @@ describe("parseModulesEnsure", () => {
   });
 
   it("collects errors for bad ids and duplicate ids (first wins)", () => {
-    const result = parseModulesEnsure("Bad.Id, job-search@1.0.0, job-search@2.0.0, @1.0.0");
-    expect(result.entries).toEqual([{ id: "job-search", version: "1.0.0" }]);
+    const result = parseModulesEnsure("Bad.Id, demo-module@1.0.0, demo-module@2.0.0, @1.0.0");
+    expect(result.entries).toEqual([{ id: "demo-module", version: "1.0.0" }]);
     expect(result.errors).toHaveLength(3);
   });
 });
