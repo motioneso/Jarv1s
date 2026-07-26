@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import JSZip from "jszip";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { VaultContextRunner } from "@jarv1s/vault";
 import {
@@ -41,6 +41,7 @@ endobj
 trailer<</Root 1 0 R>>`,
   "latin1"
 );
+const INVALID_PDF_BYTES = Buffer.from("%PDF-1.4\nINVALID-PDF-SENTINEL", "latin1");
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const DOCX_FIXTURE = await readFile(
@@ -164,6 +165,34 @@ describe("ChatAttachmentsService (#1133)", () => {
     expect(content.text.startsWith("x".repeat(100))).toBe(true);
     expect(content.text).toContain("[truncated:");
     expect(content.text.length).toBeLessThan(ATTACHMENT_TEXT_CAP_CHARS + 200);
+  });
+
+  it("warns without attachment data when PDF extraction fails", async () => {
+    const meta = await service.saveAttachment(access, {
+      fileName: "private-failure.pdf",
+      mimeType: "application/pdf",
+      bytes: INVALID_PDF_BYTES
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const content = await service.readContent(access, meta.id);
+      expect(content).toMatchObject({
+        kind: "text",
+        text: "[PDF text extraction failed for this attachment]"
+      });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(
+        "[chat-attachments] PDF text extraction failed:",
+        expect.any(String)
+      );
+      const serializedWarnings = JSON.stringify(warn.mock.calls);
+      expect(serializedWarnings).not.toContain("INVALID-PDF-SENTINEL");
+      expect(serializedWarnings).not.toContain(meta.fileName);
+      expect(serializedWarnings).not.toContain(meta.id);
+      expect(serializedWarnings).not.toContain(access.actorUserId);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("caps oversized text with an explicit truncation note", async () => {

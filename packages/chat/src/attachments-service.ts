@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 
 import type { AccessContext } from "@jarv1s/db";
@@ -25,6 +26,7 @@ import mammoth from "mammoth";
 const IMAGE_MIMES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 const PDF_MIME = "application/pdf";
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const PDF_WORKER_URL = new URL("./pdf.worker.mjs", import.meta.url);
 
 export const MAX_IMAGE_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 export const MAX_DOCUMENT_ATTACHMENT_BYTES = 10 * 1024 * 1024;
@@ -300,10 +302,11 @@ function capText(text: string): string {
   return `${text.slice(0, ATTACHMENT_TEXT_CAP_CHARS)}\n\n[truncated: attachment text exceeds ${ATTACHMENT_TEXT_CAP_CHARS} characters]`;
 }
 
-async function extractPdfText(bytes: Buffer): Promise<string> {
+export async function extractPdfText(bytes: Buffer): Promise<string> {
   try {
     // pdf-parse v2: PDFParse class over pdf.js — pure JS, no native deps (spec §4).
     const { PDFParse } = await import("pdf-parse");
+    if (existsSync(PDF_WORKER_URL)) PDFParse.setWorker(PDF_WORKER_URL.href);
     const parser = new PDFParse({ data: new Uint8Array(bytes) });
     try {
       const result = await parser.getText();
@@ -313,8 +316,12 @@ async function extractPdfText(bytes: Buffer): Promise<string> {
       const destroy = (parser as { destroy?: () => Promise<void> }).destroy;
       if (typeof destroy === "function") await destroy.call(parser).catch(() => undefined);
     }
-  } catch {
+  } catch (error) {
     // Explicit failure note instead of a crash — the engine can tell the user (spec §4).
+    console.warn(
+      "[chat-attachments] PDF text extraction failed:",
+      error instanceof Error ? error.message : "Unknown PDF parser error"
+    );
     return "[PDF text extraction failed for this attachment]";
   }
 }
