@@ -203,6 +203,22 @@ stop-the-line + file an issue (no waiver).
 
 ## Outstanding escalations
 
+- [x] **Fork C resolved by the coordinator, 2026-07-26 — Ben should review this one.** The
+      `chassis-1263` agent did the round-trip verification Ben ordered and it **fails**:
+      `people.merge` marks the secondary person `status: "merged"` + `merged_into_person_id` and moves
+      **all** its identities and links to the primary; `people.splitIdentity` relinks only **one**
+      identity to a (possibly new) person and never revives the secondary's status or moves the rest
+      back (`packages/people/src/{tools.ts:161,179,service.ts:139,192,repository.ts:759}`). So the
+      reverse does not restore prior state and `granted_at_install` is not available.
+      **Ruling: both are `confirm_always`** — the second and last sanctioned exception in this run.
+      Reasoning: `policy.ts:37` already returns `confirm` for any `risk: "destructive"` tool
+      regardless of tier, so **both confirm today**; declaring `confirm_always` changes nothing at
+      runtime. That is precisely the preserved-by-declaration basis on which Ben approved
+      `memory.forget`. The alternative — putting them on the denylist — was rejected because it would
+      remove a shipped capability (a real regression), where `confirm_always` is the status quo.
+      Neither spec's UAT run invokes them, so the "no confirmation card anywhere" exit criterion is
+      untouched. **This does raise Ben's "exactly one `confirm_always`" count to two.** If he wants it
+      back at one, the fix is denylisting `people.merge`, and he should say so before #1263 merges.
 - [x] Fork A / B / C — **answered by Ben 2026-07-26**, recorded above.
 - [ ] **Assumption stated, not blocking:** YOLO continues to bypass a user-set `always_confirm`.
       Consistent with the standing YOLO ruling. Raise with Ben only if he wants a user override that
