@@ -30,6 +30,11 @@ nothing.
 | `docs/superpowers/specs/2026-07-26-module-self-operation-settings-commands.md` (chassis half) | #1263 | security | queued (awaiting Ben OK) | — | — | `1263-self-operation-chassis` | — |
 | `docs/superpowers/specs/2026-07-26-module-self-operation-settings-commands.md` | #1264 | security | gated on #1263 merge | — | — | `1264-settings-self-operation` | — |
 | `docs/superpowers/specs/2026-07-26-module-self-operation-content-commands.md` | #1265 | security | gated on #1263 merge | — | — | `1265-module-content-self-operation` | — |
+| **no spec yet — DO NOT SPAWN** | #1266 | tbd | blocked on spec gate | — | — | — | — |
+
+**#1266** (user-facing "always confirm" override) was filed from Ben's Fork-B ruling and is linked on
+the epic. It has **no approved design spec**, so the project's hard spec-gate forbids spawning it.
+Ben authors/approves a spec first. It does not block #1263/#1264/#1265.
 
 Risk tier (content triggers, set at Phase 0 — see `coordinate` Risk tiering):
 
@@ -75,10 +80,52 @@ Checked at Phase 0 rather than assumed:
 | `packages/module-sdk/src/index.ts` | reads the field | reads the field | no (field lands in #1263) |
 | Cross-module write-tool classification | see fork A below | see fork A below | **potential** — resolved by fork A |
 
-## Phase-0 findings that need Ben before spawning
+## Ben's Phase-0 rulings (2026-07-26) — binding on every agent in this run
 
-Three things the specs do not settle. Each changes what #1263's agent builds, so they are resolved
-first, not discovered mid-build.
+Answers to forks A/B/C below. These override the specs where they differ, and the #1263 handoff doc
+carries them.
+
+- **Fork A → the retrofit moves to #1263.** The chassis agent classifies all 39 shipped write tools
+  alongside the build assertion. #1265 keeps news action-family/`executionPolicy`, the `guidance`
+  prompt-shaping question, the `previewSource` SSRF check, and the sports build.
+- **Fork B → `memory.remember` = `granted_at_install`; `memory.forget` = `confirm_always`.** This is
+  the **one sanctioned exception** to the epic's "nothing in round one is `confirm_always`" ruling.
+  An agent proposing to "correct" it back is wrong — cite this line. Neither spec's UAT acceptance run
+  invokes `memory.forget`, so the "no confirmation card anywhere" exit criteria are unaffected.
+  - Note: `policy.ts:37` already returns `confirm` for **any** `risk: "destructive"` tool regardless
+    of tier, so `memory.forget` confirms today. This ruling is preserved-by-declaration, not new
+    behaviour.
+- **Fork B (second half) → the user must be able to set "always confirm" on any permission.** New
+  requirement, in neither spec. Verified state of the code before scoping it:
+  - The tier vocabulary already includes `always_confirm`
+    (`module-sdk/src/index.ts:20`, `shared/src/ai-api.ts:852`), storage is per
+    `(moduleId, familyId)`, and `PATCH /api/ai/action-policy/:moduleId/:actionFamilyId` already
+    exists. In `resolvePolicy`, `always_confirm` simply fails the `trusted_auto` check and falls
+    through to `confirm` — so the **policy layer already honours it**. No gateway work needed.
+  - **The blocker is `allowedTiers`.** That PATCH route rejects any tier the family does not list
+    (`action-policy-routes.ts:90`). A family declared `allowedTiers: ["trusted_auto"]` can never be
+    set to always-confirm by the user — exactly the capability Ben is asking for. → **#1263 must
+    require `always_confirm` in `allowedTiers` for every action family in this epic, and assert it at
+    build** alongside its other assertions.
+  - **The install grant must never clobber a user-set tier.** Install persists `trusted_auto`; if a
+    reinstall/reconcile re-applies it over a user's `always_confirm`, the override is silently lost.
+    Precedence rule + regression test → **#1263**.
+  - **There is no general UI to set a per-family tier.** The only setter in the app is email's
+    bespoke drafts toggle (`packages/email/src/settings/index.tsx:115`);
+    `settings-activity-pane.tsx` only *displays* families. → **filed as its own child issue of
+    #1262**, buildable in parallel with #1264/#1265 once #1263 lands (frontend over existing routes).
+  - **YOLO still bypasses a user-set `always_confirm`** — consistent with the standing ruling that
+    YOLO is the user accepting the risk. Stated as an assumption; flagged to Ben if he wants
+    otherwise, but not treated as blocking.
+- **Fork C → the #1263 agent verifies the `people.merge` → `people.splitIdentity` round-trip** and
+  classifies on the evidence. Exact-prior-state restore → `granted_at_install`; anything less →
+  escalate to Ben rather than guess. (Both are `risk: "destructive"`, so both confirm today
+  regardless.)
+
+## Phase-0 findings that needed Ben before spawning
+
+Three things the specs did not settle. Each changed what #1263's agent builds, so they were resolved
+first, not discovered mid-build. **All three are answered above.**
 
 ### Fork A — who classifies the existing write tools, and how many are there
 
@@ -156,9 +203,10 @@ stop-the-line + file an issue (no waiver).
 
 ## Outstanding escalations
 
-- [ ] **Fork A / B / C above — awaiting Ben.** Blocks the #1263 spawn, because all three change what
-      the chassis agent classifies. Coordinator has a recommendation on A; B and C are product calls.
-- [ ] **Manifest approval — awaiting Ben** (Phase 0 step 5).
+- [x] Fork A / B / C — **answered by Ben 2026-07-26**, recorded above.
+- [ ] **Assumption stated, not blocking:** YOLO continues to bypass a user-set `always_confirm`.
+      Consistent with the standing YOLO ruling. Raise with Ben only if he wants a user override that
+      YOLO cannot skip — that would be a change to the YOLO ruling itself, not to this epic.
 
 ## Reaped sessions
 
@@ -166,8 +214,30 @@ stop-the-line + file an issue (no waiver).
 
 ## Continuation note
 
-**Mid-doing:** Phase 0 complete except Ben's approval. Lock claimed, both specs and all three issues
-read, collision surface verified in code, three forks raised. Nothing spawned yet. Next action after
-Ben answers: fold his rulings into the #1263 handoff doc, create the worktree
-`.claude/worktrees/1263-self-operation-chassis` off `origin/main`, spawn the single build agent with
-`--model sonnet`, and hold #1264/#1265 until #1263 merges.
+**2026-07-26, coordinator #1 (session `43e5f5e2-…`) — relayed at the 70% context warning before
+spawning anything. Nothing is in flight; the fleet is empty.**
+
+Phase 0 is **complete**: lock claimed, both specs and all three issues read in full, collision
+surface verified in code, three forks raised and **answered by Ben**, epic updated, #1266 filed.
+
+**Your next action, in order:**
+
+1. Re-check `main` CI is green before spawning — run `30224954273` was still in progress at Phase 0
+   (`gh run list --branch main --workflow=CI --limit 2`). Ignore `modules-registry / publish`; it is
+   pre-existing red and non-required (see CI state section).
+2. Write the #1263 handoff doc from `.claude/skills/coordinate/templates/handoff.md`. It **must**
+   carry, verbatim, the "Ben's Phase-0 rulings" section above — especially the `memory.forget`
+   exception (the epic handoff tells agents that any `confirm_always` proposal is wrong; this is the
+   one Ben approved) and the `allowedTiers` / install-grant-precedence requirements. Also carry the
+   epic handoff's traps section and the ban on touching `docs/coordination/` or running broad
+   `git add` / `pnpm format`. Prettier it before committing.
+3. `git worktree add .claude/worktrees/1263-self-operation-chassis -b 1263-self-operation-chassis origin/main`
+4. Spawn **#1263 alone**, `--model sonnet`, into the agents tab in `w1` (create one if absent — the
+   coordinator tab is `w1:t3K` and stays coordinator-only). Confirm the pane says "Sonnet".
+5. Hold #1264 and #1265 until #1263 **merges**. Both are `security` tier → Opus QA + `gh pr comment`
+   verdict + **Ben's explicit merge sign-off**. Do not auto-merge anything in this run.
+
+**Scope reminder the #1263 agent will need:** #1263 is bigger than its issue title implies — it now
+owns the 39-tool retrofit classification, the `allowedTiers` assertion, install-grant precedence, and
+the `people.merge`/`splitIdentity` round-trip verification, on top of the declaration field, denylist,
+build assertion and gateway hoist.
