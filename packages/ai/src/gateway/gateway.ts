@@ -163,7 +163,7 @@ export class AssistantToolGateway {
         kind: "action_result",
         actionRequestId: ctx.requestId,
         toolName: found.dto.name,
-        outcome: result.ok ? "executed" : "error",
+        outcome: result.ok ? "executed" : "error"
       });
       const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
       void this.recordAudit(access, found, {
@@ -181,7 +181,7 @@ export class AssistantToolGateway {
           kind: "action_result",
           actionRequestId: ctx.requestId,
           toolName: found.dto.name,
-          outcome: result.ok ? "executed" : "error",
+          outcome: result.ok ? "executed" : "error"
         });
         const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
         void this.recordAudit(access, found, {
@@ -533,7 +533,7 @@ export class AssistantToolGateway {
       kind: "action_result",
       actionRequestId: action.id,
       toolName: found.dto.name,
-      outcome: result.ok ? "executed" : "error",
+      outcome: result.ok ? "executed" : "error"
     });
     void this.recordAudit(access, found, {
       approvalMode: "confirmed",

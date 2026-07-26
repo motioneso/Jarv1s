@@ -284,4 +284,4 @@ The design mockups are worth keeping as visual reference and are the one item pr
 3. **GitHub tracking.** The existing epic and its task issues describe the deleted design. Recommend
    closing them as superseded and opening a fresh epic against this plan, since every task's
    acceptance criteria referenced the old architecture.
-</content>
+   </content>

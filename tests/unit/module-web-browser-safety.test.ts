@@ -138,15 +138,30 @@ describe("module web browser safety (#799)", () => {
     }
   });
 
-  it("never reaches a node builtin or backend-only package from the job-search external web entry", () => {
+  it("never reaches a node builtin or backend-only package from any external module's web entry", () => {
     // External modules live outside packages/* so scanModuleWeb never sees them,
     // but their web bundle ships to the browser all the same (JS-06, #935). Walk
-    // the source entry directly so a stray node/backend import via domain/ or
-    // lib/ can't creep into the browser graph unnoticed.
-    const entry = resolve(REPO_ROOT, "external-modules/job-search/src/web/index.ts");
-    expect(existsSync(entry), "job-search external web entry exists").toBe(true);
-    const { visited, violations } = walkImportGraph(entry);
-    expect(visited.size).toBeGreaterThan(1); // sanity: the walk actually traversed imports
-    expect(violations).toEqual([]);
+    // each source entry directly so a stray node/backend import via domain/ or
+    // lib/ can't creep into the browser graph unnoticed. Discovered rather than
+    // hardcoded so every future external module is covered the day it lands.
+    const externalModulesDir = resolve(REPO_ROOT, "external-modules");
+    const entries = readdirSync(externalModulesDir, { withFileTypes: true })
+      .filter((dirent) => dirent.isDirectory())
+      .map((dirent) => ({
+        moduleId: dirent.name,
+        entry: join(externalModulesDir, dirent.name, "src/web/index.ts")
+      }))
+      .filter(({ entry }) => existsSync(entry));
+
+    // Sanity: at least one external module ships a web entry today. If this ever
+    // fails, the discovery above silently stopped covering anything.
+    expect(entries.length).toBeGreaterThan(0);
+
+    for (const { moduleId, entry } of entries) {
+      const { visited, violations } = walkImportGraph(entry);
+      // Sanity: the walk actually traversed imports rather than reading one leaf file.
+      expect(visited.size, `external module "${moduleId}" import graph`).toBeGreaterThan(1);
+      expect(violations, `external module "${moduleId}"`).toEqual([]);
+    }
   });
 });

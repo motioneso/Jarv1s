@@ -55,7 +55,7 @@ import {
   saveShellTheme,
   type ShellTheme
 } from "./theme-storage";
-import type { ChatSurface, MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
+import type { MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
 
 interface AppShellProps {
   readonly children: ReactNode;

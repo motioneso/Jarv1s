@@ -6,14 +6,7 @@ import type { UatSeedChunk, UatSeedLevel } from "./seed/types.js";
 
 const SPEC_DIR = "tests/uat/specs";
 const LEVELS = new Set<UatSeedLevel>(["bare", "solo-admin", "admin+data", "multi-user"]);
-const CHUNKS = new Set<UatSeedChunk>([
-  "news",
-  "sports",
-  "tasks",
-  "calendar",
-  "notes",
-  "finance"
-]);
+const CHUNKS = new Set<UatSeedChunk>(["news", "sports", "tasks", "calendar", "notes", "finance"]);
 
 async function resolveSpecPaths(filters: readonly string[]): Promise<string[]> {
   const available = (await readdir(SPEC_DIR))

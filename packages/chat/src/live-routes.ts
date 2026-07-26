@@ -50,11 +50,7 @@ import {
 } from "./live/chat-session-manager.js";
 import { CliChatUnavailableError } from "./live/errors.js";
 import type { PageContextStore } from "./live/page-context-store.js";
-import {
-  neutralizeSeedFraming,
-  renderModuleControlContext,
-  sanitizeExternalData
-} from "./live/prompt-safety.js";
+import { renderModuleControlContext, sanitizeExternalData } from "./live/prompt-safety.js";
 import type { ChatSessionRuntime } from "./live/runtime.js";
 
 // Per-user rate-limit key via the shared module-sdk helper: a UUID-shaped session bearer or

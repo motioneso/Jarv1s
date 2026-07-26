@@ -394,7 +394,7 @@ export function registerChatRoutes(
     resolveAccessContext: dependencies.resolveAccessContext,
     runtime: {
       ...runtime,
-      resolveEveningInterviewSeed: dependencies.resolveEveningInterviewSeed,
+      resolveEveningInterviewSeed: dependencies.resolveEveningInterviewSeed
     },
     pageContextStore,
     // #1133 — lets /turn resolve uploaded attachment ids to vault metadata.
