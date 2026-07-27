@@ -5,6 +5,7 @@ import {
   AiRepository,
   AssistantToolGateway,
   ConfirmationRegistry,
+  GATEWAY_AUTO_RUN_RATE_LIMIT_DEFAULTS,
   SessionTokenRegistry,
   grantSelfOperationForModule,
   type GatewaySessionRecord,
@@ -258,6 +259,177 @@ describe("AssistantToolGateway self-operation", () => {
     // for granted_at_install families, and calendar_writeback's only owner (proposeFocusBlock) is
     // user_promotable — so install must write no row at all, not merely a non-trusted_auto one.
     expect(writebackTier).toBeNull();
+  });
+
+  // Task 13 (#1264): per-actor, per-tool rate limiting on the gateway's unconfirmed auto-run
+  // branches. Runaway-loop guard, not a security boundary — in-memory, restart-clearing. See the
+  // coordinator's 2 binding build conditions in relay-12: (1) the limiter check on the
+  // resolvePolicy==="run" branch must carry its own `risk !== "read"` guard (that branch's
+  // existing guard only wraps notify+audit, not runHandler — a naive insertion would throttle
+  // every read tool in the product); (2) a trip must never be silent — auto-branch degrades to
+  // the existing confirmAndRun action_request path (a loop can't click a button), yolo-branch
+  // hard-denies (user opted into unattended ops), and both record a distinct
+  // { outcome: "denied", errorClass: "rate_limited" } audit row at the moment the limiter trips.
+  describe("auto-run rate limiting", () => {
+    async function readAuditRows(actorUserId: string) {
+      return runner.withDataContext(
+        { actorUserId, requestId: `req-audit-read-${actorUserId}` },
+        (scopedDb) =>
+          repository.listActionAuditLog(scopedDb, {
+            since: new Date(Date.now() - 60_000),
+            limit: 100
+          })
+      );
+    }
+
+    it("auto branch: the (max+1)th unconfirmed call in-window degrades to a confirmation card, never a silent no-op (condition 2)", async () => {
+      const grantManifest: SelfOperationManifestInput = {
+        id: exampleToolModule.id,
+        assistantTools: exampleToolModule.assistantTools?.map((tool) =>
+          tool.name === "example.autoWrite"
+            ? { ...tool, selfOperationGrant: "granted_at_install" as const }
+            : tool
+        )
+      };
+      await runner.withDataContext(
+        { actorUserId: ids.userA, requestId: "req-rl-auto-grant" },
+        (scopedDb) => grantSelfOperationForModule(scopedDb, repository, grantManifest)
+      );
+
+      const gateway = new AssistantToolGateway({
+        resolveActiveModules: async () => [exampleToolModule],
+        repository,
+        runner,
+        tokens,
+        confirmations,
+        notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+        confirmTimeoutMs: 30_000,
+        actionPolicy: (ctx) => dbBackedActionPolicy(ctx)
+      });
+      const token = tokens.mint({
+        actorUserId: ids.userA,
+        chatSessionId: "s-rl-auto",
+        allowedToolNames: null
+      });
+
+      const { maxCalls } = GATEWAY_AUTO_RUN_RATE_LIMIT_DEFAULTS;
+      for (let i = 0; i < maxCalls; i++) {
+        const res = await gateway.callTool(token, "example.autoWrite", { value: `ok-${i}` });
+        expect(res.ok).toBe(true);
+      }
+      expect(exampleToolCalls).toHaveLength(maxCalls);
+      expect(emitted.every((entry) => entry.record.kind === "action_result")).toBe(true);
+
+      const degraded = gateway.callTool(token, "example.autoWrite", { value: "throttled" });
+      await vi.waitFor(
+        () => expect(emitted.some((entry) => entry.record.kind === "action_request")).toBe(true),
+        { timeout: 5_000 }
+      );
+      const request = emitted.find((entry) => entry.record.kind === "action_request");
+      if (!request || request.record.kind !== "action_request") {
+        throw new Error("expected an action_request card once the limit tripped");
+      }
+      expect(request.record.toolName).toBe("example.autoWrite");
+      // Still unexecuted — the throttled call is pending confirmation, not silently dropped.
+      expect(exampleToolCalls).toHaveLength(maxCalls);
+
+      await vi.waitFor(async () => {
+        const rows = await readAuditRows(ids.userA);
+        expect(
+          rows.some(
+            (row) =>
+              row.tool_name === "example.autoWrite" &&
+              row.approval_mode === "auto" &&
+              row.outcome === "denied" &&
+              row.error_class === "rate_limited"
+          )
+        ).toBe(true);
+      });
+
+      await gateway.resolveActionRequest(ids.userA, request.record.actionRequestId, "cancelled");
+      const finalResult = await degraded;
+      expect(finalResult.ok).toBe(false);
+    });
+
+    it("yolo branch: the (max+1)th call in-window hard-denies with a distinct rate_limited audit row, isolated per actor and per tool (condition 2, plan step 1b)", async () => {
+      const gateway = new AssistantToolGateway({
+        resolveActiveModules: async () => [exampleToolModule],
+        repository,
+        runner,
+        tokens,
+        confirmations,
+        notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+        confirmTimeoutMs: 30_000,
+        yoloMode: async () => true
+      });
+      const tokenA = tokens.mint({
+        actorUserId: ids.userA,
+        chatSessionId: "s-rl-yolo-a",
+        allowedToolNames: null
+      });
+      const tokenB = tokens.mint({
+        actorUserId: ids.userB,
+        chatSessionId: "s-rl-yolo-b",
+        allowedToolNames: null
+      });
+
+      const { maxCalls } = GATEWAY_AUTO_RUN_RATE_LIMIT_DEFAULTS;
+      for (let i = 0; i < maxCalls; i++) {
+        const res = await gateway.callTool(tokenA, "example.write", { value: `ok-${i}` });
+        expect(res.ok).toBe(true);
+      }
+
+      const tripped = await gateway.callTool(tokenA, "example.write", { value: "throttled" });
+      if (tripped.ok || !("denied" in tripped)) {
+        throw new Error("expected a rate-limit denial, got: " + JSON.stringify(tripped));
+      }
+      expect(tripped.denied).toBe(true);
+
+      await vi.waitFor(async () => {
+        const rows = await readAuditRows(ids.userA);
+        expect(
+          rows.some(
+            (row) =>
+              row.tool_name === "example.write" &&
+              row.approval_mode === "yolo" &&
+              row.outcome === "denied" &&
+              row.error_class === "rate_limited"
+          )
+        ).toBe(true);
+      });
+
+      // Per-tool isolation: same actor, a different tool's bucket is untouched.
+      const otherTool = await gateway.callTool(tokenA, "example.autoWrite", { value: "fresh" });
+      expect(otherTool.ok).toBe(true);
+
+      // Per-actor isolation: a different actor's bucket for the SAME tool is untouched.
+      const otherActor = await gateway.callTool(tokenB, "example.write", { value: "fresh" });
+      expect(otherActor.ok).toBe(true);
+    });
+
+    it("read tools are never rate-limited even hammered well past the ceiling (condition 1 regression guard)", async () => {
+      const gateway = new AssistantToolGateway({
+        resolveActiveModules: async () => [exampleToolModule],
+        repository,
+        runner,
+        tokens,
+        confirmations,
+        notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) }
+      });
+      const token = tokens.mint({
+        actorUserId: ids.userA,
+        chatSessionId: "s-rl-read",
+        allowedToolNames: null
+      });
+
+      const attempts = GATEWAY_AUTO_RUN_RATE_LIMIT_DEFAULTS.maxCalls + 5;
+      for (let i = 0; i < attempts; i++) {
+        const res = await gateway.callTool(token, "example.read", { value: `read-${i}` });
+        expect(res.ok).toBe(true);
+      }
+      expect(exampleToolCalls).toHaveLength(attempts);
+      expect(emitted).toHaveLength(0);
+    });
   });
 
   it("the five built-in confirm_always tools remain the only confirmation declarations", () => {
