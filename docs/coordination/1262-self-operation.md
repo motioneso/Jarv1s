@@ -726,3 +726,45 @@ wiring, 16 startup assertion + inventory lock, 17 walk-away regression + full ga
 
 **Fourth PR disclosure** (add to the three already pinned): deleting a calendar event still asks
 first, and the user can turn that off in settings if they want to.
+
+### 2026-07-26 — all 19 tasks committed; final gate pending
+
+Tasks 14–17 landed and were each verified against the code, not the commit message:
+
+- **14 (`5f3afa2f`)** install-grant persistence. No migration. `insertActionPolicyIfAbsent` is
+  `INSERT … ON CONFLICT DO NOTHING`, so a user's own choice survives a reinstall; owner comes from
+  `app.current_actor_user_id()`, not a caller-supplied id. Grants are filtered by a **positive**
+  match on `granted_at_install`, so `confirm_always`, `user_promotable`, and any future fourth value
+  all default to not-granted — fail-safe by construction.
+- **15 (`032398c6`)** enable-path wiring, and it is **genuinely wired**: `apps/api/src/server.ts`
+  passes the port, both admin and user enable routes call it. Settings never imports `@jarv1s/ai`
+  (module isolation preserved via an injected port). Grants re-apply on enable, so modules disabled
+  before this ships still get set up.
+- **16 (`e744e822`)** startup assertion in the API `onReady` hook — a tool that declares nothing
+  takes the server down at boot. Inventory locked at **33 granted_at_install + 4 confirm_always +
+  1 user_promotable = 38**, with the sum asserted.
+- **17 (`1a9c03b5`, `bf2789ce`)** walk-away regression.
+
+**Builder k stopped correctly** on a stale roster in `task-16.md` (it still listed `notes.delete` as
+`confirm_always`). Investigating found the counts were stale too — the plan said 34
+`granted_at_install`; the real number is 33 because Task 12a moved `calendar.deleteEvent` out.
+Fixed in `eff8c811`. **Count gotcha:** People declares grants in `packages/people/src/tools.ts`, not
+a `manifest.ts` — a count grepped from `manifest.ts` files alone comes out at 34 and is wrong.
+
+**Both plan files now carry a standing rule:** if a plan line contradicts committed code or a Ben
+ruling, STOP and message the Coordinator — never edit working code to match a stale plan line. This
+is the second time this run a stale roster nearly reverted one of Ben's decisions.
+
+**I required one extra test before the gate** (`bf2789ce`): nothing proved end-to-end that install
+runs, grants what it should, and deliberately does **not** promote `calendar.deleteEvent`. The
+declaration was tested and cards were tested, but never together — which is precisely the regression
+that would ship silent calendar deletes. The test runs the real grant path over the real calendar
+manifest with a DB-backed policy lookup, asserts a card is still raised, and rigs the calendar
+service to throw if ever invoked.
+
+**Gate.** First `verify:foundation` run returned a **real exit code 1** — format:check only, three
+files, no test or type failures. Plan doc formatted by me (`eddd39a0`, coordinator-owned); the two
+test files by the builder. Re-run in flight.
+
+**19 of 19 committed.** Next: full gate green → PR → Opus adversarial QA (security tier, must post
+its verdict to the PR) → Ben's merge sign-off → merge.
