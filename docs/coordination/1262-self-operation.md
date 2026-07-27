@@ -438,3 +438,54 @@ check, not a sign-off.
 
 Branch is 0 commits behind `origin/main` and `main` CI is green, so no rebase debt is accruing on
 this serial gate. Builder is on `task-04.md`.
+
+### Task 4 landed — `370da28c` — and a residual-loss ruling (2026-07-26)
+
+All 13 `tasks` write tools classified `granted_at_install`; `task_changes` / `task_cleanup`
+`allowedTiers` widened; **`tasks.deleteList` and `tasks.deleteTag` downgraded from
+`risk: "destructive"` to `risk: "write"`.** Builder evidence: new
+`tests/unit/self-operation-manifests.test.ts` 1/1, tasks-tools integration 17/17, typecheck clean.
+
+The downgrade is authorised by `task-04.md` line 17, so the builder followed the approved plan. It
+is also **necessary**: `policy.ts:37` confirms every `destructive` tool regardless of tier, so a tool
+left `destructive` can never auto-run no matter what it declares. But it is a real runtime change on
+a security-tier PR, so I verified the premise rather than trusting it.
+
+What I found (`packages/tasks/sql/0039_tasks_foundation.sql`, `packages/tasks/src/lists.ts:190`):
+
+- **Tasks themselves are structurally safe.** `app.tasks.list_id` is **`ON DELETE RESTRICT`**, and
+  `deleteList` only proceeds if the caller supplies `reassignToListId` to move the tasks first. The
+  database refuses to orphan tasks. There are further guards: 404 on a foreign/missing list, 409 on
+  deleting your only list, and an advisory lock closing a TOCTOU on that last-list check.
+- **Residual loss is real but bounded.** `app.task_tags.list_id` is `ON DELETE CASCADE` and
+  `task_tag_assignments.tag_id` likewise, so deleting a list destroys that list's tags and every
+  assignment of them; `deleteTag` destroys that tag's assignments. Re-creating a tag does not restore
+  which tasks carried it. The list-move path also deliberately drops assignments whose tag is absent
+  from the destination list.
+
+**Ruling: the downgrade stands, no new `confirm_always`.** The loss is organisational metadata, not
+content — materially lesser than `notes.delete` (a whole document via bare `unlink`) or
+`people.merge`. Declaring two more `confirm_always` here would over-prompt exactly the routine
+list-tidying Ben's ruling is meant to make prompt-free, and would breach his "if you want a second
+one you are wrong about the tool" instruction. **Count stays at four.**
+
+Applying "guardrails, not permission prompts" properly: the `ON DELETE RESTRICT` guarantee is the
+guardrail that makes an unconfirmed delete defensible, **and nothing in the suite proves it**. I have
+tasked the next builder with a regression test asserting `deleteList` on a list still holding tasks,
+with no reassign target, fails and destroys nothing. **The PR body must state the residual tag-
+assignment loss in plain language** — QA should confirm both.
+
+### Fleet state
+
+- `builder-1263-d` (`ff620bd0…`) stopped clean at 72% per the no-relay rule and is reaped. It
+  delivered Tasks 3 and 4 in one context — the first builder on this lane to complete more than one.
+- `builder-1263-e` (`b25edf78…`, pane `w1:p110`, tab `w1:t3J`, **Sonnet 5** confirmed) is driving:
+  the `deleteList` regression test, then `task-05.md`.
+- Boot cost is now ~40% for a fresh builder — that is the repo's own CLAUDE.md/skills overhead, not
+  the brief — so plan on roughly **three tasks per builder** for the remaining Tasks 5–17.
+
+**Herdr API correction (the `coordinate` skill is wrong):** `herdr agent start … --tab <tab>` does
+not exist. The working sequence is `herdr pane split <pane> --direction down --cwd <path> --no-focus`
+→ `herdr agent start <name> --kind claude --pane <newPane> -- --model sonnet --permission-mode
+bypassPermissions` → send the brief with `herdr pane run`, then **one `herdr pane send-keys <pane>
+Enter`** (a long brief lands as unsubmitted pasted text).
