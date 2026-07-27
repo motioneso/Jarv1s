@@ -31,11 +31,19 @@ three values, and "every write tool declares something" now has three legal answ
    cite #1267 and `policy.ts:40`.
 3. Add the complete built-in inventory test:
    - 38 write/destructive tools;
-   - 34 `granted_at_install`;
+   - 33 `granted_at_install`;
    - four `confirm_always`: memory.forget, people.merge, people.splitIdentity, email.sendReply;
+   - one `user_promotable`: `calendar.deleteEvent` (Task 12a moved it out of `granted_at_install`,
+     which is why the granted count is 33 and not 34);
    - zero unclassified and zero excluded built-in tools;
    - exact planned confirm set `memory.forget`, `people.merge`, `people.splitIdentity`,
-     `notes.delete`.
+     `email.sendReply`.
+
+   **The three counts must sum to 38** — assert that explicitly, so a future reclassification that
+   moves a tool between buckets cannot leave the totals silently inconsistent. Note that People
+   declares its grants in `packages/people/src/tools.ts`, not a `manifest.ts`; a count derived by
+   grepping only `manifest.ts` files comes out at 34 and is wrong.
+
 4. Add readiness regressions named
    `"built-in server startup fails closed on an unclassified built-in write tool"` and
    `"built-in startup assertion deliberately excludes external manifests tracked by #1267"`.
@@ -51,8 +59,10 @@ three values, and "every write tool declares something" now has three legal answ
 ## Stop conditions (apply to every task)
 
 - A proposed fifth `confirm_always` tool: stop that package task and message the Coordinator.
-- Ben rejects or changes the pending `notes.delete` ruling: update Task 7 and the Task 16/17 counts
-  before implementation.
+- Ben already ruled on `notes.delete` (granted_at_install, Task 7a) and on `email.sendReply`
+  (confirm_always, Task 11). Neither is pending. If a roster or count in this file contradicts
+  those rulings or the three-value ruling above, STOP and message the Coordinator — do not
+  reconcile it yourself and do not change committed code to match a stale plan line.
 - Any implementation that widens `defaultTier`, adds a migration, creates a parallel command
   registry, moves ordinary policy ahead of YOLO, clobbers an existing stored tier, or expands
   #1263 into the external ABI owned by #1267: stop.

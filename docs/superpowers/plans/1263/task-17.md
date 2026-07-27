@@ -43,8 +43,10 @@ event, not merely a successful handler result.
 ## Stop conditions (apply to every task)
 
 - A proposed fifth `confirm_always` tool: stop that package task and message the Coordinator.
-- Ben rejects or changes the pending `notes.delete` ruling: update Task 7 and the Task 16/17 counts
-  before implementation.
+- Ben already ruled on `notes.delete` (granted_at_install, Task 7a) and on `email.sendReply`
+  (confirm_always, Task 11). Neither is pending. If a roster or count in this file contradicts
+  those rulings or the three-value ruling above, STOP and message the Coordinator — do not
+  reconcile it yourself and do not change committed code to match a stale plan line.
 - Any implementation that widens `defaultTier`, adds a migration, creates a parallel command
   registry, moves ordinary policy ahead of YOLO, clobbers an existing stored tier, or expands
   #1263 into the external ABI owned by #1267: stop.
