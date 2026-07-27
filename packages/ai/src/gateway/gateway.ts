@@ -163,6 +163,12 @@ export class AssistantToolGateway {
     const lookup = this.deps.actionPolicy?.(ctx) ?? defaultPolicyLookup;
     if (found.tool.risk !== "read" && (await this.deps.yoloMode?.(ctx)) === true) {
       if (!this.autoRunLimiter.consume(ctx.actorUserId, found.dto.name)) {
+        this.deps.notifier.emit(ctx.chatSessionId, {
+          kind: "action_result",
+          actionRequestId: ctx.requestId,
+          toolName: found.dto.name,
+          outcome: "denied"
+        });
         const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
         void this.recordAudit(access, found, {
           approvalMode: "yolo",
