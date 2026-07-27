@@ -1668,3 +1668,35 @@ whichever opens first — both are `security` tier, so each needs adversarial Op
 `gh pr comment` verdict before merge, and neither auto-merges. Whichever lands second rebases the
 exact counts in `tests/unit/self-operation-manifests.test.ts` **without** loosening the assertion to
 a range.
+
+### 2026-07-27 — #1264 Task 0a landed (first code in the lane)
+
+`5851d825 feat(structured-state): add CAS revision column to app.preferences`. Verified
+structurally (stat + file placement only — no diff read):
+
+- Migration **`0175`**, matching the corrected number, in `packages/structured-state/sql/` — the
+  owning module's dir, not `infra/postgres/migrations/`. Correct per the hard invariant.
+- **No applied migration modified** (`--diff-filter=M` on `*.sql` is empty), so the hash check holds.
+- Tests extend the existing `tests/integration/structured-state.test.ts` and
+  `foundation-schema-catalog.test.ts` — the corrected convention, not the plan's wrong per-package
+  instruction.
+
+**Gap found by inspection, not by any test:** `packages/structured-state/src/manifest.ts:26`
+`database.migrations` still lists only `0031`, `0070`, `0093` — the new `0175` is missing. A focused
+module suite stays green with that array stale; this is the exact pattern that broke #254, where the
+break stayed latent until the full `pnpm test:integration` at wrap-up. The agent *did* append the row
+to `foundation-schema-catalog.test.ts`, which is the other half. Sent as a small self-contained
+follow-up commit rather than folded into 0b, so 0a stays bisectable.
+
+Also flagged forward: **0b's revision column is on `app.instance_settings`, a core-owned table**, so
+that migration goes in `infra/postgres/migrations/` — not a module `sql/` dir.
+
+**Process fix applied to both lanes.** Coordinator handoff docs live on `coord/1262-self-operation`,
+which build agents cannot see from their own branches. Agents are now pointed at the absolute
+cross-worktree path (`~/Jarv1s/.claude/worktrees/coord-1262/docs/coordination/...`) and the key
+numbers are repeated inline in the pane message, so a ruling survives their compaction. #1264 was at
+0% headroom when this was sent, with both messages queued.
+
+**Corrected a stale note in `MEMORY.md`:** the full applied-migration list is asserted in
+`tests/integration/foundation-schema-catalog.test.ts`, **not** `foundation.test.ts`. The memory body
+was already right; the one-line index — which is what a session reads first — named the wrong file.
