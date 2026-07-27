@@ -1054,3 +1054,40 @@ exactly this shape and is the file to copy (see also `external-module-finance.te
   *function* the RLS policies call; it reads the former. Setting the function's name as a GUC fails
   silently — the policy simply sees no actor and the row vanishes, which reads as an RLS bug rather
   than a typo.
+
+### N20 — integration tests use `asRuntime()`, not `createAppRuntimeRunner()`
+
+Task 13's part file names `createAppRuntimeRunner()` as the integration-test harness. It cannot work
+against the `app.job_search_*` tables: those require the per-module runtime role via `SET LOCAL ROLE`,
+which is what `asRuntime()` (in `tests/integration/job-search-tables-install.test.ts`) does. Use
+`asRuntime()`. Per N11 the ledger outranks the part file, so this is settled — Task 21 and any later
+integration work should not re-litigate it.
+
+### N21 — the two DB-access patterns are different, and the second one is a production rule
+
+A job-search integration test needs **two** distinct access patterns, and using one where the other
+belongs fails as a missing row rather than an error:
+
+- **`app.job_search_*` (module-owned):** connect as `jarvis_worker_runtime`, `SET LOCAL ROLE` to the
+  per-module runtime role, set `app.actor_user_id`.
+- **`app.module_kv` (CORE platform table — the sweep cursor lives here):** connect as
+  `jarvis_worker_runtime` with **no role switch**, and set **both** `app.actor_user_id` and
+  `app.current_module_id`. Migration 0157's worker-scoped policies require both, plus an
+  `app.external_modules` row with `status = 'enabled'` (seeded directly — `installModule()` only
+  journals `app.module_installs`).
+
+**This is not only a test concern.** The same requirement holds in production: the worker-rpc-host's
+RPC-parent DataContext must set both GUCs before any `ctx.kv` *or* `ctx.db` call, not just the actor
+one. A future change that sets only the actor GUC will not raise — the RLS policy will simply match
+nothing, and a module's stored cursor will silently read as absent. Treat "the row vanished" as the
+signature of a missing `app.current_module_id`, not as data loss.
+
+### N22 — LinkedIn's 200-status auth-wall heuristic is unverified, and that is accepted
+
+The LinkedIn adapter detects an auth wall served with a 200 status by matching markers (`authwall`,
+`sign in to linkedin`, `join now to view`). This has **not** been verified against a real
+interstitial, deliberately: forcing one would mean abusive request volume against a third party, and
+the module's whole premise is that we do not do that. The heuristic is accepted as-is because it
+fails to the safe side — a misclassification yields `parse_failed` (enabled, retried, cause shown to
+the user), never a silent success or a spurious permanent disable. Worth one manual spot-check if
+someone ever has a real wall in hand; not worth manufacturing one.

@@ -555,9 +555,15 @@ external IDs; strip only a parenthetical proven to be a location. In-memory dedu
 does not persist — cross-portal identity needs a stored canonical key with a per-owner unique
 constraint.
 
-**L14 — A portal that returns an unrecognised envelope is disabled with `parse_failed`** — it must
-never report zero results as if the search succeeded. Likewise, do not trust a source's own relevance
-ranking: over-fetch and narrow locally.
+**L14 — A portal that returns an unrecognised envelope reports `parse_failed` and stays enabled** —
+it must never report zero results as if the search succeeded. What protects the user is the
+structured cause the board renders, **not** switching the portal off: "0 postings" reads as "nothing
+matched your search", which is the exact misleading silence this rule exists to prevent, and a parse
+failure is usually a fixable change on our side that will start working again on the next run.
+`disabled: true` is reserved for kinds where retrying can never succeed no matter what we ship —
+today `login_required` alone (ruling N16; this line previously said "disabled with `parse_failed`"
+and was wrong). Likewise, do not trust a source's own relevance ranking: over-fetch and narrow
+locally.
 
 **L15 — Timestamps are stored structured and formatted in the user's timezone.** Slicing characters
 11–16 out of an ISO string displays UTC as if it were local. A "portal failed" summary must be

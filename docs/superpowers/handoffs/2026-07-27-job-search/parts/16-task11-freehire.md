@@ -101,7 +101,8 @@ export const PAGE_CAP = 10;
   title / company / location / url / description / posted date. Those are the parser's only
   dependencies, and naming them makes the next `parse_failed` a five-minute fix.
 - Index resolution is defensive: a value that is not a valid index into the flat array is a payload
-  we do not understand, and the caller turns that into a disabling `parse_failed`, never a posting
+  we do not understand, and the caller turns that into a `parse_failed` (which does **not** disable
+  the portal — ruling N16; this bullet previously said "disabling"), never a posting
   with a blank company name.
 - `id: ""` on emitted postings is intentional — the store assigns the uuid; the adapter must not
   invent one.

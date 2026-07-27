@@ -27,7 +27,11 @@ export const linkedinPortal: Portal;
 **Probed shape**
 
 `GET https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=…&location=…&start=0`
-→ 200, ~28 KB of HTML fragment, 30 `base-card` entries per page. Pagination is the `start` offset.
+→ 200, an HTML fragment of `base-card` entries. Pagination is the `start` offset. **This page
+returns 10 cards, not 30** — this line originally said 30, and repeated live probing (5+ requests
+plus a later spot-check) consistently found 10. Do not hardcode either number: paginate on the count
+of cards actually received, so a change on their side degrades into fewer results rather than a
+silently truncated or over-fetched crawl.
 Capture with the module's own User-Agent; trim to three cards; strip cookies, session ids and `trk=`
 or other tracking parameters from extracted URLs. The fixture is committed — treat it as public.
 
@@ -35,7 +39,12 @@ or other tracking parameters from extracted URLs. The fixture is committed — t
 
 - Parse the fragment with a small tolerant extractor over `base-card` elements. The module bundle
   has no DOM dependency and must not gain one for this.
-- The guest fragment does **not** carry the job description, so `body` is the card's snippet text.
+- The guest fragment does **not** carry the job description, and **there is no snippet field either**
+  — this line originally said `body` is "the card's snippet text", but live probing found no such
+  field exists anywhere in the fragment. The only extra text is an optional, unrelated "Be an early
+  applicant" badge. So `body` is legitimately empty for many LinkedIn postings. Fall back to `""`,
+  never to invented filler: Task 8's triage genuinely has less signal from this source than from
+  freehire, and that asymmetry is real information, not a bug to paper over.
   Task 8's triage therefore has less signal from this source than from freehire. Say so in a
   comment: it is a real asymmetry, not an oversight.
 - Guest endpoint only. Honour `PAGE_CAP`, return partial results alongside a `FailureCause`, and use
