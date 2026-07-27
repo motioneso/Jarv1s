@@ -27,7 +27,7 @@ nothing.
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| `docs/superpowers/specs/2026-07-26-module-self-operation-settings-commands.md` (chassis half) | #1263 | security | building (plan approved `e7d9a1e9`; builder #2 spawned) | `chassis-1263` (session `7467c98e-…`); planner `planner-1263` idle | `w1:p11X` builder / `w1:p11W` planner (tab `w1:t3J` = "agents") | `1263-self-operation-chassis` | — |
+| `docs/superpowers/specs/2026-07-26-module-self-operation-settings-commands.md` (chassis half) | #1263 | security | building — Task 1 committed (`b2840f7b`), builder #2 relayed at 70% mid-Task-2 | `chassis-1263` (builder #2 session `7467c98e-…` relaying; successor inherits label); planner `planner-1263` idle | builder in tab `w1:t3J` = "agents" (resolve fresh by label); planner `w1:p11W` | `1263-self-operation-chassis` | — |
 | `docs/superpowers/specs/2026-07-26-module-self-operation-settings-commands.md` | #1264 | security | gated on #1263 merge | — | — | `1264-settings-self-operation` | — |
 | `docs/superpowers/specs/2026-07-26-module-self-operation-content-commands.md` | #1265 | security | gated on #1263 merge | — | — | `1265-module-content-self-operation` | — |
 | **no spec yet — DO NOT SPAWN** | #1266 | tbd | blocked on spec gate | — | — | — | — |
@@ -140,6 +140,45 @@ carries them.
     sanctioned for **planning** only, and at `high`, not `xhigh`.
   - Coordinator approval of the plan still applies; it now gates the builder's spawn rather than the
     builder's first commit.
+
+## Coordinator rulings on the #1263 plan (2026-07-26)
+
+The plan (`docs/superpowers/plans/1263-chassis-plan.md`, authoritative at `e7d9a1e9`) was written by
+a `gpt-5.6-sol high` planner and raised two escalations. Both were adjudicated by the coordinator,
+plus one rejection and one unblock. Do not reopen these without new evidence.
+
+- **External-module ABI → #1263 is BUILT-IN ONLY.** The planner wanted to extend
+  `ExternalModuleAssistantToolDeclaration` inside this issue. Rejected on verified code:
+  that type (`module-sdk/src/index.ts:695-703`) carries no `actionFamilyId`/`executionPolicy`,
+  `external/tool-manifests.ts:40` copies only `risk`, and `assistantActionFamilies` sits in the
+  forbidden-key list at `external/validate.ts:58`. No family ⇒ `policy.ts:40` returns `confirm`
+  unconditionally, so external write tools **cannot** silently auto-run — the gap is completeness,
+  not safety. Extending a public external ABI also has no approved spec. **Filed as issue #1267.**
+  The planner's real objection was honoured: the assertion, its doc comment, and every test name say
+  **built-in** explicitly rather than implying full coverage.
+- **Exclusion rule 7 does NOT retroactively remove shipped domain tools.** Rule 7 governs new
+  self-operation/configuration operations. Its own enumerated examples are all config/scheduling
+  surfaces (digest scheduling, provider test, connector sync, briefing runs, export jobs, host
+  install) — not "send an email". Ben rejected third-party disclosure / scheduled work / externally
+  observable writes as prompt grounds twice. Email and Calendar classify normally.
+  - **Precedence rule:** where rule 7's enumerated examples collide with Ben's explicit per-tool
+    ruling, the per-tool ruling wins. News write tools are `granted_at_install` per approved Spec 2,
+    notwithstanding "news source preview/refresh" appearing in rule 7.
+- **REJECTED — `notes.delete` must not be reclassified `destructive` → `write`.** The handler
+  (`packages/notes/src/write-tools.ts:232-246`) does a bare `await unlink(file)` on the user's
+  markdown file: no trash, no soft delete, no `deleted_at`, no restore path. That is durable
+  unrecoverable loss — Ben's `confirm_always` bar verbatim, same shape as `memory.forget`.
+  **`notes.delete` keeps `risk: "destructive"` and declares `confirm_always`.**
+- **Task 7 and Tasks 16/17 were briefly gated on Ben and are now UNBLOCKED by the coordinator.**
+  Declaring `confirm_always` on an already-`destructive` tool changes nothing at runtime
+  (`policy.ts:37`), so it is status quo and needs no approval. The behaviour-changing option is the
+  one that was rejected. Exact-count assertions build with **four** `confirm_always`:
+  `memory.forget`, `people.merge`, `people.splitIdentity`, `notes.delete`. Ben's open question is a
+  check on the coordinator's ruling, not a prerequisite — flipping it later is a one-line
+  declaration change plus two count updates.
+- **FLAGGED, not changed:** `email.sendReply` moves `destructive` → `write` + `granted_at_install`,
+  per Ben's explicit ruling. Effect stated plainly so it cannot be missed in review: **Jarvis sends
+  email with no confirmation, ever.**
 
 ## Phase-0 findings that needed Ben before spawning
 
