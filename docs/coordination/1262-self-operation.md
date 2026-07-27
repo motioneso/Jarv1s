@@ -3964,3 +3964,22 @@ authoritative. Resolve fresh by session id at read time, every time.
 plus the kill gate; #1273 UAT remains blocked on #1311. Merge order unchanged: **#1311 → #1276 → #1273.**
 Both remaining merges are security tier and await Ben's sign-off; the LIVE-PATH GATE applies at every
 tier.
+
+## Merge authority — Ben's ruling, 2026-07-27
+
+**Fable green = Ben approved.** Ben has delegated security-tier merge sign-off to the Fable
+adversarial review: when a security-tier PR is *finished*, Fable reviews it, and a green verdict
+stands in for his explicit sign-off. Both remaining PRs merge on green — no per-PR pause.
+
+Scope of the delegation, stated precisely so a successor does not over-read it:
+
+- It applies to the **finished PR**, not to a branch mid-build. The Fable pass on `1311-install-grant`
+  @ `3bf2b293` was run with Tasks 3-5 outstanding and **does not count** as the approving review;
+  that branch must be re-reviewed once complete.
+- Green means green. This delegates *who signs*, not *what the bar is* — a red gate, a missing live
+  proof, or an unresolved Fable finding still blocks. The LIVE-PATH GATE still applies at every tier:
+  no merge without live end-to-end proof posted on the PR.
+- Merge order unchanged: **#1311 → #1276 → #1273.**
+
+Reviewer continuity: the `fable-sec-1311` agent holds the traced context for #1311 and should be
+re-sent the finished branch rather than respawned cold.
