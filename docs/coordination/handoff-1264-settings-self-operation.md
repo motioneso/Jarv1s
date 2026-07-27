@@ -89,3 +89,48 @@ The chassis has landed. Build on it; do not re-litigate it.
 - Never pipe a gate command through `tail` or `head`; it masks a failing gate as exit 0. Report real
   exit codes.
 - No secrets in any doc, payload, log, or prompt.
+
+## Coordinator rulings issued mid-run — binding, survive compaction
+
+Added 2026-07-27 after two contexts in this lane ended with no plan on disk. These were previously
+delivered only as pane messages; they are recorded here so a compacted or relayed successor can
+recover them by re-reading this file. **Re-read this section after any compaction.**
+
+1. **The prerequisite PR is already satisfied — do not build it.** `callTool`'s tool lookup already
+   goes through `executableTools()`, which drops `isSelfOperationExcluded` tools at
+   `packages/ai/src/gateway/gateway.ts:592` ("Fail closed #0"), structurally ahead of the YOLO branch
+   at `:161`. Both execute call sites (`:355` read, `:431` write) resolve only via
+   `executableTools()`. Verified in code by the coordinator, not taken from a report. If you find any
+   execution path that resolves a tool **without** `executableTools()`, that is stop-and-escalate.
+
+2. **Digest is DROPPED from this lane's scope.** The spec contradicts itself — line 42 classifies
+   digest settings as `granted_at_install`, line 82 lists digest scheduling under exclusion category
+   7 (external effect), and the shipped denylist implements line 82 (`settings.digest.` at
+   `packages/ai/src/gateway/self-operation.ts:153`). **Renaming the tool to escape the prefix was
+   proposed and refused**: the denylist is prefix-matched on the tool name, so a rename resolves a
+   security exclusion by choosing a different string — if that works, the denylist is decorative.
+   Parked for Ben in `AWAITING-BEN.md` §3b. Build everything else; do not reintroduce digest.
+
+3. **Three migrations, not two.** The `revision` columns are one part. The third is easy to miss:
+   widening the audit `outcome` CHECK constraint at
+   `packages/ai/sql/0127_jarvis_action_audit_log.sql:10` (currently
+   `'success','failed','denied','cancelled'`) to admit `invalid`/`conflict`. **Never edit 0127** —
+   applied migrations are hash-checked; add a new file in `packages/ai/sql/`. The TS union widening
+   and the CHECK widening must land in the same commit or the two disagree at runtime.
+
+4. **chat-response-style: in scope, but the tool belongs to the CHAT module.** The spec classifies it
+   `granted_at_install`, so scope is settled; module isolation means it is declared in
+   `packages/chat/src/manifest.ts` (its `assistantTools` array already exists at `:171`) and calls
+   chat's own write path — settings must not reach into chat internals. There are zero `chat.`
+   prefixes in `SELF_OPERATION_EXCLUSIONS`, so nothing centrally blocks it. **The closed enum is
+   load-bearing**: the only reason this is not assistant-brain-excluded is that the value is a
+   three-value enum rendered through a server-owned template. The tool input takes that enum and
+   nothing else, validated server-side, rejecting anything unrecognised — no free-text field, no
+   passthrough string, no "custom" escape. If free text can reach the system prompt through this
+   tool, stop and escalate rather than granting it at install. Count consequence: this moves the
+   **chat** package's inventory in `tests/unit/self-operation-manifests.test.ts`, not settings'.
+
+5. **Write the plan to disk before further reading.** Four contexts across this epic have now ended
+   with nothing committed. Reading is not progress. State assumptions inline rather than leaving to
+   verify them — the coordinator corrects a wrong assumption far more cheaply than the lane pays for
+   another relay.
