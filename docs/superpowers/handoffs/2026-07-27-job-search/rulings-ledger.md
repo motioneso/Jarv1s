@@ -762,3 +762,19 @@ Do not re-report the plan's "renders nothing" line as a defect — it is recorde
 The general lesson is N8's: a plan's *claim* about behaviour is checkable, and this one failed the
 check while the instruction built on it (ship `compass`) was still right. Verify the claim, keep the
 instruction that survives it.
+
+**N10 — `cause.summary` and `cause.nextAction` are user-facing copy, and two of the five kinds are
+unreviewed.** Task 5 pins exact strings only for `rate_limited` and `login_required`; `parse_failed`
+and `network` are pinned on `nextAction` and a minimum length only, so their summaries were written
+to implementer judgment (`f6328857`). That is not a defect — nothing in the plan specifies them — but
+these strings **render verbatim** to the user on the settings screen (Task 20) and must not be
+mistaken for reviewed product copy.
+
+**Rule: treat the `parse_failed` and `network` summaries as draft copy.** Task 20 reviews them
+against the module's voice when it builds the screen that shows them, and may rewrite them freely —
+no ruling is needed to change wording that no test pins. Do **not** rewrite the two pinned strings;
+their tests assert exact equality deliberately.
+
+The general point for the rest of the build: a domain string that reaches a screen is copy, not an
+implementation detail. When a plan leaves one open, say so at hand-off rather than letting it ship as
+though it were specified.
