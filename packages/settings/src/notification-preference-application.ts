@@ -16,6 +16,19 @@ export interface NotificationPreferenceApplicationDeps {
   readonly notificationUnreadPort?: NotificationUnreadPort;
 }
 
+// Contract owned by settings so the notificationPreference.setEnabled assistant tool never needs
+// to import module-registry (would be circular — module-registry already depends on settings).
+// The concrete implementation is built in the composition host (packages/chat).
+export interface NotificationPreferenceWriteService {
+  setEnabled(
+    scopedDb: DataContextDb,
+    actorUserId: string,
+    moduleId: string,
+    enabled: boolean,
+    clearUnread: boolean
+  ): Promise<{ preference: NotificationPreferenceDto; unreadCount: number | null }>;
+}
+
 export async function setNotificationPreferenceEnabled(
   scopedDb: DataContextDb,
   deps: NotificationPreferenceApplicationDeps,

@@ -1310,7 +1310,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         sourceContextService: deps.connectorsRepository
           ? buildRuntimeSourceContextService()
           : undefined,
-        appMapService: deps.appMapService
+        appMapService: deps.appMapService,
+        listModuleManifests: deps.listModuleManifests
       }),
     registerWorkers: (boss, deps) =>
       registerChatJobWorkers(boss, deps.dataContext, {

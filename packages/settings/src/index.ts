@@ -56,3 +56,8 @@ export {
   themeModeSetOutputSchema,
   themeModeSetExecute
 } from "./theme-mode-tool.js";
+export {
+  type NotificationPreferenceApplicationDeps,
+  type NotificationPreferenceWriteService,
+  setNotificationPreferenceEnabled
+} from "./notification-preference-application.js";

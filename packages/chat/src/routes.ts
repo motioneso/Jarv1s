@@ -60,7 +60,10 @@ import {
   ChatMemorySuppressionsRepository,
   createMemoryFactSignature
 } from "@jarv1s/memory";
-import { handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
+import {
+  handleRouteError as handleModuleRouteError,
+  type JarvisModuleManifest
+} from "@jarv1s/module-sdk";
 import {
   NOTES_SYNC_QUEUE,
   type NotesSyncJobPayload,
@@ -106,7 +109,12 @@ import { ChatAttachmentsService } from "./attachments-service.js";
 import { ChatRepository } from "./repository.js";
 import { registerChatSkillsRoutes } from "./skills/routes.js";
 import { ChatSkillsRepository } from "./skills/repository.js";
-import type { AppMapReadService } from "@jarv1s/settings";
+import {
+  SettingsRepository,
+  setNotificationPreferenceEnabled,
+  type AppMapReadService,
+  type NotificationPreferenceWriteService
+} from "@jarv1s/settings";
 
 const STALE_ACTION_GRACE_MS = 5 * 60_000;
 
@@ -141,6 +149,8 @@ export interface ChatRoutesDependencies {
   readonly sourceContextService?: SourceContextService;
   /** Injected by the composition root; app-map read tool (#1110). Never bucket under collaborators. */
   readonly appMapService?: AppMapReadService;
+  /** Injected by the composition root; settings.notificationPreference.setEnabled tool service. */
+  readonly listModuleManifests?: () => readonly JarvisModuleManifest[];
   /**
    * #342 (§3.5 boot-time fork) — when no explicit {@link chatEngineFactory} is supplied, hand this to
    * {@link createChatSessionRuntime} so the runtime selects the engine factory itself: the RPC client
@@ -257,7 +267,8 @@ export function registerChatRoutes(
                 sourceContextService: dependencies.sourceContextService,
                 currentViewService,
                 // #1133 — lets the engine pull attachment bytes via chat.readAttachment.
-                attachmentsService
+                attachmentsService,
+                listModuleManifests: dependencies.listModuleManifests
               },
               appMapService: dependencies.appMapService,
               agencyPreferences: dependencies.agencyPreferences,
@@ -690,6 +701,7 @@ export function buildChatToolServices(deps: {
   cipher?: ConnectorSecretCipher;
   boss?: PgBoss;
   featureGrantService?: FeatureGrantService;
+  listModuleManifests?: () => readonly JarvisModuleManifest[];
 }): Record<string, unknown> {
   const services: Record<string, unknown> = {};
   if (deps.googleConnectionService && deps.googleApiClient && deps.connectorsRepository) {
@@ -724,6 +736,24 @@ export function buildChatToolServices(deps: {
   if (deps.featureGrantService) {
     services.featureGrants = deps.featureGrantService;
   }
+  if (deps.listModuleManifests) {
+    const listModuleManifests = deps.listModuleManifests;
+    services.notificationPreferenceWrite = {
+      setEnabled: (scopedDb, actorUserId, moduleId, enabled, clearUnread) =>
+        setNotificationPreferenceEnabled(
+          scopedDb,
+          {
+            listModuleManifests,
+            preferencesRepository: new PreferencesRepository(),
+            repository: new SettingsRepository()
+          },
+          actorUserId,
+          moduleId,
+          enabled,
+          clearUnread
+        )
+    } satisfies NotificationPreferenceWriteService;
+  }
   return services;
 }
 
@@ -753,6 +783,7 @@ export function buildChatGatewayDependencies(args: {
     currentViewService?: CurrentViewReadService;
     /** #1133 — read-only vault-backed attachment reads for chat.readAttachment. */
     attachmentsService?: ChatAttachmentsService;
+    listModuleManifests?: () => readonly JarvisModuleManifest[];
   };
 }): AssistantToolGatewayDependencies {
   return {

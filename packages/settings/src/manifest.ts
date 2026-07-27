@@ -14,6 +14,11 @@ import {
   localeSetTimezoneInputSchema
 } from "./locale-tools.js";
 import {
+  notificationPreferenceSetEnabledExecute,
+  notificationPreferenceSetEnabledInputSchema,
+  notificationPreferenceSetEnabledOutputSchema
+} from "./notification-preference-tool.js";
+import {
   quietHoursOutputSchema,
   quietHoursSetExecute,
   quietHoursSetInputSchema
@@ -506,6 +511,20 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       inputSchema: weatherLocationSetInputSchema,
       outputSchema: weatherLocationOutputSchema,
       execute: weatherLocationSetExecute
+    },
+    {
+      name: "settings.notificationPreference.setEnabled",
+      description:
+        "Turn a module's notifications on or off for this user, optionally clearing its unread count.",
+      permissionId: "settings.write",
+      risk: "write",
+      selfOperationGrant: "granted_at_install",
+      actionFamilyId: "settings.preference-write",
+      executionPolicy: "auto",
+      requiresServices: ["notificationPreferenceWrite"],
+      inputSchema: notificationPreferenceSetEnabledInputSchema,
+      outputSchema: notificationPreferenceSetEnabledOutputSchema,
+      execute: notificationPreferenceSetEnabledExecute
     }
   ]
 };
