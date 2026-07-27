@@ -447,4 +447,64 @@ describe("runCrawl", () => {
     expect(freehireState?.cause?.kind).toBe("network");
     expect(freehireState?.lastOkAt).toBeNull();
   });
+
+  it("test 9: found counts every raw posting, kept counts only what survives dedupe and hard-excludes", async () => {
+    // `found === kept` on every test above leaves the distinction unfalsifiable — if dedupe
+    // ever moved upstream into the portal walk, `found` would silently become the deduped
+    // count and this test is the one that would catch it. Four raw postings go in: freehire's
+    // own two, plus linkedin's duplicate-identity copy of freehire's and linkedin's own unique
+    // one. Only two survive: the duplicate collapses into freehire's copy (higher source
+    // priority), and the excluded-company posting is dropped outright.
+    const profile = makeProfile({ criteria: makeCriteria({ excludeCompanies: ["Cegience"] }) });
+    const store = createFakeStore(profile) as ReturnType<typeof createFakeStore> & {
+      __postings: Map<string, Posting>;
+    };
+    const freehireUnique = makePosting({
+      id: "fh-9a",
+      sourceId: "freehire",
+      company: "Acme",
+      title: "Staff Engineer"
+    });
+    const freehireExcluded = makePosting({
+      id: "fh-9b",
+      sourceId: "freehire",
+      company: "Cegience",
+      title: "Staff Engineer"
+    });
+    const linkedinDuplicate = makePosting({
+      id: "li-9a",
+      sourceId: "linkedin",
+      company: "Acme",
+      title: "Staff Engineer"
+    });
+    const linkedinUnique = makePosting({
+      id: "li-9b",
+      sourceId: "linkedin",
+      company: "Globex",
+      title: "Staff Engineer"
+    });
+    const portals = [
+      makePortal("freehire", healthyCrawl([freehireUnique, freehireExcluded])),
+      makePortal("linkedin", healthyCrawl([linkedinDuplicate, linkedinUnique]))
+    ];
+    const embed = createFakeEmbed();
+
+    const result = await runCrawl({
+      store,
+      portals,
+      fetch: noopFetch,
+      embed,
+      profileId: PROFILE_ID,
+      now: NOW,
+      deadlineAt: Date.now() + 60_000,
+      clock: () => Date.now()
+    });
+
+    expect(result.found).toBe(4);
+    expect(result.kept).toBe(2);
+    expect(store.__postings.has("fh-9a")).toBe(true);
+    expect(store.__postings.has("li-9b")).toBe(true);
+    expect(store.__postings.has("fh-9b")).toBe(false);
+    expect(store.__postings.has("li-9a")).toBe(false);
+  });
 });
