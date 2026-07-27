@@ -995,3 +995,25 @@ preference keys — including legacy keys and any compatibility resolver — not
 **Expected inventory after the fix: granted_at_install 31→29, user_promotable 2→4, total 38.**
 Verify against the builder's real numbers; PR body disclosure 3 must then be rewritten, since task
 list/tag deletion now asks by default instead of not asking.
+
+### Continuation note — 2026-07-27 ~01:45
+
+- builder-1263-l reaped (context checkpoint, zero commits toward the RED). Handoff
+  `.claude/HANDOFF-1263-l.md` verified to carry the four anti-regression rulings verbatim.
+- **builder-1263-m** is the live builder: pane `w1:p12G`, same worktree
+  `.claude/worktrees/1263-self-operation-chassis`, branch `1263-self-operation-chassis`,
+  Sonnet 5, booted ~52%. Branch head still `8fae3909`.
+- Briefed with the fix order: (A) BLOCKING tasks legacy dual-key fix, **its own commit, first**,
+  with a test proven to fail before the fix; (B) `deleteList`/`deleteTag` → `user_promotable`
+  + sibling assert, cross-module tool-name uniqueness assert, pin the two bare `.toThrow()`
+  messages, fix `packages/calendar/src/routes.ts:171` copy.
+- Stop condition given to m: if the new always_confirm-family assert trips a module **other than
+  tasks**, stop and message me — do not self-fix.
+- Expected inventory after B: `granted_at_install` 31→29, `user_promotable` 2→4, total 38.
+  m was told to report the REAL numbers and flag a mismatch rather than make them match.
+- Monitor `bt2ilzbzj` watches for new commits on the build branch and for pane death.
+- **Still owed by me before merge:** rewrite PR #1268 body disclosure 3 (task list/tag deletion
+  now asks by default and is promotable) — do this only after the reclassification commit lands.
+- Merge authority: delegated by Ben in-session ("I need to sleep, lets push to get this completed
+  without me"). Authority to merge GREEN only. RED returns to the builder. A red CI check parks
+  until morning — the waiver protocol needs Ben.
