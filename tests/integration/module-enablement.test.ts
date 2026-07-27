@@ -5,6 +5,12 @@ import type { Kysely } from "kysely";
 
 import { AiRepository, grantSelfOperationForModule } from "@jarv1s/ai";
 import {
+  LEGACY_AGENCY_AUTO_EXECUTE_KEY,
+  TASK_CHANGES_POLICY_KEY,
+  TasksCompatibilityHelper,
+  tasksModuleManifest
+} from "@jarv1s/tasks";
+import {
   DataContextRunner,
   createDatabase,
   type AdminAuditEvent,
@@ -677,5 +683,70 @@ describe("module enable routes grant self-operation policy (#1263 Task 15)", () 
     // route never calls grantSelfOperationForModule (#1267 territory) — no policy row appears.
     const stored = await policyFor(ids.adminUser, "ext-fixture", "ext-fixture.family");
     expect(stored).toBeUndefined();
+  });
+});
+
+describe("tasks legacy agency_auto_execute opt-out survives install grant (#1263)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+  let prefs: PreferencesRepository;
+  let tasksCompat: TasksCompatibilityHelper;
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+    prefs = new PreferencesRepository();
+    tasksCompat = new TasksCompatibilityHelper(prefs);
+  });
+
+  afterAll(async () => {
+    await appDb.destroy();
+  });
+
+  it("a legacy false opt-out with no canonical row is not flipped by an install-time grant", async () => {
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req:legacy-seed" },
+      async (scopedDb) => {
+        await prefs.upsert(scopedDb, LEGACY_AGENCY_AUTO_EXECUTE_KEY, false);
+      }
+    );
+
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req:legacy-grant" },
+      async (scopedDb) => {
+        expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("ask_each_time");
+
+        await tasksCompat.grantInstallTimeTrustIfUnset(scopedDb);
+
+        expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("ask_each_time");
+      }
+    );
+  });
+
+  it("grants trusted_auto when neither the canonical nor legacy key exists", async () => {
+    await dataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "req:legacy-fresh" },
+      async (scopedDb) => {
+        expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("ask_each_time");
+
+        await tasksCompat.grantInstallTimeTrustIfUnset(scopedDb);
+
+        expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("trusted_auto");
+      }
+    );
+  });
+
+  it("never clobbers an existing canonical row", async () => {
+    await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:legacy-existing" },
+      async (scopedDb) => {
+        await prefs.upsert(scopedDb, TASK_CHANGES_POLICY_KEY, "always_confirm");
+
+        await tasksCompat.grantInstallTimeTrustIfUnset(scopedDb);
+
+        expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("always_confirm");
+      }
+    );
   });
 });

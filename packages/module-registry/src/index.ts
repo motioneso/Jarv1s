@@ -1013,7 +1013,15 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         externalModules: deps.externalModules, // #917: thread the boot snapshot to settings routes
         moduleDistribution: deps.moduleDistribution,
         reconcileExternalModuleJobs: deps.reconcileExternalModuleJobs,
-        grantSelfOperationForModule: deps.grantSelfOperationForModule,
+        // #1263: tasks bypasses the generic canonical-key-only grant here, because it has a
+        // legacy `tasks.agency_auto_execute` boolean the generic path doesn't know about — see
+        // TasksCompatibilityHelper.grantInstallTimeTrustIfUnset.
+        grantSelfOperationForModule: (scopedDb, manifest) =>
+          manifest.id === tasksModuleManifest.id
+            ? new TasksCompatibilityHelper(new PreferencesRepository()).grantInstallTimeTrustIfUnset(
+                scopedDb
+              )
+            : (deps.grantSelfOperationForModule?.(scopedDb, manifest) ?? Promise.resolve()),
         personaPreview:
           deps.personaPreview ??
           createDefaultPersonaPreview(deps.dataContext, {
