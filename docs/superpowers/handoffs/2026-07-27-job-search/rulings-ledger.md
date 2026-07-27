@@ -745,3 +745,20 @@ Two failure modes this prevents, in both directions:
 is found and its described behaviour matches; a drifted line number is not a finding and must not be
 reported as one. Only a changed *claim* is a finding. This applies to every remaining task — do not
 raise it again per-task.
+
+**N9 — A nav icon with no `iconMap` entry falls back; it does not render nothing. Task 3's stated
+failure mode is wrong.** `08-task03-scaffold.md` warns that `icon: "compass"` must be added to the
+app-shell icon map "or the nav renders nothing." Verified against HEAD: `app-shell.tsx` resolves
+`iconMap[props.entry.icon] ?? Layers3`, with a second `Layers3` for the no-icon case. A name the map
+does not know renders a generic layers glyph — visibly wrong, never invisible. `Compass` *is* a real
+`lucide-react` export, so nothing is blocked.
+
+**Ruling: the scaffold correctly ships `compass` without touching `app-shell.tsx`.** That file is
+outside Task 3's declared scope, and the shipped finance module sets the identical precedent —
+`landmark` ships with no map entry. **Whichever task wires the real Job Search nav entry adds
+`Compass` to the icon map**, and its own test asserts the mapping rather than leaving it to review.
+
+Do not re-report the plan's "renders nothing" line as a defect — it is recorded here as known-wrong.
+The general lesson is N8's: a plan's *claim* about behaviour is checkable, and this one failed the
+check while the instruction built on it (ship `compass`) was still right. Verify the claim, keep the
+instruction that survives it.
