@@ -93,6 +93,14 @@ how hard the PR is verified and whether Ben must sign the merge.
 Tiering is mechanical: if a trigger appears in the spec or diff, it IS that tier — no "probably
 fine" downgrade. In doubt between two tiers, take the higher.
 
+**⛔ LIVE-PATH GATE — overrides every tier's "auto-merge after green."** If the PR touches a
+user-facing feature, module, or UI surface, CI-green + `/code-review` is **not** merge-ready. It
+needs a live end-to-end proof on the PR: the feature installed and exercised **through the real UI
+on a live dev instance**, posted as a `gh pr comment` with the UAT run + screenshots. No artifact →
+do not merge, do not mark the issue or epic Done; report it as *code-complete, unverified*. This
+binds at `routine` tier too — `routine` is exactly where it has been skipped. Full rule:
+`docs/DEVELOPMENT_STANDARDS.md` → **Live-Path Gate**.
+
 **Security-tier sign-off is a first-class gate:** spawn the Opus QA agent → it posts its verdict
 to the PR (`gh pr comment`, durable evidence that survives your relay) → surface PR + verdict
 pointer to Ben with "security-tier — your merge sign-off?" → **PAUSE**; merge only on his explicit
@@ -246,8 +254,11 @@ When an agent reports **done** (PR open + its own green evidence — which you d
    **re-verify the integrated result** with a fresh QA agent (diff-scoped against the collision
    map — a clean PR can still break against newly-landed siblings).
 
-5. **Merge — by tier** (re-confirm step 0 still holds). `security`: Ben's explicit sign-off first,
-   never auto-merge. `routine`: auto-merge. `sensitive`: auto-merge + digest.
+5. **Merge — by tier** (re-confirm step 0 still holds). **First check the live-path gate:** if the
+   PR touches a user-facing feature, module, or UI surface and carries no live-UI proof comment, it
+   does not merge at any tier — send the lane back for a live-path walk. Then, by tier: `security`:
+   Ben's explicit sign-off first, never auto-merge. `routine`: auto-merge. `sensitive`: auto-merge +
+   digest.
    ```bash
    gh pr merge <PR> --squash --delete-branch
    ```
@@ -323,6 +334,7 @@ Fired by the relay triggers (Context discipline / Phase 3 step 7):
 | Session-id authority (pre-merge) | manifest lock line ↔ your `agent_session.value` (never a pane number) |
 | CI gate (don't re-run) | `gh pr checks <PR>` |
 | Merge + close | `gh pr merge <PR> --squash --delete-branch` · issue close · board move |
+| Live-path gate (any UI-facing PR, any tier) | live-UI proof `gh pr comment` (UAT run + screenshots) present, else do NOT merge |
 | Security-tier merge | Opus QA → `gh pr comment` verdict → Ben sign-off → merge |
 | Relay triggers | meter 70% warning · security merge · 2 routine/sensitive merges · compaction summary (→ merge nothing) |
 | Escalate to Opus | `Agent(model: "opus", prompt: "<pointers: PR #, paths, manifest section>")` |

@@ -31,6 +31,28 @@ pnpm typecheck
 
 `pnpm verify:foundation` includes these checks before migrations and integration tests.
 
+## Live-Path Gate (CI-green is not done)
+
+A PR that adds or changes a **user-facing feature, module, or UI surface** does not merge, and its
+issue is not marked Done, on unit/integration/CI-green plus code review alone. Those verify the
+parts in isolation, and parts have repeatedly passed in isolation while the assembled feature was
+broken.
+
+Such a PR merges **only** with a live end-to-end proof recorded on the PR: the feature was installed
+and exercised **through the real UI on a live dev instance** — owner signup → the real
+Settings/module path → the feature actually runs — evidenced by a `gh pr comment` linking the e2e
+UAT run and screenshots. A manual live-path walk with screenshots is acceptable evidence. A passing
+headless test alone is not, because it does not prove the assembled path is reachable by a person.
+
+No artifact means you may not merge and may not mark the issue or epic Done. The correct status is
+**code-complete, unverified** — say that plainly rather than reporting the work as finished.
+
+This rule exists because it already happened: a module shipped as nine slices, each closed on
+CI-green and code review, none of which had ever been run through the real UI. Its install path was
+broken the entire time, so none of it worked for the owner. Green parts, dead whole.
+
+Out of scope: docs-only changes, refactors with no user-visible surface, and internal tooling.
+
 ## Design System Guardrails
 
 Jarv1s UI must keep the authored design-system shape:
