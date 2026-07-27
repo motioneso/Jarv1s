@@ -3152,3 +3152,40 @@ sufficient, because moved code always reads as changed; the route table is the i
 `813e3e8a`. PR #1273 shows MERGEABLE and green, but both CI and the existing QA verdict are
 grounded on the stale tip. Watcher `bzeblslks` remains armed on the remote ref; when it moves,
 dispatch the delta re-QA to `w1:p137` **grounded on the new tip**, never on the verdict in hand.
+
+### Update — #1265 pushed, delta re-QA dispatched; #1264 extraction verified
+
+**#1265 is now pushed: `origin` tip = `ec43d62e`** (worktree matches exactly, ahead:0 behind:0).
+The stale-green trap is cleared. `b09bcad6` is confirmed an ancestor of the tip, so the prior
+Opus verdict is formally **stale**; the delta QA has never seen these 8 commits (4 code files,
+1 test, 3 docs). Lane reports: fresh gate DB `jarvis_gate_1265e` (dropped/created, not reused),
+`verify:foundation` exit 0, `audit:release-hardening` exit 0, pre-push trio clean, rebase a
+no-op. CI on `ec43d62e` was pending at dispatch. PR #1273 head per GitHub = `ec43d62e`.
+
+**Duplicate-agent scare — investigated, no damage.** The lane reported finding a second agent
+(`relay-1265-c`) live in its worktree mid-run. Two agents on one worktree is a stop-the-line
+red flag, so I verified rather than accepted "no collision occurred": tree clean (only
+`.claude/context-meter.log`, agent telemetry), linear history, single author, ahead:0 behind:0.
+Clean.
+
+**Delta re-QA: fresh Opus agent `60113a86` (`qa-1265-delta`, `w1:p13T`).** I retired the held
+QA pane (`5d55cb29`) rather than reusing it, for two reasons: it had stale unsubmitted text in
+its input box (and `send-keys C-u` is rejected by herdr, so it could not be cleared safely), and
+more importantly it would have been grading its own findings. The fixes touch security-critical
+validation — a possible fail-open in `compilePattern` — so independent adversarial eyes matter
+more than continuity. Nothing was lost: all 4 findings are pinned in the relay-13 handoff.
+Brief scopes it to `b09bcad6..ec43d62e` with two jobs, the second weighted higher: (1) do the 4
+fixes actually fix what they claim, and (2) **adversarially review the new code the fixes
+introduced** — fixes to validation code are themselves an unreviewed attack surface.
+
+**#1264 extraction verified as a genuine pure move (`ece42556`).** `packages/chat/src/routes.ts`
+1025 → **779**, back under the cap. I ran the route-table parity check myself rather than
+waiting for the PR claim:
+- Registered routes (method + path) **byte-identical** before vs after.
+- Auth/permission wiring count unchanged (1 → 1).
+- 2 files touched only: new `packages/chat/src/gateway-services.ts` (276) + `routes.ts`.
+
+It extracted **gateway dependency assembly, not route handlers** — the safer shape, since no
+registration moved at all. This satisfies the pure-move constraint. `packages/settings/src/
+routes.ts` remains at exactly 1000 (passes; fails only above). #1264 still owes a full gate run
+and `coordinated-wrap-up` / PR.
