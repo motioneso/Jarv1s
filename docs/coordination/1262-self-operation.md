@@ -1229,3 +1229,45 @@ its *test* diff. Review both halves of a commit, every time.
   Plan: after the gate is green, one docs-only commit correcting all three, then re-run **only**
   `pnpm lint` + `pnpm format:check` — the only gates a markdown edit can break — and say exactly
   that on the PR rather than implying the full gate re-covered it.
+
+### Gate green, PR body pushed, delta QA in flight
+
+**Gate: exit 0** on a freshly dropped/recreated `jarvis_gate_1263`. The builder's first attempt died
+at `format:check` on its own **untracked** `.claude/HANDOFF-1263-*.md` scratch — the known prettier
+trap, not reviewed code. It prettier-wrote those four files only and reran clean from lint. Correct
+call to make without me. Real numbers: unit 3380 passed / 2 skipped; integration 1719 passed / 2
+skipped (includes the 25 in `module-enablement.test.ts`); uat-seed 23 passed; migrations clean
+through `0155`.
+
+**Task D landed — `7a00b6df`, docs-only, three files.** The stale roster and counts in
+`plans/1263/task-07a.md`, `task-12a.md`, `task-16.md` are corrected (five `confirm_always`, 29
+granted-at-install, four promotable, stop conditions moved fifth→sixth). Verified against `lint` +
+`format:check` only, both exit 0 — **not** the full gate, and the PR says so rather than implying
+otherwise. Note the 38 total needed no edit: −2 granted_at_install and +2 user_promotable net to
+zero.
+
+**PR #1268 body pushed** with the corrected disclosure 3, the 29/5/4 inventory, and the routing-test
+bullet.
+
+**Integration risk is nil.** `origin/main` moved by exactly one commit, `84d1c291` — docs only
+(`CLAUDE.md` + a new `audit-grounding` skill). No source overlap with #1263, so the rebase-and-re-QA
+concern the collision map exists to catch does not apply here. CI was green on `af2ec6d4`; it
+re-runs on `7a00b6df`.
+
+**Delta QA spawned: `qa3-1263`, pane `w1:p12K`, Opus 5 high, session `bf088932-0b49-449f-b6f2-e8e887f636c5`.**
+Why a fresh agent and not QA2: QA2 sat at 71% with "2% until auto-compact", and a security reviewer
+whose context compacts mid-review is exactly what should not gate a merge. Its verdict is already
+durable on the PR, so it was safe to reap — pane closed, worktree removed.
+
+QA3's scope is the genuinely unreviewed delta: `1751bc7a`, `37d5d78d`, `af2ec6d4`. The posted
+"independent delta security review" comment covers `eb0470ef`/`ffb58f16`/`8fae3909` — everything
+*before* Task A — so those three commits have had no independent eyes at all. Its brief lives at
+`scratchpad/qa3-1263-brief.md` (herdr's `agent start` rejects long prompts as unencodable, so the
+brief goes in a file and the prompt is a pointer).
+
+**Herdr API correction for successors:** the `coordinate` skill's spawn line is stale.
+`herdr agent start <name> --kind claude --pane <ID> -- <args>` — there is no `--tab` and no `--cwd`;
+you `herdr pane split <pane> --direction right --cwd <path> --no-focus` first, then start the agent
+into the returned pane. Names must be lowercase.
+
+**Still blocking merge:** QA3 verdict + CI green on `7a00b6df`.
