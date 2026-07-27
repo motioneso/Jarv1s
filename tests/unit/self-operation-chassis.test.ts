@@ -250,6 +250,55 @@ describe("self-operation chassis", () => {
     ).not.toThrow();
   });
 
+  it("rejects a built-in action family shared by a granted_at_install tool and a user_promotable tool", () => {
+    // #1263 Task 4 hardening (a): if install granted trusted_auto for the same family a
+    // user_promotable tool relies on the user to set, "user_promotable" would be a lie the moment
+    // the granted_at_install tool's install grant ran first.
+    const installTool: ModuleAssistantToolManifest = {
+      name: "calendar.autoOperate",
+      description: "Auto-operate.",
+      permissionId: "calendar.manage",
+      risk: "write",
+      executionPolicy: "auto",
+      actionFamilyId: "calendar.sharedFamily",
+      selfOperationGrant: "granted_at_install"
+    };
+    const promotableTool: ModuleAssistantToolManifest = {
+      name: "calendar.deleteEvent",
+      description: "Delete an event.",
+      permissionId: "calendar.manage",
+      risk: "write",
+      executionPolicy: "auto",
+      actionFamilyId: "calendar.sharedFamily",
+      selfOperationGrant: "user_promotable"
+    };
+    const sharedFamily = family("calendar.sharedFamily", [
+      "ask_each_time",
+      "trusted_auto",
+      "always_confirm"
+    ]);
+    expect(() =>
+      assertBuiltInSelfOperationManifests([
+        manifest("calendar", [installTool, promotableTool], [sharedFamily])
+      ])
+    ).toThrow();
+  });
+
+  it("rejects a built-in confirm_always tool that is promotable to trusted_auto", () => {
+    // #1263 Task 4 hardening (b): structural, not risk-based — web.read is confirm_always at risk
+    // "write" and must keep passing this check, so the invariant is "not promotable" (no auto
+    // executionPolicy, and no family that can reach trusted_auto), never "implies risk destructive".
+    const tool: ModuleAssistantToolManifest = {
+      name: "memory.forget",
+      description: "Forget a fact.",
+      permissionId: "memory.manage",
+      risk: "destructive",
+      executionPolicy: "auto",
+      selfOperationGrant: "confirm_always"
+    };
+    expect(() => assertBuiltInSelfOperationManifests([manifest("memory", [tool])])).toThrow();
+  });
+
   it("accepts built-in read tools without a declaration", () => {
     const tool: ModuleAssistantToolManifest = {
       name: "memory.search",

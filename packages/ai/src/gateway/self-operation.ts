@@ -239,6 +239,12 @@ export function assertBuiltInSelfOperationManifests(
     }
 
     const seenToolNames = new Set<string>();
+    // #1263 Task 4 hardening (a): a family promoted at install must never also be left for the
+    // user to promote — that would make "user_promotable" a lie for whichever tool loses the race,
+    // since the family's stored tier is shared. Tracked per-module because actionFamilyId only
+    // resolves within the declaring module (see the same-module resolution check below).
+    const grantedAtInstallFamilyIds = new Set<string>();
+    const userPromotableFamilyIds = new Set<string>();
     for (const tool of tools) {
       if (seenToolNames.has(tool.name)) {
         throw new Error(`module "${manifest.id}" declares duplicate tool name "${tool.name}"`);
@@ -297,6 +303,9 @@ export function assertBuiltInSelfOperationManifests(
             `module "${manifest.id}" tool "${tool.name}" declares granted_at_install without a resolvable trusted action family allowing both trusted_auto and always_confirm`
           );
         }
+        if (tool.actionFamilyId) {
+          grantedAtInstallFamilyIds.add(tool.actionFamilyId);
+        }
       }
 
       if (tool.selfOperationGrant === "user_promotable") {
@@ -319,15 +328,31 @@ export function assertBuiltInSelfOperationManifests(
             `module "${manifest.id}" tool "${tool.name}" declares user_promotable without a resolvable action family allowing both trusted_auto and always_confirm`
           );
         }
+        if (tool.actionFamilyId) {
+          userPromotableFamilyIds.add(tool.actionFamilyId);
+        }
       }
 
-      if (
-        tool.selfOperationGrant === "confirm_always" &&
-        !PLANNED_CONFIRM_ALWAYS_TOOLS.includes(tool.name)
-      ) {
-        throw new Error(
-          `module "${manifest.id}" tool "${tool.name}" declares confirm_always outside the planned allowlist`
-        );
+      if (tool.selfOperationGrant === "confirm_always") {
+        if (!PLANNED_CONFIRM_ALWAYS_TOOLS.includes(tool.name)) {
+          throw new Error(
+            `module "${manifest.id}" tool "${tool.name}" declares confirm_always outside the planned allowlist`
+          );
+        }
+        // #1263 Task 4 hardening (b): a confirm_always tool must never be promotable, or the
+        // guarantee that protects it (policy.ts:40 confirms every call for a family-less/non-auto
+        // tool) silently stops holding. Deliberately NOT "confirm_always implies risk destructive"
+        // — web.read is confirm_always at risk "write" (PR #1268 Opus security review, #1263) and
+        // must keep passing this check. Instead: no executionPolicy "auto", and either no
+        // actionFamilyId at all or a family whose allowedTiers cannot reach trusted_auto.
+        const promotable =
+          tool.executionPolicy === "auto" ||
+          (resolvedFamily !== undefined && resolvedFamily.allowedTiers.includes("trusted_auto"));
+        if (promotable) {
+          throw new Error(
+            `module "${manifest.id}" tool "${tool.name}" declares confirm_always but is promotable to trusted_auto: remove executionPolicy "auto" and any actionFamilyId whose allowedTiers include trusted_auto`
+          );
+        }
       }
 
       if (
@@ -337,6 +362,14 @@ export function assertBuiltInSelfOperationManifests(
       ) {
         throw new Error(
           `module "${manifest.id}" tool "${tool.name}" references action family "${tool.actionFamilyId}" which must allow always_confirm`
+        );
+      }
+    }
+
+    for (const familyId of grantedAtInstallFamilyIds) {
+      if (userPromotableFamilyIds.has(familyId)) {
+        throw new Error(
+          `module "${manifest.id}" action family "${familyId}" is referenced by both a granted_at_install tool and a user_promotable tool: install would silently promote the tier the user_promotable tool relies on the user to set`
         );
       }
     }

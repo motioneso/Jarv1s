@@ -209,7 +209,14 @@ export const calendarModuleManifest = {
       permissionId: "calendar.manage",
       risk: "write",
       executionPolicy: "auto",
-      selfOperationGrant: "granted_at_install",
+      // Wired for auto-run, but NOT granted at install: the proactive follow-through worker
+      // (buildCalendarFollowThroughPort.executeAutoActions, module-registry/src/index.ts:711) is a
+      // second, un-gated reader of calendar_writeback's tier — on a block_time signal it calls
+      // calendarWrite.proposeAndInsert directly, no card, no chat session, no gateway. Granting
+      // trusted_auto at install would arm unattended background calendar writes the moment the
+      // module is enabled. Fable's security review on PR #1268 caught this; the user must promote
+      // calendar_writeback to trusted_auto themselves (#1263).
+      selfOperationGrant: "user_promotable",
       actionFamilyId: "calendar_writeback",
       requiresServices: ["calendarWrite"],
       // NOTE: the gateway's validateToolInput (input-validation.ts) enforces only type + enum +
