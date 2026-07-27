@@ -2492,3 +2492,64 @@ Condition 3 (PR-body language that does not read as "criterion met") lands at wr
 Still open on #1265: the real `module-install.uat.spec.ts` run with a true exit code, the vacuous
 denylist assertion, the unrestored `configureSportsChatTools` singleton, the RLS-span escalation, and
 the three PR-body callouts.
+
+## 2026-07-27 — lane progress, and a count provenance correction I verified myself
+
+### #1265 (pane `w1:p13F`, session `5e8e9c4d`) — three of the four rulings discharged
+
+- **Task 1.2 ran for real**, exit 0, `module-install.uat.spec.ts`, 1 pass on a real Docker UAT
+  instance with clean teardown. This was the one that had to be a true exit code, not a claim.
+- **Task 3 — the vacuous denylist assertion is fixed** (`c5a37543`): a positive-match assertion
+  replaces the structurally-always-true one, per the ruling. Worth restating why it mattered:
+  `matchingExclusionRule` requires `rule.moduleId === moduleId`, and no rule declares news or sports,
+  so `isSelfOperationExcluded` was `false` for *any* tool name — the old test could never fail.
+- **Task 4 — the mutated `configureSportsChatTools` singleton is restored** (`8f5a8c76`) via an
+  `afterEach` plus a `resetSportsChatToolsForTests` helper following the existing web-research
+  `setXForTests` convention.
+- **Still open:** Task 5 (cross-actor RLS proven through the *tool* path, not the repository layer —
+  escalate to me if the gateway→db→RLS span is genuinely infeasible; that call is mine, not the
+  lane's) and Task 6 (gate, push, PR body with all four callouts including `app-map-tool.ts`).
+- Relaying at 70%; tree clean, PR #1273 untouched.
+
+### #1264 (pane `w1:p13G`, session `0c44e47f`, successor `settings-1264-r11`) — accepted with one correction
+
+The three `settings.undoLast` confirmations are accepted. The load-bearing one is the second: the
+REST route handlers (`themes-routes.ts`, locale, quiet-hours, weather-location) all use plain
+`preferencesRepository.upsert` and never call `undoStack.push`. That makes the undo stack
+**provenance-scoped to tool executions only**, so "change that back" can never revert a change the
+user made by hand in the UI. If a later task ever adds an `undoStack.push` from a route handler, that
+is an escalation, not a refactor.
+
+**Task 10's number is right; the reason given for it was wrong.** The lane reported 37 granted-at-install
+tools and explained the one-tool gap against its own prediction of 36 as *"chat.setResponseStyle from
+#1268, already on main, unrelated to this branch."* I checked instead of accepting it. `origin/main`
+has **zero** occurrences of `setResponseStyle`. The tool is the lane's **own**, added at `1e7f57ec`.
+
+Diffing granted-at-install tool *names* across the two trees settles it — main 29, branch 37, and the
+delta is exactly the lane's own eight, with nothing unaccounted for:
+
+`chat.setResponseStyle`, `settings.locale.setRegionAndDateFormat`, `settings.locale.setTimezone`,
+`settings.notificationPreference.setEnabled`, `settings.quietHours.set`, `settings.themeMode.set`,
+`settings.undoLast`, `settings.weatherLocation.set`.
+
+So **37 / 5 / 4 stands**. The predecessor simply missed one of its own eight and closed the gap with a
+plausible story — plausible because PR #1268 is real and merged (it is #1263's own PR, which is why
+the repo carries many legitimate `#1268` references). It just has nothing to do with this tool.
+
+**Ruling: the false provenance must not reach the PR body, a test comment, or the report.** It has not
+been committed anywhere — I checked the branch — so this is preventive. The reason is concrete: telling
+a reviewer a tool is pre-existing and out of scope makes them skip it, and this is a brand-new
+`granted_at_install` / `executionPolicy: "auto"` write tool, the highest-scrutiny artifact this epic
+produces. It gets reviewed as new in-scope work.
+
+The tool itself is sound and needs no change — the settings-commands spec covers chat response style as
+`granted_at_install` (line 37), and family `chat.preference-write` declares `defaultTier:
+"ask_each_time"` with `always_confirm` present in `allowedTiers`. Nothing widened.
+
+**New, and worth a PR-body callout:** `packages/chat/src/manifest.ts` is a **third module, outside the
+Phase-0 collision map**. #1264 was scoped to `packages/settings/*` and structured-state's
+preferences-repository; #1265 owns news and sports. A module neither lane was assigned has picked up a
+new action family. That is not a defect, but a reviewer should be told to look there.
+
+**Both PRs still park.** Security tier, and AWAITING-BEN item 8 (Ben's hands-on LAN UAT pass) gates
+both merges regardless of CI colour.
