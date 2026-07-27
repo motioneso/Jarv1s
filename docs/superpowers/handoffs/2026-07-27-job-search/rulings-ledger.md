@@ -1258,3 +1258,26 @@ empty-items rule (N19).
 The structured cause must record **where** extraction failed: the item index and the offending
 field name, bounded to that. Not "parse_failed" alone, which makes a fifty-posting page
 undebuggable — and not the raw item either, which drags posting bodies into a failure record.
+
+## N31 — Where the live proof lands, and when this branch gets pushed
+
+N27 says user-facing work is not done without a live end-to-end proof posted as a PR comment.
+There is no PR: `origin/feat/job-search` does not exist and `gh pr list --head feat/job-search` is
+empty. This resolves the gap rather than leaving each agent to improvise.
+
+**Do not push this branch or open a PR yet.** The tree is knowingly red — typecheck, lint and
+format all fail on other agents' in-flight work at any given moment, by design, because six agents
+share it. Pushing now fires CI on a red tree and produces a failure signal that means nothing,
+which is how a team learns to ignore CI.
+
+**Proof accrues to Task 22 (#1306), not per task.** Individual task agents do not each stage a live
+run; that would mean standing up the module six times against half-built surfaces. Task 22's
+consolidated run on the prod-shaped stack is the proof for the surface work collectively —
+Tasks 18, 19 and 20 included.
+
+**The PR opens at Task 23 (#1307)**, once the full gate is green on a quiet tree, and every proof
+posts there.
+
+**Until then the honest per-task status is "code-complete, unverified".** Say exactly that. Do not
+post a live proof onto a closed task issue to discharge the obligation — a closed issue is not
+where anyone looks, and the obligation is not discharged by filing it somewhere.
