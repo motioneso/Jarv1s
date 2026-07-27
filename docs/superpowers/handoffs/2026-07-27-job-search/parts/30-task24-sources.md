@@ -32,52 +32,83 @@ platform queries directly (N17) — `JobSearchStore.listGrantedHosts()` is gone,
 SDK port; (3) the AI-extraction step gains four constraints it was missing (byte cap, deadline-
 awareness, untrusted-data framing, whole-extraction-fails-on-one-bad-field).
 
+**Second revision note (ledger N18 withdraws this draft's N17-based storage; also fixes a wrong
+error-code assertion the first revision introduced):** N18 establishes that **no new table and no
+new migration are needed.** `app.module_kv` (`packages/settings/sql/0154_module_kv.sql`) is already
+platform-owned, RLS-enabled-and-forced storage, already granted to `jarvis_worker_runtime` by
+`packages/settings/sql/0157_module_worker_runtime_access.sql`, already wired end-to-end via the
+`kv.get`/`kv.set`/`kv.list`/`kv.delete` RPC branches (`worker-rpc-host.ts:403-434`) over
+`packages/settings/src/repository-module-kv.ts`, and already exposed to worker handlers as `ctx.kv`
+(`packages/module-sdk/src/worker.ts:71-85`). Everything this part's first revision invented —
+`app.module_fetch_host_grants`, `fetch-host-grants.ts`, `ModuleHostGrantPort`/`ctx.hostGrants`, the
+`hostGrants.grant`/`hostGrants.revoke` RPC branches, the two new `ExternalModuleRpcError` codes, and
+the schema-catalog row — is withdrawn below. N17's non-storage rulings are unchanged: the grant is
+still platform-owned, module-agnostic, keyed by `(module, owner)` rather than by profile, and the
+add/remove write-ordering rule (source-row-then-grant on add, grant-then-source-row on remove) still
+holds, now expressed as `ctx.kv.set`/`ctx.kv.delete` calls instead of a bespoke port.
+
+This revision also corrects a second, independent error the first revision introduced. That draft's
+own editorial note claimed `host_not_declared` "is not one of `ExternalModuleRpcError`'s actual
+codes" and "corrected" a test to assert `invalid_rpc` instead. That correction was itself wrong:
+`host_not_declared` **is** a real code — just not on `ExternalModuleRpcError`. It belongs to
+`HostPinnedFetchErrorCode`, thrown via `HostPinningViolationError extends HostPinnedFetchError`
+(`packages/host-fetch/src/index.ts`) from inside `createHostPinnedFetch` itself, whenever the merged
+hosts array is non-empty but does not contain the requested URL's hostname. `invalid_rpc` is correct
+only for the narrower, different case where the merged array is empty (`worker-rpc-host.ts`'s
+existing `if (!hosts?.length) throw new ExternalModuleRpcError("invalid_rpc")` check, unchanged by
+this task). Integration test 1 below now asserts both cases separately instead of conflating them.
+
 **Files**
 
 - Create: `external-modules/job-search/sql/0008_create_job_search_custom_sources.sql` — the source
   **definition** only (label/url/host/which profile named it), never the fetch capability itself.
 - Create: `external-modules/job-search/src/adapters/custom.ts` — the `Portal` implementation for a
   user-named source
-- Create: `external-modules/job-search/src/worker/handlers/source.ts` — `source.add`, `source.remove`
+- Create: `external-modules/job-search/src/worker/handlers/source.ts` — `source.add`, `source.remove`;
+  these call `ctx.kv.set`/`ctx.kv.delete` directly (no new port, no new RPC branch — see Contracts)
 - Modify: `external-modules/job-search/src/domain/store-port.ts` — add `CustomSource` and the
   **three** new `JobSearchStore` methods below (no `listGrantedHosts` — see Contracts)
-- Modify: `external-modules/job-search/jarvis.module.json` — two more tools
-- Create: `packages/module-registry/sql/0176_module_fetch_host_grants.sql` — the platform-owned grant
-  table (0176 is the next free number as of this writing; every `packages/*/sql` and
-  `infra/postgres/migrations` file shares one numbering sequence, current max `0175`
-  (`packages/notifications/sql/0175_notification_event_keys.sql`) — **re-check the max at
-  implementation time**, this is a shared, actively-worked tree and another session may take 0176
-  first.
-- Create: `packages/module-registry/src/external/fetch-host-grants.ts` — `listGrantedFetchHosts`,
-  `grantFetchHost`, `revokeFetchHost`: the repository functions the RPC branches below call. New file
-  because these belong to the platform (`module-registry`), not to job-search.
-- Modify: `packages/module-sdk/src/worker.ts` — add `ModuleHostGrantPort` and `ctx.hostGrants`,
-  following the existing `ModuleNotifyPort`/`ctx.notify` pattern exactly.
+- Modify: `external-modules/job-search/jarvis.module.json` — two more tools; a `storage` entry
+  declaring the `job-search.fetch-host-grants` namespace (`scopes: ["user"]`); and the new
+  `fetchHostGrantsNamespace` manifest field (see below) pointing at that namespace.
+- Modify: `packages/module-sdk/src/index.ts` — add one new optional field to
+  `JsonJarvisModuleManifest`: `readonly fetchHostGrantsNamespace?: string`. Needed because
+  `fetch.request` is a generic, module-agnostic RPC branch with no other way to know which of a
+  module's (possibly several) declared `storage` namespaces holds fetch-host grants — N18 says "a
+  manifest-declared namespace" but does not name the mechanism; this field is that mechanism, and it
+  is the only new schema Task 24 adds anywhere. No new SDK **port** — `ctx.kv` already exists.
+- Modify: `packages/module-registry/src/external/validate.ts` — validate `fetchHostGrantsNamespace`
+  when present: it must equal the `namespace` of one of the module's own `storage` declarations, and
+  that declaration's `scopes` must include `"user"` (a module cannot point the grants field at a
+  namespace it never declared, or at an instance-only one).
 - Modify: `packages/module-registry/src/external/worker-rpc-host.ts` — the `fetch.request` branch's
-  host list becomes `manifest.fetchHosts` **∪** a platform-table lookup for `(moduleId,
-  actorUserId)`; two new RPC branches, `hostGrants.grant` / `hostGrants.revoke`; two new
-  `ExternalModuleRpcError` codes.
-- Modify: `tests/integration/foundation-schema-catalog.test.ts` — one new row for `0176` in the
-  migration-ledger array (this test asserts the **full** migration list; a new platform migration
-  file with no matching row fails this test, not a silent pass).
+  host list becomes `manifest.fetchHosts` **∪** `listModuleKvKeys` against `app.module_kv` for
+  `(moduleId, fetchHostGrantsNamespace, scope: "user", actorUserId)`, read inside the branch's own
+  short `workerDataContext.withDataContext(...)` call that returns before `createHostPinnedFetch`
+  runs (see Contracts). **No new RPC branches, no new error codes** — `source.add`/`source.remove`
+  write the grant through the existing generic `kv.set`/`kv.delete` branches (lines ~403-434),
+  unchanged by this task.
 - Test: `tests/unit/job-search-adapter-custom.test.ts`
 - Test: `tests/unit/job-search-source-handler.test.ts`
-- Test additions: `tests/integration/module-worker-rpc.test.ts` — the merged-host case, the
-  grant/revoke RPC branches, and the crash-ordering case, all at the platform boundary (this is the
-  one file every external module's `fetch.request` calls go through; it is not job-search-specific,
-  and the new cases belong there, not in a job-search test).
+- Test additions: `tests/integration/module-worker-rpc.test.ts` — the merged-host cases (including
+  the corrected `host_not_declared`/`invalid_rpc` split) and the grant/revoke round trip through
+  `fetch.request`, all at the platform boundary (this is the one file every external module's
+  `fetch.request` calls go through; it is not job-search-specific, and the new cases belong there,
+  not in a job-search test). No new migration, so **no** change to
+  `tests/integration/foundation-schema-catalog.test.ts`.
 
 **Contracts**
 
 ```sql
 -- 0008_create_job_search_custom_sources.sql
--- A user-named job board, registered conversationally. This is the DEFINITION only (ledger N17):
--- host/label/url are what turns it into an ordinary Portal at crawl time — a custom source is not a
--- second code path, it is one more row `listPortals` can join against. It is NOT the fetch
--- capability. `host` being fetchable for this owner is a separate fact, recorded in the
--- platform-owned `app.module_fetch_host_grants` below — module isolation cuts both directions: a
--- module never queries another module's tables, and the platform never reaches into a module's own
--- tables either, so `worker-rpc-host.ts`'s `fetch.request` branch cannot query this table directly.
+-- A user-named job board, registered conversationally. This is the DEFINITION only (ledger N17,
+-- storage mechanism revised by N18): host/label/url are what turns it into an ordinary Portal at
+-- crawl time — a custom source is not a second code path, it is one more row `listPortals` can join
+-- against. It is NOT the fetch capability. `host` being fetchable for this owner is a separate fact,
+-- recorded as a row in the existing platform-owned `app.module_kv` table (no new table — see below)
+-- — module isolation cuts both directions: a module never queries another module's tables, and the
+-- platform never reaches into a module's own tables either, so `worker-rpc-host.ts`'s `fetch.request`
+-- branch cannot query this table directly.
 CREATE TABLE app.job_search_custom_sources (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_user_id uuid NOT NULL REFERENCES app.users(id) ON DELETE CASCADE,
@@ -100,70 +131,25 @@ CREATE TABLE app.job_search_custom_sources (
 );
 ```
 
-```sql
--- packages/module-registry/sql/0176_module_fetch_host_grants.sql
--- Platform-owned, module-agnostic (ledger N17). Keyed by (module_id, owner_user_id, host) because
--- that is exactly what worker-rpc-host.ts's `fetch.request` branch has to scope by: `input` there
--- carries `actorUserId` and `module`, never a `profileId` (confirmed at
--- worker-rpc-host.ts:211-223) — a runtime grant can only ever be owner-scoped, not profile-scoped,
--- because the RPC boundary itself has nothing narrower to scope to. Any module wanting a runtime
--- host grant uses this one table; job-search is the first caller, not a special case of it.
-CREATE TABLE app.module_fetch_host_grants (
-  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  module_id     text NOT NULL,
-  owner_user_id uuid NOT NULL REFERENCES app.users(id) ON DELETE CASCADE,
-  -- Same shape `isPinnableHost` requires (packages/host-fetch/src/policy.ts) — re-validated at
-  -- write time by the hostGrants.grant RPC branch, not just re-checked at fetch time.
-  host          text NOT NULL,
-  granted_at    timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (module_id, owner_user_id, host)
-);
+**No new SQL.** N18 withdraws the `app.module_fetch_host_grants` table above. The grant is instead a
+single `app.module_kv` row (`packages/settings/sql/0154_module_kv.sql`, already `scope='user'`,
+already RLS-enabled-and-forced, already unique on `(module_id, namespace, owner_user_id, key)`) with:
 
-ALTER TABLE app.module_fetch_host_grants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE app.module_fetch_host_grants FORCE ROW LEVEL SECURITY;
+- `module_id` = `"job-search"`
+- `namespace` = the value of the manifest's `fetchHostGrantsNamespace` field (see Contracts below;
+  `"job-search.fetch-host-grants"` in this module's own manifest)
+- `owner_user_id` = the granting actor
+- `key` = the host string itself (e.g. `"boards.example.com"`) — the key IS the identity, so
+  existence of a row is the grant; there is no separate boolean column to keep in sync.
+- `value` = `{}` (an empty JSON object; `kv.set` requires a `Record<string, unknown>` value and the
+  key already carries every fact this feature needs — a later task that wants to record `grantedAt`
+  can widen this without a migration, since `value` is schemaless jsonb)
 
--- Mirrors 0171_module_credentials_worker_write.sql's predicate shape exactly: module_id must match
--- the invoking worker's own module (app.current_module_id(), set via set_config in
--- worker-rpc-host.ts before any branch runs), the module must be enabled, and the row must belong
--- to the invoking actor. No admin bypass, no jarvis_app_runtime grant at all — nothing outside a
--- module's own worker invocation ever needs to read or write this table in Task 24's scope.
-CREATE POLICY module_fetch_host_grants_select ON app.module_fetch_host_grants
-  FOR SELECT TO jarvis_worker_runtime
-  USING (
-    app.current_actor_user_id() IS NOT NULL
-    AND module_id = app.current_module_id()
-    AND owner_user_id = app.current_actor_user_id()
-    AND EXISTS (
-      SELECT 1 FROM app.external_modules m
-      WHERE m.id = module_fetch_host_grants.module_id AND m.status = 'enabled'
-    )
-  );
-
-CREATE POLICY module_fetch_host_grants_insert ON app.module_fetch_host_grants
-  FOR INSERT TO jarvis_worker_runtime
-  WITH CHECK (
-    app.current_actor_user_id() IS NOT NULL
-    AND module_id = app.current_module_id()
-    AND owner_user_id = app.current_actor_user_id()
-    AND EXISTS (
-      SELECT 1 FROM app.external_modules m
-      WHERE m.id = module_fetch_host_grants.module_id AND m.status = 'enabled'
-    )
-  );
-
--- A real DELETE, not a soft-revoke: unlike module_credentials (which scrubs a secret's payload but
--- keeps an audit row), a revoked host grant that stayed queryable would still need `fetch.request`
--- to filter it back out, and the user's mental model is "I removed it" — the row should be gone.
-CREATE POLICY module_fetch_host_grants_delete ON app.module_fetch_host_grants
-  FOR DELETE TO jarvis_worker_runtime
-  USING (
-    app.current_actor_user_id() IS NOT NULL
-    AND module_id = app.current_module_id()
-    AND owner_user_id = app.current_actor_user_id()
-  );
-
-GRANT SELECT, INSERT, DELETE ON app.module_fetch_host_grants TO jarvis_worker_runtime;
-```
+`packages/settings/sql/0157_module_worker_runtime_access.sql` already grants `jarvis_worker_runtime`
+SELECT/INSERT/UPDATE/DELETE on `app.module_kv`, scoped to `app.current_module_id()` +
+`status = 'enabled'` + (`scope = 'instance'` OR `owner_user_id = app.current_actor_user_id()`) — the
+exact predicate shape the withdrawn table above hand-rolled. Nothing here is job-search-specific;
+this task's only claim on it is one row per granted host, in one manifest-declared namespace.
 
 ```ts
 // domain/store-port.ts additions — the closed JobSearchStore interface gains exactly these three
@@ -185,9 +171,10 @@ listCustomSources(profileId: string): Promise<CustomSource[]>;
 addCustomSource(profileId: string, url: string, label: string): Promise<CustomSource>;
 removeCustomSource(profileId: string, sourceId: string): Promise<void>;
 // No listGrantedHosts here (ledger N17 revises the first draft, which had this as a fourth
-// JobSearchStore method). The grant is platform-owned, not job-search's data: the worker writes it
-// through ctx.hostGrants (module-sdk), a new port declared on ModuleWorkerContext, not through the
-// store. JobSearchStore has no method that reads or writes app.module_fetch_host_grants at all.
+// JobSearchStore method; N18 revises the storage mechanism again but not this point). The grant is
+// platform-owned, not job-search's data: the worker writes it through ctx.kv (module-sdk's existing
+// port, packages/module-sdk/src/worker.ts:71-85), not through the store. JobSearchStore has no
+// method that reads or writes app.module_kv at all.
 ```
 
 ```ts
@@ -205,29 +192,13 @@ export function customPortal(source: { id: string; label: string; host: string; 
 export const CUSTOM_SOURCE_PAGE_BYTE_CAP = 300_000;
 ```
 
-```ts
-// packages/module-sdk/src/worker.ts additions — same shape as ModuleNotifyPort/ctx.notify
-// immediately above it in that file; wired through callParent exactly the same way.
-/** Runtime grant for THIS module's own pinned-fetch host allowlist (ledger N17). Platform-owned:
- * the grant list is not the module's data, it is a capability the actor granted this module,
- * stored keyed by (this module's manifest id, the actor) — never by profile, because
- * worker-rpc-host.ts's fetch.request branch has no profileId to scope by. There is no `list`
- * method: a module that needs to know what it granted already has that in its own source
- * definitions (job-search's `listCustomSources` — the `host` column is right there), so a
- * round trip back into the platform table would just be reading a fact the caller already has. */
-export interface ModuleHostGrantPort {
-  /** Adds `host` to this module's grant list for the invoking actor. Idempotent — granting an
-   * already-granted host is not an error. Rejects (RPC error `invalid_host_grant`) a host that
-   * fails `isPinnableHost` before it ever reaches storage. */
-  grant(host: string): Promise<void>;
-  /** Removes `host`. Idempotent — revoking an ungranted host is not an error. */
-  revoke(host: string): Promise<void>;
-}
-// Added to ModuleWorkerContext: `readonly hostGrants: ModuleHostGrantPort;`
-```
+**No new SDK port.** N18 withdraws `ModuleHostGrantPort`/`ctx.hostGrants` above. `ModuleWorkerContext`
+already has `readonly kv: {...}` (`packages/module-sdk/src/worker.ts:71-85`) with exactly the shape
+this feature needs — `get`/`set`/`delete`/`list`, each taking `(scope, namespace, key[, value])`. No
+`packages/module-sdk/src/worker.ts` change at all.
 
 ```ts
-// worker/handlers/source.ts
+// external-modules/job-search/src/worker/handlers/source.ts
 export const SOURCE_ADD_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -248,49 +219,110 @@ export const SOURCE_REMOVE_SCHEMA = {
     sourceId: { type: "string" }
   }
 } as const;
+
+// The one constant both handlers and the manifest declaration below must agree on. Declared here,
+// not in domain code, because it names a platform storage concept (a kv namespace), not a
+// job-search domain concept.
+export const FETCH_HOST_GRANTS_NAMESPACE = "job-search.fetch-host-grants";
+
+// source.add: store row first, THEN grant (ledger N17's write-ordering rule, unchanged by N18) — a
+// crash between the two leaves a source definition with no fetch capability yet, which is inert,
+// never a capability with no definition behind it.
+async function handleSourceAdd(ctx: ModuleWorkerContext, input: SourceAddInput): Promise<CustomSource> {
+  const source = await store.addCustomSource(/* ... */);
+  await ctx.kv.set("user", FETCH_HOST_GRANTS_NAMESPACE, source.host, {});
+  return source;
+}
+
+// source.remove: revoke first, THEN delete the row — the reverse order, so a crash between the two
+// always leaves the narrower capability (no grant, orphaned row) rather than the wider one (grant
+// with no row visibly explaining it).
+async function handleSourceRemove(ctx: ModuleWorkerContext, input: SourceRemoveInput): Promise<void> {
+  const source = await store.getCustomSource(/* ... */);
+  await ctx.kv.delete("user", FETCH_HOST_GRANTS_NAMESPACE, source.host);
+  await store.removeCustomSource(/* ... */);
+}
 ```
 
 ```ts
-// worker-rpc-host.ts — fetch.request branch: one new DB read, merged before the pinned fetch is
-// built. This moves fetch.request from "no DB touch at all" to "one indexed SELECT on every call,
-// even for a module with zero grants" — a deliberate small, constant cost for correctness over the
-// old free-of-cost-but-wrong shape (module isolation violated). `listGrantedFetchHosts` lives in
-// the new packages/module-registry/src/external/fetch-host-grants.ts, not in job-search.
+// external-modules/job-search/jarvis.module.json additions
+{
+  "storage": [{ "namespace": "job-search.fetch-host-grants", "scopes": ["user"] }],
+  "fetchHostGrantsNamespace": "job-search.fetch-host-grants"
+}
+```
+
+```ts
+// packages/module-sdk/src/index.ts — one new optional field on JsonJarvisModuleManifest, next to
+// `fetchHosts`. Generic wording, not job-search-specific: any module can opt into runtime host
+// grants by declaring both a user-scoped storage namespace and this field.
+/**
+ * Names a declared `storage` namespace (must have `scopes` including "user") whose keys are
+ * runtime-granted fetch hosts for the invoking actor, merged with `fetchHosts` by
+ * worker-rpc-host.ts's `fetch.request` branch. Absent means the module has no runtime grants — its
+ * fetch surface is exactly `fetchHosts`, as before this field existed.
+ */
+readonly fetchHostGrantsNamespace?: string;
+```
+
+```ts
+// packages/module-registry/src/external/validate.ts — new check, alongside the existing `storage`
+// array validation (lines ~373-408). Runs after storage entries are validated, so it can assume
+// `namespace` values are already well-formed.
+if (manifest.fetchHostGrantsNamespace !== undefined) {
+  const declared = (manifest.storage ?? []).find(
+    (s) => s.namespace === manifest.fetchHostGrantsNamespace
+  );
+  if (!declared) return invalid("fetchHostGrantsNamespace does not match a declared storage namespace");
+  if (!declared.scopes.includes("user")) {
+    return invalid("fetchHostGrantsNamespace's storage declaration must include the \"user\" scope");
+  }
+}
+```
+
+```ts
+// worker-rpc-host.ts — fetch.request branch. Sits at line ~211, OUTSIDE the withDataContext block
+// that starts at line 258 (N18): it opens and closes its OWN short-lived DataContext here, and that
+// context is already closed by the time createHostPinnedFetch makes the outbound request — holding
+// a DB connection open for the duration of a call to an adversarial remote host is exactly what N18
+// says not to do. `listModuleKvKeys` is the existing function
+// (packages/settings/src/repository-module-kv.ts) the generic `kv.list` RPC branch already calls;
+// this is the same function, called directly by the host instead of through an RPC round trip
+// because the host already has scopedDb in hand.
 if (method === "fetch.request") {
   const request = fetchRequest(params);
   const staticHosts = input.module.manifest.fetchHosts ?? [];
-  const grantedHosts = await input.workerDataContext.withDataContext(
-    { actorUserId: input.actorUserId, requestId: input.requestId },
-    (scopedDb) => listGrantedFetchHosts(scopedDb, { moduleId: input.module.id })
-  );
+  const namespace = input.module.manifest.fetchHostGrantsNamespace;
+  const grantedHosts = namespace
+    ? await input.workerDataContext.withDataContext(
+        { actorUserId: input.actorUserId, requestId: input.requestId },
+        (scopedDb) =>
+          listModuleKvKeys(scopedDb, {
+            moduleId: input.module.id,
+            namespace,
+            scope: "user",
+            ownerUserId: input.actorUserId
+          })
+      )
+    : [];
   const hosts = [...staticHosts, ...grantedHosts];
   if (!hosts.length) throw new ExternalModuleRpcError("invalid_rpc");
   // ...unchanged below: (input.createFetch ?? createHostPinnedFetch)(hosts)(request.url, {...})
-}
-
-// worker-rpc-host.ts — two new branches inside the existing withDataContext block, beside
-// auth.setCredential (same shape: validate, mutate-guard, call a platform repository function).
-if (method === "hostGrants.grant") {
-  if (input.toolRisk === "read") throw new ExternalModuleRpcError("forbidden_host_grant_mutation");
-  const host = stringParam(params, "host");
-  if (!isPinnableHost(host)) throw new ExternalModuleRpcError("invalid_host_grant");
-  await grantFetchHost(scopedDb, { moduleId: input.module.id, ownerUserId: input.actorUserId, host });
-  return undefined;
-}
-if (method === "hostGrants.revoke") {
-  if (input.toolRisk === "read") throw new ExternalModuleRpcError("forbidden_host_grant_mutation");
-  const host = stringParam(params, "host");
-  await revokeFetchHost(scopedDb, { moduleId: input.module.id, ownerUserId: input.actorUserId, host });
-  return undefined;
+  // A host present in `hosts` but not matching `request.url`'s hostname is NOT this branch's
+  // problem to catch — createHostPinnedFetch's own internal check throws HostPinningViolationError
+  // (code "host_not_declared") for that case, uncaught here, same as it already does today for
+  // manifest-only fetchHosts. This task changes what `hosts` contains, not how it is enforced.
 }
 ```
 
-```ts
-// worker-rpc-host.ts — ExternalModuleRpcError's code union gains exactly these two members,
-// added next to forbidden_notify_mutation/forbidden_credential_write in the same style:
-| "invalid_host_grant"
-| "forbidden_host_grant_mutation"
-```
+**No new RPC branches, no new error codes.** N18 withdraws `hostGrants.grant`/`hostGrants.revoke`
+and the two new `ExternalModuleRpcError` codes above. `source.add`/`source.remove` call
+`ctx.kv.set`/`ctx.kv.delete` directly (shown above) — those dispatch through the existing, unmodified
+`kv.set`/`kv.delete` RPC branches (`worker-rpc-host.ts:403-434`), which already enforce
+`undeclared_namespace` (namespace not in the manifest's `storage` array), `forbidden_kv_mutation`
+(`toolRisk === "read"`), and `forbidden_instance_kv_write` (instance-scope write without
+`instanceWritePolicy: "module"` or admin — not reachable here since this feature only ever writes
+`scope: "user"`).
 
 **Constraints**
 
@@ -299,29 +331,48 @@ if (method === "hostGrants.revoke") {
   has `input.actorUserId` and `input.module`, and nothing else — no `profileId` travels with a raw
   fetch call. Adding a host under Profile A therefore makes that host fetchable for **any** of that
   same owner's profiles, not just the one it was registered under. It never crosses to another user,
-  and (new in this revision) it never crosses to another module either: `app.module_fetch_host_grants`
-  is keyed by `(module_id, owner_user_id, host)`, so job-search granting `foo.example` says nothing
-  about whether some other module's worker can fetch it. This is a real, user-visible consequence
-  worth restating in the settings/board copy (Task 20), not a security gap — the isolation boundary
-  here is (module, owner), same as every other RPC-scoped capability in this file.
-- **The grant table is platform-owned because module isolation cuts both directions (ledger N17).**
-  The first draft had `worker-rpc-host.ts` query `app.job_search_custom_sources` directly — a
-  job-search table — to build the merged host list. That is exactly the violation the "no module
-  queries another module's tables" rule exists to prevent, just aimed the other way: here it would be
-  the **platform** reaching into a **module's own** table. `app.module_fetch_host_grants` fixes this
-  by being nobody's module table — every module that ever wants a runtime host grant uses the same
-  one, through the same `ctx.hostGrants` port, and `worker-rpc-host.ts` never needs to know
-  job-search's schema (or any other module's) to enforce it.
-- **Reuse, don't rebuild, the host check.** `isPinnableHost`/`assertValidFetchHosts`
-  (`packages/host-fetch/src/policy.ts:1,6`) are the only validation this task adds, at two points: the
-  `source.add` handler (below) and the new `hostGrants.grant` RPC branch, which independently
-  re-checks `isPinnableHost` before any write — a caller cannot get a malformed host into the grant
-  table by skipping the handler-level check, without adding a second implementation of the predicate.
-  `createHostPinnedFetch` already runs `assertValidFetchHosts` internally on the merged list before
-  every request (`packages/host-fetch/src/index.ts`), and its existing `BLOCKED`
-  loopback/link-local/RFC1918/cloud-metadata subnet list and DNS-pinning apply to a granted host
-  exactly as they do to `freehire.me` — nothing about that machinery is custom-source-aware and
-  nothing here should make it so. Per Ben's ruling (ledger lines 594–601): no new security machinery.
+  and it never crosses to another module either: the `app.module_kv` row is unique on `(module_id,
+  namespace, owner_user_id, key)`, so job-search granting `foo.example` says nothing about whether
+  some other module's worker can fetch it. This is a real, user-visible consequence worth restating
+  in the settings/board copy (Task 20), not a security gap — the isolation boundary here is (module,
+  owner), same as every other RPC-scoped capability in this file.
+- **The grant lives in a platform-owned table because module isolation cuts both directions (ledger
+  N17, storage mechanism revised by N18).** The first draft had `worker-rpc-host.ts` query
+  `app.job_search_custom_sources` directly — a job-search table — to build the merged host list. That
+  is exactly the violation the "no module queries another module's tables" rule exists to prevent,
+  just aimed the other way: here it would be the **platform** reaching into a **module's own** table.
+  `app.module_kv` fixes this by being nobody's module table — every module that ever wants a runtime
+  host grant uses the same one, through the same `ctx.kv` port, and `worker-rpc-host.ts` never needs
+  to know job-search's schema (or any other module's) to enforce it. N18 replaces the bespoke table
+  this bullet originally proposed with the already-existing platform KV store; the "nobody's module
+  table" reasoning is unchanged, only which table it points at.
+- **Three real constraints bound self-granting — state them plainly, claim nothing more (ledger
+  N18).** A module that can add a host at runtime can, by construction, add a host at runtime; no
+  storage choice changes that. What actually constrains it: (1) **the capability is manifest-
+  declared** — `kv.set` rejects any namespace the module's reviewed, hash-pinned manifest does not
+  declare (`undeclared_namespace`), so a module that never declares `fetchHostGrantsNamespace` and
+  its backing `storage` entry can never grant anything, and the user consented to the one that does
+  at install (consent = install, not a new runtime prompt); (2) **enforcement is unchanged** —
+  `assertValidFetchHosts`/`createHostPinnedFetch` treat a granted host exactly as a manifest host, so
+  the BLOCKED loopback/link-local/RFC1918/cloud-metadata subnets and DNS pinning apply identically;
+  (3) **every granted host must be visible and revocable** on the module's settings surface (Task
+  20) — a capability the user cannot see is one we could not defend. Per Ben's ruling (ledger lines
+  594–601): no new security machinery beyond these three.
+- **Reuse, don't rebuild, the host check — with one disclosed trade-off from moving to generic KV.**
+  `isPinnableHost`/`assertValidFetchHosts` (`packages/host-fetch/src/policy.ts:1,6`) remain the only
+  host-format validation this task touches. `source.add` still checks `isPinnableHost` before ever
+  calling `ctx.kv.set` (below). What N18's design does **not** have, that the withdrawn
+  `hostGrants.grant` RPC branch would have had, is a second, independent re-check at the write itself:
+  `kv.set` is fully generic — it has no concept of "this value is a hostname" and validates only
+  namespace/scope/size. A malformed host could only reach storage by bypassing `source.add` entirely
+  (e.g. a direct `kv.set` call crafted by a compromised or buggy module build, not through this
+  module's own tool surface) — and if one did, `createHostPinnedFetch`'s existing
+  `assertValidFetchHosts` call still throws on it, but for the **whole merged array**, on **every**
+  `fetch.request` for that actor+module, not just requests to the bad host. That is a coarser failure
+  mode than the withdrawn design's reject-at-write-time (an outage instead of a rejected write), but
+  not a security regression — no unpinnable host ever reaches `createHostPinnedFetch` unchecked
+  either way. Test 5 below exercises this trade-off directly rather than asserting a rejection that
+  no longer happens.
 - **`source.add` validates before it ever reaches storage or the fetch layer**, so a bad URL is a
   clear tool-call error instead of a confusing first-crawl failure later: `new URL(url)` must not
   throw; `protocol` must be `"https:"`; `hostname.toLowerCase()` must satisfy `isPinnableHost`. All
@@ -331,8 +382,8 @@ if (method === "hostGrants.revoke") {
   registration** (`"linkedin.com already has a built-in source"`-style error) — a custom source
   shadowing a built-in adapter would get the built-in's worse, unstructured extraction instead of
   its real parser, for no benefit. This is job-search's own business rule, checked in the `source.add`
-  handler before the write sequence below even starts — `hostGrants.grant` (platform-level, generic
-  across every module) does not and should not know about any one module's adapter registry.
+  handler before the write sequence below even starts — `kv.set` (platform-level, generic across
+  every module) does not and should not know about any one module's adapter registry.
 - **`source.add` never enqueues**, matching Task 16 test 1's rule for `criteria.set`: a handler
   cannot enqueue, and the source is picked up on this profile's next scheduled or triggered crawl —
   there is nothing here for it to enqueue *to* that isn't already the ordinary crawl path.
@@ -342,8 +393,8 @@ if (method === "hostGrants.revoke") {
   happened" for "removed." Disabling a built-in stays `job-search.portal.set-enabled`, unchanged.
 - **No cross-table, no cross-RPC-port transaction — two separate ordering rules, not one.**
   `ctx.db.query` allows no `BEGIN` (Task 13's constraint 1), and the grant now lives behind a
-  different port entirely (`ctx.hostGrants`, not `ctx.db`), so there is no way to make the source row
-  and the grant atomic even in principle. Two independent pairs, two independent rules:
+  different port entirely (`ctx.kv`, not `ctx.db`), so there is no way to make the source row and the
+  grant atomic even in principle. Two independent pairs, two independent rules:
   - **Within job-search's own tables** (unchanged from the first draft): `removeCustomSource` deletes
     the `job_search_custom_sources` row first — that row is the one thing that makes a source exist
     — and best-effort deletes its `job_search_portals` health row second. A crash between the two
@@ -351,10 +402,12 @@ if (method === "hostGrants.revoke") {
     source_id with a matching `job_search_custom_sources` row, so the orphan is invisible cruft, not
     a phantom portal, and a later crawl can never collide with a stale id (`gen_random_uuid` is not
     reused).
-  - **Between the source row and the platform grant** (ledger N17, new in this revision): **add**
-    writes the `job_search_custom_sources` row first, then calls `ctx.hostGrants.grant(host)` second.
-    **Remove** calls `ctx.hostGrants.revoke(host)` first, then deletes the `job_search_custom_sources`
-    row (then, as above, best-effort deletes the health row last). The rule in both directions is
+  - **Between the source row and the platform grant** (ledger N17, storage mechanism revised by
+    N18): **add** writes the `job_search_custom_sources` row first, then calls
+    `ctx.kv.set("user", FETCH_HOST_GRANTS_NAMESPACE, host, {})` second. **Remove** calls
+    `ctx.kv.delete("user", FETCH_HOST_GRANTS_NAMESPACE, host)` first, then deletes the
+    `job_search_custom_sources` row (then, as above, best-effort deletes the health row last). The
+    rule in both directions is
     "narrower capability wins on a crash": a source row with no grant fails closed and visibly — it's
     listed, but any crawl attempt against it is rejected by `fetch.request` the same way an
     undeclared host always is — never a silent no-op read of stale postings. A grant with no source
@@ -488,51 +541,102 @@ if (method === "hostGrants.revoke") {
    mid-operation failure — the orphan must not resurface as a phantom listing.
 6. **Every handler strips `actorUserId` via `stripEnvelope`/`validateProfileInput`** and rejects a
    genuinely unknown key, matching Task 16 test 6's rule for this module's other handlers.
-7. **`source.add` calls `ctx.hostGrants.grant` only after `store.addCustomSource` has already
-   succeeded** — asserts call order via a spy on both, and that a rejected `addCustomSource` never
-   reaches `hostGrants.grant` at all (ledger N17's add ordering, source-row-then-grant).
-8. **`source.remove` calls `ctx.hostGrants.revoke` before `store.removeCustomSource`** — asserts the
-   reverse call order from test 7 (ledger N17's remove ordering, grant-then-source-row), and that a
-   rejected `hostGrants.revoke` prevents `removeCustomSource` from running at all — the source stays
-   listed and fetchable-looking rather than silently losing its capability out from under it.
+7. **`source.add` calls `ctx.kv.set("user", FETCH_HOST_GRANTS_NAMESPACE, host, {})` only after
+   `store.addCustomSource` has already succeeded** — asserts call order via a spy on both, and that a
+   rejected `addCustomSource` never reaches `ctx.kv.set` at all (ledger N17's add ordering,
+   source-row-then-grant; storage mechanism revised by N18).
+8. **`source.remove` calls `ctx.kv.delete("user", FETCH_HOST_GRANTS_NAMESPACE, host)` before
+   `store.removeCustomSource`** — asserts the reverse call order from test 7 (ledger N17's remove
+   ordering, grant-then-source-row), and that a rejected `ctx.kv.delete` prevents
+   `removeCustomSource` from running at all — the source stays listed and fetchable-looking rather
+   than silently losing its capability out from under it.
 
 **Tests** (`tests/integration/module-worker-rpc.test.ts` additions)
 
-1. **A `fetch.request` for a host present only in a caller-scoped grant (not in
-   `manifest.fetchHosts`) succeeds** when `app.module_fetch_host_grants` has a matching row, and
-   **fails with `invalid_rpc`** when it does not — proving the merge is additive, not a replacement
-   of the manifest list. (Corrected from the first draft's `host_not_declared`, which is not one of
-   `ExternalModuleRpcError`'s actual codes — `fetch.request`'s existing empty-host-list branch already
-   throws `invalid_rpc`, and this task does not add a new code for this case.)
-2. **Two different actors' grants never leak into each other's `fetch.request` calls** — actor A's
-   granted host is unreachable through actor B's invocation even when both call the same module's
-   `fetch.request` in the same test run. This is the one assertion this task cannot skip: it is the
-   direct test of the "owner-scoped, not global" claim in Constraints.
-3. **Two different modules' grants never leak into each other's `fetch.request` calls** — the same
-   actor granting `foo.example` to module A does not make it fetchable from module B's invocation,
-   even though both rows would share `owner_user_id`. Direct test of the `(module_id, owner_user_id,
-   host)` key actually being enforced, not just documented.
-4. **`hostGrants.grant` persists a row queryable by a subsequent `fetch.request` in the same test**,
-   and **`hostGrants.revoke` removes it** such that a following `fetch.request` for that host alone
-   (nothing in `manifest.fetchHosts`) then fails with `invalid_rpc` again — the round trip proves the
-   RPC branches and the merge read the same table.
-5. **`hostGrants.grant` rejects a non-pinnable host** (uppercase, a port, an IP literal) with
-   `invalid_host_grant`, and the row is never written — asserted by a following `fetch.request`
-   showing no such grant exists.
-6. **A read-risk tool invocation cannot call `hostGrants.grant` or `hostGrants.revoke`** —
-   `forbidden_host_grant_mutation`, mirroring the existing `forbidden_notify_mutation`/
-   `forbidden_credential_write` read-risk tests already in this file.
-7. **`hostGrants.grant`/`revoke` for a disabled module is rejected at the database, not just at the
-   application layer** — disable the module between grant attempts and assert the RLS policy's
-   `EXISTS (... status = 'enabled')` clause actually blocks the write, mirroring the equivalent
-   `module_credentials_worker_write` test if one already exists for that table (grep for it before
-   writing a new one from scratch).
+Corrected from the first revision, which conflated two distinct failure surfaces under a single
+wrong assertion (see the second revision note at the top of this part): `fetch.request`'s existing
+empty-hosts-array check (`worker-rpc-host.ts`, unchanged by this task) throws
+`ExternalModuleRpcError` with code `invalid_rpc`, but that only covers the case where the merged
+array has nothing in it at all. A non-empty merged array that simply doesn't contain the requested
+URL's hostname throws a *different*, uncaught exception from inside `createHostPinnedFetch` itself —
+`HostPinningViolationError extends HostPinnedFetchError` (`packages/host-fetch/src/index.ts`), code
+`host_not_declared`. These tests call the `rpc(...)` function returned by
+`createExternalModuleRpcHandler` directly (this file's existing style — see e.g. the "projects
+host-pinned fetch responses" test), so the raw rejection is what a test observes; `toMatchObject({
+code: "..." })` works identically for both exception classes since `HostPinnedFetchError` also
+exposes `.code`.
+
+1. **Two sub-cases, asserted separately, not one:** (a) a module declaring a non-empty
+   `fetchHosts` (job-search always does) with an empty or undeclared grants namespace, invoked with a
+   URL whose host is in neither — `rejects.toMatchObject({ code: "host_not_declared" })`; (b) a
+   module with an empty `fetchHosts` **and** no `fetchHostGrantsNamespace` declared at all —
+   `rejects.toMatchObject({ code: "invalid_rpc" })`, the pre-existing empty-array branch, unchanged
+   and untouched by this task.
+2. **A host granted via `kv.set` in the manifest-declared namespace is then reachable through
+   `fetch.request`** — grant, then call `fetch.request` for that host and assert it resolves (using
+   the same `createFetch` test seam the existing "projects host-pinned fetch responses" test uses).
+   This is the one genuinely new code path Task 24 adds (the merge in the `fetch.request` branch), so
+   it is the one thing this file did not already prove.
+3. **The merge respects actor and module scoping end-to-end, through the real RPC calls — not a
+   re-test of `app.module_kv`'s RLS.** Row-level isolation for `app.module_kv` is already covered
+   generically in this file ("denies userB access to userA credential and KV rows",
+   "returns no rows for a disabled or missing module context"); re-asserting that here would just be
+   duplicating existing coverage. What is new is whether `fetch.request`'s merge logic *passes the
+   right scope down* to the KV lookup: grant a host for actor A under module A via `kv.set`, then
+   assert `fetch.request` for that host succeeds for actor A / module A, and fails
+   (`host_not_declared`, per test 1a) for actor B on the same module and for actor A on a different
+   module. A bug in the new merge code (e.g. forgetting to scope by `ownerUserId`, or hardcoding a
+   namespace) is exactly what this test would catch and the generic RLS tests would not, since raw
+   SQL against a fixed fixture never exercises the new branch at all.
+4. **`kv.delete` on the grants namespace removes a previously granted host from the merge** — round
+   trip continuing from test 2: grant, confirm reachable, `kv.delete` the same key, then assert the
+   next `fetch.request` for that host alone throws again per test 1's rule (`host_not_declared` if
+   the module also declares a static `fetchHosts` entry, `invalid_rpc` only in the fully-empty case).
+5. **A malformed host written directly via `kv.set` (bypassing `source.add`'s `isPinnableHost`
+   check) is accepted at the KV layer, and only fails later, for every host, at fetch time** — proves
+   the disclosed trade-off in Constraints rather than a rejection that no longer exists under this
+   design: `kv.set("user", NAMESPACE, "NOT-A-HOST!", {})` resolves (generic KV has no host-format
+   validation), and a subsequent `fetch.request` for *any* host on that module+actor then rejects via
+   `createHostPinnedFetch`'s own `assertValidFetchHosts` check on the merged array — not a rejected
+   write, a wholesale fetch outage until the bad key is removed. This is a regression test against
+   ever "fixing" that by adding host-format validation to the generic `kv.set` branch, which would
+   silently constrain every other module's unrelated KV usage.
+
+No new tests for: a read-risk tool calling `kv.set`/`kv.delete` on this namespace (already covered
+generically — `forbidden_kv_mutation`, existing test in this file), or a disabled module's writes
+being rejected (already covered generically — `app.module_kv`'s RLS policy from 0157 is
+`status = 'enabled'`-gated the same way for every module, and this file already has coverage for it).
+Task 24 adds no job-search-specific copy of either generic guarantee because there is no
+job-search-specific RPC branch left for either to guard.
 
 **Verify**
 
 ```bash
 pnpm vitest run tests/unit/job-search-adapter-custom.test.ts tests/unit/job-search-source-handler.test.ts \
   && pnpm test:integration tests/integration/module-worker-rpc.test.ts \
-  && pnpm test:integration tests/integration/foundation-schema-catalog.test.ts \
-  && pnpm check:external-modules   # exit 0 for all four
+  && pnpm check:external-modules   # exit 0 for all three
 ```
+
+No `foundation-schema-catalog.test.ts` run: N18 adds no migration and no new table, so there is no
+new catalog row for that test to assert. (Its unrelated existing assertions about `app.module_kv`
+and 0157 are already exercised by whichever task first shipped that migration, not this one.)
+
+**Note to team-lead — two things in this part were designed, not found, and need your sign-off
+specifically (everything else is an existing mechanism reused unchanged):**
+
+1. **The extraction step's shape** (Constraints, above) — there is no existing precedent in this
+   codebase for "fetch an arbitrary third-party page and structure-extract it," so the byte cap
+   (300,000 bytes, keyed off `MAX_RENDERED_TOOL_RESULT_CHARS` as the nearest existing precedent for
+   "how much untrusted text is safe to hand a model"), the deadline-awareness placement, the
+   untrusted-data prompt framing, and the whole-extraction-fails-on-one-bad-field rule are all this
+   part's own design, not a transcription of an existing pattern.
+2. **`fetchHostGrantsNamespace` as the manifest field naming which `storage` namespace holds runtime
+   fetch-host grants** (Files/Contracts, above) — ledger N18 established that the grant lives in a
+   manifest-declared `app.module_kv` namespace but did not name the mechanism by which
+   `worker-rpc-host.ts`'s module-agnostic `fetch.request` branch learns *which* namespace that is for
+   a given module. This field is that mechanism; it is the only new schema this part adds anywhere.
+
+Everything else in this part — the KV storage reuse (N18), the write-ordering rule (N17), the
+`parse_failed`/`disabled` distinction (N16), and the `host_not_declared`/`invalid_rpc` split (this
+revision) — is either an existing platform mechanism or a ledger ruling already made; only these two
+items are new judgment calls this part is asking you to bless before Task 24 code is written.
