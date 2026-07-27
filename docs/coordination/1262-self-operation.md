@@ -2391,3 +2391,63 @@ assert exact `toBe`. Because #1265 is RED with substantial remediation plus a UA
 **#1264 will most likely land first and #1265 rebases onto it** — the reverse of the original
 assumption. Counting gotcha repeated: People declares grants in `packages/people/src/tools.ts`, not a
 `manifest.ts`.
+
+### CORRECTION — my undo-CAS ruling was wrong; the lane caught it before building
+
+Recorded 2026-07-27. The #1264 lane came back **before writing code** to say my relay-8 instruction —
+"apply via `upsertWithRevision(..., entry.previousRevision)`" — is broken, and it is right.
+
+`entry.previousRevision` holds the **pre**-mutation revision. Immediately after the tracked write the
+row is already at `previousRevision + 1`, so a CAS of `WHERE revision = previousRevision` would
+**always** conflict, even on the very next turn. That fails the exact thing spec line 180 tests (an
+immediate "change that back" must succeed) and it contradicts the required test that a **plain write
+on top** is the only thing that makes undo refuse.
+
+**Approved fix:** a new entry field carrying the **post**-mutation revision (the tracked write's own
+result); the undo CAS uses that. `previousRevision` keeps its current meaning (pre-mutation,
+`null` = row did not exist) and is used **only** to choose the delete-vs-upsert branch. Four
+constraints attached:
+
+1. The post-mutation revision comes from the tracked write's **own return value** — never a follow-up
+   read of the row. A read-back reintroduces the window CAS exists to close and hides a missing bump.
+2. Two fields, two distinct jobs, a why-comment on each.
+3. A successful undo **consumes** its entry, so a second "change that back" cannot re-apply against a
+   revision the undo itself bumped. Asserted explicitly in a test.
+4. Undo is a write tool ⇒ declares a grant + family ⇒ moves the inventory counts. This is the ordering
+   argument for undo-before-Task-10, restated.
+
+Second time this run a build agent has been right against a coordinator instruction (the first was
+refusing "not green → discard" over 257 lines of deliberate TDD-red). Both times it asked instead of
+complying. That is the behaviour to keep.
+
+### #1265 — validator scope question raised and already discharged by the lane
+
+`bc506b6a` landed all three BLOCKING-1 belts, and belt (b) went further than asked: the gateway
+validator **parsed none of** `minLength`/`maxLength`/`pattern`, so any bound declared in a manifest
+input schema was decorative. Real finding, worth keeping — but it is a **cross-cutting platform change
+riding on a security PR**, so I put four questions to the lane. It had already answered all four in
+`4e1eca69`:
+
+- **Blast radius verified in-tree:** the only other tool input schema declaring string bounds is
+  `packages/settings/src/app-map-tool.ts` (four `maxLength`, no `pattern`), now enforced as its author
+  intended. Nothing currently-passing newly fails.
+- **The stale instruction comment is fixed.** `packages/calendar/src/manifest.ts` told authors the
+  validator honours `required` but *not* `pattern`/`format`/etc. — which read as permission to ship a
+  decorative bound. Corrected, and it names #1265 as the change point.
+- **Anchoring is documented** in the validator's exported docstring: patterns match the whole string
+  even when written unanchored (a substring match would let `ok/../../etc` satisfy `[a-z]+`).
+- **External reach is documented** — installed external modules' already-declared bounds become real
+  rejections. Nominally #1267 territory, so it must also be stated in the **PR body**; that is the one
+  piece still outstanding and it belongs to wrap-up.
+
+Still open on #1265, unchanged: BLOCKING-2 (the mandatory UAT spec + a real `module-install.uat.spec.ts`
+run with an unpiped exit code), the one extra SSRF case that only `source-resolution.ts:83` can catch,
+the vacuous denylist assertion, the unrestored `configureSportsChatTools` singleton, and the
+cross-actor-RLS span escalation.
+
+### Fleet
+
+`w1:p13B` (#1264, `ff8aa7a0`) **reaped**. `w1:p13D` (#1264, `26e77844`) is driving and building the
+undo apply path. `w1:p13C` (#1265, `7048c36b`) relayed again at `df6b6298` and is spawning its
+successor — messages queued to it may die with the pane, so the validator ruling above is re-sent to
+whichever pane comes up. `w1:p137` (qa-1265, `5d55cb29`) held idle for the delta re-review.
