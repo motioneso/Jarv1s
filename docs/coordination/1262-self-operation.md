@@ -3099,3 +3099,56 @@ bookkeeping.
 
 Neither PR merges tonight. Both security tier, both parked on Ben's hands-on LAN UAT pass
 (AWAITING-BEN 8 and 8a). Whichever lands second rebases the inventory assertion to an exact `toBe`.
+
+## Continuation note — 2026-07-27, coordinator session 43e5f5e2
+
+**Fleet:** #1264 = `6438d10e` (`w1:p13S`, Sonnet 5) · #1265 = `f9ff23a9` (`w1:p13R`) ·
+QA held idle = `5d55cb29` (`w1:p137`). Predecessors `c2284222` (#1264 relay-16) and the
+earlier #1265 relays are reaped. Nothing merges tonight: both lanes are security tier and
+park on Ben's hands-on LAN UAT pass (AWAITING-BEN items 8 and 8a).
+
+### Verified this window
+
+- **`97822f10` (#1264) is genuinely formatting-only.** Four axes checked, all clean: scope is
+  3 files (not a repo-wide `pnpm format` sweep); no #1265-owned file touched
+  (`app-map-tool.ts`, `packages/sports`, `packages/news`); `git show -w` content is pure
+  prettier re-wrapping with identical tokens; and the new limiter's knobs
+  (`JARVIS_RL_GATEWAY_AUTO_RUN_MAX` / `_WINDOW_MS` / `_MAX_ACTORS`) are **env-only** — they
+  appear in no manifest, tool inputSchema, or settings surface. That satisfies the standing
+  ban: the ceiling and window are operator config, not model-reachable, so the model cannot
+  widen its own rate limit.
+
+### CORRECTION — the file-size failure is NOT pre-existing (do not re-inherit this)
+
+#1264's relay-16 handoff describes the red `check:file-size` as "pre-existing … NOT banned
+territory". **That is wrong and must not reach the PR body.** Measured in the tree:
+
+- `packages/chat/src/routes.ts` — **994 lines on `origin/main`, 1025 on the branch.**
+- Commit `fc2a42b7` is *this lane's own Task 8 work*.
+
+The lane pushed it over; the lane fixes it. The agent meant "not from my current task", but
+"pre-existing" is the precise word that gets a red gate waived, and the waiver protocol
+requires proof of failure **on `origin/main` at the same SHA** — which does not exist here.
+This is the standing `verification-discipline` trap firing for real: never accept an agent's
+"pre-existing" without measuring it.
+
+Also noted: `packages/settings/src/routes.ts` is at **exactly 1000** (996 on main). The gate
+fails only *above* 1000, so it passes, but it is one line from red. Comment count is
+unchanged at 139 — no comments were shaved to fit, which is the wrong fix and is now banned
+explicitly in the lane's instructions.
+
+### Extraction constraints issued to #1264 (`w1:p13S`)
+
+Splitting a **route file** in a security-tier PR is a pure move: no route path/method
+changes, no auth/permission/preHandler wiring changes, no schema or response-shape edits, no
+re-ordering of registration. Auth wiring lives in these files, so an opportunistic tidy-up is
+how a hole opens. **Required proof in the PR body:** enumerate registered routes (method +
+path + attached hooks) before and after and show they are identical — `git show -w` is not
+sufficient, because moved code always reads as changed; the route table is the invariant.
+
+### #1265 — stale-green trap still live
+
+`origin/1265-module-content-self-operation` is **still `b09bcad6`** while the worktree is at
+`813e3e8a`. PR #1273 shows MERGEABLE and green, but both CI and the existing QA verdict are
+grounded on the stale tip. Watcher `bzeblslks` remains armed on the remote ref; when it moves,
+dispatch the delta re-QA to `w1:p137` **grounded on the new tip**, never on the verdict in hand.
