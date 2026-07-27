@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "job-search",
+  "name": "Job Search",
+  "version": "0.1.0",
+  "publisher": "Jarvis Project",
+  "lifecycle": "optional",
+  "compatibility": { "jarv1s": ">=0.1.0" },
+  "description": "Finds job postings on public boards and reads each one against what you can do and what you actually want.",
+  "auth": [],
+  "storage": [
+    { "namespace": "job-search.settings", "scopes": ["user"] },
+    { "namespace": "job-search.meta", "scopes": ["user"] }
+  ],
+  "database": {
+    "ownedTables": [
+      "app.job_search_profiles",
+      "app.job_search_portals",
+      "app.job_search_postings",
+      "app.job_search_matches",
+      "app.job_search_resumes"
+    ]
+  },
+  "runtime": { "workerEntrypoint": "dist/worker.js", "workerContractVersion": 1 },
+  "fetchHosts": ["www.linkedin.com", "freehire.me"],
+  "assistantTools": [],
+  "worker": { "queues": [], "schedules": [], "reconcileJobs": [] },
+  "briefing": {
+    "handler": "briefing.contribute",
+    "sections": ["morning", "evening"],
+    "toolName": "job-search.briefing"
+  },
+  "web": { "entrypoint": "dist/web/index.js", "contractVersion": 1 },
+  "navigation": [
+    {
+      "id": "job-search",
+      "label": "Job Search",
+      "path": "/",
+      "icon": "compass",
+      "badge": { "source": "notifications" }
+    }
+  ]
+}
