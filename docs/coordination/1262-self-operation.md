@@ -1155,3 +1155,39 @@ Pre-commit verification reported: full `pnpm typecheck` (incl. apps/web + extern
 given: report the real exit code (never piped through `tail`/`head`); on red, send failing test
 names and **do not fix** — if a failure could be made to pass by widening a `defaultTier` or
 relaxing one of the new asserts, that is a stop-and-message.
+
+### Task C gate: RED at lint — and it exposed a real coverage gap (2026-07-27)
+
+`pnpm verify:foundation` on a fresh `jarvis_gate_1263` **exit code 1**, failing at the FIRST stage
+(`pnpm lint`) before typecheck/tests/migrate ever ran:
+
+```
+tests/integration/module-enablement.test.ts
+  11:3  error  'tasksModuleManifest' is defined but never used
+```
+
+Introduced by **Task A (`1751bc7a`)**, which I accepted. **My miss:** I reviewed that commit's
+*source* diff and not its *test* diff.
+
+**Do not drop the import — it is the fingerprint of a real gap.** The regression at
+`tests/integration/module-enablement.test.ts:689` calls
+`tasksCompat.grantInstallTimeTrustIfUnset(scopedDb)` **directly**. That covers the helper half of
+the fix. It does **not** cover the routing half — the `manifest.id === tasksModuleManifest.id`
+branch in `packages/module-registry/src/index.ts`. Delete that branch and the test still passes
+green while the security fix is gone. This is a "wired, not just defined" instance (cf. #1257).
+
+Ordered: cover the routing half using `tasksModuleManifest` so the import becomes honest.
+Preferred assertion is behavioural — drive the module **enable** path for tasks with a pre-existing
+legacy `tasks.agency_auto_execute = false` and assert the opt-out survives (the actual QA bug, end
+to end). Acceptable lesser version: assert the registry's resolved `grantSelfOperationForModule`
+for the tasks manifest routes into the compat helper rather than the generic path. Builder to say
+which it chose and why.
+
+**Explicit escape hatch given** (to avoid a 3am grind): if both are impractical in that harness,
+drop the import, say so, and I file a follow-up issue + disclose the gap on the PR. An admitted
+gap beats a fake test.
+
+Gate DB: keep, but DROP/CREATE fresh at the start of the rerun (migrate never ran).
+
+**Also owed before merge:** PR #1268 body disclosure 3 still says task list/tag deletion "no longer
+asks" — `37d5d78d` inverted that. Rewrite after the gate goes green.
