@@ -402,4 +402,65 @@ test.describe("Chat drawer — Approve/Reject card", () => {
     expect(resolveBody).toEqual({ status: "rejected" });
     expect(resolveUrl).toContain("/api/chat/action-requests/ar_test_2/resolve");
   });
+
+  // #1264: mutation-tight frontend counterpart to
+  // tests/integration/mcp-gateway-self-operation.test.ts's "first use after install grant runs
+  // without an action card" — that test proves the real gateway emits ONLY an `action_result`
+  // record (never `action_request`) for a granted-tier tool. This test feeds the live SSE stream
+  // that exact event shape and proves the drawer can structurally never render an Approve/Reject
+  // card for it, and never calls the resolve endpoint at all (a network-level proof, not just a
+  // DOM-selector absence). The real chat turn that would produce this event end-to-end needs a
+  // real chat model, which the UAT harness doesn't have — see
+  // tests/uat/specs/1264-settings-self-operation.uat.spec.ts's file header.
+  test("granted-tier settings tool executes with no Approve/Reject card (#1264)", async ({
+    page
+  }) => {
+    await mockApi(page, {
+      authenticated: true,
+      connectorAccounts: [],
+      connectorProviders: createMockConnectorProviders(),
+      notifications: [],
+      tasks: []
+    });
+
+    const actionResultEvent = JSON.stringify({
+      kind: "action_result",
+      text: "Switched to dark mode.",
+      toolName: "settings.themeMode.set",
+      outcome: "executed"
+    });
+    let streamServed = false;
+    await page.route("**/api/chat/stream", async (route) => {
+      if (streamServed) {
+        return;
+      }
+      streamServed = true;
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        headers: { "cache-control": "no-cache" },
+        body: `data: ${actionResultEvent}\n\n`
+      });
+    });
+
+    let resolveCallCount = 0;
+    await page.route("**/api/chat/action-requests/*/resolve", (route) => {
+      resolveCallCount += 1;
+      return route.fulfill({ status: 204, body: "" });
+    });
+
+    await page.goto("/");
+    await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+
+    // action_result records collapse into the "Behind the scenes" activity peek
+    // (apps/web/src/chat/message-row.tsx groupRecords/ActivityPeek), never the Approve/Reject
+    // card — the card only renders for a `kind === "action_request"` record.
+    const peekSummary = page.getByText("Behind the scenes");
+    await expect(peekSummary).toBeVisible({ timeout: 3000 });
+    await peekSummary.click();
+    await expect(page.getByText("Executed")).toBeVisible();
+
+    await expect(page.locator(".action-request-card")).toHaveCount(0);
+    expect(resolveCallCount).toBe(0);
+  });
 });
