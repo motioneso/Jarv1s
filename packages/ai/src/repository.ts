@@ -203,7 +203,7 @@ export interface InsertAuditLogInput {
   readonly actionFamilyId: string | null;
   readonly actionKind: "write" | "destructive";
   readonly approvalMode: "auto" | "yolo" | "confirmed" | "rejected" | "cancelled" | "timeout";
-  readonly outcome: "success" | "failed" | "denied" | "cancelled";
+  readonly outcome: "success" | "failed" | "denied" | "cancelled" | "invalid" | "conflict";
   readonly errorClass: string | null;
   readonly requestId: string | null;
   readonly chatSessionId: string | null;

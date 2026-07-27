@@ -309,7 +309,9 @@ describe("MVP foundation schema catalog", () => {
         { version: "0175", name: "0175_preferences_revision.sql" },
         // #1264 — forward infra: same CAS revision column on core-owned app.instance_settings,
         // no consumer yet.
-        { version: "0176", name: "0176_instance_settings_revision.sql" }
+        { version: "0176", name: "0176_instance_settings_revision.sql" },
+        // #1264 — widen audit outcome CHECK for settings CAS-conflict/validation-error tools.
+        { version: "0177", name: "0177_audit_outcome_widen.sql" }
       ]);
     } finally {
       await client.end();
