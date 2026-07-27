@@ -374,6 +374,103 @@ describe("AssistantToolGateway self-operation", () => {
     expect(emitted.map((entry) => entry.record.kind)).toEqual(["action_result"]);
   });
 
+  it("sports.followTeam/unfollowTeam through the gateway are RLS-isolated across actors (#1265 Task 5)", async () => {
+    // Unlike the install-grant test above (fake in-memory writer), this uses the REAL
+    // SportsFollowsRepository so the DB's owner-only RLS policy (migration 0133) is actually on
+    // the line. `sports-follows-tool-rls.test.ts` already proves isolation one layer below the
+    // gateway (calling SportsService.followTeam/unfollowTeam directly with a scoped db); this
+    // proves it through the tool/gateway path — i.e. that AssistantToolGateway.callTool threads
+    // *the calling token's* actorUserId into the data context, not some cached/ambient one. That
+    // threading is the trust boundary self-operation introduces: these tools run with no
+    // confirmation card, so nothing else stands between an untrusted call and the DB.
+    const grantManifest: SelfOperationManifestInput = {
+      id: sportsModuleManifest.id,
+      assistantTools: sportsModuleManifest.assistantTools,
+      assistantActionFamilies: sportsModuleManifest.assistantActionFamilies
+    };
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-sports-rls-grant-a" },
+      (scopedDb) => grantSelfOperationForModule(scopedDb, repository, grantManifest)
+    );
+    await runner.withDataContext(
+      { actorUserId: ids.userB, requestId: "req-sports-rls-grant-b" },
+      (scopedDb) => grantSelfOperationForModule(scopedDb, repository, grantManifest)
+    );
+
+    // Real writer (the default `new SportsFollowsRepository()` — no fake). Following/unfollowing
+    // a whole competition (no teamKey) never reaches the league-roster lookup, so the dataset
+    // client stub is unused and can stay untyped, same as the install-grant test above.
+    configureSportsChatTools({} as never);
+
+    function dbBackedSportsActionPolicy(ctx: { actorUserId: string; requestId: string }) {
+      return {
+        getFamilyTier: async (moduleId: string, familyId: string) =>
+          runner.withDataContext(
+            { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+            async (scopedDb) => {
+              const policies = await repository.listActionPolicies(scopedDb);
+              return (
+                policies.find((p) => p.moduleId === moduleId && p.actionFamilyId === familyId)
+                  ?.tier ?? null
+              );
+            }
+          ),
+        getFamilyManifest: async (_moduleId: string, familyId: string) =>
+          sportsModuleManifest.assistantActionFamilies?.find((f) => f.id === familyId) ?? null
+      };
+    }
+
+    const sportsGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [sportsModuleManifest],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 30_000,
+      actionPolicy: (ctx) => dbBackedSportsActionPolicy(ctx)
+    });
+
+    const tokenA = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-sports-rls-a",
+      allowedToolNames: null
+    });
+    const tokenB = tokens.mint({
+      actorUserId: ids.userB,
+      chatSessionId: "s-sports-rls-b",
+      allowedToolNames: null
+    });
+
+    const followed = await sportsGateway.callTool(tokenA, "sports.followTeam", {
+      competitionKey: "nfl"
+    });
+    expect(followed.ok).toBe(true);
+
+    // The actual assertion: user B's own token, entering via the same gateway/tool path an
+    // untrusted request would use, must not see or remove user A's follow. Mutation-tight against
+    // the exact bug this test targets: if the gateway ever ignored the token and threaded a fixed
+    // actor (e.g. userA) into the data context instead, this call would execute as userA and the
+    // row WOULD be removed — `removed` would flip to `true` and the assertion below would fail.
+    const bobUnfollow = await sportsGateway.callTool(tokenB, "sports.unfollowTeam", {
+      competitionKey: "nfl"
+    });
+    expect(bobUnfollow.ok).toBe(true);
+    if (bobUnfollow.ok) {
+      expect(bobUnfollow.structuredData).toEqual({ removed: false });
+    }
+
+    // Positive control: user A's own call still finds and removes the row it owns — proves the
+    // follow genuinely exists and user B's `removed: false` isn't vacuously true for everyone.
+    const aliceUnfollow = await sportsGateway.callTool(tokenA, "sports.unfollowTeam", {
+      competitionKey: "nfl"
+    });
+    expect(aliceUnfollow.ok).toBe(true);
+    if (aliceUnfollow.ok) {
+      expect(aliceUnfollow.structuredData).toEqual({ removed: true });
+    }
+  });
+
   it("installing calendar does not arm the background follow-through writer", async () => {
     // #1263 Fable security review, PR #1268: buildCalendarFollowThroughPort.executeAutoActions
     // (module-registry/src/index.ts:711) is a second, unattended reader of calendar_writeback's
