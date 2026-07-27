@@ -1342,3 +1342,37 @@ spec genuinely needs seeded job-search data, it adds a real chunk with real cont
 **The general form:** when an instruction can be satisfied in letter by dead scaffolding, that is a
 signal the instruction is wrong for the situation — raise it rather than building the no-op. Per the
 project's no-stale-concepts rule, dead vocabulary gets removed in the same pass, not introduced.
+
+## N34 — supersedes N30's addendum: diagnostics never enter `FailureCause`
+
+**N30's addendum was wrong** and is withdrawn. It asked the structured cause to record *where*
+extraction failed (item index, offending field). Building it would have been a mistake, correctly
+refused by the agent asked to do it.
+
+**Why it was wrong.** `FailureCause` is user-facing board copy: `describeFailure` is the single
+place that builds `summary`/`nextAction`, `FailureKind` is deliberately closed with an exhaustive
+check, and Task 20 renders `summary`/`nextAction` **verbatim** on the failure card. An item index and
+a field name are debug detail, not board copy — putting them in `summary` shows a user internals
+they cannot act on, and adding a free-text `detail` field invites exactly that leak later, plus a
+cross-adapter shape change that freehire and linkedin never asked for.
+
+**The rule.** Diagnostic detail does not enter `FailureCause`, in any field, ever.
+
+1. If a failure distinction **matters to the user**, it earns a new closed `FailureKind` with its own
+   authored copy in `describeFailure` — reviewed as copy, written once, in one voice. Not a string.
+2. If it **only matters to us**, it is telemetry at the adapter, and it must never carry the raw
+   item: a custom source is a user's private board content, and adapter logs are not a place for it.
+3. `parse_failed` staying undifferentiated is acceptable. For a user-added board the actionable
+   truth is "this board's postings could not be read, you can remove it" — which `nextAction`
+   already carries. Field-level precision helps nobody the user can reach.
+
+**The general form:** when a build agent refuses a coordinator ruling on the grounds that it would
+corrupt a documented structural invariant, the default is that the agent is right. A ruling made
+without reading the type it constrains loses to the type.
+
+**Related, not a security gap.** `source.ts` locally duplicates `isPinnableHost` rather than
+importing `@jarv1s/host-fetch/policy`, because the module's tsconfig `paths` deliberately expose only
+`@jarv1s/module-sdk/worker`. That duplication is **correct**: the module is sandboxed and cannot
+import host packages at runtime, and the module's copy is a UX pre-check only — the authoritative
+enforcement is the host's pinned fetch, which independently resolves and blocks. Document it as
+defence-in-depth with the host authoritative; do not widen module `paths` to "fix" it.
