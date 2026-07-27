@@ -380,6 +380,25 @@ export function assertBuiltInSelfOperationManifests(
             `module "${manifest.id}" tool "${tool.name}" declares user_promotable without a resolvable action family allowing both trusted_auto and always_confirm`
           );
         }
+        // #1311 coordinator residual review: a family with no stored policy row is NOT healed by
+        // `selfHealGrantedAtInstallTier` for a user_promotable tool (that path only fires for
+        // granted_at_install families) — `getFamilyTier` returns null instead, and policy.ts's
+        // `lookup.getFamilyTier(...) ?? manifest.defaultTier` fallback then reads defaultTier
+        // straight off this family. If that default were "trusted_auto", the tool would
+        // auto-execute before the user ever promotes it — the exact thing "user_promotable" (ask
+        // by default, user may promote) forbids. Same defense-in-depth cast as the
+        // granted_at_install check above; the type union already excludes this literal.
+        if (
+          resolvedFamily &&
+          (resolvedFamily.defaultTier as string) === "trusted_auto"
+        ) {
+          throw new Error(
+            `module "${manifest.id}" tool "${tool.name}" declares user_promotable for action ` +
+              `family "${tool.actionFamilyId}" whose defaultTier is "trusted_auto": with no ` +
+              `stored policy row, getFamilyTier's null fallback would resolve to this default ` +
+              `and auto-execute before the user ever promotes it`
+          );
+        }
         if (tool.actionFamilyId) {
           userPromotableFamilyIds.add(tool.actionFamilyId);
         }

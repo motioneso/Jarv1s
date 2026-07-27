@@ -404,6 +404,40 @@ describe("self-operation chassis", () => {
     );
   });
 
+  it("rejects a user_promotable tool whose family defaults to trusted_auto", () => {
+    // #1311 coordinator residual review on finding #2: getFamilyTier's null fallback (no stored
+    // policy row) only self-heals granted_at_install families -- for user_promotable it stays
+    // null, and policy.ts's `?? manifest.defaultTier` fallback then reads defaultTier straight off
+    // the family. If that default were "trusted_auto", the tool would auto-execute before the
+    // user ever promotes it, defeating "user_promotable" (ask by default, user may promote).
+    const trustedAutoDefaultFamily: ModuleAssistantActionFamilyManifest = {
+      id: "memory.promotableTrustedAutoDefault",
+      label: "memory.promotableTrustedAutoDefault",
+      description: "memory.promotableTrustedAutoDefault",
+      defaultTier: "trusted_auto" as ModuleAssistantActionFamilyManifest["defaultTier"],
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
+    };
+    const tool: ModuleAssistantToolManifest = {
+      name: "memory.promotableOperate",
+      description: "Promotable operate.",
+      permissionId: "memory.manage",
+      risk: "write",
+      executionPolicy: "auto",
+      actionFamilyId: "memory.promotableTrustedAutoDefault",
+      selfOperationGrant: "user_promotable"
+    };
+    expect(() =>
+      assertBuiltInSelfOperationManifests([
+        manifest("memory", [tool], [trustedAutoDefaultFamily])
+      ])
+    ).toThrow(
+      'module "memory" tool "memory.promotableOperate" declares user_promotable for action ' +
+        'family "memory.promotableTrustedAutoDefault" whose defaultTier is "trusted_auto": with ' +
+        "no stored policy row, getFamilyTier's null fallback would resolve to this default and " +
+        "auto-execute before the user ever promotes it"
+    );
+  });
+
   it("rejects the tasks module declaring a second granted_at_install family beyond task_changes", () => {
     // #1263 Task E NB-1: self-operation.ts:409 was shipped with zero negative tests, and per
     // Coordinator this is the sole guard on a full-bypass path -- packages/module-registry's tasks
