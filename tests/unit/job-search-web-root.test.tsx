@@ -144,6 +144,31 @@ describe("job-search web Root", () => {
   beforeEach(() => {
     mockUseProfiles.mockReset();
     vi.mocked(api.invokeTool).mockReset();
+    // Default transport for the real BoardScreen/SettingsScreen now rendered once a profile is
+    // "active" (Task 20 replaced BoardPlaceholder) — a non-empty matches.list result is what
+    // makes the two pre-existing "renders ... table" assertions below still true; individual
+    // tests don't otherwise care what the board or settings screens render.
+    vi.mocked(api.invokeTool).mockImplementation(async (name: string) => {
+      if (name === "job-search.matches.list") {
+        return {
+          items: [
+            {
+              id: "m1",
+              title: "Senior Engineer",
+              company: "Acme",
+              fit: 80,
+              want: 70,
+              fitReason: "Matches your stated skills.",
+              wantReason: "Aligns with your stated priorities.",
+              outsideFrame: false,
+              state: "new"
+            }
+          ]
+        };
+      }
+      if (name === "job-search.portal.list") return { portals: [] };
+      throw new Error(`unexpected invokeTool ${name}`);
+    });
     vi.mocked(api.runQueue).mockReset();
     vi.mocked(api.runQueue).mockResolvedValue({ kind: "queued" });
     latchStore.clear();
@@ -193,7 +218,7 @@ describe("job-search web Root", () => {
     expect(renderer.root.findAllByType("table")).toHaveLength(0);
   });
 
-  it("renders the board placeholder for a profile with criteria", async () => {
+  it("renders the real board screen for a profile with criteria", async () => {
     mockUseProfiles.mockReturnValue(ready([profile({ state: "active" })]));
     const renderer = await renderRoot();
     await flush(renderer);

@@ -1,8 +1,11 @@
 // external-modules/job-search/src/web/root.tsx
 // Task 18 (#1302): the module's web entrypoint. Owns the empty-install bootstrap handoff, the
 // enqueue latch, and the onboarding/board branch. The onboarding branch renders the real
-// screen (Task 19, ./screens/onboarding.tsx); the board branch is still BoardPlaceholder,
-// a minimal stand-in for Task 20 to replace.
+// screen (Task 19, ./screens/onboarding.tsx); the board branch (Task 20, #1304) now renders
+// the real BoardScreen/Inspector and SettingsScreen behind a Board/Settings tab switcher —
+// this file is the sole place both halves of Task 20 are wired in (rulings ledger N32: root.tsx
+// stays one agent's file for the whole task, so chat-surface wires in criteria's settings.tsx
+// too rather than criteria touching this file directly).
 //
 // No chat button lives here (variant-flow.tsx:145's drawer button is prototype-only and must not
 // be ported) — the only way into the assistant from this surface is hostActions.openAssistant,
@@ -13,6 +16,8 @@ import { isLatched, setLatched } from "./latch";
 import { useProfiles, type Profile } from "./use-profiles";
 import { useProfileThread, type AssistantSurfaceHandleV1 } from "../domain/seed-prompt.js";
 import { OnboardingScreen } from "./screens/onboarding";
+import { BoardScreen } from "./screens/board";
+import { SettingsScreen } from "./screens/settings";
 import styles from "./styles.css";
 
 export interface HostActions {
@@ -79,17 +84,23 @@ function BootstrapPanel(props: {
   );
 }
 
-// Placeholder for Task 20: rendered once a profile has criteria (state ===
-// "active" | "paused"). The switcher is real (Task 18 owns selection), the
-// table body is a stand-in for the real board.
-function BoardPlaceholder(props: {
+type ActiveView = "board" | "settings";
+
+// Rendered once a profile has criteria (state === "active" | "paused"). Two independent
+// switchers stack here: the profile switcher (Task 18, picks which profile's data loads) and
+// the Board/Settings view switcher (Task 20, picks which screen renders that data) — kept as
+// separate pieces of state so switching one never resets the other.
+function ActiveProfilePanel(props: {
   profiles: Profile[];
   selectedId: string;
-  onSelect(id: string): void;
+  onSelectProfile(id: string): void;
+  selected: Profile;
 }): ReactNodeLike {
-  const switcher =
+  const [view, setView] = useState<ActiveView>("board");
+
+  const profileSwitcher =
     props.profiles.length > 1 ? (
-      <div className="jsm-switcher" role="tablist">
+      <div className="jsm-switcher" role="tablist" aria-label="Job search profile">
         {props.profiles.map((profile) => (
           <button
             key={profile.profileId}
@@ -101,33 +112,58 @@ function BoardPlaceholder(props: {
                 ? "jds-btn jds-btn--secondary jsm-switcher-btn is-selected"
                 : "jds-btn jds-btn--secondary jsm-switcher-btn"
             }
-            onClick={() => props.onSelect(profile.profileId)}
+            onClick={() => props.onSelectProfile(profile.profileId)}
           >
             {profile.name}
           </button>
         ))}
       </div>
     ) : null;
-  const table = (
-    <table className="jds-table jsm-board">
-      <thead>
-        <tr>
-          <th>Job search</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Your board is being built out in an upcoming task.</td>
-        </tr>
-      </tbody>
-    </table>
+
+  const viewSwitcher = (
+    <div className="jsm-switcher" role="tablist" aria-label="Job search view">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={view === "board"}
+        className={
+          view === "board"
+            ? "jds-btn jds-btn--secondary jsm-switcher-btn is-selected"
+            : "jds-btn jds-btn--secondary jsm-switcher-btn"
+        }
+        onClick={() => setView("board")}
+      >
+        Board
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={view === "settings"}
+        className={
+          view === "settings"
+            ? "jds-btn jds-btn--secondary jsm-switcher-btn is-selected"
+            : "jds-btn jds-btn--secondary jsm-switcher-btn"
+        }
+        onClick={() => setView("settings")}
+      >
+        Settings
+      </button>
+    </div>
   );
+
+  const screen =
+    view === "board" ? (
+      <BoardScreen profileId={props.selected.profileId} />
+    ) : (
+      <SettingsScreen profile={props.selected} />
+    );
+
   // Plain h(Fragment, ...) call rather than <>...</> shorthand: TS's JSX
   // fragment-shorthand check requires the fragment factory to have a
   // call/construct signature, which our loosely-typed `Fragment: unknown`
   // (jsx.d.ts's "correctness via tests, not the type system" stance) doesn't
   // satisfy. A direct call sidesteps that JSX-syntax-only check.
-  return h(Fragment, null, switcher, table);
+  return h(Fragment, null, profileSwitcher, viewSwitcher, screen);
 }
 
 function QueueNotice(props: { outcome: RunOutcome }): ReactNodeLike {
@@ -223,10 +259,11 @@ export function Root(props: RootProps): ReactNodeLike {
       selected.state === "in_conversation" ? (
         <OnboardingScreen profile={selected} />
       ) : (
-        <BoardPlaceholder
+        <ActiveProfilePanel
           profiles={profiles.profiles}
           selectedId={profiles.selectedId}
-          onSelect={profiles.select}
+          onSelectProfile={profiles.select}
+          selected={selected}
         />
       );
   }
