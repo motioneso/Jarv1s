@@ -1117,3 +1117,41 @@ claimed item 1 complete when only `deleteList` had been changed — `deleteTag` 
 false.** Instruction given to the driver: verify every "done" by reading the file, never by
 trusting the checkbox. Three relays on one task is the real cost driver here; if #1264/#1265
 show the same pattern, the task decomposition is too large for one context, not the agents' fault.
+
+### Task B landed — `37d5d78d` (coordinator-verified at diff level)
+
+`feat(self-operation): demote task_cleanup to user-promotable, harden built-in inventory`.
+Five files, all staged explicitly: `packages/tasks/src/manifest.ts`,
+`packages/ai/src/gateway/self-operation.ts`, `packages/calendar/src/settings/index.tsx`,
+`tests/unit/self-operation-chassis.test.ts`, `tests/unit/self-operation-manifests.test.ts`.
+
+All three ordered asserts are present in `assertBuiltInSelfOperationManifests`, each commented with
+its rationale at the point of failure:
+
+1. **Sibling assert** — a `granted_at_install` tool whose family `defaultTier` is `always_confirm`
+   throws. Install can no longer silently widen a family the module deliberately gated.
+2. **Cross-module tool-name uniqueness** — the gateway dispatches by name alone, so a collision
+   would let one module's manifest shadow another's tool.
+3. **Tasks single-family drift guard (my checkpoint-4 order)** — `tasks` must declare exactly one
+   `granted_at_install` family, `task_changes`. The comment explains that the registry special-case
+   is a *full bypass* of the generic path and tells whoever trips it how to fix it.
+
+**Observed inventory, run live rather than reasoned: 29 granted_at_install / 5 confirm_always /
+4 user_promotable = 38.** Matches the prediction exactly.
+
+**My pointer was wrong on item 5 and the builder was right.** I had specified
+`packages/calendar/src/routes.ts:171`; that line is policy-set logic with no copy in it (verified
+myself). The copy lives in `packages/calendar/src/settings/index.tsx`, where the Time-blocks row
+fell back to the shared `CALENDAR_MODE_OPTIONS` "auto" description that names only the chat
+surface. Fix overrides the description for Time blocks only and leaves prep tasks on the shared
+string — correct, because prep tasks has no background writer, so the generic copy is still true
+there.
+
+Pre-commit verification reported: full `pnpm typecheck` (incl. apps/web + external modules),
+`check:file-size`, eslint on all five files, `self-operation-manifests.test.ts` 16/16,
+`self-operation-chassis.test.ts` 18/18.
+
+**Task C in flight:** fresh `jarvis_gate_1263` + full `pnpm verify:foundation`. Stop conditions
+given: report the real exit code (never piped through `tail`/`head`); on red, send failing test
+names and **do not fix** — if a failure could be made to pass by widening a `defaultTier` or
+relaxing one of the new asserts, that is a stop-and-message.
