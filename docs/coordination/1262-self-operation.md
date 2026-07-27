@@ -3885,3 +3885,38 @@ Old pane `w1:p144` (session `6efadd28`, relayed out) reaped after confirming the
 
 **Mid-doing:** waiting on (a) #1310's successor to appear so I can hand it the LIVE-PATH GATE
 correction, and (b) #1311's TDD plan for approval. Merge order is unchanged: #1311 → #1276 → #1273.
+
+## Continuation note — 2026-07-27, #1311 plan approved and building
+
+**Plan approved** (`docs/superpowers/plans/2026-07-27-1311-install-grant-default-enabled.md`) with
+one required change, which is now folded into the plan and guarded by a test:
+
+> The two self-heal paths were asymmetric. The generic path re-reads `listActionPolicies` after
+> granting and returns whatever is stored. The tasks path returned `"trusted_auto"` directly on
+> success. That is fail-open: `grantInstallTimeTrustIfUnset` is insert-if-absent, so it succeeds
+> silently against an existing row — including a row the user set to `always_confirm`. The
+> enclosing branch only runs when no key is set, so the window is a narrow race, but closing it is
+> free. Both paths now derive the tier from storage and neither asserts it.
+
+**Spec-gate ruling (coordinator, on the record).** No `docs/superpowers/specs/` file exists for
+#1311. I ruled the spec-before-build gate does not apply: both approved #1263 specs
+(`2026-07-26-module-self-operation-{content,settings}-commands.md`) specify `granted_at_install`,
+so this restores already-approved behaviour rather than introducing a new feature or module, which
+is what the CLAUDE.md gate covers. The handoff plus my six conditions are the contract. **Surfaced
+to Ben rather than left in the lane** — reversible on his word.
+
+**Progress.** Task 1 landed: `selfHealGrantedAtInstallTier` + 3 unit tests, green, commit
+`909ce93a`. Tasks 2–5 remain. Kill gate after Task 2 stands: if the generic self-heal does not
+remove the confirmation card for a `defaultEnabled` module on a live dev instance, the lane STOPS
+and escalates rather than starting Task 3.
+
+**Relay churn.** #1310 is on session ~19, #1311 on session 3. Each relay has produced real
+committed work and the required conditions have survived every handoff (verified in the plan doc
+after the last one), but the cadence is high — the cause is agents re-reading specs and handoffs to
+re-derive settled ground. Both successors have now been told explicitly to work from the plan doc,
+one task section at a time.
+
+**Fleet.** #1310 → `1264-settings-self-operation`, agent `settings-1310-relay19`, frontend half.
+#1311 → `1311-install-grant`, agent `install-grant-3`, Task 2. Spent panes reaped after resolving
+them fresh by session id. The liveness monitor is now keyed on **worktree path**, not pane id —
+pane numbers churn on every relay and a monitor pointed at them goes blind silently.
