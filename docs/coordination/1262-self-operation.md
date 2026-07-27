@@ -1017,3 +1017,25 @@ list/tag deletion now asks by default instead of not asking.
 - Merge authority: delegated by Ben in-session ("I need to sleep, lets push to get this completed
   without me"). Authority to merge GREEN only. RED returns to the builder. A red CI check parks
   until morning — the waiver protocol needs Ben.
+
+### Pre-staged spawn material (2026-07-27)
+
+`686c3080` adds both build handoffs so #1264/#1265 can spawn the moment #1263 merges:
+
+- `docs/coordination/handoff-1264-settings-self-operation.md`
+- `docs/coordination/handoff-1265-module-content-self-operation.md`
+
+**They live on `coord/1262-self-operation`, not `main`** — a build worktree cut from `main` will not
+contain them. Hand each agent the **absolute path into this coordinator worktree**
+(`~/Jarv1s/.claude/worktrees/coord-1262/docs/coordination/handoff-1264-…`), exactly as #1263 was
+handled. Do not copy them into the build worktrees; build agents must not write under
+`docs/coordination/`.
+
+Both carry: the three-value declaration rule, the defaultTier stop condition, the always_confirm
+allowedTiers rule, `confirm_always` ⇒ NOT PROMOTABLE (with web.read as the named exception), Ben's
+fork-A (retrofit already in #1263) and fork-B (memory.remember/forget) rulings, the no-key-taking-
+tool rule for #1264, and the **amended preference-key audit rule** born from the #1263 RED.
+
+Shared surface flagged in both: the exact-count inventory assertion in
+`tests/unit/self-operation-manifests.test.ts`. Second to land rebases and updates the numbers;
+both are explicitly forbidden from loosening the assert to dodge the conflict.
