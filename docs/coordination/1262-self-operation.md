@@ -2361,3 +2361,33 @@ the switch in-pane and told it to switch itself, but **did not kill and respawn*
 uncommitted TDD work on a security-tier fix, and destroying that to save tokens is the worse trade.
 Flagging the cost rather than paying it twice. Opus 5 1M is the most expensive tier in the fleet, so
 if this lane runs long it is the first thing to check.
+
+### Ruling — undo apply path lands in #1264, before Task 10 (I withdrew my own escape hatch)
+
+`277d9e81` closed Task 9: `changed: boolean` on the write-service contract, no-op guards on all six
+settings write paths, the inherited CAS-conflict bug in `settings-locale-tools.test.ts` fixed with a
+why-comment, unit 16/16 and integration 23/23 green on an isolated `jarvis_build_1264`. Accepted.
+
+The lane then asked whether to do the undo apply path or move to Task 10. **I had earlier said "either
+the apply path lands or you file a follow-up issue and cite it in the PR body." That was wrong**, and I
+checked the spec before answering rather than repeating myself:
+
+- **Spec line 180 puts undo inside the MANDATORY exit criterion** — the UAT run ends with "change that
+  back" undoing the theme in the same conversation, and line 181 makes a confirmation card anywhere in
+  that run a failure. A follow-up issue cannot discharge an exit criterion; the PR would fail its own.
+- **Ordering forces it too.** The undo entry point is itself a **write tool**, so it must declare a
+  `selfOperationGrant` and an action family — which **changes the inventory counts**. Task 10 done
+  first is stale the moment undo lands.
+
+Constraints restated to the lane unchanged: apply via `upsertWithRevision(..., entry.previousRevision)`
+(never re-read the current revision and force the write); surface `PreferenceRevisionConflictError` as
+"this setting changed since, not undoing" rather than swallowing it — spec line 170; and per spec line
+169, undo over an **absent** row **deletes the override** rather than pinning the old default
+(`runtime-config-keys.ts:10`). `pop()` gets its production caller here.
+
+**Task 10 trap flagged in advance:** do NOT copy `31/5/4=40` from the #1265 branch — that is #1265's
+number on #1265's tree. `main` is pinned at `29/5/4=38`; #1264 must compute from its own branch and
+assert exact `toBe`. Because #1265 is RED with substantial remediation plus a UAT spec still unwritten,
+**#1264 will most likely land first and #1265 rebases onto it** — the reverse of the original
+assumption. Counting gotcha repeated: People declares grants in `packages/people/src/tools.ts`, not a
+`manifest.ts`.
