@@ -1824,3 +1824,28 @@ containment, and a prompt does not stop SSRF.
 plans run ~1128 lines — it is that a plan that long also **lost a requirement the spec stated
 explicitly**. Length and fidelity failed together, which strengthens the case that plans should carry
 contracts and invariants rather than inline implementation code.
+
+### 2026-07-27 — #1265 relay 5; caught an Opus successor; #1264 through 0c
+
+**#1265 relayed at 74%** into session `53818867` ("relay-1265-c"), same worktree/branch, confirmed
+Sonnet and driving task #8. Outgoing `ff9430d4` reaped after resolving its pane fresh by session id.
+Fleet is back to one agent per lane.
+
+**The SSRF restoration survived the relay intact — verified, not assumed.** `relay-5.md`
+(`9a6721a3`, `docs/superpowers/handoffs/`) carries the dropped-spec-item explanation, the traced call
+path, **and the load-bearing post-redirect property with the explicit warning that a typed-IP-literal
+test is the weak version.** That was the specific thing at risk: the instruction lived only in a pane
+message, and pane messages do not survive a relay. Worth noting the general rule — after directing
+anything security-relevant, check it landed in the outgoing agent's continuation doc, because the
+successor reads that and never sees the message.
+
+**A relay successor booted on Opus.** Caught by a bounded pane read at 7% context, before it did any
+work; it was replaced by the Sonnet session now driving. Herdr's spawn default is Opus and nothing
+but the pane status bar reports the model, so **read every newly spawned pane and confirm the model
+line**. Separately: the spawn command in the `coordinate` skill (`herdr agent start … --tab … --cwd
+…`) is **invalid against the installed herdr** — it rejects `--tab`, and `agent start` only attaches
+to an existing pane (`--kind`, `--pane`). Creating a pane first with `herdr pane split … --cwd` is
+the working form. Saved to memory; a coordinator would otherwise discover this mid-relay.
+
+**#1264 landed 0c** (`7a52e28d`) — action-audit outcome CHECK widened with `invalid`/`conflict`,
+migration `0177`, on the isolated database. Lane is 4 of 13 in and on the settings tools next.
