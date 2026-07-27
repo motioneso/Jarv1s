@@ -1,3 +1,15 @@
+**Ruling inserted 2026-07-26 (read before starting): `selfOperationGrant` has THREE values.**
+Task 12a adds `"user_promotable"` alongside `"granted_at_install"` and `"confirm_always"`. It means
+the tool is fully wired for auto-run but install must **not** promote its family — the family's
+`defaultTier` stands and only the user may change it in settings. `calendar.deleteEvent` is the
+first and currently only one, per Ben's ruling that deleting a calendar event asks by default
+because it emails a cancellation to every attendee.
+
+**Consequences for this task:** the install grant persists `trusted_auto` ONLY for
+`granted_at_install` tools. A `user_promotable` tool must be skipped by install exactly as a
+`confirm_always` tool is. Any inventory count, roster, or exhaustiveness assertion must cover all
+three values, and "every write tool declares something" now has three legal answers, not two.
+
 **Dependency:** Task 13 must already be committed.
 
 ## Task 14 — Persist install grants without clobbering user policy

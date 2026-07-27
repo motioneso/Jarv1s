@@ -1,3 +1,15 @@
+**Ruling inserted 2026-07-26 (read before starting): `selfOperationGrant` has THREE values.**
+Task 12a adds `"user_promotable"` alongside `"granted_at_install"` and `"confirm_always"`. It means
+the tool is fully wired for auto-run but install must **not** promote its family — the family's
+`defaultTier` stands and only the user may change it in settings. `calendar.deleteEvent` is the
+first and currently only one, per Ben's ruling that deleting a calendar event asks by default
+because it emails a cancellation to every attendee.
+
+**Consequences for this task:** the install grant persists `trusted_auto` ONLY for
+`granted_at_install` tools. A `user_promotable` tool must be skipped by install exactly as a
+`confirm_always` tool is. Any inventory count, roster, or exhaustiveness assertion must cover all
+three values, and "every write tool declares something" now has three legal answers, not two.
+
 **Dependency:** Task 16 must already be committed.
 
 **Coordinator ruling:** The four planned `confirm_always` tools are `memory.forget`, `people.merge`, `people.splitIdentity`, and `email.sendReply`, all retaining destructive risk (Ben ruled 2026-07-26: `notes.delete` is granted_at_install, email requires approval). #1263 inventory is built-in-only; external completeness is #1267, and external family-less writes remain safe because `packages/ai/src/gateway/policy.ts:40` always confirms.
