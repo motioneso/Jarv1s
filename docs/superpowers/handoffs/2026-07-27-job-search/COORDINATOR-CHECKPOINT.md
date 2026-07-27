@@ -7,11 +7,12 @@ not a recap. Read the four documents below before acting; nothing here restates 
 
 1. `HANDOFF.md` (this directory) — the build's charter. Its Start section is complete; its rules,
    scope guardrails and module rules are all still live.
-2. `rulings-ledger.md` (this directory) — **every** locked decision, N1 through N34. When a build
+2. `rulings-ledger.md` (this directory) — **every** locked decision, N1 through N35. When a build
    agent asks "which helper / is this allowed / what shape", the answer is here or it is a new
    ruling that belongs here. The branch-wide ones that bite hardest: N26 gate-DB isolation,
-   N27 live-path proof, N28 explicit-path commits, N32 co-edited files. **N34 supersedes N30's
-   addendum** — read N30 and N34 together or you will build a withdrawn requirement.
+   N27 live-path proof, N28 explicit-path commits, N32 co-edited files, N35 the file-size gate.
+   **N34 supersedes N30's addendum** — read N30 and N34 together or you will build a withdrawn
+   requirement.
 3. `parts/` — one file per task, numbered to match the task numbers. **Task numbering is frozen**;
    never renumber, and reject renumbering findings on sight.
 4. GitHub epic #1280 and its children — the board is the only status source. Do not trust this
@@ -20,7 +21,7 @@ not a recap. Read the four documents below before acting; nothing here restates 
 ## Where the work stands
 
 Branch `feat/job-search`, local only — `origin/feat/job-search` does not exist. HEAD at last update
-is `ec3ffebb`. **Five task issues remain open: #1299, #1304, #1305, #1306, #1307** (plus #1087, a
+is `0dc695e0`. **Six task issues remain open: #1299, #1304, #1305, #1306, #1307, #1328** (plus #1087, a
 pre-existing harness-quality issue, not this epic's). Everything else is closed and on the board —
 Task 24 (#1309, user-added job board sources) landed at `773e8de6` and was verified and closed.
 
@@ -31,10 +32,12 @@ two** in `external-modules/job-search/src/worker/index.ts`, which is still
 behind it; Task 21 Tier A already landed at `1401040e`.
 
 Live assignments at last update: score-agent on #1299 (`stages/score.ts`, `handlers/pass.ts`,
-`handlers/matches.ts` all written but uncommitted; `worker/index.ts` still `handlers: {}`), criteria
-on #1304 settings, chat-surface on #1304 board+inspector and **sole owner of `web/root.tsx`**,
-records on #1306 (harness half only — it stops before the spec body and reports), scaffold parked on
-#1305 Tier B, dedupe idle on standby. Unassigned: #1307.
+`handlers/matches.ts`, `registry.ts` all written but uncommitted; `worker/index.ts` still
+`handlers: {}`; it also holds `jarvis.module.json` — nobody else may touch that file), chat-surface
+on #1304 board+inspector and **sole owner of `web/root.tsx`**, dedupe on #1328, criteria parked
+holding the conformance test, records parked with Task 22's harness half done (`c4da977a`,
+`7b766f75`, `0dc695e0`) and the UAT spec body deliberately unwritten until the board commits,
+scaffold parked on #1305 Tier B. Unassigned: #1307.
 **Verify each of these against the board before relying on it.**
 
 Task 20 (#1304) is **no longer blocked** — Task 15's agent froze its tool contract (`matches.list`
@@ -42,10 +45,38 @@ input `{profileId, limit}` with `limit` 1..40 and no default; `match-state` and 
 queues). Treat those three signatures as published API.
 
 **But the manifest's `worker.queues` is still `[]`** — note the nesting, it is not top-level. Neither
-queue exists on disk, nor does `matches.list`; Task 15 lands all three. The board's tests mock the
-transport, so **the board can go fully green while every button on it is inert in production and
-nothing anywhere goes red.** Diffing the board's and settings' literal tool/queue strings against the
-*committed* manifest is a blocking check before #1304 closes.
+queue exists on disk, nor does `matches.list`; Task 15 lands all three plus the two the settings
+screen needs. The board's tests mock the transport, so **a screen can go fully green while every
+button on it is inert in production and nothing anywhere goes red.** That already happened once: the
+settings screen landed at `5c3d2975` calling two queues declared nowhere, and only a hand-read of the
+diff caught it.
+
+The durable fix is a **manifest-conformance test**, held by criteria in the session scratchpad until
+Task 15's manifest lands (it is deliberately red, and vitest globs by path regardless of git status —
+a held-back red test left in `tests/unit/` fails somebody else's gate). Two layers: a sweep asserting
+every `job-search.*` literal anywhere under `src/web/` resolves to a declared tool or queue, and
+typed assertions that each is reached by the right transport — `invokeTool` needs `risk: "read"` or
+it 403s with `confirmation_required`; `runQueue` needs `allowManualRun: true` or
+`apps/api/src/external-module-jobs.ts:50` refuses it. Note `validate.ts` never checks
+`allowManualRun` at all, so a misspelling validates clean and is silently unrunnable.
+
+## The gate is red and has been hiding it
+
+`verify:foundation` runs `lint && format:check && check:file-size && ... && typecheck && ... &&
+test:unit && db:migrate && test:uat-seed && test:integration`. **`check:file-size` is step 3 and it
+is failing**, so nothing from `typecheck` onward has run on this branch in a long time. Any "full
+gate green" reported here is unverified by construction. This is **#1328 / Task 25**, and it is a
+blocker for #1307's PR.
+
+Two failures are confirmed **ours**, not pre-existing: three files pushed over the 1000-line cap
+(N35 — split them, no new exemptions), and `typecheck` errors in `use-profiles.ts` and
+`tests/unit/helpers/install-module-runtime.tsx`, neither of which exists on `main`. One is still
+open: a `tests/uat/run-uat.test.ts` failure that looks pre-existing but has not been run against
+`main` to prove it.
+
+**"Not mine" and "not new" are different claims.** The first is a `git status` question, the second
+is a `git show main:<path>` question, and only the second licenses moving past a red gate. Both were
+conflated here by two different agents on the same day. Check it yourself every time.
 
 ## How to coordinate this fleet
 
