@@ -196,7 +196,8 @@ export class ExternalModuleWorkerRuntime {
       // 2e) — computed fresh at send time, margin-adjusted so the module's own
       // "am I nearly out of time" checks land before the host's hard kill, never after.
       const deadlineAt = Date.now() + Math.max(1_000, hardTimeoutMs - DEADLINE_MARGIN_MS);
-      state.child.stdin.write(
+      this.writeToChild(
+        state,
         `${JSON.stringify({
           jsonrpc: "2.0",
           id,
@@ -252,6 +253,18 @@ export class ExternalModuleWorkerRuntime {
     child.stderr.on("data", (chunk: string) => this.capture(state, "stderr", chunk));
     child.once("error", () => this.failProcess(key, state, new ExternalModuleWorkerError("crash")));
     child.once("exit", () => this.failProcess(key, state, new ExternalModuleWorkerError("crash")));
+    // #1317: `child.stdin` is a distinct EventEmitter from `child` itself — the
+    // `error`/`exit` listeners above do NOT cover a broken pipe on the stdin stream.
+    // A write into a pipe whose read end has already gone away (the module process
+    // dying mid-teardown, e.g. under the hard-timeout `kill()` above) surfaces as an
+    // unlistened 'error' event, which Node rethrows as an uncaught exception and
+    // takes down the whole host process (API server or pg-boss worker). Deliberately
+    // `.on`, not `.once`, unlike the child listeners above: after the first error the
+    // stream is normally torn down for good, but staying attached costs nothing and
+    // means a second error (however unlikely) still can't crash the host.
+    child.stdin.on("error", () =>
+      this.failProcess(key, state, new ExternalModuleWorkerError("crash"))
+    );
     void lane; // reserved for lane-scoped diagnostics; not otherwise needed here
     return state;
   }
@@ -288,7 +301,8 @@ export class ExternalModuleWorkerRuntime {
           continue;
         }
         if (containsSecret(message.params, invocation.secrets)) {
-          state.child.stdin.write(
+          this.writeToChild(
+            state,
             `${JSON.stringify({ jsonrpc: "2.0", id: message.id, error: { code: -32001, message: "rpc_failed" } })}\n`
           );
           continue;
@@ -310,11 +324,13 @@ export class ExternalModuleWorkerRuntime {
           )
           .then(
             (result) =>
-              state.child.stdin.write(
+              this.writeToChild(
+                state,
                 `${JSON.stringify({ jsonrpc: "2.0", id: message.id, result })}\n`
               ),
             () =>
-              state.child.stdin.write(
+              this.writeToChild(
+                state,
                 `${JSON.stringify({ jsonrpc: "2.0", id: message.id, error: { code: -32001, message: "rpc_failed" } })}\n`
               )
           )
@@ -358,6 +374,16 @@ export class ExternalModuleWorkerRuntime {
         "external module worker output"
       );
     }
+  }
+
+  // #1317: a torn-down pipe is a normal outcome of a timeout kill or the module
+  // process dying mid-teardown, not an exceptional one. The `error` listener
+  // attached in `start()` is what actually keeps a broken pipe from crashing the
+  // host; this just skips the write once the stream is already known dead, so a
+  // doomed write isn't attempted at all.
+  private writeToChild(state: ProcessState, payload: string): void {
+    if (state.child.stdin.destroyed) return;
+    state.child.stdin.write(payload);
   }
 
   private failProcess(key: string, state: ProcessState, error: ExternalModuleWorkerError): void {

@@ -22,12 +22,29 @@ const send = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
 ${version === null ? "" : `send({ jsonrpc: "2.0", method: "worker.ready", params: { version: ${version} } });`}
 let buffer = "";
 process.stdin.setEncoding("utf8");
+// The #1317 "closepipe" handler below closes our own fd 0 out from under the
+// Readable wrapper on purpose, to model a module tearing itself down while the
+// host still has a write queued. Swallow the resulting stream error so the
+// CHILD doesn't crash from the same class of bug the host fix is closing —
+// that would confound the test, not exercise the host-side hazard.
+process.stdin.on("error", () => {});
 process.stdin.on("data", chunk => { buffer += chunk; let i; while ((i = buffer.indexOf("\\n")) >= 0) { const line = buffer.slice(0, i); buffer = buffer.slice(i + 1); void handle(JSON.parse(line)); } });
 async function handle(message) {
   if (!message.method) return;
   const { handler, input } = message.params;
   if (handler === "hang") return;
   if (handler === "crash") return process.exit(7);
+  if (handler === "closepipe") {
+    // #1317 repro: ask the host for a credential (so the host has an RPC reply
+    // queued to write back), then close our own read end of stdin while STAYING
+    // ALIVE — the exact window a plain post-exit auto-destroy never covers. The
+    // host's write-back now lands on a live child with a closed pipe (EPIPE).
+    send({ jsonrpc: "2.0", id: "worker:secret", method: "auth.getCredential", params: { authId: "acme.key" } });
+    const fs = await import("node:fs");
+    fs.closeSync(0);
+    setTimeout(() => {}, 5000);
+    return;
+  }
   if (handler === "secret" || handler === "exfiltrate" || handler === "compose") {
     globalThis.secretMode = handler;
     send({ jsonrpc: "2.0", id: "worker:secret", method: "auth.getCredential", params: { authId: "acme.key" } });
@@ -213,6 +230,34 @@ describe("ExternalModuleWorkerRuntime", () => {
       )
     ).resolves.toEqual({ blocked: true });
     expect(methods).toEqual(["auth.getCredential"]);
+    await runtime.close();
+  });
+
+  // #1317: a write to `state.child.stdin` with no callback and no `error`
+  // listener on the stream crashes the whole host process (not just this
+  // invocation) if the pipe breaks while the child is still alive — e.g. the
+  // module closing its own end mid-teardown. This asserts the host survives and
+  // the caller gets a structured failure instead of an uncaught exception.
+  it("survives writing an RPC reply into a child's closed stdin pipe", async () => {
+    const runtime = new ExternalModuleWorkerRuntime({
+      invocationStallMs: 5_000,
+      idleTimeoutMs: 5_000
+    });
+    await expect(
+      runtime.invoke(
+        await fixture(),
+        "closepipe",
+        {},
+        async () => {
+          // Give the module a moment to close its own stdin before the host's
+          // RPC reply write lands — without this, the write could beat the
+          // close and the test wouldn't exercise the broken-pipe window.
+          await new Promise((resolve) => setTimeout(resolve, 150));
+          return "acme-secret";
+        },
+        { lane: "queue" }
+      )
+    ).rejects.toMatchObject({ code: "crash" });
     await runtime.close();
   });
 });
