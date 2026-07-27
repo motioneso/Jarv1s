@@ -725,3 +725,23 @@ mechanism is present is stale. **This does not block the plan:** the board reads
 (N5, link 1), not through the chat `action_result.result` channel, so nothing here depends on the
 lost commit. Recorded only so nobody spends an afternoon hunting a mechanism that is gone and is not
 needed.
+
+**N8 — `file:line` citations in the part docs are locators, not addresses. Re-grep the symbol at
+task start.** The parts were written against a snapshot; three agents are now editing the tree
+concurrently, so line numbers drift the moment anything lands. Verified case: after Task 2d shifted
+`packages/notifications/src/repository.ts` and Task 2e began shifting
+`packages/module-registry/src/external/worker-rpc-host.ts`, several of Task 2b's citations
+(`markRead`'s CTE, the unread left-join, `let aiCalls = 0`, the `withDataContext` call site) sat
+between a handful and ~30 lines off HEAD — while every **claim** attached to them was still exactly
+right.
+
+Two failure modes this prevents, in both directions:
+
+1. An implementer trusting the number and editing whatever now occupies that line.
+2. An implementer or reviewer reporting "the plan is wrong" on a citation that is merely stale,
+   burning a round on a phantom.
+
+**Rule: locate by symbol name, not by line number.** A citation is confirmed when the named symbol
+is found and its described behaviour matches; a drifted line number is not a finding and must not be
+reported as one. Only a changed *claim* is a finding. This applies to every remaining task — do not
+raise it again per-task.
