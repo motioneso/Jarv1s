@@ -74,8 +74,11 @@ describe("job-search manifest scaffold (#1287)", () => {
     if (!result.ok) return;
     // A briefing handler is a worker handler, which is what keeps it invisible to chat. The
     // validator never enumerates handlers, so this asserts the negative directly: no
-    // assistantTools entry and no queue routes to briefing.contribute.
-    expect(result.manifest.assistantTools ?? []).toEqual([]);
+    // assistantTools entry (Task 16 populated this array with the conversation/profile/résumé/
+    // settings tools; the assertion narrows from "empty" to "none of them route to the
+    // briefing handler") and no queue routes to briefing.contribute.
+    const toolHandlers = (result.manifest.assistantTools ?? []).map((tool) => tool.handler);
+    expect(toolHandlers).not.toContain("briefing.contribute");
     const queueHandlers = (result.manifest.worker?.queues ?? []).map((queue) => queue.handler);
     expect(queueHandlers).not.toContain("briefing.contribute");
   });

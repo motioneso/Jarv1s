@@ -23,7 +23,136 @@
   },
   "runtime": { "workerEntrypoint": "dist/worker.js", "workerContractVersion": 1 },
   "fetchHosts": ["www.linkedin.com", "freehire.me"],
-  "assistantTools": [],
+  "assistantTools": [
+    {
+      "name": "job-search.profile.create",
+      "permissionId": "job-search.profile.create",
+      "description": "Create a new job search profile (one per role being pursued).",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": { "name": { "type": "string" } }
+      },
+      "handler": "profile.create"
+    },
+    {
+      "name": "job-search.profile.list",
+      "permissionId": "job-search.profile.list",
+      "description": "List job search profiles with their onboarding progress.",
+      "risk": "read",
+      "inputSchema": { "type": "object", "additionalProperties": false },
+      "handler": "profile.list"
+    },
+    {
+      "name": "job-search.criteria.set",
+      "permissionId": "job-search.criteria.set",
+      "description": "Set or update a profile's search criteria (titles, locations, comp, and more).",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "criteria"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "criteria": { "type": "object" }
+        }
+      },
+      "handler": "criteria.set"
+    },
+    {
+      "name": "job-search.profile.set-context",
+      "permissionId": "job-search.profile.set-context",
+      "description": "Set a profile's broader-context summary distilled from conversation.",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "summary"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "summary": { "type": "string" }
+        }
+      },
+      "handler": "profile.set-context"
+    },
+    {
+      "name": "job-search.profile.set-briefing-detail",
+      "permissionId": "job-search.profile.set-briefing-detail",
+      "description": "Set how much a profile contributes to the daily briefing.",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "detail"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "detail": { "type": "string", "enum": ["count", "top", "full"] }
+        }
+      },
+      "handler": "profile.set-briefing-detail"
+    },
+    {
+      "name": "job-search.resume.set",
+      "permissionId": "job-search.resume.set",
+      "description": "Upload a new résumé version for a profile.",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "content"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "content": { "type": "string" }
+        }
+      },
+      "handler": "resume.set"
+    },
+    {
+      "name": "job-search.resume.get",
+      "permissionId": "job-search.resume.get",
+      "description": "Read a profile's latest résumé text.",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId"],
+        "properties": { "profileId": { "type": "string" } }
+      },
+      "handler": "resume.get"
+    },
+    {
+      "name": "job-search.portal.set-enabled",
+      "permissionId": "job-search.portal.set-enabled",
+      "description": "Enable or disable a job board source for a profile.",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "sourceId", "enabled"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "sourceId": { "type": "string" },
+          "enabled": { "type": "boolean" }
+        }
+      },
+      "handler": "portal.set-enabled"
+    },
+    {
+      "name": "job-search.portal.list",
+      "permissionId": "job-search.portal.list",
+      "description": "List a profile's job board sources and their current health.",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId"],
+        "properties": { "profileId": { "type": "string" } }
+      },
+      "handler": "portal.list"
+    }
+  ],
   "worker": { "queues": [], "schedules": [], "reconcileJobs": [] },
   "briefing": {
     "handler": "briefing.contribute",
