@@ -3321,3 +3321,18 @@ mid-fix is the tripwire; a clean relay is strictly better. Brief lives at
 
 **Failure budget: this is RED number two on this lane.** One more failed QA cycle and the lane stops
 and goes to Ben rather than spinning. Told the lane so directly — get it right rather than fast.
+
+### #1265 relayed cleanly before the B1 fix; successor verified ON the right work
+
+`f9ff23a9` did the right thing under instruction: relayed at 63% rather than starting a security fix
+with 13% to auto-compact, and committed `9dfbd087` as a pointer-only handoff. **Verified rather than
+trusted** — `git show --stat` shows one doc file, 84 insertions, and zero touch of
+`input-validation.ts`. The "no fix content" claim is accurate. `f9ff23a9` reaped.
+
+Successor `relay-1265-16` (`3fb8f557`, `w1:p13W`, Sonnet 5, 43%, same worktree/branch). Confirmed
+driving by the **artifact**, not pane liveness: it is writing a test case named *"bare unbalanced
+paren"* — the exact symptom-2 probe from the brief. That is the check that caught the QA agent which
+never started; applying it consistently is cheap and it works.
+
+**Fleet:** #1265 fix in flight (`3fb8f557`); #1264 gate running (`26659abc`); QA `60113a86` has
+delivered and is spent.
