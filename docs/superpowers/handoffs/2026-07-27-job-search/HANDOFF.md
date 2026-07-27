@@ -364,6 +364,13 @@ Decisions taken while building, worth not rediscovering:
 - **`pnpm test:integration <file>` silently runs the whole directory** — the npm script hardcodes the
   directory as its own first positional argument. Filed as **#1314**. Scope one file with
   `npx tsx scripts/test-integration.ts tests/integration/<name>.test.ts`.
+- **A route registered but not declared in its module manifest breaks nothing until boot.**
+  `assertRouteCoverage` runs when the API server is constructed, so an unclaimed route leaves the
+  unit suite green and fails every integration test. #1284 shipped that gap; `3c3d94c3` fixes it and
+  adds `tests/unit/chat-route-coverage.test.ts` so the next one fails in unit time. See ledger G8
+  for the sibling class — manifest fields that vanish between the worker and the browser.
+- **`tests/integration/job-search.test.ts` already exists** (created by Task 2 at `b043f1d6`).
+  Task 21 extends it. Anyone who "creates" it destroys four verified cases and stays green.
 
 ## Ben's two rulings, 2026-07-27
 
