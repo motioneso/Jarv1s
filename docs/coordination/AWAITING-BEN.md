@@ -12,11 +12,39 @@ as `73e50847` on that basis, **not on a fresh approval**. The limit held: merge 
 lower the bar. Worth a retroactive nod so the record is unambiguous, and worth deciding whether the
 same delegation extends to #1264 and #1265 (both also `security` tier).
 
-## 2. Task decomposition sizing — the one real process question
+## 2. Plan size is what burns contexts — now with hard evidence
 
-#1263 took **three relays on a single task**. That is the signature of tasks decomposed past what
-one context can hold, not of an agent underperforming. Options: smaller task units, fatter handoffs,
-or accept relays as normal cost. This is a judgement call about how the fleet is run, so it is yours.
+Updated 2026-07-27. This started as "task decomposition sizing" after #1263 took three relays on one
+task. Three lanes in, the cause is clearer and it is **not** task size — it is **plan size**.
+
+Both round-two plans were written by the `gpt-5.6-sol high` planner and both came out at
+**~1128 lines with inline implementation code**:
+
+| Plan | Lines | Cost |
+| --- | --- | --- |
+| #1264 settings | 1129 | **four consecutive contexts, zero code** — every successor re-read the plan and relayed |
+| #1265 content | 1128 | relayed mid-T2; its "fresh" successor booted at 46% before writing anything |
+
+A plan that large cannot be read by a fresh context and leave room to build. Each successor spent
+its budget re-deriving what the previous one had already established, then relayed with nothing to
+show. That is six contexts across two lanes lost to reading.
+
+**What fixed it** (already applied, both lanes are building now): a per-task **line-range map** in
+the handoff so an agent seeks to its own task and reads ~130 lines instead of 1128, plus the settled
+grounding written down so nobody re-derives it. #1264 started producing code within minutes of
+getting the map.
+
+Two things worth your call:
+
+1. **Should plans stop carrying implementation code?** This repeats the lesson already recorded from
+   the Codex review loop — plans carry contracts, invariants, and test cases; implementation code in
+   a plan makes new surface every rewrite. A ~300-line plan of contracts would likely have avoided
+   all six lost contexts.
+2. **Handoff docs live on the coordinator branch, which build agents never see.** I only discovered
+   this mid-run: my first fix commit was unreadable by the agent it was written for, and it worked
+   only because I also put the facts inline in the pane message. Either handoffs should land on the
+   build branch at spawn, or rulings must always be carried inline. Right now it is the latter by
+   accident, not by design.
 
 ## 3. #1266 — user-facing "always confirm" override for any granted permission
 
