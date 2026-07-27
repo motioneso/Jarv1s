@@ -2710,3 +2710,28 @@ the auto and yolo branches only, never `confirmAndRun`.** The predecessor had gr
 (~457-546) as a third place the code flows through, which is accurate, but throttling a path the user
 has just clicked confirm on limits the user rather than the loop — and a human clicking a button is
 already the loop-breaker this whole control exists to substitute for.
+
+### #1264 relay 13 — tests red, implementation not started
+
+`settings-1264-r12` (`b34fcb5b`) relayed at the 70% meter having written the Task 13 tests and stopped
+before the implementation, which is the right place to hand over. Commit `2a8ac44a` carries four tests,
+confirmed failing on a missing `GATEWAY_AUTO_RUN_RATE_LIMIT_DEFAULTS` export:
+
+- auto branch degrades the over-ceiling call to a confirmation card, never a silent no-op;
+- unattended branch hard-denies with a distinct `rate_limited` audit row, isolated per actor and per
+  tool (this one also covers the keying ruling);
+- read tools are never limited however hard they are hammered (condition 1 regression guard);
+- the confirmation path is never limited.
+
+The fourth test was added mid-build on my instruction, and the reason is in its name. My earlier ruling
+kept the limiter off `confirmAndRun` as a scope matter; reading the condition-2 test names showed the
+exemption is actually load-bearing for the fix itself. Condition 2 degrades a tripped auto call *into*
+the confirmation card, so a limited confirm path would hand the user a card that then refuses them —
+the silent-comply failure condition 2 exists to prevent, moved one step later. Nothing in the other
+three tests would have caught a later change breaking that.
+
+Successor `settings-1264-b` = session `f360dfb5`, pane `w1:p13M`, Sonnet 5 confirmed, briefed with the
+three rules that have needed repeating across every relay (guard placement at the limiter check itself,
+limiter scope, and the bans on tool-parameterised ceilings and `defaultTier` widening). Predecessor
+resolved fresh and reaped. Handoff doc:
+`docs/superpowers/handoffs/2026-07-27-1264-settings-self-operation-relay-13.md`.
