@@ -4224,3 +4224,26 @@ No built-in manifest hit the gap (`task_changes`, `task_cleanup`, `calendar_writ
 Task 4 (live UAT, reusing/inverting `live-uat-1310.spec.ts` per the harness-reuse order), Task 5
 (PR), gate, wrap-up. **Verify the successor actually appears** — #1310's predecessor died at 1%
 without spawning one, so a promised handoff is not evidence of a handoff.
+
+## QUEUED — next after this epic closes: issue #1327
+
+**Do not start early; do not let it get lost at wrap-up.** Issue #1327, "Structured action rows in
+the daily and evening briefings" — filed, spec-ready, labels `enhancement` + `needs-spec`. Ben
+wants it picked up **after** epic #1262 finishes.
+
+Briefings should list the specific things waiting on the user (Gmail AI-inbox style), each with a
+reason, a provenance link, and one action. **The extraction already exists** — the real work is
+that `composeBriefing` can only emit prose; there is no structured-payload channel. The issue
+lists seven already-shipped seams; read them first so nobody rebuilds the extractor.
+
+Ben's rulings live on the issue and are **not to be re-litigated**: (1) a row is not a task until
+accepted (`suggested` already does this); (2) dismiss is a mute, not a delete — twice and it's gone
+for good; (3) suppression keys off the model's inferred **subject**, not sender domain — the
+per-domain `effectiveConfidence()` in `packages/connectors/src/source-context/email-tasks.ts` was
+explicitly rejected as too blunt, and is a known trap; (4) comeback trigger is deadline proximity
+plus Jarvis's own knowledge (ingested notes + memory graph) — volume/repetition is explicitly NOT
+a trigger; (5) the bar is relevance, not extraction accuracy. The issue also carries a v1 line to
+keep it small.
+
+Durable detail already in memory as `briefing-action-rows-1327.md`. Per project rule it needs an
+approved spec before any code — so the first action at #1262 wrap-up is the spec, not a build lane.
