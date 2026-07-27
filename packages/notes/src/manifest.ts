@@ -73,7 +73,7 @@ export const notesModuleManifest = {
     {
       id: "notes.delete",
       label: "Delete notes",
-      description: "Delete Markdown notes in the linked notes source after approval.",
+      description: "Delete Markdown notes in the linked notes source immediately and permanently.",
       scope: "user",
       actions: ["delete"]
     }
@@ -144,7 +144,9 @@ export const notesModuleManifest = {
     },
     {
       name: "notes.delete",
-      description: "Delete a Markdown note from the linked notes source after approval.",
+      description:
+        "Delete a Markdown note from the linked notes source immediately and permanently. There is " +
+        "no trash or restore — the file is unlinked on disk.",
       permissionId: "notes.delete",
       actionFamilyId: "note_changes",
       risk: "write",
