@@ -1,6 +1,6 @@
 ### Task 16: Conversation, profile, résumé, and settings tools
 
-The eight tools the conversation and the settings screen write through. Every one returns
+The nine tools the conversation and the settings screen read and write through. Every one returns
 **records, never prose**.
 
 **Depends on:** Task 10 (`parseCriteria`, `parseContextSummary`, `CONTEXT_SUMMARY_MAX`,
@@ -8,8 +8,13 @@ The eight tools the conversation and the settings screen write through. Every on
 
 **Files**
 
-- Create: `external-modules/job-search/src/worker/handlers/{profile.ts,resume.ts}`
-- Modify: `external-modules/job-search/jarvis.module.json` — eight tools
+- Create: `external-modules/job-search/src/worker/handlers/{profile.ts,resume.ts,portal.ts}`
+  — `portal.ts` holds both `portal.set-enabled` and the `portal.list` read added per ruling
+  N6. `portal.list` returns each portal's id, label, enabled flag, state, and — when the state
+  is degraded or self-disabled — the structured `cause` Task 20 renders verbatim. It reads the
+  same worker-internal store method Task 13 defines (`listPortals(profileId)`); the point of
+  the tool is that the browser has no other way to reach it.
+- Modify: `external-modules/job-search/jarvis.module.json` — nine tools
 - Test: `tests/unit/job-search-profile-handler.test.ts`
 
 **Contracts**
@@ -24,6 +29,7 @@ The eight tools the conversation and the settings screen write through. Every on
 | `job-search.resume.set`                  | `resume.set`                  | write |
 | `job-search.resume.get`                  | `resume.get`                  | read  |
 | `job-search.portal.set-enabled`          | `portal.set-enabled`          | write |
+| `job-search.portal.list`                 | `portal.list`                 | read  |
 
 `set-enabled`, **not `toggle`**: the tool names the state it writes rather than the transition, so a
 retry or a double-click is idempotent instead of flipping the portal back off. Task 20's settings UI,

@@ -4047,7 +4047,14 @@ the web bundle receives only `{hostActions, assistantSurface?}`
   `runQueue("job-search.match-state", "match.set-state", {matchId, state})`; the **assistant** reaches
   it through the `job-search.match.dismiss` write tool, where the confirmation prompt is the correct
   consent boundary rather than an obstacle.
-- **`limit` is required, with no default.** Clamp 1..100 in the schema and **re-check in the
+- **`limit` is required, with no default, and its maximum is bounded by the RENDER cap, not by
+  taste.** See **ruling N5**: the REST route the board uses ends at `boundedAssistantToolResultData`,
+  which throws the structured result away and substitutes `{text: "…truncated"}` once the rendered
+  form passes 16 000 characters. Lower the schema maximum from 100, cap each free-text reason field
+  in the handler's projection, and comment both constants with why they are what they are — someone
+  will otherwise raise the limit back. Add a test that builds a worst-case maximum-size result,
+  renders it the way the route does, and asserts the structured `data` survives (no `text` key). The
+  handler-level tests cannot see this: they never cross the route. Clamp in the schema and **re-check in the
   handler**: the queue path's params DSL has no numeric bounds and never validated it. A handler that
   quietly substitutes a default lets an unbounded board read ship as an omission rather than fail.
 - **Scope the read by `profileId`, not by `limit` alone.** RLS confines this to the actor's own rows,
@@ -4302,7 +4309,7 @@ pnpm vitest run tests/unit/job-search-job-input.test.ts \
 
 ### Task 16: Conversation, profile, résumé, and settings tools
 
-The eight tools the conversation and the settings screen write through. Every one returns
+The nine tools the conversation and the settings screen read and write through. Every one returns
 **records, never prose**.
 
 **Depends on:** Task 10 (`parseCriteria`, `parseContextSummary`, `CONTEXT_SUMMARY_MAX`,
@@ -4310,8 +4317,13 @@ The eight tools the conversation and the settings screen write through. Every on
 
 **Files**
 
-- Create: `external-modules/job-search/src/worker/handlers/{profile.ts,resume.ts}`
-- Modify: `external-modules/job-search/jarvis.module.json` — eight tools
+- Create: `external-modules/job-search/src/worker/handlers/{profile.ts,resume.ts,portal.ts}`
+  — `portal.ts` holds both `portal.set-enabled` and the `portal.list` read added per ruling
+  N6. `portal.list` returns each portal's id, label, enabled flag, state, and — when the state
+  is degraded or self-disabled — the structured `cause` Task 20 renders verbatim. It reads the
+  same worker-internal store method Task 13 defines (`listPortals(profileId)`); the point of
+  the tool is that the browser has no other way to reach it.
+- Modify: `external-modules/job-search/jarvis.module.json` — nine tools
 - Test: `tests/unit/job-search-profile-handler.test.ts`
 
 **Contracts**
@@ -4326,6 +4338,7 @@ The eight tools the conversation and the settings screen write through. Every on
 | `job-search.resume.set`                  | `resume.set`                  | write |
 | `job-search.resume.get`                  | `resume.get`                  | read  |
 | `job-search.portal.set-enabled`          | `portal.set-enabled`          | write |
+| `job-search.portal.list`                 | `portal.list`                 | read  |
 
 `set-enabled`, **not `toggle`**: the tool names the state it writes rather than the transition, so a
 retry or a double-click is idempotent instead of flipping the portal back off. Task 20's settings UI,
@@ -4749,7 +4762,8 @@ The screen a profile shows once it has criteria: the two-axis match table, the p
 and the per-profile settings. These are the states that decide whether the thing is usable.
 
 **Depends on:** Task 15 (`job-search.matches.list` read tool, the `job-search.match-state` manual
-queue, `job-search.crawl-run`), Task 16 (`job-search.portal.set-enabled`,
+queue, `job-search.crawl-run`), Task 16 (`job-search.portal.list` — the settings screen's only source for portal state, added per
+ruling N6 — and `job-search.portal.set-enabled`,
 `job-search.profile.set-briefing-detail`), Task 18 (`invokeTool`, `runQueue`, `RunOutcome`).
 
 **Files**

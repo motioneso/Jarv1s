@@ -679,3 +679,49 @@ consumers each invent an ad-hoc subset (Task 10's `buildBriefingContribution` ta
 `{id, name, matches, postings}`, dropping `state`/`schedule`/`briefingDetail`/`surfaceKey`/
 `contextSummary`). Not a drop today; it is the precondition for two tasks drifting on what a profile
 contains. Add the canonical type when Task 5 is built.
+
+**N5 — N3 is CONFIRMED, and it is a live threat to the board. Verified in code, 2026-07-27.**
+The chain, each link re-read at `6a74badf`:
+
+1. External-module tools are not execute-less at the REST boundary. `createExternalToolManifests`
+   (`packages/module-registry/src/external/tool-manifests.ts:43`) **synthesizes**
+   `execute: (_db, input, ctx) => invoke(module, tool, input, ctx)`, dispatching to the worker. So
+   the browser's `invokeTool("job-search.matches.list", …)` does reach the module, and Task 18/20's
+   transport claim is correct — read tools work from the browser, writes 403 with
+   `confirmation_required`. That part of the plan is sound.
+2. That same route ends at `boundedAssistantToolResultData(sanitized)`
+   (`packages/ai/src/routes.ts:712`), which is `@deprecated` and does this: render the result; if the
+   rendered string exceeds `MAX_RENDERED_TOOL_RESULT_CHARS` (16 000,
+   `packages/ai/src/gateway/output-validation.ts:4,89-95`), **discard the structured object entirely
+   and return `{ text: "…\n...[truncated tool result]" }`**.
+3. `matches.list` currently allows `limit: 1..100` with two free-text reason fields per row. A full
+   board crosses 16 000 rendered characters comfortably.
+
+The board would then be handed prose where it expected records — a direct hit on the invariant that
+the UI is never made of model output. It fails **silently and only when a search is going well**:
+few matches render fine, a good week breaks the screen. Nothing in Task 15's or Task 20's tests
+catches it, because those call the handler directly and never cross the route.
+
+**Required, in Task 15:** lower `limit`'s maximum from 100, cap each free-text reason field in the
+handler's projection, and add a test that builds a worst-case maximum-size result, renders it the way
+the route does, and asserts the structured `data` survives — i.e. the result has no `text` key. Pick
+the two constants so that test passes with real headroom, and comment them with *why* they are what
+they are, or the next person will raise the limit back. Task 20 must not paginate around this by
+issuing several calls without the per-call bound; the bound is what makes each call safe.
+
+**N6 — Nothing in the plan can read portal state, but two screens must render it.** Task 16 declares
+eight tools including `job-search.portal.set-enabled` (write) and no portal **read**. `listPortals`
+exists only as a worker-internal store method (Task 13). Task 20 then requires the settings screen to
+list every portal with its state and render `cause.summary`/`cause.nextAction` verbatim, and asserts
+it. As written the screen has no source for what it renders. **Add a ninth tool,
+`job-search.portal.list` (`risk: "read"`, per-profile), to Task 16**, and note it in Task 20's
+depends-on. Task 16's test 11 compares declared handlers against registration keys as a *set*, so it
+keeps working — but the prose saying "eight tools" must move in the same pass, per N2.
+
+**N7 — `surfacesResultToUi` does not exist in this tree; do not go looking for it.** Commit
+`915672f2` ("let a module opt its tool results into its own UI") is **not an ancestor of HEAD** — it
+was lost in the 2026-07-26 repo reset, like the module-worker-timeout fix. Any note claiming that
+mechanism is present is stale. **This does not block the plan:** the board reads through `invokeTool`
+(N5, link 1), not through the chat `action_result.result` channel, so nothing here depends on the
+lost commit. Recorded only so nobody spends an afternoon hunting a mechanism that is gone and is not
+needed.

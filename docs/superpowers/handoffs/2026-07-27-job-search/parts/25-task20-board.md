@@ -4,7 +4,8 @@ The screen a profile shows once it has criteria: the two-axis match table, the p
 and the per-profile settings. These are the states that decide whether the thing is usable.
 
 **Depends on:** Task 15 (`job-search.matches.list` read tool, the `job-search.match-state` manual
-queue, `job-search.crawl-run`), Task 16 (`job-search.portal.set-enabled`,
+queue, `job-search.crawl-run`), Task 16 (`job-search.portal.list` — the settings screen's only source for portal state, added per
+ruling N6 — and `job-search.portal.set-enabled`,
 `job-search.profile.set-briefing-detail`), Task 18 (`invokeTool`, `runQueue`, `RunOutcome`).
 
 **Files**
