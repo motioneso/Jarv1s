@@ -7,6 +7,10 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { deriveTrustedOrigins } from "../../scripts/setup-prod-origins.js";
+import {
+  startJobSearchFixtureServer,
+  type JobSearchFixtureServer
+} from "./fixtures/job-search-fixture-server.js";
 import { parseUatSeedLevel } from "./seed/level-validation.js";
 
 export interface UatRunId {
@@ -30,6 +34,29 @@ export function generateUatRunId(): UatRunId {
 // #1059: env override lets a run pick a free /24 when the default is squatted by a leaked
 // stack (harness contract is `down -v`, but a crashed run can leave 10.254.0.0/24 held).
 export const UAT_DOCKER_SUBNET = process.env.UAT_DOCKER_SUBNET ?? "10.254.0.0/24";
+
+/**
+ * #1306 Task 22: the `jarv1s` worker container can't reach a fixture server bound on the HOST's
+ * 127.0.0.1 — inside the container that address means the container itself. It CAN reach the
+ * Docker bridge network's gateway, which is the host. infra/docker-compose.prod.yml's `jarv1s`
+ * network block sets only `ipam.config.subnet` (no explicit `gateway:`), so Docker's default IPAM
+ * allocator assigns the gateway to the first usable address of the block — `x.x.x.1` for a /24.
+ * This is a convention, not a contract: if UAT_DOCKER_SUBNET's prefix ever changes, or
+ * docker-compose.prod.yml's network block ever gains an explicit `gateway:`, this must be revisited
+ * (a more robust but heavier alternative, deferred as unneeded for Phase 1: `docker network inspect
+ * <project>_jarv1s --format '{{(index .IPAM.Config 0).Gateway}}'` after the network exists).
+ */
+export function deriveDockerBridgeGateway(subnetCidr: string): string {
+  const [network, prefix] = subnetCidr.split("/");
+  const octets = network?.split(".") ?? [];
+  if (prefix !== "24" || octets.length !== 4) {
+    throw new Error(
+      `deriveDockerBridgeGateway only supports the /24 convention this project's UAT/dev/smoke ` +
+        `subnets all use; got ${subnetCidr}`
+    );
+  }
+  return [...octets.slice(0, 3), "1"].join(".");
+}
 
 // #1024/#1000: prod's fixed host port is 1533 (JARVIS_WEB_PORT default). Rather than editing the
 // prod-shaped compose file to support a Docker-assigned ephemeral port (spec §3.4 option 2), Phase
@@ -90,7 +117,16 @@ const UAT_CLI_RUNNER_RPC_SECRET = "uat-only-not-real";
  * `stub` embed provider for the `bare` level (no users → nothing to embed → no reason to pull the
  * real embedding model into a per-run, per-project model-cache volume; spec §3.3).
  */
-export function writeUatEnvFile(input: { readonly webPort: number }): UatEnvFile {
+export function writeUatEnvFile(input: {
+  readonly webPort: number;
+  // #1306 Task 22: opt-in, absent by default. When set, activates
+  // apps/worker/src/external-module-job-handler.ts's host-side createFetch bypass so the
+  // job-search module's crawl hits a fixture origin instead of the real LinkedIn/freehire.me —
+  // provisioner-only, per the ruling that neither JARVIS_RUNTIME_MODE nor
+  // JARVIS_E2E_MODULE_FETCH_BASE may appear in any checked-in compose file, .env.example, or dev
+  // script. See provisionForUat's jobSearchFixture wiring.
+  readonly jobSearchFixtureBaseUrl?: string;
+}): UatEnvFile {
   const dir = mkdtempSync(join(tmpdir(), "jarv1s-uat-"));
   const path = join(dir, "env.production.local");
   writeFileSync(
@@ -131,6 +167,16 @@ export function writeUatEnvFile(input: { readonly webPort: number }): UatEnvFile
       // input — hence env_file: here, not the seed container's docker -e args below.
       "JARVIS_UAT_SEED_CONFIRM=1",
       "JARVIS_UAT_NEWS_TRANSIENT_INPUT=uat-transient.invalid",
+      // #1306 Task 22: absent unless a caller passes jobSearchFixtureBaseUrl — see this
+      // function's param doc. JARVIS_RUNTIME_MODE alone (without the base URL) would throw at
+      // host boot per resolveE2eFetchOverride's fail-closed guard, so these two are written
+      // together or not at all.
+      ...(input.jobSearchFixtureBaseUrl
+        ? [
+            "JARVIS_RUNTIME_MODE=e2e",
+            `JARVIS_E2E_MODULE_FETCH_BASE=${input.jobSearchFixtureBaseUrl}`
+          ]
+        : []),
       ""
     ].join("\n"),
     { mode: 0o600 }
@@ -485,6 +531,11 @@ async function waitForReady(url: string, timeoutMs = 120_000): Promise<void> {
 export interface UatProvisionOptions {
   readonly excludeChunks?: readonly string[];
   readonly withoutNewsJsonBinding?: boolean;
+  // #1306 Task 22: opt-in, absent by default — mirrors REAL_CHAT_TOKEN_TRIGGER_ENV's "no-op
+  // unless asked" shape. No caller sets this yet (Task 22's own UAT spec, tests/uat/run-uat.ts's
+  // per-spec option threading, is out of scope for this delta — see #46); this only makes the
+  // plumbing exist and be independently testable.
+  readonly withJobSearchFixture?: boolean;
 }
 
 export function buildSeedHookInput(
@@ -546,10 +597,22 @@ export async function provisionForUat(
   // teardown; terminal failures clean up below.
   const realChatEnvFile = await writeUatRealChatEnvFile();
 
+  // #1306 Task 22: opt-in (see UatProvisionOptions.withJobSearchFixture), started once before the
+  // retry loop like realChatEnvFile above — the fixture server depends on neither webPort nor
+  // projectName, so a port-bind retry reuses the same running instance rather than restarting it.
+  // Held for the whole function; every exit path below (success teardown, a terminal throw inside
+  // the loop, and the pool-exhausted throw after it) stops it exactly once.
+  const jobSearchFixture: JobSearchFixtureServer | undefined = opts?.withJobSearchFixture
+    ? await startJobSearchFixtureServer()
+    : undefined;
+  const jobSearchFixtureBaseUrl = jobSearchFixture
+    ? `http://${deriveDockerBridgeGateway(UAT_DOCKER_SUBNET)}:${jobSearchFixture.port}`
+    : undefined;
+
   while (remainingCandidates.length > 0) {
     const { projectName } = generateUatRunId();
     const webPort = await findAvailablePort(remainingCandidates);
-    const envFile = writeUatEnvFile({ webPort });
+    const envFile = writeUatEnvFile({ webPort, jobSearchFixtureBaseUrl });
     process.env.JARVIS_ENV_FILE = envFile.path;
     process.env.JARVIS_IMAGE_TAG ??= "uat-smoke";
     // #1024/#1000: must be exported for every retry iteration, not just the first — a TOCTOU
@@ -599,6 +662,7 @@ export async function provisionForUat(
           await assertNoLeakedResources(projectName);
           envFile.cleanup();
           realChatEnvFile?.cleanup();
+          await jobSearchFixture?.stop();
         }
       };
     } catch (error) {
@@ -608,7 +672,8 @@ export async function provisionForUat(
       if (error instanceof PortBindConflictError) {
         // #1024/#1000: Coordinator condition 1 — findAvailablePort (Task 2) only proved this port
         // free at probe time; docker just told us another process won the bind race. Retry with
-        // the next untried candidate instead of flaking the whole gate.
+        // the next untried candidate instead of flaking the whole gate. jobSearchFixture (if any)
+        // stays running across this retry — see its own comment above.
         console.warn(
           `[uat] port ${webPort} lost the bind race after probing free; retrying with next candidate (#1024)`
         );
@@ -617,11 +682,14 @@ export async function provisionForUat(
       }
       // #1121: terminal (non-retry) failure — realChatEnvFile is created once before the loop, so
       // clean it here rather than in the retry path above (which reuses the exported env var).
+      // #1306: jobSearchFixture is the same "created once before the loop" shape.
       realChatEnvFile?.cleanup();
+      await jobSearchFixture?.stop();
       throw error;
     }
   }
   realChatEnvFile?.cleanup();
+  await jobSearchFixture?.stop();
   throw new Error(
     `exhausted all ${UAT_PORT_RANGE_SIZE} reserved UAT ports (${UAT_PORT_RANGE_START}-${
       UAT_PORT_RANGE_START + UAT_PORT_RANGE_SIZE - 1

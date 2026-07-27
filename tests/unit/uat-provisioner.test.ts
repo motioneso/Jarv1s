@@ -6,6 +6,7 @@ import {
   buildSeedHookInput,
   buildUatComposeArgs,
   createUatProvisionPlan,
+  deriveDockerBridgeGateway,
   expectedUatVolumeNames,
   findAvailablePort,
   generateUatRunId,
@@ -84,6 +85,48 @@ describe("writeUatEnvFile", () => {
     } finally {
       cleanup();
     }
+  });
+
+  it("omits JARVIS_RUNTIME_MODE and JARVIS_E2E_MODULE_FETCH_BASE when no fixture URL is given", () => {
+    // #1306 Task 22: these two vars may never appear in a checked-in compose file, .env.example,
+    // or dev script — provisioner-only, and only when a caller opts in.
+    const { path, cleanup } = writeUatEnvFile({ webPort: 20078 });
+    try {
+      const contents = readFileSync(path, "utf8");
+      expect(contents).not.toContain("JARVIS_RUNTIME_MODE");
+      expect(contents).not.toContain("JARVIS_E2E_MODULE_FETCH_BASE");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("writes both fetch-bypass vars together when a fixture URL is given", () => {
+    const { path, cleanup } = writeUatEnvFile({
+      webPort: 20079,
+      jobSearchFixtureBaseUrl: "http://10.254.0.1:54321"
+    });
+    try {
+      const contents = readFileSync(path, "utf8");
+      expect(contents).toContain("JARVIS_RUNTIME_MODE=e2e");
+      expect(contents).toContain("JARVIS_E2E_MODULE_FETCH_BASE=http://10.254.0.1:54321");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("deriveDockerBridgeGateway", () => {
+  it("derives the first usable address of a /24 block, matching Docker's default IPAM gateway", () => {
+    expect(deriveDockerBridgeGateway("10.254.0.0/24")).toBe("10.254.0.1");
+    expect(deriveDockerBridgeGateway(UAT_DOCKER_SUBNET)).toBe("10.254.0.1");
+  });
+
+  it("throws on a non-/24 prefix rather than silently guessing a wrong gateway", () => {
+    expect(() => deriveDockerBridgeGateway("10.254.0.0/16")).toThrow(/\/24/);
+  });
+
+  it("throws on a malformed subnet string", () => {
+    expect(() => deriveDockerBridgeGateway("not-a-subnet")).toThrow();
   });
 });
 
