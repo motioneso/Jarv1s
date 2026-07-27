@@ -21,8 +21,10 @@ import {
 } from "@jarv1s/notifications";
 import type { PgBoss } from "@jarv1s/jobs";
 
+import { PreferenceRevisionConflictError } from "@jarv1s/structured-state";
+
 import { setNotificationPreferenceEnabled } from "./notification-preference-application.js";
-import type { ProfilePreferencesPort } from "./preferences-port.js";
+import type { NotificationPreferencesPort } from "./preferences-port.js";
 import type { SettingsRepository } from "./repository.js";
 import { handleSettingsRouteError } from "./route-error.js";
 import { toMyModuleDto } from "./routes-serializers.js";
@@ -37,7 +39,7 @@ interface NotificationPreferencesRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly listModuleManifests: () => readonly JarvisModuleManifest[];
-  readonly preferencesRepository: ProfilePreferencesPort;
+  readonly preferencesRepository: NotificationPreferencesPort;
   readonly repository: SettingsRepository;
   readonly notificationUnreadPort?: NotificationUnreadPort;
   readonly boss?: Pick<PgBoss, "schedule" | "unschedule">;
@@ -85,6 +87,9 @@ export function registerNotificationPreferencesRoutes(
         );
         return result;
       } catch (error) {
+        if (error instanceof PreferenceRevisionConflictError) {
+          return reply.code(409).send({ error: error.message });
+        }
         return handleSettingsRouteError(error, reply);
       }
     }

@@ -2,7 +2,7 @@ import type { DataContextDb } from "@jarv1s/db";
 import { HttpError, type JarvisModuleManifest } from "@jarv1s/module-sdk";
 import type { NotificationPreferenceDto } from "@jarv1s/shared";
 
-import type { ProfilePreferencesPort } from "./preferences-port.js";
+import type { NotificationPreferencesPort } from "./preferences-port.js";
 import type { SettingsRepository } from "./repository.js";
 import { computeMyModuleDto } from "./routes-serializers.js";
 import type { NotificationUnreadPort } from "./notification-preferences-routes.js";
@@ -11,7 +11,7 @@ const KEY = (moduleId: string) => `notifications:${moduleId}`;
 
 export interface NotificationPreferenceApplicationDeps {
   readonly listModuleManifests: () => readonly JarvisModuleManifest[];
-  readonly preferencesRepository: ProfilePreferencesPort;
+  readonly preferencesRepository: NotificationPreferencesPort;
   readonly repository: SettingsRepository;
   readonly notificationUnreadPort?: NotificationUnreadPort;
 }
@@ -52,7 +52,14 @@ export async function setNotificationPreferenceEnabled(
     moduleName: manifest.name,
     enabled
   };
-  await deps.preferencesRepository.upsert(scopedDb, KEY(manifest.id), { enabled });
+  const key = KEY(manifest.id);
+  const current = await deps.preferencesRepository.getWithRevision(scopedDb, key);
+  await deps.preferencesRepository.upsertWithRevision(
+    scopedDb,
+    key,
+    { enabled },
+    current?.revision ?? null
+  );
   const unreadCount =
     !enabled && clearUnread && deps.notificationUnreadPort
       ? await deps.notificationUnreadPort.markModuleRead(scopedDb, manifest.id)

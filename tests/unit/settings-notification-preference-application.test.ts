@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { DataContextDb } from "@jarv1s/db";
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import { PreferenceRevisionConflictError } from "@jarv1s/structured-state";
 import { setNotificationPreferenceEnabled } from "../../packages/settings/src/notification-preference-application.js";
 import type { NotificationPreferenceApplicationDeps } from "../../packages/settings/src/notification-preference-application.js";
 
@@ -28,17 +29,34 @@ function deps(
 ): NotificationPreferenceApplicationDeps {
   const manifests = overrides.manifests ?? [manifest()];
   const denyRows = overrides.denyRows ?? [];
-  const prefs = new Map<string, unknown>();
+  const prefs = new Map<string, { value: unknown; revision: number }>();
   return {
     listModuleManifests: () => manifests,
     repository: {
       listModuleDenyRowsForActor: async () => denyRows as never
     } as unknown as NotificationPreferenceApplicationDeps["repository"],
     preferencesRepository: {
-      get: async (_db: DataContextDb, key: string) => prefs.get(key) ?? null,
+      get: async (_db: DataContextDb, key: string) => prefs.get(key)?.value ?? null,
       getWithMetadata: async () => null,
       upsert: async (_db: DataContextDb, key: string, value: unknown) => {
-        prefs.set(key, value);
+        const existing = prefs.get(key);
+        prefs.set(key, { value, revision: (existing?.revision ?? 0) + 1 });
+      },
+      getWithRevision: async (_db: DataContextDb, key: string) => prefs.get(key) ?? null,
+      upsertWithRevision: async (
+        _db: DataContextDb,
+        key: string,
+        value: unknown,
+        expectedRevision: number | null
+      ) => {
+        const existing = prefs.get(key);
+        const currentRevision = existing?.revision ?? null;
+        if (currentRevision !== expectedRevision) {
+          throw new PreferenceRevisionConflictError(key);
+        }
+        const revision = currentRevision === null ? 1 : currentRevision + 1;
+        prefs.set(key, { value, revision });
+        return { revision };
       }
     },
     ...overrides
@@ -164,5 +182,36 @@ describe("setNotificationPreferenceEnabled", () => {
       true
     );
     expect(withoutPort.unreadCount).toBeNull();
+  });
+
+  it("throws PreferenceRevisionConflictError (not a silent clobber) when the revision moved since read", async () => {
+    const base = deps();
+    // Seed the key, then simulate a second writer landing between our read and our write.
+    await base.preferencesRepository.upsertWithRevision(
+      scopedDb,
+      "notifications:news",
+      { enabled: true },
+      null
+    );
+    await base.preferencesRepository.upsertWithRevision(
+      scopedDb,
+      "notifications:news",
+      { enabled: true },
+      1
+    );
+    const staleRead: NotificationPreferenceApplicationDeps = {
+      ...base,
+      preferencesRepository: {
+        ...base.preferencesRepository,
+        getWithRevision: async () => ({ value: { enabled: true }, revision: 1 })
+      }
+    };
+
+    await expect(
+      setNotificationPreferenceEnabled(scopedDb, staleRead, "user-a", "news", false, false)
+    ).rejects.toThrow(PreferenceRevisionConflictError);
+
+    const stored = await base.preferencesRepository.get(scopedDb, "notifications:news");
+    expect(stored).toEqual({ enabled: true });
   });
 });
