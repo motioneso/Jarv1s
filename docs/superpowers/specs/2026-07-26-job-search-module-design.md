@@ -1,12 +1,17 @@
 # Job Search Module — Design Spec
 
-**Status:** Draft for approval
-**Date:** 2026-07-26
+**Status:** Approved
+**Date:** 2026-07-26 · **Approved:** 2026-07-27
 **Module id:** `job-search` · **Display name:** Job Search
 **Delivery:** external module (`external-modules/job-search/`), not in the core Docker image
 
 > Naming note: "Compass" was the title of the source requirements doc only. The product name is
 > **Job Search**. Do not use "Compass" in code, UI, or docs.
+
+> Approval note: approved to build. Two of the §13 questions are still open and do **not** block
+> Phase 0–4 — briefing detail levels and whether a dismissed posting can resurface. The third,
+> dynamic fetch-host grants, is **deferred out of v1**, so "add your own job portal" does not ship;
+> the built-in portal list is fixed at package time.
 
 ---
 
@@ -25,10 +30,10 @@ context is the asset no job board has. This module spends it on two questions a 
 
 Every posting is scored on two independent axes, 0–100, **never blended into one number**:
 
-| Axis     | Question                                                              |
-| -------- | --------------------------------------------------------------------- |
-| **Fit**  | Can you do this job, and would they plausibly want you?               |
-| **Want** | Would you still want this job a year in?                              |
+| Axis     | Question                                                |
+| -------- | ------------------------------------------------------- |
+| **Fit**  | Can you do this job, and would they plausibly want you? |
+| **Want** | Would you still want this job a year in?                |
 
 The gap between them is the product. A posting at Fit 92 / Want 41 is a trap; Fit 74 / Want 94 is
 a conversation worth having. Collapsing them hides exactly the information the user came for.
@@ -45,7 +50,7 @@ spec revision, not an implementation detail.
 2. **No paywalled or login-walled sources.** If a portal demands an account before it will show
    postings, the crawler **hard stops** for that portal and disables it with a stated cause. It
    never signs in, never uses stored user credentials against a job board. Working around
-   anti-bot measures on *public* pages is authorized by the owner for their self-hosted instance;
+   anti-bot measures on _public_ pages is authorized by the owner for their self-hosted instance;
    scraping behind a paywall is not.
 3. **Résumé is first-class**, one per search profile. Same underlying document may be tweaked per
    profile; the profile owns its version.
@@ -61,7 +66,7 @@ spec revision, not an implementation detail.
    what kind of failure (`rate_limited | login_required | parse_failed | network`), what was
    retrieved before it stopped, when it last worked, and what happens next. Jarvis must know why,
    and be able to say why.
-8. **The recall case is protected.** Postings *outside* the user's stated frame are surfaced
+8. **The recall case is protected.** Postings _outside_ the user's stated frame are surfaced
    deliberately and flagged as such. Aggressive filtering to the stated criteria would defeat the
    product — the user's stated frame is an input, not a fence.
 9. **Module owns everything.** No core changes except where core is genuinely missing a capability
@@ -121,13 +126,13 @@ external-modules/job-search/
 Module-owned Postgres tables (declared in manifest `database.ownedTables`, reached through
 `ctx.db`'s bounded SQL — no core repository):
 
-| Table                            | Holds                                                        |
-| -------------------------------- | ------------------------------------------------------------ |
-| `app.job_search_profiles`        | one row per search profile: name, state, criteria JSON, schedule |
-| `app.job_search_postings`        | crawled postings, deduped, with source + first-seen           |
-| `app.job_search_matches`         | per-profile scoring: fit, want, both reasons, flags, state    |
-| `app.job_search_portals`         | per-profile portal enablement + last state + failure cause    |
-| `app.job_search_resumes`         | one résumé per profile: version, content ref, updated         |
+| Table                     | Holds                                                            |
+| ------------------------- | ---------------------------------------------------------------- |
+| `app.job_search_profiles` | one row per search profile: name, state, criteria JSON, schedule |
+| `app.job_search_postings` | crawled postings, deduped, with source + first-seen              |
+| `app.job_search_matches`  | per-profile scoring: fit, want, both reasons, flags, state       |
+| `app.job_search_portals`  | per-profile portal enablement + last state + failure cause       |
+| `app.job_search_resumes`  | one résumé per profile: version, content ref, updated            |
 
 All FORCE RLS, owner-only. No share grants in v1 — a job search is private by construction.
 
@@ -150,7 +155,7 @@ schedule (cron, per user)
 Fit and Want — which a model actually reasoned about — are ever shown.
 
 **Recall protection at the triage stage:** the triage cut keeps a reserved slice for postings that
-score *below* the criteria threshold but *above* it against the user's broader profile context
+score _below_ the criteria threshold but _above_ it against the user's broader profile context
 (goals, notes, past conversation). Those are what surface flagged "outside your stated frame." A
 triage that only keeps close matches to the stated criteria is a spec violation.
 
@@ -191,7 +196,7 @@ One chat implementation, two renderings, N threads.
 - The thread renders inside the module and inside the core chat drawer. **Same stream, two
   surfaces** — like calling your mother from your phone or your laptop.
 - **Strict separation:** a job-search thread must never appear in the main drawer transcript, and
-  the main thread must never appear inside the module. The drawer is a chat *surface*; which
+  the main thread must never appear inside the module. The drawer is a chat _surface_; which
   transcript it shows depends on where it was opened.
 - **Discuss** on a match opens the thread with that posting already present **as a rendered record
   card**, not as pasted prose.
