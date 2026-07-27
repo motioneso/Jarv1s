@@ -98,3 +98,20 @@ Nothing in the approved design covers web research. Changing it needs its own sp
   returns 503 "Topic checking unavailable".
 - `onboarding.state` was flagged touched-but-unverified during the #1263 run — worth one manual pass.
 - Standing item from memory: flip `JARVIS_EMBED_PROVIDER` from `stub` to `local`.
+
+## 7. Your dev DB has orphaned migration rows, and one of ours applied to it
+
+Two things to clean when you are up, both mine to flag and yours to action — I refused to touch your
+environment on delegated authority.
+
+1. **`app.schema_migrations` in the shared dev DB (`jarv1s@:55433`) contains rows for migrations whose
+   files no longer exist in any git ref** — confirmed for `0175_chat_messages_attachment_only_body.sql`
+   (applied 2026-07-26T01:35). Casualty of the 2026-07-26 repo reset. It is harmless until someone
+   trusts the DB rather than git for the next free migration number, which is exactly how it surfaced.
+2. **`0176_instance_settings_revision.sql` from the unmerged #1264 branch is applied to your dev DB.**
+   A build agent ran `pnpm db:migrate` without `JARVIS_PGDATABASE` isolation. The column is additive
+   and the checksum will match when #1264 merges, so nothing is broken — but your dev DB is currently
+   ahead of `main` with unmerged work, and that file is now effectively frozen against edits.
+
+Corrected the agent and the run rule holds, but worth knowing your environment drifted.
+
