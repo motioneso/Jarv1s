@@ -16,14 +16,23 @@
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
 | docs/superpowers/specs/<slug>.md | #NN | routine\|sensitive\|security | queued | — | — | — | — |
 
+**The `Issue` column may never be `—` or prose.** Every lane needs a real GitHub `task` issue
+before it is queued, including work Ben authorizes verbally mid-run. A lane recorded as
+`Issue: "live feedback" / PR: —` in a prior run was live-verified, never filed, and swept away in
+the 2026-07-26 cleanup along with nine commits — now being rebuilt as #1270/#1271.
+
 Risk tier (content triggers, set at Phase 0 — see `coordinate` Risk tiering):
 - `routine` — no schema/auth/secret surface → auto-merge after green QA.
 - `sensitive` — shared-table migration / cross-module contract / export-delete / job-payload shape → auto-merge + Ben digest.
 - `security` — auth/sessions/tokens/RLS/secrets/rate-limit/network-exposed/policy migration → cross-model Opus QA + `gh pr comment` verdict + **Ben merge sign-off**.
 
 Status vocabulary: `queued` → `building` → `awaiting-plan-approval` → `blocked` →
-`pr-open` → `qa` → `qa-failed`/`rework` → `awaiting-ben-signoff` (security) → `merged`
-(or `handed-off` when relayed to a fresh session).
+`pr-open` → `qa` → `qa-failed`/`rework` → `awaiting-live-path` → `awaiting-ben-signoff` (security)
+→ `merged` (or `handed-off` when relayed to a fresh session).
+
+`awaiting-live-path` = QA is green but the PR has no live-UI proof comment. It does not merge and
+its issue is not Done; the honest status is **code-complete, unverified**. Applies at every tier
+including `routine` (`coordinate` → Live-Path Gate).
 
 ## Dependency / merge order
 

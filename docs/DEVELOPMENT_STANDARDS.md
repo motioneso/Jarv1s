@@ -57,8 +57,10 @@ Out of scope: docs-only changes, refactors with no user-visible surface, and int
 
 Jarv1s UI must keep the authored design-system shape:
 
-- serif headings via Newsreader, mono eyebrow/section labels via IBM Plex Mono, sans body via
-  Hanken Grotesk
+- headings use `--font-display` (Neue Haas Grotesk, interim Helvetica stack); body uses
+  `--font-sans`. **No mono and no serif** — mono was retired 2026-07-08 (eyebrows, labels, and data
+  use `--font-sans` with `tabular-nums`); serif survives only in the sports nameplate. Match the
+  live `apps/web/src/styles/tokens.css`, which is the authority if this list ever drifts again
 - palette, radius, shadow, focus, and state colors come from `apps/web/src/styles/tokens.css`
 - extend existing `jds-*` and local UI primitives; do not drop in unstyled shadcn, Radix, or
   Tailwind-default primitives

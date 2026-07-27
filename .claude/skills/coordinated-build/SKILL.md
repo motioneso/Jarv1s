@@ -22,11 +22,12 @@ This is the `start` skill's plan+build stages adapted for coordination mode.
 - You **self-monitor context** and relay before you degrade.
 - You **never** move the project board, close issues/milestones, or merge — those are the
   coordinator's. Your closeout is `coordinated-wrap-up` (PR + report), nothing more.
-- **Communicate in caveman mode to save tokens.** For every status update, escalation, and report
-  to the coordinator — and your own narration — drop articles, filler, and pleasantries; keep full
-  technical accuracy (invoke the `caveman` skill if registered, else just write terse). EXCEPTION:
-  commit messages, PR bodies, and code/comments keep their normal conventional form (they have
-  readers and conventions). Terse to the coordinator; conventional in the artifacts.
+- **Report terse and result-first.** Status updates, escalations, and reports to the coordinator
+  lead with the result, skip recaps and option surveys, and stay in normal English — do **not**
+  compress into caveman/telegraph style. (Caveman mode was removed from this family on 2026-07-27:
+  the tokens it saved were small, and it mangled exactly the messages that need precision — plan
+  approvals and `[SECURITY]` escalations.) Commit messages, PR bodies, and code comments keep their
+  full conventional form.
 
 ## Procedure
 
@@ -39,10 +40,17 @@ This is the `start` skill's plan+build stages adapted for coordination mode.
   for your current task only — never front-to-back in one pass. A full-read bloats a fresh context
   toward the relay threshold before you write any code, which forces a premature relay with zero
   progress (a real failure mode this run: lanes that spent hours emitting only handoff docs, no
-  code). Reading is not progress — BUILD, commit per task, and relay only after real work past
-  ~80%. Note your worktree/branch, the coordinator label, your **risk tier**, and any collision
-  notes. A `security`-tier spec ships to a higher bar (cross-model QA + Ben merge sign-off) — build
-  defensively and document trust boundaries.
+  code). Reading is not progress — BUILD and commit per task; your relay trigger is the meter's
+  70% warning (step 3), not a felt %. Note your worktree/branch, the coordinator label, your
+  **risk tier**, and any collision notes. A `security`-tier spec ships to a higher bar
+  (cross-model QA + Ben merge sign-off) — build defensively and document trust boundaries.
+- **Confirm your handoff names a GitHub task issue** (`#NN`, not "live feedback" / "—"). No issue
+  means your work is invisible to every later sweep. Untracked lanes are exactly what the
+  2026-07-26 repo cleanup deleted — nine live-verified commits, gone, because the lane that built
+  them had no issue and no PR. If the field is empty, escalate before you plan; do not build.
+- **Never end your turn mid-procedure.** Waiting on a background gate, a rebase, or your own next
+  step is not a stopping point — chain straight into it. The only sanctioned stops are: coordinator
+  plan approval (step 1), a real blocker you escalated, and your finish line (step 4).
 - **Install only if needed:** `[ -d node_modules ] || pnpm install`. Worktrees share the pnpm
   store; if `node_modules` already exists (e.g. you're a relay successor), don't re-install.
   Confirm you are on your own branch, not `main`.
@@ -69,9 +77,19 @@ This is the `start` skill's plan+build stages adapted for coordination mode.
 - Only when every spec item's premise is verified current do you proceed to step 1 (plan).
 
 **1. Plan — then escalate for approval.**
-- **REQUIRED SUB-SKILL:** `superpowers:writing-plans` → `docs/superpowers/plans/YYYY-MM-DD-<slug>.md`
-  (bite-sized TDD tasks, exact files, green per commit). Read the spec with fresh eyes; verify
-  coverage of its Exit Criteria.
+- **REQUIRED SUB-SKILL: `plan-build`** → `docs/superpowers/plans/YYYY-MM-DD-<slug>.md`. It
+  **supersedes `superpowers:writing-plans`** (#1278) — do not use the old skill here. The
+  difference that matters: plans carry *decisions* (exact paths, signatures, DDL, manifest JSON,
+  test cases, verification commands) and **not** implementation bodies. Pasting complete code into
+  a plan is what produced the six-round review loop that never converged (5→4→4→6 blockers).
+- `plan-build` gates on a seams check with `file:line` citations before you plan, a kill gate after
+  phase 1, and **an observed-passing e2e test per phase** — that last one is how you satisfy the
+  live-path gate as you go instead of as rework at merge time.
+- Read the spec with fresh eyes; verify coverage of its Exit Criteria.
+- **If the spec touches a user-facing feature, module, or UI surface, your plan MUST include the
+  UAT spec** (`tests/uat/specs/<slug>.uat.spec.ts`) and a row in
+  `.claude/skills/coordinate/uat-trigger-map.tsv`. See step 4 — the PR cannot merge without a live
+  proof, so plan for it rather than discovering it at the gate.
 - **Message the coordinator** (label from your handoff doc) via `herdr-pane-message`: "plan ready
   for <slug>: <path>. Approve, or flag a fork." **STOP and wait** — do not write code.
 - If the plan surfaces a genuine product/architecture fork the spec didn't settle, say so in the
@@ -101,9 +119,17 @@ git fetch origin main && git rebase origin/main
 Fix anything red before pushing. This is in addition to your full gate at wrap-up.
 
 **4. Close out with `coordinated-wrap-up`.** When the spec's Exit Criteria are met: invoke the
-**`coordinated-wrap-up`** skill — clean tree, your own gate, push (after the pre-push trio), open
-PR, report the PR + verified evidence to the coordinator. Then stop. The coordinator owns QA,
-merge, board, and close.
+**`coordinated-wrap-up`** skill — clean tree, your own gate (it has the gate-DB recipe; do not
+improvise one), push (after the pre-push trio), open PR, **post the live-path proof**, report the
+PR + verified evidence to the coordinator. Then stop. The coordinator owns QA, merge, board, close.
+
+**⛔ Live-path gate — part of YOUR finish line, not QA's.** If your work adds or changes a
+user-facing feature, module, or UI surface, "green gate + PR open" is not done. The PR needs a
+`gh pr comment` carrying a live end-to-end proof: the feature exercised **through the real UI on a
+live dev instance** (UAT run output + screenshots). Without it the coordinator must refuse the
+merge and send the lane back — so produce it yourself. If you genuinely cannot (no live instance
+reachable, a step that needs Ben in person), say so plainly in the PR body and report the honest
+status: **code-complete, unverified**. Full rule: `docs/DEVELOPMENT_STANDARDS.md` → Live-Path Gate.
 
 ## Red flags — STOP
 
@@ -117,6 +143,11 @@ merge, board, and close.
   relaying → you'll degrade and lose state. Relay now.
 - About to push **without the pre-push trio** (`format:check && lint && typecheck`) + fresh rebase →
   you'll burn a CI round-trip. Run them first.
+- About to **plan with `superpowers:writing-plans`** → superseded; use `plan-build`.
+- About to report a UI-facing PR done **with no live-UI proof comment** → that's not done. Post the
+  proof or report *code-complete, unverified*.
+- About to **build a lane with no GitHub issue** → stop and escalate; untracked work gets deleted.
+- About to **end your turn to "wait" for something** → don't. Chain into the next step.
 
 ## Common mistakes
 
@@ -125,5 +156,5 @@ merge, board, and close.
   host (though you have your own worktree, keep the habit).
 - **Doing the coordinator's closeout.** PR + report is your finish line; merge/board/milestone are not.
 
-See also: `start` (the stock lifecycle this adapts), `coordinated-wrap-up`, `relay`,
-`herdr-pane-message`, and CLAUDE.md (Hard Invariants, recalls).
+See also: `plan-build` (your planning skill), `start` (the stock lifecycle this adapts),
+`coordinated-wrap-up`, `relay`, `herdr-pane-message`, and CLAUDE.md (Hard Invariants, recalls).

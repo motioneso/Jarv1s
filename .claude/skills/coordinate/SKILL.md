@@ -43,6 +43,10 @@ Why these rules exist: `references/incidents.md` (read on demand, not up front).
 - **`coordinated-wrap-up`** — how a build agent finishes (PR + report to you).
 - **`coordinated-qa`** — ephemeral QA per PR; returns a compact verdict. Registered as an agent
   type in `.claude/agents/coordinated-qa.md` (no Edit/Write tools — verdict-only by construction).
+- **`plan-build`** — the planning skill every build agent uses (#1278; **supersedes
+  `superpowers:writing-plans`**). Plans carry decisions, not code bodies, and each phase ships an
+  observed-passing e2e test — that is what keeps the live-path gate from becoming merge-time rework.
+- **`audit-grounding`** — `pnpm audit:preflight` before any audit/review, including QA's.
 - **`relay`** — context self-handoff, for build agents AND for you.
 - **`herdr-handoff`** (spawn), **`herdr-pane-message`** (talk), **`start`/`wrap-up`** (the stock
   lifecycle the coordinated variants derive from).
@@ -133,8 +137,14 @@ Nothing spawns until the run is ready and Ben approves the manifest.
 1. **Agree the run's contents.** Get current state from GitHub (board + epics; source of truth).
    **Verify `main` CI is green** (`gh run list --branch main --limit 1`) — never spawn onto a red
    `main`; it propagates into every agent's gate.
-2. **Confirm an approved spec exists for every item** (`docs/superpowers/specs/`). Missing/fuzzy →
-   help Ben author it (`superpowers:brainstorming`, `/brief`); never spawn on an unapproved spec.
+2. **Confirm an approved spec AND a GitHub `task` issue exist for every item**
+   (`docs/superpowers/specs/`). Missing/fuzzy spec → help Ben author it
+   (`superpowers:brainstorming`, `/brief`); never spawn on an unapproved spec.
+   **No issue, no lane — including work Ben authorizes verbally mid-run.** File the issue first;
+   a queue row may never read `Issue: —` or `Issue: live feedback`. This is not bookkeeping
+   fussiness: the 2026-07-26 repo cleanup deleted nine live-verified commits precisely because the
+   lane that produced them had no issue and no PR, so every sweep read it as scratch work. That
+   loss is now being rebuilt as issues #1270/#1271. Archived is not triaged.
 3. **Build the dependency + collision map — as a one-shot Opus subagent** (pointer-style prompt:
    spec paths + the migration-ordering rule). Two specs collide on a shared module, shared-table
    schema change, or migration ordering (numbers are global, assigned by landing order). Run the
@@ -186,6 +196,10 @@ catches silent failures between pushes.
 - **Liveness — prefer a persistent `Monitor` over polling:** a loop that snapshots
   `herdr pane list` every ~60s and emits **only changed lines** (an `agent_status` flip, a pane
   death). A healthy fleet then costs you zero tokens; you read a pane only when the monitor fires.
+  **`agent_status` is a hint, not proof.** It has reported `idle` while the pane itself showed
+  `Perambulating… 19m` — a false completion that will make you close out a lane mid-thought. Before
+  acting on "done", confirm against the **deliverable**: the PR exists, or the file's size is stable
+  across two checks a minute apart. Status flips tell you *when to look*, never *what is true*.
   If you must fall back to a `ScheduleWakeup` sweep instead, mind the prompt-cache TTL: tick
   ≤270s (stays cache-warm) or space ticks 20–30 min — a wake between those pays a full cold
   re-read of your context for nothing. **Never block on `herdr pane run <pane> 'sleep N'`
@@ -197,6 +211,19 @@ catches silent failures between pushes.
   reason through it inline. Relay the verdict to the agent.
 - **On a blocker:** unblock if you can (answer, point at a file/memory). Real design/scope
   question → model policy, then Ben. Manifest: `blocked` + the open question.
+- **On a stall — diagnose which of the two kinds it is before you touch it.** They need opposite
+  responses and treating them alike wastes a lane:
+  - **Frozen mid-turn** (a spinner that hasn't advanced, an API 529, no new output): the session is
+    stuck, not thinking. **Nudge it** — `herdr agent prompt <name> "continue"`. These clear on a
+    nudge; do not re-spawn, you'd lose the worktree state.
+  - **Turn ended on a wait declaration** — the agent wrote something calm and reasonable like "I'll
+    wait for the background gate to finish" and *stopped*. Nothing is running. A nudge makes this
+    **worse**: it restates the intent and stops again, burning turns. Correct move: `TaskStop` the
+    lane, take over the finish line yourself, and **read the diff before you trust it** — the
+    #1313 agent stalled this way having left its new fallback path entirely untested. Then re-brief
+    the successor with "do not end your turn between steps."
+  - Distinguish them by the pane's last line, not by `agent_status`: a wait declaration is prose, a
+    freeze is a spinner.
 - **On an agent relay** (its meter warned or it saw a compaction summary): it spawns its successor
   in the same worktree and asks to be reaped — confirm the successor is driving (bounded pane
   read), reap the old pane, update the manifest. If YOU spawn the successor, always pass
@@ -227,7 +254,8 @@ When an agent reports **done** (PR open + its own green evidence — which you d
    JARVIS_PGDATABASE=jarvis_qa_<n>
    PR: <PR number> | Branch: <branch> | Spec: <spec-path> | Tier: <routine|sensitive|security>
 
-   Invoke the coordinated-qa skill; its step 4 is authoritative for sensitive-tier e2e-UAT.
+   Invoke the coordinated-qa skill; its step 3b (live-path gate + e2e-UAT, every tier) and
+   step 4 (tier depth) are authoritative.
    Return ONLY the compact verdict as your final message.
    """
    )
@@ -266,8 +294,12 @@ When an agent reports **done** (PR open + its own green evidence — which you d
    board item to Done, close the milestone if complete (field IDs: `start` skill's GitHub
    reference). Add the merge to Ben's standing digest.
 
-6. **Reap** the build agent, remove its worktree (`git worktree remove`), release any serialized
-   successor. Manifest: `merged`.
+6. **Reap — but prove the work landed first.** Before removing anything, confirm the lane's commits
+   are actually on `main` (`git log origin/main --oneline | grep <sha>`, or the merged PR). Only
+   then reap the build agent, remove its worktree (`git worktree remove`), and release any
+   serialized successor. Manifest: `merged`. **Never delete a branch or worktree whose work you
+   have not seen on `main`** — deleting unlanded work is how the 2026-07-26 cleanup lost nine
+   live-verified commits.
 
 7. **Relay check (non-negotiable).** Increment `merges_since_relay`, then evaluate the **relay
    triggers** (Context discipline): meter warning, security merge, 2 routine/sensitive merges, or
@@ -276,9 +308,18 @@ When an agent reports **done** (PR open + its own green evidence — which you d
 
 ## Phase 4 — reap & report
 
-- Kill spent panes; prune merged worktrees; keep manifest + GitHub consistent (no drift).
-- **Report to Ben:** what merged (PR links + verified exit codes), in flight, blocked (and where
-  tracked), awaiting his decision.
+- **Close the panes you opened.** The reap half of pane hygiene is the half that gets skipped —
+  Ben has raised it repeatedly. Kill spent panes, prune merged worktrees (only after step 6's
+  landed-on-`main` check), keep manifest + GitHub consistent (no drift).
+- **Report to Ben, in this order:**
+  1. **Anything in `docs/coordination/AWAITING-BEN.md`** — lead with it whenever that file is
+     non-empty. A decision he hasn't seen blocks more than a status line does. Park pending-Ben
+     decisions there as they arise, and clear an entry once he rules and the ruling is recorded
+     where the work lives.
+  2. What merged (PR links + verified exit codes + live-path proof status).
+  3. In flight; blocked (and where tracked).
+  Terse and result-first: no recaps, no option surveys, no restating what he just read. Anything
+  merged without its live-path proof is reported as **code-complete, unverified** — never "done".
 - **Save durable memory** for any non-obvious decision/trap (`memory_save`, `project: "jarv1s"`).
 
 ## Coordinator self-handoff (protect the long-lived session)
@@ -302,7 +343,12 @@ Fired by the relay triggers (Context discipline / Phase 3 step 7):
 
 ## Red flags — STOP
 
-- **Spawning on an unapproved/missing spec**, or before Ben approved the manifest.
+- **Spawning on an unapproved/missing spec**, on a lane with **no GitHub issue**, or before Ben
+  approved the manifest.
+- **Reaping a lane / deleting a branch or worktree before confirming its work is on `main`.**
+- **Trusting `agent_status: idle` as proof a lane finished** — confirm the deliverable.
+- **Nudging an agent that ended its turn on a wait declaration** — `TaskStop`, take over, review
+  its diff. Nudges only fix frozen mid-turn sessions.
 - **Spawning without `--model sonnet`** — herdr's default boots Opus and burns the budget.
 - **Reading a raw gate log or full diff in your own context** — delegate; consume the verdict.
 - **Merging on a build agent's self-report** — only after independent QA green on the
