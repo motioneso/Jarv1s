@@ -1145,3 +1145,74 @@ codebase guards LLM-derived fields persisted **next to private cached content**,
 smuggling the private body into the derived fields. A public job board page has no private content to
 smuggle, so that posture does not transfer. The whole-extraction-fails-on-one-bad-field rule stands
 on its own reasoning: a fabricated or blank field is worse than no posting.
+
+---
+
+## N26 — Gate DB isolation is mandatory; never pipe a gate command
+
+Recorded 2026-07-27, from a coordinate-skills update landing mid-build.
+
+**Never run `pnpm verify:foundation`, or anything else that touches Postgres, without an
+exported and freshly created gate database.** An unscoped run on 2026-07-25 hit the live dev
+database `jarv1s` and took chat down for 90 minutes.
+
+```
+GATEDB=jarvis_gate_<agent-slug>
+docker exec jarv1s-postgres psql -U postgres -c "DROP DATABASE IF EXISTS $GATEDB;"
+docker exec jarv1s-postgres psql -U postgres -c "CREATE DATABASE $GATEDB;"
+export JARVIS_PGDATABASE=$GATEDB
+( pnpm verify:foundation > /tmp/vf-<slug>.log 2>&1; echo "### FINAL rc=$?" >> /tmp/vf-<slug>.log ) &
+grep '### FINAL' /tmp/vf-<slug>.log
+```
+
+Three independent ways this fails silently:
+
+1. **`export`, not inline.** `JARVIS_PGDATABASE=x pnpm ...` does **not** survive backgrounding —
+   the variable is dropped and the run lands back on the live database with no signal.
+2. **DROP and CREATE fresh every run.** A reused gate DB carries prior migration state and greens
+   for the wrong reason.
+3. **Never pipe a gate command.** `| tail`, `| grep` — a pipeline returns the *filter's* exit
+   code, so a red gate reads as green. A blocking hook now rejects piped gate commands. Read the
+   log file. Never trust `echo $?` after a backgrounded command either.
+
+**Stagger** gate runs; concurrent ones crash the shared dev Postgres. DROP the gate DB when done.
+
+This bit the coordinator the same day: an `npx eslint ... | tail -5; echo "EXIT=$?"` probe
+reported "EXIT=0", which was `tail`'s status, not eslint's — and the probe had also dropped
+`pnpm lint`'s `--max-warnings=0`. The bad number reached another agent before it was caught.
+`pnpm test:unit` touches no database and stays the correct inner loop.
+
+## N27 — Live-path proof is part of the finish line, not just merge
+
+For work touching a user-facing feature, module, or UI surface, CI-green plus review is **not**
+done. It needs a live end-to-end proof posted as a `gh pr comment`: the feature exercised through
+the real UI on a live dev instance, with the UAT run and screenshots.
+
+Resolve which specs with `.claude/skills/coordinate/resolve-uat-triggers.sh`. **The trigger map is
+deliberately incomplete — empty output never means no proof is needed.**
+
+Absent that proof the honest status is **"code-complete, unverified"**, never "done". This mostly
+lands on Task 22 (#1306), but it changes what Task 21 Tier B is *for*: Tier B is no longer the
+last line of defence, so it should stay on what only an integration test can prove — the
+metadata-only payload whitelist, the manifest-hash trust gate, the schedule-to-queue binding, and
+the `actorUserId` envelope — rather than growing to cover what the live UAT covers better.
+
+## N28 — Commit with explicit paths; the index is shared
+
+**`git commit <explicit paths> -m "..."`.** That form commits only the named paths regardless of
+what else is staged. `git add <paths>` followed by a bare `git commit` is **not** safe — the bare
+commit takes the whole index, including anything another agent staged.
+
+The standing "never `git add -A` / `git add .`" rule is necessary but **not sufficient**, and this
+fired for real on 2026-07-27: commit `f3d68780` intended three lint-ignore files and carried
+fourteen, including another agent's entire in-flight Task 18 plus `package.json` and
+`pnpm-lock.yaml`, under a message about lint ignores. Caught and reset inside two minutes, never
+pushed, zero damage — but only because someone was watching the commit monitor.
+
+After committing, run `git show --name-only HEAD` and read the list. For a coordinator,
+`git status --porcelain` showing staged entries for files belonging to another agent means the
+landmine is armed right now; warn whoever is closest to committing.
+
+**Rewrite boundary:** resetting your own commit, seconds old and unpushed, to undo an accidental
+sweep is correct and expected. Rewriting anything another agent may have built on is not — surface
+it to the coordinator instead. This does not loosen N15.
