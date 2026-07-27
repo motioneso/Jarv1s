@@ -2,10 +2,16 @@
 //
 // Task 7 (#1291): pins the cross-portal identity function and merge policy. Cases 1-2 prove
 // the normaliser collapses cosmetic differences (punctuation, case, corporate suffix, a
-// location qualifier in parens); case 3 is the guard against an over-aggressive normaliser
-// whose damage is invisible — a wrongly-collapsed posting doesn't error, it just never
-// appears. Cases 4-5 pin the merge policy: highest-priority source wins regardless of input
-// order, and a same-source tie breaks on the longer body.
+// location qualifier in parens proven by the posting's own `location` field); case 3 is the
+// guard against an over-aggressive normaliser whose damage is invisible — a
+// wrongly-collapsed posting doesn't error, it just never appears. Cases 4-5 pin the merge
+// policy: highest-priority source wins regardless of input order, and a same-source tie
+// breaks on the longer body.
+//
+// Ledger N11: a title parenthetical is stripped only when proven to be a location, a
+// work-arrangement keyword, or a req number — never by a blanket `\([^)]*\)` strip. The
+// track-qualifier cases below ("(Security)" vs "(ML)", the remote keyword, the req number)
+// pin that proof directly.
 import { describe, expect, it } from "vitest";
 
 import { dedupePostings, postingIdentity } from "../../external-modules/job-search/src/domain/dedupe.js";
@@ -35,9 +41,12 @@ describe("job-search postingIdentity (#1291)", () => {
     expect(postingIdentity(a)).toBe(postingIdentity(b));
   });
 
-  it("ignores a location qualifier in the title", () => {
-    const a = posting({ title: "Staff Engineer (Seattle)" });
-    const b = posting({ title: "Staff Engineer" });
+  it("ignores a location qualifier in the title when the posting's own location proves it", () => {
+    // N11: the proof is the posting's own `location` field, not a gazetteer. A fixture with
+    // a location-bearing title and an unrelated (or empty) `location` is not a case we owe
+    // a merge — a real posting titled "(Seattle)" has Seattle in its location field too.
+    const a = posting({ title: "Staff Engineer (Seattle)", location: "Seattle, WA" });
+    const b = posting({ title: "Staff Engineer", location: "Seattle, WA" });
 
     expect(postingIdentity(a)).toBe(postingIdentity(b));
   });
@@ -49,6 +58,39 @@ describe("job-search postingIdentity (#1291)", () => {
     const senior = posting({ title: "Senior Engineer" });
 
     expect(postingIdentity(staff)).not.toBe(postingIdentity(senior));
+  });
+
+  it("keeps two distinct track qualifiers in parens apart (N11)", () => {
+    // This is the exact case the ledger exists to prevent: a blanket parenthetical strip
+    // would collapse these into one identity and silently hide one of the two roles.
+    const security = posting({ title: "Staff Engineer (Security)", location: "Remote" });
+    const ml = posting({ title: "Staff Engineer (ML)", location: "Remote" });
+
+    expect(postingIdentity(security)).not.toBe(postingIdentity(ml));
+  });
+
+  it("strips a work-arrangement keyword in parens even without a matching location", () => {
+    const a = posting({ title: "Staff Engineer (Remote)", location: "United States" });
+    const b = posting({ title: "Staff Engineer", location: "United States" });
+
+    expect(postingIdentity(a)).toBe(postingIdentity(b));
+  });
+
+  it("strips a req-number parenthetical, proven by being digit-dominant", () => {
+    const a = posting({ title: "Staff Engineer (REQ-40185)", location: "Remote" });
+    const b = posting({ title: "Staff Engineer", location: "Remote" });
+
+    expect(postingIdentity(a)).toBe(postingIdentity(b));
+  });
+
+  it("does not merge an unrelated location-shaped parenthetical the posting's own location doesn't confirm", () => {
+    // The proof is specific to this posting's own location field — a title parenthetical
+    // that merely looks like a place name, but isn't backed by this posting's location,
+    // is unproven and must stay in the identity by N11's default-keep rule.
+    const a = posting({ title: "Staff Engineer (Austin)", location: "Seattle, WA" });
+    const b = posting({ title: "Staff Engineer", location: "Seattle, WA" });
+
+    expect(postingIdentity(a)).not.toBe(postingIdentity(b));
   });
 });
 

@@ -14,6 +14,13 @@
 // invisible — there is no error, just a result that silently isn't there. That is why
 // identity keeps seniority words and any non-location title difference apart, and why an
 // unranked source is trusted *less* than a ranked one, never more.
+//
+// Ledger N11: title parentheticals are stripped ONLY when the record proves the content is
+// a location or a req number — never as a blanket `\([^)]*\)` strip. "Staff Engineer
+// (Security)" and "Staff Engineer (ML)" are two different roles and must stay two
+// identities; a parenthetical we cannot prove harmless is kept in the identity by default.
+// Cost of keeping an unprovable parenthetical: a duplicate row. Cost of stripping a real
+// distinguisher: a job the user never sees. Do not "simplify" this back to a blanket regex.
 
 import type { Posting } from "./records.js";
 
@@ -37,16 +44,48 @@ function normalizeCompany(company: string): string {
   return collapseWhitespace(company.replace(CORPORATE_SUFFIX_PATTERN, ""));
 }
 
-// Deliberately does NOT touch seniority words ("Staff", "Senior", ...) — only the
-// parenthetical is stripped, because a title's parenthetical is assumed to carry a location
-// or req number, never the role itself.
-function normalizeTitle(title: string): string {
-  return collapseWhitespace(title.replace(/\([^)]*\)/g, ""));
+// Keywords whose normalised form (lowercased, punctuation collapsed to single spaces)
+// unambiguously describes a work arrangement rather than a role — "(Remote)", "(Hybrid)",
+// "(On-site)" carry no distinguishing information about the job itself.
+const REMOTE_STYLE_KEYWORDS = new Set(["remote", "hybrid", "onsite", "on site", "in office", "wfh"]);
+
+// A req number ("REQ-40185", "40185") is mostly digits. Half-or-more of the alphanumeric
+// characters being digits is a cheap, gazetteer-free proxy that doesn't need to recognise
+// any particular ticketing system's prefix.
+function isDigitDominant(rawParenthetical: string): boolean {
+  const alphanumeric = rawParenthetical.replace(/[^a-z0-9]/gi, "");
+  if (alphanumeric.length === 0) return false;
+  const digitCount = (alphanumeric.match(/[0-9]/g) ?? []).length;
+  return digitCount / alphanumeric.length >= 0.5;
+}
+
+// Ledger N11's proof, in order: a work-arrangement keyword, a digit-dominant req number, or
+// text that the posting's OWN `location` field already names — a parenthetical whose content
+// appears in that posting's own location is a location by that posting's own account, no
+// gazetteer required. Anything else is unproven and stays in the identity.
+function isProvenLocationOrReqNumber(rawParenthetical: string, location: string): boolean {
+  const normalizedParenthetical = collapseWhitespace(rawParenthetical);
+  if (REMOTE_STYLE_KEYWORDS.has(normalizedParenthetical)) return true;
+  if (isDigitDominant(rawParenthetical)) return true;
+
+  const normalizedLocation = collapseWhitespace(location);
+  return normalizedLocation.length > 0 && normalizedLocation.includes(normalizedParenthetical);
+}
+
+// Deliberately does NOT touch seniority words ("Staff", "Senior", ...), and does NOT strip a
+// parenthetical just because it looks like one — only a parenthetical proven harmless by
+// `isProvenLocationOrReqNumber` is removed; every other parenthetical passes through into
+// the identity, distinguishing text and all.
+function normalizeTitle(title: string, location: string): string {
+  const withProvenParentheticalsStripped = title.replace(/\(([^)]*)\)/g, (whole, inner: string) =>
+    isProvenLocationOrReqNumber(inner, location) ? "" : whole
+  );
+  return collapseWhitespace(withProvenParentheticalsStripped);
 }
 
 /** Stable identity for a posting across portals. */
 export function postingIdentity(p: Posting): string {
-  return `${normalizeCompany(p.company)}::${normalizeTitle(p.title)}`;
+  return `${normalizeCompany(p.company)}::${normalizeTitle(p.title, p.location)}`;
 }
 
 export function dedupePostings(
