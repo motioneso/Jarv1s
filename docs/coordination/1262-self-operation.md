@@ -4015,3 +4015,33 @@ the token is wrong, fix the emitter or add the token deliberately.
 
 Lane relayed mid-debug at ~71% context; the successor must start from "the live UAT failed, here is
 the evidence", not from "run the live UAT".
+
+## #1310 — gate GREEN, live proof still OWED (2026-07-27, relay-22)
+
+`verify:foundation` **rc=0**, confirmed on a real unpiped `### FINAL` marker. That part is settled.
+
+**Item 9 is not.** The lane's read is that the earlier "DOM never flipped in 60s" failure was a test
+timeout, not a regression: the chat engine spawns a real nested `claude -p` subprocess per turn
+(cold start + MCP round-trip + DB write), measured at ~150s against a 60s `expect()`. That plausibly
+explains *why a 60-second wait failed*. It is **not** evidence the fix works — the second run was
+still mid-flight with the DB row stale when the lane checkpointed. Current true state of PR #1276:
+**green gate, zero live proof.** Ruling: item 9 stays open, and the lane must report which of three
+outcomes it actually observed at ~200s — write lands + DOM flips (fixed), write lands + DOM stays
+stale (original bug, timeout was a red herring that nearly masked it), or write never lands (routing,
+not refresh). Observed, not expected.
+
+**Env leak — wider than one lane.** `CLAUDECODE`, `CLAUDE_CODE_SESSION_ID` and `ANTHROPIC_BASE_URL`
+leaked from the build agent's shell, through `nohup`, into the dev API process and onward into its
+nested `claude` child. The lane stripped them as hygiene and reports the same slow-but-alive
+behaviour afterwards, so it was not the primary cause of the UAT failure.
+
+Two open questions asked of the lane. What else was in the "etc" — specifically whether any
+`ANTHROPIC_API_KEY`, auth token, or proxy credential was in that set, and whether any of it could
+have reached a log, DB row, or job payload (secrets-never-escape is a hard invariant, so a credential
+there is a finding, not hygiene). And the general case: **if a `nohup`'d dev server inherits the
+launching agent's environment, every agent-run UAT in this repo has been driving the chat engine
+against that agent's own base URL rather than a clean one** — which would make UAT results
+unrepresentative across all lanes, not just this one. Blast radius to be judged once the variable
+list arrives; likely its own issue.
+
+Note for anyone supervising this lane: a live turn genuinely takes ~150s. Silence is not a stall.
