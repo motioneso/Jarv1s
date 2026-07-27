@@ -3369,3 +3369,28 @@ gate. Re-dispatch once the three checks are green. Its brief is pre-written at
 then *conversed* ("...or point me elsewhere") instead of starting. Same as `60113a86` earlier. Two
 for two: a freshly spawned QA agent must be verified to have STARTED, and the check is the artifact
 (`gh pr view <n> --json comments`), never the pane looking alive.
+
+### CHECKPOINT — state as of the 70% meter (no relay; standing instruction from Ben)
+
+**#1264 / PR #1276 — green, under adversarial review.** Head `28bf044f`. All three required checks
+pass ("Build and publish images" is a post-merge publish job, not a gate). The lockfile fix was
+verified by me, not taken on report: one commit, `pnpm-lock.yaml` only, +3 lines, and the lockfile
+now carries the `structured-state` workspace link. Security QA `qa-1264` (`3ea7d2cd`, `w1:p13X`,
+Opus 5) dispatched against `28bf044f` with `scratchpad/qa-brief-1264.md`.
+
+**#1265 / PR #1273 — RED, fix in flight.** `3fb8f557` (`w1:p13W`, Sonnet 5) is closing B1, the
+`compilePattern` fail-open. Brief: `scratchpad/brief-1265-red.md`. Open ruling I reserved: whether
+to keep the `/u` flag (my lean: keep it and fail closed) — the lane owes reasoning, not a choice.
+Second RED on this lane; a third stops it and goes to Ben.
+
+**Neither merges.** Both are security tier and both park on Ben's hands-on LAN UAT pass
+(AWAITING-BEN 8 / 8a). Green CI does not discharge that, and neither does a green verdict.
+
+**The two traps this run keeps re-teaching, for whoever picks this up:**
+1. A freshly spawned QA agent may boot perfectly and then *converse instead of reviewing* — twice
+   tonight (`60113a86`, `3ea7d2cd`). Verify it STARTED via `gh pr view <n> --json comments`, never
+   via the pane looking alive. On re-dispatch, say plainly that the review has not been done and
+   that you are not asking a question.
+2. `herdr pane run` leaves text as `[Pasted text #1]` and **concatenates onto anything already in
+   the box** — including lines a human typed. Read the box, `send-keys Enter` to submit and clear,
+   then send. `send-keys C-u` is rejected. A busy agent will not accept the Enter; wait until idle.
