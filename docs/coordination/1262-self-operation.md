@@ -845,3 +845,37 @@ grant; wired-vs-test-only (the #1257 trap); whether any crafted preference row /
 grant; DataContextDb-only actor scoping with no admin bypass; external-ABI scope leak (#1267); and
 an open "what did I not think to ask / what is asserted but unproven" slot. Findings require a
 concrete failure scenario, and it was told explicitly not to manufacture findings to look thorough.
+
+### Fable verdict + Ben's ruling — 2026-07-27
+
+**Fable 5 lead security review: APPROVE, no CRITICAL, no HIGH.** Posted to PR #1268, grounded on
+`336913be`. It verified rather than assumed: both confirmation floors fire before any tier/family
+lookup; the install grant is genuinely INSERT-only (a stored `always_confirm` survives re-enable);
+the startup assertion IS on the production boot path (traced Docker CMD → `scripts/start-jarv1s.ts`
+→ built `dist/server.js` → `onReady`), so not a #1257-style test-only prop; the four-tool floor is
+held structurally; external modules unaffected; actor scoping clean, no admin bypass.
+
+**MEDIUM (real, coordinator-verified in the code):** `packages/module-registry/src/index.ts:711-722`
+`buildCalendarFollowThroughPort.executeAutoActions` is a **second reader of the action-policy tier**
+— a proactive worker that reads `listActionPolicies` and, on `trusted_auto`, calls
+`calendarWrite.proposeAndInsert` against the real calendar with no card, no chat session, no
+gateway. As opened, this PR made *enabling the calendar module* arm unattended background writes.
+
+**Ben's ruling: do not grant it at install.** `calendar.proposeFocusBlock` →
+`user_promotable` (all four prerequisites already held, so no new machinery). Accepted cost:
+proposing a focus block in chat asks each time until the user promotes the family. Also landing:
+both LOW hardening assertions (no family shared between a `granted_at_install` and a
+`user_promotable` tool; a `confirm_always` tool must not be promotable via any family) and a
+regression proving install grants write nothing for calendar. Ruling posted to the PR as durable
+evidence (`#issuecomment-5087557955`).
+
+**STANDING RULE adopted for the epic — carry into #1264 and #1265:** an action-policy tier has more
+readers than `resolvePolicy`. Any future `granted_at_install` classification must audit every
+`listActionPolicies` consumer, not just the chat gateway.
+
+Counts move: `granted_at_install` 33 → 32, `user_promotable` 1 → 2, `confirm_always` stays 4, total
+stays 38. The inventory assertions are exact, so they fail loudly if a bucket is missed.
+
+Builder l (`w1:p128`, 69% — near rotation, watch it) is implementing, then re-running the full gate
+on a fresh `jarvis_gate_1263`. Opus `qa-1263` still running as the second lens. PR body still needs
+the YOLO note and the focus-block behaviour change before Ben's sign-off.
