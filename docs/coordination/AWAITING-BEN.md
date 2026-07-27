@@ -25,6 +25,32 @@ also the natural counterpart to what #1263 shipped: users can currently promote 
 tool, but there is no single switch to demand the prompt back across the board. Needs your call on
 whether it gets a spec now or waits until #1264/#1265 land.
 
+## 3b. Digest settings — the #1264 spec contradicts itself, and I stopped rather than pick
+
+**Blocking one item of #1264 only; the rest of that lane is proceeding.**
+
+The settings spec says two incompatible things about digest:
+
+- line 42 classifies **digest settings** as `granted_at_install` ("unscheduling and rescheduling
+  delivery jobs is symmetric"),
+- line 82 lists **digest scheduling** under exclusion category 7, external effect,
+
+and the shipped denylist implements line 82 — `settings.digest.` is a centrally excluded prefix at
+`packages/ai/src/gateway/self-operation.ts:153`. A tool named `settings.digest.*` is therefore
+unreachable by the assistant no matter what tier it declares.
+
+The build agent proposed naming it `settings.notificationDigest.*` instead. **I refused.** The
+denylist is prefix-matched on the tool name, so a rename resolves a security exclusion by choosing a
+different string — if that works, the denylist is decorative. Narrowing the prefix to
+`settings.digest.schedule.` is the honest version of the same move, but it loosens a security control,
+which is your call and not one I will make while you are asleep.
+
+So digest is **dropped from #1264's scope** and everything else in the round-one classification
+proceeds. Your options when you pick this up: (a) leave digest excluded and delete it from the spec's
+`granted_at_install` list, (b) split the prefix so digest *configuration* is reachable while digest
+*scheduling* stays excluded, or (c) decide the whole external-effect category is over-broad. My read
+is (b) is what the spec intended, but it needs you to say so.
+
 ## 4. #1267 — external-module tools cannot declare an action family
 
 Out of scope for the whole of epic #1262 and **needs its own spec**. Today an external write tool

@@ -1424,3 +1424,68 @@ body that proved wrong** — it claimed the full `PATCH /api/me/modules/tasks` p
 factories, RPC connections, a boss queue and onboarding probes, but Task E drove exactly that path
 and found only four required fields on `BuiltInRouteDependencies`. The assessment erred in the
 direction that avoids work. #1264/#1265 must not cite it as precedent.
+
+## 2026-07-27 — parallel wave in flight: rulings and relays
+
+### #1265 relayed before writing any code
+
+`build-1265` (session `13aa3da8`) hit 70% during spec-vs-branch verification with **no code written**,
+relayed, and was reaped. Successor **`build-1265-self-op`, session `8860e0b7`, pane `w1:p12P`**, same
+worktree, confirmed driving on Sonnet 5 by bounded pane read. Its handoff is
+`docs/superpowers/handoffs/2026-07-27-1265-module-content-self-operation-relay.md` (allowed — the ban
+covers `docs/coordination/` and `docs/superpowers/plans/`).
+
+Findings it carried forward, worth keeping: the news retrofit **was already done in #1263** (matches
+the scope correction in its handoff); `news.previewSource` SSRF containment is **adequate as shipped,
+no code change needed**; the sports follow/unfollow extraction is real work, not stale spec text; and
+the `guidance` field on `news.addTopic` must be **dropped from the tool input schema** — it is
+untrusted framing and fails the closed-set rule. The spec pre-authorises that drop.
+
+### #1264 — four-item ruling, verified in code before answering
+
+`build-1264` escalated four items before writing its plan. I read the code myself rather than take
+the report; the evidence is in the ruling so it can be cited in the PR.
+
+1. **Prerequisite PR is already satisfied — skipped.** The spec's "lands FIRST" item was to hoist the
+   self-operation exclusion check above the YOLO branch. #1263 already did it structurally:
+   `executableTools()` drops excluded tools at `gateway.ts:592` ("Fail closed #0"), **both** execute
+   call sites (`:355` read, `:431` write) resolve their tool only through `executableTools()`, and
+   the YOLO branch at `:161` is reached only after `found` exists. An excluded tool is therefore
+   never found and never reaches YOLO or `resolvePolicy`. Told it to record this as evidence, and to
+   treat any execution path that resolves a tool *without* `executableTools()` as a stop-and-escalate.
+
+2. **Digest — refused the rename, dropped from scope.** Not a naming collision: the spec contradicts
+   itself (line 42 `granted_at_install` vs line 82 external-effect exclusion), and the denylist
+   implements line 82 at `self-operation.ts:153` with the prefix `settings.digest.`. The proposed
+   `settings.notificationDigest.*` would resolve a **prefix-matched security exclusion by choosing a
+   different string** — if a rename can move a tool out of the denylist, the denylist is decorative.
+   Narrowing the prefix is the honest version of the same move and loosens a control, so it is Ben's
+   call. Parked in `AWAITING-BEN.md` §3b; the rest of the round-one classification proceeds.
+
+3. **Migrations — the split is right, but there are three, not two.** `app.preferences` revision →
+   `packages/structured-state/sql/`; `app.instance_settings` revision → `infra/postgres/migrations/`
+   (genuinely core: defined in `0004`, and `packages/settings/sql` only ever adds RLS/grants on it).
+   The third was hiding inside its item 4: the audit `outcome` closed set is a **DB CHECK
+   constraint**, `packages/ai/sql/0127_jarvis_action_audit_log.sql:10`
+   (`CHECK (outcome IN ('success','failed','denied','cancelled'))`), so adding `invalid` and
+   `conflict` needs a new migration in `packages/ai/sql/` — never an edit to `0127`. Numbers are
+   global by landing order; take the next free ones at commit time.
+
+4. **Audit scope acknowledged.** Moving `recordAudit` from fire-and-forget to same-transaction is a
+   genuine strengthening. Two constraints attached: settings tools write audit rows **through the
+   existing audit port**, never raw SQL against another module's table; and the TS union and the CHECK
+   constraint must land together or inserts pass typecheck and fail at runtime. Its ground truth on
+   the three net-new pieces (per-actor+per-tool gateway rate limiting, CAS on `PreferencesRepository`,
+   undo stack) was verified against the tree and matches the spec's framing.
+
+### Sizing evidence is accumulating
+
+#1265 relayed at 70% with zero code; #1264 reached 62% answering one round of escalation. Both were
+told to read the spec **by section**. This is the decomposition-sizing question for Ben, now with
+three data points across two lanes, not an agent-performance problem.
+
+### Coordinator state
+
+Context meter passed 70% again; **no relay, per Ben's standing override** ("keep going here"). This
+manifest remains the only durable record. Monitor `bxgzk30cj` watches panes `w1:p12M` (#1264) and
+`w1:p12P` (#1265) plus both remote branches.
