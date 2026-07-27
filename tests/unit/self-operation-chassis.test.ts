@@ -324,7 +324,10 @@ describe("self-operation chassis", () => {
       risk: "read"
     };
     expect(() =>
-      assertBuiltInSelfOperationManifests([manifest("memory", [toolA]), manifest("people", [toolB])])
+      assertBuiltInSelfOperationManifests([
+        manifest("memory", [toolA]),
+        manifest("people", [toolB])
+      ])
     ).toThrow(
       'tool name "shared.duplicateName" is declared by more than one built-in module (most ' +
         'recently "people"): tool names must be unique across all modules'
@@ -404,7 +407,7 @@ describe("self-operation chassis", () => {
         manifest("tasks", [taskChangesTool, otherTool], [taskChangesFamily, otherFamily])
       ])
     ).toThrow(
-      "module \"tasks\" must declare exactly one granted_at_install action family, " +
+      'module "tasks" must declare exactly one granted_at_install action family, ' +
         '"task_changes" (found: task_changes, tasks.otherFamily) -- ' +
         "packages/module-registry/src/index.ts special-cases tasks' install grant to write only " +
         '"task_changes" and will silently fail to grant any other family'
