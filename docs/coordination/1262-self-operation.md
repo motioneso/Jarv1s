@@ -3483,3 +3483,39 @@ The new emit is consistent with its own branch family.
 
 **Still not merging.** Nothing here changes the tier or the parking; it needs its gate green and a
 push, and PR #1276 then sits complete on AWAITING-BEN item 9.
+
+### #1265 `f7844bb1` — the fix landed, my newline claim was wrong, and CI went red
+
+**I was wrong about the `$` anchor and the lane was right.** I told it to test whether
+`^(?:abc)$` matches `"abc\n"`, on the belief that JS `$` without `/m` matches before a single
+trailing newline. It does not — that is Python and Perl behaviour. The lane tested it, found
+`/^(?:abc)$/u.test("abc\n")` false along with the `\r\n`, bare `\r`, U+2028 and U+2029 variants,
+and **reported it as a factual correction rather than quietly dropping a check I had asked for**.
+That is the behaviour I want from a lane: the cheap move was to add a pointless guard and let me
+believe I had been right. I had already written the claim into durable memory, so it was one night
+from becoming a fact this project "knows" — deleted and replaced with a corrected entry.
+
+**`/u` ruling: keep, and the lane's reasoning is better than mine.** I argued the extra rejections
+are the signal we want. It added the stronger point: `/u` is surrogate-pair aware, so dropping it
+would *silently* change what already-declared manifest patterns match, whereas keeping it converts
+those same cases into loud rejections. Loud rejection over silent semantic drift is the identical
+posture the fail-closed fix is built on — the two reinforce each other rather than trading off.
+
+**CI is RED at `f7844bb1`, and that one is mine.** The failed step is "Verify foundation" — the
+gate itself, not "Install dependencies" — so it is a real failure, not lockfile drift; I told the
+lane so it would not chase the wrong thing. I had instructed it to push without the local gate to
+get the fix off the working tree, and I would make that trade again: uncommitted work is
+unrecoverable, a red CI run is not. But the cost landed and it is not the lane's to absorb, so it
+does not count against its failure budget.
+
+**Ruling issued ahead of the diagnosis**, because I expect the cause: fail-closed is probably doing
+its job and rejecting manifest patterns or fixtures that were previously admitted silently. That is
+the *expected noise* of the fix, not evidence against it. Fix the offending pattern or the test —
+never revert to fail-open, make the pattern optional, widen a tier, or touch `policy.ts` to get
+green. Also told it to state plainly if the failure sits in code it never touched.
+
+**Disclosed incident, no action needed:** `gh api -f body=@file` took `@file` as a literal string
+and briefly flattened the PR #1273 body to one line. The lane caught it on its own follow-up read,
+restored it via `--input`, and diffed the result byte-for-byte against its draft. Recorded because
+it disclosed a self-inflicted error it had already fixed — that is what makes the rest of its
+reports worth trusting.
