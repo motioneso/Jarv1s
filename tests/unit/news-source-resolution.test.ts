@@ -320,4 +320,41 @@ describe("resolveSourceInput", () => {
       )
     ).resolves.toMatchObject({ status: "rejected", reason: "policy" });
   });
+
+  // #1265 ALSO-1: same-host mutations that samePublisherIdentity can't catch on its own — the
+  // hostname string is identical to the requested domain, so only normalizePublisherDomain's own
+  // scheme/port/credentials checks (personalization-domain.ts) stand between this and acceptance.
+  // A mutant that deleted those checks but kept samePublisherIdentity would still pass this suite
+  // without this case.
+  it("refuses a same-host redirect that downgrades to http, adds a port, or embeds credentials", async () => {
+    const cases = [
+      "http://publisher.example/",
+      "https://publisher.example:8443/",
+      "https://user:pass@publisher.example/"
+    ];
+    for (const finalUrl of cases) {
+      const redirectsSameHost: NewsSafeFetchPort = async (url) => {
+        if (url === "https://publisher.example/") {
+          return {
+            ok: true,
+            status: 200,
+            finalUrl,
+            contentType: "text/html",
+            body: "<title>publisher</title>",
+            truncated: false
+          };
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      };
+
+      await expect(
+        resolveSourceInput(
+          db,
+          { fetch: redirectsSameHost, search: noSearch, ai: ai(), repo: repo() },
+          { raw: "https://publisher.example", hasWebSearch: false }
+        ),
+        `finalUrl=${finalUrl}`
+      ).resolves.toMatchObject({ status: "rejected", reason: "policy" });
+    }
+  });
 });
