@@ -7,6 +7,13 @@ import {
   appGetMapSliceOutputSchema
 } from "./app-map-tool.js";
 import {
+  localeOutputSchema,
+  localeSetRegionAndDateFormatExecute,
+  localeSetRegionAndDateFormatInputSchema,
+  localeSetTimezoneExecute,
+  localeSetTimezoneInputSchema
+} from "./locale-tools.js";
+import {
   themeModeSetExecute,
   themeModeSetInputSchema,
   themeModeSetOutputSchema
@@ -441,6 +448,30 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       inputSchema: themeModeSetInputSchema,
       outputSchema: themeModeSetOutputSchema,
       execute: themeModeSetExecute
+    },
+    {
+      name: "settings.locale.setTimezone",
+      description: "Set the user's IANA time zone.",
+      permissionId: "settings.write",
+      risk: "write",
+      selfOperationGrant: "granted_at_install",
+      actionFamilyId: "settings.preference-write",
+      executionPolicy: "auto",
+      inputSchema: localeSetTimezoneInputSchema,
+      outputSchema: localeOutputSchema,
+      execute: localeSetTimezoneExecute
+    },
+    {
+      name: "settings.locale.setRegionAndDateFormat",
+      description: "Set the user's language/region and date format (12h or 24h).",
+      permissionId: "settings.write",
+      risk: "write",
+      selfOperationGrant: "granted_at_install",
+      actionFamilyId: "settings.preference-write",
+      executionPolicy: "auto",
+      inputSchema: localeSetRegionAndDateFormatInputSchema,
+      outputSchema: localeOutputSchema,
+      execute: localeSetRegionAndDateFormatExecute
     }
   ]
 };
