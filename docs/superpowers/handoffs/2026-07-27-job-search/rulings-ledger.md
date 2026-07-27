@@ -1308,3 +1308,37 @@ added lines. If they include work that is not yours:
 Files most exposed on this branch are the shared entrypoints: `web/root.tsx`,
 `tests/unit/job-search-web-root.test.tsx`, `worker/index.ts`, and `jarvis.module.json`. Treat a
 commit touching any of them as requiring the `git diff` read above.
+
+## N33 — job-search gets no UAT seed chunk, and the absence is documented
+
+**Overrides** part file `parts/27-task22-uat.md`'s literal "register the chunk" instruction. A part
+file's step list is a plan, not a contract; where following it to the letter would defeat its
+purpose, the coordinator rules and the ledger records why.
+
+**The ruling.** Do not add a `"job-search"` member to the `UatSeedChunk` union, to
+`UAT_SEED_CHUNKS`, or to `run-uat.ts`'s `CHUNKS` set — **not even a documented no-op**.
+
+**Why.** `#1087` finding 3 is sharper than the paraphrase it usually gets ("no module-installing
+chunk on the always-on ladder"). Its actual content: at the `admin+data` level job-search must be
+**not installed by default, to prove the absent-module UI path** — and `#1026`'s absent-module
+Playwright path was unreachable precisely because job-search seeding was reachable
+(`tests/uat/seed/levels.ts:94` now carries the fix and its comment).
+
+That makes a registered-but-empty chunk *actively harmful* rather than merely useless:
+
+1. It creates the vocabulary that invites a future agent to add job-search to `ADMIN_DATA_CHUNKS`
+   and silently re-break the absent-module path. Nothing goes red when that happens.
+2. A chunk that does nothing reads to whoever finds it next as "job-search seeding exists and is
+   broken", which costs someone a debugging session.
+3. It cannot earn its keep. Task 22 Phase 1 installs the module **live** via docker-cp and the admin
+   UI (the finance precedent), so by the time a chunk would run there is no install left to do — and
+   seeding a profile or criteria row would *skip* the onboarding flow the UAT exists to exercise.
+
+**Instead:** document the deliberate absence — a note in the part file and a comment where a reader
+would go looking — stating that job-search is installed live in Phase 1 and is intentionally absent
+from the seed ladder so the absent-module path stays reachable, citing `#1087` finding 3. If a later
+spec genuinely needs seeded job-search data, it adds a real chunk with real content, deliberately.
+
+**The general form:** when an instruction can be satisfied in letter by dead scaffolding, that is a
+signal the instruction is wrong for the situation — raise it rather than building the no-op. Per the
+project's no-stale-concepts rule, dead vocabulary gets removed in the same pass, not introduced.
