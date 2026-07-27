@@ -516,14 +516,14 @@ export const tasksModuleManifest = {
       label: "Task changes",
       description: "Create, update, and organize tasks and lists.",
       defaultTier: "ask_each_time",
-      allowedTiers: ["ask_each_time", "trusted_auto"]
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
     },
     {
       id: "task_cleanup",
       label: "Task cleanup",
       description: "Delete lists and tags.",
       defaultTier: "always_confirm",
-      allowedTiers: ["always_confirm"]
+      allowedTiers: ["always_confirm", "trusted_auto"]
     }
   ],
   assistantTools: [
@@ -639,6 +639,7 @@ export const tasksModuleManifest = {
       risk: "write",
       executionPolicy: "auto",
       actionFamilyId: "task_changes",
+      selfOperationGrant: "granted_at_install",
       inputSchema: createTaskRequestSchema,
       outputSchema: taskMutationToolOutputSchema,
       execute: taskCreateExecute
@@ -650,6 +651,7 @@ export const tasksModuleManifest = {
       risk: "write",
       executionPolicy: "auto",
       actionFamilyId: "task_changes",
+      selfOperationGrant: "granted_at_install",
       inputSchema: taskUpdateToolInputSchema,
       outputSchema: taskMutationToolOutputSchema,
       execute: taskUpdateExecute
@@ -661,6 +663,7 @@ export const tasksModuleManifest = {
       risk: "write",
       executionPolicy: "auto",
       actionFamilyId: "task_changes",
+      selfOperationGrant: "granted_at_install",
       inputSchema: {
         type: "object",
         required: ["taskId", "status"],
@@ -679,6 +682,7 @@ export const tasksModuleManifest = {
       risk: "write",
       executionPolicy: "auto",
       actionFamilyId: "task_changes",
+      selfOperationGrant: "granted_at_install",
       inputSchema: taskBreakdownToolInputSchema,
       outputSchema: taskBreakdownToolOutputSchema,
       execute: taskBreakDownExecute
@@ -690,6 +694,7 @@ export const tasksModuleManifest = {
       risk: "write",
       executionPolicy: "auto",
       actionFamilyId: "task_changes",
+      selfOperationGrant: "granted_at_install",
       inputSchema: taskActivityToolInputSchema,
       outputSchema: taskActivityToolOutputSchema,
       execute: taskAddActivityExecute
@@ -701,6 +706,7 @@ export const tasksModuleManifest = {
       risk: "write",
       executionPolicy: "auto",
       actionFamilyId: "task_changes",
+      selfOperationGrant: "granted_at_install",
       inputSchema: taskTagAssignmentToolInputSchema,
       outputSchema: taskMutationToolOutputSchema,
       execute: taskAssignTagExecute
@@ -712,6 +718,7 @@ export const tasksModuleManifest = {
       risk: "write",
       executionPolicy: "auto",
       actionFamilyId: "task_changes",
+      selfOperationGrant: "granted_at_install",
       inputSchema: taskTagAssignmentToolInputSchema,
       outputSchema: taskMutationToolOutputSchema,
       execute: taskUnassignTagExecute
@@ -723,6 +730,7 @@ export const tasksModuleManifest = {
       risk: "write",
       executionPolicy: "auto",
       actionFamilyId: "task_changes",
+      selfOperationGrant: "granted_at_install",
       inputSchema: createTaskListRequestSchema,
       outputSchema: taskListMutationToolOutputSchema,
       execute: taskCreateListExecute
@@ -734,6 +742,7 @@ export const tasksModuleManifest = {
       risk: "write",
       executionPolicy: "auto",
       actionFamilyId: "task_changes",
+      selfOperationGrant: "granted_at_install",
       inputSchema: taskListRenameToolInputSchema,
       outputSchema: taskListMutationToolOutputSchema,
       execute: taskRenameListExecute
@@ -745,6 +754,7 @@ export const tasksModuleManifest = {
       risk: "write",
       executionPolicy: "auto",
       actionFamilyId: "task_changes",
+      selfOperationGrant: "granted_at_install",
       inputSchema: taskTagCreateToolInputSchema,
       outputSchema: taskTagMutationToolOutputSchema,
       execute: taskCreateTagExecute
@@ -756,6 +766,7 @@ export const tasksModuleManifest = {
       risk: "write",
       executionPolicy: "auto",
       actionFamilyId: "task_changes",
+      selfOperationGrant: "granted_at_install",
       inputSchema: taskTagRenameToolInputSchema,
       outputSchema: taskTagMutationToolOutputSchema,
       execute: taskRenameTagExecute
@@ -764,8 +775,10 @@ export const tasksModuleManifest = {
       name: "tasks.deleteList",
       description: "Delete a task list owned by the active actor.",
       permissionId: "tasks.update",
-      risk: "destructive",
+      risk: "write",
+      executionPolicy: "auto",
       actionFamilyId: "task_cleanup",
+      selfOperationGrant: "user_promotable",
       inputSchema: taskDeleteListToolInputSchema,
       outputSchema: taskDeleteToolOutputSchema,
       execute: taskDeleteListExecute,
@@ -782,8 +795,10 @@ export const tasksModuleManifest = {
       name: "tasks.deleteTag",
       description: "Delete a task tag owned by the active actor.",
       permissionId: "tasks.update",
-      risk: "destructive",
+      risk: "write",
+      executionPolicy: "auto",
       actionFamilyId: "task_cleanup",
+      selfOperationGrant: "user_promotable",
       inputSchema: taskDeleteTagToolInputSchema,
       outputSchema: taskDeleteToolOutputSchema,
       execute: taskDeleteTagExecute,

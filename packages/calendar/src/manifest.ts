@@ -163,14 +163,14 @@ export const calendarModuleManifest = {
       label: "Calendar writeback",
       description: "Create Calendar-owned Jarvis blocks on the user's calendar.",
       defaultTier: "ask_each_time",
-      allowedTiers: ["ask_each_time", "trusted_auto"]
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
     },
     {
       id: "calendar_management",
       label: "Delete calendar events",
-      description: "Let Jarvis delete events from your calendar. Always asks first.",
+      description: "Let Jarvis delete events from your calendar.",
       defaultTier: "always_confirm",
-      allowedTiers: ["always_confirm"]
+      allowedTiers: ["always_confirm", "trusted_auto"]
     }
   ],
   assistantTools: [
@@ -209,6 +209,14 @@ export const calendarModuleManifest = {
       permissionId: "calendar.manage",
       risk: "write",
       executionPolicy: "auto",
+      // Wired for auto-run, but NOT granted at install: the proactive follow-through worker
+      // (buildCalendarFollowThroughPort.executeAutoActions, module-registry/src/index.ts:711) is a
+      // second, un-gated reader of calendar_writeback's tier — on a block_time signal it calls
+      // calendarWrite.proposeAndInsert directly, no card, no chat session, no gateway. Granting
+      // trusted_auto at install would arm unattended background calendar writes the moment the
+      // module is enabled. Fable's security review on PR #1268 caught this; the user must promote
+      // calendar_writeback to trusted_auto themselves (#1263).
+      selfOperationGrant: "user_promotable",
       actionFamilyId: "calendar_writeback",
       requiresServices: ["calendarWrite"],
       // NOTE: the gateway's validateToolInput (input-validation.ts) enforces only type + enum +
@@ -240,13 +248,18 @@ export const calendarModuleManifest = {
     {
       name: "calendar.deleteEvent",
       description:
-        "Delete a single calendar event the user owns. Always asks for confirmation; on approval " +
-        "the event is removed from the user's Google Calendar (attendees are notified of the " +
-        "cancellation). One event at a time; cannot delete recurring series.",
+        "Delete a single calendar event the user owns. Asks for confirmation by default, unless the " +
+        "user has allowed automatic calendar deletions in settings. On approval (or automatically, " +
+        "once allowed) the event is removed from the user's Google Calendar and attendees are " +
+        "notified of the cancellation. One event at a time; cannot delete recurring series.",
       permissionId: "calendar.manage",
       risk: "write",
+      // Wired for auto-run (write risk, actionFamilyId, executionPolicy: auto), but the family's
+      // always_confirm default keeps it asking until the user promotes calendar_management
+      // themselves — deleting emails a cancellation to every attendee and can't be un-sent.
+      executionPolicy: "auto",
+      selfOperationGrant: "user_promotable",
       actionFamilyId: "calendar_management",
-      // No executionPolicy: "auto" → gateway always confirms (belt 1). allowedTiers lock is belt 2.
       requiresServices: ["calendarWrite"],
       inputSchema: {
         type: "object",

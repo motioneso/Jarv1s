@@ -1,10 +1,11 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { memoryModuleManifest } from "@jarv1s/memory";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -32,6 +33,7 @@ interface InvocationResponse {
 
 describe("memory graph assistant tools", () => {
   let appDb: Kysely<JarvisDatabase>;
+  let runner: DataContextRunner;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let originalSecretKey: string | undefined;
@@ -58,6 +60,7 @@ describe("memory graph assistant tools", () => {
     boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
     server = createApiServer({ appDb, boss, logger: false });
     await server.ready();
+    runner = new DataContextRunner(appDb);
   });
 
   afterAll(async () => {
@@ -121,6 +124,63 @@ describe("memory graph assistant tools", () => {
     }
     expect(rememberResponse.json<InvocationResponse>().invocation.risk).toBe("write");
     expect(forgetResponse.json<InvocationResponse>().invocation.risk).toBe("destructive");
+  });
+
+  it("gateway auto-runs memory.remember under trusted_auto but still confirms memory.forget (destructive floor)", async () => {
+    const emitted: unknown[] = [];
+    const { AiRepository, AssistantToolGateway, ConfirmationRegistry, SessionTokenRegistry } =
+      await import("@jarv1s/ai");
+    const repository = new AiRepository();
+    const tokens = new SessionTokenRegistry();
+    const confirmations = new ConfirmationRegistry();
+    const gateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [memoryModuleManifest],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (_chatSessionId, record) => emitted.push(record) },
+      confirmTimeoutMs: 30_000,
+      // memory_management promoted to trusted_auto: memory.remember (write, executionPolicy
+      // "auto") must auto-run, but memory.forget's destructive risk always confirms regardless
+      // of family tier — policy.ts checks risk === "destructive" before consulting the family at
+      // all, so no family promotion can bypass it. This is the "existing destructive floor" the
+      // task ruling preserves.
+      actionPolicy: () => ({
+        getFamilyTier: async () => "trusted_auto",
+        getFamilyManifest: async () => memoryModuleManifest.assistantActionFamilies?.[0] ?? null
+      })
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "memory-chat",
+      allowedToolNames: null
+    });
+
+    const remembered = await gateway.callTool(token, "memory.remember", {
+      predicate: "prefers",
+      objectText: "trusted auto memory writes",
+      source: {
+        sourceKind: "manual",
+        sourceRef: "manual:trusted-auto-test",
+        excerpt: "User confirmed trusted auto memory writes."
+      }
+    });
+    expect(remembered.ok).toBe(true);
+    expect(emitted.some((r) => (r as { kind?: string }).kind === "action_request")).toBe(false);
+
+    const forgotten = gateway.callTool(token, "memory.forget", {
+      factId: memoryGraphIds.aFact
+    });
+    await vi.waitFor(() => {
+      expect(emitted.some((r) => (r as { kind?: string }).kind === "action_request")).toBe(true);
+    });
+    const request = emitted.find((r) => (r as { kind?: string }).kind === "action_request") as {
+      actionRequestId: string;
+    };
+    await gateway.resolveActionRequest(ids.userA, request.actionRequestId, "confirmed");
+    const forgetResult = await forgotten;
+    expect(forgetResult.ok).toBe(true);
   });
 
   async function invokeReadTool(

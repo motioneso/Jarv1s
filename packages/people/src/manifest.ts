@@ -65,5 +65,14 @@ export const peopleModuleManifest: JarvisModuleManifest = {
       ]
     }
   ],
+  assistantActionFamilies: [
+    {
+      id: "people_review",
+      label: "Match review",
+      description: "Accept or reject People match candidates.",
+      defaultTier: "ask_each_time",
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
+    }
+  ],
   assistantTools: PEOPLE_TOOLS
 };

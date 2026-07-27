@@ -133,6 +133,8 @@ export const PEOPLE_TOOLS: ModuleAssistantToolManifest[] = [
     permissionId: "people:write",
     actionFamilyId: "people_review",
     risk: "write",
+    executionPolicy: "auto",
+    selfOperationGrant: "granted_at_install",
     inputSchema: {
       type: "object",
       required: ["candidateId"],
@@ -148,6 +150,8 @@ export const PEOPLE_TOOLS: ModuleAssistantToolManifest[] = [
     permissionId: "people:write",
     actionFamilyId: "people_review",
     risk: "write",
+    executionPolicy: "auto",
+    selfOperationGrant: "granted_at_install",
     inputSchema: {
       type: "object",
       required: ["candidateId"],
@@ -165,6 +169,7 @@ export const PEOPLE_TOOLS: ModuleAssistantToolManifest[] = [
     permissionId: "people:merge",
     risk: "destructive",
     executionPolicy: "confirm",
+    selfOperationGrant: "confirm_always",
     inputSchema: {
       type: "object",
       required: ["primaryPersonId", "secondaryPersonId"],
@@ -183,6 +188,7 @@ export const PEOPLE_TOOLS: ModuleAssistantToolManifest[] = [
     permissionId: "people:split",
     risk: "destructive",
     executionPolicy: "confirm",
+    selfOperationGrant: "confirm_always",
     inputSchema: {
       type: "object",
       required: ["identityId"],

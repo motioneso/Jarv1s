@@ -8,7 +8,13 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { sql, type Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
-import { AiRepository, type TerminalRpcConnectOptions, type TerminalRpcHandle } from "@jarv1s/ai";
+import {
+  AiRepository,
+  assertBuiltInSelfOperationManifests,
+  grantSelfOperationForModule,
+  type TerminalRpcConnectOptions,
+  type TerminalRpcHandle
+} from "@jarv1s/ai";
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import { createCliStructuredAdapterFactory } from "@jarv1s/chat";
 import {
@@ -541,6 +547,11 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
         reconcile: (states) => reconcileExternalModules(externalModuleSnapshot.discoveries, states)
       },
       moduleDistribution,
+      // #1263 Task 15: install-time self-operation grants also apply on (re-)enable. Built here
+      // over the one AiRepository instance this file already owns, so settings never imports
+      // @jarv1s/ai directly (module isolation).
+      grantSelfOperationForModule: (scopedDb, manifest) =>
+        grantSelfOperationForModule(scopedDb, aiRepository, manifest),
       reconcileExternalModuleJobs: async (change) => {
         if (change.kind === "module") {
           await sendModuleControl(boss, { moduleId: change.moduleId, action: "reconcile" });
@@ -605,6 +616,14 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       manifests: guardManifestsForCoverage(),
       platformAllowlist: PLATFORM_UNGUARDED_ROUTES
     });
+  });
+
+  server.addHook("onReady", async () => {
+    // #1263 covers BUILT-IN manifests only; external module tools are deferred to #1267 and
+    // stay safe today because their ABI cannot declare actionFamilyId, so
+    // packages/ai/src/gateway/policy.ts:40 confirms every external write unconditionally.
+    // Never pass external manifests here.
+    assertBuiltInSelfOperationManifests(getBuiltInModuleManifests());
   });
 
   server.addHook("onReady", async () => {

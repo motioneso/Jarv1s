@@ -54,7 +54,7 @@ describe("notes write assistant tools", () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  it("declares create/edit as auto write tools and delete as destructive", () => {
+  it("declares create/edit/delete as auto write tools", () => {
     const tools = new Map<string, NonNullable<JarvisModuleManifest["assistantTools"]>[number]>(
       (notesModuleManifest.assistantTools ?? []).map((tool) => [tool.name, tool])
     );
@@ -62,8 +62,8 @@ describe("notes write assistant tools", () => {
     expect(tools.get("notes.create")?.executionPolicy).toBe("auto");
     expect(tools.get("notes.edit")?.risk).toBe("write");
     expect(tools.get("notes.edit")?.executionPolicy).toBe("auto");
-    expect(tools.get("notes.delete")?.risk).toBe("destructive");
-    expect(tools.get("notes.delete")?.executionPolicy).toBeUndefined();
+    expect(tools.get("notes.delete")?.risk).toBe("write");
+    expect(tools.get("notes.delete")?.executionPolicy).toBe("auto");
     expect(
       tools.get("notes.delete")?.summarize?.(
         { path: "x.md" },
@@ -74,6 +74,20 @@ describe("notes write assistant tools", () => {
         }
       )
     ).toContain("x.md");
+  });
+
+  it("grants notes.create, notes.edit, and notes.delete at install", () => {
+    const tools = new Map<string, NonNullable<JarvisModuleManifest["assistantTools"]>[number]>(
+      (notesModuleManifest.assistantTools ?? []).map((tool) => [tool.name, tool])
+    );
+    expect(tools.get("notes.create")?.selfOperationGrant).toBe("granted_at_install");
+    expect(tools.get("notes.edit")?.selfOperationGrant).toBe("granted_at_install");
+    // notes.delete: Ben's ruling (2026-07-26) — "approve once, don't need to baby proof."
+    // granted_at_install plus risk: "write" so it can actually auto-run once granted; the
+    // note_changes family still allows always_confirm for a user who wants a prompt back.
+    expect(tools.get("notes.delete")?.selfOperationGrant).toBe("granted_at_install");
+    expect(tools.get("notes.delete")?.risk).toBe("write");
+    expect(tools.get("notes.delete")?.executionPolicy).toBe("auto");
   });
 
   it("discloses overwrite in notes.create summary and flags it as always-confirm", () => {
@@ -106,7 +120,7 @@ describe("notes write assistant tools", () => {
     expect(sent[0]).toBeTruthy();
   });
 
-  it("gateway auto-runs create/edit but requires approval for delete", async () => {
+  it("gateway auto-runs create/edit/delete under trusted_auto", async () => {
     const emitted: unknown[] = [];
     const { AiRepository, AssistantToolGateway, ConfirmationRegistry, SessionTokenRegistry } =
       await import("@jarv1s/ai");
@@ -153,18 +167,9 @@ describe("notes write assistant tools", () => {
     });
     expect(edited.ok).toBe(true);
 
-    const deletePromise = gateway.callTool(token, "notes.delete", { path: "auto.md" });
-    await vi.waitFor(() => {
-      expect(emitted.some((r) => (r as { kind?: string }).kind === "action_request")).toBe(true);
-    });
-    const request = emitted.find((r) => (r as { kind?: string }).kind === "action_request") as {
-      actionRequestId: string;
-      summary: string;
-    };
-    expect(request.summary).toContain("auto.md");
-    await gateway.resolveActionRequest(ids.userA, request.actionRequestId, "confirmed");
-    const deleted = await deletePromise;
+    const deleted = await gateway.callTool(token, "notes.delete", { path: "auto.md" });
     expect(deleted.ok).toBe(true);
+    expect(emitted.some((r) => (r as { kind?: string }).kind === "action_request")).toBe(false);
   });
 
   it("gateway forces confirmation for a notes.create overwrite even under trusted_auto", async () => {

@@ -63,7 +63,7 @@ export const commitmentsModuleManifest: JarvisModuleManifest = {
       label: "Commitment review",
       description: "Accept, reject, or snooze commitment candidates extracted from your messages.",
       defaultTier: "ask_each_time",
-      allowedTiers: ["ask_each_time", "trusted_auto"]
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
     }
   ],
   assistantTools: [
@@ -107,7 +107,9 @@ export const commitmentsModuleManifest: JarvisModuleManifest = {
       description: "Accept a commitment candidate as a real commitment.",
       permissionId: "commitments.update",
       risk: "write",
+      executionPolicy: "auto",
       actionFamilyId: "commitment_review",
+      selfOperationGrant: "granted_at_install",
       inputSchema: {
         type: "object",
         required: ["candidateId"],
@@ -120,7 +122,9 @@ export const commitmentsModuleManifest: JarvisModuleManifest = {
       description: "Reject a commitment candidate as not a real commitment.",
       permissionId: "commitments.update",
       risk: "write",
+      executionPolicy: "auto",
       actionFamilyId: "commitment_review",
+      selfOperationGrant: "granted_at_install",
       inputSchema: {
         type: "object",
         required: ["candidateId"],
@@ -133,7 +137,9 @@ export const commitmentsModuleManifest: JarvisModuleManifest = {
       description: "Snooze a commitment candidate until a later date.",
       permissionId: "commitments.update",
       risk: "write",
+      executionPolicy: "auto",
       actionFamilyId: "commitment_review",
+      selfOperationGrant: "granted_at_install",
       inputSchema: {
         type: "object",
         required: ["candidateId", "snoozedUntil"],

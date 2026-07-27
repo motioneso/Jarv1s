@@ -45,6 +45,32 @@ describe("PEOPLE_TOOLS manifest properties", () => {
       expect(tool.risk).toBe("write");
     }
   });
+
+  // People never round-trips a merge: splitIdentity moves one identity to a different (or new)
+  // person and never revives the merged row or its other identities and links. That's why merge
+  // and splitIdentity both declare confirm_always instead of one auto-granting the other's undo.
+  it("declares merge and splitIdentity confirm_always because split is not a merge reverse", () => {
+    const writeAndDestructiveTools = [
+      "people.acceptMatch",
+      "people.rejectMatch",
+      "people.merge",
+      "people.splitIdentity"
+    ];
+    const grants = new Map(
+      writeAndDestructiveTools.map((name) => [
+        name,
+        PEOPLE_TOOLS.find((t) => t.name === name)!.selfOperationGrant
+      ])
+    );
+    expect(grants).toEqual(
+      new Map([
+        ["people.acceptMatch", "granted_at_install"],
+        ["people.rejectMatch", "granted_at_install"],
+        ["people.merge", "confirm_always"],
+        ["people.splitIdentity", "confirm_always"]
+      ])
+    );
+  });
 });
 
 it("acceptMatch and rejectMatch have execute functions", () => {

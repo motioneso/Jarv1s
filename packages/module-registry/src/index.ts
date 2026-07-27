@@ -508,6 +508,15 @@ export interface BuiltInRouteDependencies {
   ) => Promise<void>;
   /** TEST-ONLY. Inject a fake fetch for weather (and any other external HTTP) without real network. */
   readonly fetchFn?: typeof fetch;
+  /**
+   * #1263 Task 15: install-time self-operation grant port, built by the API composition root
+   * over its one AiRepository instance and forwarded to the settings module (module isolation —
+   * settings never imports @jarv1s/ai). Threaded straight through to registerSettingsRoutes.
+   */
+  readonly grantSelfOperationForModule?: (
+    scopedDb: DataContextDb,
+    manifest: JarvisModuleManifest
+  ) => Promise<void>;
 }
 
 export interface BuiltInWorkerDependencies {
@@ -977,6 +986,25 @@ const peopleManifest: typeof peopleModuleManifest = {
   ]
 };
 
+/**
+ * #1263: tasks bypasses the generic canonical-key-only grant here, because it has a legacy
+ * `tasks.agency_auto_execute` boolean the generic path doesn't know about — see
+ * TasksCompatibilityHelper.grantInstallTimeTrustIfUnset. Extracted as a standalone, exported
+ * function (rather than left inline in the settings registration below) so the ROUTING decision
+ * itself — tasks manifests go to the compat helper, everything else goes to the generic port —
+ * is independently testable without booting the full settings route tree.
+ */
+export function resolveGrantSelfOperationForModule(
+  genericGrant: BuiltInRouteDependencies["grantSelfOperationForModule"]
+): (scopedDb: DataContextDb, manifest: JarvisModuleManifest) => Promise<void> {
+  return (scopedDb, manifest) =>
+    manifest.id === tasksModuleManifest.id
+      ? new TasksCompatibilityHelper(new PreferencesRepository()).grantInstallTimeTrustIfUnset(
+          scopedDb
+        )
+      : (genericGrant?.(scopedDb, manifest) ?? Promise.resolve());
+}
+
 const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
   {
     manifest: settingsModuleManifest,
@@ -1004,6 +1032,11 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         externalModules: deps.externalModules, // #917: thread the boot snapshot to settings routes
         moduleDistribution: deps.moduleDistribution,
         reconcileExternalModuleJobs: deps.reconcileExternalModuleJobs,
+        // #1263: routing extracted to resolveGrantSelfOperationForModule (see its doc comment) so
+        // the tasks-vs-generic decision is independently testable, not just the compat helper.
+        grantSelfOperationForModule: resolveGrantSelfOperationForModule(
+          deps.grantSelfOperationForModule
+        ),
         personaPreview:
           deps.personaPreview ??
           createDefaultPersonaPreview(deps.dataContext, {

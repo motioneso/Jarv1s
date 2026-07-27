@@ -24,6 +24,15 @@ export const CALENDAR_MODE_OPTIONS: ReadonlyArray<{
   { value: "auto", label: "Auto", desc: "Run the scoped action without asking again." }
 ];
 
+// Time blocks' "auto" tier (calendar_writeback) arms two unattended writers, not one: the chat
+// gateway auto-running calendar.proposeFocusBlock, and the background follow-through worker
+// (buildCalendarFollowThroughPort.executeAutoActions) that reads the same tier and writes without
+// a chat session at all. The shared CALENDAR_MODE_OPTIONS "auto" desc only names the first, so
+// override it here for Time blocks specifically -- Prep tasks has no background writer and must
+// keep the shared generic copy.
+const CALENDAR_TIME_BLOCK_AUTO_DESC =
+  "Create time blocks automatically, both when Jarvis proposes them in chat and unattended in the background.";
+
 async function requestJson<T>(path: string, init?: RequestInit & { body?: unknown }): Promise<T> {
   const headers = new Headers(init?.headers);
   headers.set("accept", "application/json");
@@ -150,7 +159,11 @@ export default function CalendarSettings() {
         />
         <Row
           name="Time blocks"
-          desc={timeBlockModeOption?.desc ?? "How calendar signals become time blocks."}
+          desc={
+            timeBlockMode === "auto"
+              ? CALENDAR_TIME_BLOCK_AUTO_DESC
+              : (timeBlockModeOption?.desc ?? "How calendar signals become time blocks.")
+          }
           control={
             <Select
               aria-label="Time blocks"

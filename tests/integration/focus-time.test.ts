@@ -94,7 +94,9 @@ describe("Group C — calendar.proposeFocusBlock tool wiring", () => {
       (f) => f.id === "calendar_writeback"
     );
     expect(family?.defaultTier).toBe("ask_each_time");
-    expect(family?.allowedTiers).toEqual(["ask_each_time", "trusted_auto"]);
+    // #1263: every family's allowedTiers must include always_confirm so the user can always
+    // demand a confirmation prompt back for a family, even one that also allows trusted_auto.
+    expect(family?.allowedTiers).toEqual(["ask_each_time", "trusted_auto", "always_confirm"]);
 
     const tool = calendarModuleManifest.assistantTools?.find(
       (t) => t.name === "calendar.proposeFocusBlock"

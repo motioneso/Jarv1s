@@ -239,7 +239,7 @@ import { buildCalendarWriteService } from "@jarv1s/chat";
 import { GoogleConnectionService, GoogleOAuthClient } from "@jarv1s/connectors";
 
 describe("Section C — manifest structure + gateway routing", () => {
-  it("calendar.deleteEvent is registered with correct risk/family/services/no-auto", () => {
+  it("calendar.deleteEvent is registered with correct risk/family/services/user_promotable", () => {
     const tool = (calendarModuleManifest as JarvisModuleManifest).assistantTools?.find(
       (t) => t.name === "calendar.deleteEvent"
     ) as ModuleAssistantToolManifest | undefined;
@@ -247,19 +247,20 @@ describe("Section C — manifest structure + gateway routing", () => {
     expect(tool!.risk).toBe("write");
     expect(tool!.actionFamilyId).toBe("calendar_management");
     expect(tool!.requiresServices).toEqual(["calendarWrite"]);
-    expect(tool!.executionPolicy).toBeUndefined(); // must NOT be "auto"
+    expect(tool!.executionPolicy).toBe("auto");
+    expect(tool!.selfOperationGrant).toBe("user_promotable");
     expect(tool!.permissionId).toBe("calendar.manage");
     expect(typeof tool!.execute).toBe("function");
     expect(typeof tool!.summarize).toBe("function");
   });
 
-  it("calendar_management family is locked to allowedTiers: ['always_confirm']", () => {
+  it("calendar_management family defaults to always_confirm and also allows trusted_auto", () => {
     const family = calendarModuleManifest.assistantActionFamilies?.find(
       (f) => f.id === "calendar_management"
     );
     expect(family).toBeDefined();
     expect(family!.defaultTier).toBe("always_confirm");
-    expect(family!.allowedTiers).toEqual(["always_confirm"]);
+    expect(family!.allowedTiers).toEqual(["always_confirm", "trusted_auto"]);
   });
 
   it("summarizeDeleteEvent with displayTitle + displayWhen renders full card text", () => {
@@ -313,7 +314,11 @@ describe("Section C — manifest structure + gateway routing", () => {
     await appDb.destroy();
   });
 
-  function buildGateway(modules: JarvisModuleManifest[], services: Record<string, unknown>) {
+  function buildGateway(
+    modules: JarvisModuleManifest[],
+    services: Record<string, unknown>,
+    actionPolicy?: ConstructorParameters<typeof AssistantToolGateway>[0]["actionPolicy"]
+  ) {
     const tokens = new SessionTokenRegistry();
     const emitted: GatewaySessionRecord[] = [];
     const notifier: SessionNotifier = {
@@ -329,7 +334,8 @@ describe("Section C — manifest structure + gateway routing", () => {
       confirmations: new ConfirmationRegistry(),
       notifier,
       confirmTimeoutMs: 5_000,
-      toolServices: services
+      toolServices: services,
+      actionPolicy
     });
     return { gateway, tokens, emitted };
   }
@@ -384,6 +390,44 @@ describe("Section C — manifest structure + gateway routing", () => {
     // Deny so callP resolves (avoids test hang)
     await gateway.resolveActionRequest(ids.userA, card.actionRequestId, "rejected");
     await callP;
+  });
+
+  it("gateway auto-runs calendar.deleteEvent once the user has promoted calendar_management to trusted_auto", async () => {
+    const fakeDelete = {
+      async proposeAndInsert() {
+        throw new Error("should not be called");
+      },
+      async deleteEvent() {
+        return {
+          deleted: true,
+          googleDeleted: "deleted" as const,
+          cacheMirror: "deleted" as const,
+          deletedTitle: "Board sync"
+        };
+      }
+    };
+    const { gateway, tokens, emitted } = buildGateway(
+      [calendarModuleManifest],
+      { calendarWrite: fakeDelete },
+      () => ({
+        getFamilyTier: async () => "trusted_auto",
+        getFamilyManifest: async (_moduleId, familyId) =>
+          calendarModuleManifest.assistantActionFamilies!.find((f) => f.id === familyId) ?? null
+      })
+    );
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: ids.userA,
+      allowedToolNames: null
+    });
+
+    const result = await gateway.callTool(token, "calendar.deleteEvent", {
+      eventId: "some-uuid",
+      displayTitle: "Board sync"
+    });
+
+    expect(result.ok).toBe(true);
+    expect(emitted.some((r) => r.kind === "action_request")).toBe(false);
   });
 
   it("gateway falls to confirm even if a trusted_auto tier is stored and executionPolicy=auto is set on a hypothetical tool variant", async () => {

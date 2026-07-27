@@ -73,7 +73,7 @@ export const notesModuleManifest = {
     {
       id: "notes.delete",
       label: "Delete notes",
-      description: "Delete Markdown notes in the linked notes source after approval.",
+      description: "Delete Markdown notes in the linked notes source immediately and permanently.",
       scope: "user",
       actions: ["delete"]
     }
@@ -84,7 +84,7 @@ export const notesModuleManifest = {
       label: "Note changes",
       description: "Create and update notes.",
       defaultTier: "ask_each_time",
-      allowedTiers: ["ask_each_time", "trusted_auto"]
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
     }
   ],
   routes: [
@@ -114,6 +114,7 @@ export const notesModuleManifest = {
       actionFamilyId: "note_changes",
       risk: "write",
       executionPolicy: "auto",
+      selfOperationGrant: "granted_at_install",
       requiresServices: ["notesSync"],
       inputSchema: notesCreateInputSchema,
       outputSchema: notesWriteResultSchema,
@@ -134,6 +135,7 @@ export const notesModuleManifest = {
       actionFamilyId: "note_changes",
       risk: "write",
       executionPolicy: "auto",
+      selfOperationGrant: "granted_at_install",
       requiresServices: ["notesSync"],
       inputSchema: notesEditInputSchema,
       outputSchema: notesWriteResultSchema,
@@ -142,9 +144,14 @@ export const notesModuleManifest = {
     },
     {
       name: "notes.delete",
-      description: "Delete a Markdown note from the linked notes source after approval.",
+      description:
+        "Delete a Markdown note from the linked notes source immediately and permanently. There is " +
+        "no trash or restore — the file is unlinked on disk.",
       permissionId: "notes.delete",
-      risk: "destructive",
+      actionFamilyId: "note_changes",
+      risk: "write",
+      executionPolicy: "auto",
+      selfOperationGrant: "granted_at_install",
       requiresServices: ["notesSync"],
       inputSchema: notesDeleteInputSchema,
       outputSchema: notesWriteResultSchema,

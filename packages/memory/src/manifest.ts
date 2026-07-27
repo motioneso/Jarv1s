@@ -213,6 +213,15 @@ export const memoryModuleManifest: JarvisModuleManifest = {
       permissionId: "memory.manage"
     }
   ],
+  assistantActionFamilies: [
+    {
+      id: "memory_management",
+      label: "Memory management",
+      description: "Remember graph memory facts on the active actor's behalf.",
+      defaultTier: "ask_each_time",
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
+    }
+  ],
   assistantTools: [
     {
       name: "memory.recall",
@@ -234,7 +243,10 @@ export const memoryModuleManifest: JarvisModuleManifest = {
       name: "memory.remember",
       description: "Create a source-backed graph memory fact for the active actor.",
       permissionId: "memory.manage",
+      actionFamilyId: "memory_management",
       risk: "write",
+      executionPolicy: "auto",
+      selfOperationGrant: "granted_at_install",
       inputSchema: memoryRememberToolInputSchema,
       execute: memoryRememberExecute
     },
@@ -243,6 +255,7 @@ export const memoryModuleManifest: JarvisModuleManifest = {
       description: "Forget a graph memory fact owned by the active actor.",
       permissionId: "memory.manage",
       risk: "destructive",
+      selfOperationGrant: "confirm_always",
       inputSchema: {
         type: "object",
         additionalProperties: false,

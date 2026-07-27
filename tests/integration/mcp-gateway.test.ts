@@ -736,4 +736,164 @@ describe("AssistantToolGateway", () => {
     expect(aNames).toContain("example.write");
     expect(bNames).toEqual([]);
   });
+
+  it("does not list or execute an excluded tool with YOLO on", async () => {
+    const excludedCalls: string[] = [];
+    // moduleId "settings" + "settings.yolo." prefix matches SELF_OPERATION_EXCLUSIONS
+    // self_authority.settings — Jarvis may never grant its own YOLO authority (#1263).
+    const excludedModule: JarvisModuleManifest = {
+      id: "settings",
+      name: "Settings",
+      version: "0.0.0",
+      publisher: "test",
+      lifecycle: "optional",
+      compatibility: { jarv1s: "*" },
+      assistantTools: [
+        {
+          name: "settings.yolo.enable",
+          description: "Enable YOLO mode.",
+          permissionId: "settings.yolo.enable",
+          risk: "write",
+          inputSchema: { type: "object", properties: {} },
+          execute: async (_db, _input, ctx) => {
+            excludedCalls.push(ctx.actorUserId);
+            return { data: { ok: true } };
+          }
+        }
+      ]
+    };
+    const excludedGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [excludedModule],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 30_000,
+      yoloMode: async () => true
+    });
+
+    const names = (await excludedGateway.listToolsForActor(ids.userA)).map((tool) => tool.name);
+    expect(names).not.toContain("settings.yolo.enable");
+
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-excluded-yolo",
+      allowedToolNames: null
+    });
+    const result = await excludedGateway.callTool(token, "settings.yolo.enable", {});
+
+    expect(result.ok).toBe(false);
+    expect(excludedCalls).toHaveLength(0);
+  });
+
+  function confirmMechanismsModule(calls: string[]): JarvisModuleManifest {
+    return {
+      id: "example-confirm",
+      name: "Example Confirm",
+      version: "0.0.0",
+      publisher: "test",
+      lifecycle: "optional",
+      compatibility: { jarv1s: "*" },
+      assistantTools: [
+        {
+          name: "example-confirm.destructive",
+          description: "Ordinary destructive tool.",
+          permissionId: "example-confirm.destructive",
+          risk: "destructive",
+          inputSchema: { type: "object", properties: {} },
+          execute: async () => {
+            calls.push("destructive");
+            return { data: { ok: true } };
+          }
+        },
+        {
+          name: "example-confirm.confirmAlways",
+          description: "Destructive tool that also declares confirm_always.",
+          permissionId: "example-confirm.confirmAlways",
+          risk: "destructive",
+          selfOperationGrant: "confirm_always",
+          inputSchema: { type: "object", properties: {} },
+          execute: async () => {
+            calls.push("confirmAlways");
+            return { data: { ok: true } };
+          }
+        },
+        {
+          name: "example-confirm.perCall",
+          description: "Write tool that always requires confirmation for this call.",
+          permissionId: "example-confirm.perCall",
+          risk: "write",
+          requiresConfirmation: () => true,
+          inputSchema: { type: "object", properties: {} },
+          execute: async () => {
+            calls.push("perCall");
+            return { data: { ok: true } };
+          }
+        }
+      ]
+    };
+  }
+
+  it("YOLO still runs confirm_always destructive and per-call-confirm tools", async () => {
+    const calls: string[] = [];
+    const yoloGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [confirmMechanismsModule(calls)],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 30_000,
+      yoloMode: async () => true
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-yolo-confirm-mechanisms",
+      allowedToolNames: null
+    });
+
+    const results = await Promise.all([
+      yoloGateway.callTool(token, "example-confirm.destructive", {}),
+      yoloGateway.callTool(token, "example-confirm.confirmAlways", {}),
+      yoloGateway.callTool(token, "example-confirm.perCall", {})
+    ]);
+
+    expect(results.every((result) => result.ok)).toBe(true);
+    expect([...calls].sort()).toEqual(["confirmAlways", "destructive", "perCall"]);
+  });
+
+  it("YOLO off still confirms confirm_always destructive and per-call-confirm tools", async () => {
+    const calls: string[] = [];
+    const gatedGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [confirmMechanismsModule(calls)],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 30_000,
+      yoloMode: async () => false
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-yolo-off-confirm-mechanisms",
+      allowedToolNames: null
+    });
+
+    for (const toolName of [
+      "example-confirm.destructive",
+      "example-confirm.confirmAlways",
+      "example-confirm.perCall"
+    ]) {
+      emitted.length = 0;
+      const call = gatedGateway.callTool(token, toolName, {});
+      const request = await waitForActionRequest();
+      expect(request.toolName).toBe(toolName);
+      await gatedGateway.resolveActionRequest(ids.userA, request.actionRequestId, "cancelled");
+      await call;
+    }
+
+    expect(calls).toHaveLength(0);
+  });
 });

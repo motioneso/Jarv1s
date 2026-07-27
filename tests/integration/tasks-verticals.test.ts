@@ -774,6 +774,48 @@ describe("Tasks module M1 — recurrence, tags, list/tag management", () => {
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
+  // Regression for the risk downgrade (tasks.deleteList: destructive -> write, auto-runs without
+  // confirmation — see task 4). That downgrade is only safe because app.tasks.list_id is
+  // ON DELETE RESTRICT: the DB itself refuses to delete a list still holding tasks unless the
+  // caller passes reassignToListId. Prove the DB guarantee holds end-to-end — the failed delete
+  // must leave both the list and its tasks fully intact, not just reject with 409.
+  //
+  // deleteList has two distinct 409s: the last-list guard (step 3, fires BEFORE any delete is
+  // attempted) and the ON DELETE RESTRICT rejection (fires at the actual delete). Only the second
+  // one proves anything about the FK guarantee, so this test (a) gives the actor a second list
+  // first so the last-list guard cannot trigger, and (b) matches the RESTRICT-specific message
+  // ("List is not empty") rather than any 409, so a regression that makes the last-list guard
+  // fire instead cannot pass silently.
+  it("deleteList against a non-empty list with no reassign target destroys nothing", async () => {
+    const listsRepo = new TaskListsRepository();
+    // Second list for the same actor so the "cannot delete your only list" guard cannot be what
+    // rejects the call below — only ON DELETE RESTRICT can fire.
+    await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Delete NonEmpty Survives — keeper")
+    );
+    const list = await dataContext.withDataContext(userAContext(), (db) =>
+      listsRepo.getOrCreate(db, "Delete NonEmpty Survives")
+    );
+    const task = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.create(db, { title: "must survive the failed delete", listId: list.id })
+    );
+
+    await expect(
+      dataContext.withDataContext(userAContext(), (db) => listsRepo.deleteList(db, list.id))
+    ).rejects.toMatchObject({ statusCode: 409, message: "List is not empty" });
+
+    const survivingList = await dataContext.withDataContext(userAContext(), (db) =>
+      db.db.selectFrom("app.task_lists").select("id").where("id", "=", list.id).execute()
+    );
+    expect(survivingList).toHaveLength(1);
+
+    const survivingTask = await dataContext.withDataContext(userAContext(), (db) =>
+      repository.getById(db, task.id)
+    );
+    expect(survivingTask?.id).toBe(task.id);
+    expect(survivingTask?.list_id).toBe(list.id);
+  });
+
   it("deleteList with reassign moves tasks, drops old-list tags, and deletes the list", async () => {
     const listsRepo = new TaskListsRepository();
     const src = await dataContext.withDataContext(userAContext(), (db) =>

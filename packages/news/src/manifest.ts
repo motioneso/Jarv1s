@@ -242,6 +242,15 @@ export const newsModuleManifest = {
       permissionId: "news.view"
     }
   ],
+  assistantActionFamilies: [
+    {
+      id: "news_personalization",
+      label: "News personalization",
+      description: "Manage the active actor's followed news sources, topics, and exclusions.",
+      defaultTier: "ask_each_time",
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
+    }
+  ],
   assistantTools: [
     {
       name: "news.topHeadlinesToday",
@@ -280,9 +289,10 @@ export const newsModuleManifest = {
       description:
         "Add a previously previewed publisher as a followed custom news source. Requires the confirmationId from news.previewSource plus the chosen candidate's label and domain exactly as previewed.",
       permissionId: "news.prefs",
-      // Write risk with NO actionFamilyId: this tool can never be promoted to
-      // auto-approve — every call goes through the blocking owner confirmation.
+      actionFamilyId: "news_personalization",
       risk: "write",
+      executionPolicy: "auto",
+      selfOperationGrant: "granted_at_install",
       inputSchema: {
         type: "object",
         properties: {
@@ -299,15 +309,18 @@ export const newsModuleManifest = {
       summarize: summarizeNewsConfirmSource,
       execute: newsConfirmSourceExecute
     },
-    // #975 Task 8 — remaining personalization writes. All four: write risk with NO
-    // actionFamilyId (never auto-approvable — every call blocks on owner confirmation),
-    // summaries derived from tool INPUT only (execute hasn't run at prompt time).
+    // #975 Task 8 — remaining personalization writes. All four: write risk, classified
+    // granted_at_install under news_personalization (Task 10 / Spec 2); summaries derived
+    // from tool INPUT only (execute hasn't run at prompt time).
     {
       name: "news.removeSource",
       description:
         "Stop following a custom news source. Requires the source id (list them via the news personalization surface first). Removal also prunes the source's articles from the current briefing.",
       permissionId: "news.prefs",
+      actionFamilyId: "news_personalization",
       risk: "write",
+      executionPolicy: "auto",
+      selfOperationGrant: "granted_at_install",
       inputSchema: {
         type: "object",
         properties: {
@@ -323,7 +336,10 @@ export const newsModuleManifest = {
       description:
         "Follow a custom news topic (e.g. 'local climate policy'). The topic is policy-checked before it is added; optional guidance steers article selection.",
       permissionId: "news.prefs",
+      actionFamilyId: "news_personalization",
       risk: "write",
+      executionPolicy: "auto",
+      selfOperationGrant: "granted_at_install",
       inputSchema: {
         type: "object",
         properties: {
@@ -342,7 +358,10 @@ export const newsModuleManifest = {
       name: "news.removeTopic",
       description: "Stop following a custom news topic. Requires the topic id.",
       permissionId: "news.prefs",
+      actionFamilyId: "news_personalization",
       risk: "write",
+      executionPolicy: "auto",
+      selfOperationGrant: "granted_at_install",
       inputSchema: {
         type: "object",
         properties: {
@@ -358,7 +377,10 @@ export const newsModuleManifest = {
       description:
         "Exclude a news publisher domain from the actor's briefing (also hides its subdomains). Excluded articles are pruned from the current briefing immediately.",
       permissionId: "news.prefs",
+      actionFamilyId: "news_personalization",
       risk: "write",
+      executionPolicy: "auto",
+      selfOperationGrant: "granted_at_install",
       inputSchema: {
         type: "object",
         properties: {

@@ -1922,6 +1922,34 @@ export class AiRepository {
       )
       .execute();
   }
+
+  /**
+   * #1263 Task 14: install-time grant primitive. INSERT-only with `DO NOTHING` on the same
+   * `(owner_user_id, key)` conflict `setActionPolicy` upserts on — unlike `setActionPolicy`, this
+   * NEVER overwrites an existing row, so a user's own `always_confirm` choice (or any prior
+   * choice) survives a reinstall/reconcile. Returns whether a row was actually inserted.
+   */
+  async insertActionPolicyIfAbsent(
+    scopedDb: DataContextDb,
+    moduleId: string,
+    actionFamilyId: string,
+    tier: JarvisActionPermissionTier
+  ): Promise<boolean> {
+    assertDataContextDb(scopedDb);
+    const key = `assistant.action_policy.v1.${moduleId}.${actionFamilyId}`;
+    const result = await scopedDb.db
+      .insertInto("app.preferences")
+      .values({
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        key,
+        value_json: jsonb(tier),
+        updated_at: new Date()
+      })
+      .onConflict((oc) => oc.columns(["owner_user_id", "key"]).doNothing())
+      .executeTakeFirst();
+    return (result.numInsertedOrUpdatedRows ?? 0n) > 0n;
+  }
+
   async insertActionAuditLog(scopedDb: DataContextDb, input: InsertAuditLogInput): Promise<void> {
     assertDataContextDb(scopedDb);
     await scopedDb.db

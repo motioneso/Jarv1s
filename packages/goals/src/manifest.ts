@@ -39,7 +39,7 @@ export const goalsModuleManifest: JarvisModuleManifest = {
       label: "Goals management",
       description: "Create, update, and read long-running goals and their evidence.",
       defaultTier: "ask_each_time",
-      allowedTiers: ["ask_each_time", "trusted_auto"]
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
     }
   ],
   assistantTools: [
@@ -72,7 +72,9 @@ export const goalsModuleManifest: JarvisModuleManifest = {
       description: "Create a new long-running goal.",
       permissionId: "goals.create",
       risk: "write",
+      executionPolicy: "auto",
       actionFamilyId: "goals_management",
+      selfOperationGrant: "granted_at_install",
       inputSchema: {
         type: "object",
         required: ["title", "desiredOutcome"],
@@ -95,7 +97,9 @@ export const goalsModuleManifest: JarvisModuleManifest = {
       description: "Update an existing long-running goal.",
       permissionId: "goals.update",
       risk: "write",
+      executionPolicy: "auto",
       actionFamilyId: "goals_management",
+      selfOperationGrant: "granted_at_install",
       inputSchema: {
         type: "object",
         required: ["goalId"],
@@ -123,7 +127,9 @@ export const goalsModuleManifest: JarvisModuleManifest = {
       description: "Add evidence (progress, context, etc) to a goal.",
       permissionId: "goals.update",
       risk: "write",
+      executionPolicy: "auto",
       actionFamilyId: "goals_management",
+      selfOperationGrant: "granted_at_install",
       inputSchema: {
         type: "object",
         required: ["goalId", "evidenceKind", "sourceKind", "sourceLabel", "summary"],

@@ -260,6 +260,17 @@ export interface SettingsRoutesDependencies {
   /** Optional: reconcile per-source proactive-monitoring recurring jobs on settings save. */
   readonly reconcileProactiveSchedule?: ReconcileProactiveScheduleFn;
   readonly notificationUnreadPort?: NotificationUnreadPort;
+  /**
+   * #1263 Task 15: install-time self-operation grant port (settings never imports @jarv1s/ai
+   * directly — module isolation). Called on built-in module ENABLE only (user + admin routes),
+   * inside the same actor-scoped transaction as the enable write, after it succeeds. Absent ⇒
+   * enable proceeds with no grant (matches pre-#1263 behavior). External module enable
+   * (/api/admin/external-modules/:id) never calls this — that's #1267.
+   */
+  readonly grantSelfOperationForModule?: (
+    scopedDb: DataContextDb,
+    manifest: JarvisModuleManifest
+  ) => Promise<void>;
 }
 
 interface SettingParams {
