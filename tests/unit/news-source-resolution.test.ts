@@ -305,7 +305,8 @@ describe("resolveSourceInput", () => {
           status: 200,
           finalUrl: "http://169.254.169.254/latest/meta-data/",
           contentType: "text/html",
-          body: "<title>internal</title>"
+          body: "<title>internal</title>",
+          truncated: false
         };
       }
       throw new Error(`unexpected fetch: ${url}`);
