@@ -2987,3 +2987,28 @@ the PR body.
 **Neither PR merges tonight.** Both are security tier and both park on Ben's hands-on LAN UAT pass
 (AWAITING-BEN items 8 and 8a). Whichever lands second rebases the inventory assertion with an exact
 `toBe`.
+
+### MERGE HAZARD — PR #1273's green is stale-in-waiting (2026-07-27)
+
+Read this before acting on any green signal for #1265.
+
+At this moment `origin/1265-module-content-self-operation` is still `b09bcad6`. **All five delta
+commits are local only** (`aadf6c73` ESPN timeout, `42966446` news maxLength, `56c33266` compile-
+safety, `6314a847` trust-boundary comment, `23bb198b` handoff). PR #1273 therefore shows 4 checks
+green and a GREEN QA verdict — **both grounded on a tip that does not contain the delta work.**
+
+So: **a green PR #1273 right now is not evidence about the code that will actually merge.** The
+moment the lane pushes, CI re-runs and the existing verdict becomes stale by the same
+`git merge-base --is-ancestor` test that caught the last stale verdict on this PR. Do not treat the
+current green as satisfying the re-QA.
+
+Required sequence, in order:
+1. Lane runs the gate on a fresh isolated DB and pushes.
+2. Confirm `git ls-remote origin 1265-module-content-self-operation` no longer reads `b09bcad6`.
+3. Dispatch the delta re-QA (QA pane `w1:p137`, session `5d55cb29`, held idle for this) **grounded
+   on the new tip**, and require it to record the reviewed commit in its PR comment.
+4. Only then is #1273's green meaningful — and it still does not merge tonight (security tier,
+   parked on Ben's LAN UAT pass).
+
+`#1264` has **no PR yet**, which is correct — it is still on Task 11 and opens its PR at wrap-up.
+Its branch is pushed and in sync at `badfb53c`.
