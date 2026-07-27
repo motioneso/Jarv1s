@@ -96,7 +96,11 @@ function job(overrides: Partial<Record<string, unknown>> = {}): Record<string, u
   };
 }
 
-function pageResponse(jobs: ReadonlyArray<Record<string, unknown>>, hasMore: boolean, total: number | null = null) {
+function pageResponse(
+  jobs: ReadonlyArray<Record<string, unknown>>,
+  hasMore: boolean,
+  total: number | null = null
+) {
   const body = buildEnvelope(jobs, hasMore, total);
   return { ok: true, status: 200, text: async () => body };
 }
@@ -173,7 +177,13 @@ describe("freehire adapter (#1295)", () => {
     // set) so the loop actually attempts a second page, which is where the 429 lands.
     const fetch: FetchLike = vi
       .fn()
-      .mockResolvedValueOnce(pageResponse([job({ external_id: "a:1" }), job({ external_id: "a:2" }), job({ external_id: "a:3" })], true, 190))
+      .mockResolvedValueOnce(
+        pageResponse(
+          [job({ external_id: "a:1" }), job({ external_id: "a:2" }), job({ external_id: "a:3" })],
+          true,
+          190
+        )
+      )
       .mockResolvedValueOnce({ ok: false, status: 429, text: async () => "" });
 
     const result = await freehirePortal.crawl({
@@ -194,7 +204,9 @@ describe("freehire adapter (#1295)", () => {
 
   it("case 4: 401/403 -> login_required and disables itself", async () => {
     for (const status of [401, 403]) {
-      const fetch: FetchLike = vi.fn().mockResolvedValue({ ok: false, status, text: async () => "" });
+      const fetch: FetchLike = vi
+        .fn()
+        .mockResolvedValue({ ok: false, status, text: async () => "" });
 
       const result = await freehirePortal.crawl({
         fetch,
@@ -212,12 +224,14 @@ describe("freehire adapter (#1295)", () => {
     }
   });
 
-  it("case 5: unrecognised envelope disables rather than reporting zero jobs", async () => {
+  it("case 5: unrecognised envelope reports a parse failure rather than zero jobs", async () => {
     // Well-formed JSON, `type: "data"`, but not the shape this adapter understands — the
     // SvelteKit "redirect" envelope freehire actually returns when work_mode/regions are both
     // omitted is exactly this kind of well-formed-but-wrong payload.
     const malformed = JSON.stringify({ type: "redirect", location: "/?work_mode=remote" });
-    const fetch: FetchLike = vi.fn().mockResolvedValue({ ok: true, status: 200, text: async () => malformed });
+    const fetch: FetchLike = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, text: async () => malformed });
 
     const result = await freehirePortal.crawl({
       fetch,
@@ -228,10 +242,14 @@ describe("freehire adapter (#1295)", () => {
     });
 
     // This is the misleading-silence case: "0 postings" with no failure reads to the user as
-    // "nothing matched your search". It must never be reported that way.
+    // "nothing matched your search". What prevents that is the structured cause the board
+    // renders (kind + summary), not switching the portal off — ruling N16: a parse failure is
+    // only terminal until the next release fixes the parser, unlike login_required, which is
+    // terminal by policy. Disabling here would leave the user's search silently and permanently
+    // narrower once the fix ships, with nothing to prompt them to turn the portal back on.
     expect(result.postings).toEqual([]);
     expect(result.failure?.kind).toBe("parse_failed");
-    expect(result.failure?.disabled).toBe(true);
+    expect(result.failure?.disabled).toBe(false);
     expect(result.failure?.summary).toContain("freehire.me");
   });
 
@@ -258,7 +276,12 @@ describe("freehire adapter (#1295)", () => {
     // "stopped because of the deadline" from "stopped because the source said so".
     const fetch: FetchLike = vi
       .fn()
-      .mockResolvedValue(pageResponse([job({ external_id: "b:1" }), job({ external_id: "b:2" }), job({ external_id: "b:3" })], true));
+      .mockResolvedValue(
+        pageResponse(
+          [job({ external_id: "b:1" }), job({ external_id: "b:2" }), job({ external_id: "b:3" })],
+          true
+        )
+      );
     let calls = 0;
     // First check (before page 0) passes; second check (before page 1) is past deadline.
     const clock = () => {

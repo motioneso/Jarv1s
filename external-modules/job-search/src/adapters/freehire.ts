@@ -15,8 +15,15 @@
 //   - GET /__data.json          -> the SvelteKit SSR data route, and the ONLY thing that
 //     filters (`work_mode`/`regions` narrow 3.28M -> ~600; free-text `q` works but is fuzzy).
 //     This is the endpoint the adapter targets, treated as a fragile internal route rather than
-//     a stable public API: an envelope we do not recognise disables the portal (`parse_failed`,
-//     L14), it never reports zero results as though the search had simply found nothing.
+//     a stable public API: an envelope we do not recognise is a `parse_failed`, never a silent
+//     zero results as though the search had simply found nothing. Per ruling N16, this does
+//     NOT disable the portal — the structured cause (kind + summary) the board renders is what
+//     prevents the misleading-silence reading, not switching the source off. Disabling would be
+//     strictly worse: a parse failure is only terminal until the next release fixes the parser,
+//     and a disabled portal stays off (part 19, test 4) with nothing to prompt the user to turn
+//     it back on, so the fix would ship and the user's search would stay silently narrower
+//     anyway. `login_required` is the one kind that does disable, because no future release can
+//     ever make a retry succeed against a wall we deliberately never try to get around.
 //
 // Re-probed while implementing this task: none of `offset`, `page`, `cursor`, `start`, `skip`,
 // `from`, or `after` changed the returned page — every combination echoed page one back
@@ -45,8 +52,9 @@
 //                                                  enrichment, vote counts, ...) is ignored
 //
 // A value that is not a valid in-range pool index, or an object missing an expected key, means
-// the payload is not the shape documented above — that is a disabling `parse_failed`, never a
-// posting built from a blank field or a stray integer treated as a string.
+// the payload is not the shape documented above — that is a `parse_failed` (kept enabled and
+// degraded per N16, see above), never a posting built from a blank field or a stray integer
+// treated as a string.
 import type { FailureKind, Posting, SearchCriteria } from "../domain/records.js";
 import { describeFailure } from "../domain/records.js";
 import type { CrawlResult, FetchLike, Portal } from "./types.js";
@@ -153,12 +161,12 @@ interface ParsedPage {
 }
 
 /**
- * Throws on anything that is not the shape documented at the top of this file. The caller
- * turns every throw into a disabling `parse_failed` — this function never returns a posting
- * built from a field it could not resolve, and it never returns an empty list to silently mean
- * "the payload didn't parse" (throwing is what that's for; a genuinely empty `items` array is
- * a real, well-formed zero-results page and is NOT an error — see `crawl`'s test coverage for
- * the distinction).
+ * Throws on anything that is not the shape documented at the top of this file. The caller turns
+ * every throw into a `parse_failed` (enabled, degraded, never disabled — N16) — this function
+ * never returns a posting built from a field it could not resolve, and it never returns an empty
+ * list to silently mean "the payload didn't parse" (throwing is what that's for; a genuinely
+ * empty `items` array is a real, well-formed zero-results page and is NOT an error — see
+ * `crawl`'s test coverage for the distinction).
  */
 function parseEnvelope(bodyText: string): ParsedPage {
   const doc: unknown = JSON.parse(bodyText);
@@ -261,7 +269,10 @@ async function crawl(args: {
 
   for (let page = 0; page < PAGE_CAP; page += 1) {
     if (clock() >= args.deadlineAt) {
-      return { postings, failure: buildFailure("deadline", postings.length, expected, args.lastOkAt) };
+      return {
+        postings,
+        failure: buildFailure("deadline", postings.length, expected, args.lastOkAt)
+      };
     }
 
     let response;
@@ -270,7 +281,10 @@ async function crawl(args: {
         headers: { "User-Agent": USER_AGENT }
       });
     } catch {
-      return { postings, failure: buildFailure("network", postings.length, expected, args.lastOkAt) };
+      return {
+        postings,
+        failure: buildFailure("network", postings.length, expected, args.lastOkAt)
+      };
     }
 
     if (!response.ok) {
