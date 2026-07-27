@@ -512,3 +512,26 @@ Enter`** (a long brief lands as unsubmitted pasted text).
   Expect its stop-and-report inside those two. **5 of 17 tasks committed.**
 - **Herdr note:** `send-keys Enter` did *not* submit a pre-existing input-box line; `send-keys C-u`
   to clear followed by `herdr pane run` did. Prefer clear-then-run over repeated Enters.
+
+### 2026-07-26 — Task 6 landed; builder e reaped, builder f driving
+
+- **Task 6 (Goals) `d9f886a6` spot-checked clean:** `create`/`update`/`addEvidence` all
+  `risk: "write"` + `executionPolicy: "auto"` + family `goals_management` +
+  `granted_at_install`; `allowedTiers` carries all three. Goals ships no delete tool, so no
+  destructive classification arises. **6 of 17 committed.**
+- **Builder e stopped at 72% with Task 7 UNCOMMITTED** — a deviation from the stop rule, which
+  says commit first. Work was not lost: it lives in the shared worktree, and I reviewed it before
+  reaping. `packages/notes/src/manifest.ts` is correct — `notes.create`/`notes.edit` granted,
+  `notes.delete` **stays `risk: "destructive"` + `confirm_always`**, `note_changes.allowedTiers`
+  widened to include `always_confirm`. Missing piece is only the integration test in
+  `tests/integration/notes-write-tools.test.ts`.
+- **Reaped builder e** (`b25edf78`, pane `w1:p110`) after confirming the working tree held the
+  partial. Closing a pane does not touch files, so the handoff is the worktree itself — cheaper
+  than any continuation doc.
+- **Spawned `builder-1263-f`**, pane `w1:p121`, tab `w1:t3J`, **Sonnet 5 confirmed**. Brief: finish
+  Task 7's missing test and commit it as one commit (explicitly told the reviewed manifest work is
+  correct and must not be redone), then Tasks 8 and 9. Task 8 carries the binding People ruling as
+  settled fact so it cannot be re-litigated.
+- **Stop rule restated to f with the missing clause made explicit:** commit finished work *first*,
+  then one line to the Coordinator, then stop.
+- Monitor `bifjssgyk` stopped (watched the dead session); replaced with `boxl5xgsc` on `w1:p121`.
