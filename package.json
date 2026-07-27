@@ -46,7 +46,7 @@
     "start:worker": "pnpm --filter @jarv1s/worker start",
     "test:unit": "vitest run tests/unit",
     "test:uat-seed": "vitest run tests/uat/seed",
-    "test:integration": "tsx scripts/test-integration.ts tests/integration",
+    "test:integration": "tsx scripts/test-integration.ts",
     "test:ai": "tsx scripts/test-integration.ts tests/integration/ai.test.ts tests/integration/ai-capability-routes.test.ts tests/integration/ai-structured.test.ts",
     "test:ai-tools": "tsx scripts/test-integration.ts tests/integration/ai-tools.test.ts",
     "test:briefings": "tsx scripts/test-integration.ts tests/integration/briefings.test.ts tests/integration/briefings-synthesis.test.ts",

@@ -23,6 +23,18 @@ export function createDatabaseIsolationPlan(
   return { mode: "isolated", databaseName: `jarvis_test_${entropySuffix}` };
 }
 
+// #1314: `pnpm test:integration <file>` looked like it ran only <file>, but pnpm appends CLI
+// args onto the package.json script's own args rather than replacing them, so the actual
+// invocation was `tsx scripts/test-integration.ts tests/integration <file>` — the whole
+// directory glob plus the one file, silently. Moving the default in here (instead of baking
+// it into the package.json script string) means "no args" and "args" are two distinct,
+// deliberate cases instead of one string pnpm can accidentally extend.
+const DEFAULT_VITEST_ARGS: readonly string[] = ["tests/integration"];
+
+export function resolveVitestArgs(cliArgs: readonly string[]): string[] {
+  return cliArgs.length > 0 ? [...cliArgs] : [...DEFAULT_VITEST_ARGS];
+}
+
 function quoteDatabaseIdentifier(databaseName: string): string {
   if (!/^[a-zA-Z0-9_]+$/.test(databaseName)) {
     throw new Error(`Refusing to use unsafe database name: ${databaseName}`);
@@ -94,7 +106,7 @@ async function main(): Promise<void> {
   }
 
   try {
-    await runVitest(process.argv.slice(2));
+    await runVitest(resolveVitestArgs(process.argv.slice(2)));
   } finally {
     if (plan.mode === "isolated") {
       await dropDatabaseIfExists(plan.databaseName);
