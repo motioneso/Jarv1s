@@ -651,3 +651,30 @@ each builder only gets 1–3 tasks. Builder i's brief was trimmed ~40% against h
 **`builder-1263-i`** spawned, pane `w1:p125`, **Sonnet 5 confirmed**, at 41% and driving. Queue =
 task-10 (News) → task-11 (Email, reversing ruling flagged in the brief) → task-12 (Calendar).
 Monitor re-armed on `w1:p125`.
+
+### 2026-07-26 — Tasks 10–11 landed (Ben's email ruling is IN); builder i → j
+
+**Task 10 News (`3146a327`).** All five news writes — `confirmSource`, `removeSource`, `addTopic`,
+`removeTopic`, `addExclusion` — now `risk:"write"` + `news_personalization` family +
+`executionPolicy:"auto"` + `granted_at_install`. This also **fixes the standing no-family trap**:
+none of the five declared an `actionFamilyId`, so `policy.ts:40` was confirming every one of them on
+every call. Real UX improvement, worth a release-note line.
+
+**Task 11 Email (`3a121d1f`) — verified property by property, not trusted.** `email.sendReply`:
+`risk:"destructive"`, `selfOperationGrant:"confirm_always"`, **no `actionFamilyId`, no
+`executionPolicy`**, and `grep` confirms **no `email_sends` family was invented**. All four
+properties are the guarantee; any one alone can hold while mail still auto-sends. The builder also
+rewrote the tool description to say "ALWAYS asks for confirmation", so the model is not working from
+stale prose (the defect we hit on `notes.delete`). `email.draftReply`: `risk:"write"` +
+`email_drafts` + auto + `granted_at_install`; family `allowedTiers` includes `always_confirm`.
+
+**Ben's reversing ruling is now implemented in code, not just planned.** There is no tier any user
+or reinstall can set that promotes `email.sendReply` to auto-send; only global YOLO overrides it.
+
+**Fleet.** Builder i retired after 2 tasks (committed first — stop rule held). **`builder-1263-j`**
+spawned, pane `w1:p126`, **Sonnet 5 confirmed**, 44% and driving. Queue = task-12 (Calendar) →
+task-13 (Web Research) → task-14 (persist install grants — the heavy one; brief calls out both
+traps: no migration, and insert-if-absent so a user's `always_confirm` survives a reinstall).
+
+**13 of 17 committed.** Remaining: 12 Calendar, 13 Web Research, 14 install-grant persistence,
+15 enable-path wiring, 16 startup assertion + inventory lock, 17 walk-away regression + full gate.
