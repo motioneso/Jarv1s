@@ -2553,3 +2553,42 @@ new action family. That is not a defect, but a reviewer should be told to look t
 
 **Both PRs still park.** Security tier, and AWAITING-BEN item 8 (Ben's hands-on LAN UAT pass) gates
 both merges regardless of CI colour.
+
+### Fleet after both relays (2026-07-27)
+
+| Lane | Pane | Session | Model | State |
+| --- | --- | --- | --- | --- |
+| #1264 `settings-1264-r11` | `w1:p13G` | `0c44e47f` | Sonnet 5 | Task 13 (rate limiting) — plan escalation owed before it writes code |
+| #1265 `relay10-1265` | `w1:p13H` | `5a822910` | Sonnet 5 | Task 5 (cross-actor RLS via the tool path), then Task 6 |
+| QA #1265 | `w1:p137` | `5d55cb29` | — | idle, held for the delta re-review |
+
+Predecessors `w1:p13D` (`26e77844`) and `w1:p13F` (`5e8e9c4d`) reaped after each confirmed its
+successor was driving; session ids re-resolved fresh from `herdr pane list` before each close.
+
+### Task 5 ruled feasible before the lane could escalate
+
+#1265 was told to escalate Task 5 if the gateway→db→RLS span turned out to be infeasible. I checked
+the harness myself rather than waiting for the escalation, and it is feasible with machinery that
+already exists in the very file the lane is editing:
+
+- `tests/integration/mcp-gateway-self-operation.test.ts` imports `ids` from `./test-database.js`, and
+  that fixture already declares **`ids.userB`** (`tests/integration/test-database.ts:31`) — a second
+  actor costs nothing to set up.
+- `dbBackedSportsActionPolicy(ctx)` already takes `{ actorUserId, requestId }` and threads it through
+  `runner.withDataContext(...)`, so the full span is already parameterised by actor. The existing
+  `sports.followTeam` install-grant test is the template; swap the actor.
+
+**Ruled: no repository-layer substitute.** A repository test proves the SQL policy is attached; it does
+not prove the gateway threads the *caller's* actor into the data context rather than a cached or
+ambient one. Self-operation removes the confirmation card that used to stand in front of these tools,
+so the gateway's actor threading is precisely the trust boundary this epic introduces. Mutation-tight
+statement required: if pinning `actorUserId` to userA inside the policy resolver leaves the test green,
+it is theater.
+
+### Ben's manual pass is now written out
+
+`AWAITING-BEN.md` item **8a** (`7e3c69e2`) now carries the literal sentences to type for both PRs, the
+pass/fail criteria, the internal-address SSRF probe for #1265, and a heads-up that #1264 introduces
+`chat.setResponseStyle` as a new no-prompt tool in a third module — with the one-line
+`user_promotable` fallback if Ben would rather it asked first. Item 8 previously said his pass gated
+both merges without saying what the pass was.
