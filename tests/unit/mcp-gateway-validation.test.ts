@@ -124,7 +124,10 @@ describe("tool input validation", () => {
 
       expect(patterns.length).toBeGreaterThan(0);
       for (const pattern of patterns) {
-        expect(() => compilePattern(pattern), `pattern failed to compile: ${pattern}`).not.toThrow();
+        expect(
+          () => compilePattern(pattern),
+          `pattern failed to compile: ${pattern}`
+        ).not.toThrow();
       }
     });
 
@@ -133,17 +136,21 @@ describe("tool input validation", () => {
       it("rejects a pattern that throws under /u instead of admitting all input", () => {
         // Bare `\-` outside a character class is invalid under /u — a common JSON-Schema idiom
         // (e.g. `^\d{4}\-\d{2}\-\d{2}$`) that used to compile to null and skip the guard entirely.
-        expect(() => compilePattern("^\\d{4}\\-\\d{2}\\-\\d{2}$")).toThrow(ToolInputValidationError);
+        expect(() => compilePattern("^\\d{4}\\-\\d{2}\\-\\d{2}$")).toThrow(
+          ToolInputValidationError
+        );
       });
 
       it("rejects an unbalanced-paren pattern rather than compiling a wrapper that matches anything", () => {
         // Wrapping `[a-z]+)|(.*` as `^(?:[a-z]+)|(.*)$` is valid regex whose top-level alternation
         // sits OUTSIDE the anchors and matches any string. Must be rejected before it is wrapped.
         expect(() => compilePattern("[a-z]+)|(.*")).toThrow(ToolInputValidationError);
-        expect(() => validateToolInput(
-          { type: "object", properties: { key: { type: "string", pattern: "[a-z]+)|(.*" } } },
-          { key: "HOSTILE ANYTHING AT ALL" }
-        )).toThrow(ToolInputValidationError);
+        expect(() =>
+          validateToolInput(
+            { type: "object", properties: { key: { type: "string", pattern: "[a-z]+)|(.*" } } },
+            { key: "HOSTILE ANYTHING AT ALL" }
+          )
+        ).toThrow(ToolInputValidationError);
       });
 
       it("caches the rejection so a broken pattern keeps rejecting on repeat calls", () => {
