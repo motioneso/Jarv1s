@@ -23,8 +23,17 @@ export type JarvisActionPermissionTier = "ask_each_time" | "trusted_auto" | "alw
  * (self-operation) without a per-call approval card. Distinct from JarvisActionPermissionTier:
  * this is a manifest-level declaration checked by the build-time exclusion assertion, not a
  * user-configurable policy tier. Read tools do not declare it.
+ *
+ * `user_promotable` — the tool is fully wired for auto-run (`risk: "write"`, an `actionFamilyId`,
+ * `executionPolicy: "auto"`, and a family whose `allowedTiers` include `trusted_auto`), but install
+ * does not promote it. The family's `defaultTier` stands, so it asks until the user chooses
+ * otherwise in settings. Use this when an action is easy to perform but hard to take back — Ben's
+ * 2026-07-26 calendar ruling is the reference case.
  */
-export type ModuleAssistantToolSelfOperationGrant = "granted_at_install" | "confirm_always";
+export type ModuleAssistantToolSelfOperationGrant =
+  | "granted_at_install"
+  | "confirm_always"
+  | "user_promotable";
 
 export interface ModuleAssistantActionFamilyManifest {
   readonly id: string;

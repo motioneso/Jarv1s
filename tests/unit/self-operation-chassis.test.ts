@@ -162,6 +162,81 @@ describe("self-operation chassis", () => {
     expect(() => assertBuiltInSelfOperationManifests([manifest("memory", [disallowed])])).toThrow();
   });
 
+  it("rejects built-in user_promotable without write auto execution", () => {
+    const tool: ModuleAssistantToolManifest = {
+      name: "calendar.deleteEvent",
+      description: "Delete an event.",
+      permissionId: "calendar.manage",
+      risk: "destructive",
+      actionFamilyId: "calendar.family",
+      selfOperationGrant: "user_promotable"
+    };
+    const promotableFamily = family("calendar.family", ["ask_each_time", "trusted_auto", "always_confirm"]);
+    expect(() =>
+      assertBuiltInSelfOperationManifests([manifest("calendar", [tool], [promotableFamily])])
+    ).toThrow();
+  });
+
+  it("rejects built-in user_promotable without an actionFamilyId", () => {
+    const tool: ModuleAssistantToolManifest = {
+      name: "calendar.deleteEvent",
+      description: "Delete an event.",
+      permissionId: "calendar.manage",
+      risk: "write",
+      executionPolicy: "auto",
+      selfOperationGrant: "user_promotable"
+    };
+    expect(() => assertBuiltInSelfOperationManifests([manifest("calendar", [tool])])).toThrow();
+  });
+
+  it("rejects built-in user_promotable whose family cannot reach trusted_auto", () => {
+    const tool: ModuleAssistantToolManifest = {
+      name: "calendar.deleteEvent",
+      description: "Delete an event.",
+      permissionId: "calendar.manage",
+      risk: "write",
+      executionPolicy: "auto",
+      actionFamilyId: "calendar.family",
+      selfOperationGrant: "user_promotable"
+    };
+    const unpromotableFamily = family("calendar.family", ["ask_each_time", "always_confirm"]);
+    expect(() =>
+      assertBuiltInSelfOperationManifests([manifest("calendar", [tool], [unpromotableFamily])])
+    ).toThrow();
+  });
+
+  it("rejects built-in user_promotable whose family cannot demand always_confirm back", () => {
+    const tool: ModuleAssistantToolManifest = {
+      name: "calendar.deleteEvent",
+      description: "Delete an event.",
+      permissionId: "calendar.manage",
+      risk: "write",
+      executionPolicy: "auto",
+      actionFamilyId: "calendar.family",
+      selfOperationGrant: "user_promotable"
+    };
+    const noConfirmBackFamily = family("calendar.family", ["ask_each_time", "trusted_auto"]);
+    expect(() =>
+      assertBuiltInSelfOperationManifests([manifest("calendar", [tool], [noConfirmBackFamily])])
+    ).toThrow();
+  });
+
+  it("accepts a fully-wired built-in user_promotable tool", () => {
+    const tool: ModuleAssistantToolManifest = {
+      name: "calendar.deleteEvent",
+      description: "Delete an event.",
+      permissionId: "calendar.manage",
+      risk: "write",
+      executionPolicy: "auto",
+      actionFamilyId: "calendar.family",
+      selfOperationGrant: "user_promotable"
+    };
+    const promotableFamily = family("calendar.family", ["ask_each_time", "trusted_auto", "always_confirm"]);
+    expect(() =>
+      assertBuiltInSelfOperationManifests([manifest("calendar", [tool], [promotableFamily])])
+    ).not.toThrow();
+  });
+
   it("accepts built-in read tools without a declaration", () => {
     const tool: ModuleAssistantToolManifest = {
       name: "memory.search",

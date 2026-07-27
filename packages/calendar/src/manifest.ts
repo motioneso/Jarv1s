@@ -241,13 +241,17 @@ export const calendarModuleManifest = {
     {
       name: "calendar.deleteEvent",
       description:
-        "Delete a single calendar event the user owns. On approval the event is removed from the " +
-        "user's Google Calendar (attendees are notified of the cancellation). One event at a time; " +
-        "cannot delete recurring series.",
+        "Delete a single calendar event the user owns. Asks for confirmation by default, unless the " +
+        "user has allowed automatic calendar deletions in settings. On approval (or automatically, " +
+        "once allowed) the event is removed from the user's Google Calendar and attendees are " +
+        "notified of the cancellation. One event at a time; cannot delete recurring series.",
       permissionId: "calendar.manage",
       risk: "write",
+      // Wired for auto-run (write risk, actionFamilyId, executionPolicy: auto), but the family's
+      // always_confirm default keeps it asking until the user promotes calendar_management
+      // themselves — deleting emails a cancellation to every attendee and can't be un-sent.
       executionPolicy: "auto",
-      selfOperationGrant: "granted_at_install",
+      selfOperationGrant: "user_promotable",
       actionFamilyId: "calendar_management",
       requiresServices: ["calendarWrite"],
       inputSchema: {

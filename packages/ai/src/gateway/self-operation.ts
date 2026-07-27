@@ -276,6 +276,28 @@ export function assertBuiltInSelfOperationManifests(manifests: readonly SelfOper
         }
       }
 
+      if (tool.selfOperationGrant === "user_promotable") {
+        if (tool.risk !== "write" || tool.executionPolicy !== "auto") {
+          throw new Error(
+            `module "${manifest.id}" tool "${tool.name}" declares user_promotable without write risk and auto execution policy`
+          );
+        }
+        if (!tool.actionFamilyId) {
+          throw new Error(
+            `module "${manifest.id}" tool "${tool.name}" declares user_promotable without an actionFamilyId`
+          );
+        }
+        if (
+          !resolvedFamily ||
+          !resolvedFamily.allowedTiers.includes("trusted_auto") ||
+          !resolvedFamily.allowedTiers.includes("always_confirm")
+        ) {
+          throw new Error(
+            `module "${manifest.id}" tool "${tool.name}" declares user_promotable without a resolvable action family allowing both trusted_auto and always_confirm`
+          );
+        }
+      }
+
       if (tool.selfOperationGrant === "confirm_always" && !PLANNED_CONFIRM_ALWAYS_TOOLS.includes(tool.name)) {
         throw new Error(
           `module "${manifest.id}" tool "${tool.name}" declares confirm_always outside the planned allowlist`

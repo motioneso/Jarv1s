@@ -239,7 +239,7 @@ import { buildCalendarWriteService } from "@jarv1s/chat";
 import { GoogleConnectionService, GoogleOAuthClient } from "@jarv1s/connectors";
 
 describe("Section C — manifest structure + gateway routing", () => {
-  it("calendar.deleteEvent is registered with correct risk/family/services/granted_at_install", () => {
+  it("calendar.deleteEvent is registered with correct risk/family/services/user_promotable", () => {
     const tool = (calendarModuleManifest as JarvisModuleManifest).assistantTools?.find(
       (t) => t.name === "calendar.deleteEvent"
     ) as ModuleAssistantToolManifest | undefined;
@@ -248,7 +248,7 @@ describe("Section C — manifest structure + gateway routing", () => {
     expect(tool!.actionFamilyId).toBe("calendar_management");
     expect(tool!.requiresServices).toEqual(["calendarWrite"]);
     expect(tool!.executionPolicy).toBe("auto");
-    expect(tool!.selfOperationGrant).toBe("granted_at_install");
+    expect(tool!.selfOperationGrant).toBe("user_promotable");
     expect(tool!.permissionId).toBe("calendar.manage");
     expect(typeof tool!.execute).toBe("function");
     expect(typeof tool!.summarize).toBe("function");

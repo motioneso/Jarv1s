@@ -199,7 +199,7 @@ describe("Email self-operation manifest classification", () => {
 });
 
 describe("Calendar self-operation manifest classification", () => {
-  it("classifies both Calendar writes as granted_at_install", () => {
+  it("classifies proposeFocusBlock as granted_at_install and deleteEvent as user_promotable", () => {
     const tools = calendarModuleManifest.assistantTools ?? [];
 
     const proposeFocusBlock = tools.find((candidate) => candidate.name === "calendar.proposeFocusBlock");
@@ -214,7 +214,7 @@ describe("Calendar self-operation manifest classification", () => {
     expect(deleteEvent?.risk).toBe("write");
     expect(deleteEvent?.actionFamilyId).toBe("calendar_management");
     expect(deleteEvent?.executionPolicy).toBe("auto");
-    expect(deleteEvent?.selfOperationGrant).toBe("granted_at_install");
+    expect(deleteEvent?.selfOperationGrant).toBe("user_promotable");
   });
 
   it("keeps both Calendar write families locked to allow trusted_auto and always_confirm", () => {
