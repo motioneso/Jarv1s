@@ -146,6 +146,19 @@ function validateValue(schema: SchemaNode, value: unknown, path: string): void {
  * bound that reads as protection in review and does nothing at runtime. Three
  * string keywords are a far smaller change than adopting ajv, and this is the
  * chokepoint every module's tool input passes through.
+ *
+ * MANIFEST AUTHORS, note two consequences of that change (#1265):
+ *   1. `pattern` is matched against the WHOLE string — it is anchored here even
+ *      if you wrote it unanchored. An unanchored pattern that used to be
+ *      satisfied by a matching substring now requires a full-string match. This
+ *      is deliberate: a substring match would let "ok/../../etc" satisfy
+ *      `[a-z]+`. Write patterns as if `^...$` were implied, because it is.
+ *   2. This applies to EXTERNAL installed modules too. A third-party manifest
+ *      that already declares string bounds now has them enforced where it
+ *      previously did not, so a bound that was decorative becomes a real
+ *      rejection.
+ * An unparseable `pattern` is treated as a manifest bug and skipped rather than
+ * failing every call to that tool.
  */
 export function validateToolInput(schema: JsonSchema | undefined, input: unknown): ToolInput {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
