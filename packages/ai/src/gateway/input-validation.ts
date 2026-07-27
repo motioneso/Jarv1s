@@ -27,9 +27,15 @@ interface SchemaNode {
 }
 
 /** Compiled `pattern` cache — manifests are static, so each pattern compiles once per process
- *  instead of once per tool call. Patterns come from module manifests, which are trusted code
- *  (a manifest also supplies `execute`), so a manifest author who wanted to burn CPU has far more
- *  direct means than a backtracking regex — this is not a new trust boundary. */
+ *  instead of once per tool call. For BUILT-IN modules this is not a new trust boundary: the
+ *  pattern is trusted code, same as everything else in the manifest.
+ *
+ *  For EXTERNAL (third-party) modules it is a real, currently-accepted asymmetry: a module's
+ *  `execute` runs Worker-sandboxed and wall-clock capped (worker-runtime.ts's 30s
+ *  `invocationTimeoutMs`), but its declared `pattern` compiles and matches here, on the host API
+ *  event loop, unconfined and untimed. A catastrophic-backtracking pattern from an installed
+ *  external module is not caught by the Worker sandbox that bounds `execute`. Tracked in #1275,
+ *  where the confinement/remediation work belongs — not fixed here. */
 const patternCache = new Map<string, RegExp | null>();
 
 function compilePattern(pattern: string): RegExp | null {
