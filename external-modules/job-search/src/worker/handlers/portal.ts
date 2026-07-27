@@ -11,6 +11,7 @@ import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
 
 import type { PortalState } from "../../domain/records.js";
 import type { JobSearchStore } from "../../domain/store-port.js";
+import { looksLikeJobEnvelope, parseJobEnvelope } from "../job-input.js";
 import { InputError, stripEnvelope, validateProfileInput } from "../validate.js";
 import { requireNoUnknownKeys, requireProfileId } from "./profile.js";
 
@@ -45,9 +46,19 @@ function labelFor(sourceId: string): string {
   return BUILT_IN_PORTAL_LABELS[sourceId] ?? sourceId;
 }
 
+/** Task 15 (#1299) addition: also registered as the manual-run queue `job-search.portal-set-enabled`
+ * (`jarvis.module.json`), because the browser settings screen's toggle is a write and a `write`
+ * tool 403s with `confirmation_required` before `execute` (`packages/ai/src/routes.ts:645-668`) —
+ * the UI reaches this write through the manual-run queue lane instead of the tool-call lane, same
+ * pattern as `job-search.match-state`/`match.set-state`. One handler, two shapes in on purpose:
+ * `packages/module-sdk/src/worker.ts:234` resolves a queue's `handler` name out of the same flat
+ * record a tool's `handler` name resolves from, so the queue and the tool share this exact
+ * function rather than each getting their own. */
 export function createPortalSetEnabledHandler(store: JobSearchStore) {
   return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
-    const input = stripEnvelope(ctx.input);
+    const input = looksLikeJobEnvelope(ctx.input)
+      ? parseJobEnvelope(ctx.input).params
+      : stripEnvelope(ctx.input);
     requireNoUnknownKeys(input, PORTAL_SET_ENABLED_FIELDS);
     const profileId = requireProfileId(input);
     const sourceId = requireSourceId(input);

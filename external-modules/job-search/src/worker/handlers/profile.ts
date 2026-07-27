@@ -24,6 +24,7 @@ import {
   parseCriteria
 } from "../../domain/criteria.js";
 import type { BriefingDetail, JobSearchStore } from "../../domain/store-port.js";
+import { looksLikeJobEnvelope, parseJobEnvelope } from "../job-input.js";
 import { InputError, stripEnvelope } from "../validate.js";
 
 /** Shared by every handler in this module (profile.ts, resume.ts, portal.ts): rejects any key
@@ -177,9 +178,17 @@ export function createSetContextHandler(store: JobSearchStore) {
   };
 }
 
+/** Task 15 (#1299) addition: also registered as the manual-run queue
+ * `job-search.profile-set-briefing-detail` (`jarvis.module.json`) for the same reason as
+ * `portal.set-enabled` above — the settings screen's write 403s with `confirmation_required` on
+ * the tool-call lane (`packages/ai/src/routes.ts:645-668`), so it goes through the manual-run
+ * queue lane instead. See `portal.ts`'s `createPortalSetEnabledHandler` for the fuller version of
+ * this comment; the shape-sniff is identical. */
 export function createSetBriefingDetailHandler(store: JobSearchStore) {
   return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
-    const input = stripEnvelope(ctx.input);
+    const input = looksLikeJobEnvelope(ctx.input)
+      ? parseJobEnvelope(ctx.input).params
+      : stripEnvelope(ctx.input);
     requireNoUnknownKeys(input, SET_BRIEFING_DETAIL_FIELDS);
     const profileId = requireProfileId(input);
     const detail = requireBriefingDetail(input);

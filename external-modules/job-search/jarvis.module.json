@@ -187,9 +187,123 @@
         }
       },
       "handler": "source.remove"
+    },
+    {
+      "name": "job-search.crawl.run-now",
+      "permissionId": "job-search.crawl.run-now",
+      "description": "Crawl this search profile's enabled job boards now.",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "profileId": { "type": "string" } },
+        "required": ["profileId"]
+      },
+      "handler": "crawl.run-now"
+    },
+    {
+      "name": "job-search.matches.list",
+      "permissionId": "job-search.matches.list",
+      "description": "List scored matches for a search profile.",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "profileId": { "type": "string" },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 40 }
+        },
+        "required": ["profileId", "limit"]
+      },
+      "handler": "matches.list"
+    },
+    {
+      "name": "job-search.match.dismiss",
+      "permissionId": "job-search.match.dismiss",
+      "description": "Dismiss a match so it leaves the board.",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "matchId": { "type": "string" } },
+        "required": ["matchId"]
+      },
+      "handler": "match.set-state"
     }
   ],
-  "worker": { "queues": [], "schedules": [], "reconcileJobs": [] },
+  "worker": {
+    "queues": [
+      {
+        "name": "job-search.crawl-run",
+        "handler": "crawl.run",
+        "retryLimit": 2,
+        "allowManualRun": true,
+        "timeoutMs": 600000,
+        "paramsSchema": { "type": "object", "fields": { "profileId": { "type": "identifier" } } }
+      },
+      {
+        "name": "job-search.crawl-sweep",
+        "handler": "crawl.sweep",
+        "retryLimit": 1,
+        "allowManualRun": false,
+        "timeoutMs": 600000,
+        "paramsSchema": { "type": "object", "fields": {} }
+      },
+      {
+        "name": "job-search.match-state",
+        "handler": "match.set-state",
+        "retryLimit": 2,
+        "allowManualRun": true,
+        "timeoutMs": 30000,
+        "paramsSchema": {
+          "type": "object",
+          "fields": {
+            "matchId": { "type": "identifier" },
+            "state": { "type": "enum", "values": ["new", "seen", "dismissed"] }
+          }
+        }
+      },
+      {
+        "name": "job-search.portal-set-enabled",
+        "handler": "portal.set-enabled",
+        "retryLimit": 2,
+        "allowManualRun": true,
+        "timeoutMs": 30000,
+        "paramsSchema": {
+          "type": "object",
+          "fields": {
+            "profileId": { "type": "identifier" },
+            "sourceId": { "type": "identifier" },
+            "enabled": { "type": "boolean" }
+          }
+        }
+      },
+      {
+        "name": "job-search.profile-set-briefing-detail",
+        "handler": "profile.set-briefing-detail",
+        "retryLimit": 2,
+        "allowManualRun": true,
+        "timeoutMs": 30000,
+        "paramsSchema": {
+          "type": "object",
+          "fields": {
+            "profileId": { "type": "identifier" },
+            "detail": { "type": "enum", "values": ["count", "top", "full"] }
+          }
+        }
+      }
+    ],
+    "schedules": [
+      {
+        "id": "job-search.crawl-sweep",
+        "cron": "17 */6 * * *",
+        "scope": "user",
+        "jobKind": "job-search.crawl-sweep",
+        "queue": "job-search.crawl-sweep"
+      }
+    ],
+    "reconcileJobs": []
+  },
   "briefing": {
     "handler": "briefing.contribute",
     "sections": ["morning", "evening"],
