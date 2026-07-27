@@ -4132,3 +4132,38 @@ field missing at the client is exactly that signature, and the fix is one schema
 
 **PR #1276 does not merge until item 9 is genuinely green.** No time pressure on the lane;
 correctness only. Item 10 stays untouched behind it.
+
+## 2026-07-27 — #1310 FIXED and live-proven; gate rerun is the only thing left
+
+**Root cause (final).** Not the `fast-json-stringify` response-schema strip literally — same
+signature, different drop point. `toTranscriptRecord()` in `packages/chat/src/gateway-notifier.ts`
+rebuilds the record field-by-field and never copied `record.affectsQueryKeys` for `action_result`
+records, and `TranscriptRecord` in `packages/chat/src/live/types.ts` did not declare the field at
+all. Emitter and resolver were both correct all along; the envelope in between dropped it.
+
+**Fix:** `fc2c073c`, two files / ~2 lines, additive-only — declare the optional readonly field on
+the interface, spread it in the builder.
+
+**Item 9 CLOSED — genuinely proven.** `live-uat-1310.spec.ts` rerun against a running dev instance
+(api pid 1510155): real login, real chat turn, no mocks. `data-color-mode` flips within ~9s of
+Approve, **no reload**. This is the live-path evidence the gate requires.
+
+**Generalized lesson (saved to memory).** When a field is provably correct at the emitter AND at
+the consumer but arrives `undefined`, look for an envelope in between that *reconstructs* the DTO
+field-by-field rather than passing it through — check that before writing instrumentation. Any
+hand-written record builder is a strip point, not just a closed schema.
+
+**Cross-lane declaration (must not be discovered).** The fix lands in `packages/chat/`, outside
+this lane's expected territory. Additive-only (optional field + pass-through), collision risk
+judged low, but **PR #1276's body must declare it** because lane #1273 rebases on top.
+
+**Lane state.** Predecessor exhausted at ~1% headroom without spawning a successor; I spawned it
+myself as `settings-1264-r25` (pane w1:p14D, session `5d1ebabf`, Sonnet 5, same worktree/branch)
+and reaped the dead pane. Remaining: (1) `verify:foundation` on a fresh gate DB with a real exit
+code, (2) item 10 wrap-up. **Do not merge** — still coordinator-only, and PR #1276 stays unmerged
+until the gate exit code is green.
+
+**Unblocked a stuck lane:** `dropdb`/`createdb` are not installed on the host, which stalled the
+predecessor. Correct pattern for this box, handed to the successor:
+`docker exec jarv1s-postgres psql -U postgres -c 'DROP DATABASE IF EXISTS <db> WITH (FORCE);'`
+then `CREATE DATABASE <db>`, then `export JARVIS_PGDATABASE=<db>` (exported, never inline).
