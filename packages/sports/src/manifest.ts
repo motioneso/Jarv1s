@@ -178,7 +178,7 @@ export const sportsModuleManifest = {
         properties: {
           competitionKey: {
             type: "string",
-            description: "Catalog competition key, e.g. \"nfl\" or \"eng.1\""
+            description: 'Catalog competition key, e.g. "nfl" or "eng.1"'
           },
           teamKey: {
             type: "string",
@@ -205,7 +205,7 @@ export const sportsModuleManifest = {
         properties: {
           competitionKey: {
             type: "string",
-            description: "Catalog competition key, e.g. \"nfl\" or \"eng.1\""
+            description: 'Catalog competition key, e.g. "nfl" or "eng.1"'
           },
           teamKey: {
             type: "string",
