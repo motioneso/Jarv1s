@@ -1141,12 +1141,33 @@ the existing `"handler_error"` convention). Only gate the `resolvePolicy === "ru
 `confirmAndRun` path (human clicks confirm) is explicitly out of scope, a human approving each call
 is its own throttle.
 
+**Coordinator groundwork (verbatim ruling, do not re-litigate):** swept `origin/main` — no
+rate-limiting machinery exists anywhere to reuse (the only `rateLimit`/`throttle` hits are inbound
+429-classification strings in `packages/connectors` and `packages/news`, not limiters). Task 13 is
+genuinely net-new. Two rulings:
+1. **Keying is per-actor, per-tool, nested — never a concatenated string.** A chat-id-scoped key is
+   trivially bypassed (new chat resets it); a process-global key leaks one actor's activity into
+   another's limit. Use the same nested-map shape `undo-stack.ts` already landed
+   (`actorUserId -> toolName -> ...`) — it dodges the delimiter-collision trap for the same reason
+   it did there.
+2. **This is a runaway-loop guard, not a security boundary.** In-memory, restart-clearing state is
+   accepted ONLY under that framing. State this plainly in a code comment on the limiter and in the
+   PR body — never imply it is a hard safety control, since "restart to clear it" would then read
+   as a bypass. No tool-facing description promises more than "protects against a runaway loop
+   within the process lifetime."
+Standing bans that bear on this task: no tool may take a rate-limit ceiling/window as a parameter
+(that is self-promotion to tunable-YOLO); this task must never be used to justify widening any
+family's `defaultTier` ("it's capped now, so it can auto-run" is always wrong).
+
 **Files:**
-- Modify: `packages/ai/src/gateway/gateway.ts` — add a small generic in-memory limiter (e.g. a
-  fixed-window counter keyed by `` `${actorUserId}:${toolName}` ``, reset per window) as a private
-  field/method on `AssistantToolGateway` or a small standalone class in the same file. Module-
-  agnostic: no settings- or chat-specific knowledge, applies to any tool with `risk !== "read"`
-  hitting the auto-run branches.
+- Modify: `packages/ai/src/gateway/gateway.ts` — add a small generic in-memory limiter as a private
+  field/method on `AssistantToolGateway` (or a small standalone class in the same file), backed by a
+  nested `Map<actorUserId, Map<toolName, { count, windowStart }>>` — mirrors `undo-stack.ts`'s
+  `actors: Map<string, Map<string, ChatUndoStack>>` shape, never a `` `${actorUserId}:${toolName}` ``
+  concatenated key. Module-agnostic: no settings- or chat-specific knowledge, applies to any tool
+  with `risk !== "read"` hitting the auto-run branches. Bound the outer map's size the same way
+  `undo-stack.ts` does (LRU eviction) so an unbounded number of distinct actors can't grow it
+  forever.
 - Test: extend `tests/integration/mcp-gateway-self-operation.test.ts` if it already exercises the
   `resolvePolicy === "run"` auto-execute path for a `granted_at_install` tool (check first); else
   extend `tests/integration/mcp-gateway.test.ts`. Do not create a new top-level test file — this is
@@ -1157,10 +1178,12 @@ is its own throttle.
   it private to `gateway.ts` unless a second caller emerges). Default window/ceiling are an
   implementation judgment call (spec gives no number) — pick something generous enough not to
   false-positive on normal multi-tool-call turns (e.g. N calls per `(actorUserId, toolName)` per a
-  short rolling window measured in seconds), document the choice in a one-line comment, and make it
-  overridable via an env var following this repo's `JARVIS_RL_*` naming convention (see
+  short rolling window measured in seconds), document the choice AND the runaway-loop-guard-not-a-
+  security-boundary framing in a one-line comment, and make the ceiling/window overridable via an
+  env var following this repo's `JARVIS_RL_*` naming convention (see
   `tests/integration/route-local-rate-limit.test.ts` for the pattern of reading the knob at
-  module-import time so tests can set low ceilings before importing).
+  module-import time so tests can set low ceilings before importing) — never a tool-callable
+  parameter.
 
 - [ ] **Step 1: Write the failing test** — drive the same `granted_at_install` write tool through
   `callTool` (or the route/MCP surface that reaches it) N+1 times in quick succession with a fixed
