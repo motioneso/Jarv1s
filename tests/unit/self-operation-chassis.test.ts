@@ -281,7 +281,11 @@ describe("self-operation chassis", () => {
       assertBuiltInSelfOperationManifests([
         manifest("calendar", [installTool, promotableTool], [sharedFamily])
       ])
-    ).toThrow();
+    ).toThrow(
+      'module "calendar" action family "calendar.sharedFamily" is referenced by both a ' +
+        "granted_at_install tool and a user_promotable tool: install would silently promote the " +
+        "tier the user_promotable tool relies on the user to set"
+    );
   });
 
   it("rejects a built-in confirm_always tool that is promotable to trusted_auto", () => {
@@ -296,7 +300,11 @@ describe("self-operation chassis", () => {
       executionPolicy: "auto",
       selfOperationGrant: "confirm_always"
     };
-    expect(() => assertBuiltInSelfOperationManifests([manifest("memory", [tool])])).toThrow();
+    expect(() => assertBuiltInSelfOperationManifests([manifest("memory", [tool])])).toThrow(
+      'module "memory" tool "memory.forget" declares confirm_always but is promotable to ' +
+        'trusted_auto: remove executionPolicy "auto" and any actionFamilyId whose allowedTiers ' +
+        "include trusted_auto"
+    );
   });
 
   it("accepts built-in read tools without a declaration", () => {

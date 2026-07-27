@@ -232,6 +232,11 @@ export const BUILT_IN_SELF_OPERATION_SCOPE_NOTE =
 export function assertBuiltInSelfOperationManifests(
   manifests: readonly SelfOperationManifestInput[]
 ): void {
+  // #1263 Task B item 3: tool names must be unique across ALL built-in modules, not just within
+  // one -- the gateway dispatches by name alone, so a collision would let one module's manifest
+  // silently shadow another's tool.
+  const seenToolNamesAcrossModules = new Set<string>();
+
   for (const manifest of manifests) {
     const tools = manifest.assistantTools ?? [];
     const families = manifest.assistantActionFamilies ?? [];
@@ -258,6 +263,14 @@ export function assertBuiltInSelfOperationManifests(
         throw new Error(`module "${manifest.id}" declares duplicate tool name "${tool.name}"`);
       }
       seenToolNames.add(tool.name);
+
+      if (seenToolNamesAcrossModules.has(tool.name)) {
+        throw new Error(
+          `tool name "${tool.name}" is declared by more than one built-in module (most recently ` +
+            `"${manifest.id}"): tool names must be unique across all modules`
+        );
+      }
+      seenToolNamesAcrossModules.add(tool.name);
 
       const excluded = isSelfOperationExcluded(manifest.id, tool);
 
@@ -309,6 +322,16 @@ export function assertBuiltInSelfOperationManifests(
         ) {
           throw new Error(
             `module "${manifest.id}" tool "${tool.name}" declares granted_at_install without a resolvable trusted action family allowing both trusted_auto and always_confirm`
+          );
+        }
+        // #1263 Task B item 2: install must never grant trusted_auto for a family the module
+        // itself gated at always_confirm -- that would silently widen the family's effective
+        // default the moment the module installs, defeating the always_confirm choice.
+        if (resolvedFamily && resolvedFamily.defaultTier === "always_confirm") {
+          throw new Error(
+            `module "${manifest.id}" tool "${tool.name}" declares granted_at_install for action ` +
+              `family "${tool.actionFamilyId}" whose defaultTier is "always_confirm": a ` +
+              `granted_at_install family must not default to always_confirm`
           );
         }
         if (tool.actionFamilyId) {
@@ -378,6 +401,31 @@ export function assertBuiltInSelfOperationManifests(
       if (userPromotableFamilyIds.has(familyId)) {
         throw new Error(
           `module "${manifest.id}" action family "${familyId}" is referenced by both a granted_at_install tool and a user_promotable tool: install would silently promote the tier the user_promotable tool relies on the user to set`
+        );
+      }
+    }
+
+    // #1263 Task B item 1b (Coordinator checkpoint #4 drift-guard). The tasks branch of
+    // packages/module-registry/src/index.ts's `grantSelfOperationForModule` wiring is a FULL
+    // bypass of the generic grant path in this file -- it hardcodes writing exactly one family,
+    // "task_changes", via TasksCompatibilityHelper.grantInstallTimeTrustIfUnset, and never calls
+    // through to grantSelfOperationForModule above for tasks at all. That is correct only as long
+    // as "task_changes" stays tasks' ONE granted_at_install family: if a future change adds a
+    // second one, the registry special-case won't grant it (it only ever writes task_changes),
+    // and since it's a full bypass the generic path never runs for tasks either -- the new family
+    // silently gets no install-time grant. Pin the invariant here so that drift trips a build-time
+    // assert instead of failing quiet. If this trips, either extend the registry special-case to
+    // cover the new family or replace it with a call into the generic grantSelfOperationForModule.
+    if (manifest.id === "tasks") {
+      const isExactlyTaskChanges =
+        grantedAtInstallFamilyIds.size === 1 && grantedAtInstallFamilyIds.has("task_changes");
+      if (!isExactlyTaskChanges) {
+        throw new Error(
+          `module "tasks" must declare exactly one granted_at_install action family, ` +
+            `"task_changes" (found: ${
+              [...grantedAtInstallFamilyIds].sort().join(", ") || "none"
+            }) -- packages/module-registry/src/index.ts special-cases tasks' install grant to ` +
+            `write only "task_changes" and will silently fail to grant any other family`
         );
       }
     }

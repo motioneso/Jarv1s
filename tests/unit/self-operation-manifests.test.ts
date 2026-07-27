@@ -24,10 +24,12 @@ const GRANTED_AT_INSTALL_TASK_TOOLS = [
   "tasks.createList",
   "tasks.renameList",
   "tasks.createTag",
-  "tasks.renameTag",
-  "tasks.deleteList",
-  "tasks.deleteTag"
+  "tasks.renameTag"
 ];
+
+// #1263 Task B item 1: deleteList/deleteTag moved out of granted_at_install -- task_cleanup's
+// defaultTier is always_confirm, and install must never promote an always_confirm family's tier.
+const USER_PROMOTABLE_TASK_TOOLS = ["tasks.deleteList", "tasks.deleteTag"];
 
 const GRANTED_AT_INSTALL_COMMITMENT_TOOLS = [
   "commitments.accept",
@@ -43,13 +45,26 @@ const GRANTED_AT_INSTALL_PEOPLE_TOOLS = ["people.acceptMatch", "people.rejectMat
 const CONFIRM_ALWAYS_PEOPLE_TOOLS = ["people.merge", "people.splitIdentity"];
 
 describe("Tasks self-operation manifest classification", () => {
-  it("classifies all 13 Tasks write tools as granted_at_install", () => {
+  it("classifies 11 Tasks write tools as granted_at_install", () => {
     const tools = tasksModuleManifest.assistantTools ?? [];
     for (const name of GRANTED_AT_INSTALL_TASK_TOOLS) {
       const tool = tools.find((candidate) => candidate.name === name);
       expect(tool, `expected tool ${name} to exist`).toBeDefined();
       expect(tool?.selfOperationGrant, `expected ${name} to be granted_at_install`).toBe(
         "granted_at_install"
+      );
+    }
+  });
+
+  // #1263 Task B item 1: task_cleanup's defaultTier is always_confirm, so its two tools must be
+  // user_promotable, not granted_at_install -- install must never promote an always_confirm family.
+  it("classifies 2 Tasks write tools (task_cleanup) as user_promotable", () => {
+    const tools = tasksModuleManifest.assistantTools ?? [];
+    for (const name of USER_PROMOTABLE_TASK_TOOLS) {
+      const tool = tools.find((candidate) => candidate.name === name);
+      expect(tool, `expected tool ${name} to exist`).toBeDefined();
+      expect(tool?.selfOperationGrant, `expected ${name} to be user_promotable`).toBe(
+        "user_promotable"
       );
     }
   });
@@ -322,21 +337,29 @@ describe("Complete built-in self-operation inventory (#1263)", () => {
       `expected zero excluded built-in write tools, found: ${excluded.join(", ")}`
     ).toEqual([]);
 
-    expect(grantedAtInstall.length).toBe(31);
+    expect(grantedAtInstall.length).toBe(29);
     expect(confirmAlways.length).toBe(5);
-    expect(userPromotable.length).toBe(2);
+    expect(userPromotable.length).toBe(4);
 
     // Task 12a moved calendar.deleteEvent out of granted_at_install (33 -> ...). PR #1268's
     // security reviews moved two more: Fable moved calendar.proposeFocusBlock to user_promotable
     // (the proactive follow-through worker is a second unattended reader of calendar_writeback's
     // tier), and Opus moved web.read to confirm_always (no approved spec covers web-research, and
-    // an auto-run family would have reopened the v0.1.0 audit's exfiltration finding). Granted is
-    // 31, confirm_always is 5, user_promotable is 2 — still 38 write/destructive tools total.
+    // an auto-run family would have reopened the v0.1.0 audit's exfiltration finding). #1263
+    // Task B item 1 moved two more: tasks.deleteList/tasks.deleteTag out of granted_at_install,
+    // because task_cleanup's defaultTier is always_confirm and install must never promote an
+    // always_confirm family's tier. Granted is 29, confirm_always is 5, user_promotable is 4 —
+    // still 38 write/destructive tools total.
     expect(grantedAtInstall.length + confirmAlways.length + userPromotable.length).toBe(38);
 
     expect(confirmAlways.sort()).toEqual([...PLANNED_CONFIRM_ALWAYS_TOOL_NAMES].sort());
     expect(userPromotable.sort()).toEqual(
-      ["calendar.deleteEvent", "calendar.proposeFocusBlock"].sort()
+      [
+        "calendar.deleteEvent",
+        "calendar.proposeFocusBlock",
+        "tasks.deleteList",
+        "tasks.deleteTag"
+      ].sort()
     );
   });
 });
