@@ -2688,3 +2688,25 @@ and `w1:p12D` are Ben's own sessions — never reap them.
 **Unchanged:** neither PR merges tonight regardless of CI colour. Both are security tier and both park
 on Ben's hands-on LAN UAT pass (AWAITING-BEN items 8 and 8a). Whichever lane lands second rebases
 `tests/unit/self-operation-manifests.test.ts` with an exact `toBe`; which one that is remains unsettled.
+
+### Successors adopted, predecessors reaped
+
+Both relays completed cleanly. Current fleet, by session id (pane numbers are ephemeral — resolve
+fresh before acting on any of these):
+
+| Lane | Session | Pane | Model | State |
+| ---- | ------- | ---- | ----- | ----- |
+| #1265 `build-1265-relay11` | `c114ff4c` | `w1:p13J` | Sonnet 5 | Task 6 — gate, push, PR body |
+| #1264 `settings-1264-r12` | `b34fcb5b` | `w1:p13K` | Sonnet 5 | Task 13 — building, plan `14d0f6c5` |
+| QA (held, idle) | `5d55cb29` | `w1:p137` | — | reserved for #1265's PR re-review |
+
+Predecessors `5a822910` (#1265) and `0c44e47f` (#1264) were confirmed idle by a fresh session-id
+lookup and then closed. Each committed a relay continuation doc first — `8e06f3a9` and `9d639507`
+respectively — and #1264's carries both build conditions verbatim, so the approval survives the
+handoff without depending on my own context.
+
+One ruling added for the #1264 successor that was not in the original approval: **the limiter goes on
+the auto and yolo branches only, never `confirmAndRun`.** The predecessor had grounded `confirmAndRun`
+(~457-546) as a third place the code flows through, which is accurate, but throttling a path the user
+has just clicked confirm on limits the user rather than the loop — and a human clicking a button is
+already the loop-breaker this whole control exists to substitute for.
