@@ -20,6 +20,7 @@
 ### Task 1: Manifest + gateway type — declare and thread `affectsQueryKeys`
 
 **Files:**
+
 - Modify: `packages/module-sdk/src/index.ts` (`ModuleAssistantToolManifest`, add `readonly affectsQueryKeys?: readonly string[];` next to `externalContent`)
 - Modify: `packages/ai/src/gateway/types.ts` (`GatewaySessionRecord`'s `action_result` variant, add same optional field)
 - Modify: `packages/ai/src/gateway/gateway.ts` — at the 3 `result.ok`-gated `action_result` emits (yolo path ~L186, auto-run path ~L222, confirmAndRun path ~L574), spread `...(result.ok && found.tool.affectsQueryKeys ? { affectsQueryKeys: found.tool.affectsQueryKeys } : {})`
@@ -33,6 +34,7 @@
 ### Task 2: Wire the theme tool + frontend generic invalidation
 
 **Files:**
+
 - Modify: `packages/settings/src/manifest.ts` — add `affectsQueryKeys: ["settings.themes"]` to the `settings.themeMode.set` tool entry (~L461-471).
 - Modify: `apps/web/src/chat/use-chat-stream.ts` — add `readonly affectsQueryKeys?: readonly string[];` to `TranscriptRecord`, parse it in `parseRecord` (array of strings, else undefined).
 - Modify: `apps/web/src/shell/app-shell.tsx` — add a generic `useEffect` that: tracks the last-processed record count in a ref; for each new record with `kind === "action_result" && record.outcome === "executed" && record.affectsQueryKeys`, resolves each token by walking `queryKeys` (split on `.`, index into the object) and calls `queryClient.invalidateQueries({ queryKey })` when the resolved value is an array.
