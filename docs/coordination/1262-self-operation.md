@@ -2735,3 +2735,30 @@ three rules that have needed repeating across every relay (guard placement at th
 limiter scope, and the bans on tool-parameterised ceilings and `defaultTier` widening). Predecessor
 resolved fresh and reaped. Handoff doc:
 `docs/superpowers/handoffs/2026-07-27-1264-settings-self-operation-relay-13.md`.
+
+### #1265 gates green and pushed; PR #1273 body is the last item
+
+`build-1265-relay11` (`c114ff4c`) cleared the whole mechanical half of Task 6 before relaying, and
+this is the first genuinely green evidence on either lane:
+
+- `check:file-size` had gone red — an earlier commit pushed `mcp-gateway-units.test.ts` to 1024 lines,
+  over the 1000-line cap. Fixed by splitting the tool-input-validation and tool-output-sanitization
+  blocks into `tests/unit/mcp-gateway-validation.test.ts` (`2d1037e6`). I verified the split preserved
+  coverage rather than taking the commit message on trust: 34 test cases before, 17 + 17 after, and the
+  diff balances at 447 lines out against 455 in.
+- `verify:foundation` exit 0 and `audit:release-hardening` exit 0, on a fresh isolated gate database
+  (`jarvis_gate_1265d`) — not the shared dev DB, and no `tail`/`head` masking the exit code.
+- Pushed; `origin/1265-module-content-self-operation` and the worktree both at `b09bcad6`. PR #1273 is
+  open and its three checks are queued.
+
+Remaining on the lane: rewrite the PR #1273 body with the four callouts, recompute the inventory
+assertion from its own tree with an exact `toBe`, and report. Successor `relay-1265-b` = session
+`2fa16a74`, pane `w1:p13N`, Sonnet 5 confirmed, same worktree; predecessor resolved fresh and reaped.
+
+**QA plan for #1273.** The held agent `qa-1265` (session `5d55cb29`, pane `w1:p137`) is confirmed on
+Opus 5 at 49% context, which is the right model for a security-tier adversarial pass. Using it rather
+than spawning fresh is deliberate: it reviewed an earlier state of this branch, so it can review the
+delta and knows what it already covered. It is held idle until the PR body is finished and CI has gone
+green — QA trusts CI for the mechanical gate and should not be spent on a moving branch. Note that the
+Agent-tool QA path in the coordinate skill is unavailable this session (standing instruction not to
+call it), so this is the Herdr fallback and is recorded as such.
