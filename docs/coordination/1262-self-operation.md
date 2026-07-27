@@ -4220,7 +4220,7 @@ No built-in manifest hit the gap (`task_changes`, `task_cleanup`, `calendar_writ
 **Resolved the correct way: assert coverage only. No policy, grant, `defaultTier`, or
 `allowedTiers` value was touched.** New unit test passes. Invariant saved to agentmemory.
 
-**Lane relaying at 71%.** Successor picks up at Task 3 (`tasks/action-policy.ts` self-heal), then
+**Successor CONFIRMED driving** as pane `w1:p14E` (session `7239b33d`, Sonnet 5, branch `1311-install-grant`); predecessor pane `w1:p14C` reaped. It picks up at Task 3 (`tasks/action-policy.ts` self-heal), then
 Task 4 (live UAT, reusing/inverting `live-uat-1310.spec.ts` per the harness-reuse order), Task 5
 (PR), gate, wrap-up. **Verify the successor actually appears** — #1310's predecessor died at 1%
 without spawning one, so a promised handoff is not evidence of a handoff.
