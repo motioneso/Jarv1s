@@ -139,7 +139,6 @@ export function AppShell(props: AppShellProps) {
     (acceptDraft) => {
       embeddedComposerRef.current = acceptDraft;
       setChatOpen(false);
-      setAskJarvisStarter(undefined);
       setModuleDraft(undefined);
       setFocusActionRequestId(null);
       return () => {
