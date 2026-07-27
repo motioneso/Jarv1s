@@ -4,5 +4,19 @@
     "superpowers:subagent-driven-development": "off",
     "superpowers:executing-plans": "off",
     "superpowers:dispatching-parallel-agents": "off"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-gate-pipe.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
   }
 }
