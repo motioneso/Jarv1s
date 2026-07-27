@@ -612,3 +612,21 @@ task-11 (email, with the reversing ruling called out in the brief). Monitor re-a
 **Herdr note (recurring):** a long brief sent with `herdr pane run` lands as an unsubmitted paste
 ("paste again to expand", context still 0%) and needs one follow-up `send-keys Enter`. Always
 confirm the context meter moved off 0% before believing a builder is driving.
+
+### PR body — required plain-language disclosures (do not let this get lost)
+
+Whoever writes the #1263 PR must state these three in ordinary words, not policy jargon. They are
+the user-visible consequences of this change and Ben signs the merge off against them.
+
+1. **Deleting a note now happens immediately, with no confirmation and no undo.** There is no trash
+   and no restore path — the delete is a direct file unlink. Ben ruled this deliberately
+   ("don't need to baby proof"); it is disclosed, not hidden. A soft-delete is a possible follow-up.
+2. **Sending email still always asks first.** Jarvis can draft a reply freely, but it cannot send
+   one without a confirmation card. The only way to remove that is global YOLO mode, which turns off
+   every confirmation everywhere.
+3. **Deleting a task list or a tag no longer asks, and one small thing is lost silently:** deleting
+   a tag drops its assignments. Deleting a non-empty list is still refused by the database, so no
+   tasks can be destroyed this way.
+
+Everything else in this PR is invisible to users: it declares guarantees that already existed so the
+build can check them.
