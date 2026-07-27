@@ -36,10 +36,15 @@ Jarvis Design System/
 # time a dev runs module-reconcile.ts locally — never commit it.
 /data/
 
-# #1326: several unit tests (external-worker-runtime, external-module-invocation-budget,
-# module-sdk-worker) mkdtemp() their fixture directly under the repo root rather than
-# os.tmpdir(), because the runtime under test resolves paths by walking up for the
-# pnpm-workspace.yaml marker and a fixture outside the repo would fail to resolve. Every
-# such fixture is prefixed ".tmp-" and removed in afterEach — ignore the prefix so it never
-# needs listing per-test-file again.
+# #1326: three unit tests (external-worker-runtime, external-module-invocation-budget,
+# module-sdk-worker) mkdtemp() their fixture directly under the repo root instead of
+# os.tmpdir(), each cleaned up in afterEach. (Checked whether this is required for
+# pnpm-workspace.yaml path resolution, per the known bundled-path-resolution trap: it
+# is not — ExternalModuleWorkerRuntime.start() spawns the entrypoint with `cwd: module.dir`
+# directly, worker-runtime.ts:230-231, and none of these three files reference
+# resolveModulesDir or pnpm-workspace.yaml. The repo-root placement looks incidental.)
+# Reproduced and confirmed the actual flake this prevents: ESLint's own glob-walk throws
+# an unhandled ENOENT (`scandir`) if one of these directories disappears mid-scan, and
+# Prettier flags the fixture's generated worker.js as a style violation while a test still
+# holds it open.
 .tmp-*/
