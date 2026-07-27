@@ -3273,3 +3273,51 @@ change yet".
 **#1264:** `26659abc` is idle-by-design, waiting on its own monitor for the real `EXIT_CODE=` line
 from the full gate against fresh `jarvis_build_1264` — it is explicitly not trusting the
 task-notification summary, which is the right instinct. Idle here is healthy, not stalled.
+
+### #1265 delta re-QA: **RED** on `ec43d62e` — 1 blocking, 4 non-blocking
+
+The re-dispatch was worth it. The verdict grounds correctly on `ec43d62e`, confirms `b09bcad6` as a
+strict ancestor, runs `audit:preflight` to exit 0, and scopes itself honestly to
+`git diff b09bcad6..ec43d62e` rather than claiming a whole-PR review. This is the standard for the
+epic.
+
+**B1 (blocking) — `compilePattern` fails OPEN.** `packages/ai/src/gateway/input-validation.ts:41-59,
+76-81`. `new RegExp` throws → returns `null` → the guard `if (compiled && !compiled.test(value))`
+is skipped → **input admitted unvalidated**, silently (bare catch, no logger in the file). `/u`
+throws on ordinary JSON-Schema idioms — `\-` outside a character class is the common one. Second
+symptom: the "anchored on both ends" guarantee is defeatable by unbalanced parens
+(`[a-z]+)|(.*` → `^(?:[a-z]+)|(.*)$`, alternation outside the anchors, matches everything). **Both
+were executed against the shipped validator, not re-implemented** — that is why this blocks rather
+than deferring to #1275.
+
+The irony is the point: this PR's headline finding is that every declared string bound was
+decorative. The fix shipped a validator that can silently revert to exactly that state.
+
+**My ruling to the lane:** fail CLOSED — an uncompilable pattern rejects the value. A benign typo
+then breaks its own tool loudly, which is the correct trade; a loud break is recoverable, a silent
+hole is not. Explicitly banned as "fixes": dropping the bound, widening a `defaultTier`, relaxing
+`policy.ts`, making the pattern optional.
+
+Two things I flagged that the verdict did not: **`$` in JS does not mean end-of-string** — without
+`/m` it matches before a single trailing newline, so `^(?:abc)$` matches `"abc\n"`, which would be
+a second fail-open in different clothes across every anchored bound in the product. And the `/u`
+flag is a genuine fork (keep it = more throws, now failing closed, safer but noisier; drop it =
+accepts `\-` but changes escape strictness). **My lean is keep `/u` and fail closed**; I asked the
+lane for reasoning rather than a choice, and reserved the ruling.
+
+Non-blocking, all cheap: body item 5's "not enforced" list omits `type:"integer"` (live on goals
+`priority`, app-map-tool `limit`), array `minItems` (live on web-research `urls`), and nested
+`required` without `type:"object"`; the ESPN "no timeout / indefinitely" framing is false (it was
+bounded at 15s — the real change is 15s→8s, and the body justifies a degrade trade-off against a
+risk that never existed); the new timeout is a no-op on the injected-fetch seam
+(`host-fetch/src/index.ts:233` overwrites rather than chains the signal) with no timeout test in the
+delta at all; and the compile-safety test re-implements the wrapper inline because `compilePattern`
+is unexported, so it stays green if production's wrapper or flag changes.
+
+**Lane state:** builder `f9ff23a9` was at 63% with 13% to auto-compact — too little headroom to
+start a security fix, so I sent the brief with an explicit *do not start, relay first*. Auto-compact
+mid-fix is the tripwire; a clean relay is strictly better. Brief lives at
+`scratchpad/brief-1265-red.md`.
+
+**Failure budget: this is RED number two on this lane.** One more failed QA cycle and the lane stops
+and goes to Ben rather than spinning. Told the lane so directly — get it right rather than fast.
