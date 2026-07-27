@@ -127,7 +127,18 @@ describe("every job-search.* literal under src/web/ resolves to a declared, reac
     const toolByName = new Map((manifest.assistantTools ?? []).map((tool) => [tool.name, tool]));
     const queueByName = new Map((manifest.worker?.queues ?? []).map((queue) => [queue.name, queue]));
 
-    const literals = findJobSearchLiterals(walkSourceFiles(webSrcDir));
+    const files = walkSourceFiles(webSrcDir);
+    const literals = findJobSearchLiterals(files);
+
+    // Guard against a vacuous pass: if webSrcDir ever resolves wrong, a refactor moves src/web/,
+    // or the literal regex stops matching, `literals` silently goes empty and the loop below
+    // asserts nothing while the test still reports green — the worst failure mode for a net whose
+    // entire job is catching a screen nobody remembered to check. Floors are set comfortably below
+    // today's real counts (13 files under src/web/, 10 job-search.* literals across
+    // root.tsx/use-profiles.ts/board.tsx/settings.tsx) but high enough that a broken walk trips one.
+    expect(files.length, "walked no files under src/web/ — the sweep is disarmed").toBeGreaterThan(3);
+    expect(literals.length, "found no job-search.* literals — the sweep is disarmed").toBeGreaterThan(5);
+
     const failures: string[] = [];
 
     for (const { file, line, literal } of literals) {
@@ -137,9 +148,11 @@ describe("every job-search.* literal under src/web/ resolves to a declared, reac
 
       // The naming convention keeps these buckets disjoint (queue names dash the last segment —
       // job-search.portal-set-enabled — while tool names stay fully dotted —
-      // job-search.portal.set-enabled), so a literal that matches one never matches the other.
-      // That lets the manifest section a literal lives in double as its transport: no need to
-      // know whether the call site actually used invokeTool or runQueue.
+      // job-search.portal.set-enabled), so a literal that matches one never matches the other in
+      // practice today. Nothing enforces that convention, though — validate.ts wouldn't catch a
+      // violation — so treat it as an observation, not a guarantee. A collision would only produce
+      // a confusing failure message here, not a wrong verdict: both branches below still check
+      // their own bucket's rule independently.
       if (tool) {
         // Only ever reachable via invokeTool. Anything but risk:"read" 403s with
         // blockedReason: "confirmation_required" before it ever runs (packages/ai/src/routes.ts).
