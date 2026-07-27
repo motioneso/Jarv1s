@@ -2309,3 +2309,38 @@ before Task 10.
 Whichever lane lands second rebases `tests/unit/self-operation-manifests.test.ts` — currently #1264.
 Issue #1272 still filed for the missing structured-state manifest pinning test. The six stray rows in
 Ben's dev DB remain logged in `AWAITING-BEN.md` §7 and deliberately untouched.
+
+### Delta — 2026-07-27, near-collision on the #1264 tree (handled)
+
+Relay-8 (`38f37b4c`, `w1:p13A`) spawned its successor `settings-1264-r9` (`ff8aa7a0`, `w1:p13B`)
+**while still mid-Task-9**, so for a few minutes two agents were live on one worktree and branch — the
+red-flag condition — with the predecessor at 3% until auto-compact. I ordered p13A to commit-or-name-
+what-it-discarded and stand down, and held p13B before its first edit.
+
+**It resolved well, and the predecessor deserves credit for pushing back.** My stand-down message said
+"if it is not green, discard"; p13A refused to apply that literally, because the uncommitted diff was
+**257 lines of deliberately red TDD tests** for Task 9's no-op suppression, documented in `9400df2f`.
+It flagged rather than silently complying. It was right and my instruction was too blunt — a rule
+written for stray edits would have destroyed real work.
+
+State of that tree, verified by me in the files rather than from the handoff:
+
+- `3b0eebe1` genuinely fixes both undo-stack defects — nested `actorUserId -> chatId` maps (no more
+  `:`-concat collision), an LRU bound on tracked chats, a TTL sweep, and a why-comment citing the
+  collision trap. Confirmed present; not to be redone.
+- Uncommitted and **expected**: six test files expecting a new `changed` boolean on the write-service
+  result that production does not have yet, so the tree does not typecheck. TDD-red, not damage.
+- Inherited defect passed to the successor: `settings-locale-tools.test.ts` has a CAS-conflict bug in
+  the predecessor's own test code. I told p13B not to assume the other five are clean merely because
+  only that one was flagged.
+
+Useful thing found while verifying: the write-service result **already carries
+`previous: { value, revision }`** — precisely the input the undo-apply path needs. Item 3 may be much
+cheaper than the handoff implied. `settingsUndoStack.clear()` now has a test caller but still **zero
+production callers**, so the push-only problem and its wrap-up gate are unchanged.
+
+p13A reaped after session-id match. p13B is the sole agent on the tree and has acknowledged all five
+carried rulings back to me verbatim.
+
+#1265 relayed at `f3504fa0` — research and a verified file/line fix plan for every RED item, no code
+yet, which is the right shape for a relay.
