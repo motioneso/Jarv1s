@@ -31,3 +31,8 @@ docs/releases/*-weekly/index.html
 
 # Frozen design handoff artifacts (keep byte-identical to the exported design project)
 docs/superpowers/design/
+
+# #1326: unit-test fixtures mkdtemp() a ".tmp-*" directory directly in the repo root
+# (external-worker-runtime, external-module-invocation-budget, module-sdk-worker); a
+# concurrent format:check run could otherwise flag a generated file inside one mid-test.
+.tmp-*/

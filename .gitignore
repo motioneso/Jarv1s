@@ -35,3 +35,11 @@ Jarvis Design System/
 # #996/#860: resolveModulesDir's dev fallback creates <repoRoot>/data/modules the first
 # time a dev runs module-reconcile.ts locally — never commit it.
 /data/
+
+# #1326: several unit tests (external-worker-runtime, external-module-invocation-budget,
+# module-sdk-worker) mkdtemp() their fixture directly under the repo root rather than
+# os.tmpdir(), because the runtime under test resolves paths by walking up for the
+# pnpm-workspace.yaml marker and a fixture outside the repo would fail to resolve. Every
+# such fixture is prefixed ".tmp-" and removed in afterEach — ignore the prefix so it never
+# needs listing per-test-file again.
+.tmp-*/
