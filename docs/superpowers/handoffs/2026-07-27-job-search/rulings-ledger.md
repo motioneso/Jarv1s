@@ -1013,3 +1013,26 @@ say so rather than implying per-profile isolation.
 
 N17's write-ordering rule is unchanged: on add, source row first then grant; on remove, grant first
 then source row — a crash must always leave the narrower capability.
+
+## N19 — freehire returns one page. Do not budget it as a pager.
+
+Probed twice against the live host (Task 11 implementation, 2026-07-27): none of `offset`, `page`,
+`cursor`, `start`, `skip`, `from` or `after` changes what `__data.json` returns. Every variant
+echoes page one back byte-identically. The adapter still sends `offset` — it is harmless, and the
+route may honour it under conditions the probe did not reach — but **the adapter cannot be assumed
+to page, and in practice does not.**
+
+Two consequences, both for Task 14:
+
+- **Budget freehire as roughly one page, not `PAGE_CAP` pages.** A per-portal share of the deadline
+  sized for ten sequential fetches spends the invocation's time on a source that yields its whole
+  result set on the first one, starving portals that genuinely do page.
+- **Do not add an "identical page seen twice, stop early" guard** to the adapter or the crawl loop.
+  It reads as a free optimisation and is not one: two identical pages are also what a legitimately
+  stable, genuinely-repeating result set looks like, and a guard cannot tell the two apart. The
+  worst case without it is refetching page one up to `PAGE_CAP` — wasteful, bounded, and absorbed by
+  dedupe. The worst case with it is silently truncating a real result set, which is the failure mode
+  this whole module is built to avoid.
+
+Recorded here rather than left in `freehire.ts`'s header comment because Task 14 sizes its budget
+from part 19 and the `Portal` contract, and has no reason to open an adapter's source to find it.
