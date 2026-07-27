@@ -1,8 +1,9 @@
 # Provider sign-in: one shared surface for onboarding and settings — design spec
 
 - **Date:** 2026-07-27
-- **Status:** Draft — **BLOCKED on one owner decision** (is Codex in scope? see Context). Everything
-  else is settled after two adversarial review rounds.
+- **Status:** Draft — unblocked. The one open question (is Codex in scope?) was settled by recovered
+  history rather than a ruling: it was already in scope and already built. Everything else is settled
+  after two adversarial review rounds. Shape is now **recover, then consolidate** — see Context.
 - **Task:** #1270
 - **Parent:** Part of epic #983 (dogfood UX hardening); related to #869 (Assistant & AI admin),
   #1059 (owner terminal), #1271 (terminal copy bug)
@@ -20,7 +21,48 @@ The sign-in flow already exists and works. It lives in the first-run wizard
 (`apps/web/src/onboarding/cli-auth-step.tsx`), is mounted exactly once
 (`onboarding-wizard.tsx:310`), and is unreachable afterwards.
 
-### OPEN QUESTION — blocks this spec: is Codex in scope?
+### RESOLVED: Codex is in scope — and this was already built once
+
+**Settled by recovered history, not by a ruling.** The owner remembered completing a Codex
+device-code sign-in in Jarvis "just the other day" — Jarvis showed a code, he entered it, it worked.
+He was right. On 2026-07-19 a live-feedback lane built exactly that, and the 2026-07-26 repo reset
+deleted it: the work had no issue and no PR, and the branch triage keyed on merged-PR presence.
+Full account: `docs/audits/2026-07-27-repo-reset-loss-forensics.md`.
+
+The deleted commits answer this question outright:
+
+- `977effdd` **fix(onboarding): handle Codex device auth** — adds `readonly userCode?: string` state
+  and renders the code for the user to type. This is the UI the owner remembers.
+- `c2607105` **feat(settings): surface all provider setup options** — replaces
+  `ONBOARDING_LOGINABLE_PROVIDER_KINDS = ["anthropic"]` with
+  `ONBOARDING_PROVIDER_KINDS = ["anthropic", "openai-compatible", "google"]`, and rewrites the doc
+  comment from the v0.1.2 single-active-gate reasoning to "Onboarding offers every CLI provider
+  kind. Installation and login support remain separate capability gates."
+
+So the presentation filter below was already lifted deliberately, with the reasoning recorded, and
+the flow was live-verified by the owner before it was lost. `codex login --device-auth` completes
+headlessly on this deployment; the `bad9c75b` fix held. **No live-proof task is required** — but the
+single-active-gate regression from v0.1.2 stays an explicit regression check.
+
+Method note: the earlier draft of this section concluded the code must have come from raw CLI output
+in the #1059 owner terminal, on the strength of `grep -rn userCode apps/web/src/` returning nothing.
+That grep was searching a tree the commit had been deleted from. Never conclude "never built" from a
+`main`-only grep in this repo.
+
+It also explains #1271: the owner was trying to copy that device code out of the UI.
+
+### This is a recovery, then a consolidation
+
+`recover/1270-0719-settings-onboarding` restores the nine lost commits on top of current `main`. That
+lands the _behaviour_ #1270 and #1271 describe. It does **not** satisfy the owner's consolidation
+ruling: `bf8e80ad` imports only `ApiError` and four symbols from `onboarding-connect-client`, then
+reimplements the flow with its own local state — two copies of the same wizard, which is the exact
+duplication this spec exists to remove. Plan accordingly: recover first, then extract the one shared
+surface both callers mount.
+
+The analysis below is kept because it documents _why_ the filter existed and what lifting it means.
+
+### Background — the stale filter
 
 The first-run wizard offers **Claude only**
 (`ONBOARDING_LOGINABLE_PROVIDER_KINDS = ["anthropic"]`, `packages/settings/src/repository.ts:131`).
@@ -41,17 +83,8 @@ The presentation filter was never revisited after the fix.
 
 **This matters more than a provider count.** Codex is the **only** provider with a device-code flow;
 Anthropic is paste-mode (URL out, token pasted back). So Goal 3 — showing a code to type — has **no
-live provider unless Codex is in scope**. The two branches:
-
-- **Codex in.** Prove `codex login --device-auth` completes headlessly with the guarded live proof
-  (`JARVIS_LIVE_LOGIN_TEST=1`, contract §L.9.2), then lift the presentation filter. Both sign-in
-  shapes ship with a real provider behind each. Adds a live-proof task before the UI work.
-- **Codex out.** Settings sign-in covers Claude only. Goal 3 drops to dormant contract support:
-  unit-tested rendering with no live provider and **no UAT exit criterion**. Ship sooner, and the
-  code-shaped flow stays unproven on a real screen.
-
-Resolve before planning. It cannot be settled by reading more code — it needs the live proof or an
-owner ruling.
+live provider unless Codex is in scope**. Since it is, both sign-in shapes ship with a real provider
+behind each, and the on-screen device code is a real exit criterion rather than dormant support.
 
 The backend is complete and stays untouched. Every route this needs already exists and is callable
 from settings today. The routes that _act_ — begin, poll, submit-token, cancel — are owner-gated
@@ -62,11 +95,11 @@ does not depend on it.
 
 1. **Consolidate.** The sign-in flow lives in **one** place. Onboarding and settings both render
    that one place. A future change to sign-in is a one-file change.
-2. **Make it reachable from settings** for every provider in the eligible-kind set (see the open
-   question — Claude certainly; Codex pending the ruling).
+2. **Make it reachable from settings** for every provider in the eligible-kind set — Claude and
+   Codex; `google` (agy) has no login adapter and stays out.
 3. **Show the device code.** The "here is a code, type it at the provider" half of the flow was
-   never wired to the screen (see _The dropped code_ below). **Scope depends on the open question:**
-   a real on-screen exit criterion if Codex is in, dormant unit-tested support if it is out.
+   never wired to the screen on `main` (see _The dropped code_ below). Codex provides the live
+   provider, so this is a real on-screen exit criterion.
 4. **Stop claiming a provider is connected when we do not know that.** Three separate places in
    settings currently assert it without evidence, one of them a button that does nothing.
 
@@ -297,9 +330,7 @@ colours outside `tokens.css`.
 ## Exit criteria
 
 1. Sign-in logic exists in exactly one place; onboarding and settings both render it.
-2. **Codex in:** a device code reaches a real screen on a live sign-in and can be copied on
-   plain-HTTP LAN. **Codex out:** the code path is unit-tested against the contract shape only, with
-   no live provider and no UAT criterion — recorded as a known gap, not silently dropped.
+2. A Codex device code reaches a real screen on a live sign-in and can be copied on plain-HTTP LAN.
 3. Submitting a token clears any displayed code, and `submit-token` is proven not to carry one
    (asserted at the service/route boundary, where HIGH-2 is actually enforced).
 4. Sign-in is reachable from settings for every kind the server projects, once per kind in its own
