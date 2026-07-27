@@ -1111,6 +1111,90 @@ git commit -m "test: update self-operation manifest inventory counts for setting
 
 Note in the PR body per the handoff's flagged merge-conflict risk: this test file's counts will also move under sibling #1265 (news/sports) — the coordinator reconciles final numbers at merge time; do not resolve that conflict unilaterally if it appears during rebase.
 
+## Task 13: Per-actor, per-tool rate limiting (gateway-level)
+
+**Coordinator ruling (verbatim, do not re-litigate):** spec quote — "Rate limiting: per-actor and
+per-tool limits, no-op suppression ... Bounded blast radius is not bounded frequency — an injected
+loop can otherwise oscillate a setting indefinitely." Task 9 (no-op suppression) is the OTHER half
+of that bullet only — `light→dark→light→dark` is never a no-op, so suppression never fires and an
+injected loop oscillates freely without this task. Gateway-level, not settings-local, because a
+settings-local limiter can't bound `chat.setResponseStyle` (different module). Rate-limited calls
+report audit outcome `denied` — do NOT add a new outcome value (Task 0c's CHECK widening only
+covers `invalid`/`conflict`). Last task before the final gate; if it stalls, escalate and state the
+gap plainly in the PR body — never silently omit on a security-tier PR.
+
+**Grounding (confirmed this pass):** `packages/ai/src/gateway/gateway.ts`, method `callTool`
+(~line 128). The auto-run path for `granted_at_install` write tools is the `resolvePolicy(...) ===
+"run"` branch at line 178: `runHandler` executes immediately (no confirmation card), then for
+`found.tool.risk !== "read"` the code emits an `action_result` notification and calls
+`this.recordAudit(access, found, { approvalMode: "auto", outcome: result.ok ? "success" :
+"failed", errorClass: ..., chatSessionId })` (lines 179-194). This is the insertion point: check
+the rate limit BEFORE calling `runHandler`, and if exceeded, skip execution entirely, emit
+`action_result` with `outcome: "error"` (the notifier's existing non-executed shape — see line 185
+for the `result.ok ? "executed" : "error"` pattern used elsewhere), and call `recordAudit` with
+`{ approvalMode: "auto", outcome: "denied", errorClass: "rate_limited", chatSessionId }` — reusing
+existing closed enum values on both `approval_mode` and `outcome` (confirmed both are DB CHECK
+constraints in `packages/ai/sql/0127_jarvis_action_audit_log.sql` lines 8-10; `error_class` is
+CHECK'd only on length ≤ 64, not a closed set, so `"rate_limited"` is free to use there, matching
+the existing `"handler_error"` convention). Only gate the `resolvePolicy === "run"` branch (line
+178) and the yolo-mode auto-run branch (line 161) — both are unconfirmed auto-executions; the
+`confirmAndRun` path (human clicks confirm) is explicitly out of scope, a human approving each call
+is its own throttle.
+
+**Files:**
+- Modify: `packages/ai/src/gateway/gateway.ts` — add a small generic in-memory limiter (e.g. a
+  fixed-window counter keyed by `` `${actorUserId}:${toolName}` ``, reset per window) as a private
+  field/method on `AssistantToolGateway` or a small standalone class in the same file. Module-
+  agnostic: no settings- or chat-specific knowledge, applies to any tool with `risk !== "read"`
+  hitting the auto-run branches.
+- Test: extend `tests/integration/mcp-gateway-self-operation.test.ts` if it already exercises the
+  `resolvePolicy === "run"` auto-execute path for a `granted_at_install` tool (check first); else
+  extend `tests/integration/mcp-gateway.test.ts`. Do not create a new top-level test file — this is
+  gateway dispatch behavior, same surface those files already cover.
+
+**Interfaces:**
+- Internal only (no new exported type needed unless the limiter class is reused elsewhere — keep
+  it private to `gateway.ts` unless a second caller emerges). Default window/ceiling are an
+  implementation judgment call (spec gives no number) — pick something generous enough not to
+  false-positive on normal multi-tool-call turns (e.g. N calls per `(actorUserId, toolName)` per a
+  short rolling window measured in seconds), document the choice in a one-line comment, and make it
+  overridable via an env var following this repo's `JARVIS_RL_*` naming convention (see
+  `tests/integration/route-local-rate-limit.test.ts` for the pattern of reading the knob at
+  module-import time so tests can set low ceilings before importing).
+
+- [ ] **Step 1: Write the failing test** — drive the same `granted_at_install` write tool through
+  `callTool` (or the route/MCP surface that reaches it) N+1 times in quick succession with a fixed
+  `actorUserId`/`toolName`; assert the (N+1)th call returns `{ ok: false, ... }` (or the route's
+  equivalent non-success response) without mutating the underlying preference, and that a
+  differing `actorUserId` or `toolName` in the same window is unaffected (per-actor AND per-tool,
+  not global).
+
+Run the new/extended test file's runner command (confirm exact command from the file's existing
+`describe` block or root `package.json` scripts — likely `tsx scripts/test-integration.ts
+tests/integration/<file>.test.ts`).
+Expected: FAIL (no limiter yet).
+
+- [ ] **Step 2: Implement the limiter** in `gateway.ts`, gating both auto-run branches (lines 161
+  and 178) before `runHandler` is invoked. On limit hit: skip `runHandler`, emit the existing
+  non-executed `action_result` shape, call `recordAudit` with `{ approvalMode: "auto", outcome:
+  "denied", errorClass: "rate_limited", chatSessionId }`, and return a `{ ok: false, error: ... }`
+  response (message must not leak other actors' call counts or timing internals).
+
+- [ ] **Step 3: Run the test**
+
+Expected: PASS.
+
+- [ ] **Step 4 (optional, do only if cheap — coordinator will NOT hold the PR for this):** plain
+  counters for hard-exclusion hits and repeated CAS failures, per the same spec bullet. Skip if it
+  would require new infra beyond a counter.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/ai/src/gateway/gateway.ts tests/integration/<extended-file>.test.ts
+git commit -m "feat(ai): add per-actor, per-tool rate limiting to gateway auto-run dispatch"
+```
+
 ## Task 11: Full local gate + UAT golden-path verification
 
 **Files:** none (verification-only task).
