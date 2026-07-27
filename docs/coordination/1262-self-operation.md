@@ -1489,3 +1489,42 @@ three data points across two lanes, not an agent-performance problem.
 Context meter passed 70% again; **no relay, per Ben's standing override** ("keep going here"). This
 manifest remains the only durable record. Monitor `bxgzk30cj` watches panes `w1:p12M` (#1264) and
 `w1:p12P` (#1265) plus both remote branches.
+
+## Continuation note — 2026-07-27, both lanes planning
+
+**Fleet (resolve panes fresh; numbers below reflow):**
+
+| Lane | Agent | Session | Pane | State |
+| --- | --- | --- | --- | --- |
+| #1264 settings | `settings-1264-b` | `d88f59be` | `w1:p12Q` | plan being written to disk; predecessor `7f52e0b8` reaped |
+| #1265 content | `build-1265-self-op` | `8860e0b7` | `w1:p12P` | **plan approved, building** |
+
+Monitor `buwr5kdik` watches pane death + branch commits only (status flips dropped as noise).
+
+**#1265 plan approved** — `docs/superpowers/plans/2026-07-27-module-content-self-operation.md`, 7
+tasks. Its `sports_follows` family keeps `defaultTier: ask_each_time` while the tools declare
+`granted_at_install`, which is the design working as intended: the grant promotes, the default stays
+conservative. Three conditions attached: (1) the install-grant test must be **routing level** — install
+the sports module and assert the `assistant.action_policy.v1.sports.sports_follows` row exists, because
+#1263's QA caught a helper-level test that would have stayed green while the grant silently never
+fired; (2) confirm the tools are not `risk: "destructive"`, since destructive can never auto-run and
+`granted_at_install` on one is a silent lie no test catches; (3) do not loosen the exact-count
+assertion to dodge the #1264 collision. Its flagged assumption — leaving `DELETE
+/api/sports/follows/:id` on the raw repository — was **upheld**: the boundary is RLS +
+DataContextDb, not the service layer, so the direct call loses nothing; a why-comment goes at the
+route so nobody later "tidies" it by pointing the tool at the id path and dropping catalogKey
+resolution.
+
+**#1264's four rulings are now on disk** in `handoff-1264-settings-self-operation.md` (commit
+`d0797865`) rather than living only in pane messages. Both lanes were within a few percent of
+auto-compact when the rulings were issued, and four contexts across this epic have now ended with
+nothing committed — the handoff is the only artifact that survives that. The added ruling this
+window: **chat-response-style is in scope but belongs on the chat module's manifest**, with the
+three-value enum validated server-side as a closed set. That enum is the entire reason the tool is
+not assistant-brain-excluded, so free text reaching the system prompt through it is stop-and-escalate.
+Count consequence: it moves the **chat** package's inventory, not settings'.
+
+**Mid-doing:** waiting on #1264's plan pointer for approval; #1265 is building. Neither has opened a
+PR. Both are `security` tier — adversarial Opus QA with a posted `gh pr comment` verdict before any
+merge, and whichever lands second rebases the exact counts in
+`tests/unit/self-operation-manifests.test.ts`.
