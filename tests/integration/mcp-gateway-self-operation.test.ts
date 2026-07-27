@@ -254,7 +254,10 @@ describe("AssistantToolGateway self-operation", () => {
       }
     );
 
-    expect(writebackTier).not.toBe("trusted_auto");
+    // Tightened per Coordinator review (PR #1268): grantSelfOperationForModule only inserts rows
+    // for granted_at_install families, and calendar_writeback's only owner (proposeFocusBlock) is
+    // user_promotable — so install must write no row at all, not merely a non-trusted_auto one.
+    expect(writebackTier).toBeNull();
   });
 
   it("the five built-in confirm_always tools remain the only confirmation declarations", () => {
