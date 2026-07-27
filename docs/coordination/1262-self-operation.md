@@ -916,3 +916,15 @@ fifth behaviour disclosure for focus blocks, the web-research scope paragraph, a
 regressions. Inventory line now reads 31 granted / 5 confirm / 2 promotable = 38. **That split is
 derived, not verified** — hold the push until builder l's inventory test reports the real counts,
 and correct the line if they differ.
+
+**QA checklist item added while watching `eb0470ef`.** Both hardening asserts landed correctly
+phrased — 4(a) forbids a family shared between a `granted_at_install` and a `user_promotable` tool,
+4(b) is "confirm_always implies NOT promotable" with an in-code comment recording that it is
+deliberately not "implies destructive" and naming `web.read` as the reason. Good.
+
+But the commit's new test lines are in `tests/unit/self-operation-chassis.test.ts`, not the
+integration file. **Verify at QA that the "installing calendar does not arm the background
+follow-through writer" regression actually exercises the install-grant path**, not just the manifest
+declaration. A unit assert that `proposeFocusBlock` is declared `user_promotable` does NOT prove
+install skips it — the declaration and the install logic are two different code paths, and the whole
+point of this change is the second one. This is the #1257 "wired, not just defined" failure mode.
