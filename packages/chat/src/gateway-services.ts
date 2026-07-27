@@ -2,13 +2,14 @@ import { sql } from "kysely";
 import type { PgBoss } from "pg-boss";
 
 import type { DataContextDb, DataContextRunner, PreferencesPort } from "@jarv1s/db";
-import type {
-  AiRepository,
-  ConfirmationRegistry,
-  SessionTokenRegistry,
-  ActiveModulesResolver,
-  AssistantToolGatewayDependencies,
-  SessionNotifier
+import {
+  selfHealGrantedAtInstallTier,
+  type AiRepository,
+  type ConfirmationRegistry,
+  type SessionTokenRegistry,
+  type ActiveModulesResolver,
+  type AssistantToolGatewayDependencies,
+  type SessionNotifier
 } from "@jarv1s/ai";
 import { CalendarRepository, sendCalendarCacheEvictJob } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
@@ -243,7 +244,12 @@ function buildActionPolicy(args: {
           const policy = policies.find(
             (p) => p.moduleId === moduleId && p.actionFamilyId === familyId
           );
-          return policy?.tier ?? null;
+          if (policy) return policy.tier;
+
+          const activeModules = await args.resolveActiveModules(ctx.actorUserId);
+          const manifest = activeModules.find((m) => m.id === moduleId);
+          if (!manifest) return null;
+          return selfHealGrantedAtInstallTier(scopedDb, args.repository, manifest, familyId);
         }
       );
     },
