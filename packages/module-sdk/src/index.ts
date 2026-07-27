@@ -18,6 +18,13 @@ export type ModulePermissionAction = "view" | "create" | "update" | "delete" | "
 export type ModuleAssistantToolRisk = "read" | "write" | "destructive";
 export type ModuleAssistantToolExecutionPolicy = "auto" | "confirm";
 export type JarvisActionPermissionTier = "ask_each_time" | "trusted_auto" | "always_confirm";
+/**
+ * Declares whether Jarvis may perform this write/destructive tool on its own behalf
+ * (self-operation) without a per-call approval card. Distinct from JarvisActionPermissionTier:
+ * this is a manifest-level declaration checked by the build-time exclusion assertion, not a
+ * user-configurable policy tier. Read tools do not declare it.
+ */
+export type ModuleAssistantToolSelfOperationGrant = "granted_at_install" | "confirm_always";
 
 export interface ModuleAssistantActionFamilyManifest {
   readonly id: string;
@@ -503,6 +510,12 @@ export interface ModuleAssistantToolManifest {
   readonly actionFamilyId?: string;
   readonly risk: ModuleAssistantToolRisk;
   readonly executionPolicy?: ModuleAssistantToolExecutionPolicy;
+  /**
+   * Whether Jarvis may perform this write/destructive tool on its own behalf without a
+   * per-call approval card. Optional at the TypeScript level because read tools never declare
+   * it; the build-time self-operation assertion enforces presence for write/destructive tools.
+   */
+  readonly selfOperationGrant?: ModuleAssistantToolSelfOperationGrant;
   readonly inputSchema?: JsonSchema;
   readonly outputSchema?: JsonSchema;
   readonly featureFlagId?: string;
