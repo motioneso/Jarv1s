@@ -20,6 +20,7 @@ import { validateToolInput } from "./input-validation.js";
 import { renderAndCap, sanitizeAssistantToolResult } from "./output-validation.js";
 import { resolvePolicy } from "./policy.js";
 import type { AgencyPrefLookup, ActionPolicyLookup } from "./policy.js";
+import { isSelfOperationExcluded } from "./self-operation.js";
 import type { SessionTokenRegistry } from "./session-tokens.js";
 import type { ActiveModulesResolver, GatewayToolResponse, SessionNotifier } from "./types.js";
 
@@ -584,6 +585,11 @@ export class AssistantToolGateway {
     for (const module of modules) {
       for (const tool of module.assistantTools ?? []) {
         if (typeof tool.execute !== "function") {
+          continue;
+        }
+        // Fail closed #0: a centrally excluded (self-operation) tool is never listed and never
+        // executable, regardless of YOLO or any per-tool confirmation mechanism (#1263).
+        if (isSelfOperationExcluded(module.id, tool)) {
           continue;
         }
         const declaredServices = tool.requiresServices ?? [];
