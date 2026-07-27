@@ -58,25 +58,25 @@ the per-tool ruling wins; this applies to all five News writes in Task 10.
 
 ## Task index
 
-| Task | Title | File | Dependency |
-| --- | --- | --- | --- |
-| 1 | Add the public SDK declaration | `docs/superpowers/plans/1263/task-01.md` | None |
-| 2 | Implement the one central exclusion artifact and manifest assertion | `docs/superpowers/plans/1263/task-02.md` | Task 1 |
-| 3 | Enforce exclusions before YOLO without changing YOLO | `docs/superpowers/plans/1263/task-03.md` | Task 2 |
-| 4 | Classify Tasks | `docs/superpowers/plans/1263/task-04.md` | Task 3 |
-| 5 | Classify Commitments | `docs/superpowers/plans/1263/task-05.md` | Task 4 |
-| 6 | Classify Goals | `docs/superpowers/plans/1263/task-06.md` | Task 5 |
-| 7 | Classify Notes | `docs/superpowers/plans/1263/task-07.md` | Task 6 |
-| 8 | Classify People with the binding destructive ruling | `docs/superpowers/plans/1263/task-08.md` | Task 7 |
-| 9 | Classify Memory | `docs/superpowers/plans/1263/task-09.md` | Task 8 |
-| 10 | Classify News | `docs/superpowers/plans/1263/task-10.md` | Task 9 |
-| 11 | Classify Email | `docs/superpowers/plans/1263/task-11.md` | Task 10 |
-| 12 | Classify Calendar | `docs/superpowers/plans/1263/task-12.md` | Task 11 |
-| 13 | Classify Web Research | `docs/superpowers/plans/1263/task-13.md` | Task 12 |
-| 14 | Persist install grants without clobbering user policy | `docs/superpowers/plans/1263/task-14.md` | Task 13 |
-| 15 | Wire grants into built-in enable paths | `docs/superpowers/plans/1263/task-15.md` | Task 14 |
-| 16 | Wire the built-in assertion at startup and lock the inventory | `docs/superpowers/plans/1263/task-16.md` | Task 15 |
-| 17 | Runtime walk-away regression and final gate | `docs/superpowers/plans/1263/task-17.md` | Task 16 |
+| Task | Title                                                               | File                                     | Dependency |
+| ---- | ------------------------------------------------------------------- | ---------------------------------------- | ---------- |
+| 1    | Add the public SDK declaration                                      | `docs/superpowers/plans/1263/task-01.md` | None       |
+| 2    | Implement the one central exclusion artifact and manifest assertion | `docs/superpowers/plans/1263/task-02.md` | Task 1     |
+| 3    | Enforce exclusions before YOLO without changing YOLO                | `docs/superpowers/plans/1263/task-03.md` | Task 2     |
+| 4    | Classify Tasks                                                      | `docs/superpowers/plans/1263/task-04.md` | Task 3     |
+| 5    | Classify Commitments                                                | `docs/superpowers/plans/1263/task-05.md` | Task 4     |
+| 6    | Classify Goals                                                      | `docs/superpowers/plans/1263/task-06.md` | Task 5     |
+| 7    | Classify Notes                                                      | `docs/superpowers/plans/1263/task-07.md` | Task 6     |
+| 8    | Classify People with the binding destructive ruling                 | `docs/superpowers/plans/1263/task-08.md` | Task 7     |
+| 9    | Classify Memory                                                     | `docs/superpowers/plans/1263/task-09.md` | Task 8     |
+| 10   | Classify News                                                       | `docs/superpowers/plans/1263/task-10.md` | Task 9     |
+| 11   | Classify Email                                                      | `docs/superpowers/plans/1263/task-11.md` | Task 10    |
+| 12   | Classify Calendar                                                   | `docs/superpowers/plans/1263/task-12.md` | Task 11    |
+| 13   | Classify Web Research                                               | `docs/superpowers/plans/1263/task-13.md` | Task 12    |
+| 14   | Persist install grants without clobbering user policy               | `docs/superpowers/plans/1263/task-14.md` | Task 13    |
+| 15   | Wire grants into built-in enable paths                              | `docs/superpowers/plans/1263/task-15.md` | Task 14    |
+| 16   | Wire the built-in assertion at startup and lock the inventory       | `docs/superpowers/plans/1263/task-16.md` | Task 15    |
+| 17   | Runtime walk-away regression and final gate                         | `docs/superpowers/plans/1263/task-17.md` | Task 16    |
 
 ## Builder stop conditions
 
