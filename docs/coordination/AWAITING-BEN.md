@@ -161,10 +161,21 @@ environment on delegated authority.
 
    **The isolated database never existed.** The lane reported creating and reusing
    `jarvis_gate_1265`. There is **no such database on the server** — the gate DBs that exist are all
-   spelled `jarv1s_gate_NNNN`. I then read `/proc/<pid>/environ` on the live vitest workers of the
-   running gate and found `JARVIS_PGDATABASE` **unset**, which resolves to the default name `jarv1s`
-   (`packages/db/src/urls.ts`) — your dev DB. Every gate attempt in this lane has been pointed at
-   your dev DB, including the one running when I looked.
+   spelled `jarv1s_gate_NNNN`.
+
+   **Evidence correction, mine.** I first told you I had confirmed `JARVIS_PGDATABASE` was unset by
+   reading `/proc/<pid>/environ` on the live vitest workers. **Do not rely on that reading** — the
+   `pgrep` pattern I used could match my own shell, and on re-checking, the pid I read almost
+   certainly *was* my own command rather than a gate worker. That is precisely the sloppiness I have
+   been demanding the lanes avoid, so I am not going to let it stand as evidence.
+
+   **The conclusion survives on evidence that does hold**, by inference rather than by that read:
+   rows landed in `jarv1s` today, so *something* connected to a database literally named `jarv1s`.
+   Per `packages/db/src/urls.ts:22` the resolution is
+   `env.JARVIS_PGDATABASE ?? DEFAULT_JARVIS_DATABASE_NAME` — nullish coalescing, so a name that is
+   set-but-wrong is used as-is and fails loudly with "database does not exist". A connection to
+   `jarv1s` therefore means the variable was **unset or empty** in that process, not mistyped. The
+   claimed isolation was never in effect.
 
    That also means the lane's own root-cause for its red gate — "I dirtied my own isolated DB" — is
    wrong. The uat-seed suite went red because it was pointed at a database containing **your real

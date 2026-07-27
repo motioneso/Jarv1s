@@ -2051,3 +2051,31 @@ shared DB, not just the first). `AWAITING-BEN.md` §7 rewritten with the queried
 
 Correction sent into the relay handoff as `[CRIT]` before the successor booted, so it cannot inherit
 the wrong diagnosis. I did **not** clean the six stray rows — Ben's database, Ben's call.
+
+### 2026-07-27 — evidence correction on the entry above (mine)
+
+The conclusion in the previous entry stands; **one of the three pieces of evidence I cited for it
+does not, and I am retracting it rather than leaving it in the record.**
+
+I claimed I had read `/proc/<pid>/environ` on the live vitest workers of the running gate and found
+`JARVIS_PGDATABASE` unset. The `pgrep -f "vitest run tests/unit"` pattern I used **matches my own
+shell command line**, and on re-checking, the pid I read was almost certainly my own process rather
+than a gate worker. That is exactly the failure I have been demanding the lanes avoid, so it does not
+get to stand because it happened to point at the right answer.
+
+**What still holds, and why the conclusion is unchanged:**
+
+1. `jarvis_gate_1265` does not exist on `jarv1s-postgres` — direct `pg_database` query. **Solid.**
+2. Six rows landed in the shared `jarv1s` today at 11:05:16Z — direct query. **Solid.**
+3. Therefore something connected to a database literally named `jarv1s`. Per
+   `packages/db/src/urls.ts:22`, resolution is `env.JARVIS_PGDATABASE ?? DEFAULT_JARVIS_DATABASE_NAME`
+   — **nullish coalescing**, so a set-but-wrong name is used as-is and fails loudly with "database
+   does not exist". A successful connection to `jarv1s` means the variable was **unset or empty**.
+
+So the mechanism is established **by inference from 1 + 2 + the source**, not by the process read.
+The remediation sent to the lane is unaffected and remains correct.
+
+**Method note for whoever holds this run next:** `pgrep -f <pattern>` self-matches. Verify a process
+by resolving `/proc/<pid>/cwd` and `cmdline` first and confirming it belongs to the lane, before
+reading its environment. The successor's gate (`852192`) was verified this way and **does** carry
+`export JARVIS_PGDATABASE=jarv1s_gate_1265b`, with the exit code captured to `/tmp/gate-1265b.rc`.
