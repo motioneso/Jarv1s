@@ -30,7 +30,7 @@ function profile(overrides: Partial<Profile> = {}): Profile {
     name: "Acme SWE search",
     state: "active",
     briefingDetail: null,
-    completedSteps: 3,
+    completedSteps: ["role", "want", "where", "comp", "sources"],
     readyToCrawl: true,
     ...overrides
   };

@@ -54,3 +54,18 @@
   vertical-align: top;
   padding: 0.25rem 0.75rem 0.25rem 0;
 }
+
+.jsm-onb {
+  max-width: 62ch;
+}
+
+.jsm-onb__head,
+.jsm-onb__sub {
+  margin: 0;
+}
+
+.jsm-onb__prog {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

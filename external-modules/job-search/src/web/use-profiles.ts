@@ -17,12 +17,17 @@ export const POLL_MAX_ATTEMPTS = 40;
 
 export type ProfileState = "in_conversation" | "active" | "paused";
 
+// Keep in sync with domain/criteria.ts's ONBOARDING_STEPS — duplicated as a
+// literal tuple rather than imported so this file's wire-shape contract
+// doesn't reach into the domain layer (see this file's header comment).
+export type OnboardingStep = "role" | "want" | "where" | "comp" | "sources";
+
 export interface Profile {
   profileId: string;
   name: string;
   state: ProfileState;
   briefingDetail: string | null;
-  completedSteps: number;
+  completedSteps: OnboardingStep[];
   readyToCrawl: boolean;
 }
 
