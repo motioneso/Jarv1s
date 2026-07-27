@@ -2656,3 +2656,35 @@ window not parameterised by any tool, no `defaultTier` widening, TDD via
 Coordinator hit the 70% meter warning again. Per Ben's standing override ("don't worry about
 successors, keep going here"), no relay was performed; substituted this manifest flush plus a durable
 memory save of the gateway read-guard trap.
+
+### Both lanes relayed simultaneously (Task 5 done, Task 13 not yet coded)
+
+**#1265 — Task 5 accepted, not escalated.** The lane built the gateway-path RLS test rather than
+substituting a repository-layer proof, which is what the ruling required. Commit `dba071e2`, read
+directly rather than taken on report: userA follows a team through `callTool`, userB attempts the
+unfollow through the same tool path and gets `removed: false`, and userA's own unfollow returns
+`removed: true` as a positive control so the false is not vacuously true for every actor. The lane
+also ran the mutation for real — hardcoding the gateway's `actorUserId` to userA made the test fail as
+predicted — and reverted it uncommitted. 7/7 pass in the file. Only Task 6 remains: fresh isolated
+gate DB with a true exit code, push, PR body with the four callouts plus what is still not enforced
+(numeric `minimum`/`maximum`, `anyOf`, `additionalProperties`), then `coordinated-wrap-up`.
+
+**#1264 — plan fix committed, no code written.** `14d0f6c5` corrects the keying to the nested
+`actorUserId -> toolName` map and states the runaway-loop-guard framing for restart semantics. The
+lane's relay confirms both build conditions were captured correctly, including the load-bearing detail
+of Condition 1: the guard goes **at the limiter check itself** because the auto branch's existing
+`risk !== "read"` block wraps only notify + audit, not `runHandler`. It also grounded a third
+insertion point I had not named — `confirmAndRun` (~457-546). That is a site to be careful about, not
+a site to limit: rate-limiting a path a human has just clicked confirm on throttles the user rather
+than a loop, and a human clicking a button is already the loop-breaker. The successor is to be told
+the limiter belongs on the auto and yolo branches only.
+
+**Fleet state at this checkpoint.** Both predecessors (`0c44e47f` for #1264 in `w1:p13G`,
+`5a822910` for #1265 in `w1:p13H`) are spawning successors in their own worktrees and have asked to be
+reaped; both panes have lost their labels, so successors must be resolved fresh by session id, never
+by pane number. `w1:p137` (`5d55cb29`) is the held idle QA agent for #1265's PR. `w1:p112`, `w1:p12C`
+and `w1:p12D` are Ben's own sessions — never reap them.
+
+**Unchanged:** neither PR merges tonight regardless of CI colour. Both are security tier and both park
+on Ben's hands-on LAN UAT pass (AWAITING-BEN items 8 and 8a). Whichever lane lands second rebases
+`tests/unit/self-operation-manifests.test.ts` with an exact `toBe`; which one that is remains unsettled.
