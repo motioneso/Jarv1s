@@ -8,6 +8,7 @@ import { memoryModuleManifest } from "../../packages/memory/src/manifest.js";
 import { newsModuleManifest } from "../../packages/news/src/manifest.js";
 import { emailModuleManifest } from "../../packages/email/src/manifest.js";
 import { calendarModuleManifest } from "../../packages/calendar/src/manifest.js";
+import { webModuleManifest } from "../../packages/web-research/src/manifest.js";
 
 const GRANTED_AT_INSTALL_TASK_TOOLS = [
   "tasks.create",
@@ -229,5 +230,25 @@ describe("Calendar self-operation manifest classification", () => {
     expect(management?.defaultTier).toBe("always_confirm");
     expect(management?.allowedTiers).toContain("trusted_auto");
     expect(management?.allowedTiers).toContain("always_confirm");
+  });
+});
+
+describe("Web Research self-operation manifest classification", () => {
+  it("classifies web.read as granted_at_install", () => {
+    const tools = webModuleManifest.assistantTools ?? [];
+    const webRead = tools.find((candidate) => candidate.name === "web.read");
+    expect(webRead, "expected tool web.read to exist").toBeDefined();
+    expect(webRead?.risk).toBe("write");
+    expect(webRead?.actionFamilyId).toBe("web_research_requests");
+    expect(webRead?.executionPolicy).toBe("auto");
+    expect(webRead?.selfOperationGrant).toBe("granted_at_install");
+
+    const family = webModuleManifest.assistantActionFamilies?.find(
+      (candidate) => candidate.id === "web_research_requests"
+    );
+    expect(family, "expected family web_research_requests to exist").toBeDefined();
+    expect(family?.defaultTier).toBe("ask_each_time");
+    expect(family?.allowedTiers).toContain("trusted_auto");
+    expect(family?.allowedTiers).toContain("always_confirm");
   });
 });

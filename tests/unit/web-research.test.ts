@@ -38,8 +38,14 @@ describe("web research manifest", () => {
     expect(tools.map((tool) => tool.name)).toEqual(["web.search", "web.read"]);
     expect(tools.every((tool) => tool.permissionId === "web.research")).toBe(true);
     expect(tools.find((t) => t.name === "web.search")?.risk).toBe("read");
-    // web.read fetches arbitrary URLs — confirm gate required (#359)
-    expect(tools.find((t) => t.name === "web.read")?.risk).toBe("write");
+
+    // web.read fetches arbitrary URLs (#359); it is a write granted at install, auto-executable
+    // unless the user's stored tier for web_research_requests demotes it (see self-operation.ts).
+    const webRead = tools.find((t) => t.name === "web.read");
+    expect(webRead?.risk).toBe("write");
+    expect(webRead?.actionFamilyId).toBe("web_research_requests");
+    expect(webRead?.executionPolicy).toBe("auto");
+    expect(webRead?.selfOperationGrant).toBe("granted_at_install");
   });
 });
 
