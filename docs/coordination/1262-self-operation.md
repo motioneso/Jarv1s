@@ -1191,3 +1191,41 @@ Gate DB: keep, but DROP/CREATE fresh at the start of the rerun (migrate never ra
 
 **Also owed before merge:** PR #1268 body disclosure 3 still says task list/tag deletion "no longer
 asks" — `37d5d78d` inverted that. Rewrite after the gate goes green.
+
+### Gate-blocker resolved — `af2ec6d4` (routing coverage)
+
+Builder took the **acceptable lesser** path, and checked the preferred one first rather than
+assuming: driving `PATCH /api/me/modules/tasks` end to end needs chat engine factories, RPC
+connections, a boss queue, and onboarding probes, and **no existing integration test drives
+`registerBuiltInApiRoutes`** — only `apps/api/src/server.ts` does, at production boot. That is real
+new fixturing, so the lesser path was the right call and the reasoning is in the commit body, not
+just in chat.
+
+Change: the inline closure at `packages/module-registry/src/index.ts` is extracted verbatim into an
+exported `resolveGrantSelfOperationForModule(genericGrant)`, asserted in both directions. I read the
+diff myself — behaviour-preserving: same ternary, `PreferencesRepository` still constructed inside
+the returned closure (not hoisted, so per-call timing is unchanged), and the generic port is captured
+at the same moment the old object literal was built. Two files, 25/25 pass (was 23).
+
+**Caveat preserved on purpose:** the generic grant in test 1 is a no-op spy, so the assertion with
+real teeth is "generic grant was **not** called", not an observed policy change. That is now a code
+comment in the test so a later reader does not overestimate it.
+
+**Coordinator miss worth keeping:** I accepted `1751bc7a` after reviewing its *source* diff and not
+its *test* diff. Review both halves of a commit, every time.
+
+### Open before merge
+
+- Gate rerun in flight on a dropped/recreated `jarvis_gate_1263`, real exit code.
+- PR #1268 body **rewritten locally, not yet pushed** (scratchpad `pr-1263-body.md`): disclosure 3
+  inverted to "asks by default, promotable"; inventory corrected 31/5/2 → **29/5/4**; routing-test
+  bullet added. Push with
+  `gh api -X PATCH repos/:owner/:repo/pulls/1268 -F body=@<file>` — `gh pr edit --body-file` fails
+  here with a GraphQL Projects-classic deprecation error.
+- `docs/superpowers/plans/1263/task-07a.md`, `task-12a.md`, `task-16.md` still carry the **stale**
+  "confirm_always set is exactly four; a fifth ⇒ stop" condition, and task-16 still says 31 /
+  two-promotable. Harmless to #1264/#1265 (their handoffs carry the corrected five-tool roster, and
+  nothing outside #1263 reads `plans/1263/`), but the squash-merge lands the stale text in `main`.
+  Plan: after the gate is green, one docs-only commit correcting all three, then re-run **only**
+  `pnpm lint` + `pnpm format:check` — the only gates a markdown edit can break — and say exactly
+  that on the PR rather than implying the full gate re-covered it.
