@@ -210,8 +210,32 @@ export function createExternalModuleRpcHandler(input: {
     }
     if (method === "fetch.request") {
       const request = fetchRequest(params);
-      const hosts = input.module.manifest.fetchHosts;
-      if (!hosts?.length) throw new ExternalModuleRpcError("invalid_rpc");
+      const staticHosts = input.module.manifest.fetchHosts ?? [];
+      // #1309 (Task 24): merge in runtime-granted hosts from the module's own manifest-declared
+      // KV namespace, if it has one. Opens and closes its own short-lived DataContext here — a
+      // DB connection must not be held open for the duration of the outbound fetch below, which
+      // targets an adversarial remote host. No new RPC branch: this calls the same
+      // listModuleKvKeys the generic kv.list branch already uses, directly, since the host
+      // already has workerDataContext in hand.
+      const grantsNamespace = input.module.manifest.fetchHostGrantsNamespace;
+      const grantedHosts = grantsNamespace
+        ? await input.workerDataContext.withDataContext(
+            { actorUserId: input.actorUserId, requestId: input.requestId },
+            (scopedDb) =>
+              listModuleKvKeys(scopedDb, {
+                moduleId: input.module.id,
+                namespace: grantsNamespace,
+                scope: "user",
+                ownerUserId: input.actorUserId
+              })
+          )
+        : [];
+      const hosts = [...staticHosts, ...grantedHosts];
+      if (!hosts.length) throw new ExternalModuleRpcError("invalid_rpc");
+      // A host present in `hosts` but not matching request.url's hostname is not this branch's
+      // problem to catch: createHostPinnedFetch's own internal check throws
+      // HostPinningViolationError ("host_not_declared"), uncaught here, same as it already does
+      // today for manifest-only fetchHosts. This branch only changes what `hosts` contains.
       const response = await (input.createFetch ?? createHostPinnedFetch)(hosts)(request.url, {
         method: request.method ?? "GET",
         ...(request.headers ? { headers: request.headers } : {}),

@@ -64,6 +64,21 @@ export interface PostingWithEmbedding extends Posting {
   readonly embedding: readonly number[];
 }
 
+/** Task 24 (#1309): a user-named job board, registered conversationally. The closed
+ * `JobSearchStore` interface below gains exactly the three methods that follow this type — no
+ * `listGrantedHosts` (ledger N17/N18: the fetch-host grant is platform-owned, module-agnostic
+ * `app.module_kv`, written by the worker handler through `ctx.kv`, never through this store). */
+export interface CustomSource {
+  readonly id: string;
+  /** "custom:" + id. The join key into app.job_search_portals — that table's schema does not
+   * change; a custom source's health row is written and read exactly like a built-in portal's. */
+  readonly sourceId: string;
+  readonly host: string;
+  readonly label: string;
+  readonly url: string;
+  readonly createdAt: string;
+}
+
 export interface JobSearchStore {
   listProfiles(): Promise<Profile[]>;
   getProfile(id: string): Promise<Profile | null>;
@@ -98,6 +113,30 @@ export interface JobSearchStore {
    * has to survive the profile it happens to be pointing at being deleted. */
   getSweepCursor(): Promise<number>;
   setSweepCursor(index: number): Promise<void>;
+  /** Task 24 (#1309): user-added job board sources. `listPortals(profileId)` is unchanged — the
+   * `portal.ts` handler resolves a `custom:` id's label/host from this list for its merge, the
+   * same way it already resolves a built-in's label from a static registry. */
+  listCustomSources(profileId: string): Promise<CustomSource[]>;
+  /** `host` is derived from `url` (not a separate parameter) — the caller (source.add) has
+   * already validated `url` is `https:` and its hostname satisfies `isPinnableHost` before this
+   * is ever called; this method re-derives the same hostname rather than trusting a second,
+   * possibly-stale copy of it. */
+  addCustomSource(profileId: string, url: string, label: string): Promise<CustomSource>;
+  /** `sourceId` is the full "custom:"-prefixed id, matching `job_search_portals.source_id`'s
+   * format. Deletes the `job_search_custom_sources` row first (that row is the one thing that
+   * makes the source exist), then best-effort deletes its `job_search_portals` health row — a
+   * crash between the two leaves an inert orphaned health row, never a phantom listing (Task 16's
+   * portal.list merge only shows a `custom:` id with a matching row here). Removing a grant is
+   * the caller's (source.remove's) job via `ctx.kv.delete`, not this method's — the platform
+   * grant lives behind a different port entirely (ledger N17/N18). */
+  removeCustomSource(profileId: string, sourceId: string): Promise<void>;
+  /** Task 15 (#1299): `listMatches`'s join is referential only — it selects zero posting
+   * columns, so nothing in this interface can turn a scored `Match` (posting id + two axis
+   * scores) into a board record with a title and a company to show. This is that lookup, batched
+   * because the board renders many matches from one call. A missing id is simply absent from the
+   * returned map, never a thrown error — the caller (matches.list) decides how to treat a match
+   * whose posting has since been removed. */
+  getPostings(ids: readonly string[]): Promise<Map<string, Posting>>;
 }
 
 // Re-exported so callers only need one import site for the shapes this store speaks in.

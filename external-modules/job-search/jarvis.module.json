@@ -10,7 +10,8 @@
   "auth": [],
   "storage": [
     { "namespace": "job-search.settings", "scopes": ["user"] },
-    { "namespace": "job-search.meta", "scopes": ["user"] }
+    { "namespace": "job-search.meta", "scopes": ["user"] },
+    { "namespace": "job-search.fetch-host-grants", "scopes": ["user"] }
   ],
   "database": {
     "ownedTables": [
@@ -18,11 +19,13 @@
       "app.job_search_portals",
       "app.job_search_postings",
       "app.job_search_matches",
-      "app.job_search_resumes"
+      "app.job_search_resumes",
+      "app.job_search_custom_sources"
     ]
   },
   "runtime": { "workerEntrypoint": "dist/worker.js", "workerContractVersion": 1 },
   "fetchHosts": ["www.linkedin.com", "freehire.me"],
+  "fetchHostGrantsNamespace": "job-search.fetch-host-grants",
   "assistantTools": [
     {
       "name": "job-search.profile.create",
@@ -151,6 +154,39 @@
         "properties": { "profileId": { "type": "string" } }
       },
       "handler": "portal.list"
+    },
+    {
+      "name": "job-search.source.add",
+      "permissionId": "job-search.source.add",
+      "description": "Register a user-named job board URL as a source for a profile.",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "url"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "url": { "type": "string" },
+          "label": { "type": "string" }
+        }
+      },
+      "handler": "source.add"
+    },
+    {
+      "name": "job-search.source.remove",
+      "permissionId": "job-search.source.remove",
+      "description": "Remove a previously registered custom job board source from a profile.",
+      "risk": "write",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "sourceId"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "sourceId": { "type": "string" }
+        }
+      },
+      "handler": "source.remove"
     }
   ],
   "worker": { "queues": [], "schedules": [], "reconcileJobs": [] },

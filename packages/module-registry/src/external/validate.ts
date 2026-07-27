@@ -406,6 +406,31 @@ export function validateExternalModuleManifest(
       }
     }
   }
+  // #1309 (Task 24): fetchHostGrantsNamespace must point at one of the module's own declared
+  // storage namespaces, and that namespace must include the "user" scope — a module cannot grant
+  // runtime fetch hosts through a namespace it never declared, or through an instance-only one.
+  if (obj.fetchHostGrantsNamespace !== undefined) {
+    if (typeof obj.fetchHostGrantsNamespace !== "string") {
+      errors.push("fetchHostGrantsNamespace must be a string");
+    } else {
+      const declared = Array.isArray(obj.storage)
+        ? (obj.storage as Record<string, unknown>[]).find(
+            (entry) =>
+              entry !== null &&
+              typeof entry === "object" &&
+              entry.namespace === obj.fetchHostGrantsNamespace
+          )
+        : undefined;
+      if (!declared) {
+        errors.push("fetchHostGrantsNamespace does not match a declared storage namespace");
+      } else if (
+        !Array.isArray(declared.scopes) ||
+        !(declared.scopes as unknown[]).includes("user")
+      ) {
+        errors.push('fetchHostGrantsNamespace\'s storage declaration must include the "user" scope');
+      }
+    }
+  }
   if (obj.web !== undefined) {
     if (typeof obj.web !== "object" || obj.web === null) {
       errors.push("web must be an object");
@@ -784,6 +809,9 @@ export function validateExternalModuleManifest(
       : {}),
     ...(worker !== undefined ? { worker } : {}),
     ...(obj.fetchHosts !== undefined ? { fetchHosts: obj.fetchHosts as readonly string[] } : {}),
+    ...(obj.fetchHostGrantsNamespace !== undefined
+      ? { fetchHostGrantsNamespace: obj.fetchHostGrantsNamespace as string }
+      : {}),
     ...(database !== undefined ? { database } : {}),
     ...(navigation !== undefined ? { navigation } : {}),
     // #1282: this literal is an allow-list — a validated field that is not re-emitted

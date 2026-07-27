@@ -145,7 +145,14 @@ function createFakeStore(seedProfiles: Profile[] = []) {
       return resume;
     },
     getSweepCursor: notImplemented("getSweepCursor"),
-    setSweepCursor: notImplemented("setSweepCursor")
+    setSweepCursor: notImplemented("setSweepCursor"),
+    // Task 24 (#1309) additions to JobSearchStore — out of scope for these eleven handlers
+    // (job-search-source-handler.test.ts exercises the real thing against its own fake).
+    listCustomSources: notImplemented("listCustomSources"),
+    addCustomSource: notImplemented("addCustomSource"),
+    removeCustomSource: notImplemented("removeCustomSource"),
+    // Task 15 (#1299) addition to JobSearchStore — out of scope for these eleven handlers.
+    getPostings: notImplemented("getPostings")
   };
 
   return { store, profiles, portals, resumes };
@@ -410,7 +417,7 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
     }
   });
 
-  it("11. the manifest declares exactly these nine handlers, checked in both directions", () => {
+  it("11. the manifest declares exactly these eleven handlers, checked in both directions", () => {
     const manifestPath = fileURLToPath(
       new URL("../../external-modules/job-search/jarvis.module.json", import.meta.url)
     );
@@ -420,9 +427,11 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
     const manifestHandlers = (manifest.assistantTools ?? []).map((tool) => tool.handler).sort();
 
     // The nine dotted keys createCriteriaSetHandler/createProfileCreateHandler/etc. above are
-    // actually registered under, per profile.ts/resume.ts/portal.ts (Task 16). There is no
-    // landed registry (Task 13's index.ts) to import this list from yet, so this is the
-    // independent source of truth the manifest is checked against.
+    // actually registered under, per profile.ts/resume.ts/portal.ts (Task 16), plus the two
+    // Task 24 (#1309) handlers registered in source.ts (createSourceAddHandler/
+    // createSourceRemoveHandler, exercised by job-search-source-handler.test.ts, not here).
+    // There is no landed registry (Task 13's index.ts) to import this list from yet, so this
+    // is the independent source of truth the manifest is checked against.
     const registeredHandlers = [
       "profile.create",
       "profile.list",
@@ -432,7 +441,9 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       "resume.set",
       "resume.get",
       "portal.set-enabled",
-      "portal.list"
+      "portal.list",
+      "source.add",
+      "source.remove"
     ].sort();
 
     for (const handler of registeredHandlers) {

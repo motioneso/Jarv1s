@@ -12,7 +12,10 @@ import { describe, expect, it } from "vitest";
 
 import { validateExternalModuleManifest } from "@jarv1s/module-registry";
 
-import { JOB_SEARCH_TABLES } from "../../external-modules/job-search/src/db/tables.js";
+import {
+  JOB_SEARCH_STATIC_FETCH_HOSTS,
+  JOB_SEARCH_TABLES
+} from "../../external-modules/job-search/src/db/tables.js";
 
 const manifestPath = fileURLToPath(
   new URL("../../external-modules/job-search/jarvis.module.json", import.meta.url)
@@ -34,6 +37,17 @@ describe("job-search manifest scaffold (#1287)", () => {
     expect(result.manifest.fetchHosts).toEqual(["www.linkedin.com", "freehire.me"]);
   });
 
+  it("keeps JOB_SEARCH_STATIC_FETCH_HOSTS (source.add's built-in-collision check) in sync with "
+    + "the manifest's fetchHosts", () => {
+    // Task 24 (#1309): source.ts's "already has a built-in source" rejection reads a TypeScript
+    // copy of this same list — JSON manifests cannot import a TS constant, same reasoning as
+    // JOB_SEARCH_TABLES above. This is the one thing that stops the two from drifting.
+    const result = validateExternalModuleManifest(loadManifest(), "job-search", "0.1.0");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.manifest.fetchHosts).toEqual([...JOB_SEARCH_STATIC_FETCH_HOSTS]);
+  });
+
   it("owns exactly the tables JOB_SEARCH_TABLES names, in the same order", () => {
     const result = validateExternalModuleManifest(loadManifest(), "job-search", "0.1.0");
     expect(result.ok).toBe(true);
@@ -48,10 +62,11 @@ describe("job-search manifest scaffold (#1287)", () => {
     );
   });
 
-  it("names five tables", () => {
+  it("names six tables", () => {
     // Pinned separately so that "fixing" the case above by editing both lists at once still
     // fails and forces the spec conversation, rather than silently accepting a drifted count.
-    expect(JOB_SEARCH_TABLES).toHaveLength(5);
+    // Six, not five, as of Task 24 (#1309): job_search_custom_sources joined the list.
+    expect(JOB_SEARCH_TABLES).toHaveLength(6);
   });
 
   it("survives reconstruction with its briefing block and nav badge intact", () => {

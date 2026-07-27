@@ -836,6 +836,13 @@ export interface JsonJarvisModuleManifest {
   readonly assistantTools?: readonly ExternalModuleAssistantToolDeclaration[];
   readonly worker?: ExternalModuleWorkerDeclaration;
   readonly fetchHosts?: readonly string[];
+  /**
+   * Names a declared `storage` namespace (must have `scopes` including "user") whose keys are
+   * runtime-granted fetch hosts for the invoking actor, merged with `fetchHosts` by
+   * worker-rpc-host.ts's `fetch.request` branch (#1309, Task 24). Absent means the module has no
+   * runtime grants — its fetch surface is exactly `fetchHosts`, as before this field existed.
+   */
+  readonly fetchHostGrantsNamespace?: string;
   readonly database?: ExternalModuleDatabaseDeclaration;
   /**
    * Nav-menu entries this module contributes (#1019). Optional — a metadata-only module

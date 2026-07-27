@@ -12,6 +12,7 @@
 //   2. Positional `$1`-style params only, and every list method takes an explicit `limit`.
 import type {
   BriefingDetail,
+  CustomSource,
   JobSearchStore,
   Profile,
   ProfileContext,
@@ -183,6 +184,30 @@ interface ResumeRow {
 
 function mapResume(row: ResumeRow): Resume {
   return { id: row.id, version: row.version, content: row.content, updatedAt: row.updated_at };
+}
+
+// "custom:" is the join key into app.job_search_portals (Task 24, #1309) — a built-in portal's
+// source_id ("freehire", "linkedin") never carries this prefix, so the two id spaces never
+// collide.
+const CUSTOM_SOURCE_ID_PREFIX = "custom:";
+
+interface CustomSourceRow {
+  id: string;
+  host: string;
+  label: string;
+  url: string;
+  created_at: string;
+}
+
+function mapCustomSource(row: CustomSourceRow): CustomSource {
+  return {
+    id: row.id,
+    sourceId: `${CUSTOM_SOURCE_ID_PREFIX}${row.id}`,
+    host: row.host,
+    label: row.label,
+    url: row.url,
+    createdAt: row.created_at
+  };
 }
 
 const SET_RESUME_SQL = `
@@ -487,6 +512,64 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
       // Record<string, unknown> in both directions, so a bare number is not storable and would
       // not even typecheck against the real SDK.
       await kv.set("user", SWEEP_NAMESPACE, SWEEP_KEY, { index });
+    },
+
+    async listCustomSources(profileId: string): Promise<CustomSource[]> {
+      const result = await db.query<CustomSourceRow>(
+        `SELECT id, host, label, url, created_at FROM app.job_search_custom_sources
+          WHERE profile_id = $1 ORDER BY created_at ASC, id ASC`,
+        [profileId]
+      );
+      return result.rows.map(mapCustomSource);
+    },
+
+    async addCustomSource(profileId: string, url: string, label: string): Promise<CustomSource> {
+      // The handler (source.add) has already validated `url` is https and its hostname is
+      // pinnable; this re-derives the same hostname rather than trusting a second, possibly
+      // stale copy of it passed alongside `url`.
+      const host = new URL(url).hostname.toLowerCase();
+      const result = await db.query<CustomSourceRow>(
+        `INSERT INTO app.job_search_custom_sources (owner_user_id, profile_id, host, label, url)
+         VALUES (app.current_actor_user_id(), $1, $2, $3, $4)
+         RETURNING id, host, label, url, created_at`,
+        [profileId, host, label, url]
+      );
+      const row = result.rows[0];
+      if (!row) throw new Error("insert returned no row");
+      return mapCustomSource(row);
+    },
+
+    async removeCustomSource(profileId: string, sourceId: string): Promise<void> {
+      if (!sourceId.startsWith(CUSTOM_SOURCE_ID_PREFIX)) {
+        throw new Error(`removeCustomSource: not a custom source id: "${sourceId}"`);
+      }
+      const id = sourceId.slice(CUSTOM_SOURCE_ID_PREFIX.length);
+      // The row that makes the source exist is deleted first; the health row is best-effort
+      // second (Constraints, "within job-search's own tables"). A crash between the two leaves
+      // an inert orphaned health row — Task 16's portal.list merge only shows a `custom:` id with
+      // a matching row here, so the orphan is invisible cruft, never a phantom listing.
+      await db.query(
+        "DELETE FROM app.job_search_custom_sources WHERE profile_id = $1 AND id = $2",
+        [profileId, id]
+      );
+      await db.query(
+        "DELETE FROM app.job_search_portals WHERE profile_id = $1 AND source_id = $2",
+        [profileId, sourceId]
+      );
+    },
+
+    async getPostings(ids: readonly string[]): Promise<Map<string, Posting>> {
+      // Short-circuits an empty batch rather than round-tripping the DB: matches.list calls this
+      // with the posting ids off whatever page of matches it just read, and an empty page is a
+      // real, unexceptional case (a fresh profile with no matches yet).
+      if (ids.length === 0) return new Map();
+      const result = await db.query<PostingRow>(
+        `SELECT id, source_id, external_id, title, company, location, url, body, posted_at
+           FROM app.job_search_postings
+          WHERE id = ANY($1::uuid[])`,
+        [ids]
+      );
+      return new Map(result.rows.map((row) => [row.id, mapPosting(row)]));
     }
   };
 }

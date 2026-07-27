@@ -120,6 +120,12 @@ function createFakeStore(
     setResume: vi.fn(notUsed("setResume")),
     getSweepCursor: vi.fn(notUsed("getSweepCursor")),
     setSweepCursor: vi.fn(notUsed("setSweepCursor")),
+    // Task 24 (#1309) additions to JobSearchStore — runCrawl never touches custom sources.
+    listCustomSources: vi.fn(notUsed("listCustomSources")),
+    addCustomSource: vi.fn(notUsed("addCustomSource")),
+    removeCustomSource: vi.fn(notUsed("removeCustomSource")),
+    // Task 15 (#1299) addition to JobSearchStore — runCrawl never reads postings back.
+    getPostings: vi.fn(notUsed("getPostings")),
     // Exposed for assertions only; not part of the JobSearchStore surface `runCrawl` sees.
     __postings: postings,
     __embeddings: embeddings,

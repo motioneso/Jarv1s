@@ -8,6 +8,7 @@ import {
   generateModuleTableRlsSql,
   type JarvisDatabase
 } from "@jarv1s/db";
+import { HostPinningViolationError } from "@jarv1s/host-fetch";
 import { StubEmbeddingProvider } from "@jarv1s/memory";
 import {
   AI_CALLS_PER_INVOCATION_CAP,
@@ -360,6 +361,166 @@ describe("external module worker RLS", () => {
       bodyBase64: "e30="
     });
     expect(requests).toEqual([{ input: "https://api.example.com/data", init: { method: "GET" } }]);
+  });
+});
+
+// #1309 (Task 24): fetch.request's runtime host-grant merge (worker-rpc-host.ts) is the one
+// piece of that task that lives in shared, non-job-search-owned code — every other Task 24 case
+// belongs in job-search's own unit test files (job-search-adapter-custom.test.ts,
+// job-search-source-handler.test.ts). This describe block is the only place that proves the
+// merge against a real Postgres-backed app.module_kv table and the real createHostPinnedFetch
+// pinning check, rather than against a fake.
+describe("external module fetch.request runtime host grants (#1309)", () => {
+  const GRANTS_NAMESPACE = "acme-a.fetch-host-grants";
+  const moduleWithGrants = {
+    ...moduleA,
+    manifest: {
+      ...moduleA.manifest,
+      storage: [
+        { namespace: "acme-a.state", scopes: ["instance", "user"] as const },
+        { namespace: GRANTS_NAMESPACE, scopes: ["user"] as const }
+      ],
+      fetchHostGrantsNamespace: GRANTS_NAMESPACE
+    }
+  };
+
+  function buildRpc(
+    actorUserId: string,
+    createFetch?: (hosts: readonly string[]) => typeof fetch
+  ) {
+    return createExternalModuleRpcHandler({
+      module: moduleWithGrants,
+      toolRisk: "write",
+      actorUserId,
+      requestId: `rpc-fetch-grants-${actorUserId}`,
+      workerDataContext: new DataContextRunner(workerDb),
+      cipher: createModuleCredentialSecretCipher(),
+      isActorAdmin: async () => false,
+      // Required dep (#1281); these tests never reach an embed.* method.
+      embeddingProvider: async () => new StubEmbeddingProvider(),
+      ...(createFetch ? { createFetch } : {})
+    });
+  }
+
+  function stubFetch(requests: string[]): (hosts: readonly string[]) => typeof fetch {
+    return () =>
+      (async (input: RequestInfo | URL) => {
+        requests.push(String(input));
+        return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+      }) as typeof fetch;
+  }
+
+  it("merges a runtime-granted host into fetch.request, alongside the manifest's static hosts", async () => {
+    const rpc = buildRpc(ids.userA);
+    await rpc(
+      "kv.set",
+      { scope: "user", namespace: GRANTS_NAMESPACE, key: "boards.granted.example", value: {} },
+      () => undefined
+    );
+
+    const requests: string[] = [];
+    const rpcWithFetch = buildRpc(ids.userA, stubFetch(requests));
+    await expect(
+      rpcWithFetch("fetch.request", { url: "https://boards.granted.example/jobs" }, () => undefined)
+    ).resolves.toMatchObject({ status: 200 });
+    // The pre-existing static host (moduleA's own "api.example.com") still resolves through the
+    // same merged list — granting one host is additive, never a replacement of the static list.
+    await expect(
+      rpcWithFetch("fetch.request", { url: "https://api.example.com/data" }, () => undefined)
+    ).resolves.toMatchObject({ status: 200 });
+    expect(requests).toEqual([
+      "https://boards.granted.example/jobs",
+      "https://api.example.com/data"
+    ]);
+  });
+
+  it("still rejects a host that is in neither the static list nor the actor's granted namespace", async () => {
+    const rpc = buildRpc(ids.userA);
+    await rpc(
+      "kv.set",
+      { scope: "user", namespace: GRANTS_NAMESPACE, key: "boards.granted.example", value: {} },
+      () => undefined
+    );
+
+    // No createFetch override here — the real createHostPinnedFetch runs, and its hostname
+    // check throws before any network call is attempted, so this never reaches the network.
+    await expect(
+      rpc("fetch.request", { url: "https://not-granted.example/jobs" }, () => undefined)
+    ).rejects.toBeInstanceOf(HostPinningViolationError);
+  });
+
+  it("scopes a granted host to the actor who registered it — a different actor's fetch.request for the same host is still rejected", async () => {
+    await buildRpc(ids.userA)(
+      "kv.set",
+      { scope: "user", namespace: GRANTS_NAMESPACE, key: "boards.userA-only.example", value: {} },
+      () => undefined
+    );
+
+    await expect(
+      buildRpc(ids.userB)(
+        "fetch.request",
+        { url: "https://boards.userA-only.example/jobs" },
+        () => undefined
+      )
+    ).rejects.toBeInstanceOf(HostPinningViolationError);
+    // The grant owner's own fetch.request for the same host is unaffected by userB's rejection.
+    const requests: string[] = [];
+    await expect(
+      buildRpc(ids.userA, stubFetch(requests))(
+        "fetch.request",
+        { url: "https://boards.userA-only.example/jobs" },
+        () => undefined
+      )
+    ).resolves.toMatchObject({ status: 200 });
+  });
+
+  it("an actor with no rows yet in the grants namespace still gets the static hosts, with no crash from an empty grant list", async () => {
+    // ids.adminUser has never called source.add in this describe block, so listModuleKvKeys
+    // resolves to an empty array for this actor+namespace — the merge must treat that the same
+    // as "no grants", not throw or short-circuit past the static hosts.
+    const requests: string[] = [];
+    await expect(
+      buildRpc(ids.adminUser, stubFetch(requests))(
+        "fetch.request",
+        { url: "https://api.example.com/data" },
+        () => undefined
+      )
+    ).resolves.toMatchObject({ status: 200 });
+    await expect(
+      buildRpc(ids.adminUser)(
+        "fetch.request",
+        { url: "https://still-not-granted.example/jobs" },
+        () => undefined
+      )
+    ).rejects.toBeInstanceOf(HostPinningViolationError);
+  });
+
+  it("revoking a grant (kv.delete) is honored on the very next fetch.request — the merge reads live state, not a cached list", async () => {
+    const rpc = buildRpc(ids.userA);
+    await rpc(
+      "kv.set",
+      { scope: "user", namespace: GRANTS_NAMESPACE, key: "boards.revocable.example", value: {} },
+      () => undefined
+    );
+    const requests: string[] = [];
+    await expect(
+      buildRpc(ids.userA, stubFetch(requests))(
+        "fetch.request",
+        { url: "https://boards.revocable.example/jobs" },
+        () => undefined
+      )
+    ).resolves.toMatchObject({ status: 200 });
+
+    // Mirrors source.remove's own sequence (kv.delete before the store row is dropped).
+    await rpc(
+      "kv.delete",
+      { scope: "user", namespace: GRANTS_NAMESPACE, key: "boards.revocable.example" },
+      () => undefined
+    );
+
+    await expect(
+      rpc("fetch.request", { url: "https://boards.revocable.example/jobs" }, () => undefined)
+    ).rejects.toBeInstanceOf(HostPinningViolationError);
   });
 });
 
