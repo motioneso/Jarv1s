@@ -230,6 +230,10 @@ function createInjectedFetch(
     let url = new URL(input instanceof URL ? input : typeof input === "string" ? input : input.url);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    // Chain the caller's own signal instead of overwriting it (#1265 N3) — a caller-supplied
+    // AbortSignal (e.g. espn-source.ts's per-call timeout) must still abort this fetch; mirrors
+    // the production createHostPinnedFetch path's `init?.signal?.addEventListener(...)` below.
+    init?.signal?.addEventListener("abort", () => controller.abort(), { once: true });
     let currentInit = { ...init, signal: controller.signal };
     let method = (init?.method ?? "GET").toUpperCase();
     try {

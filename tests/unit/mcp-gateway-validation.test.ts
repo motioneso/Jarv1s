@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   AssistantToolGateway,
+  compilePattern,
   ConfirmationRegistry,
   SessionTokenRegistry,
   ToolInputValidationError,
@@ -91,13 +92,13 @@ describe("tool input validation", () => {
       });
     });
 
-    // #1265 QA follow-up: compilePattern's catch swallows an unparseable `pattern` rather than
-    // throwing (a manifest bug degrades that field to unvalidated instead of failing every call).
+    // #1265 QA follow-up: compilePattern's catch used to swallow an unparseable `pattern` and
+    // return null, which skipped the enforcement guard entirely and admitted unvalidated input.
     // Nothing lints inputSchema patterns before a built-in tool ships (see #1274 for the
     // install-time lint this is a stopgap for), so this asserts the invariant here instead: every
-    // built-in tool's declared pattern must compile the same way input-validation.ts's
-    // compilePattern does, or a manifest bug would silently ship a decorative bound.
-    it("compiles every built-in tool's declared inputSchema pattern under /u, anchored", () => {
+    // built-in tool's declared pattern must compile via the REAL exported compilePattern, not a
+    // re-implemented copy that stays green if production's wrapper or flag changes.
+    it("compiles every built-in tool's declared inputSchema pattern via the real compilePattern", () => {
       interface PatternWalkNode {
         readonly pattern?: string;
         readonly properties?: Record<string, PatternWalkNode>;
@@ -123,11 +124,38 @@ describe("tool input validation", () => {
 
       expect(patterns.length).toBeGreaterThan(0);
       for (const pattern of patterns) {
-        expect(
-          () => new RegExp(`^(?:${pattern})$`, "u"),
-          `pattern failed to compile: ${pattern}`
-        ).not.toThrow();
+        expect(() => compilePattern(pattern), `pattern failed to compile: ${pattern}`).not.toThrow();
       }
+    });
+
+    // #1265 security QA BLOCKING-1: compilePattern must fail CLOSED, not silently skip the bound.
+    describe("compilePattern fails closed", () => {
+      it("rejects a pattern that throws under /u instead of admitting all input", () => {
+        // Bare `\-` outside a character class is invalid under /u — a common JSON-Schema idiom
+        // (e.g. `^\d{4}\-\d{2}\-\d{2}$`) that used to compile to null and skip the guard entirely.
+        expect(() => compilePattern("^\\d{4}\\-\\d{2}\\-\\d{2}$")).toThrow(ToolInputValidationError);
+      });
+
+      it("rejects an unbalanced-paren pattern rather than compiling a wrapper that matches anything", () => {
+        // Wrapping `[a-z]+)|(.*` as `^(?:[a-z]+)|(.*)$` is valid regex whose top-level alternation
+        // sits OUTSIDE the anchors and matches any string. Must be rejected before it is wrapped.
+        expect(() => compilePattern("[a-z]+)|(.*")).toThrow(ToolInputValidationError);
+        expect(() => validateToolInput(
+          { type: "object", properties: { key: { type: "string", pattern: "[a-z]+)|(.*" } } },
+          { key: "HOSTILE ANYTHING AT ALL" }
+        )).toThrow(ToolInputValidationError);
+      });
+
+      it("caches the rejection so a broken pattern keeps rejecting on repeat calls", () => {
+        expect(() => compilePattern("\\-broken")).toThrow(ToolInputValidationError);
+        expect(() => compilePattern("\\-broken")).toThrow(ToolInputValidationError);
+      });
+
+      it("still anchors and matches correctly for a valid pattern", () => {
+        const re = compilePattern("[a-z]+");
+        expect(re.test("abc")).toBe(true);
+        expect(re.test("ok/../evil")).toBe(false);
+      });
     });
   });
 });

@@ -36,24 +36,51 @@ interface SchemaNode {
  *  event loop, unconfined and untimed. A catastrophic-backtracking pattern from an installed
  *  external module is not caught by the Worker sandbox that bounds `execute`. Tracked in #1275,
  *  where the confinement/remediation work belongs — not fixed here. */
-const patternCache = new Map<string, RegExp | null>();
+const PATTERN_INVALID = Symbol("pattern-invalid");
+const patternCache = new Map<string, RegExp | typeof PATTERN_INVALID>();
 
-function compilePattern(pattern: string): RegExp | null {
+/**
+ * Compiles a manifest `pattern` for whole-string matching, or throws. Fails CLOSED (#1265
+ * security QA BLOCKING-1): a broken pattern used to compile to `null` and get silently skipped,
+ * admitting any value for that field. That is worse than no bound at all, since a bound that
+ * reads as protection in review and does nothing at runtime is a silent hole. A manifest author's
+ * typo now breaks every call to that tool loudly instead — a loud break is recoverable, a silent
+ * admit is not.
+ *
+ * Compiles the pattern BARE first, purely as a validity probe, before compiling the wrapped
+ * `^(?:...)$` form used for matching. This is not just about catching `new RegExp` throwing
+ * (e.g. `\-` outside a character class under the `/u` flag) — it also closes a second fail-open:
+ * an unbalanced-paren pattern like `[a-z]+)|(.*` still compiles once wrapped (the pattern's stray
+ * `)` closes the wrapper's `(?:` early and its stray `(` reopens a group closed by the appended
+ * `)`), producing `^(?:[a-z]+)|(.*)$` — a top-level alternation that sits OUTSIDE the anchors and
+ * matches anything. Valid regex requires balanced parens, so any pattern whose wrapped form could
+ * suffer that escape is, by construction, unbalanced on its own and fails the bare compile first.
+ * (Verified: `[a-z]+)|(.*` throws on both the bare and wrapped compile; exhaustive search over
+ * short paren/alternation combinations found no bare-compilable pattern whose wrapped form still
+ * escapes the anchors.)
+ *
+ * Kept under the `/u` flag deliberately: `/u` rejects more author patterns (e.g. bare `\-`), which
+ * is more noise but fails closed — dropping `/u` would silently accept patterns it used to reject
+ * and change what already-declared patterns match.
+ */
+export function compilePattern(pattern: string): RegExp {
   const cached = patternCache.get(pattern);
+  if (cached === PATTERN_INVALID) {
+    throw new ToolInputValidationError(`Pattern is invalid: ${pattern}`);
+  }
   if (cached !== undefined) return cached;
-  let compiled: RegExp | null;
+
+  let compiled: RegExp;
   try {
+    // Validity probe — see doc comment above for why this also closes the anchor-escape case.
+    new RegExp(pattern, "u");
     // Anchored on both ends: an unanchored manifest pattern must not be satisfied by a matching
     // substring of a hostile value ("ok/../../etc" vs `[a-z]+`). `(?:...)` keeps any top-level
     // alternation in the manifest pattern inside the anchors.
     compiled = new RegExp(`^(?:${pattern})$`, "u");
   } catch {
-    // An unparseable pattern is a manifest bug, not caller input — ignore it here rather than
-    // failing every call to that tool. Nothing lints inputSchema patterns at install/build time
-    // today (external/validate.ts validates manifest structure only, not inputSchema keywords),
-    // so a broken pattern silently degrades that field to unvalidated rather than being caught
-    // before it ships. Tracked in #1274.
-    compiled = null;
+    patternCache.set(pattern, PATTERN_INVALID);
+    throw new ToolInputValidationError(`Pattern is invalid: ${pattern}`);
   }
   patternCache.set(pattern, compiled);
   return compiled;
@@ -75,8 +102,15 @@ function validateStringBounds(schema: SchemaNode, value: string, path: string): 
     );
   }
   if (typeof schema.pattern === "string") {
-    const compiled = compilePattern(schema.pattern);
-    if (compiled && !compiled.test(value)) {
+    let compiled: RegExp;
+    try {
+      compiled = compilePattern(schema.pattern);
+    } catch {
+      // compilePattern already fails closed and caches the rejection; re-thrown here with the
+      // field path so the caller sees which field was rejected, not just that some pattern was.
+      throw new ToolInputValidationError(`Field ${path} has an unusable pattern and was rejected`);
+    }
+    if (!compiled.test(value)) {
       throw new ToolInputValidationError(`Field ${path} has an invalid format`);
     }
   }
@@ -166,8 +200,9 @@ function validateValue(schema: SchemaNode, value: unknown, path: string): void {
  *      that already declares string bounds now has them enforced where it
  *      previously did not, so a bound that was decorative becomes a real
  *      rejection.
- * An unparseable `pattern` is treated as a manifest bug and skipped rather than
- * failing every call to that tool.
+ * An unparseable or non-self-contained `pattern` fails CLOSED (#1265 BLOCKING-1): it rejects
+ * every call to that tool rather than being skipped and silently admitting unvalidated input. See
+ * {@link compilePattern}.
  */
 export function validateToolInput(schema: JsonSchema | undefined, input: unknown): ToolInput {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
