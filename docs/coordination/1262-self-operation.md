@@ -2199,3 +2199,113 @@ sign-off. Nothing auto-merges.
 
 **Coordinator context checkpoint at 71%.** Not relaying, per Ben's standing override; this flush plus
 the durable memory save is the substitute.
+
+---
+
+## Continuation note — 2026-07-27, #1265 QA verdict RED, #1264 on Task 9
+
+**Where the run is:** both lanes building; nothing merged since #1263. `merges_since_relay` unchanged.
+
+### #1265 — PR #1273, QA verdict **RED**, lane re-opened
+
+Opus QA (`qa-1265`, session `5d55cb29-b76a-4d32-a97e-eb542fa9972a`, pane `w1:p137`) posted its full
+verdict to the PR as comment `5091148053` — durable, survives my relay. Read it there, never re-derive it.
+
+**CI is green at that SHA** — `Verify foundation and app` PASS (19m8s), both compose smokes PASS,
+only the image build/publish job pending. The RED is entirely review-side.
+
+**The one blocking finding, and why it matters more than its size:** `sports.followTeam`
+(`packages/sports/src/sports-service.ts:590`) validates `competitionKey` and nothing else.
+`teamKey` is unvalidated model-supplied free text on an **auto-run** write tool. An unmatched
+`teamKey` yields `sourceTeamId = null` (`:295-298`), `espn-source.ts:270` then falls back to
+`pathKey = teamKey`, and `:273` interpolates it into a URL **path** with no `encodeURIComponent`
+(`:345` encodes its *query* use, so the omission is local and asymmetric). The ESPN host allowlist
+bounds the blast radius — this is not full SSRF — but untrusted text steers an outbound request and
+the JSON comes back into the actor's sports cards.
+
+The reason this is blocking rather than a tidy-up: the spec's **closed-catalog** decision ("tools take
+a catalog key, never a free-text team name") is the *stated justification* for granting
+`granted_at_install`. The grant is currently resting on a property that is only half-implemented.
+
+I required all three belts, not a choice between them: catalog-validate `teamKey` inside `followTeam`
+(the fn already resolves `catalogEntry(competitionKey)`; an unmatched key must **reject**, never
+null-and-continue) + `maxLength`/pattern on **both** sports tools' `inputSchema` (the manifest is bare
+`{type:"string"}` while the REST route it was extracted from caps at 100,
+`shared/sports-api.ts:845` — the tool path is strictly looser than its own route) + encode the
+`pathKey`. **Hard stop attached:** if the lane concludes `teamKey` cannot be closed against a catalog
+it must escalate. Reclassifying the grant, renaming, or downgrading `risk` are escalations, not fixes.
+
+**Second blocker, mine not QA's:** the UAT exit criterion is unmet. The spec mandates a real
+#1000-harness Playwright run (topic add / follow / unfollow, each with **no** confirmation card) and
+no such spec exists in the diff — `followTeam` has zero UAT coverage. Ben's standing rule makes this
+an exit criterion, not a nice-to-have. The e2e resolver also emits
+`blocking tests/uat/specs/module-install.uat.spec.ts`, which QA did not run for budget reasons; the
+lane runs it and reports a real exit code.
+
+**Also required (cheap, none deferred):**
+
+- The SSRF regression is real and *does* discharge the load-bearing post-redirect property — mutating
+  `source-resolution.ts:83` fails it. But `samePublisherIdentity` (`:84`) rejects the shipped case
+  independently, so gutting `normalizePublisherDomain`'s policy content stays green. One more case
+  that only `:83` can catch (same-host scheme downgrade, explicit non-443 port, or embedded
+  credentials) closes it.
+- The new denylist assertion is **structurally vacuous**: `matchingExclusionRule` requires
+  `rule.moduleId === moduleId` and no rule declares news/sports, so `isSelfOperationExcluded` is
+  `false` for *any* name and the test cannot fail. A test that cannot fail is worse than no test —
+  it reads as coverage. Make it prove the mechanism (assert a known-excluded prefix **is** excluded)
+  or delete it with a why-comment. QA confirmed the substance is clean: no new tool is named so as to
+  slip a prefix, nor could be.
+- `configureSportsChatTools({} as never, fakeWriter)` mutates a process-wide singleton in the shared
+  gateway integration file and never restores it — order-dependent pollution.
+
+**Escalation I refused to let the lane settle:** cross-actor RLS is proven one layer *below* the tool.
+`sports-follows-tool-rls.test.ts` enters at `SportsService`, and the gateway test uses a fake writer,
+so nothing spans gateway → real DB → RLS for sports. The QA brief said only the tool path is worth
+anything at security tier. Span it, or message me with why it is structurally infeasible — the lane
+does not get to decide that "good enough" clears a security tier.
+
+**Confirmed sound, do not re-open:** the install-grant routing test is real (writes a grant, reads it
+back through `listActionPolicies` under a real `DataContextRunner`, drives the real
+`AssistantToolGateway`, `toEqual(["action_result"])` genuinely fails on an extra card) — my earlier
+read of it was right, and QA verified rather than assumed it. Inventory counts are exact
+`toBe(31)/toBe(5)/toBe(4)/toBe(40)` plus `toEqual` on sorted name lists, **not** loosened to dodge the
+#1264 rebase. `previewSource` containment is **discharged at transport**: `validateHttpUrl` re-runs on
+every redirect hop, `connectHost` is pinned to the resolved address (rebinding-resistant), Host+SNI
+set, `requireHttps: true`, BlockList covers 169.254/16, RFC1918, loopback, CGNAT and v6 ULA/link-local.
+`news.addTopic` guidance is dropped in the execute fn, not merely the schema. No family `defaultTier`
+was widened anywhere; no binding ruling was contested.
+
+One caveat carried forward but **not** this lane's to fix: `actionPolicy` is an injected seam (the
+#1263 pattern), so the routing test proves gateway-given-tier, not production `buildActionPolicy`
+(`chat/routes.ts:772`).
+
+Lane `w1:p134` (session `8c64b87c`) has the rulings and is working. It gets **one** re-QA cycle.
+`qa-1265` (`w1:p137`) is deliberately kept alive for the delta re-review — a fresh QA would pay to
+re-read everything it already holds.
+
+### #1264 — Task 8 closed, rulings landed late but landed
+
+Relay-6 (`64a0aa91`) had already handed off before my undo-stack rulings arrived. It committed them as
+`971a9d55` (`docs/superpowers/handoffs/2026-07-27-…-relay-8-coordinator-rulings.md`) and forwarded
+them directly to its successor **`settings-1264-relay8`** (session `38f37b4c-5f90-49ac-8c47-3fd816175fa0`,
+pane `w1:p13A`, Sonnet 5). That successor will fix the two undo-stack defects — unbounded outer map
+with a never-called `clear()`, and the `:`-delimited composite key — before or alongside Task 9, and
+carries the undo-apply CAS binding and the Task 10 inventory-count note forward.
+
+So the ruling is applied, one hop later than intended. **Still open and worth watching:** `pop()` has
+zero callers, so the stack currently ships push-only. The spec requires undo
+(`…settings-commands.md:139`) and independently confirms my CAS constraint at `:169-170` ("undo after
+a later legitimate change is cancelled, not applied"), so a push-only stack satisfies neither the spec
+nor the retention bar. Either the apply path lands in this PR or a follow-up issue is filed and cited
+in it — that is a wrap-up gate, not optional.
+
+`w1:p13A` was at **71% context** when I checked it, having only just started Task 9. Expect a relay
+before Task 10.
+
+**Reaped:** `w1:p139` (relay-6, session `64a0aa91`, confirmed idle and session-matched before close).
+
+### Unchanged
+
+Whichever lane lands second rebases `tests/unit/self-operation-manifests.test.ts` — currently #1264.
+Issue #1272 still filed for the missing structured-state manifest pinning test. The six stray rows in
+Ben's dev DB remain logged in `AWAITING-BEN.md` §7 and deliberately untouched.
