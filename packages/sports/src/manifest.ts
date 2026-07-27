@@ -14,6 +14,12 @@ import {
 } from "@jarv1s/shared";
 
 import { sportsFollowedFactsTodayExecute } from "./briefing-tool.js";
+import {
+  sportsFollowTeamExecute,
+  sportsUnfollowTeamExecute,
+  summarizeSportsFollowTeam,
+  summarizeSportsUnfollowTeam
+} from "./chat-tools.js";
 import { ESPN_FETCH_HOSTS, ESPN_IMAGE_HOSTS } from "./source/espn-source.js";
 
 export const SPORTS_MODULE_ID = "sports";
@@ -139,6 +145,15 @@ export const sportsModuleManifest = {
       permissionId: "sports.follow"
     }
   ],
+  assistantActionFamilies: [
+    {
+      id: "sports_follows",
+      label: "Sports follows",
+      description: "Follow and unfollow the active actor's own teams and competitions.",
+      defaultTier: "ask_each_time",
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
+    }
+  ],
   assistantTools: [
     {
       name: "sports.followedFactsToday",
@@ -148,6 +163,60 @@ export const sportsModuleManifest = {
       risk: "read",
       inputSchema: { type: "object", properties: {} },
       execute: sportsFollowedFactsTodayExecute
+    },
+    {
+      name: "sports.followTeam",
+      description:
+        "Follow a team or an entire competition/league (e.g. 'the Yankees' or 'the Premier League'). Resolve the name to a catalog competitionKey (and teamKey for a specific team) via the sports catalog/search first, then call this with the exact keys.",
+      permissionId: "sports.follow",
+      actionFamilyId: "sports_follows",
+      risk: "write",
+      executionPolicy: "auto",
+      selfOperationGrant: "granted_at_install",
+      inputSchema: {
+        type: "object",
+        properties: {
+          competitionKey: {
+            type: "string",
+            description: "Catalog competition key, e.g. \"nfl\" or \"eng.1\""
+          },
+          teamKey: {
+            type: "string",
+            description:
+              "Catalog team key within the competition; omit to follow the whole competition"
+          }
+        },
+        required: ["competitionKey"]
+      },
+      summarize: summarizeSportsFollowTeam,
+      execute: sportsFollowTeamExecute
+    },
+    {
+      name: "sports.unfollowTeam",
+      description:
+        "Stop following a team or competition previously followed. Requires the same competitionKey (and teamKey if a specific team) used to follow it.",
+      permissionId: "sports.follow",
+      actionFamilyId: "sports_follows",
+      risk: "write",
+      executionPolicy: "auto",
+      selfOperationGrant: "granted_at_install",
+      inputSchema: {
+        type: "object",
+        properties: {
+          competitionKey: {
+            type: "string",
+            description: "Catalog competition key, e.g. \"nfl\" or \"eng.1\""
+          },
+          teamKey: {
+            type: "string",
+            description:
+              "Catalog team key within the competition; omit to unfollow the whole competition"
+          }
+        },
+        required: ["competitionKey"]
+      },
+      summarize: summarizeSportsUnfollowTeam,
+      execute: sportsUnfollowTeamExecute
     }
   ],
   dataLifecycle: {

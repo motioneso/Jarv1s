@@ -11,10 +11,30 @@ describe("sports manifest", () => {
     expect(sportsModuleManifest.routes.map((r) => r.path)).toContain("/api/sports/overview");
   });
 
-  it("exposes exactly one read-risk briefing tool", () => {
-    expect(sportsModuleManifest.assistantTools).toHaveLength(1);
-    expect(sportsModuleManifest.assistantTools[0]?.name).toBe("sports.followedFactsToday");
-    expect(sportsModuleManifest.assistantTools[0]?.risk).toBe("read");
+  it("exposes one read-risk briefing tool and two write-risk follow tools", () => {
+    expect(sportsModuleManifest.assistantTools).toHaveLength(3);
+    const byName = Object.fromEntries(
+      sportsModuleManifest.assistantTools.map((tool) => [tool.name, tool])
+    );
+    expect(byName["sports.followedFactsToday"]?.risk).toBe("read");
+    for (const name of ["sports.followTeam", "sports.unfollowTeam"]) {
+      expect(byName[name]?.risk).toBe("write");
+      // #1265 binding condition (task #9): risk:"write" alone doesn't stop these from being
+      // treated as destructive — policy.ts makes risk:"destructive" never auto-run regardless of
+      // tier, so if either tool's risk ever silently became "destructive", granted_at_install
+      // would combine with it and nothing else would catch that. Assert it explicitly here.
+      expect(byName[name]?.risk).not.toBe("destructive");
+      expect(byName[name]?.actionFamilyId).toBe("sports_follows");
+      expect(byName[name]?.executionPolicy).toBe("auto");
+      expect(byName[name]?.selfOperationGrant).toBe("granted_at_install");
+    }
+  });
+
+  it("declares exactly one action family, sports_follows, with trusted_auto allowed", () => {
+    expect(sportsModuleManifest.assistantActionFamilies).toHaveLength(1);
+    const family = sportsModuleManifest.assistantActionFamilies?.[0];
+    expect(family?.id).toBe("sports_follows");
+    expect(family?.allowedTiers).toContain("trusted_auto");
   });
 
   it("declares the espn external source with credential none and pinned hosts", () => {
