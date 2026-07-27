@@ -101,7 +101,6 @@ function assistantSurface(): AssistantSurfaceHandleV1 {
 // runQueue's resolved promise to reach its .then(setQueueNotice).
 async function flush(renderer: ReactTestRenderer): Promise<void> {
   for (let i = 0; i < 3; i++) {
-    // eslint-disable-next-line no-await-in-loop
     await act(async () => {
       await Promise.resolve();
     });

@@ -130,7 +130,10 @@ export function SettingsScreen(props: { profile: Profile }): ReactNodeLike {
 
   useEffect(() => {
     refetchPortals();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Deliberately omits refetchPortals from deps: it's a plain closure
+    // redefined every render (not memoized) that only reads profile.profileId,
+    // so keying this effect on the function reference would refetch on every
+    // render instead of just when the profile changes.
   }, [profile.profileId]);
 
   function handleToggle(sourceId: string, enabled: boolean): void {

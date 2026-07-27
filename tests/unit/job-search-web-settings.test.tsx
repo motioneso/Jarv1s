@@ -67,7 +67,6 @@ async function renderScreen(profileValue: Profile): Promise<ReactTestRenderer> {
 // flush helper).
 async function flush(): Promise<void> {
   for (let i = 0; i < 3; i++) {
-    // eslint-disable-next-line no-await-in-loop
     await act(async () => {
       await Promise.resolve();
     });

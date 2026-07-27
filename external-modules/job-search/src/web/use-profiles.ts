@@ -91,8 +91,17 @@ export function useProfiles(options: UseProfilesOptions): ProfilesState & {
     }
     setSelectedId((current) => {
       const stored = current ?? readSelectedId();
-      const resolved =
-        stored && profiles.some((p) => p.profileId === stored) ? stored : profiles[0].profileId;
+      const matched = stored ? profiles.find((p) => p.profileId === stored) : undefined;
+      // The caller already returned early for an empty `profiles` above, but
+      // noUncheckedIndexedAccess can't see that guard from inside this updater
+      // closure, so check the captured element explicitly rather than
+      // asserting `profiles[0]!` is defined.
+      const first = profiles[0];
+      if (!first) {
+        setState({ status: "empty" });
+        return null;
+      }
+      const resolved = matched?.profileId ?? first.profileId;
       setState({ status: "ready", profiles, selectedId: resolved });
       return resolved;
     });
@@ -114,7 +123,10 @@ export function useProfiles(options: UseProfilesOptions): ProfilesState & {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Deliberately empty: applyProfiles is redefined every render (see the
+    // note above the function) but always closes over the current
+    // setState/setSelectedId setters, so this effect only needs to fire
+    // once, on mount.
   }, []);
 
   // Bounded, armed poll (bounds 1-4 from the part file):
@@ -176,7 +188,11 @@ export function useProfiles(options: UseProfilesOptions): ProfilesState & {
       stop();
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Deliberately omits applyProfiles/onPollExpiredRef from deps:
+    // applyProfiles is redefined every render (see the note above the
+    // function) but always closes over the current setState/setSelectedId
+    // setters, and onPollExpiredRef is a ref read via .current, so only
+    // pollArmed/state.status need to retrigger this effect.
   }, [pollArmed, state.status]);
 
   // A plain manual re-fetch (e.g. Root after enqueueing a crawl, or a future

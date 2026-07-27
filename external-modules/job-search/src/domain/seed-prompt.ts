@@ -101,6 +101,5 @@ export function useProfileThread(
     return () => {
       assistantSurface.setSurfaceKey(null);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assistantSurface, profileId]);
 }

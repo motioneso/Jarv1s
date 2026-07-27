@@ -232,7 +232,6 @@ export function Root(props: RootProps): ReactNodeLike {
         .then(setQueueNotice)
         .catch(() => setQueueNotice({ kind: "error", message: "Network error" }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profiles, hostActions.actorScopeKey]);
 
   function handleStart(): void {

@@ -131,7 +131,6 @@ async function renderBoard(profileId = "p1"): Promise<ReactTestRenderer> {
 // resolved promise to reach its own .then() chain (job-search-web-root.test.tsx's own flush()).
 async function flush(renderer: ReactTestRenderer): Promise<void> {
   for (let i = 0; i < 4; i++) {
-    // eslint-disable-next-line no-await-in-loop
     await act(async () => {
       await Promise.resolve();
     });
