@@ -1,0 +1,86 @@
+{
+  "type": "data",
+  "nodes": [
+    {
+      "type": "data",
+      "data": [
+        {
+          "user": null
+        },
+        null
+      ],
+      "uses": {}
+    },
+    {
+      "type": "data",
+      "data": [
+        {
+          "initial": 28
+        },
+        "Resource Manager (6696)",
+        "MetroStar",
+        "Remote",
+        "https://metrostar.com/job-post/?gh_jid=7798890003",
+        "metrostarsystems:7798890003",
+        "<p><span>As a <strong>Resource Manager</strong></span><span>, you will ensure that personnel are efficiently and effectively sourced, onboarded, and deployed to meet program requirements. You will also support program planning, financial forecasting, and periodic reporting. You will collaborate with the PMO and the customer as an integrated member of the program leadership team.</span></p>\n<p><span>We know that you c\u2026</p>",
+        "2026-07-27T20:22:11Z",
+        {
+          "title": 1,
+          "company": 2,
+          "location": 3,
+          "url": 4,
+          "external_id": 5,
+          "description": 6,
+          "posted_at": 7
+        },
+        "Data Solutions Engineer",
+        "Standard Metrics",
+        "Remote",
+        "https://job-boards.greenhouse.io/standardmetrics/jobs/4718932005",
+        "standardmetrics:4718932005",
+        "<div><p>Standard Metrics is an AI-driven financial data platform that helps investors and their portfolio companies make more informed, forward-looking decisions with automated reporting and benchmarking tools. We\u2019re a team of optimistic product builders on a mission to accelerate innovation in the private markets. Standard Metrics is backed by 8VC and Spark Capital, along with other leading VCs and angels, and is cu\u2026</p>",
+        "2026-07-27T20:18:23Z",
+        {
+          "title": 9,
+          "company": 10,
+          "location": 11,
+          "url": 12,
+          "external_id": 13,
+          "description": 14,
+          "posted_at": 15
+        },
+        "Director, Marketplace",
+        "True Classic ",
+        "Remote",
+        "https://job-boards.greenhouse.io/trueclassicteesllc/jobs/5208153008",
+        "trueclassicteesllc:5208153008",
+        "<p><span>True Classic is hiring a <span><strong>Director of Marketplaces</strong></span> to own and accelerate our global Amazon business. This role leads strategy, execution, and full P&amp;L performance across our Amazon Seller Central operations in the US, Canada, and UK \u2014 and is responsible for driving scalable, profitable growth on the channel that introduces millions of new customers to the brand.</span></p>\n<p\u2026</p>",
+        "2026-07-27T20:17:15Z",
+        {
+          "title": 17,
+          "company": 18,
+          "location": 19,
+          "url": 20,
+          "external_id": 21,
+          "description": 22,
+          "posted_at": 23
+        },
+        [
+          8,
+          16,
+          24
+        ],
+        3,
+        false,
+        {
+          "items": 25,
+          "total": 26,
+          "hasMore": 27
+        }
+      ],
+      "uses": {
+        "url": 1
+      }
+    }
+  ]
+}
