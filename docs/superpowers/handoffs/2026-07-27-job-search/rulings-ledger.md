@@ -931,3 +931,32 @@ Follow-ups: part 16 lines 31 and 132 corrected in the same commit (a part file c
 ruling is a drafting error in the part file, N11). Task 5's `job-search-failure-cause.test.ts` never
 asserted `parse_failed`'s `disabled` value at all, which is why the gap survived four gates — that
 assertion gets added so the value is pinned rather than incidental.
+
+## N17 — A runtime fetch-host grant is platform-owned and module-agnostic
+
+Task 24's draft part had the platform's `fetch.request` branch call a "module-specific"
+`grantedHostsFor(db)` to union the actor's granted hosts onto `manifest.fetchHosts`. In practice
+that means the host reaching into `app.job_search_custom_sources` — a module's own table — which is
+a module-isolation violation, and it would have to be repeated for every module that ever wants a
+runtime host.
+
+**Rule: the grant lives in a platform-owned, module-agnostic table** keyed by `(module_id,
+owner_user_id, host)`, written by the module through a declared SDK port on the worker context, and
+read by `fetch.request` for the invoking `(moduleId, actorUserId)` before it calls
+`createHostPinnedFetch`. The module's own table keeps the *source definition* — label, url, which
+profile named it — and never the capability.
+
+This is not the "new security machinery" Ben's ruling excluded. The grant has to be stored
+somewhere regardless; this is the version that doesn't cross a module boundary, and it is *less*
+platform code than a per-module hook because every module inherits it. `assertValidFetchHosts` and
+`createHostPinnedFetch` remain the only enforcement, unchanged, applied to the merged list.
+
+Placement follows the platform-package convention (`packages/<pkg>/sql/NNNN_*.sql`, globally
+numbered, with a row added to `foundation-schema-catalog.test.ts`, which asserts the full list) —
+not `infra/postgres/migrations/`, and not the module's `sql/`.
+
+**Ordering rule for the two writes.** Registering a source writes a module row and a platform grant,
+and `ctx.db.query` permits no transaction across them. Order both paths so a crash leaves the
+**narrower** capability, never the wider one: on add, the source row first and the grant second; on
+remove, the grant first and the source row second. A source with no grant fails closed and visibly;
+a grant with no source is a capability the user believes they revoked.
