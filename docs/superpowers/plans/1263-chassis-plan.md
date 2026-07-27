@@ -3,27 +3,19 @@
 **Binding inputs:** `docs/coordination/handoff-1263-self-operation-chassis.md`, then
 `docs/superpowers/specs/2026-07-26-module-self-operation-settings-commands.md`.
 
-**ESCALATION — external-module ABI scope:** `external-modules/finance/jarvis.module.json` ships six
-write tools which are dynamically registered by `apps/api/src/server.ts`, but
-`ExternalModuleAssistantToolDeclaration` cannot declare `actionFamilyId`, `executionPolicy`, or the
-new grant, and external validation currently forbids `assistantActionFamilies`. The brief's inventory
-only measured `packages/*/src`. The Coordinator must confirm that Task 15 is in #1263, or explicitly
-accept that the startup invariant is built-in-only. Do not silently call the assertion “every
-registered write tool” while omitting external manifests.
+**ESCALATION — Ben confirmation pending:** `notes.delete` performs a bare unlink with no trash,
+soft-delete, or restore path. The Coordinator has surfaced it to Ben as a fourth
+`confirm_always`; this plan includes it pending Ben's confirmation. Do not treat the count as settled
+or substitute a risk reclassification. Any fifth candidate is escalated before implementation.
 
-**ESCALATION — existing domain tools versus exclusion rule 7:** Email and Calendar already expose
-provider writes, while rule 7 excludes external effects. This plan follows the later binding ruling
-that third-party disclosure, scheduled work, and externally observable writes are not prompt grounds,
-plus the handoff's no-user-visible-regression exit, and therefore classifies those existing tools
-`granted_at_install` rather than removing them. The Coordinator must confirm that rule 7 governs new
-self-operation/configuration operations, not retroactive removal of already-shipped domain tools.
-If the ruling is instead to exclude them, Tasks 11–12 and the inventory counts in Task 17 must be
-changed before implementation; do not improvise a fourth `confirm_always` category.
+The Coordinator ruled #1263 **built-in only**. External-module self-operation ABI completeness is
+tracked by #1267 under epic #1262. Existing external writes remain fail-safe meanwhile: they cannot
+declare an action family, so `packages/ai/src/gateway/policy.ts:40` confirms them forever.
 
-Ben's latest rulings settle the formerly open People classification:
-`people.merge`, `people.splitIdentity`, and `memory.forget` are the **only**
-`confirm_always` declarations. Any proposed fourth declaration stops the affected task and is
-escalated to the Coordinator; the builder must not choose it.
+The Coordinator also ruled that exclusion rule 7 governs new self-operation/configuration
+operations, not retroactive removal of shipped domain tools. Email and Calendar remain
+`granted_at_install`. Where rule 7's examples collide with Ben's explicit per-tool classifications,
+the per-tool ruling wins; this applies to all five News writes in Task 10.
 
 ## Verified baseline and non-negotiable decisions
 
@@ -48,15 +40,18 @@ escalated to the Coordinator; the builder must not choose it.
   confirmation for existing users without an install grant.
 - Built-in inventory is **38 actual tools across 10 packages**, not 39/11. The 39th grep match is
   the type-only narrowing at `packages/ai/src/routes.ts:647`; `ai.explainRecentErrors` is read-only.
-  The external Finance manifest adds six more write tools if the escalation above is confirmed
-  in-scope.
+  The assertion and inventory tests must say **built-in** explicitly. External completeness is
+  #1267.
 - The People round trip is not a reverse: `PeopleRepository.mergePeople` moves every identity and
   link and marks the secondary row merged; `PersonContextService.splitIdentity` moves one identity
   and never revives that row or restores its other identities/links. Preserve both tools as
   destructive and declare `confirm_always`, exactly like `memory.forget`.
+- `notesDeleteExecute` (`packages/notes/src/write-tools.ts:232`) calls `unlink(file)` directly.
+  Preserve `notes.delete` as destructive and plan its fourth `confirm_always` declaration pending
+  Ben's confirmation.
 - Do not ship assistant settings tools, a parallel command registry, a migration, the #1266 revoke
-  UI, CAS/undo/audit/rate-limit work for later settings commands, or a release note claiming direct
-  user-visible behavior.
+  UI, the external-module ABI tracked by #1267, CAS/undo/audit/rate-limit work for later settings
+  commands, or a release note claiming direct user-visible behavior.
 
 ## Task 1 — Add the public SDK declaration
 
@@ -99,7 +94,7 @@ escalated to the Coordinator; the builder must not choose it.
 
 - `SELF_OPERATION_EXCLUSIONS`
 - `isSelfOperationExcluded(moduleId, tool)`
-- `assertSelfOperationManifests(manifests)`
+- `assertBuiltInSelfOperationManifests(manifests)`
 
 **Changes**
 
@@ -127,30 +122,34 @@ escalated to the Coordinator; the builder must not choose it.
      preview/refresh, transcription, exports, module queue runs, host install.
 3. Reject any write/destructive tool whose input schema exposes a generic `key`,
    `preferenceKey`, or `settingKey`; tools must hardcode their target.
-4. `assertSelfOperationManifests` must reject:
+4. `assertBuiltInSelfOperationManifests` must reject:
    - a write/destructive tool with neither an exclusion match nor `selfOperationGrant`;
    - an excluded tool which tries to declare either grant;
    - `granted_at_install` unless risk is write, execution policy is auto, its family exists, and
      that family allows both `trusted_auto` and `always_confirm`;
-   - `confirm_always` on a tool other than the exact sanctioned set
-     `memory.forget`, `people.merge`, `people.splitIdentity`;
+   - `confirm_always` on a tool other than the four-entry planned allowlist
+     `memory.forget`, `people.merge`, `people.splitIdentity`, and pending `notes.delete`;
    - any action family referenced by a self-operation-declared tool which omits
      `always_confirm`;
    - duplicate tool names, duplicate family ids, or an action-family reference which does not
      resolve in its own module.
 5. Error messages name the module/tool and failed invariant, never tool inputs.
+6. Put this exact scope rationale in the assertion's doc comment: it validates **built-in
+   manifests only**; external module tools are deferred to #1267, and remain safe because their ABI
+   cannot declare `actionFamilyId`, so `policy.ts:40` confirms every external write unconditionally.
 
 **Tests — exact names**
 
-- `"rejects an unclassified write tool"`
-- `"rejects a module override of a central exclusion"`
-- `"rejects generic preference-key inputs"`
-- `"covers all seven immutable exclusion categories"`
-- `"rejects granted_at_install without write auto execution"`
-- `"rejects granted_at_install without a resolvable trusted family"`
-- `"requires always_confirm in every referenced family"`
-- `"allows only the three sanctioned confirm_always tools"`
-- `"accepts read tools without a declaration"`
+- `"rejects an unclassified built-in write tool"`
+- `"rejects a built-in module override of a central exclusion"`
+- `"rejects generic preference-key inputs on built-in tools"`
+- `"covers all seven immutable built-in exclusion categories"`
+- `"rejects built-in granted_at_install without write auto execution"`
+- `"rejects built-in granted_at_install without a resolvable trusted family"`
+- `"requires always_confirm in every referenced built-in family"`
+- `"allows only the four planned built-in confirm_always tools"`
+- `"accepts built-in read tools without a declaration"`
+- `"documents built-in-only coverage with external modules deferred to #1267"`
 
 Use synthetic manifests in this task; do not wire the assertion into boot until Tasks 4–13 have made
 the built-in inventory valid.
@@ -277,14 +276,14 @@ destructive risk.
 
 **Exact classification**
 
-- `granted_at_install`: `notes.create`, `notes.edit`, `notes.delete`.
+- `granted_at_install`: `notes.create`, `notes.edit`.
 - Add `always_confirm` to `note_changes.allowedTiers`.
-- Change `notes.delete` from destructive to write; add `actionFamilyId:"note_changes"` and
-  `executionPolicy:"auto"`. Update its description and summary comments so they no longer promise an
-  unconditional approval card.
+- `notes.delete`: keep `risk:"destructive"` and declare `confirm_always`; do not add auto execution
+  or reclassify it as write. This is the planned fourth declaration pending Ben's confirmation.
 - Preserve `notes.create.requiresConfirmation` for the `overwrite:true` call shape; this is an
   existing per-call policy and YOLO continues to bypass it.
-- Add `"classifies all 3 Notes write tools as granted_at_install"` and
+- Add `"classifies Notes create and edit as granted_at_install"`,
+  `"keeps notes.delete destructive with pending confirm_always"`, and
   `"keeps overwrite confirmation conditional while ordinary note writes are auto-capable"`.
 
 **Verify**
@@ -369,6 +368,8 @@ verified repository/service behavior is the reason for the declaration.
 - `granted_at_install` plus that family and `executionPolicy:"auto"`:
   `news.confirmSource`, `news.removeSource`, `news.addTopic`, `news.removeTopic`,
   `news.addExclusion`.
+- This exact per-tool classification from approved Spec 2 wins over rule 7's older
+  `"news source preview/refresh"` example. Do not centrally exclude any of these five tools.
 - Remove stale comments saying these tools can never be auto-approved.
 - Add `"classifies all 5 News personalization writes as granted_at_install"`.
 
@@ -399,7 +400,11 @@ verified repository/service behavior is the reason for the declaration.
 - Update descriptions/comments which currently promise an unconditional approval prompt. Third-party
   disclosure and externally observable writes are not `confirm_always` grounds under Ben's binding
   ruling.
-- Add `"classifies both Email writes as granted_at_install"`.
+- State plainly in the production manifest comment and regression test: after the install grant,
+  Jarvis sends the email immediately with **no confirmation card ever**. This consequential effect
+  must remain impossible to miss in review.
+- Add `"classifies both Email writes as granted_at_install"` and
+  `"email.sendReply sends without a confirmation card after install grant"`.
 
 **Verify**
 
@@ -497,45 +502,7 @@ verified repository/service behavior is the reason for the declaration.
 
 `feat(ai): persist install grants without clobbering overrides`
 
-## Task 15 — Extend and classify the shipped external-module ABI
-
-**This task is required unless the top escalation is explicitly ruled out.**
-
-**Files**
-
-- Modify `packages/module-sdk/src/index.ts`
-- Modify `packages/module-registry/src/external/validate.ts`
-- Modify `packages/module-registry/src/external/tool-manifests.ts`
-- Modify `external-modules/finance/jarvis.module.json`
-- Modify `tests/unit/external-tool-manifests.test.ts`
-- Modify `tests/unit/self-operation-manifests.test.ts`
-
-**Changes**
-
-1. Add `actionFamilyId`, `executionPolicy`, and `selfOperationGrant` to
-   `ExternalModuleAssistantToolDeclaration`; allow and positively validate JSON
-   `assistantActionFamilies` with the same SDK type and tier checks as built-ins.
-2. Remove `assistantActionFamilies` from the external forbidden-field list only after adding the
-   positive validator. Map families and all three tool fields in `createExternalToolManifests`.
-3. In Finance, add one `finance_actions` family with default `ask_each_time` and allowed tiers
-   `ask_each_time`, `trusted_auto`, `always_confirm`.
-4. Declare all six shipped writes `granted_at_install`, `executionPolicy:"auto"`, and
-   `actionFamilyId:"finance_actions"`:
-   `finance.connect.start`, `finance.connect.poll`, `finance.sync.run-now`,
-   `finance.transaction.categorize`, `finance.budget.assign`, `finance.account.set-shared`.
-5. Add validator rejection tests for missing grant, missing family, bad family reference, and a
-   family omitting required tiers.
-6. Add `"classifies all 6 shipped Finance writes as granted_at_install"`.
-
-**Verify**
-
-`pnpm vitest run tests/unit/external-tool-manifests.test.ts tests/unit/self-operation-manifests.test.ts`
-
-**Commit**
-
-`feat(module-sdk): carry self-operation grants for external tools`
-
-## Task 16 — Wire grants into all enable paths
+## Task 15 — Wire grants into built-in enable paths
 
 **Files**
 
@@ -544,7 +511,6 @@ verified repository/service behavior is the reason for the declaration.
 - Modify `packages/module-registry/src/index.ts`
 - Modify `apps/api/src/server.ts`
 - Modify `tests/integration/module-enablement.test.ts`
-- Modify `tests/unit/external-tool-manifests.test.ts` if Task 15 is in scope
 
 **Changes**
 
@@ -552,12 +518,10 @@ verified repository/service behavior is the reason for the declaration.
    `SettingsRoutesDependencies`; settings must not import AI internals.
 2. The composition layer owns one `AiRepository` and supplies the port using the AI helper.
 3. Call the port inside the same actor-scoped transaction, after successful enable and before the
-   response, in all three branches:
+   response, in the two built-in branches:
    - `PATCH /api/me/modules/:id` when `disabled:false`;
-   - `PATCH /api/admin/modules/:id` when `disabled:false`;
-   - `POST /api/admin/external-modules/:id` when `enabled:true`.
-4. Pass the exact manifest being enabled. Keep external manifests separate from the list used to
-   render built-in module settings; do not make external modules appear twice in `/api/admin/modules`.
+   - `PATCH /api/admin/modules/:id` when `disabled:false`.
+4. Do not touch `/api/admin/external-modules/:id`; external self-operation is #1267.
 5. Re-enable/reconcile calls the helper again safely; insert-if-absent preserves a user's
    `always_confirm` override.
 
@@ -565,9 +529,9 @@ verified repository/service behavior is the reason for the declaration.
 
 - `"user enable stores trusted_auto for eligible module families"`
 - `"admin enable stores grants only for the acting admin"`
-- `"external enable stores grants for the external manifest"`
 - `"re-enable does not overwrite always_confirm"`
 - `"disable never mutates action-policy preferences"`
+- `"external enable remains outside built-in grant wiring"`
 
 **Verify**
 
@@ -577,7 +541,7 @@ verified repository/service behavior is the reason for the declaration.
 
 `feat(settings): grant self-operation policy on module enable`
 
-## Task 17 — Wire the assertion at startup and lock the complete inventory
+## Task 16 — Wire the built-in assertion at startup and lock the inventory
 
 **Files**
 
@@ -588,20 +552,20 @@ verified repository/service behavior is the reason for the declaration.
 
 **Changes**
 
-1. After built-in and external executable manifests are composed, call
-   `assertSelfOperationManifests` before the server can become ready.
-2. Include external manifests when Task 15 is approved. If Task 15 is ruled out, record the
-   Coordinator's exact built-in-only ruling in this plan before implementation; do not make that
-   scope reduction implicit.
+1. Call `assertBuiltInSelfOperationManifests(getBuiltInModuleManifests())` before the server can
+   become ready. Never pass external manifests.
+2. Keep the assertion's doc comment and startup call explicit that #1263 covers built-ins only;
+   cite #1267 and `policy.ts:40`.
 3. Add the complete built-in inventory test:
    - 38 write/destructive tools;
-   - 35 `granted_at_install`;
-   - exactly three `confirm_always`;
-   - zero unclassified and zero excluded registered tools;
-   - exact confirm set `memory.forget`, `people.merge`, `people.splitIdentity`.
-4. If external Finance is included, add the combined count: 44 writes, 41 granted, three confirm.
-5. Add a readiness regression named
-   `"server startup fails closed on an unclassified registered write tool"`.
+   - 34 `granted_at_install`;
+   - four planned `confirm_always`, with `notes.delete` pending Ben;
+   - zero unclassified and zero excluded built-in tools;
+   - exact planned confirm set `memory.forget`, `people.merge`, `people.splitIdentity`,
+     `notes.delete`.
+4. Add readiness regressions named
+   `"built-in server startup fails closed on an unclassified built-in write tool"` and
+   `"built-in startup assertion deliberately excludes external manifests tracked by #1267"`.
 
 **Verify**
 
@@ -611,7 +575,7 @@ verified repository/service behavior is the reason for the declaration.
 
 `feat(api): fail startup on self-operation drift`
 
-## Task 18 — Runtime walk-away regression and final gate
+## Task 17 — Runtime walk-away regression and final gate
 
 **Files**
 
@@ -622,7 +586,7 @@ verified repository/service behavior is the reason for the declaration.
 
 - `"first use after install grant runs without an action card"`
 - `"stored always_confirm override still produces an action card"`
-- `"the three binding confirm_always tools remain the only confirmation declarations"`
+- `"the four planned built-in confirm_always tools remain the only confirmation declarations"`
 
 The first test must persist the grant through the real repository/helper and let the gateway read the
 stored tier; a stubbed `getFamilyTier:"trusted_auto"` is insufficient. Assert no `action_request`
@@ -639,9 +603,11 @@ event, not merely a successful handler result.
 
 ## Builder stop conditions
 
-- A proposed fourth `confirm_always` tool: stop that package task and message the Coordinator.
+- A proposed fifth `confirm_always` tool: stop that package task and message the Coordinator.
+- Ben rejects or changes the pending `notes.delete` ruling: update Task 7 and the Task 16/17 counts
+  before implementation.
 - Any implementation that widens `defaultTier`, adds a migration, creates a parallel command
-  registry, moves ordinary policy ahead of YOLO, clobbers an existing stored tier, or leaves an
-  external registered write unasserted without the explicit Coordinator ruling: stop.
+  registry, moves ordinary policy ahead of YOLO, clobbers an existing stored tier, or expands
+  #1263 into the external ABI owned by #1267: stop.
 - Stage and commit only the exact files in each task. Never use `git add -A` or run repo-wide format
   rewrites.
