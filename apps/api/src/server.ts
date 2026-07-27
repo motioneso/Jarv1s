@@ -51,8 +51,7 @@ import {
   listModulesRouteSchema,
   isValidTimeZone,
   parsePositiveIntEnv,
-  type HostDiagnosticsInfo,
-  type ModuleDto
+  type HostDiagnosticsInfo
 } from "@jarv1s/shared";
 import { createModuleLogger, CORE_VERSION } from "@jarv1s/module-sdk";
 // #917: /api/modules reads enablement through the public settings API; this is legitimate
@@ -82,6 +81,7 @@ import {
   createExternalActiveModulesResolver,
   createExternalModuleTools
 } from "./external-module-tools.js";
+import { serializeExternalModule, serializeModule } from "./module-dto.js";
 
 // `FastifyRequest.timeZone` is declared in `@jarv1s/module-registry` (#801 Phase A),
 // not here: module-registry is the composition root that both the writer (this
@@ -852,65 +852,6 @@ function registerPlatformRoutes(
       return reply.code(401).send({ error: "Session is missing or expired" });
     }
   });
-}
-
-function serializeModule(module: ReturnType<typeof getBuiltInModuleManifests>[number]): ModuleDto {
-  return {
-    id: module.id,
-    name: module.name,
-    version: module.version,
-    lifecycle: module.lifecycle,
-    navigation: (module.navigation ?? []).map((entry) => ({
-      id: entry.id,
-      label: entry.label,
-      path: entry.path,
-      icon: entry.icon ?? null,
-      order: entry.order ?? null
-    })),
-    settings: (module.settings ?? []).map((surface) => ({
-      id: surface.id,
-      label: surface.label,
-      path: surface.path,
-      scope: surface.scope,
-      order: surface.order ?? null
-    })),
-    // #917: built-ins are never external. Emitted explicitly so the field survives the
-    // fast-json-stringify schema (undeclared/absent fields are dropped) and the shell can
-    // rely on it being present for built-ins.
-    external: false
-  };
-}
-
-// #1019: an ACTIVE external module surfaces on /api/modules with its manifest-declared
-// navigation (validated + capped by validateExternalModuleManifest) — settings surfaces
-// still stay [] (Slice 1 declares none). This is the ONLY place a manifest-relative nav
-// path becomes a real app route: prefixing with /m/<moduleId> is what stops an external
-// module from ever declaring an absolute or host route. external:true lets the shell tag
-// it without loading any of its code.
-function serializeExternalModule(m: ReconciledExternalModule): ModuleDto {
-  return {
-    id: m.id,
-    name: m.name,
-    version: m.version,
-    lifecycle: "optional",
-    navigation: m.navigation.map((entry) => ({
-      id: entry.id,
-      label: entry.label,
-      path: entry.path === "/" ? `/m/${m.id}` : `/m/${m.id}${entry.path}`,
-      icon: entry.icon ?? null,
-      order: entry.order ?? null,
-      // #1285: badge lives only on ExternalModuleNavigationEntry (built-ins never
-      // declare one, see serializeModule above), so this mapper is the only one that
-      // re-emits it. Omit rather than emit undefined — same reason `web` is
-      // conditionally spread below, and the response schema declares `badge` optional.
-      ...(entry.badge ? { badge: entry.badge } : {})
-    })),
-    settings: [],
-    external: true,
-    // #918: ModuleDto.web is optional — omit rather than emit null when the module
-    // declares no web surface (ReconciledExternalModule.web itself IS nullable).
-    ...(m.web ? { web: m.web } : {})
-  };
 }
 
 async function handleBetterAuthRequest(
