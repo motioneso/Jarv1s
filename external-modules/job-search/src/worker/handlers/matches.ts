@@ -13,16 +13,25 @@ import { InputError, stripEnvelope } from "../validate.js";
 // Ruling N5: the board's REST route ends at `boundedAssistantToolResultData`
 // (packages/ai/src/routes.ts), which THROWS AWAY the structured result and substitutes
 // `{text: "…truncated"}` once the rendered form passes 16 000 characters. A board that hits that
-// substitution has no matches to render at all, not a short list — so both constants below are
-// bounded by that render cap, not by taste, and both are re-checked here even though `limit`'s
-// schema maximum is also lowered in jarvis.module.json: the queue path's params DSL has no
-// numeric bounds and never validates it, so a handler that trusted the schema alone would accept
-// an unbounded board read from a manually-run job.
+// substitution has no matches to render at all, not a short list — so every constant below is
+// bounded by that render cap, not by taste, and `MATCHES_LIST_MAX_LIMIT` is re-checked here even
+// though `limit`'s schema maximum is also lowered in jarvis.module.json: the queue path's params
+// DSL has no numeric bounds and never validates it, so a handler that trusted the schema alone
+// would accept an unbounded board read from a manually-run job.
+//
+// `renderToolResult` (packages/module-sdk/src/index.ts) renders a uniform flat array of scalar
+// fields as a markdown table, not `JSON.stringify` — every field is a table cell, so a single
+// unbounded string field (a scraped posting's title, or its company name) is just as capable of
+// blowing the render cap as an unbounded reason. `title`/`company` come straight from a crawled
+// posting, which this module does not control the length of, so they get the same treatment.
 //
 // See tests/unit/job-search-match-handler.test.ts's worst-case render-survival test for the
-// arithmetic this was tuned against.
+// arithmetic these were tuned against — 40 rows, every text field at its cap, rendered through
+// the real markdown-table format, comfortably under the 16 000-char cap.
 export const MATCHES_LIST_MAX_LIMIT = 40;
-export const REASON_MAX_CHARS = 400;
+export const REASON_MAX_CHARS = 60;
+export const TITLE_MAX_CHARS = 80;
+export const COMPANY_MAX_CHARS = 60;
 
 /** Enforced in the handler because the queue's params DSL has no enum for `state` and the
  * manifest's own `paramsSchema` fix (an `enum` type) still leaves the manual-run body path,
@@ -45,7 +54,7 @@ export interface BoardMatch {
   state: Match["state"];
 }
 
-function truncateReason(value: string, max: number): string {
+function truncateText(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
@@ -119,12 +128,12 @@ export function createMatchesListHandler(store: JobSearchStore) {
       if (posting === undefined) continue;
       items.push({
         id: match.id,
-        title: posting.title,
-        company: posting.company,
+        title: truncateText(posting.title, TITLE_MAX_CHARS),
+        company: truncateText(posting.company, COMPANY_MAX_CHARS),
         fit: match.fit,
         want: match.want,
-        fitReason: truncateReason(match.fitReason, REASON_MAX_CHARS),
-        wantReason: truncateReason(match.wantReason, REASON_MAX_CHARS),
+        fitReason: truncateText(match.fitReason, REASON_MAX_CHARS),
+        wantReason: truncateText(match.wantReason, REASON_MAX_CHARS),
         outsideFrame: match.outsideFrame,
         state: match.state
       });
