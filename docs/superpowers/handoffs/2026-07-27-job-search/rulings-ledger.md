@@ -960,3 +960,56 @@ and `ctx.db.query` permits no transaction across them. Order both paths so a cra
 **narrower** capability, never the wider one: on add, the source row first and the grant second; on
 remove, the grant first and the source row second. A source with no grant fails closed and visibly;
 a grant with no source is a capability the user believes they revoked.
+
+## N18 — The platform grant store already exists: `app.module_kv`. No new table, no new migration.
+
+N17 was right that the grant must be platform-owned and module-agnostic, and wrong that it needs new
+storage. `app.module_kv` (`packages/settings/sql/0154_module_kv.sql`) is already exactly that table:
+platform-owned, RLS enabled **and** forced, `scope 'user'` with an `owner_user_id` FK to
+`app.users`, unique on `(module_id, namespace, owner_user_id, key)` for user-scoped rows, and a
+64 KiB cap on each `value`. `packages/settings/sql/0157_module_worker_runtime_access.sql` grants
+`jarvis_worker_runtime` SELECT/INSERT/UPDATE/DELETE with policies scoped to `app.current_module_id()`
+and `status = 'enabled'`, so the worker can already read and write it. The RPC is wired
+(`kv.get`/`kv.set`/`kv.list`/`kv.delete`, `worker-rpc-host.ts:403-434`) over
+`packages/settings/src/repository-module-kv.ts`.
+
+**Rule: the fetch-host grant is a user-scoped `app.module_kv` row in a manifest-declared namespace.**
+N17's placement paragraph is withdrawn — there is **no** new `packages/<pkg>/sql/NNNN_*.sql`, **no**
+new table, and **no** new `foundation-schema-catalog.test.ts` row for Task 24. Everything else in
+N17 stands: platform-owned, module-agnostic, keyed by the invoking `(moduleId, actorUserId)`, and
+the module's own table keeps only the source definition, never the capability.
+
+**`fetch.request` must open its own short DataContext and close it before the network call.** The
+branch sits at `worker-rpc-host.ts:211`, *outside* the `withDataContext` block that starts at 258,
+so it has no `scopedDb`. Do not move the branch inside that block to get one: that would hold a
+database transaction open for the entire duration of an outbound HTTP request, against an
+adversarial remote host, with the connection pool capped. Read the granted hosts in a
+`input.workerDataContext.withDataContext(...)` that returns before `createHostPinnedFetch` is
+called.
+
+**On self-granting — state it plainly rather than implying a guarantee we do not have.** A module
+that can add a host at runtime can, by construction, add a host at runtime; no arrangement of
+storage changes that. What actually constrains it is three things, and the design must lean on
+these and claim nothing more:
+
+1. **The capability is manifest-declared.** `kv.set` rejects any namespace the module's reviewed,
+   hash-pinned manifest does not declare (`undeclared_namespace`), so a module that never declares
+   the grant namespace can never grant, and one that does declared it where the user consented — at
+   install. This is Ben's ruling (consent = install), not a new prompt.
+2. **Enforcement is unchanged and still applies.** `assertValidFetchHosts` and
+   `createHostPinnedFetch` treat a granted host exactly as a manifest host: the BLOCKED
+   loopback / link-local / RFC1918 / cloud-metadata subnets and the DNS pinning hold, so a grant can
+   never be turned into a route to an internal address.
+3. **Every granted host is visible and revocable** on the module's settings surface (Task 20). A
+   capability the user cannot see is the one we would not be able to defend.
+
+`toolRisk: "read"` already forbids `kv.set`/`kv.delete` entirely, so the grant write can only happen
+from a manual-risk tool — never from a read tool the assistant may call on its own.
+
+**Still owner-scoped, not profile-scoped.** `fetch.request` has only `input.actorUserId` and
+`input.module` in scope; there is no `profileId`. A host added under one profile is therefore
+fetchable by every profile of that same owner, and never across users. Task 20's settings copy must
+say so rather than implying per-profile isolation.
+
+N17's write-ordering rule is unchanged: on add, source row first then grant; on remove, grant first
+then source row — a crash must always leave the narrower capability.
