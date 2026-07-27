@@ -1759,3 +1759,32 @@ The delegation he gave covers merging green work, not mutating his environment �
 **Lane state.** #1264: 0b landed (`c366b877`). #1265: T4 landed (`eb924e7c`) — sports tools, manifest
 with the `sports_follows` family, and the `risk !== "destructive"` assertion; relaying into T5, where
 it must rebase the inventory counts against #1264 without loosening the assertion.
+
+### 2026-07-27 — 0b re-verified clean; #1265 T5 inventory rebase verified in the tree
+
+**#1264 closed out the incident correctly, on its own.** Isolated `jarvis_build_1264`,
+`JARVIS_PGDATABASE` exported for the lane, 0b re-verified there at exit 0 with `0175`/`0176`
+checksum-correct and the `revision` column confirmed, `0176` treated as frozen, run rule committed
+to its relay doc (`0f37d3c3`) and saved to memory. No objection raised; the lane moved to 0c
+(migration `0177`). Numbering is now `0175` preferences revision → `0176` instance_settings revision
+→ `0177` audit CHECK widen, all on the isolated DB.
+
+**#1265 T5 landed (`3408c1ee`) and I verified the assertion in the file rather than the commit
+message.** This was the one genuine collision surface between the lanes, and it is correct:
+
+- Exact counts, not loosened — `toBe(31)` / `toBe(5)` / `toBe(4)` and a separate `toBe(40)` sum.
+  No range, no `toBeGreaterThan`. The exactness is the guard that makes an undeclared write tool
+  fail the build.
+- **Counted against `origin/main` plus its own branch only.** It did not pre-account for #1264's
+  unmerged tools, which was the tempting error — doing so passes locally and fails on `main`,
+  where it reads as #1265's own regression.
+- **The People indirection is handled properly.** The test walks `getBuiltInModuleManifests()`,
+  which resolves People's `tools.ts` declaration, instead of grepping `manifest.ts` files — with a
+  why-comment naming the wrong answer (34) that the grep approach produces.
+
+So the standing rule now resolves concretely: **#1264 lands second and rebases these numbers.**
+
+**Fleet.** Reaped the spent #1265 pane (`ae748260`). Three panes live: coordinator `w1:p11T`
+(`43e5f5e2`), #1264 `w1:p12V` (`43e08f2d`) 3 of 13 tasks in, #1265 `w1:p12X` (`ff9430d4`) 5 of 7 in
+with task #8, T6 and T7 remaining. Neither lane has opened a PR. Both remain `security` tier:
+adversarial Opus QA plus a posted `gh pr comment` verdict before either can merge.
