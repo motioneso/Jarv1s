@@ -3920,3 +3920,47 @@ one task section at a time.
 #1311 → `1311-install-grant`, agent `install-grant-3`, Task 2. Spent panes reaped after resolving
 them fresh by session id. The liveness monitor is now keyed on **worktree path**, not pane id —
 pane numbers churn on every relay and a monitor pointed at them goes blind silently.
+
+## Continuation note — 2026-07-27, both lanes relayed, #1310 gate is RED
+
+**#1310 (PR #1276, worktree `1264-settings-self-operation`, pane `w1:p148`, session `3514b386`).**
+The background gate finished while the agent was relaying and it came back **red**:
+`/tmp/cb-vf-relay20b.log` ends `### FINAL verify:foundation rc=1`. The failure is `check:file-size`
+— `packages/module-sdk/src/index.ts` is **1006 lines** against the 1000-line cap, pushed over by
+this lane's `affectsQueryKeys` type additions.
+
+This matters more than a formatting nit for two reasons. The gate **short-circuits**: `check:file-size`
+runs before `typecheck` and the test suites, so **nothing after it executed** — there is currently no
+test evidence at all on this branch since the rebase. And the outgoing agent's own handoff describes
+the remaining work as UAT plus wrap-up, which would have sent its successor chasing a live proof on a
+branch that cannot go green. The agent was told before it finished its handoff, so the correction is
+in its hands rather than only here.
+
+Ruling: **the fix is to split the file, not to raise the cap.** `scripts/check-file-size.ts` and its
+threshold are not to be touched — change the code, never the gate, the same way we change the test and
+never the policy. That barrel is public API for modules, so the split must preserve the exported
+surface exactly (extract a coherent group to a sibling file and re-export) so no consumer import path
+moves. A real unpiped `rc=0` on an isolated `JARVIS_PGDATABASE` is required before anyone says green.
+
+**#1311 (worktree `1311-install-grant`).** Relayed to successor **`install-grant-4`, pane `w1:p149`,
+session `809cca70`**, confirmed driving in the correct worktree; predecessor `w1:p147` (`b503e9f9`)
+reaped. The predecessor relayed **mid kill-gate verification** — it had an instance up and had chosen
+`news.addTopic` as the test tool but never reported a result. The successor has been told to treat the
+**kill gate as unsatisfied**, to observe the confirmation-card behaviour itself both before and after
+the fix, and to escalate `[CRIT]` rather than proceed if it cannot reproduce the bug live — a fix you
+cannot see failing is a fix you cannot prove working.
+
+**Live port map (verified by `ss`, not assumed).** `1533` = PROD, never target. #1310's lane instance
+is api **3000** / web **5173** out of its own worktree; #1311's is api **3099** / web **5175**. All
+four processes are **orphaned to init**, so they survive pane relays — which is why reaping a relayed
+pane is safe, but also why a lane must restart its own instance after code changes or it will assert
+against a stale bundle.
+
+**Pane-number discipline, reconfirmed the hard way.** A peer-reported pane number was checked against
+`herdr pane list` before use; pane ids churn on every relay and only `agent_session.value` is
+authoritative. Resolve fresh by session id at read time, every time.
+
+**Still open:** #1310 items 9 (live UAT proof) and 10 (wrap-up) plus the file-size fix; #1311 tasks 3-5
+plus the kill gate; #1273 UAT remains blocked on #1311. Merge order unchanged: **#1311 → #1276 → #1273.**
+Both remaining merges are security tier and await Ben's sign-off; the LIVE-PATH GATE applies at every
+tier.
