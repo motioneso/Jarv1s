@@ -216,6 +216,11 @@ jobs:
           JARVIS_MODULE_CREDENTIAL_SECRET_KEY=22222222222222222222222222222222
           JARVIS_CLI_RUNNER_RPC_SECRET=ci-smoke-only-not-real
           JARVIS_EMBED_PROVIDER=stub
+          # #1313: this smoke instance runs NODE_ENV=production (not the vitest NODE_ENV=test
+          # signal), so without this explicit escape hatch createEmbeddingProvider would now
+          # refuse "stub" and silently fall back to "local" -- reintroducing exactly the
+          # real-model network download this smoke instance is built to avoid.
+          JARVIS_ALLOW_STUB_EMBEDDINGS=1
           EOF
       - name: Run prod compose smoke (builds images + in-image migrate)
         env:
