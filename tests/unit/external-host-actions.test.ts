@@ -10,7 +10,14 @@ import {
 
 // #916 — the host validates + caps a module-authored starter prompt and, only when valid,
 // opens the assistant with it as an editable draft. These are pure functions (no DOM), so the
-// whole fail-closed surface is unit-testable in the node env — no jsdom/RTL.
+// whole fail-closed surface is unit-testable in the default node env. A DOM environment is
+// available on a per-file opt-in basis (see the header of tests/unit/job-search-use-profiles.
+// test.tsx for how a suite requests one) for suites that actually need one — this suite doesn't,
+// so it stays on the node default. NOTE: do not spell out that opt-in mechanism's literal syntax
+// in a comment here — Vitest's docblock scanner matches it anywhere in the file, not just as a
+// real top-of-file directive, and would silently flip this suite's environment (this is exactly
+// what broke the readFileSync/import.meta.url test below the first time this comment tried to
+// name it explicitly).
 describe("sanitizeStarterPrompt (#916 validation + hard cap, fail closed)", () => {
   it("trims and returns a valid single-line prompt", () => {
     expect(sanitizeStarterPrompt("  Help me start my demo module.  ")).toBe(
