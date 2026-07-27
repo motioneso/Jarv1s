@@ -11,10 +11,11 @@ ruling true in the running system requires the downgrade below. Do not declare
 `granted_at_install` while leaving `risk: "destructive"` — that combination silently keeps prompting
 forever and is exactly the trap Task 2's assertion exists to catch.
 
-**The `confirm_always` set stays at four, with one swap:** `notes.delete` leaves it here, and
-`email.sendReply` joins it in Task 11 under Ben's second ruling of the same day. The set is
-`memory.forget`, `people.merge`, `people.splitIdentity`, `email.sendReply`. Task 16 and Task 17
-already say four and name that roster — **they are correct, do not "fix" them down to three.**
+**The `confirm_always` set is five:** `notes.delete` leaves it here, and `email.sendReply` joins it
+in Task 11 under Ben's second ruling of the same day. The set is `memory.forget`, `people.merge`,
+`people.splitIdentity`, `email.sendReply`, `web.read` — `web.read` was added by the PR #1268
+security review as a deliberate exception at risk write with no `actionFamilyId`. Task 16 and Task
+17 name that roster — **they are correct, do not "fix" them down.**
 
 ## Task 7a — Apply Ben's notes.delete ruling
 
@@ -58,8 +59,8 @@ expand #1263's scope. If you think it must be fixed, message the Coordinator.
 
 ## Stop conditions (apply to every task)
 
-- A proposed fifth `confirm_always` tool: stop that package task and message the Coordinator. (The
-  set is `memory.forget`, `people.merge`, `people.splitIdentity`, `email.sendReply`.)
+- A proposed sixth `confirm_always` tool: stop that package task and message the Coordinator. (The
+  set is `memory.forget`, `people.merge`, `people.splitIdentity`, `email.sendReply`, `web.read`.)
 - Any implementation that widens `defaultTier`, adds a migration, creates a parallel command
   registry, moves ordinary policy ahead of YOLO, clobbers an existing stored tier, or expands
   #1263 into the external ABI owned by #1267: stop.

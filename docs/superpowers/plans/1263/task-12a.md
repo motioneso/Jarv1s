@@ -101,8 +101,8 @@ value and applies it to one tool.
 
 ## Stop conditions (apply to every task)
 
-- A proposed fifth `confirm_always` tool: stop and message the Coordinator. The set is exactly four:
-  `memory.forget`, `people.merge`, `people.splitIdentity`, `email.sendReply`.
+- A proposed sixth `confirm_always` tool: stop and message the Coordinator. The set is exactly five:
+  `memory.forget`, `people.merge`, `people.splitIdentity`, `email.sendReply`, `web.read`.
 - Any implementation that widens `defaultTier`, adds a migration, creates a parallel command
   registry, moves ordinary policy ahead of YOLO, clobbers an existing stored tier, or expands
   #1263 into the external ABI owned by #1267: stop.

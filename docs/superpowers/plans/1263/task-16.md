@@ -38,17 +38,19 @@ condition below still applies to any _sixth_ addition.
    cite #1267 and `policy.ts:40`.
 3. Add the complete built-in inventory test:
    - 38 write/destructive tools;
-   - 31 `granted_at_install`;
+   - 29 `granted_at_install`;
    - five `confirm_always`: memory.forget, people.merge, people.splitIdentity, email.sendReply,
      web.read (PR #1268 Opus security review moved web.read here — no approved spec covers
      web-research, and an auto-run family would have reopened the v0.1.0 audit's web.read
      prompt-injection-to-exfiltration finding; web.read is the deliberate odd one out at risk
      "write", not "destructive" — do not "tidy" it to match the other four);
-   - two `user_promotable`: `calendar.deleteEvent` and `calendar.proposeFocusBlock` (Task 12a moved
-     deleteEvent out of `granted_at_install`; PR #1268's Fable security review moved
-     proposeFocusBlock out too, because the proactive follow-through worker
-     (`module-registry/src/index.ts:711`) is a second, unattended reader of `calendar_writeback`'s
-     tier — granting it at install would arm unattended background calendar writes);
+   - four `user_promotable`: `calendar.deleteEvent`, `calendar.proposeFocusBlock`,
+     `tasks.deleteList`, and `tasks.deleteTag` (Task 12a moved deleteEvent out of
+     `granted_at_install`; PR #1268's Fable security review moved proposeFocusBlock out too,
+     because the proactive follow-through worker (`module-registry/src/index.ts:711`) is a second,
+     unattended reader of `calendar_writeback`'s tier — granting it at install would arm unattended
+     background calendar writes; `tasks.deleteList` and `tasks.deleteTag` moved out of
+     `granted_at_install` in `37d5d78d`);
    - zero unclassified and zero excluded built-in tools;
    - exact planned confirm set `memory.forget`, `people.merge`, `people.splitIdentity`,
      `email.sendReply`, `web.read`.
@@ -72,7 +74,7 @@ condition below still applies to any _sixth_ addition.
 
 ## Stop conditions (apply to every task)
 
-- A proposed fifth `confirm_always` tool: stop that package task and message the Coordinator.
+- A proposed sixth `confirm_always` tool: stop that package task and message the Coordinator.
 - Ben already ruled on `notes.delete` (granted_at_install, Task 7a) and on `email.sendReply`
   (confirm_always, Task 11). Neither is pending. If a roster or count in this file contradicts
   those rulings or the three-value ruling above, STOP and message the Coordinator — do not
