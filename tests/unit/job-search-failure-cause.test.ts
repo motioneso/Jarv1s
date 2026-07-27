@@ -52,6 +52,41 @@ describe("job-search describeFailure (#1289)", () => {
     expect(cause.summary).toContain("I will not sign in");
   });
 
+  it("a parse failure keeps the portal enabled since our fix, not a retry, is what unblocks it (N16)", () => {
+    const cause = describeFailure({
+      kind: "parse_failed",
+      sourceId: "linkedin",
+      sourceLabel: "LinkedIn",
+      retrieved: 84,
+      expected: 190,
+      lastOkAt: "2026-07-26T09:00:00.000Z",
+      retryAt: "2026-07-27T11:00:00.000Z"
+    });
+
+    // N16 revises L14: disabling here would leave the user's search permanently narrower
+    // than they asked for, with nothing to notice, until they manually re-enable it — the
+    // exact silent-loss class the design fights. A parse failure self-heals on our next
+    // release, so the portal stays enabled and degraded, not disabled.
+    expect(cause.disabled).toBe(false);
+    expect(cause.retryAt).toBe("2026-07-27T11:00:00.000Z");
+    expect(cause.nextAction).toBe("This needs a fix on our side. Retrying at 11:00.");
+  });
+
+  it("a network failure keeps the portal enabled (N16: not terminal, self-heals)", () => {
+    const cause = describeFailure({
+      kind: "network",
+      sourceId: "linkedin",
+      sourceLabel: "LinkedIn",
+      retrieved: 30,
+      expected: 190,
+      lastOkAt: "2026-07-26T09:00:00.000Z",
+      retryAt: "2026-07-27T11:30:00.000Z"
+    });
+
+    expect(cause.disabled).toBe(false);
+    expect(cause.retryAt).toBe("2026-07-27T11:30:00.000Z");
+  });
+
   it("no kind produces an empty summary", () => {
     const kinds: FailureKind[] = [
       "rate_limited",
