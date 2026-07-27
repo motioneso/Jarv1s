@@ -7,8 +7,10 @@ import {
   type SelfOperationManifestInput
 } from "@jarv1s/ai";
 import type {
+  JarvisActionPermissionTier,
   ModuleAssistantActionFamilyManifest,
-  ModuleAssistantToolManifest
+  ModuleAssistantToolManifest,
+  ModuleAssistantToolSelfOperationGrant
 } from "@jarv1s/module-sdk";
 
 function family(
@@ -261,5 +263,40 @@ describe("self-operation chassis", () => {
   it("documents built-in-only coverage with external modules deferred to #1267", () => {
     expect(BUILT_IN_SELF_OPERATION_SCOPE_NOTE).toContain("#1267");
     expect(BUILT_IN_SELF_OPERATION_SCOPE_NOTE).toContain("actionFamilyId");
+  });
+});
+
+describe("module-sdk self-operation vocabulary", () => {
+  it("accepts the selfOperationGrant vocabulary without widening action tiers", () => {
+    const installGrant: ModuleAssistantToolManifest = {
+      name: "example.installGrant",
+      description: "Fixture.",
+      permissionId: "example.use",
+      risk: "write",
+      selfOperationGrant: "granted_at_install"
+    };
+    const confirmAlways: ModuleAssistantToolManifest = {
+      name: "example.confirmAlways",
+      description: "Fixture.",
+      permissionId: "example.use",
+      risk: "destructive",
+      selfOperationGrant: "confirm_always"
+    };
+
+    expect(installGrant.selfOperationGrant).toBe("granted_at_install");
+    expect(confirmAlways.selfOperationGrant).toBe("confirm_always");
+
+    const grants: readonly ModuleAssistantToolSelfOperationGrant[] = [
+      "granted_at_install",
+      "confirm_always"
+    ];
+    const tiers: readonly JarvisActionPermissionTier[] = [
+      "ask_each_time",
+      "trusted_auto",
+      "always_confirm"
+    ];
+    for (const grant of grants) {
+      expect(tiers as readonly string[]).not.toContain(grant);
+    }
   });
 });

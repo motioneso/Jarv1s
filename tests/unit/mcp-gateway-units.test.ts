@@ -14,13 +14,7 @@ import {
   validateToolInput,
   type ActionPolicyLookup
 } from "@jarv1s/ai";
-import type {
-  JarvisActionPermissionTier,
-  ModuleAssistantToolManifest,
-  ModuleAssistantToolSelfOperationGrant,
-  ToolContext,
-  ToolResult
-} from "@jarv1s/module-sdk";
+import type { ModuleAssistantToolManifest, ToolContext, ToolResult } from "@jarv1s/module-sdk";
 import { tasksModuleManifest } from "@jarv1s/tasks";
 
 describe("module-sdk tool contract", () => {
@@ -37,39 +31,6 @@ describe("module-sdk tool contract", () => {
 
     const result = await tool.execute!({} as never, { value: "hi" }, ctx);
     expect(result.data).toEqual({ echo: "hi" });
-  });
-
-  it("accepts the selfOperationGrant vocabulary without widening action tiers", () => {
-    const installGrant: ModuleAssistantToolManifest = {
-      name: "example.installGrant",
-      description: "Fixture.",
-      permissionId: "example.use",
-      risk: "write",
-      selfOperationGrant: "granted_at_install"
-    };
-    const confirmAlways: ModuleAssistantToolManifest = {
-      name: "example.confirmAlways",
-      description: "Fixture.",
-      permissionId: "example.use",
-      risk: "destructive",
-      selfOperationGrant: "confirm_always"
-    };
-
-    expect(installGrant.selfOperationGrant).toBe("granted_at_install");
-    expect(confirmAlways.selfOperationGrant).toBe("confirm_always");
-
-    const grants: readonly ModuleAssistantToolSelfOperationGrant[] = [
-      "granted_at_install",
-      "confirm_always"
-    ];
-    const tiers: readonly JarvisActionPermissionTier[] = [
-      "ask_each_time",
-      "trusted_auto",
-      "always_confirm"
-    ];
-    for (const grant of grants) {
-      expect(tiers as readonly string[]).not.toContain(grant);
-    }
   });
 });
 
