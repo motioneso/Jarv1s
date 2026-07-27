@@ -42,6 +42,13 @@ only because I read the task's scope against the spec. Restored into the lane be
 costs nothing — but a plan that both bloats contexts *and* silently drops a stated security
 requirement is a stronger argument than "plans are too long."
 
+**And a third failure mode: task file-lists are incomplete.** #1264's Task 0c needed a fix to
+`settings-activity-pane.tsx` that the task's declared file list never named; it surfaced only under a
+root `pnpm typecheck`. So the tally across two lanes is now: plans that burn contexts by length,
+plans that drop a stated security requirement, and plans that under-list the files a task touches.
+Working rule I have given both lanes: **a task's file list is not trustworthy — only the root
+typecheck is.**
+
 Two things worth your call:
 
 1. **Should plans stop carrying implementation code?** This repeats the lesson already recorded from
