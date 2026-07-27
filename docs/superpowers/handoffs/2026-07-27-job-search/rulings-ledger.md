@@ -778,3 +778,41 @@ their tests assert exact equality deliberately.
 The general point for the rest of the build: a domain string that reaches a screen is copy, not an
 implementation detail. When a plan leaves one open, say so at hand-off rather than letting it ship as
 though it were specified.
+
+## N11 — The ledger outranks a task part file: dedupe strips only a *proven* location
+
+**Raised by the Task 7 implementer, who declined to pick a side and escalated instead — correct.**
+
+Two plan artifacts disagree about title normalisation in dedupe:
+
+- The **ledger** (r1 #15, #17, restated in `parts/01-constraints.md`) rules that stripping *all*
+  parentheticals collapses "Staff Engineer (Security)" and "Staff Engineer (ML)" into one identity,
+  and requires stripping **only a parenthetical proven to be a location**.
+- The **part file** (`parts/12-task07-dedupe.md`) contracts a blanket `\([^)]*\)` strip, and its
+  test 2 exercises exactly that.
+
+The implementer built to the part file, reasoning it was more specific and more recent, and flagged
+the conflict. The reasoning is defensible but the conclusion is wrong, and this settles the general
+case:
+
+**Rule: the rulings ledger outranks a task part file wherever they conflict.** Part files are
+derived from the ledger and were written earlier in one pass; the ledger is where a decision is
+*revised*. A part file that contradicts a ruling is a drafting error in the part file, not a
+newer decision. When they disagree, follow the ledger and record the divergence here — never
+silently follow the more convenient one.
+
+**Rule: strip a title parenthetical only when the record proves it is a location or a req number.**
+The proof is available without a gazetteer, because `Posting` carries its own `location` field: a
+parenthetical whose normalised text appears in the posting's own `location` **is** a location, by
+that posting's own account. Beyond that, strip a parenthetical that is a remote/hybrid/onsite
+keyword or is digit-dominant (a req number). **Otherwise keep it in the identity.**
+
+The default direction is deliberate. Task 7's own header comment already states the asymmetry
+correctly: *a wrong merge is worse than a missed one* — two distinct roles collapsed into one row is
+a job the user never sees, with no error and nothing to notice. A missed merge only shows the user
+the same job twice, which is visible and harmless. When we cannot prove a parenthetical is a
+location, keeping it costs a duplicate; dropping it costs a job.
+
+The part file's test 2 (`"Staff Engineer (Seattle)"` equals `"Staff Engineer"`) still passes,
+provided the fixture's `location` names Seattle — which is what a real posting looks like. A fixture
+with a location-bearing title and an empty `location` field is not a case we owe a merge.
