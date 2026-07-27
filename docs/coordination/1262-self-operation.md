@@ -3693,3 +3693,44 @@ head/check monitor stays armed.
   - PR #1273's body cites the stale gate DB `jarvis_gate_1265d` instead of `jarvis_gate_1265f`.
     Cosmetic, but the squash commit body comes from the PR body, so **correct it at merge time**
     rather than leaving a wrong verification record in history.
+
+## 2026-07-27 — LAN UAT of PR #1276 (Ben, real browser, dev instance @ `0648d0f1`)
+
+Dev instance moved off `main` onto PR #1276's worktree so the settings tools actually exist.
+`http://192.168.50.36:5173`. Login verified (HTTP 200).
+
+**Dev-DB blocker cleared (not a PR defect).** `pnpm db:migrate` hard-stopped with
+"Migration 0175_preferences_revision.sql has changed after being applied". The ledger
+(`app.schema_migrations`) keys on `version` (the number), not the filename. Ben's dev DB held
+version `0175` = `0175_chat_messages_attachment_only_body.sql`, applied 2026-07-26 01:35 — a file
+present on **no local or remote ref**, orphaned by the repo reset. It collided with #1276's own
+`0175`. Deleted that one ledger row (its DDL stays applied) and re-ran: `0175_preferences_revision`
+applied. Verified by direct schema inspection, not by the log — `app.preferences.revision` exists
+and `jarvis_action_audit_log_outcome_check` now admits `conflict`. `main` tops out at `0174`, so
+#1276's 0175/0176/0177 are clean and sequential; a fresh DB or prod is unaffected.
+
+**Three findings from the UAT:**
+
+- **A — theme palette is unreachable (scope gap, awaiting Ben's ruling).** The only theme tool is
+  `settings.themeMode.set`, enum `["light","dark"]` (`theme-mode-tool.ts:16`). There are six themes
+  (light, sage, canyon, teal, dusk, dark); four cannot be set by any tool. Ben asked for "forest"
+  (not a theme) and the assistant correctly reported it can only do light/dark. Question for Ben:
+  is mode-only acceptable for this epic, or does "change my theme" need palette coverage?
+- **B — confirmation card on a `granted_at_install` tool.** Confirms AWAITING-BEN item 9 with
+  direct evidence; no grant/trust row exists in `app.preferences` even after Ben confirmed, so it
+  re-asks every time. Root cause is the #1263 chassis (two enable-PATCH callers only; `settings` is
+  required/default-enabled so neither fires). `tasks` is masked by its own
+  `grantInstallTimeTrustIfUnset` helper — its working state proves nothing about the generic path.
+- **C — write doesn't reach the UI until a manual refresh.** `themes.color-mode = "dark"` persisted
+  correctly, but `app-shell.tsx:208` reads themes via React Query and nothing invalidates
+  `queryKeys.settings.themes` on a tool result. #1276 touches one web file only. The
+  `action_result` seam at `app-shell.tsx:181` already exists and is the fix site. **Blocking for
+  #1276** — the PR added the tool, so the tool's effect must be visible.
+
+Ben also called the approval card ugly — design follow-up, separate from B.
+
+GitHub issue filing for B and C is blocked on GraphQL rate-limit exhaustion (self-inflicted, from
+the earlier PR poll loop); resets 1785177208. File as soon as it clears.
+
+**Merge status: #1276 is no longer green.** C reopens the lane. B is a chassis fix that should
+land before the epic closes. A needs Ben.
