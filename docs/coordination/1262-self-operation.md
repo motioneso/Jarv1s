@@ -1950,3 +1950,25 @@ not the coordinator's alone. Reap only sessions you spawned or that asked to be 
 Unrelated finding surfaced in Ben's `main` pane, parked for him, **not actioned by me**: ~44% of gate
 runs in this repo pipe to `tail` and therefore cannot report failure — the same masking trap this run
 bans in every handoff doc, apparently widespread.
+
+### 2026-07-27 — fleet state after #1264 relay #3
+
+- **#1264** → successor `settings-selfop-1264b`, pane `w1:p131`, session `34525487`, **Sonnet 5
+  confirmed by pane read**, resuming `coordinated-build` at **Task 2 of 13**. Task 1 landed at
+  `c449e22c` (`setNotificationPreferenceEnabled` extracted to
+  `packages/settings/src/notification-preference-application.ts`) with **6/6 tests green and
+  typecheck/lint/format clean before commit**. Predecessor `10610ff9` asked to be reaped by session
+  id, id re-resolved fresh and matched, pane `w1:p120` closed.
+- **#1265** → pane `w1:p12Z`, session `53818867`, Sonnet 5, 52%. All seven tasks built. Gate + PR
+  remain. Both wrap-up requirement sets delivered (queued behind its current turn).
+
+**Commit-green discipline is uneven across the lanes, and it is worth watching.** #1264 verified
+Task 1 before committing. #1265 committed the epic's load-bearing SSRF test in a state that could not
+typecheck (missing `truncated` on the fetch mock, fixed after the fact at `935cd955`), so at the
+moment I signed off on that test's logic **nobody had ever seen it execute**. I have asked #1265 for
+the real exit code on `tests/unit/news-source-resolution.test.ts` in its wrap-up report, and told it
+that commit-per-task means commit *green* per task — a red checkpoint is not a checkpoint, and a
+successor inheriting it inherits unvalidated work.
+
+This does not change the merge bar (the full gate catches it either way). It does confirm the
+standing rule: **an agent's per-task "done + verified" is a progress signal, never merge evidence.**
