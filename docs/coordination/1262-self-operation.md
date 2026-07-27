@@ -1880,3 +1880,35 @@ where the successor will actually read it:
 approved security requirement outright, and (c) under-listed the files a task actually touches. The
 pattern is consistent enough to state plainly in `AWAITING-BEN.md` §2: **a task's declared file list
 is not trustworthy — only the root typecheck is.**
+
+### 2026-07-27 — #1265 task #8 verified strong; running list of PR-body requirements
+
+**Install-grant routing test (`5d66e3a9`) inspected and it is good** — materially stronger than the
+#1263 version that QA criticised. It grants through the real `grantSelfOperationForModule` against a
+real database, reads the policy back via `repository.listActionPolicies`, and drives the real
+`AssistantToolGateway.callTool`. **The load-bearing assertion is positive and exact:**
+`expect(emitted.map((e) => e.record.kind)).toEqual(["action_result"])` — an exact-sequence check on
+the whole emitted stream, which proves in one assertion both that the tool ran and that **no
+`action_request` card was emitted**. Delete the install-grant routing branch and the lookup returns
+null, the confirm floor fires, the array becomes `["action_request"]`, and the test fails for exactly
+the right reason. That is the opposite of the no-op "was not called" spy QA called theater on #1263.
+
+**Running list — what each PR body must state** (batched, to be sent at wrap-up rather than
+interrupting a task):
+
+_#1265:_
+- The SSRF conclusion explicitly — that existing containment was confirmed adequate, and that the
+  regression exercises the **post-redirect** path. Absent, the Opus QA re-derives it and the lane
+  costs a cycle.
+- That the routing test asserts the exact emitted sequence, contrasting it with the #1263 spy the
+  earlier review flagged. It answers a known reviewer objection pre-emptively.
+- The sports DELETE-route asymmetry and why it stays on the raw repository.
+
+_#1264:_
+- Migrations `0175`/`0176`/`0177`, with `0176`/`0177` applied-and-frozen noted.
+- That `structured-state`'s manifest migrations array was three files short **before this epic**
+  (`0111`, `0167` missing as well as `0175`), that `96edbcaa` corrects it, and that **it remains
+  unguarded** — pinning test tracked as **#1272**. A fixed-but-unguarded gap that goes unmentioned
+  reads as fully solved.
+- That digest is **out of scope** and why, pointing at `AWAITING-BEN.md` §3b rather than restating it.
+- That the inventory counts were rebased onto #1265's 31/5/4 = 40, not loosened.
