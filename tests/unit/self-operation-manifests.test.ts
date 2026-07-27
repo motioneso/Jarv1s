@@ -6,6 +6,7 @@ import { notesModuleManifest } from "../../packages/notes/src/manifest.js";
 import { peopleModuleManifest } from "../../packages/people/src/manifest.js";
 import { memoryModuleManifest } from "../../packages/memory/src/manifest.js";
 import { newsModuleManifest } from "../../packages/news/src/manifest.js";
+import { emailModuleManifest } from "../../packages/email/src/manifest.js";
 
 const GRANTED_AT_INSTALL_TASK_TOOLS = [
   "tasks.create",
@@ -170,5 +171,27 @@ describe("News self-operation manifest classification", () => {
         "granted_at_install"
       );
     }
+  });
+});
+
+describe("Email self-operation manifest classification", () => {
+  it("classifies email.draftReply as granted_at_install", () => {
+    const tools = emailModuleManifest.assistantTools ?? [];
+    const draftReply = tools.find((candidate) => candidate.name === "email.draftReply");
+    expect(draftReply, "expected tool email.draftReply to exist").toBeDefined();
+    expect(draftReply?.risk).toBe("write");
+    expect(draftReply?.actionFamilyId).toBe("email_drafts");
+    expect(draftReply?.executionPolicy).toBe("auto");
+    expect(draftReply?.selfOperationGrant).toBe("granted_at_install");
+  });
+
+  it("keeps email.sendReply destructive and confirm_always so mail is never sent without approval", () => {
+    const tools = emailModuleManifest.assistantTools ?? [];
+    const sendReply = tools.find((candidate) => candidate.name === "email.sendReply");
+    expect(sendReply, "expected tool email.sendReply to exist").toBeDefined();
+    expect(sendReply?.risk).toBe("destructive");
+    expect(sendReply?.selfOperationGrant).toBe("confirm_always");
+    expect(sendReply?.actionFamilyId).toBeUndefined();
+    expect(sendReply?.executionPolicy).toBeUndefined();
   });
 });

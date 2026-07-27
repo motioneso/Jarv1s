@@ -311,6 +311,16 @@ describe("email reply tools — gateway acceptance", () => {
   });
 
   it("sendReply ALWAYS confirms — even when the family tier is trusted_auto", async () => {
+    // Ben's ruling, 2026-07-26 (#1263 Task 11) withdrew an earlier granted_at_install
+    // classification for this tool and fixed the roster at confirm_always instead — this
+    // assertion is what makes that manifest declaration, not just policy.ts, prove the guarantee.
+    const sendReplyTool = emailModuleManifest.assistantTools?.find(
+      (candidate) => candidate.name === "email.sendReply"
+    );
+    expect(sendReplyTool?.selfOperationGrant).toBe("confirm_always");
+    expect(sendReplyTool?.actionFamilyId).toBeUndefined();
+    expect(sendReplyTool?.executionPolicy).toBeUndefined();
+
     const accountId = await seedGoogleAccount(ids.userA, [GMAIL_MODIFY]);
     const messageId = await seedMessage(ids.userA, accountId, {
       externalId: "msg-send",
