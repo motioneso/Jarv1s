@@ -14,6 +14,7 @@ import {
 import { calendarModuleManifest } from "@jarv1s/calendar";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+import { SETTINGS_MODULE_ID, settingsModuleManifest } from "@jarv1s/settings";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import { exampleToolCalls, exampleToolModule } from "./fixtures/example-tool-module.js";
@@ -121,6 +122,59 @@ describe("AssistantToolGateway self-operation", () => {
 
     expect(res.ok).toBe(true);
     expect(emitted.map((entry) => entry.record.kind)).toEqual(["action_result"]);
+  });
+
+  // #1310: real tool, real gateway, real DB grant — proves affectsQueryKeys flows from the
+  // manifest through to the emitted action_result end to end, not just in a synthetic unit test.
+  it("real settings.themeMode.set run threads affectsQueryKeys into the emitted action_result (#1310)", async () => {
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-settings-affects-query-keys" },
+      (scopedDb) => grantSelfOperationForModule(scopedDb, repository, settingsModuleManifest)
+    );
+
+    const settingsGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [settingsModuleManifest],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 30_000,
+      actionPolicy: (ctx) => ({
+        getFamilyTier: async (moduleId: string, familyId: string) =>
+          runner.withDataContext(
+            { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+            async (scopedDb) => {
+              const policies = await repository.listActionPolicies(scopedDb);
+              return (
+                policies.find((p) => p.moduleId === moduleId && p.actionFamilyId === familyId)
+                  ?.tier ?? null
+              );
+            }
+          ),
+        getFamilyManifest: async (moduleId: string, familyId: string) =>
+          moduleId === SETTINGS_MODULE_ID
+            ? (settingsModuleManifest.assistantActionFamilies?.find((f) => f.id === familyId) ??
+              null)
+            : null
+      })
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-settings-affects-query-keys",
+      allowedToolNames: null
+    });
+
+    const res = await settingsGateway.callTool(token, "settings.themeMode.set", { mode: "dark" });
+
+    expect(res.ok).toBe(true);
+    expect(emitted).toHaveLength(1);
+    const entry = emitted[0];
+    if (!entry || entry.record.kind !== "action_result") {
+      throw new Error("expected an action_result record to have been emitted");
+    }
+    expect(entry.record.outcome).toBe("executed");
+    expect(entry.record.affectsQueryKeys).toEqual(["settings.themes"]);
   });
 
   it("stored always_confirm override still produces an action card", async () => {
