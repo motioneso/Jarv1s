@@ -3571,3 +3571,37 @@ That was the last thing I was holding the lane open for. PR #1276 is now green-a
 delta-`0648d0f1`-cleared-by-coordinator-review, and locally gate-green — **complete, and parked on
 Ben, not merged.** Keeping the lane alive only until CI confirms; reap after that, not before, so a
 red CI has an owner who still has the context.
+
+### 2026-07-27 — #1265 delta re-QA dispatched (third cycle)
+
+`52c96e41` is on PR #1273 as head: one file, +13/-6, prettier reflow of
+`tests/unit/mcp-gateway-validation.test.ts` — the lane's own N4 edit, which is what turned the
+earlier gate red at `format:check` (step 2 of the `&&` chain, so nothing below it had ever run on
+this lane's fix commit). The lane reached that diagnosis independently and explicitly corrected the
+fail-closed hypothesis I had front-run; its full gate on a dropped-and-recreated `jarvis_gate_1265f`
+came back exit 0, 1724 tests / 159 files, 2 pre-existing skips, ~13min including `test:integration`.
+
+**QA agent:** `qa-1265-delta`, pane `w1:p13Y`, Opus 5 / high, session
+`8e3cccea-a6c0-4891-9797-1b9b47e7cac4`, in a **detached read-only worktree** at
+`.claude/worktrees/qa-1265d` pinned to `52c96e41` — deliberately not the lane's tree, so QA cannot
+be contaminated by, or contaminate, the builder's working state. `JARVIS_PGDATABASE=jarvis_qa_1265d`.
+
+Brief re-grounded from `f7844bb1` to `52c96e41`; scope is the two-commit delta `ec43d62e..52c96e41`.
+Item 3 stays **struck** (the `$`/trailing-newline trap was my error, not a defect — JS `$` without
+`/m` does not match before a newline) and is left visible so it is not re-raised as a finding.
+
+**Dispatched with CI still amber on purpose.** Both deployment smokes are SUCCESS at this head;
+`Verify foundation and app` is mid-run. The QA reviews code while the gate finishes and is barred
+from issuing its `MERGE-READY` line until the check completes — parallelising the review against
+the gate without letting it pronounce on an unproven build.
+
+**Herdr trap recorded:** `herdr agent start … --kind claude -- claude … "<prompt>"` produced argv
+`["claude","claude",…]` and the prompt never reached the agent — it booted, found no request, and
+went idle at "What would you like me to do?". Silent: `agent_status` read `done`, which looks like
+success. The fix is to confirm by pane read that the agent is *working on your text*, then deliver
+the prompt with `herdr pane run` (input box was empty, so no concatenation risk). Also seen in the
+pane: **this box's Claude login expires in ~3 days** — Ben's to renew, noted so it is not discovered
+mid-run.
+
+Budget unchanged: this is the third QA cycle; two RED verdicts precede it, and gate reds do not
+count toward that. Neither PR merges tonight regardless of colour.
