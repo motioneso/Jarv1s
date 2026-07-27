@@ -1559,3 +1559,38 @@ test that drives the schema proves nothing, because the schema is not what enfor
 
 **Mid-doing:** #1265 fixing T1 then continuing to T2; #1264 still owes me its plan pointer. No PRs
 open.
+
+## Continuation note — 2026-07-27, #1264 plan approved with a required addition
+
+Plan: `docs/superpowers/plans/2026-07-27-module-self-operation-settings-commands.md` (Tasks 0a–11).
+Approved — **both lanes are now building.**
+
+The plan is faithful to the spec on the things that matter. Verified rather than assumed: the
+`settings.preference-write` family declares `defaultTier: "confirm_once"` with the install grant
+setting `trusted_auto` separately (the epic's central rule, correctly applied); the undo stack is
+keyed by `${actorUserId}:${chatId}`, matching the spec's "bound to actor **and** chat"; CAS,
+`instance_settings` revision (forward infra, no consumer this PR — spec line 134 requires both
+tables), and the audit CHECK widen are each their own task. The 20-entry undo cap was flagged by the
+agent as an unconfirmed default; **confirmed** — the spec says "bounded" without a number.
+
+**Gap found and closed: per-actor/per-tool rate limiting was absent.** The spec mandates it in the
+same implementation-surfaces list the rest of the plan was built from, and pre-rejects the obvious
+counter-argument: *"Bounded blast radius is not bounded frequency — an injected loop can otherwise
+oscillate a setting indefinitely."* Task 9's no-op suppression is the other half of that bullet and
+does not cover it — `light → dark → light` is never a no-op, so suppression never fires. Added as
+**Task 12** with three constraints: build it **at the gateway**, not in settings (a settings-local
+limiter cannot bound `chat.setResponseStyle`, which is on a different module and equally
+oscillatable — and the generic version is the seam #1265/#1267 adopt later); a rate-limited call
+reports **`denied`**, never a new `rate_limited` outcome, because the outcome set is closed and a new
+value would mean a fourth migration; and it lands **last**, so a stall still leaves everything ahead
+of it shippable. Failure to land it is an escalation and a stated gap in the PR body, never a silent
+omission on a security-tier PR. The same bullet's metrics (hard-exclusion hits, repeated CAS
+failures) are fold-in-if-cheap and explicitly not a blocker.
+
+Its five flagged assumptions were accepted — four are self-correcting at typecheck. The fifth carries
+a user-visible consequence to name in the PR body: with chat's own undo out of plan,
+`chat.setResponseStyle` has no undo entry, so "change that back" works for the six settings tools and
+silently does nothing for response style.
+
+**Mid-doing:** #1264 building Tasks 0a→12; #1265 fixing the reopened T1 then T2. No PRs open. Both
+security tier.
