@@ -427,7 +427,9 @@ export function validateExternalModuleManifest(
         !Array.isArray(declared.scopes) ||
         !(declared.scopes as unknown[]).includes("user")
       ) {
-        errors.push('fetchHostGrantsNamespace\'s storage declaration must include the "user" scope');
+        errors.push(
+          'fetchHostGrantsNamespace\'s storage declaration must include the "user" scope'
+        );
       }
     }
   }

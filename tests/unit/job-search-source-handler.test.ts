@@ -314,20 +314,14 @@ describe("job-search custom source tools (#1309)", () => {
       ).resolves.toBeTruthy();
 
       await expect(
-        handler(
-          ctx({ profileId: "p1", url: "https://other.example.com/jobs", bogus: "nope" }, kv)
-        )
+        handler(ctx({ profileId: "p1", url: "https://other.example.com/jobs", bogus: "nope" }, kv))
       ).rejects.toThrow(/unknown key: bogus/);
     });
 
     it("source.remove accepts the actorUserId envelope and rejects an unknown key", async () => {
       const { store, calls } = createFakeStore([makeProfile({ id: "p1" })]);
       const kv = createFakeKv(calls);
-      const seeded = await store.addCustomSource(
-        "p1",
-        "https://boards.example.com/jobs",
-        "Boards"
-      );
+      const seeded = await store.addCustomSource("p1", "https://boards.example.com/jobs", "Boards");
       const handler = createSourceRemoveHandler(store);
 
       await expect(
@@ -389,11 +383,7 @@ describe("job-search custom source tools (#1309)", () => {
   describe("8. source.remove revokes the platform grant before deleting the store row, in that order", () => {
     it("a successful remove resolves the host via listCustomSources, then calls kv.delete, then store.removeCustomSource", async () => {
       const { store, calls } = createFakeStore([makeProfile({ id: "p1" })]);
-      const seeded = await store.addCustomSource(
-        "p1",
-        "https://boards.example.com/jobs",
-        "Boards"
-      );
+      const seeded = await store.addCustomSource("p1", "https://boards.example.com/jobs", "Boards");
       calls.length = 0; // seeding above went straight through the store, not the handler
       const kv = createFakeKv(calls);
       const handler = createSourceRemoveHandler(store);
@@ -409,11 +399,7 @@ describe("job-search custom source tools (#1309)", () => {
 
     it("a kv.delete failure prevents store.removeCustomSource from ever being called", async () => {
       const { store, calls } = createFakeStore([makeProfile({ id: "p1" })]);
-      const seeded = await store.addCustomSource(
-        "p1",
-        "https://boards.example.com/jobs",
-        "Boards"
-      );
+      const seeded = await store.addCustomSource("p1", "https://boards.example.com/jobs", "Boards");
       calls.length = 0;
       const kv = createFakeKv(calls, { deleteThrows: true });
       const handler = createSourceRemoveHandler(store);

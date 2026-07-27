@@ -235,7 +235,9 @@ describe("createBriefingContributeHandler", () => {
   });
 
   it("defaults to count-level with zero active profiles — headline only, never an error", async () => {
-    const store = createFakeStore({ profiles: [makeProfile("profile-1", { state: "in_conversation" })] });
+    const store = createFakeStore({
+      profiles: [makeProfile("profile-1", { state: "in_conversation" })]
+    });
     const handler = createBriefingContributeHandler(store);
 
     const result = (await handler(queueCtx())) as { headline: string; items: unknown[] };

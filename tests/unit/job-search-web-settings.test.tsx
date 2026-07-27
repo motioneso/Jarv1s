@@ -157,7 +157,8 @@ describe("SettingsScreen", () => {
     await flush();
 
     const options = renderer.root.findAll(
-      (node) => typeof node.type === "string" && node.type === "button" && "aria-pressed" in node.props
+      (node) =>
+        typeof node.type === "string" && node.type === "button" && "aria-pressed" in node.props
     );
     expect(options).toHaveLength(3);
 

@@ -60,7 +60,12 @@ export interface AiPort {
     | { ok: true; object: unknown }
     | {
         ok: false;
-        error: "needs_config" | "validation_failed" | "provider_error" | "usage_limited" | "aborted";
+        error:
+          | "needs_config"
+          | "validation_failed"
+          | "provider_error"
+          | "usage_limited"
+          | "aborted";
       }
   >;
 }

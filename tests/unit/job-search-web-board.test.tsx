@@ -164,9 +164,7 @@ function findButton(renderer: ReactTestRenderer, name: RegExp) {
 // Deliberately not scoped to <p> — the error branch's outer container is a <div role="alert">,
 // not a paragraph, so this must match on role alone regardless of host element type.
 function findByRole(renderer: ReactTestRenderer, role: string) {
-  return renderer.root.findAll(
-    (item) => (item.props as { role?: string }).role === role
-  );
+  return renderer.root.findAll((item) => (item.props as { role?: string }).role === role);
 }
 
 // The title button is always the first button rendered inside a data row (dismiss is the

@@ -384,10 +384,7 @@ describe("external module fetch.request runtime host grants (#1309)", () => {
     }
   };
 
-  function buildRpc(
-    actorUserId: string,
-    createFetch?: (hosts: readonly string[]) => typeof fetch
-  ) {
+  function buildRpc(actorUserId: string, createFetch?: (hosts: readonly string[]) => typeof fetch) {
     return createExternalModuleRpcHandler({
       module: moduleWithGrants,
       toolRisk: "write",

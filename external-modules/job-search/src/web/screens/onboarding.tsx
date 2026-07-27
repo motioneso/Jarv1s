@@ -27,8 +27,8 @@ export function OnboardingScreen(props: { profile: Profile }): ReactNodeLike {
       <span className="jds-eyebrow">Job search</span>
       <p className="jsm-onb__head">Let&rsquo;s work out what this search is for.</p>
       <p className="jsm-onb__sub">
-        Nothing gets crawled until we both know what we&rsquo;re looking for. You can stop and
-        come back — I keep what we have so far.
+        Nothing gets crawled until we both know what we&rsquo;re looking for. You can stop and come
+        back — I keep what we have so far.
       </p>
       <div className="jsm-onb__prog">
         {ONBOARDING_STEPS.map((step) => (

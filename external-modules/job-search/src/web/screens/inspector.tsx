@@ -63,8 +63,8 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
         // legitimately run behind a crawl. Saying so plainly is the whole point (part file's own
         // wording: "the posting has not been dropped").
         <p role="status">
-          Not read yet — this posting is queued for scoring, not dropped. Fit and Want will
-          appear here once it's been read.
+          Not read yet — this posting is queued for scoring, not dropped. Fit and Want will appear
+          here once it's been read.
         </p>
       )}
 

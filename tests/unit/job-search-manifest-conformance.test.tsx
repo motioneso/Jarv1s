@@ -125,7 +125,9 @@ describe("every job-search.* literal under src/web/ resolves to a declared, reac
   it("has no undeclared literal, no write-risk tool via invokeTool, no manual-run-disabled queue", () => {
     const manifest = loadValidatedManifest();
     const toolByName = new Map((manifest.assistantTools ?? []).map((tool) => [tool.name, tool]));
-    const queueByName = new Map((manifest.worker?.queues ?? []).map((queue) => [queue.name, queue]));
+    const queueByName = new Map(
+      (manifest.worker?.queues ?? []).map((queue) => [queue.name, queue])
+    );
 
     const files = walkSourceFiles(webSrcDir);
     const literals = findJobSearchLiterals(files);
@@ -136,8 +138,13 @@ describe("every job-search.* literal under src/web/ resolves to a declared, reac
     // entire job is catching a screen nobody remembered to check. Floors are set comfortably below
     // today's real counts (13 files under src/web/, 10 job-search.* literals across
     // root.tsx/use-profiles.ts/board.tsx/settings.tsx) but high enough that a broken walk trips one.
-    expect(files.length, "walked no files under src/web/ — the sweep is disarmed").toBeGreaterThan(3);
-    expect(literals.length, "found no job-search.* literals — the sweep is disarmed").toBeGreaterThan(5);
+    expect(files.length, "walked no files under src/web/ — the sweep is disarmed").toBeGreaterThan(
+      3
+    );
+    expect(
+      literals.length,
+      "found no job-search.* literals — the sweep is disarmed"
+    ).toBeGreaterThan(5);
 
     const failures: string[] = [];
 
@@ -157,13 +164,17 @@ describe("every job-search.* literal under src/web/ resolves to a declared, reac
         // Only ever reachable via invokeTool. Anything but risk:"read" 403s with
         // blockedReason: "confirmation_required" before it ever runs (packages/ai/src/routes.ts).
         if (tool.risk !== "read") {
-          failures.push(`${where} is declared but risk is "${tool.risk}", not "read" (invokeTool 403s)`);
+          failures.push(
+            `${where} is declared but risk is "${tool.risk}", not "read" (invokeTool 403s)`
+          );
         }
       } else if (queue) {
         // Only ever reachable via runQueue, which 404s unless allowManualRun is true
         // (apps/api/src/external-module-jobs.ts:50).
         if (!queue.allowManualRun) {
-          failures.push(`${where} is a declared queue but allowManualRun is not true (runQueue 404s)`);
+          failures.push(
+            `${where} is a declared queue but allowManualRun is not true (runQueue 404s)`
+          );
         }
       } else {
         // Matches neither bucket — a brand-new screen calling a name nobody declared, or a typo.
@@ -172,8 +183,9 @@ describe("every job-search.* literal under src/web/ resolves to a declared, reac
       }
     }
 
-    expect(failures, `undeclared or unreachable job-search.* literal(s):\n${failures.join("\n")}`).toHaveLength(
-      0
-    );
+    expect(
+      failures,
+      `undeclared or unreachable job-search.* literal(s):\n${failures.join("\n")}`
+    ).toHaveLength(0);
   });
 });

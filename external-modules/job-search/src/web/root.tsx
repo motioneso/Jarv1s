@@ -208,8 +208,7 @@ export function Root(props: RootProps): ReactNodeLike {
   // used, hoisted so useProfileThread and the render branch share one derivation instead of two.
   const selectedProfile: Profile | null =
     profiles.status === "ready"
-      ? (profiles.profiles.find((p) => p.profileId === profiles.selectedId) ??
-        profiles.profiles[0])
+      ? (profiles.profiles.find((p) => p.profileId === profiles.selectedId) ?? profiles.profiles[0])
       : null;
 
   // Binds this module's chat surface to whichever profile is selected, and frames it with the
