@@ -7,30 +7,95 @@ export interface SettingsUndoEntry {
 }
 
 const MAX_ENTRIES_PER_CHAT = 20;
+const MAX_TRACKED_CHATS = 500;
+const MAX_ENTRY_AGE_MS = 24 * 60 * 60 * 1000;
 
+interface ChatUndoStack {
+  entries: SettingsUndoEntry[];
+}
+
+export interface SettingsUndoStackOptions {
+  readonly maxEntriesPerChat?: number;
+  readonly maxTrackedChats?: number;
+  readonly maxEntryAgeMs?: number;
+}
+
+// Nested actorUserId -> chatId maps avoid the `${actorUserId}:${chatId}` string-concat collision
+// (chat-surface-pattern-trap in agentmemory), and the LRU map bounds total retained undo data —
+// private previousValue payloads (e.g. a home address) must not live forever per (actor, chat).
 export class SettingsUndoStack {
-  private readonly stacks = new Map<string, SettingsUndoEntry[]>();
+  private readonly actors = new Map<string, Map<string, ChatUndoStack>>();
+  private readonly lru = new Map<ChatUndoStack, { actorUserId: string; chatId: string }>();
+  private readonly maxEntriesPerChat: number;
+  private readonly maxTrackedChats: number;
+  private readonly maxEntryAgeMs: number;
 
-  private stackKey(actorUserId: string, chatId: string): string {
-    return `${actorUserId}:${chatId}`;
+  constructor(options: SettingsUndoStackOptions = {}) {
+    this.maxEntriesPerChat = options.maxEntriesPerChat ?? MAX_ENTRIES_PER_CHAT;
+    this.maxTrackedChats = options.maxTrackedChats ?? MAX_TRACKED_CHATS;
+    this.maxEntryAgeMs = options.maxEntryAgeMs ?? MAX_ENTRY_AGE_MS;
+  }
+
+  private touch(actorUserId: string, chatId: string): ChatUndoStack {
+    let chats = this.actors.get(actorUserId);
+    if (!chats) {
+      chats = new Map();
+      this.actors.set(actorUserId, chats);
+    }
+    let stack = chats.get(chatId);
+    if (!stack) {
+      stack = { entries: [] };
+      chats.set(chatId, stack);
+    }
+    this.lru.delete(stack);
+    this.lru.set(stack, { actorUserId, chatId });
+    this.evictLeastRecentlyUsed();
+    return stack;
+  }
+
+  private evictLeastRecentlyUsed(): void {
+    while (this.lru.size > this.maxTrackedChats) {
+      const oldest = this.lru.keys().next();
+      if (oldest.done) break;
+      const ref = this.lru.get(oldest.value);
+      this.lru.delete(oldest.value);
+      if (!ref) continue;
+      const chats = this.actors.get(ref.actorUserId);
+      chats?.delete(ref.chatId);
+      if (chats && chats.size === 0) this.actors.delete(ref.actorUserId);
+    }
+  }
+
+  private sweepExpired(stack: ChatUndoStack): void {
+    if (this.maxEntryAgeMs <= 0) return;
+    const now = Date.now();
+    for (;;) {
+      const oldest = stack.entries[0];
+      if (!oldest || now - oldest.appliedAt <= this.maxEntryAgeMs) break;
+      stack.entries.shift();
+    }
   }
 
   push(actorUserId: string, chatId: string, entry: SettingsUndoEntry): void {
-    const key = this.stackKey(actorUserId, chatId);
-    const stack = this.stacks.get(key) ?? [];
-    stack.push(entry);
-    if (stack.length > MAX_ENTRIES_PER_CHAT) stack.shift();
-    this.stacks.set(key, stack);
+    const stack = this.touch(actorUserId, chatId);
+    this.sweepExpired(stack);
+    stack.entries.push(entry);
+    if (stack.entries.length > this.maxEntriesPerChat) stack.entries.shift();
   }
 
   pop(actorUserId: string, chatId: string): SettingsUndoEntry | undefined {
-    const key = this.stackKey(actorUserId, chatId);
-    const stack = this.stacks.get(key);
-    return stack?.pop();
+    const stack = this.actors.get(actorUserId)?.get(chatId);
+    if (!stack) return undefined;
+    this.sweepExpired(stack);
+    return stack.entries.pop();
   }
 
   clear(actorUserId: string, chatId: string): void {
-    this.stacks.delete(this.stackKey(actorUserId, chatId));
+    const chats = this.actors.get(actorUserId);
+    const stack = chats?.get(chatId);
+    if (stack) this.lru.delete(stack);
+    chats?.delete(chatId);
+    if (chats && chats.size === 0) this.actors.delete(actorUserId);
   }
 }
 
