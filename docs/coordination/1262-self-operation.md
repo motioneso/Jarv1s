@@ -3685,6 +3685,11 @@ head/check monitor stays armed.
 - Ben's LAN pass → then merge in order (#1276 first, #1273 second), second lander rebases the
   inventory assertion to an exact `toBe(39/5/4)` per `1262-rebase-brief-second-lander.md`, then a
   fresh integration-scoped QA on the rebased result.
-- QA's four non-blocking findings to triage: no install-time pattern lint for external modules
-  (#1274); no test pins external-module tools to this validator; rejection message names the field
-  not the tool; PR #1273 body cites the stale gate DB `jarvis_gate_1265d`.
+- QA's four non-blocking findings are now **triaged and tracked**, so none depend on this session
+  surviving:
+  - install-time pattern lint for external modules → **#1274** (already open)
+  - no test pins external-module tools to the shared validator, + rejection names the field not the
+    tool → **#1279** (filed 2026-07-27)
+  - PR #1273's body cites the stale gate DB `jarvis_gate_1265d` instead of `jarvis_gate_1265f`.
+    Cosmetic, but the squash commit body comes from the PR body, so **correct it at merge time**
+    rather than leaving a wrong verification record in history.
