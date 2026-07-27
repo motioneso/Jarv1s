@@ -51,7 +51,7 @@ export const weatherLocationSetExecute: ToolExecute = async (
   ) {
     return { data: { ...next } };
   }
-  await preferences.upsertWithRevision(
+  const written = await preferences.upsertWithRevision(
     scopedDb,
     WEATHER_LOCATION_PREFERENCE_KEY,
     next,
@@ -62,6 +62,7 @@ export const weatherLocationSetExecute: ToolExecute = async (
     key: WEATHER_LOCATION_PREFERENCE_KEY,
     previousValue: current?.value ?? null,
     previousRevision: current?.revision ?? null,
+    resultingRevision: written.revision,
     appliedAt: Date.now()
   });
   return { data: { ...next } };

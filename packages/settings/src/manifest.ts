@@ -29,6 +29,11 @@ import {
   themeModeSetOutputSchema
 } from "./theme-mode-tool.js";
 import {
+  settingsUndoLastExecute,
+  settingsUndoLastInputSchema,
+  settingsUndoLastOutputSchema
+} from "./undo-apply-tool.js";
+import {
   weatherLocationOutputSchema,
   weatherLocationSetExecute,
   weatherLocationSetInputSchema
@@ -525,6 +530,19 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       inputSchema: notificationPreferenceSetEnabledInputSchema,
       outputSchema: notificationPreferenceSetEnabledOutputSchema,
       execute: notificationPreferenceSetEnabledExecute
+    },
+    {
+      name: "settings.undoLast",
+      description:
+        'Undo the user\'s most recent settings preference change in this conversation (e.g. "change that back"). No-op if nothing tracked, or if the setting changed again since.',
+      permissionId: "settings.write",
+      risk: "write",
+      selfOperationGrant: "granted_at_install",
+      actionFamilyId: "settings.preference-write",
+      executionPolicy: "auto",
+      inputSchema: settingsUndoLastInputSchema,
+      outputSchema: settingsUndoLastOutputSchema,
+      execute: settingsUndoLastExecute
     }
   ]
 };

@@ -74,7 +74,7 @@ export const localeSetTimezoneExecute: ToolExecute = async (
     return { data: { ...normalizedCurrent } };
   }
   const next: LocaleSettingsDto = { ...normalizedCurrent, timezone };
-  await preferences.upsertWithRevision(
+  const written = await preferences.upsertWithRevision(
     scopedDb,
     LOCALE_PREFERENCE_KEY,
     next,
@@ -85,6 +85,7 @@ export const localeSetTimezoneExecute: ToolExecute = async (
     key: LOCALE_PREFERENCE_KEY,
     previousValue: current?.value ?? null,
     previousRevision: current?.revision ?? null,
+    resultingRevision: written.revision,
     appliedAt: Date.now()
   });
   return { data: { ...next } };
@@ -124,7 +125,7 @@ export const localeSetRegionAndDateFormatExecute: ToolExecute = async (
     return { data: { ...normalizedCurrent } };
   }
   const next: LocaleSettingsDto = { ...normalizedCurrent, region, dateFormat };
-  await preferences.upsertWithRevision(
+  const written = await preferences.upsertWithRevision(
     scopedDb,
     LOCALE_PREFERENCE_KEY,
     next,
@@ -135,6 +136,7 @@ export const localeSetRegionAndDateFormatExecute: ToolExecute = async (
     key: LOCALE_PREFERENCE_KEY,
     previousValue: current?.value ?? null,
     previousRevision: current?.revision ?? null,
+    resultingRevision: written.revision,
     appliedAt: Date.now()
   });
   return { data: { ...next } };

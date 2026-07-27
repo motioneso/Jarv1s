@@ -31,6 +31,9 @@ export interface NotificationPreferenceWriteService {
     unreadCount: number | null;
     previous: { value: unknown; revision: number | null };
     changed: boolean;
+    // Revision produced by the tracked write itself (present only when changed). Undo's CAS
+    // expectation must be this post-mutation value, never previous.revision — see undo-stack.ts.
+    resultingRevision?: number;
   }>;
 }
 
@@ -46,6 +49,7 @@ export async function setNotificationPreferenceEnabled(
   unreadCount: number | null;
   previous: { value: unknown; revision: number | null };
   changed: boolean;
+  resultingRevision?: number;
 }> {
   const manifest = deps.listModuleManifests().find((m) => m.id === moduleId);
   if (!manifest) throw new HttpError(404, "Module not found");
@@ -66,13 +70,15 @@ export async function setNotificationPreferenceEnabled(
   const current = await deps.preferencesRepository.getWithRevision(scopedDb, key);
   const currentEnabled = (current?.value as { enabled?: boolean } | undefined)?.enabled;
   const changed = currentEnabled !== enabled;
+  let resultingRevision: number | undefined;
   if (changed) {
-    await deps.preferencesRepository.upsertWithRevision(
+    const written = await deps.preferencesRepository.upsertWithRevision(
       scopedDb,
       key,
       { enabled },
       current?.revision ?? null
     );
+    resultingRevision = written.revision;
   }
   const unreadCount =
     !enabled && clearUnread && deps.notificationUnreadPort
@@ -82,6 +88,7 @@ export async function setNotificationPreferenceEnabled(
     preference,
     unreadCount,
     previous: { value: current?.value ?? null, revision: current?.revision ?? null },
-    changed
+    changed,
+    resultingRevision
   };
 }

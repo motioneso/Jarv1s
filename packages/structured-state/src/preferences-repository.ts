@@ -110,6 +110,23 @@ export class PreferencesRepository {
     return { revision: row.revision };
   }
 
+  // CAS delete — used by undo when the tracked mutation created a row that didn't exist before
+  // (absent-row case): undo removes the row instead of upserting the prior default back in.
+  async deleteWithRevision(
+    scopedDb: DataContextDb,
+    key: string,
+    expectedRevision: number
+  ): Promise<void> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .deleteFrom("app.preferences")
+      .where("key", "=", key)
+      .where("revision", "=", expectedRevision)
+      .returning("revision")
+      .executeTakeFirst();
+    if (!row) throw new PreferenceRevisionConflictError(key);
+  }
+
   async getWithRevision(
     scopedDb: DataContextDb,
     key: string

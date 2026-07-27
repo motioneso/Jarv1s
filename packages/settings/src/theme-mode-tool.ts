@@ -36,12 +36,18 @@ export const themeModeSetExecute: ToolExecute = async (
   if (current && current.value === mode) {
     return { data: { mode } };
   }
-  await preferences.upsertWithRevision(scopedDb, COLOR_MODE_KEY, mode, current?.revision ?? null);
+  const written = await preferences.upsertWithRevision(
+    scopedDb,
+    COLOR_MODE_KEY,
+    mode,
+    current?.revision ?? null
+  );
   settingsUndoStack.push(ctx.actorUserId, ctx.chatSessionId, {
     mutationId: randomUUID(),
     key: COLOR_MODE_KEY,
     previousValue: current?.value ?? null,
     previousRevision: current?.revision ?? null,
+    resultingRevision: written.revision,
     appliedAt: Date.now()
   });
   return { data: { mode } };

@@ -2,7 +2,15 @@ export interface SettingsUndoEntry {
   readonly mutationId: string;
   readonly key: string;
   readonly previousValue: unknown;
+  // Pre-mutation revision only — null means the row did not exist before the tracked write.
+  // Used ONLY to pick the undo's delete-vs-upsert branch; never as a CAS expectation (that's
+  // resultingRevision below). Do not conflate the two — resultingRevision is always non-null.
   readonly previousRevision: number | null;
+  // Revision produced BY the tracked write (its own return value, never a follow-up read). This
+  // is what the DB's current revision must still equal for undo's CAS write to succeed — expecting
+  // previousRevision instead guarantees a conflict on the very next turn, since the tracked write
+  // itself already advanced the row past it.
+  readonly resultingRevision: number;
   readonly appliedAt: number;
 }
 

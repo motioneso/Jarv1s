@@ -58,19 +58,20 @@ export const notificationPreferenceSetEnabledExecute: ToolExecute = async (
     enabled: boolean;
     clearUnread?: boolean;
   };
-  const { preference, previous, changed } = await service.setEnabled(
+  const { preference, previous, changed, resultingRevision } = await service.setEnabled(
     scopedDb,
     ctx.actorUserId,
     moduleId,
     enabled,
     clearUnread === true
   );
-  if (changed) {
+  if (changed && resultingRevision !== undefined) {
     settingsUndoStack.push(ctx.actorUserId, ctx.chatSessionId, {
       mutationId: randomUUID(),
       key: notificationPreferenceKey(moduleId),
       previousValue: previous.value,
       previousRevision: previous.revision,
+      resultingRevision,
       appliedAt: Date.now()
     });
   }

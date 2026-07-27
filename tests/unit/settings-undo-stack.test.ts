@@ -10,6 +10,7 @@ describe("SettingsUndoStack", () => {
       key: "k",
       previousValue: 1,
       previousRevision: 1,
+      resultingRevision: 2,
       appliedAt: Date.now()
     });
     stack.push("user1", "chat1", {
@@ -17,6 +18,7 @@ describe("SettingsUndoStack", () => {
       key: "k",
       previousValue: 2,
       previousRevision: 2,
+      resultingRevision: 3,
       appliedAt: Date.now()
     });
     expect(stack.pop("user1", "chat1")?.mutationId).toBe("m2");
@@ -31,6 +33,7 @@ describe("SettingsUndoStack", () => {
       key: "k",
       previousValue: 1,
       previousRevision: 1,
+      resultingRevision: 2,
       appliedAt: Date.now()
     });
     expect(stack.pop("user1", "chatB")).toBeUndefined();
@@ -45,6 +48,7 @@ describe("SettingsUndoStack", () => {
         key: "k",
         previousValue: i,
         previousRevision: i,
+        resultingRevision: i + 1,
         appliedAt: Date.now()
       });
     }
@@ -60,6 +64,7 @@ describe("SettingsUndoStack", () => {
       key: "k",
       previousValue: 1,
       previousRevision: 1,
+      resultingRevision: 2,
       appliedAt: Date.now()
     });
     stack.push("user1", "chat2", {
@@ -67,6 +72,7 @@ describe("SettingsUndoStack", () => {
       key: "k",
       previousValue: 1,
       previousRevision: 1,
+      resultingRevision: 2,
       appliedAt: Date.now()
     });
     stack.clear("user1", "chat1");
@@ -81,6 +87,7 @@ describe("SettingsUndoStack", () => {
       key: "k",
       previousValue: 1,
       previousRevision: 1,
+      resultingRevision: 2,
       appliedAt: Date.now()
     });
     stack.push("a:b", "c", {
@@ -88,6 +95,7 @@ describe("SettingsUndoStack", () => {
       key: "k",
       previousValue: 2,
       previousRevision: 1,
+      resultingRevision: 2,
       appliedAt: Date.now()
     });
     expect(stack.pop("a", "b:c")?.mutationId).toBe("for-a");
@@ -101,6 +109,7 @@ describe("SettingsUndoStack", () => {
       key: "k",
       previousValue: 1,
       previousRevision: 1,
+      resultingRevision: 2,
       appliedAt: Date.now()
     });
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -114,6 +123,7 @@ describe("SettingsUndoStack", () => {
       key: "k",
       previousValue: 1,
       previousRevision: 1,
+      resultingRevision: 2,
       appliedAt: Date.now()
     });
     stack.push("user1", "chat2", {
@@ -121,6 +131,7 @@ describe("SettingsUndoStack", () => {
       key: "k",
       previousValue: 1,
       previousRevision: 1,
+      resultingRevision: 2,
       appliedAt: Date.now()
     });
     stack.push("user1", "chat3", {
@@ -128,6 +139,7 @@ describe("SettingsUndoStack", () => {
       key: "k",
       previousValue: 1,
       previousRevision: 1,
+      resultingRevision: 2,
       appliedAt: Date.now()
     });
     expect(stack.pop("user1", "chat1")).toBeUndefined();
