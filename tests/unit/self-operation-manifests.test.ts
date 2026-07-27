@@ -7,6 +7,7 @@ import { peopleModuleManifest } from "../../packages/people/src/manifest.js";
 import { memoryModuleManifest } from "../../packages/memory/src/manifest.js";
 import { newsModuleManifest } from "../../packages/news/src/manifest.js";
 import { emailModuleManifest } from "../../packages/email/src/manifest.js";
+import { calendarModuleManifest } from "../../packages/calendar/src/manifest.js";
 
 const GRANTED_AT_INSTALL_TASK_TOOLS = [
   "tasks.create",
@@ -193,5 +194,40 @@ describe("Email self-operation manifest classification", () => {
     expect(sendReply?.selfOperationGrant).toBe("confirm_always");
     expect(sendReply?.actionFamilyId).toBeUndefined();
     expect(sendReply?.executionPolicy).toBeUndefined();
+  });
+});
+
+describe("Calendar self-operation manifest classification", () => {
+  it("classifies both Calendar writes as granted_at_install", () => {
+    const tools = calendarModuleManifest.assistantTools ?? [];
+
+    const proposeFocusBlock = tools.find((candidate) => candidate.name === "calendar.proposeFocusBlock");
+    expect(proposeFocusBlock, "expected tool calendar.proposeFocusBlock to exist").toBeDefined();
+    expect(proposeFocusBlock?.risk).toBe("write");
+    expect(proposeFocusBlock?.actionFamilyId).toBe("calendar_writeback");
+    expect(proposeFocusBlock?.executionPolicy).toBe("auto");
+    expect(proposeFocusBlock?.selfOperationGrant).toBe("granted_at_install");
+
+    const deleteEvent = tools.find((candidate) => candidate.name === "calendar.deleteEvent");
+    expect(deleteEvent, "expected tool calendar.deleteEvent to exist").toBeDefined();
+    expect(deleteEvent?.risk).toBe("write");
+    expect(deleteEvent?.actionFamilyId).toBe("calendar_management");
+    expect(deleteEvent?.executionPolicy).toBe("auto");
+    expect(deleteEvent?.selfOperationGrant).toBe("granted_at_install");
+  });
+
+  it("keeps both Calendar write families locked to allow trusted_auto and always_confirm", () => {
+    const families = calendarModuleManifest.assistantActionFamilies ?? [];
+
+    const writeback = families.find((candidate) => candidate.id === "calendar_writeback");
+    expect(writeback, "expected family calendar_writeback to exist").toBeDefined();
+    expect(writeback?.allowedTiers).toContain("trusted_auto");
+    expect(writeback?.allowedTiers).toContain("always_confirm");
+
+    const management = families.find((candidate) => candidate.id === "calendar_management");
+    expect(management, "expected family calendar_management to exist").toBeDefined();
+    expect(management?.defaultTier).toBe("always_confirm");
+    expect(management?.allowedTiers).toContain("trusted_auto");
+    expect(management?.allowedTiers).toContain("always_confirm");
   });
 });

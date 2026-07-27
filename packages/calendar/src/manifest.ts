@@ -163,14 +163,14 @@ export const calendarModuleManifest = {
       label: "Calendar writeback",
       description: "Create Calendar-owned Jarvis blocks on the user's calendar.",
       defaultTier: "ask_each_time",
-      allowedTiers: ["ask_each_time", "trusted_auto"]
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
     },
     {
       id: "calendar_management",
       label: "Delete calendar events",
-      description: "Let Jarvis delete events from your calendar. Always asks first.",
+      description: "Let Jarvis delete events from your calendar.",
       defaultTier: "always_confirm",
-      allowedTiers: ["always_confirm"]
+      allowedTiers: ["always_confirm", "trusted_auto"]
     }
   ],
   assistantTools: [
@@ -209,6 +209,7 @@ export const calendarModuleManifest = {
       permissionId: "calendar.manage",
       risk: "write",
       executionPolicy: "auto",
+      selfOperationGrant: "granted_at_install",
       actionFamilyId: "calendar_writeback",
       requiresServices: ["calendarWrite"],
       // NOTE: the gateway's validateToolInput (input-validation.ts) enforces only type + enum +
@@ -240,13 +241,14 @@ export const calendarModuleManifest = {
     {
       name: "calendar.deleteEvent",
       description:
-        "Delete a single calendar event the user owns. Always asks for confirmation; on approval " +
-        "the event is removed from the user's Google Calendar (attendees are notified of the " +
-        "cancellation). One event at a time; cannot delete recurring series.",
+        "Delete a single calendar event the user owns. On approval the event is removed from the " +
+        "user's Google Calendar (attendees are notified of the cancellation). One event at a time; " +
+        "cannot delete recurring series.",
       permissionId: "calendar.manage",
       risk: "write",
+      executionPolicy: "auto",
+      selfOperationGrant: "granted_at_install",
       actionFamilyId: "calendar_management",
-      // No executionPolicy: "auto" → gateway always confirms (belt 1). allowedTiers lock is belt 2.
       requiresServices: ["calendarWrite"],
       inputSchema: {
         type: "object",
