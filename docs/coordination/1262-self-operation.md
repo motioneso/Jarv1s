@@ -806,3 +806,26 @@ asks and only global YOLO removes it; task-list/tag delete no longer asks and ta
 is silent; calendar delete asks by default but is user-promotable) → Opus `coordinated-qa`
 (security tier, must `gh pr comment` its verdict) → surface to Ben → **PAUSE for his merge
 sign-off** → merge → then spawn #1264 + #1265 in parallel.
+
+### PR opened + QA dispatched — 2026-07-27
+
+Final gate on branch `1263-self-operation-chassis`: **`pnpm verify:foundation` exit 0** against a
+freshly DROP/CREATEd `jarvis_gate_1263` (unit 3377/3377, uat-seed 23/23, integration 158 files /
+1713 passed / 0 failed). Stale-test fix landed as `336913be` — test-only, three lines, manifest
+untouched, why-comment cites the always_confirm rule.
+
+**PR #1268** open against `main`. Body carries the four required plain-language disclosures.
+
+**QA:** `qa-1263`, Opus 5, pane `w1:p12A` in agents tab `w1:t3J`, detached read-only worktree
+`.claude/worktrees/qa-1263` at `336913be`, `JARVIS_PGDATABASE=jarvis_qa_1263`. Dispatched via the
+**Herdr fallback path, not the Agent tool** — Ben's standing session rule is that the Agent tool is
+not called unless he asks for it; the coordinate skill sanctions this fallback. Briefed with seven
+adversarial targets (policy/gateway ordering, INSERT-only install grant, production wiring vs the
+#1257 test-only-prop trap, the confirm_always floor, calendar ask-by-default after a real grant,
+RLS/actor scoping on preference writes, external-ABI leakage into #1267's scope). Must
+`gh pr comment 1268` its verdict before reporting.
+
+Builder l (`w1:p128`, 62%) is **kept alive** pending the verdict in case fixes are needed; reap
+after merge.
+
+**Security tier — nothing auto-merges. Ben's explicit sign-off required after the verdict.**
