@@ -27,7 +27,7 @@ nothing.
 
 | Spec | Issue | Tier | Status | Agent label | Pane | Branch | PR |
 | ---- | ----- | ---- | ------ | ----------- | ---- | ------ | -- |
-| `docs/superpowers/specs/2026-07-26-module-self-operation-settings-commands.md` (chassis half) | #1263 | security | planning (builder #1 reaped, plan being rewritten) | `planner-1263` (builder TBD) | `w1:p11W` (tab `w1:t3J` = "agents") | `1263-self-operation-chassis` | — |
+| `docs/superpowers/specs/2026-07-26-module-self-operation-settings-commands.md` (chassis half) | #1263 | security | building (plan approved `e7d9a1e9`; builder #2 spawned) | `chassis-1263` (session `7467c98e-…`); planner `planner-1263` idle | `w1:p11X` builder / `w1:p11W` planner (tab `w1:t3J` = "agents") | `1263-self-operation-chassis` | — |
 | `docs/superpowers/specs/2026-07-26-module-self-operation-settings-commands.md` | #1264 | security | gated on #1263 merge | — | — | `1264-settings-self-operation` | — |
 | `docs/superpowers/specs/2026-07-26-module-self-operation-content-commands.md` | #1265 | security | gated on #1263 merge | — | — | `1265-module-content-self-operation` | — |
 | **no spec yet — DO NOT SPAWN** | #1266 | tbd | blocked on spec gate | — | — | — | — |
