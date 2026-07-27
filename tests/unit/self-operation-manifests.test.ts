@@ -322,6 +322,14 @@ describe("Sports/News denylist check (#1265)", () => {
       }
     }
   });
+
+  // ALSO-2: the check above only ever exercises the false branch (nothing in news/sports is
+  // excluded), so it can never fail if isSelfOperationExcluded were stubbed to always return
+  // false. Assert the true branch against a real SELF_OPERATION_EXCLUSIONS entry
+  // (self_authority.settings, prefix "settings.yolo.") so a regression there is caught.
+  it("matches a known-excluded moduleId/tool-name-prefix pair (self_authority.settings)", () => {
+    expect(isSelfOperationExcluded("settings", { name: "settings.yolo.enable" })).toBe(true);
+  });
 });
 
 describe("Complete built-in self-operation inventory (#1263)", () => {
