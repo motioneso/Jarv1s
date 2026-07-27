@@ -1088,3 +1088,32 @@ commented back to the registry substitution.
   reported.
 - **Follow-up owed (not blocking the merge):** those three plan docs should be corrected or marked
   stale before #1264/#1265 start, or the same trap is waiting for them.
+
+### Third builder relay — n → relay-1263-n (2026-07-27 ~02:3x)
+
+- **builder-1263-n reaped** (session `433657c4`, pane `w1:p12H` closed). Panes resolved fresh; the
+  driver was distinguished by activity (`w1:p12J` mid-work, `w1:p12H` idle with unsubmitted text),
+  not by trusting the reported numbers.
+- **relay-1263-n** is the live builder: session `19da2cb2`, pane `w1:p12J`, tab `w1:t3J`, same
+  worktree/branch, Sonnet 5, ~53%.
+- **Nothing is committed for Task B.** Head is still `1751bc7a`; work sits uncommitted in the
+  shared worktree (`packages/ai/src/gateway/self-operation.ts`,
+  `packages/tasks/src/manifest.ts`, `tests/unit/self-operation-chassis.test.ts`).
+
+**Coordinator-verified before reaping** (claims checked in the tree, not taken on report):
+
+- `tasks.deleteList` (~`packages/tasks/src/manifest.ts:781`) and `tasks.deleteTag` (~`:801`) are
+  **both** `user_promotable` under `task_cleanup`. Real.
+- **Gap I found that the builder had not:** `tests/unit/self-operation-manifests.test.ts` is
+  untouched and still encodes the pre-change inventory — `:325` asserts
+  `grantedAtInstall.length === 31`, plus a `granted_at_install` assert on a delete tool near `:103`.
+  Both are now false, so the gate would have failed. Expected after item 1: **29 / 4 / 38**
+  (`:335` total unchanged). Passed to the driver with the standing instruction to report real
+  numbers and flag a mismatch rather than edit until they match.
+
+**Chain-fidelity warning (worth carrying past this issue):** builder-n discovered its own handoff
+claimed item 1 complete when only `deleteList` had been changed — `deleteTag` was still
+`granted_at_install`. **A relay handoff in this chain has now asserted a completion that was
+false.** Instruction given to the driver: verify every "done" by reading the file, never by
+trusting the checkbox. Three relays on one task is the real cost driver here; if #1264/#1265
+show the same pattern, the task decomposition is too large for one context, not the agents' fault.
