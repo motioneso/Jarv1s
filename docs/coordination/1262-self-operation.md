@@ -3026,3 +3026,31 @@ Current fleet: Coordinator `w1:p11T` / `43e5f5e2`; #1264 `w1:p13Q` / `c2284222` 
 Remaining for #1265 per its own relay-14 doc: PR body draft→patch, fresh gate, pre-push trio,
 rebase, push, report. A background watcher is armed on `origin/1265-module-content-self-operation`
 so the delta re-QA is dispatched the moment the tip moves off `b09bcad6`.
+
+### RULING — #1265 introduces a new external-module DoS surface; accepted, tracked in #1275
+
+`packages/ai/src/gateway/input-validation.ts`'s new `compilePattern`/`patternCache` runs on the
+host API event loop, unconfined and untimed. The lane's source comment called this a
+"currently-accepted asymmetry". That framing understates it, and the decision is not the lane's to
+make, so I am recording it as mine.
+
+**Why it is not a pre-existing risk.** Before this PR `validateToolInput` parsed **no** `pattern`
+at all — the field was decorative in every manifest. This PR turns it into an executed one. So
+#1265 does not inherit this surface, it **creates** it: an installed external module's declared
+`pattern` now compiles and matches on the host event loop, while that same module's `execute` is
+Worker-sandboxed and wall-clock capped at 30s. A catastrophic-backtracking pattern therefore hangs
+the entire host API — strictly worse than a module burning its own sandboxed budget.
+
+**Ruling: accepted, not a blocker.** Installing an external module is already a high-trust act
+under the install-time consent model, and the exposure is **availability-only** — no
+confidentiality or integrity break, no RLS implication, no secret exposure. #1275 (OPEN, Part of
+#1262) is the right home for the confinement work and correctly scoped.
+
+**Condition:** the PR body must state plainly that (1) this PR makes previously-decorative pattern
+fields executable, (2) for external modules that is a NEW unconfined host-event-loop surface rather
+than a pre-existing one, and (3) it is accepted deliberately with #1275 tracking the fix. Ordered
+to the lane. A reviewer must not have to discover a new attack surface by reading the diff.
+
+**For the delta re-QA:** assess this explicitly rather than deferring to the source comment. It is
+the most security-relevant thing in the delta. Note also that #1275 supersedes the external-module
+inputSchema-linting follow-up I had queued to file — do not file a duplicate.
