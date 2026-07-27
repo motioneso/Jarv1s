@@ -1622,3 +1622,49 @@ T1 — the `guidance` read in `chat-tools.ts`, since the schema drop alone was n
 continues T2→T7. Both are `security` tier: adversarial Opus QA with a posted `gh pr comment` verdict
 before any merge, and whichever lands second rebases the exact counts in
 `tests/unit/self-operation-manifests.test.ts` without loosening the assertion.
+
+### 2026-07-27 — #1264 read-loop broken; both lanes building
+
+**#1264 (`settings-1264-d`, pane `w1:p12V`, session `43e08f2d`).** Fourth context in the lane. The
+first three produced **zero code** — all lost to grounding on a 1129-line plan. Diagnosed as
+mechanical, not agent underperformance: the plan carries inline implementation code, so each
+successor spent its whole context reading it and relayed with nothing built.
+
+Intervention (commit `53be8ad0`, in the handoff doc so it survives compaction):
+
+- **Whole-plan reads are banned.** Added a per-task line-range map (0a = 35–162, 0b = 163–187, …,
+  11 = 1114–1129). One task per read, build, commit, then read the next range. Never read ahead.
+- **Recorded the grounding already done** so no successor re-derives it: **migration number is
+  `0175`**, not the plan's assumed 0167/0168 (the plan is wrong; #1265 ships no migration so nothing
+  shifts it), and **tests extend the existing `tests/integration/*.test.ts` files** — the plan's
+  per-package test-file and per-package command instructions are wrong for this repo.
+- Told the lane that a fifth context ending with nothing committed means I stop it and park it for
+  Ben under `AWAITING-BEN.md` §2, which is the open question this churn is evidence for.
+
+**Result: the loop broke.** The lane is now mid-Task 0a with real code in the tree (revision column
+on `app.preferences`, `packages/db/src/types.ts` updated). Doc-only commits on the branch before
+this: `cc4dde76`, `05744bcc` (the plan), `91afad3c`, `6e269049`, `f19d5af4`, `4e8c1e8c` (Task 13
+folded in per my rate-limiting ruling). It is at 67% context, so it may still relay mid-task —
+acceptable now that the read discipline is written down and the next context starts from a map.
+
+**#1265 (pane `w1:p12S`, session `38c461d9`).** Healthy. Two claims verified in the tree rather than
+taken on report:
+
+- T1 reopen fixed properly at `f9347444` — `cleanTopic({ label, guidance: undefined })` with a
+  why-comment citing that the gateway validator strips nothing, plus an assertion on the existing
+  integration test that the persisted row's `guidance` IS NULL. The earlier `e71f4f78` was cosmetic:
+  it dropped `guidance` from the schema while the execute fn still read and persisted it.
+- The prettier failure was **its own**, not pre-existing — introduced by its commit `4a5794f5`. Fixed
+  at `e027c5db` (that file alone, explicit path); `prettier --check` now exits 0. The lane accepted
+  the standing rule that any doc gets `prettier --write` before commit, because `format:check` is an
+  early link of the CI gate and a warning there means the test suites never run at all.
+
+Now on T2 (`SportsFollowsWriter` + `followTeam`/`unfollowTeam`).
+
+**Reaped:** `w1:p12T` (session `98e3cd6b`). Exactly one live pane per lane, confirmed.
+
+**Continuation note:** both lanes building, neither at PR yet. Next coordinator action is Phase 3 on
+whichever opens first — both are `security` tier, so each needs adversarial Opus QA with a posted
+`gh pr comment` verdict before merge, and neither auto-merges. Whichever lands second rebases the
+exact counts in `tests/unit/self-operation-manifests.test.ts` **without** loosening the assertion to
+a range.
