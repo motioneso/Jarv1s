@@ -4199,3 +4199,9 @@ manufactured by deleting/inserting a policy row. Same tool, same instance, card-
 no-card-after is a clean A/B.
 
 Lane proceeding to Task 3 (`tasks/action-policy.ts`); no pause ordered.
+
+**Ben's ruling 2026-07-27 — `AGENTMEMORY_SECRET` is NOT rotated.** Surfaced to him as new
+information (his earlier "let it go" predated the discovery that a real credential was involved);
+he reviewed and chose to keep the existing secret. Closed — do not re-raise. The durable fix
+stands regardless: dev servers get an **allowlist** env scrub (`env -i` plus explicit vars), never
+a denylist.
