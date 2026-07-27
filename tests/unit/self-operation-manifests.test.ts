@@ -5,6 +5,7 @@ import { goalsModuleManifest } from "../../packages/goals/src/manifest.js";
 import { notesModuleManifest } from "../../packages/notes/src/manifest.js";
 import { peopleModuleManifest } from "../../packages/people/src/manifest.js";
 import { memoryModuleManifest } from "../../packages/memory/src/manifest.js";
+import { newsModuleManifest } from "../../packages/news/src/manifest.js";
 
 const GRANTED_AT_INSTALL_TASK_TOOLS = [
   "tasks.create",
@@ -145,5 +146,29 @@ describe("Memory self-operation manifest classification", () => {
     expect(forget, "expected tool memory.forget to exist").toBeDefined();
     expect(forget?.risk).toBe("destructive");
     expect(forget?.selfOperationGrant).toBe("confirm_always");
+  });
+});
+
+const GRANTED_AT_INSTALL_NEWS_TOOLS = [
+  "news.confirmSource",
+  "news.removeSource",
+  "news.addTopic",
+  "news.removeTopic",
+  "news.addExclusion"
+];
+
+describe("News self-operation manifest classification", () => {
+  it("classifies all 5 News personalization writes as granted_at_install", () => {
+    const tools = newsModuleManifest.assistantTools ?? [];
+    for (const name of GRANTED_AT_INSTALL_NEWS_TOOLS) {
+      const tool = tools.find((candidate) => candidate.name === name);
+      expect(tool, `expected tool ${name} to exist`).toBeDefined();
+      expect(tool?.risk).toBe("write");
+      expect(tool?.actionFamilyId).toBe("news_personalization");
+      expect(tool?.executionPolicy).toBe("auto");
+      expect(tool?.selfOperationGrant, `expected ${name} to be granted_at_install`).toBe(
+        "granted_at_install"
+      );
+    }
   });
 });

@@ -4,8 +4,9 @@
 // SAME machinery assistant chat uses (AssistantToolGateway), not the REST route —
 // the REST invoke path can only 403 a write tool. Proven here end-to-end:
 // preview runs unconfirmed (read risk) and returns verified candidates; confirm
-// is always gated (no actionFamilyId → never promoted), nothing executes until
-// the owner resolves the pending action; a tampered resubmitted domain is a
+// is gated by default (news_personalization family defaults to ask_each_time —
+// see Task 10 classification in packages/news/src/manifest.ts), nothing executes
+// until the owner resolves the pending action; a tampered resubmitted domain is a
 // security violation (execute throws, sanitized error, no row); a cross-owner
 // confirmationId replay dies as "expired" (preview store is owner-checked); and
 // no tool output ever leaks provider/model fingerprint material.
@@ -302,8 +303,9 @@ describe("news chat tools — previewSource/confirmSource via assistant gateway 
     expect(await sourceRowCount()).toBe(before);
   }, 30_000);
 
-  // #975 Task 8 — the four remaining write tools. All confirm-gated (write risk,
-  // no actionFamilyId), all mirroring their REST route's write path exactly.
+  // #975 Task 8 — the four remaining write tools. All confirm-gated by default (write
+  // risk, news_personalization family defaults to ask_each_time), all mirroring their
+  // REST route's write path exactly.
   describe("topic/exclusion/removal write tools (#975 Task 8)", () => {
     const repository = new NewsPersonalizationRepository();
 
