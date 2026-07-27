@@ -1995,3 +1995,25 @@ an anecdote. It is Ben's call whether to keep spending it or re-cut the plan int
 **Open question outstanding to #1265:** whether its first gate attempt ran against Ben's shared
 `jarv1s` dev DB and wrote anything there (it reported hitting the #1087 stale-uat-seed trap "from a
 prior run" before creating the isolated DB). Answer goes to `AWAITING-BEN.md` §7 if it wrote.
+
+### 2026-07-27 — #1264 relay #5; #1265 told to relay before compaction takes it
+
+- **#1264** → Tasks 3, 4 and 5 done and committed: `bd8acd24` locale tools (IANA timezone
+  validation), `1ab1f649` `settings.quietHours.set`, `11d16069` `settings.weatherLocation.set`.
+  Lane reports typecheck / lint / format / integration green at the checkpoint. Relayed to
+  **`settings-1264-relay3`**, pane `w1:p133`, session `af45a6e1-…`, **Sonnet 5 confirmed**, resuming
+  at **Task 6 of 13** (plan lines 764–854). Predecessor `19398efe` asked to be reaped by session id,
+  re-resolved fresh, verified and closed. Remaining: 6, 7, 8, 9, 10, 11, 13. Task 10 rebases the
+  inventory onto **31 / 5 / 4 = 40**. Digest stays out of scope (`AWAITING-BEN.md` §3b).
+  Note on the burn rate: this successor **booted at 43%** before writing a line — the relay tax is
+  visible in the meter, not just in the task count.
+- **#1265** → still waiting on the detached `test:integration` run, **44 minutes in, at 69% with 5%
+  until auto-compact**. Told it to relay *now* rather than let compaction take it mid-wait: a
+  successor can read a `.rc` file off disk as well as it can. The relay handoff must carry the
+  absolute `.rc` and log paths, the exact command and isolated DB name, that the successor's first
+  action is to read the **captured** exit code from the `.rc` file (never off the log, never through
+  `tail`/`head`), and that a non-zero code means **do not start wrap-up** — report failing file names
+  only. Message confirmed queued in the pane.
+
+**Neither lane has opened a PR. Nothing is merge-eligible.** The pre-written adversarial Opus QA
+brief for #1265 is staged and unspawned; it spawns on the PR, not before.
