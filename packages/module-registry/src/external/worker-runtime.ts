@@ -174,11 +174,17 @@ export class ExternalModuleWorkerRuntime {
       inFlightRpcs: 0,
       armStall: () => {
         clearTimeout(invocation.stallTimer);
-        invocation.stallTimer = setTimeout(() => kill(new ExternalModuleWorkerError("timeout")), stallMs);
+        invocation.stallTimer = setTimeout(
+          () => kill(new ExternalModuleWorkerError("timeout")),
+          stallMs
+        );
       }
     };
     invocation.armStall();
-    const hardTimer = setTimeout(() => kill(new ExternalModuleWorkerError("timeout")), hardTimeoutMs);
+    const hardTimer = setTimeout(
+      () => kill(new ExternalModuleWorkerError("timeout")),
+      hardTimeoutMs
+    );
     try {
       await state.ready;
       state.current = invocation;
@@ -244,9 +250,7 @@ export class ExternalModuleWorkerRuntime {
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => this.onStdout(module.id, key, state, chunk));
     child.stderr.on("data", (chunk: string) => this.capture(state, "stderr", chunk));
-    child.once("error", () =>
-      this.failProcess(key, state, new ExternalModuleWorkerError("crash"))
-    );
+    child.once("error", () => this.failProcess(key, state, new ExternalModuleWorkerError("crash")));
     child.once("exit", () => this.failProcess(key, state, new ExternalModuleWorkerError("crash")));
     void lane; // reserved for lane-scoped diagnostics; not otherwise needed here
     return state;
@@ -349,7 +353,10 @@ export class ExternalModuleWorkerRuntime {
       for (const secret of [...invocation.secrets].sort((a, b) => b.length - a.length)) {
         if (secret) output = output.split(secret).join("[REDACTED]");
       }
-      this.options.logger?.warn({ moduleId, lane, stream, output }, "external module worker output");
+      this.options.logger?.warn(
+        { moduleId, lane, stream, output },
+        "external module worker output"
+      );
     }
   }
 

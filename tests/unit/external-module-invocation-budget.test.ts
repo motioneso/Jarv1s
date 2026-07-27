@@ -13,7 +13,13 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DummyDriver, Kysely, PostgresAdapter, PostgresIntrospector, PostgresQueryCompiler } from "kysely";
+import {
+  DummyDriver,
+  Kysely,
+  PostgresAdapter,
+  PostgresIntrospector,
+  PostgresQueryCompiler
+} from "kysely";
 import type { Job } from "pg-boss";
 
 import type { DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
@@ -259,7 +265,9 @@ describe("ExternalModuleWorkerRuntime lane isolation (#1286 Task 2e)", () => {
     // did, this race would time out instead of resolving.
     const toolResult = await Promise.race([
       runtime.invoke(module, "echo-fast", {}, async () => null, { lane: "tool" }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("tool call was blocked")), 1_000))
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("tool call was blocked")), 1_000)
+      )
     ]);
     expect(toolResult).toMatchObject({ pid: expect.any(Number) });
     latch.resolve("done");
@@ -343,7 +351,9 @@ defineModuleWorker({
       }
     });
     const next = (): Promise<Record<string, unknown>> =>
-      lines.length > 0 ? Promise.resolve(lines.shift()!) : new Promise((resolve) => waiters.push(resolve));
+      lines.length > 0
+        ? Promise.resolve(lines.shift()!)
+        : new Promise((resolve) => waiters.push(resolve));
     try {
       await next(); // worker.ready
       const before = Date.now();
@@ -391,7 +401,9 @@ describe("worker queue timeoutMs validation (validate.ts, #1286 Task 2e)", () =>
       );
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.errors.join(" ")).toContain("worker queue timeoutMs must be a positive integer");
+        expect(result.errors.join(" ")).toContain(
+          "worker queue timeoutMs must be a positive integer"
+        );
       }
     }
   });
@@ -407,7 +419,9 @@ describe("worker queue timeoutMs validation (validate.ts, #1286 Task 2e)", () =>
     );
     expect(result.ok).toBe(true);
     if (result.ok) {
-      const queues = result.manifest.worker?.queues as readonly { timeoutMs?: number }[] | undefined;
+      const queues = result.manifest.worker?.queues as
+        | readonly { timeoutMs?: number }[]
+        | undefined;
       expect(queues?.[0]?.timeoutMs).toBe(MAX_INVOCATION_MS);
     }
   });
@@ -428,7 +442,10 @@ function fakeWorkerDb(
   return builder as unknown as Kysely<JarvisDatabase>;
 }
 
-function verifiedInvokerDeps(invoke: (...args: unknown[]) => Promise<unknown>, module: ExternalModuleDiscovery) {
+function verifiedInvokerDeps(
+  invoke: (...args: unknown[]) => Promise<unknown>,
+  module: ExternalModuleDiscovery
+) {
   return {
     workerDb: fakeWorkerDb({
       status: "enabled",
@@ -440,7 +457,8 @@ function verifiedInvokerDeps(invoke: (...args: unknown[]) => Promise<unknown>, m
     // exercises the withDataContext contract, so a structural stand-in is cast rather
     // than constructed for real.
     dataContext: {
-      withDataContext: async (_access: unknown, fn: (db: DataContextDb) => unknown) => fn({} as DataContextDb)
+      withDataContext: async (_access: unknown, fn: (db: DataContextDb) => unknown) =>
+        fn({} as DataContextDb)
     } as unknown as DataContextRunner,
     cipher: {} as unknown as ModuleCredentialCipher,
     runtime: { invoke },
@@ -589,7 +607,8 @@ describe("createExternalModuleRpcHandler cancellation forwarding (#1286 Task 2e)
       actorUserId: OWNER_A,
       requestId: "req-1",
       workerDataContext: {
-        withDataContext: async (_access: unknown, fn: (db: DataContextDb) => unknown) => fn(fakeScopedDb())
+        withDataContext: async (_access: unknown, fn: (db: DataContextDb) => unknown) =>
+          fn(fakeScopedDb())
       } as unknown as DataContextRunner,
       cipher: {} as unknown as ModuleCredentialCipher,
       isActorAdmin: () => Promise.resolve(false),
@@ -599,7 +618,12 @@ describe("createExternalModuleRpcHandler cancellation forwarding (#1286 Task 2e)
       // ...(hostSignal ? { signal: hostSignal } : {}) spread, not in host pinning.
       createFetch: () => fetch as typeof fetch
     });
-    const call = rpc("fetch.request", { url: `http://127.0.0.1:${port}/` }, () => undefined, controller.signal);
+    const call = rpc(
+      "fetch.request",
+      { url: `http://127.0.0.1:${port}/` },
+      () => undefined,
+      controller.signal
+    );
     await new Promise((resolve) => setTimeout(resolve, 50));
     controller.abort();
     await expect(call).rejects.toThrow();
@@ -617,7 +641,8 @@ describe("createExternalModuleRpcHandler cancellation forwarding (#1286 Task 2e)
       actorUserId: OWNER_A,
       requestId: "req-1",
       workerDataContext: {
-        withDataContext: async (_access: unknown, fn: (db: DataContextDb) => unknown) => fn(fakeScopedDb())
+        withDataContext: async (_access: unknown, fn: (db: DataContextDb) => unknown) =>
+          fn(fakeScopedDb())
       } as unknown as DataContextRunner,
       cipher: {} as unknown as ModuleCredentialCipher,
       isActorAdmin: () => Promise.resolve(false),
@@ -628,13 +653,22 @@ describe("createExternalModuleRpcHandler cancellation forwarding (#1286 Task 2e)
       ai: (_scopedDb, request) => {
         sawSignal = request.signal;
         return new Promise((resolve) => {
-          request.signal?.addEventListener("abort", () => resolve({ ok: false, error: "aborted" }), {
-            once: true
-          });
+          request.signal?.addEventListener(
+            "abort",
+            () => resolve({ ok: false, error: "aborted" }),
+            {
+              once: true
+            }
+          );
         });
       }
     });
-    const call = rpc("ai.generateStructured", { schema: {}, prompt: "x" }, () => undefined, controller.signal);
+    const call = rpc(
+      "ai.generateStructured",
+      { schema: {}, prompt: "x" },
+      () => undefined,
+      controller.signal
+    );
     await new Promise((resolve) => setTimeout(resolve, 20));
     controller.abort();
     await expect(call).resolves.toEqual({ ok: false, error: "aborted" });
