@@ -829,3 +829,19 @@ Builder l (`w1:p128`, 62%) is **kept alive** pending the verdict in case fixes a
 after merge.
 
 **Security tier — nothing auto-merges. Ben's explicit sign-off required after the verdict.**
+
+### Fable security review added — Ben's call, 2026-07-27
+
+Ben: "have fable security review it first." `sec-1263-fable`, **Fable 5**, pane `w1:p12B`, detached
+worktree `.claude/worktrees/sec-1263` at `336913be`, `JARVIS_PGDATABASE=jarvis_sec_1263`. **Its
+verdict leads.** The Opus `qa-1263` pass was already in flight and was left running as an
+independent second lens rather than discarded — two lenses on a security-tier PR is what the
+tiering wants anyway. Both must `gh pr comment 1268` before I act on either.
+
+Fable briefed to assume the declarations are lies until the code proves otherwise, across eight
+targets: gateway/policy ordering incl. the YOLO path at `gateway.ts:161`; INSERT-only install
+grant; wired-vs-test-only (the #1257 trap); whether any crafted preference row / family definition
+/ install grant can lift the four-tool `confirm_always` floor; calendar ask-by-default after a real
+grant; DataContextDb-only actor scoping with no admin bypass; external-ABI scope leak (#1267); and
+an open "what did I not think to ask / what is asserted but unproven" slot. Findings require a
+concrete failure scenario, and it was told explicitly not to manufacture findings to look thorough.
