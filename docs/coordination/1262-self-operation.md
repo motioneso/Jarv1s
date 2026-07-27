@@ -2451,3 +2451,21 @@ cross-actor-RLS span escalation.
 undo apply path. `w1:p13C` (#1265, `7048c36b`) relayed again at `df6b6298` and is spawning its
 successor — messages queued to it may die with the pane, so the validator ruling above is re-sent to
 whichever pane comes up. `w1:p137` (qa-1265, `5d55cb29`) held idle for the delta re-review.
+
+### #1265 ALSO-2 (SSRF) — discharged, verified in the tree
+
+`addc0492` adds a same-host redirect case (scheme downgrade, explicit port, embedded credentials) that
+`samePublisherIdentity` cannot catch because the hostname string is unchanged — only
+`normalizePublisherDomain`'s own checks do, so a mutant deleting them was green against the prior
+suite. Good test, but **not** the case I required.
+
+Checked the file rather than the commit message: the load-bearing case **already exists** at
+`tests/unit/news-source-resolution.test.ts:300` — "refuses a public domain whose redirect chain lands
+on a private/internal address", redirecting to `http://169.254.169.254/latest/meta-data/`, with a
+comment stating that `acceptedFinalDomain` must normalize the **post-redirect** `finalUrl` rather than
+the raw input for the test to mean anything. That is exactly the property QA called unproven, and it
+is proven. `addc0492` is a second, narrower belt on top. Requirement met; no action to the lane.
+
+Open on #1265: BLOCKING-2 (UAT spec + a real `module-install.uat.spec.ts` run), the vacuous denylist
+assertion, the unrestored `configureSportsChatTools` singleton, the RLS-span escalation, and the three
+PR-body callouts (validator blast radius, anchoring, external-module reach).
