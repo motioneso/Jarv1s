@@ -4100,3 +4100,35 @@ denylist. A denylist fails silently and you only find the miss by auditing.
 - **Still open on #1311:** the A/B validity question — if the "before" state was manufactured by
   deleting/inserting a policy row, it proves only that the policy system responds to rows. Only a
   genuine pre-fix bundle makes it a clean A/B.
+
+## 2026-07-27 — #1310 is a REAL regression; and the "anomaly" is #1311 live
+
+**Correction to the entry above.** I recorded that `themeMode.set` is `user_promotable` and that
+the confirmation card was therefore expected behaviour. **That is wrong.** I verified
+`packages/settings/src/manifest.ts:461-472` on `1264-settings-self-operation`: the tool declares
+`selfOperationGrant: "granted_at_install"` with `executionPolicy: "auto"`. A card must not appear
+for it. The card the UAT hit is **issue #1311 reproducing live** — the install-time grant row is
+written only by a module *enable* handler, and `settings` is a `required` module that is never
+explicitly enabled, so no grant row is ever written. Relayed to lane #1311 as its first end-to-end
+reproduction; that lane's exit requirement 3 now has a known-failing baseline to invert. This also
+partly answers the outstanding A/B validity question: a genuine pre-fix reproduction like this is
+clean in a way a manufactured before-state (delete/insert a policy row) is not.
+
+**#1310 item 9 is RED — and correctly so.** With the corrected script (send → wait for card →
+click Approve → assert DOM), the **DB write now lands** (dark/rev1 → light/rev2, psql-confirmed)
+but `data-color-mode` on `<html>` **does not flip within 30s of the confirmed write.** That is a
+genuine reproduced regression, not a timeout artifact. `resolveQueryKeyToken` is independently
+ruled out by the lane: it resolves `settings.themes` → `["settings","themes"]` correctly, and the
+manifest correctly declares `affectsQueryKeys: ["settings.themes"]`. Emitter and resolver are both
+correct by inspection, so the break is downstream — either the `action_result` SSE payload does
+not carry `affectsQueryKeys` over the wire, or whatever renders `data-color-mode` does not
+re-render on that query key.
+
+**Coordinator steer — cheapest first probe.** The lane's leading hypothesis matches this repo's
+known recurring `fast-json-stringify` trap (a response schema silently drops fields it does not
+declare) almost verbatim. Before writing SSE instrumentation, read the `action_result` response/SSE
+schema and check whether `affectsQueryKeys` is declared. Correct emitter + correct resolver +
+field missing at the client is exactly that signature, and the fix is one schema line.
+
+**PR #1276 does not merge until item 9 is genuinely green.** No time pressure on the lane;
+correctness only. Item 10 stays untouched behind it.
