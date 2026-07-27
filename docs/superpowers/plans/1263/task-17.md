@@ -1,6 +1,6 @@
 **Dependency:** Task 16 must already be committed.
 
-**Coordinator ruling:** The four planned `confirm_always` tools are `memory.forget`, `people.merge`, `people.splitIdentity`, and `notes.delete`, all retaining destructive risk, with `notes.delete` pending Ben. #1263 inventory is built-in-only; external completeness is #1267, and external family-less writes remain safe because `packages/ai/src/gateway/policy.ts:40` always confirms.
+**Coordinator ruling:** The four planned `confirm_always` tools are `memory.forget`, `people.merge`, `people.splitIdentity`, and `email.sendReply`, all retaining destructive risk (Ben ruled 2026-07-26: `notes.delete` is granted_at_install, email requires approval). #1263 inventory is built-in-only; external completeness is #1267, and external family-less writes remain safe because `packages/ai/src/gateway/policy.ts:40` always confirms.
 
 ## Task 17 — Runtime walk-away regression and final gate
 
@@ -13,7 +13,7 @@
 
 - `"first use after install grant runs without an action card"`
 - `"stored always_confirm override still produces an action card"`
-- `"the four planned built-in confirm_always tools remain the only confirmation declarations"`
+- `"the four built-in confirm_always tools remain the only confirmation declarations"`
 
 The first test must persist the grant through the real repository/helper and let the gateway read the
 stored tier; a stubbed `getFamilyTier:"trusted_auto"` is insufficient. Assert no `action_request`

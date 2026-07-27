@@ -1,6 +1,6 @@
 **Dependency:** Task 15 must already be committed.
 
-**Coordinator ruling:** The four planned `confirm_always` tools are `memory.forget`, `people.merge`, `people.splitIdentity`, and `notes.delete`, all retaining destructive risk, with `notes.delete` pending Ben. #1263 assertions cover built-ins only; external completeness is #1267, and external family-less writes remain safe because `packages/ai/src/gateway/policy.ts:40` always confirms.
+**Coordinator ruling:** The four planned `confirm_always` tools are `memory.forget`, `people.merge`, `people.splitIdentity`, and `email.sendReply`, all retaining destructive risk (Ben ruled 2026-07-26: `notes.delete` is granted_at_install, email requires approval). #1263 assertions cover built-ins only; external completeness is #1267, and external family-less writes remain safe because `packages/ai/src/gateway/policy.ts:40` always confirms.
 
 ## Task 16 — Wire the built-in assertion at startup and lock the inventory
 
@@ -20,7 +20,7 @@
 3. Add the complete built-in inventory test:
    - 38 write/destructive tools;
    - 34 `granted_at_install`;
-   - four planned `confirm_always`, with `notes.delete` pending Ben;
+   - four `confirm_always`: memory.forget, people.merge, people.splitIdentity, email.sendReply;
    - zero unclassified and zero excluded built-in tools;
    - exact planned confirm set `memory.forget`, `people.merge`, `people.splitIdentity`,
      `notes.delete`.
