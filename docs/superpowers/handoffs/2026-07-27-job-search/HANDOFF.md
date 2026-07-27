@@ -310,8 +310,29 @@ Step 8's report to Ben was delivered. **Building has started at Phase 0, Task 1 
 - `ExternalModuleRpcError`'s code union is at `worker-rpc-host.ts:26-47` and calls `super(code)`, so
   the message is the bare code — tests must assert on the new `detail`, never on `message`.
 
-Resume by implementing Task 1 against its plan section (`plans/2026-07-26-job-search-module.md`,
-"### Task 1"), then Verify, then commit and move to #1282.
+## Task 1 shipped — resume at Task 2 (#1282)
+
+Task 1 landed as `f1cf9986`; issue #1281 is closed. Decisions worth not re-deriving:
+
+- `MODULE_WORKER_CONTRACT_VERSION` stays **1**. The handshake is exact-match, but bumping bricks
+  every already-built worker bundle for a purely additive port. Reasoning is in the commit body.
+- `embeddingProvider` on the rpc handler input is a **lazy resolver**
+  (`() => Promise<EmbeddingProvider>`), required, not an instance: the embed branches run outside
+  `withDataContext`, most invocations never embed, and resolving reads runtime config. Both sites
+  wrap `createRuntimeEmbeddingProvider`, now re-exported from `@jarv1s/module-registry`.
+- Making the field required broke 11 existing rpc-handler call sites in
+  `tests/integration/module-worker-rpc.test.ts` and `tests/unit/external-module-attachment-port.test.ts`;
+  both now pass a `StubEmbeddingProvider`. That breakage is the point — a missed production site is
+  a typecheck failure.
+- `EMBED_BATCH_MAX` lives in `packages/module-sdk/src/index.ts`; the SDK also throws locally on an
+  over-cap batch so module authors get a readable message instead of a generic rpc failure.
+
+**Board debt:** GitHub GraphQL is rate-limited (resets ~11:33 local 2026-07-27), so #1281 was closed
+over REST and its project-board Status is still "Backlog". Set #1281 → Done, and #1282 → In progress,
+when the quota is back.
+
+Resume by implementing Task 2 (#1282, briefing invoker on `ComposeDeps`) against its plan section,
+then Verify, then commit.
 
 ## Start
 
