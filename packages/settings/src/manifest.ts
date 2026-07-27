@@ -14,6 +14,11 @@ import {
   localeSetTimezoneInputSchema
 } from "./locale-tools.js";
 import {
+  quietHoursOutputSchema,
+  quietHoursSetExecute,
+  quietHoursSetInputSchema
+} from "./quiet-hours-tool.js";
+import {
   themeModeSetExecute,
   themeModeSetInputSchema,
   themeModeSetOutputSchema
@@ -472,6 +477,18 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       inputSchema: localeSetRegionAndDateFormatInputSchema,
       outputSchema: localeOutputSchema,
       execute: localeSetRegionAndDateFormatExecute
+    },
+    {
+      name: "settings.quietHours.set",
+      description: "Set the user's quiet hours (enabled, start/end time, and time zone).",
+      permissionId: "settings.write",
+      risk: "write",
+      selfOperationGrant: "granted_at_install",
+      actionFamilyId: "settings.preference-write",
+      executionPolicy: "auto",
+      inputSchema: quietHoursSetInputSchema,
+      outputSchema: quietHoursOutputSchema,
+      execute: quietHoursSetExecute
     }
   ]
 };
