@@ -351,6 +351,80 @@ describe("AssistantToolGateway self-operation", () => {
       expect(finalResult.ok).toBe(false);
     });
 
+    it("the confirmation path is never rate-limited, because condition 2's degrade target must remain reachable", async () => {
+      const grantManifest: SelfOperationManifestInput = {
+        id: exampleToolModule.id,
+        assistantTools: exampleToolModule.assistantTools?.map((tool) =>
+          tool.name === "example.autoWrite"
+            ? { ...tool, selfOperationGrant: "granted_at_install" as const }
+            : tool
+        )
+      };
+      await runner.withDataContext(
+        { actorUserId: ids.userA, requestId: "req-rl-confirm-grant" },
+        (scopedDb) => grantSelfOperationForModule(scopedDb, repository, grantManifest)
+      );
+
+      const gateway = new AssistantToolGateway({
+        resolveActiveModules: async () => [exampleToolModule],
+        repository,
+        runner,
+        tokens,
+        confirmations,
+        notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+        confirmTimeoutMs: 30_000,
+        actionPolicy: (ctx) => dbBackedActionPolicy(ctx)
+      });
+      const token = tokens.mint({
+        actorUserId: ids.userA,
+        chatSessionId: "s-rl-confirm-still-runs",
+        allowedToolNames: null
+      });
+
+      // Trip the bucket for this (actor, tool) exactly like the degrade test above.
+      const { maxCalls } = GATEWAY_AUTO_RUN_RATE_LIMIT_DEFAULTS;
+      for (let i = 0; i < maxCalls; i++) {
+        const res = await gateway.callTool(token, "example.autoWrite", { value: `ok-${i}` });
+        expect(res.ok).toBe(true);
+      }
+      const callsBeforeDegrade = exampleToolCalls.length;
+
+      // Trip it further, well past the ceiling, to be sure the bucket stays tripped.
+      const pending: Array<Promise<unknown>> = [];
+      for (let i = 0; i < 3; i++) {
+        pending.push(gateway.callTool(token, "example.autoWrite", { value: `throttled-${i}` }));
+      }
+      const requests = await vi.waitFor(() => {
+        const cards = emitted.filter((entry) => entry.record.kind === "action_request");
+        expect(cards.length).toBeGreaterThanOrEqual(3);
+        return cards;
+      });
+      // None of the throttled calls executed — only the confirmation cards were emitted.
+      expect(exampleToolCalls).toHaveLength(callsBeforeDegrade);
+
+      // Confirming ANY one of the degraded calls must still execute the tool: the confirm
+      // path itself is never consulted against the rate limit, no matter how tripped the
+      // bucket is. If it were, condition 2's degrade-to-card behavior would be a dead end —
+      // the user gets a card, clicks confirm, and nothing happens (the exact silent-comply
+      // failure condition 2 exists to prevent, one step further along).
+      const request = requests[0];
+      if (!request || request.record.kind !== "action_request") {
+        throw new Error("expected an action_request card");
+      }
+      await gateway.resolveActionRequest(ids.userA, request.record.actionRequestId, "confirmed");
+      await vi.waitFor(() => {
+        expect(exampleToolCalls).toHaveLength(callsBeforeDegrade + 1);
+      });
+
+      // Clean up the remaining pending cards so the test doesn't leak open waiters.
+      for (const entry of requests.slice(1)) {
+        if (entry.record.kind === "action_request") {
+          await gateway.resolveActionRequest(ids.userA, entry.record.actionRequestId, "cancelled");
+        }
+      }
+      await Promise.all(pending);
+    });
+
     it("yolo branch: the (max+1)th call in-window hard-denies with a distinct rate_limited audit row, isolated per actor and per tool (condition 2, plan step 1b)", async () => {
       const gateway = new AssistantToolGateway({
         resolveActiveModules: async () => [exampleToolModule],
