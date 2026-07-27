@@ -1,0 +1,48 @@
+import type { DataContextDb } from "@jarv1s/db";
+import { HttpError, type JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { NotificationPreferenceDto } from "@jarv1s/shared";
+
+import type { ProfilePreferencesPort } from "./preferences-port.js";
+import type { SettingsRepository } from "./repository.js";
+import { computeMyModuleDto } from "./routes-serializers.js";
+import type { NotificationUnreadPort } from "./notification-preferences-routes.js";
+
+const KEY = (moduleId: string) => `notifications:${moduleId}`;
+
+export interface NotificationPreferenceApplicationDeps {
+  readonly listModuleManifests: () => readonly JarvisModuleManifest[];
+  readonly preferencesRepository: ProfilePreferencesPort;
+  readonly repository: SettingsRepository;
+  readonly notificationUnreadPort?: NotificationUnreadPort;
+}
+
+export async function setNotificationPreferenceEnabled(
+  scopedDb: DataContextDb,
+  deps: NotificationPreferenceApplicationDeps,
+  actorUserId: string,
+  moduleId: string,
+  enabled: boolean,
+  clearUnread: boolean
+): Promise<{ preference: NotificationPreferenceDto; unreadCount: number | null }> {
+  const manifest = deps.listModuleManifests().find((m) => m.id === moduleId);
+  if (!manifest) throw new HttpError(404, "Module not found");
+  if (manifest.notifications?.supported !== true) {
+    throw new HttpError(422, "Module does not support notifications");
+  }
+  // Reuse computeMyModuleDto (not a hand-rolled deny-row check) so required/supportsUserDisable
+  // modules keep exactly the same active semantics as every other settings surface.
+  const module = await computeMyModuleDto(deps.repository, scopedDb, manifest, actorUserId);
+  if (!module.active) throw new HttpError(422, "Module is not active for this user");
+
+  const preference: NotificationPreferenceDto = {
+    moduleId: manifest.id,
+    moduleName: manifest.name,
+    enabled
+  };
+  await deps.preferencesRepository.upsert(scopedDb, KEY(manifest.id), { enabled });
+  const unreadCount =
+    !enabled && clearUnread && deps.notificationUnreadPort
+      ? await deps.notificationUnreadPort.markModuleRead(scopedDb, manifest.id)
+      : null;
+  return { preference, unreadCount };
+}
