@@ -15,6 +15,12 @@ import { calendarModuleManifest } from "@jarv1s/calendar";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 import { SETTINGS_MODULE_ID, settingsModuleManifest } from "@jarv1s/settings";
+import {
+  configureSportsChatTools,
+  sportsModuleManifest,
+  type SportsFollowsWriter
+} from "@jarv1s/sports";
+import type { CreateSportsFollowRequest, SportsFollowDto } from "@jarv1s/shared";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import { exampleToolCalls, exampleToolModule } from "./fixtures/example-tool-module.js";
@@ -276,6 +282,87 @@ describe("AssistantToolGateway self-operation", () => {
 
     await calendarGateway.resolveActionRequest(ids.userA, request.actionRequestId, "cancelled");
     await call;
+  });
+
+  it("install grants for the sports module let sports.followTeam run without an action card", async () => {
+    const grantManifest: SelfOperationManifestInput = {
+      id: sportsModuleManifest.id,
+      assistantTools: sportsModuleManifest.assistantTools,
+      assistantActionFamilies: sportsModuleManifest.assistantActionFamilies
+    };
+
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-sports-install-grant" },
+      (scopedDb) => grantSelfOperationForModule(scopedDb, repository, grantManifest)
+    );
+
+    const rows: SportsFollowDto[] = [];
+    const fakeWriter: SportsFollowsWriter = {
+      async list() {
+        return rows;
+      },
+      async create(_db, input: CreateSportsFollowRequest) {
+        const teamKey = input.teamKey ?? null;
+        const created: SportsFollowDto = {
+          id: "f-1",
+          competitionKey: input.competitionKey,
+          teamKey,
+          createdAt: "2026-07-27T00:00:00.000Z"
+        };
+        rows.push(created);
+        return created;
+      },
+      async remove(_db, id) {
+        const index = rows.findIndex((r) => r.id === id);
+        if (index === -1) return false;
+        rows.splice(index, 1);
+        return true;
+      }
+    };
+    // `datasetClient` is unused by followTeam/unfollowTeam (only catalogEntry() + repository), so
+    // an unused stub is fine here — see relay-5 handoff SETTLED notes.
+    configureSportsChatTools({} as never, fakeWriter);
+
+    function dbBackedSportsActionPolicy(ctx: { actorUserId: string; requestId: string }) {
+      return {
+        getFamilyTier: async (moduleId: string, familyId: string) =>
+          runner.withDataContext(
+            { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+            async (scopedDb) => {
+              const policies = await repository.listActionPolicies(scopedDb);
+              return (
+                policies.find((p) => p.moduleId === moduleId && p.actionFamilyId === familyId)
+                  ?.tier ?? null
+              );
+            }
+          ),
+        getFamilyManifest: async (_moduleId: string, familyId: string) =>
+          sportsModuleManifest.assistantActionFamilies?.find((f) => f.id === familyId) ?? null
+      };
+    }
+
+    const sportsGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [sportsModuleManifest],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 30_000,
+      actionPolicy: (ctx) => dbBackedSportsActionPolicy(ctx)
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-sports-install-grant",
+      allowedToolNames: null
+    });
+
+    const res = await sportsGateway.callTool(token, "sports.followTeam", {
+      competitionKey: "nfl"
+    });
+
+    expect(res.ok).toBe(true);
+    expect(emitted.map((entry) => entry.record.kind)).toEqual(["action_result"]);
   });
 
   it("installing calendar does not arm the background follow-through writer", async () => {
