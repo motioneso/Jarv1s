@@ -1271,3 +1271,39 @@ you `herdr pane split <pane> --direction right --cwd <path> --no-focus` first, t
 into the returned pane. Names must be lowercase.
 
 **Still blocking merge:** QA3 verdict + CI green on `7a00b6df`.
+
+### QA3 GREEN, then Task E — `7dc37352` (test-only hardening)
+
+QA3 returned **GREEN, zero blocking, four non-blocking**. Its most valuable output was a *negative*
+result: it audited the action-policy preference **by key** rather than by caller — the exact
+blindness that hid the original bug — and found four readers total, three tasks-aware and all three
+verified wired in production (`module-registry:1152/1249/1299`), with `tasks.agency_auto_execute`
+the only legacy dual-representation key in the repo. **The bug class does not recur elsewhere.** It
+also confirmed by reading the tree (not prose) that both reclassifications faked in a handoff doc
+last time are genuinely present.
+
+I took all four NB findings **before** merging. QA did not block; I did this because three are the
+bug class this PR exists to prevent, and #1264/#1265 inherit whatever pattern lands tonight.
+Reasoning posted on the PR so it survives this session.
+
+`7dc37352` — two files, both tests, boundary held (I checked the stat myself rather than trusting
+the report). Local: eslint 0, full-monorepo typecheck 0, unit 21/21, integration 27/27 on an
+isolated DB.
+
+**Two things worth carrying forward:**
+
+1. **NB-4 came out better than I ordered, and it contradicts an earlier justification.** `af2ec6d4`'s
+   commit body says driving the full `PATCH /api/me/modules/tasks` path needs chat engine factories,
+   RPC connections, a boss queue and onboarding probes. Task E drove exactly that path via
+   `getBuiltInModuleRegistrations()` + `server.inject`, and found only four required fields on
+   `BuiltInRouteDependencies` — everything else optional. **The "too heavy" assessment was wrong**,
+   and it was wrong in the direction that avoids work. `af2ec6d4`'s body will land in `main` saying
+   so; not worth another commit to correct, but do not cite it as evidence that the HTTP path is
+   expensive to test — it is not, and #1264/#1265 should drive it.
+2. The caveat comment I required on the spy test was **updated, not left stale**, when NB-3 removed
+   the spy (`module-enablement.test.ts:787` now says the generic grant wraps the real function). The
+   remaining `vi.fn` at `:877` is the NB-4 block's deliberate raw spy and is documented as such at
+   `:816`. Checked directly — a stale comment here would have been the very thing NB-2 was about.
+
+**Blocking merge:** QA3 scoped re-verify (mutation check — does each new negative test fail when its
+assert is removed?) + CI green on `7dc37352`.
