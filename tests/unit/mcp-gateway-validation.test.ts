@@ -9,6 +9,7 @@ import {
 } from "@jarv1s/ai";
 import type { ModuleAssistantToolManifest } from "@jarv1s/module-sdk";
 import { tasksModuleManifest } from "@jarv1s/tasks";
+import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 
 describe("tool input validation", () => {
   const schema = {
@@ -88,6 +89,43 @@ describe("tool input validation", () => {
         n: 12345678901234,
         s: "anything at all"
       });
+    });
+
+    // #1265 QA follow-up: compilePattern's catch swallows an unparseable `pattern` rather than
+    // throwing (a manifest bug degrades that field to unvalidated instead of failing every call).
+    // Nothing lints inputSchema patterns before a built-in tool ships (see #1274 for the
+    // install-time lint this is a stopgap for), so this asserts the invariant here instead: every
+    // built-in tool's declared pattern must compile the same way input-validation.ts's
+    // compilePattern does, or a manifest bug would silently ship a decorative bound.
+    it("compiles every built-in tool's declared inputSchema pattern under /u, anchored", () => {
+      interface PatternWalkNode {
+        readonly pattern?: string;
+        readonly properties?: Record<string, PatternWalkNode>;
+        readonly items?: PatternWalkNode;
+      }
+
+      const collectPatterns = (node: PatternWalkNode | undefined, patterns: string[]): void => {
+        if (!node) return;
+        if (typeof node.pattern === "string") patterns.push(node.pattern);
+        if (node.properties) {
+          for (const child of Object.values(node.properties)) collectPatterns(child, patterns);
+        }
+        if (node.items) collectPatterns(node.items, patterns);
+      };
+
+      const manifests = getBuiltInModuleManifests();
+      const patterns: string[] = [];
+      for (const manifest of manifests) {
+        for (const tool of manifest.assistantTools ?? []) {
+          collectPatterns(tool.inputSchema as PatternWalkNode | undefined, patterns);
+        }
+      }
+
+      expect(patterns.length).toBeGreaterThan(0);
+      for (const pattern of patterns) {
+        expect(() => new RegExp(`^(?:${pattern})$`, "u"), `pattern failed to compile: ${pattern}`)
+          .not.toThrow();
+      }
     });
   });
 });

@@ -43,7 +43,10 @@ function compilePattern(pattern: string): RegExp | null {
     compiled = new RegExp(`^(?:${pattern})$`, "u");
   } catch {
     // An unparseable pattern is a manifest bug, not caller input — ignore it here rather than
-    // failing every call to that tool. Schema linting is the manifest validator's job.
+    // failing every call to that tool. Nothing lints inputSchema patterns at install/build time
+    // today (external/validate.ts validates manifest structure only, not inputSchema keywords),
+    // so a broken pattern silently degrades that field to unvalidated rather than being caught
+    // before it ships. Tracked in #1274.
     compiled = null;
   }
   patternCache.set(pattern, compiled);
