@@ -405,17 +405,17 @@ describe("PreferencesRepository", () => {
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
       await repo.upsertWithRevision(scopedDb, "cas.conflict", { a: 1 }, null);
       await repo.upsertWithRevision(scopedDb, "cas.conflict", { a: 2 }, 1);
-      await expect(
-        repo.upsertWithRevision(scopedDb, "cas.conflict", { a: 3 }, 1)
-      ).rejects.toThrow(PreferenceRevisionConflictError);
+      await expect(repo.upsertWithRevision(scopedDb, "cas.conflict", { a: 3 }, 1)).rejects.toThrow(
+        PreferenceRevisionConflictError
+      );
     });
   });
 
   it("upsertWithRevision throws PreferenceRevisionConflictError when expectedRevision is set but no row exists", async () => {
     await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
-      await expect(
-        repo.upsertWithRevision(scopedDb, "cas.missing", { a: 1 }, 1)
-      ).rejects.toThrow(PreferenceRevisionConflictError);
+      await expect(repo.upsertWithRevision(scopedDb, "cas.missing", { a: 1 }, 1)).rejects.toThrow(
+        PreferenceRevisionConflictError
+      );
     });
   });
 

@@ -35,11 +35,13 @@
 ## Task 0a: `app.preferences` CAS revision column + repository support
 
 **Files:**
+
 - Create: `packages/structured-state/sql/<next>_preferences_revision.sql` (next migration number after the highest existing file in this directory — confirm at write time, do not hardcode; grounded highest so far: `0167_worker_entities_grant.sql`)
 - Modify: `packages/structured-state/src/preferences-repository.ts`
 - Test: `packages/structured-state/src/preferences-repository.test.ts` (create if absent)
 
 **Interfaces:**
+
 - Produces: `PreferencesRepository.upsertWithRevision(scopedDb: DataContextDb, key: string, value: unknown, expectedRevision: number | null): Promise<{ revision: number }>` — throws `PreferenceRevisionConflictError` (new exported class, `packages/structured-state/src/preferences-repository.ts`) when `expectedRevision !== null` and the stored row's revision doesn't match (or the row is absent while `expectedRevision !== null`).
 - Produces: `PreferencesRepository.getWithRevision(scopedDb: DataContextDb, key: string): Promise<{ value: unknown; revision: number } | null>`.
 
@@ -56,7 +58,10 @@ ALTER TABLE app.preferences
 ```ts
 // packages/structured-state/src/preferences-repository.test.ts
 import { describe, it, expect } from "vitest";
-import { PreferencesRepository, PreferenceRevisionConflictError } from "./preferences-repository.js";
+import {
+  PreferencesRepository,
+  PreferenceRevisionConflictError
+} from "./preferences-repository.js";
 // (use this repo's existing integration-test DataContextDb harness pattern — see any
 //  sibling *.test.ts in packages/structured-state/src/ for the withDataContext test setup)
 
@@ -163,6 +168,7 @@ git commit -m "feat(structured-state): add CAS revision column to app.preference
 ## Task 0b: `app.instance_settings` CAS revision column (forward infra, no consumer this PR)
 
 **Files:**
+
 - Create: `infra/postgres/migrations/<next>_instance_settings_revision.sql` (next after highest existing — grounded highest so far: `0156_module_installs.sql`; confirm at write time)
 
 - [ ] **Step 1: Write the migration**
@@ -188,11 +194,13 @@ git commit -m "feat(db): add revision column to app.instance_settings (forward i
 ## Task 0c: Widen audit outcome CHECK constraint + TS type
 
 **Files:**
+
 - Create: `packages/ai/sql/<next>_audit_outcome_widen.sql` (next after highest existing — grounded highest so far: `0173_...`; confirm exact filename at write time)
 - Modify: the TS file that declares the audit outcome union type (locate by `grep -rn "'success'.*'failed'.*'denied'.*'cancelled'" packages/ai/src` — not yet re-confirmed this pass, per Assumption 2 above)
 - Test: whichever `*.test.ts` currently exercises the audit port/repository (locate alongside the type)
 
 **Interfaces:**
+
 - Produces: TS outcome type widened from `"success" | "failed" | "denied" | "cancelled"` to `"success" | "failed" | "denied" | "cancelled" | "invalid" | "conflict"`.
 
 - [ ] **Step 1: Read `packages/ai/sql/0127_jarvis_action_audit_log.sql` and the TS outcome type to confirm exact current text**
@@ -229,12 +237,14 @@ git commit -m "feat(ai): widen action-audit outcome CHECK with invalid/conflict"
 ## Task 1: Confirm audit-dispatch call site, then extract notification-preference toggle to an application function
 
 **Files:**
+
 - Read first (grounding step, not a file change): `packages/ai/src/gateway/gateway.ts` around the tool-dispatch/execute path — confirm Assumption 1 above (does the dispatcher auto-record an audit row per tool call, or must application code call an audit port explicitly?). Adjust every later task's "audit" step accordingly — if explicit, each application function below additionally calls the confirmed audit-port function with `{ actorUserId, actionFamilyId, toolName, outcome }` after its CAS write/validation.
 - Create: `packages/settings/src/notification-preference-application.ts`
 - Modify: `packages/settings/src/notification-preferences-routes.ts` (replace inline logic at lines 66-107 with a call to the new function)
 - Test: `packages/settings/src/notification-preference-application.test.ts`
 
 **Interfaces:**
+
 - Produces: `setNotificationPreferenceEnabled(scopedDb: DataContextDb, deps: { listModuleManifests: () => readonly JarvisModuleManifest[]; preferencesRepository: ProfilePreferencesPort; repository: SettingsRepository; notificationUnreadPort?: NotificationUnreadPort }, actorUserId: string, moduleId: string, enabled: boolean, clearUnread: boolean): Promise<{ preference: NotificationPreferenceDto; unreadCount: number | null }>` — throws `HttpError(404, "Module not found")` / `HttpError(422, ...)` on the same conditions the route currently checks (module missing, module doesn't support notifications, module not active for user).
 
 - [ ] **Step 1: Write the failing test**
@@ -311,7 +321,11 @@ export async function setNotificationPreferenceEnabled(
   );
   if (!isActive) throw new HttpError(422, "Module is not active for this user");
 
-  const preference: NotificationPreferenceDto = { moduleId: manifest.id, moduleName: manifest.name, enabled };
+  const preference: NotificationPreferenceDto = {
+    moduleId: manifest.id,
+    moduleName: manifest.name,
+    enabled
+  };
   await deps.preferencesRepository.upsert(scopedDb, KEY(manifest.id), { enabled });
   const unreadCount =
     !enabled && clearUnread && deps.notificationUnreadPort
@@ -338,11 +352,13 @@ git commit -m "refactor(settings): extract notification-preference toggle to an 
 ## Task 2: `settings.themeMode.set` assistant tool
 
 **Files:**
+
 - Modify: `packages/settings/src/manifest.ts` (add to `assistantTools` array, after the existing `app.getMapSlice` entry)
 - Create: `packages/settings/src/assistant-tools/theme-mode-tool.ts`
 - Test: `packages/settings/src/assistant-tools/theme-mode-tool.test.ts`
 
 **Interfaces:**
+
 - Consumes: `PreferencesRepository.getWithRevision`/`upsertWithRevision` from Task 0a; `COLOR_MODE_KEY = "themes.color-mode"` (matches `themes-routes.ts:26` exactly — do not diverge).
 - Produces: `themeModeSetInputSchema`, `themeModeSetOutputSchema`, `themeModeSetExecute` exports consumed by `manifest.ts`.
 
@@ -446,11 +462,13 @@ git commit -m "feat(settings): add settings.themeMode.set self-operation tool"
 ## Task 3: `settings.locale.setRegionAndDateFormat` + `settings.locale.setTimezone` tools (with IANA validation)
 
 **Files:**
+
 - Create: `packages/settings/src/assistant-tools/locale-tools.ts`
 - Test: `packages/settings/src/assistant-tools/locale-tools.test.ts`
 - Modify: `packages/settings/src/manifest.ts`
 
 **Interfaces:**
+
 - Consumes: `LOCALE_PREFERENCE_KEY = "locale"` (matches `locale-routes.ts:16`); `DEFAULT_LOCALE_SETTINGS` shape `{ timezone, region, dateFormat }`.
 - Produces: `isValidIanaTimeZone(value: string): boolean`, `localeSetTimezoneExecute`, `localeSetRegionAndDateFormatExecute` and their schemas.
 - Both tools read-modify-write the SAME `"locale"` preference key (it is one combined object in storage) — each tool only overwrites its own fields, preserving the others from the current value (falling back to `DEFAULT_LOCALE_SETTINGS` fields when absent), and CAS-protects against the two tools (or a tool + the REST route) racing each other.
@@ -460,7 +478,11 @@ git commit -m "feat(settings): add settings.themeMode.set self-operation tool"
 ```ts
 // packages/settings/src/assistant-tools/locale-tools.test.ts
 import { describe, it, expect } from "vitest";
-import { isValidIanaTimeZone, localeSetTimezoneExecute, localeSetRegionAndDateFormatExecute } from "./locale-tools.js";
+import {
+  isValidIanaTimeZone,
+  localeSetTimezoneExecute,
+  localeSetRegionAndDateFormatExecute
+} from "./locale-tools.js";
 
 describe("isValidIanaTimeZone", () => {
   it("accepts a real IANA zone", () => expect(isValidIanaTimeZone("America/Chicago")).toBe(true));
@@ -518,7 +540,10 @@ function readCurrentLocale(raw: unknown): LocaleSettingsDto {
   return {
     timezone: typeof r.timezone === "string" ? r.timezone : DEFAULT_LOCALE_SETTINGS.timezone,
     region: typeof r.region === "string" ? r.region : DEFAULT_LOCALE_SETTINGS.region,
-    dateFormat: r.dateFormat === "12" || r.dateFormat === "24" ? (r.dateFormat as LocaleDateFormat) : DEFAULT_LOCALE_SETTINGS.dateFormat
+    dateFormat:
+      r.dateFormat === "12" || r.dateFormat === "24"
+        ? (r.dateFormat as LocaleDateFormat)
+        : DEFAULT_LOCALE_SETTINGS.dateFormat
   };
 }
 
@@ -534,9 +559,20 @@ export async function localeSetTimezoneExecute(
   ctx: /* ModuleAssistantToolContext — confirm shape per Task 2 Step 3 note */ any
 ): Promise<LocaleSettingsDto> {
   if (!isValidIanaTimeZone(input.timezone)) throw new HttpError(400, "Not a recognized time zone");
-  const current = await ctx.preferencesRepository.getWithRevision(ctx.scopedDb, LOCALE_PREFERENCE_KEY);
-  const next: LocaleSettingsDto = { ...readCurrentLocale(current?.value), timezone: input.timezone };
-  await ctx.preferencesRepository.upsertWithRevision(ctx.scopedDb, LOCALE_PREFERENCE_KEY, next, current?.revision ?? null);
+  const current = await ctx.preferencesRepository.getWithRevision(
+    ctx.scopedDb,
+    LOCALE_PREFERENCE_KEY
+  );
+  const next: LocaleSettingsDto = {
+    ...readCurrentLocale(current?.value),
+    timezone: input.timezone
+  };
+  await ctx.preferencesRepository.upsertWithRevision(
+    ctx.scopedDb,
+    LOCALE_PREFERENCE_KEY,
+    next,
+    current?.revision ?? null
+  );
   return next;
 }
 
@@ -556,9 +592,21 @@ export async function localeSetRegionAndDateFormatExecute(
 ): Promise<LocaleSettingsDto> {
   const region = input.region.trim();
   if (region.length === 0) throw new HttpError(400, "Language and region is required");
-  const current = await ctx.preferencesRepository.getWithRevision(ctx.scopedDb, LOCALE_PREFERENCE_KEY);
-  const next: LocaleSettingsDto = { ...readCurrentLocale(current?.value), region, dateFormat: input.dateFormat };
-  await ctx.preferencesRepository.upsertWithRevision(ctx.scopedDb, LOCALE_PREFERENCE_KEY, next, current?.revision ?? null);
+  const current = await ctx.preferencesRepository.getWithRevision(
+    ctx.scopedDb,
+    LOCALE_PREFERENCE_KEY
+  );
+  const next: LocaleSettingsDto = {
+    ...readCurrentLocale(current?.value),
+    region,
+    dateFormat: input.dateFormat
+  };
+  await ctx.preferencesRepository.upsertWithRevision(
+    ctx.scopedDb,
+    LOCALE_PREFERENCE_KEY,
+    next,
+    current?.revision ?? null
+  );
   return next;
 }
 
@@ -591,11 +639,13 @@ git commit -m "feat(settings): add locale self-operation tools with IANA timezon
 ## Task 4: `settings.quietHours.set` assistant tool
 
 **Files:**
+
 - Create: `packages/settings/src/assistant-tools/quiet-hours-tool.ts`
 - Test: `packages/settings/src/assistant-tools/quiet-hours-tool.test.ts`
 - Modify: `packages/settings/src/manifest.ts`
 
 **Interfaces:**
+
 - Consumes: `QUIET_HOURS_PREFERENCE_KEY = "quiet-hours"` (matches `quiet-hours-routes.ts:15`); HH:MM validation regex `/^([01]\d|2[0-3]):[0-5]\d$/` (matches `quiet-hours-routes.ts:96`, reused verbatim — do not redefine differently).
 
 - [ ] **Step 1: Write the failing test**
@@ -659,10 +709,24 @@ export async function quietHoursSetExecute(
 ): Promise<QuietHoursSettingsDto> {
   if (!HHMM.test(input.start)) throw new HttpError(400, "start must be HH:MM (00:00–23:59)");
   if (!HHMM.test(input.end)) throw new HttpError(400, "end must be HH:MM (00:00–23:59)");
-  const timezone = input.timezone && input.timezone.trim().length > 0 ? input.timezone.trim() : null;
-  const next: QuietHoursSettingsDto = { enabled: input.enabled, start: input.start, end: input.end, timezone };
-  const current = await ctx.preferencesRepository.getWithRevision(ctx.scopedDb, QUIET_HOURS_PREFERENCE_KEY);
-  await ctx.preferencesRepository.upsertWithRevision(ctx.scopedDb, QUIET_HOURS_PREFERENCE_KEY, next, current?.revision ?? null);
+  const timezone =
+    input.timezone && input.timezone.trim().length > 0 ? input.timezone.trim() : null;
+  const next: QuietHoursSettingsDto = {
+    enabled: input.enabled,
+    start: input.start,
+    end: input.end,
+    timezone
+  };
+  const current = await ctx.preferencesRepository.getWithRevision(
+    ctx.scopedDb,
+    QUIET_HOURS_PREFERENCE_KEY
+  );
+  await ctx.preferencesRepository.upsertWithRevision(
+    ctx.scopedDb,
+    QUIET_HOURS_PREFERENCE_KEY,
+    next,
+    current?.revision ?? null
+  );
   return next;
 }
 ```
@@ -681,11 +745,13 @@ git commit -m "feat(settings): add settings.quietHours.set self-operation tool"
 ## Task 5: `settings.weatherLocation.set` assistant tool
 
 **Files:**
+
 - Create: `packages/settings/src/assistant-tools/weather-location-tool.ts`
 - Test: `packages/settings/src/assistant-tools/weather-location-tool.test.ts`
 - Modify: `packages/settings/src/manifest.ts`
 
 **Interfaces:**
+
 - Consumes: `WEATHER_LOCATION_PREFERENCE_KEY = "weather-location"` (matches `weather-location-routes.ts:14`); lat/lon range validation `-90..90` / `-180..180` (matches `weather-location-routes.ts:72`); label trim+200-char cap (matches line 80).
 
 - [ ] **Step 1: Write the failing test**
@@ -743,9 +809,21 @@ export async function weatherLocationSetExecute(
 ): Promise<WeatherLocationDto> {
   if (input.lat < -90 || input.lat > 90) throw new HttpError(400, "Latitude out of range");
   if (input.lon < -180 || input.lon > 180) throw new HttpError(400, "Longitude out of range");
-  const next: WeatherLocationDto = { lat: input.lat, lon: input.lon, label: input.label.trim().slice(0, 200) };
-  const current = await ctx.preferencesRepository.getWithRevision(ctx.scopedDb, WEATHER_LOCATION_PREFERENCE_KEY);
-  await ctx.preferencesRepository.upsertWithRevision(ctx.scopedDb, WEATHER_LOCATION_PREFERENCE_KEY, next, current?.revision ?? null);
+  const next: WeatherLocationDto = {
+    lat: input.lat,
+    lon: input.lon,
+    label: input.label.trim().slice(0, 200)
+  };
+  const current = await ctx.preferencesRepository.getWithRevision(
+    ctx.scopedDb,
+    WEATHER_LOCATION_PREFERENCE_KEY
+  );
+  await ctx.preferencesRepository.upsertWithRevision(
+    ctx.scopedDb,
+    WEATHER_LOCATION_PREFERENCE_KEY,
+    next,
+    current?.revision ?? null
+  );
   return next;
 }
 ```
@@ -764,11 +842,13 @@ git commit -m "feat(settings): add settings.weatherLocation.set self-operation t
 ## Task 6: `settings.notificationPreference.setEnabled` assistant tool
 
 **Files:**
+
 - Create: `packages/settings/src/assistant-tools/notification-preference-tool.ts`
 - Test: `packages/settings/src/assistant-tools/notification-preference-tool.test.ts`
 - Modify: `packages/settings/src/manifest.ts`
 
 **Interfaces:**
+
 - Consumes: `setNotificationPreferenceEnabled` from Task 1.
 - Response text must name the concrete consequence (per handoff's "consequence-naming response text" requirement): e.g. "Turned off notifications for {moduleName}." not a generic "Done."
 
@@ -835,7 +915,12 @@ export async function notificationPreferenceSetEnabledExecute(
     input.clearUnread === true
   );
   const message = `${preference.enabled ? "Turned on" : "Turned off"} notifications for ${preference.moduleName}.`;
-  return { moduleId: preference.moduleId, moduleName: preference.moduleName, enabled: preference.enabled, message };
+  return {
+    moduleId: preference.moduleId,
+    moduleName: preference.moduleName,
+    enabled: preference.enabled,
+    message
+  };
 }
 ```
 
@@ -855,12 +940,14 @@ git commit -m "feat(settings): add settings.notificationPreference.setEnabled se
 ## Task 7: `chat.setResponseStyle` assistant tool (on chat's own manifest)
 
 **Files:**
+
 - Read first: `packages/chat/src/manifest.ts` around line 171 (existing `assistantTools` array) and `packages/shared/src/chat-settings-api.ts:3` (the `ChatResponseStyle` closed-enum type) and `packages/chat/src/live/runtime.ts:529` (the consumer) — confirm exact enum values and the chat module's own preference-write path (chat may or may not use `PreferencesRepository`/`app.preferences` — confirm before assuming Task 0a's CAS methods apply here).
 - Create: `packages/chat/src/assistant-tools/response-style-tool.ts`
 - Test: `packages/chat/src/assistant-tools/response-style-tool.test.ts`
 - Modify: `packages/chat/src/manifest.ts`
 
 **Interfaces:**
+
 - Produces: `chatSetResponseStyleExecute`, input schema with a closed `enum` of exactly the `ChatResponseStyle` values found in Step 1 — no additional properties, no free-text field. This is the load-bearing constraint from Coordinator Ruling 2; if the real `ChatResponseStyle` type includes anything other than a closed string enum (e.g., an object with a free-text field), STOP this task and escalate to the coordinator instead of building it.
 
 - [ ] **Step 1: Read the three cited files and confirm the enum values + write path**
@@ -897,14 +984,28 @@ Expected: FAIL
 // once confirmed in Step 1. Shape:
 export const chatSetResponseStyleInputSchema = {
   type: "object",
-  properties: { style: { type: "string", enum: [/* exact confirmed values, e.g. "concise" | "balanced" | "detailed" */] } },
+  properties: {
+    style: {
+      type: "string",
+      enum: [
+        /* exact confirmed values, e.g. "concise" | "balanced" | "detailed" */
+      ]
+    }
+  },
   required: ["style"],
   additionalProperties: false
 } as const;
 
 export const chatSetResponseStyleOutputSchema = {
   type: "object",
-  properties: { style: { type: "string", enum: [/* same values */] } },
+  properties: {
+    style: {
+      type: "string",
+      enum: [
+        /* same values */
+      ]
+    }
+  },
   required: ["style"],
   additionalProperties: false
 } as const;
@@ -935,11 +1036,13 @@ git commit -m "feat(chat): add chat.setResponseStyle self-operation tool (closed
 ## Task 8: Undo stack for settings self-operation writes
 
 **Files:**
+
 - Create: `packages/settings/src/undo-stack.ts`
 - Test: `packages/settings/src/undo-stack.test.ts`
 - Modify: each of the five settings tool `execute` functions from Tasks 2–6 to push an undo entry after a successful write (see Step 3).
 
 **Interfaces:**
+
 - Produces: `SettingsUndoStack` — bounded in-memory, keyed by `${actorUserId}:${chatId}`, each entry `{ mutationId: string, key: string, previousValue: unknown, previousRevision: number | null, appliedAt: number }`; `push(actorUserId, chatId, entry)` caps the per-chat stack at a fixed bound (use 20 — no requirement in the spec section read so far specifies an exact bound; flag this as a default worth confirming with the coordinator, not a re-derived number); `pop(actorUserId, chatId): entry | undefined`; `clear(actorUserId, chatId): void`. No persistence — a plain in-memory `Map`, cleared on process restart by design (matches the "restart clears it" ruling already locked).
 
 - [ ] **Step 1: Write the failing test**
@@ -952,22 +1055,46 @@ import { SettingsUndoStack } from "./undo-stack.js";
 describe("SettingsUndoStack", () => {
   it("pushes and pops in LIFO order per actor+chat", () => {
     const stack = new SettingsUndoStack();
-    stack.push("user1", "chat1", { mutationId: "m1", key: "k", previousValue: 1, previousRevision: 1, appliedAt: 0 });
-    stack.push("user1", "chat1", { mutationId: "m2", key: "k", previousValue: 2, previousRevision: 2, appliedAt: 1 });
+    stack.push("user1", "chat1", {
+      mutationId: "m1",
+      key: "k",
+      previousValue: 1,
+      previousRevision: 1,
+      appliedAt: 0
+    });
+    stack.push("user1", "chat1", {
+      mutationId: "m2",
+      key: "k",
+      previousValue: 2,
+      previousRevision: 2,
+      appliedAt: 1
+    });
     expect(stack.pop("user1", "chat1")?.mutationId).toBe("m2");
     expect(stack.pop("user1", "chat1")?.mutationId).toBe("m1");
     expect(stack.pop("user1", "chat1")).toBeUndefined();
   });
   it("isolates stacks per actor+chat pair", () => {
     const stack = new SettingsUndoStack();
-    stack.push("user1", "chatA", { mutationId: "a", key: "k", previousValue: 1, previousRevision: 1, appliedAt: 0 });
+    stack.push("user1", "chatA", {
+      mutationId: "a",
+      key: "k",
+      previousValue: 1,
+      previousRevision: 1,
+      appliedAt: 0
+    });
     expect(stack.pop("user1", "chatB")).toBeUndefined();
     expect(stack.pop("user1", "chatA")?.mutationId).toBe("a");
   });
   it("caps the stack at 20 entries, dropping the oldest", () => {
     const stack = new SettingsUndoStack();
     for (let i = 0; i < 25; i++) {
-      stack.push("user1", "chat1", { mutationId: `m${i}`, key: "k", previousValue: i, previousRevision: i, appliedAt: i });
+      stack.push("user1", "chat1", {
+        mutationId: `m${i}`,
+        key: "k",
+        previousValue: i,
+        previousRevision: i,
+        appliedAt: i
+      });
     }
     let count = 0;
     while (stack.pop("user1", "chat1")) count++;
@@ -1039,9 +1166,11 @@ git commit -m "feat(settings): add bounded per-chat undo stack for self-operatio
 ## Task 9: No-op suppression for CAS writes
 
 **Files:**
+
 - Modify: each of the five settings tools (Tasks 2–6) — before calling `upsertWithRevision`, compare the computed `next` value against the current value; if deep-equal, skip the write (and the undo push) and return the current value with a message noting no change was needed.
 
 **Interfaces:**
+
 - Reuses each tool's own `next`/`current` locals already in scope — no new shared file needed; this is a per-tool guard, not new infrastructure.
 
 - [ ] **Step 1: Write a failing test per tool** (extend each Task 2–6 test file) asserting: calling the tool with the currently-stored value does not increment `revision` (verify via `getWithRevision` before/after) and does not push an undo entry.
@@ -1063,10 +1192,18 @@ Expected: the new no-op assertions FAIL (revision increments even on an identica
 - [ ] **Step 3: Add the guard to each tool** — e.g. in `theme-mode-tool.ts`:
 
 ```ts
-export async function themeModeSetExecute(input: { mode: "light" | "dark" }, ctx: any): Promise<{ mode: "light" | "dark" }> {
+export async function themeModeSetExecute(
+  input: { mode: "light" | "dark" },
+  ctx: any
+): Promise<{ mode: "light" | "dark" }> {
   const current = await ctx.preferencesRepository.getWithRevision(ctx.scopedDb, COLOR_MODE_KEY);
   if (current?.value === input.mode) return { mode: input.mode };
-  await ctx.preferencesRepository.upsertWithRevision(ctx.scopedDb, COLOR_MODE_KEY, input.mode, current?.revision ?? null);
+  await ctx.preferencesRepository.upsertWithRevision(
+    ctx.scopedDb,
+    COLOR_MODE_KEY,
+    input.mode,
+    current?.revision ?? null
+  );
   return { mode: input.mode };
 }
 ```
@@ -1088,6 +1225,7 @@ git commit -m "feat(settings): suppress no-op writes and undo entries in self-op
 ## Task 10: Update self-operation manifest inventory test counts
 
 **Files:**
+
 - Modify: `tests/unit/self-operation-manifests.test.ts` (the "Complete built-in self-operation inventory (#1263)" test — exact-count assertions currently `grantedAtInstall.length===29`, `confirmAlways.length===5`, `userPromotable.length===4`, sum`===38`)
 
 - [ ] **Step 1: Run the test first to see the current baseline (post Tasks 2–7, pre this task)**
@@ -1136,8 +1274,7 @@ for the `result.ok ? "executed" : "error"` pattern used elsewhere), and call `re
 existing closed enum values on both `approval_mode` and `outcome` (confirmed both are DB CHECK
 constraints in `packages/ai/sql/0127_jarvis_action_audit_log.sql` lines 8-10; `error_class` is
 CHECK'd only on length ≤ 64, not a closed set, so `"rate_limited"` is free to use there, matching
-the existing `"handler_error"` convention). Only gate the `resolvePolicy === "run"` branch (line
-178) and the yolo-mode auto-run branch (line 161) — both are unconfirmed auto-executions; the
+the existing `"handler_error"` convention). Only gate the `resolvePolicy === "run"` branch (line 178) and the yolo-mode auto-run branch (line 161) — both are unconfirmed auto-executions; the
 `confirmAndRun` path (human clicks confirm) is explicitly out of scope, a human approving each call
 is its own throttle.
 
@@ -1145,6 +1282,7 @@ is its own throttle.
 rate-limiting machinery exists anywhere to reuse (the only `rateLimit`/`throttle` hits are inbound
 429-classification strings in `packages/connectors` and `packages/news`, not limiters). Task 13 is
 genuinely net-new. Two rulings:
+
 1. **Keying is per-actor, per-tool, nested — never a concatenated string.** A chat-id-scoped key is
    trivially bypassed (new chat resets it); a process-global key leaks one actor's activity into
    another's limit. Use the same nested-map shape `undo-stack.ts` already landed
@@ -1155,11 +1293,12 @@ genuinely net-new. Two rulings:
    PR body — never imply it is a hard safety control, since "restart to clear it" would then read
    as a bypass. No tool-facing description promises more than "protects against a runaway loop
    within the process lifetime."
-Standing bans that bear on this task: no tool may take a rate-limit ceiling/window as a parameter
-(that is self-promotion to tunable-YOLO); this task must never be used to justify widening any
-family's `defaultTier` ("it's capped now, so it can auto-run" is always wrong).
+   Standing bans that bear on this task: no tool may take a rate-limit ceiling/window as a parameter
+   (that is self-promotion to tunable-YOLO); this task must never be used to justify widening any
+   family's `defaultTier` ("it's capped now, so it can auto-run" is always wrong).
 
 **Files:**
+
 - Modify: `packages/ai/src/gateway/gateway.ts` — add a small generic in-memory limiter as a private
   field/method on `AssistantToolGateway` (or a small standalone class in the same file), backed by a
   nested `Map<actorUserId, Map<toolName, { count, windowStart }>>` — mirrors `undo-stack.ts`'s
@@ -1174,6 +1313,7 @@ family's `defaultTier` ("it's capped now, so it can auto-run" is always wrong).
   gateway dispatch behavior, same surface those files already cover.
 
 **Interfaces:**
+
 - Internal only (no new exported type needed unless the limiter class is reused elsewhere — keep
   it private to `gateway.ts` unless a second caller emerges). Default window/ceiling are an
   implementation judgment call (spec gives no number) — pick something generous enough not to
@@ -1186,11 +1326,11 @@ family's `defaultTier` ("it's capped now, so it can auto-run" is always wrong).
   parameter.
 
 - [ ] **Step 1: Write the failing test** — drive the same `granted_at_install` write tool through
-  `callTool` (or the route/MCP surface that reaches it) N+1 times in quick succession with a fixed
-  `actorUserId`/`toolName`; assert the (N+1)th call returns `{ ok: false, ... }` (or the route's
-  equivalent non-success response) without mutating the underlying preference, and that a
-  differing `actorUserId` or `toolName` in the same window is unaffected (per-actor AND per-tool,
-  not global).
+      `callTool` (or the route/MCP surface that reaches it) N+1 times in quick succession with a fixed
+      `actorUserId`/`toolName`; assert the (N+1)th call returns `{ ok: false, ... }` (or the route's
+      equivalent non-success response) without mutating the underlying preference, and that a
+      differing `actorUserId` or `toolName` in the same window is unaffected (per-actor AND per-tool,
+      not global).
 
 Run the new/extended test file's runner command (confirm exact command from the file's existing
 `describe` block or root `package.json` scripts — likely `tsx scripts/test-integration.ts
@@ -1198,18 +1338,18 @@ tests/integration/<file>.test.ts`).
 Expected: FAIL (no limiter yet).
 
 - [ ] **Step 2: Implement the limiter** in `gateway.ts`, gating both auto-run branches (lines 161
-  and 178) before `runHandler` is invoked. On limit hit: skip `runHandler`, emit the existing
-  non-executed `action_result` shape, call `recordAudit` with `{ approvalMode: "auto", outcome:
-  "denied", errorClass: "rate_limited", chatSessionId }`, and return a `{ ok: false, error: ... }`
-  response (message must not leak other actors' call counts or timing internals).
+      and 178) before `runHandler` is invoked. On limit hit: skip `runHandler`, emit the existing
+      non-executed `action_result` shape, call `recordAudit` with `{ approvalMode: "auto", outcome:
+"denied", errorClass: "rate_limited", chatSessionId }`, and return a `{ ok: false, error: ... }`
+      response (message must not leak other actors' call counts or timing internals).
 
 - [ ] **Step 3: Run the test**
 
 Expected: PASS.
 
 - [ ] **Step 4 (optional, do only if cheap — coordinator will NOT hold the PR for this):** plain
-  counters for hard-exclusion hits and repeated CAS failures, per the same spec bullet. Skip if it
-  would require new infra beyond a counter.
+      counters for hard-exclusion hits and repeated CAS failures, per the same spec bullet. Skip if it
+      would require new infra beyond a counter.
 
 - [ ] **Step 5: Commit**
 

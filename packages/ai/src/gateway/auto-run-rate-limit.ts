@@ -8,10 +8,7 @@ const DEFAULT_MAX_ACTORS = 2000;
 // JARVIS_RL_GATEWAY_AUTO_RUN_WINDOW_MS (window length, default 10s).
 export const GATEWAY_AUTO_RUN_RATE_LIMIT_DEFAULTS = {
   maxCalls: parsePositiveIntEnv(process.env.JARVIS_RL_GATEWAY_AUTO_RUN_MAX, DEFAULT_MAX_CALLS),
-  windowMs: parsePositiveIntEnv(
-    process.env.JARVIS_RL_GATEWAY_AUTO_RUN_WINDOW_MS,
-    DEFAULT_WINDOW_MS
-  )
+  windowMs: parsePositiveIntEnv(process.env.JARVIS_RL_GATEWAY_AUTO_RUN_WINDOW_MS, DEFAULT_WINDOW_MS)
 } as const;
 
 // Override via env: JARVIS_RL_GATEWAY_AUTO_RUN_MAX_ACTORS (default 2000).
