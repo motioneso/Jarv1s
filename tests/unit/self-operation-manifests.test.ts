@@ -204,7 +204,9 @@ describe("Calendar self-operation manifest classification", () => {
   it("classifies proposeFocusBlock as granted_at_install and deleteEvent as user_promotable", () => {
     const tools = calendarModuleManifest.assistantTools ?? [];
 
-    const proposeFocusBlock = tools.find((candidate) => candidate.name === "calendar.proposeFocusBlock");
+    const proposeFocusBlock = tools.find(
+      (candidate) => candidate.name === "calendar.proposeFocusBlock"
+    );
     expect(proposeFocusBlock, "expected tool calendar.proposeFocusBlock to exist").toBeDefined();
     expect(proposeFocusBlock?.risk).toBe("write");
     expect(proposeFocusBlock?.actionFamilyId).toBe("calendar_writeback");
@@ -300,10 +302,14 @@ describe("Complete built-in self-operation inventory (#1263)", () => {
       }
     }
 
-    expect(unclassified, `expected zero unclassified built-in write tools, found: ${unclassified.join(", ")}`).toEqual(
-      []
-    );
-    expect(excluded, `expected zero excluded built-in write tools, found: ${excluded.join(", ")}`).toEqual([]);
+    expect(
+      unclassified,
+      `expected zero unclassified built-in write tools, found: ${unclassified.join(", ")}`
+    ).toEqual([]);
+    expect(
+      excluded,
+      `expected zero excluded built-in write tools, found: ${excluded.join(", ")}`
+    ).toEqual([]);
 
     expect(grantedAtInstall.length).toBe(33);
     expect(confirmAlways.length).toBe(4);

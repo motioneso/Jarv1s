@@ -6,7 +6,10 @@ import {
   SELF_OPERATION_EXCLUSIONS,
   type SelfOperationManifestInput
 } from "@jarv1s/ai";
-import type { ModuleAssistantActionFamilyManifest, ModuleAssistantToolManifest } from "@jarv1s/module-sdk";
+import type {
+  ModuleAssistantActionFamilyManifest,
+  ModuleAssistantToolManifest
+} from "@jarv1s/module-sdk";
 
 function family(
   id: string,
@@ -171,7 +174,11 @@ describe("self-operation chassis", () => {
       actionFamilyId: "calendar.family",
       selfOperationGrant: "user_promotable"
     };
-    const promotableFamily = family("calendar.family", ["ask_each_time", "trusted_auto", "always_confirm"]);
+    const promotableFamily = family("calendar.family", [
+      "ask_each_time",
+      "trusted_auto",
+      "always_confirm"
+    ]);
     expect(() =>
       assertBuiltInSelfOperationManifests([manifest("calendar", [tool], [promotableFamily])])
     ).toThrow();
@@ -231,7 +238,11 @@ describe("self-operation chassis", () => {
       actionFamilyId: "calendar.family",
       selfOperationGrant: "user_promotable"
     };
-    const promotableFamily = family("calendar.family", ["ask_each_time", "trusted_auto", "always_confirm"]);
+    const promotableFamily = family("calendar.family", [
+      "ask_each_time",
+      "trusted_auto",
+      "always_confirm"
+    ]);
     expect(() =>
       assertBuiltInSelfOperationManifests([manifest("calendar", [tool], [promotableFamily])])
     ).not.toThrow();
