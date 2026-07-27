@@ -292,7 +292,7 @@ describe("AssistantToolGateway self-operation", () => {
         )
       };
       await runner.withDataContext(
-        { actorUserId: ids.userA, requestId: "req-rl-auto-grant" },
+        { actorUserId: ids.userB, requestId: "req-rl-auto-grant" },
         (scopedDb) => grantSelfOperationForModule(scopedDb, repository, grantManifest)
       );
 
@@ -306,8 +306,14 @@ describe("AssistantToolGateway self-operation", () => {
         confirmTimeoutMs: 30_000,
         actionPolicy: (ctx) => dbBackedActionPolicy(ctx)
       });
+      // #1264 Task 13: userB, not userA — an earlier test in this file
+      // ("stored always_confirm override still produces an action card") permanently sets
+      // (exampleToolModule.id, "dummy", userA) to tier "always_confirm" via setActionPolicy, and
+      // grantSelfOperationForModule deliberately never overwrites an existing tier row (protects
+      // a user's explicit choice). Reusing userA here left every call stuck on the confirm path,
+      // hanging the very first loop iteration in confirmAndRun with no assertion failure.
       const token = tokens.mint({
-        actorUserId: ids.userA,
+        actorUserId: ids.userB,
         chatSessionId: "s-rl-auto",
         allowedToolNames: null
       });
@@ -334,7 +340,7 @@ describe("AssistantToolGateway self-operation", () => {
       expect(exampleToolCalls).toHaveLength(maxCalls);
 
       await vi.waitFor(async () => {
-        const rows = await readAuditRows(ids.userA);
+        const rows = await readAuditRows(ids.userB);
         expect(
           rows.some(
             (row) =>
@@ -346,7 +352,7 @@ describe("AssistantToolGateway self-operation", () => {
         ).toBe(true);
       });
 
-      await gateway.resolveActionRequest(ids.userA, request.record.actionRequestId, "cancelled");
+      await gateway.resolveActionRequest(ids.userB, request.record.actionRequestId, "cancelled");
       const finalResult = await degraded;
       expect(finalResult.ok).toBe(false);
     });
@@ -361,7 +367,7 @@ describe("AssistantToolGateway self-operation", () => {
         )
       };
       await runner.withDataContext(
-        { actorUserId: ids.userA, requestId: "req-rl-confirm-grant" },
+        { actorUserId: ids.userB, requestId: "req-rl-confirm-grant" },
         (scopedDb) => grantSelfOperationForModule(scopedDb, repository, grantManifest)
       );
 
@@ -375,8 +381,10 @@ describe("AssistantToolGateway self-operation", () => {
         confirmTimeoutMs: 30_000,
         actionPolicy: (ctx) => dbBackedActionPolicy(ctx)
       });
+      // #1264 Task 13: userB — see the same-named test above for why userA is poisoned to
+      // tier "always_confirm" by the earlier "stored always_confirm override" test.
       const token = tokens.mint({
-        actorUserId: ids.userA,
+        actorUserId: ids.userB,
         chatSessionId: "s-rl-confirm-still-runs",
         allowedToolNames: null
       });
@@ -411,7 +419,7 @@ describe("AssistantToolGateway self-operation", () => {
       if (!request || request.record.kind !== "action_request") {
         throw new Error("expected an action_request card");
       }
-      await gateway.resolveActionRequest(ids.userA, request.record.actionRequestId, "confirmed");
+      await gateway.resolveActionRequest(ids.userB, request.record.actionRequestId, "confirmed");
       await vi.waitFor(() => {
         expect(exampleToolCalls).toHaveLength(callsBeforeDegrade + 1);
       });
@@ -419,7 +427,7 @@ describe("AssistantToolGateway self-operation", () => {
       // Clean up the remaining pending cards so the test doesn't leak open waiters.
       for (const entry of requests.slice(1)) {
         if (entry.record.kind === "action_request") {
-          await gateway.resolveActionRequest(ids.userA, entry.record.actionRequestId, "cancelled");
+          await gateway.resolveActionRequest(ids.userB, entry.record.actionRequestId, "cancelled");
         }
       }
       await Promise.all(pending);

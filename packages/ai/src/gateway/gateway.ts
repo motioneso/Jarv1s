@@ -193,16 +193,17 @@ export class AssistantToolGateway {
       return result;
     }
     if ((await resolvePolicy(found.tool, found.dto.moduleId, input, lookup)) === "run") {
-      if (found.tool.risk !== "read" && !this.autoRunLimiter.consume(ctx.actorUserId, found.dto.name)) {
-        console.error(`[DBG] trip start ${Date.now()}`);
+      if (
+        found.tool.risk !== "read" &&
+        !this.autoRunLimiter.consume(ctx.actorUserId, found.dto.name)
+      ) {
         const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
         void this.recordAudit(access, found, {
           approvalMode: "auto",
           outcome: "denied",
           errorClass: "rate_limited",
           chatSessionId: ctx.chatSessionId
-        }).then(() => console.error(`[DBG] trip audit done ${Date.now()}`));
-        console.error(`[DBG] calling confirmAndRun ${Date.now()}`);
+        });
         return this.confirmAndRun(
           found,
           input,
@@ -418,12 +419,10 @@ export class AssistantToolGateway {
       return;
     }
 
-    console.error(`[DBG] resolveActionRequest start ${Date.now()} id=${actionRequestId}`);
     const access: AccessContext = { actorUserId, requestId: `mcp_${randomUUID()}` };
     const resolved = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
       this.deps.repository.resolveAssistantAction(scopedDb, actionRequestId, { status })
     );
-    console.error(`[DBG] resolveActionRequest db done ${Date.now()} resolved=${!!resolved}`);
     // Only unblock the pending call if the DB row was actually updated (owner matches + still pending).
     // Without this guard a logged-in user could unblock another user's tool call via a guessed ID.
     if (!resolved) return;
@@ -498,7 +497,6 @@ export class AssistantToolGateway {
   ): Promise<GatewayToolResponse> {
     const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
 
-    console.error(`[DBG] confirmAndRun createPending start ${Date.now()}`);
     const action = await this.deps.runner.withDataContext(access, (scopedDb: DataContextDb) =>
       this.deps.repository.createPendingAssistantAction(scopedDb, {
         toolModuleId: found.dto.moduleId,
@@ -510,7 +508,6 @@ export class AssistantToolGateway {
         requestId: ctx.requestId
       })
     );
-    console.error(`[DBG] confirmAndRun createPending done ${Date.now()} id=${action.id}`);
 
     const pendingResolution = this.deps.confirmations.awaitResolution(
       action.id,
