@@ -488,7 +488,8 @@ describe("AssistantToolGateway self-operation", () => {
         runner,
         tokens,
         confirmations,
-        notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) }
+        notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+        confirmTimeoutMs: 30_000
       });
       const token = tokens.mint({
         actorUserId: ids.userA,
