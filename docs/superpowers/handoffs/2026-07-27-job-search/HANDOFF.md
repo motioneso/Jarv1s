@@ -236,6 +236,30 @@ by the **uat** tier.
 
 ---
 
+## State as of 2026-07-27 (steps 1–4 done)
+
+Committed: `fa205ccc`, on `feat/job-search`. The plan is assembled and verified — prettier exit 0,
+0 NUL bytes, 5386 lines, 27 `### Task` headings. The "23" in step 3 below counts **numbered** tasks;
+the four lettered Phase 0 sub-tasks (2b–2e) bring it to 27, and the committed fat plan had 27 too, so
+numbering is intact and frozen. The one intended heading change is Task 22, now "UAT test on the real
+prod-shaped stack" (K8/M6: `pnpm dev:instance` does not exist; `pnpm test:uat` is the harness).
+
+Step 4's conformance read found **one real hole, in three places: nothing rendered a conversation.**
+Spec §7 makes onboarding a full chat interface and lists three match actions; the plan had chips-only
+onboarding and Dismiss alone. Spec §8's "Discuss opens the thread with the posting as a rendered
+record card" had no owner. Task 22 phases 3 and 6 already asserted a chat no task built. Fixed inside
+the frozen numbers: Task 19 renders `assistantSurface.Surface`; Task 20 gains `discuss.tsx`,
+Discuss + Open posting; Task 22 gains a Discuss journey phase. No new host seam — `localRows` and
+`submitTurn({controlContext})` both already exist. Also fixed: Task 5 now defines `Profile`,
+`ProfileState`, `ProfileContext`, `BriefingDetail` (the store referenced them, no task declared
+them), and Task 17 binds `profile.surfaceKey` rather than `profile.id`, matching Task 4's column.
+
+**Open for Ben, beyond the two spec questions:** there is no per-profile delete tool. Account
+deletion cascades (every table is `ON DELETE CASCADE`), so NFR-7 holds, but a user cannot remove one
+search of several. Not a spec requirement, so it was flagged rather than built.
+
+Resume at step 5.
+
 ## Start
 
 1. `pnpm install` — this is a fresh worktree with no `node_modules`.
