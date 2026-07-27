@@ -12,6 +12,10 @@ Read relay-23 first (`docs/superpowers/handoffs/2026-07-27-1264-settings-self-op
 - **#1311 note**: the "granted_at_install tool still required manual confirmation" anomaly from relay 23 is confirmed by the Coordinator to be issue #1311 (missing install-time grant row for the always-on `settings` module), NOT a #1310 defect. Lane #1311 (pane `w1:p14C`) owns that fix — do not duplicate.
 - **Gate: NOT YET RERUN on this fix.** An attempted `pnpm verify:foundation` run was killed before completing because `dropdb`/`createdb` aren't on PATH in this shell — need the docker-exec or `JARVIS_PGDATABASE=<fresh-name>` pattern (see `verify-foundation-fresh-gate-db` in agentmemory) to get an isolated gate DB first. The last confirmed-green gate run (`rc=0`) predates this two-file fix.
 
+## Cross-lane note (declare in PR #1276 body, not just here)
+
+The fix lands in `packages/chat/` (`gateway-notifier.ts`, `live/types.ts`), not `packages/settings/` — outside this lane's expected territory. It's additive-only (one optional field + a pass-through spread), so collision risk with lane #1273's rebase is judged low, but it must be **declared**, not discovered. Committed as `fc2c073c`.
+
 ## Next step (do this first)
 
 1. Get a fresh gate DB (docker exec against `jarv1s-postgres`, or `JARVIS_PGDATABASE=<fresh-name>` — do NOT reuse a DB another lane might be touching), then run `pnpm verify:foundation`, capturing the real exit code to a log file (not piped — filter exit codes mask red per the `gate-db-isolation-mandatory` memory).
