@@ -25,6 +25,10 @@ Both round-two plans were written by the `gpt-5.6-sol high` planner and both cam
 | #1264 settings | 1129 | **four consecutive contexts, zero code** — every successor re-read the plan and relayed |
 | #1265 content | 1128 | relayed mid-T2; its "fresh" successor booted at 46% before writing anything |
 
+Third data point, 2026-07-27: #1265 has now relayed twice more, and its newest successor booted at
+**53%** of context before writing a line — worse than the 46% one, because each relay handoff doc adds
+to what the next agent must read on top of the plan. Relay cost compounds; the plan is the seed.
+
 A plan that large cannot be read by a fresh context and leave room to build. Each successor spent
 its budget re-deriving what the previous one had already established, then relayed with nothing to
 show. That is six contexts across two lanes lost to reading.
