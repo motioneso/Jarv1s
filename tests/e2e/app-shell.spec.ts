@@ -70,7 +70,10 @@ test("hides admin-only settings sections for a non-admin user", async ({ page })
   await page.goto("/settings");
 
   await expect(page.getByRole("heading", { name: "Account & preferences" })).toBeVisible();
-  await expect(page.getByText("Member of this instance.")).toBeVisible();
+  // The recovered 2026-07-19 profile polish dropped the redundant "Role" row (its blurb read
+  // "Member of this instance.") because the header badge already states the role. Assert the badge
+  // instead, so this still proves a non-admin gets their own identity surface.
+  await expect(page.locator(".prof__badges").getByText("Member", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Admin / Setup" })).toHaveCount(0);
   await expect(page.getByText("People & access")).toHaveCount(0);
 });
