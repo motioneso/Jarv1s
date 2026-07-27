@@ -20,6 +20,21 @@ import {
 } from "../../external-modules/job-search/src/domain/dedupe.js";
 import type { Posting } from "../../external-modules/job-search/src/domain/records.js";
 
+// #1320: noUncheckedIndexedAccess makes `array[0]` a `Posting | undefined`, even right
+// after `toHaveLength(1)` — that's a runtime assertion, not something the type checker
+// sees. A non-null assertion would fix the compiler error by deleting the very check that
+// the array holds the element the test claims: if dedupe regressed to returning zero rows,
+// `!` would turn that into a confusing "Cannot read properties of undefined" instead of a
+// clear one. This throws its own clear error on a wrong length, independent of whatever
+// `toHaveLength` assertion happens to run first.
+function only<T>(items: readonly T[]): T {
+  const [item] = items;
+  if (item === undefined) {
+    throw new Error(`Expected exactly one element, got ${items.length}`);
+  }
+  return item;
+}
+
 // Single Partial<>-override factory so each test states only the field it is about.
 function posting(overrides: Partial<Posting> = {}): Posting {
   return {
@@ -118,9 +133,9 @@ describe("job-search dedupePostings (#1291)", () => {
     const reverse = dedupePostings([linkedinCopy, freehireCopy], sourcePriority);
 
     expect(forward).toHaveLength(1);
-    expect(forward[0].id).toBe("freehire-copy");
+    expect(only(forward).id).toBe("freehire-copy");
     expect(reverse).toHaveLength(1);
-    expect(reverse[0].id).toBe("freehire-copy");
+    expect(only(reverse).id).toBe("freehire-copy");
   });
 
   it("keeps the longer body when two postings from the same source tie", () => {
@@ -134,7 +149,7 @@ describe("job-search dedupePostings (#1291)", () => {
     const result = dedupePostings([shortBody, longBody], ["freehire"]);
 
     expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("long-body");
+    expect(only(result).id).toBe("long-body");
   });
 
   it("sorts an unranked source after every ranked source", () => {
@@ -154,7 +169,7 @@ describe("job-search dedupePostings (#1291)", () => {
     const result = dedupePostings([unrankedCopy, rankedCopy], ["freehire", "linkedin"]);
 
     expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("ranked-copy");
+    expect(only(result).id).toBe("ranked-copy");
   });
 
   it("preserves first-seen identity order and passes exact duplicates through untouched", () => {
