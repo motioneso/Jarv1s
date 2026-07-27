@@ -10,6 +10,7 @@ import type { PgBoss } from "pg-boss";
 
 import {
   AiRepository,
+  assertBuiltInSelfOperationManifests,
   grantSelfOperationForModule,
   type TerminalRpcConnectOptions,
   type TerminalRpcHandle
@@ -615,6 +616,14 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       manifests: guardManifestsForCoverage(),
       platformAllowlist: PLATFORM_UNGUARDED_ROUTES
     });
+  });
+
+  server.addHook("onReady", async () => {
+    // #1263 covers BUILT-IN manifests only; external module tools are deferred to #1267 and
+    // stay safe today because their ABI cannot declare actionFamilyId, so
+    // packages/ai/src/gateway/policy.ts:40 confirms every external write unconditionally.
+    // Never pass external manifests here.
+    assertBuiltInSelfOperationManifests(getBuiltInModuleManifests());
   });
 
   server.addHook("onReady", async () => {

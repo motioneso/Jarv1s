@@ -9,6 +9,8 @@ import { newsModuleManifest } from "../../packages/news/src/manifest.js";
 import { emailModuleManifest } from "../../packages/email/src/manifest.js";
 import { calendarModuleManifest } from "../../packages/calendar/src/manifest.js";
 import { webModuleManifest } from "../../packages/web-research/src/manifest.js";
+import { getBuiltInModuleManifests } from "../../packages/module-registry/src/index.js";
+import { isSelfOperationExcluded } from "../../packages/ai/src/gateway/self-operation.js";
 
 const GRANTED_AT_INSTALL_TASK_TOOLS = [
   "tasks.create",
@@ -250,5 +252,68 @@ describe("Web Research self-operation manifest classification", () => {
     expect(family?.defaultTier).toBe("ask_each_time");
     expect(family?.allowedTiers).toContain("trusted_auto");
     expect(family?.allowedTiers).toContain("always_confirm");
+  });
+});
+
+const PLANNED_CONFIRM_ALWAYS_TOOL_NAMES = [
+  "memory.forget",
+  "people.merge",
+  "people.splitIdentity",
+  "email.sendReply"
+];
+
+describe("Complete built-in self-operation inventory (#1263)", () => {
+  it("classifies every built-in write/destructive tool across exactly the three legal buckets, summing to 38", () => {
+    // People declares its grants in packages/people/src/tools.ts, not a manifest.ts — this
+    // walks the real getBuiltInModuleManifests() registry (which resolves that indirection),
+    // so it does not undercount the way a manifest.ts-only grep would (34 instead of 38).
+    const manifests = getBuiltInModuleManifests();
+
+    const grantedAtInstall: string[] = [];
+    const confirmAlways: string[] = [];
+    const userPromotable: string[] = [];
+    const unclassified: string[] = [];
+    const excluded: string[] = [];
+
+    for (const manifest of manifests) {
+      for (const tool of manifest.assistantTools ?? []) {
+        if (tool.risk === "read") continue;
+
+        if (isSelfOperationExcluded(manifest.id, tool)) {
+          excluded.push(`${manifest.id}.${tool.name}`);
+          continue;
+        }
+
+        switch (tool.selfOperationGrant) {
+          case "granted_at_install":
+            grantedAtInstall.push(`${manifest.id}.${tool.name}`);
+            break;
+          case "confirm_always":
+            confirmAlways.push(tool.name);
+            break;
+          case "user_promotable":
+            userPromotable.push(tool.name);
+            break;
+          default:
+            unclassified.push(`${manifest.id}.${tool.name}`);
+        }
+      }
+    }
+
+    expect(unclassified, `expected zero unclassified built-in write tools, found: ${unclassified.join(", ")}`).toEqual(
+      []
+    );
+    expect(excluded, `expected zero excluded built-in write tools, found: ${excluded.join(", ")}`).toEqual([]);
+
+    expect(grantedAtInstall.length).toBe(33);
+    expect(confirmAlways.length).toBe(4);
+    expect(userPromotable.length).toBe(1);
+
+    // Task 12a moved calendar.deleteEvent out of granted_at_install, which is why the
+    // granted count is 33 (not 34) even though there are 38 write/destructive tools total.
+    expect(grantedAtInstall.length + confirmAlways.length + userPromotable.length).toBe(38);
+
+    expect(confirmAlways.sort()).toEqual([...PLANNED_CONFIRM_ALWAYS_TOOL_NAMES].sort());
+    expect(userPromotable).toEqual(["calendar.deleteEvent"]);
   });
 });
