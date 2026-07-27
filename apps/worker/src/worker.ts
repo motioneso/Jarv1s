@@ -233,6 +233,13 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
   // #1282 Task 2: same discovery/runtime/cipher this file already built above for the job
   // queue path, adapted to the narrower shape the briefing composer calls (see
   // external-module-invoke.ts for the shared trust gate both paths run through).
+  //
+  // #1306 Task 22: deliberately no `createFetch` here. A briefing contribution renders
+  // from stored records (see external-modules/job-search/src/worker/handlers/briefing.ts) —
+  // there is no fetch on this path for the e2e/UAT fixture override to redirect. If a
+  // briefing handler ever does gain a fetch, this is the call site to pass
+  // resolveE2eFetchOverride() into (see external-module-job-handler.ts for the queue-path
+  // precedent) — don't let the omission read as an oversight.
   const invokeExternalBriefing = createExternalBriefingInvoker({
     workerDb,
     discoveryById,
