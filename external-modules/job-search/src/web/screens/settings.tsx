@@ -19,10 +19,17 @@ import type { BriefingDetail } from "../../domain/store-port.js";
 
 // Queue names follow root.tsx's existing job-search.crawl-run / crawl.run precedent: queue name
 // dashes the tool's last two path segments, jobKind keeps the tool's own dotted handler name.
-// worker.queues in jarvis.module.json is still `[]` as of this task — task #49 (coordinator)
-// reconciles the manifest entries (name + allowManualRun + paramsSchema) against these names.
-const PORTAL_SET_ENABLED_QUEUE = "job-search.portal-set-enabled";
-const PROFILE_SET_BRIEFING_DETAIL_QUEUE = "job-search.profile-set-briefing-detail";
+// Exported (along with PORTAL_LIST_TOOL below) so
+// tests/unit/job-search-manifest-conformance.test.ts can assert these exact literals — not a
+// retyped copy — are declared in the committed manifest with the right shape (worker.queues
+// entry + allowManualRun for the two below, assistantTools entry + risk:"read" for the tool).
+export const PORTAL_SET_ENABLED_QUEUE = "job-search.portal-set-enabled";
+export const PROFILE_SET_BRIEFING_DETAIL_QUEUE = "job-search.profile-set-briefing-detail";
+
+// The one tool this screen ever passes to invokeTool. Reads only — a write-risk tool reached
+// through invokeTool 403s with confirmation_required before it runs (rulings I3/I4), so this
+// being declared risk:"read" in the manifest is load-bearing, not decorative.
+export const PORTAL_LIST_TOOL = "job-search.portal.list";
 
 // Wire shape of job-search.portal.list's result (worker/handlers/portal.ts
 // createPortalListHandler) — defined fresh here rather than imported from the domain layer,
@@ -50,7 +57,7 @@ type PortalsState =
   | { status: "ready"; rows: PortalRow[] };
 
 async function fetchPortals(profileId: string): Promise<PortalRow[]> {
-  const result = (await invokeTool("job-search.portal.list", { profileId })) as {
+  const result = (await invokeTool(PORTAL_LIST_TOOL, { profileId })) as {
     portals?: PortalRow[];
   };
   return Array.isArray(result?.portals) ? result.portals : [];

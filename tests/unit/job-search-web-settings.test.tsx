@@ -14,7 +14,12 @@ vi.mock("../../external-modules/job-search/src/web/api", () => ({
   runQueue: vi.fn()
 }));
 
-import { SettingsScreen } from "../../external-modules/job-search/src/web/screens/settings";
+import {
+  PORTAL_LIST_TOOL,
+  PORTAL_SET_ENABLED_QUEUE,
+  PROFILE_SET_BRIEFING_DETAIL_QUEUE,
+  SettingsScreen
+} from "../../external-modules/job-search/src/web/screens/settings";
 import * as api from "../../external-modules/job-search/src/web/api";
 import type { Profile } from "../../external-modules/job-search/src/web/use-profiles";
 
@@ -102,7 +107,7 @@ describe("SettingsScreen", () => {
     const renderer = await renderScreen(profile());
     await flush();
 
-    expect(api.invokeTool).toHaveBeenCalledWith("job-search.portal.list", { profileId: "p1" });
+    expect(api.invokeTool).toHaveBeenCalledWith(PORTAL_LIST_TOOL, { profileId: "p1" });
     expect(text(renderer)).toMatch(/LinkedIn/);
 
     const checkbox = renderer.root.findByProps({ type: "checkbox" });
@@ -111,7 +116,7 @@ describe("SettingsScreen", () => {
     });
     await flush();
 
-    expect(api.runQueue).toHaveBeenCalledWith("job-search.portal-set-enabled", "portal.set-enabled", {
+    expect(api.runQueue).toHaveBeenCalledWith(PORTAL_SET_ENABLED_QUEUE, "portal.set-enabled", {
       profileId: "p1",
       sourceId: "linkedin",
       enabled: false
@@ -165,7 +170,7 @@ describe("SettingsScreen", () => {
     await flush();
 
     expect(api.runQueue).toHaveBeenCalledWith(
-      "job-search.profile-set-briefing-detail",
+      PROFILE_SET_BRIEFING_DETAIL_QUEUE,
       "profile.set-briefing-detail",
       { profileId: "p1", detail: "full" }
     );
