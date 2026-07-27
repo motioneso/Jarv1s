@@ -2149,3 +2149,53 @@ untouched.
 
 **Merge posture unchanged:** nothing auto-merges. #1273 is `security` tier — it needs the posted Opus
 verdict, CI green, and Ben's sign-off (delegated, GREEN-only). A red check parks until morning.
+
+### 2026-07-27 — Task 8 fix landed in three commits; undo-stack review findings sent
+
+**The ordered remediation I ruled went in, correctly and in order.**
+
+- `b61009db` — plain `upsert` now bumps `revision` inside the `ON CONFLICT` set, with a why-comment,
+  plus a regression in `tests/integration/structured-state.test.ts` that is a genuine failure case:
+  it holds a revision, lets a plain write land in between, and asserts the stale CAS **throws** and
+  that the plain writer's value survived. Without the fix that test fails on both assertions.
+- `7b43a1c5` — `setNotificationPreferenceEnabled` **converted** onto
+  `getWithRevision` + `upsertWithRevision` (the plain call is deleted, not left alongside),
+  `PreferenceRevisionConflictError` mapped to **409** on the REST route, `ProfilePreferencesPort`
+  extended with both revision methods, and a test asserting a conflict rather than a clobber.
+- `127156d7` — bounded per-chat undo stack (`packages/settings/src/undo-stack.ts`), with all five
+  write tools now pushing `previousValue` + `previousRevision`.
+
+**Two defects found in the undo stack by reading it, both sent to the lane before the apply path is
+built on top:**
+
+1. **Retention.** Bounded per chat (20 entries) but the map of stacks is unbounded and never
+   evicted — `clear()` has **zero callers** anywhere in the repo (grepped). Every `(actor, chat)`
+   pair the process has ever seen retains up to 20 `previousValue` entries for the process lifetime,
+   and those values are private user data (weather location is a place the user lives) in a
+   process-global map with no TTL. `appliedAt` is already recorded, so an age sweep plus dropping
+   empty stacks is cheap. "Cleared on process restart by design" is not an eviction policy for a
+   long-lived API.
+2. **Key collision.** `stackKey` is `` `${actorUserId}:${chatId}` `` — concatenation with a `:`
+   delimiter. If either id ever contains `:`, one actor's key can equal another's and `pop()` hands
+   a user someone else's undo entry. Latent today (both are UUIDs), but it is the exact trap this
+   repo already hit with chat surfaces, and a nested `Map<actorUserId, Map<chatId, …>>` makes it
+   structurally impossible instead of dependent on an unenforced ID-format invariant.
+
+**Binding constraint sent for the unwritten apply path:** undo must apply via
+`upsertWithRevision(…, entry.previousRevision)` and surface the conflict as "this changed since, not
+undoing" — never swallow it, never re-read and force the write. A force-write undo makes the whole
+revision chain decorative again and destroys whatever the user changed in between. Test required.
+Also flagged: whatever tool exposes undo is itself a write tool, must declare `selfOperationGrant`,
+and therefore moves Task 10's inventory count.
+
+**Fleet:** coordinator `w1:p11T` (`43e5f5e2`); #1264 `w1:p139` (`settings-1264-r6`, session
+`64a0aa91`, Sonnet 5, ~45%) — relay #8 on that lane; #1265 `w1:p134` (`8c64b87c`, idle, kept for QA
+findings); QA `w1:p137` (`qa-1265`, session `5d55cb29`, **Opus 5**, working). Reaped `w1:p135` and
+`w1:p136`, both resolved by session id after confirming the successor was driving.
+
+**PR #1273 CI:** both compose smokes green, `Verify foundation and app` still running. Merge posture
+unchanged — security tier, needs the posted Opus verdict, CI green, and Ben's (delegated, GREEN-only)
+sign-off. Nothing auto-merges.
+
+**Coordinator context checkpoint at 71%.** Not relaying, per Ben's standing override; this flush plus
+the durable memory save is the substitute.
