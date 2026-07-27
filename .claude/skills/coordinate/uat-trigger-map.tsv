@@ -29,6 +29,13 @@ blocking	packages/vault/**	tests/uat/specs/1217-uat-vault-ownership.uat.spec.ts
 blocking	packages/cli-runner/**	tests/uat/specs/cli-terminal.uat.spec.ts
 blocking	apps/web/src/onboarding/**	tests/uat/specs/real-chat-onboarding.uat.spec.ts
 blocking	packages/settings/**	tests/uat/specs/real-chat-onboarding.uat.spec.ts
+# #1270's provider sign-in walk. Note real-chat-onboarding above SKIPS unless the operator supplies
+# JARVIS_UAT_REAL_CHAT_TOKEN_FILE, so for onboarding/settings diffs this is usually the only spec
+# that actually executes assertions — do not read its rows as redundant.
+blocking	apps/web/src/onboarding/cli-auth-step.tsx	tests/uat/specs/1270-provider-signin.uat.spec.ts
+blocking	apps/web/src/settings/settings-ai-admin-pane.tsx	tests/uat/specs/1270-provider-signin.uat.spec.ts
+blocking	apps/web/src/settings/settings-provider-login-dialog.tsx	tests/uat/specs/1270-provider-signin.uat.spec.ts
+blocking	apps/web/src/settings/terminal-modal.tsx	tests/uat/specs/1270-provider-signin.uat.spec.ts
 blocking	external-modules/finance/**	tests/uat/specs/finance-budget.uat.spec.ts
 blocking	external-modules/finance/**	tests/uat/specs/finance-feed.uat.spec.ts
 blocking	external-modules/finance/**	tests/uat/specs/finance-reports.uat.spec.ts
