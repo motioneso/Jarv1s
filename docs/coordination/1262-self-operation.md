@@ -1912,3 +1912,41 @@ _#1264:_
   reads as fully solved.
 - That digest is **out of scope** and why, pointing at `AWAITING-BEN.md` §3b rather than restating it.
 - That the inventory counts were rebased onto #1265's 31/5/4 = 40, not loosened.
+
+### 2026-07-27 — SSRF requirement VERIFIED discharged (#1265, `1c961a4b`)
+
+The restored scope item is **done and independently verified by me in the tree**, not accepted on
+the commit message. This was the least-trustworthy item in the epic — absent from the 1128-line plan,
+reconstructed by hand from approved-spec lines 47–49 — so it got a full trace.
+
+**Mechanism:** `packages/news/src/discovery/source-resolution.ts:169` passes **`fetched.finalUrl`**
+(post-redirect) into `acceptedFinalDomain`, which normalizes it via `normalizePublisherDomain` at
+line 83. **Test:** `tests/unit/news-source-resolution.test.ts` feeds a legitimate public domain in and
+has the fetch port land on `169.254.169.254`, asserting `reason: "policy"` **specifically** — so it
+cannot pass by way of an unrelated `unreachable` rejection. Repoint line 169 at the *requested* URL
+instead of the final one and the test goes red. That is the mutation that matters, and it is caught.
+This is the strong version, not the "typed `ip_literal` is rejected" weak version I warned against.
+
+**Stronger property found while tracing, worth stating in the PR:** `acceptedFinalDomain` also
+requires `samePublisherIdentity(expectedDomain, finalDomain)`, so **any cross-domain redirect is
+refused**, not merely one landing on a private address. Containment is broader than the spec asked
+for. Conclusion stands: existing controls adequate, **no confirmation prompt, no risk-tier change**.
+
+The lane also grepped before writing and found the domain-mismatch regression already present at
+`tests/integration/news-chat-tools.test.ts:250`, so it added no duplicate. Correct call.
+
+**Also verified:** `5d66e3a9` install-grant routing test is sound (see previous entry).
+Both wrap-up requirement sets have been sent to #1265 inline; it is at 52% on Sonnet with enough
+headroom to reach the gate without another relay.
+
+### Standing note — do NOT reap unlabelled idle panes in `w1`
+
+Near-miss this session. Three unlabelled idle panes (`99c69073`, `2ecaf5e1`, `b4c52606`) looked like
+spent predecessors. A bounded read showed they are **Ben's own sessions** — two compass module spec
+panes holding 101.7k/113.1k tokens, and one on the shared `main` checkout. Workspace `w1` is shared,
+not the coordinator's alone. Reap only sessions you spawned or that asked to be reaped; idle means
+"waiting on a human" as often as "finished".
+
+Unrelated finding surfaced in Ben's `main` pane, parked for him, **not actioned by me**: ~44% of gate
+runs in this repo pipe to `tail` and therefore cannot report failure — the same masking trap this run
+bans in every handoff doc, apparently widespread.
