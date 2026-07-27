@@ -1,9 +1,10 @@
 # Provider sign-in: one shared surface for onboarding and settings — design spec
 
 - **Date:** 2026-07-27
-- **Status:** Draft — unblocked. The one open question (is Codex in scope?) was settled by recovered
-  history rather than a ruling: it was already in scope and already built. Everything else is settled
-  after two adversarial review rounds. Shape is now **recover, then consolidate** — see Context.
+- **Status:** **Approved** by Ben 2026-07-27. The one open question (is Codex in scope?) was settled
+  by recovered history rather than a ruling: it was already in scope and already built. Everything
+  else is settled after two adversarial review rounds. Shape is **recover, then consolidate** — see
+  Context.
 - **Task:** #1270
 - **Parent:** Part of epic #983 (dogfood UX hardening); related to #869 (Assistant & AI admin),
   #1059 (owner terminal), #1271 (terminal copy bug)
