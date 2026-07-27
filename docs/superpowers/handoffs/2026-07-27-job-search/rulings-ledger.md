@@ -1216,3 +1216,45 @@ landmine is armed right now; warn whoever is closest to committing.
 **Rewrite boundary:** resetting your own commit, seconds old and unpushed, to undo an accidental
 sweep is correct and expected. Rewriting anything another agent may have built on is not — surface
 it to the coordinator instead. This does not loosen N15.
+
+## N29 — The AI port reaches the custom adapter by closure, never by widening `Portal`
+
+`customPortal(source, ai)` takes the AI port as a constructor parameter and closes over it. Do
+**not** add an `ai` field to `Portal.crawl`'s args or to `runCrawl`'s deps.
+
+The custom adapter is the only portal that does model-driven extraction. Widening the shared
+contract would hand an AI port to freehire and linkedin, which must never have one — that is a
+capability boundary, not a tidiness preference. Declaring the port's type locally (an `AiPort`
+interface mirroring `ModuleWorkerContext["ai"]`) rather than importing it from the SDK follows the
+`EmbedPort` precedent already documented at `worker/stages/crawl.ts:38`, and keeps the adapter
+SDK-free and unit-testable against a plain object.
+
+**The wiring obligation this creates belongs to Task 15 (#1299) and is load-bearing.**
+`runCrawl` receives `portals` already assembled (`crawl.ts:84-96`), so whoever builds that array
+per profile must read `store.listCustomSources(profileId)` and push a `customPortal(source, ctx.ai)`
+for each row. If that step is skipped, custom sources are stored, configured, validated and tested
+green while never being crawled — a silent no-op with no failing test anywhere. Same category as
+the `database.ownedTables` manifest gap flagged earlier on this task.
+
+## N30 — Custom extraction returns an array; one bad posting fails the whole page
+
+The extraction schema is `{ postings: [...] }`, each item shaped like `Posting` minus `id` and
+`sourceId`. Part 30's "shaped like Posting minus id/sourceId" describes the **item** shape, not the
+cardinality — a job board page lists many postings, and singular would make custom sources
+structurally incapable of what freehire and linkedin already do.
+
+**If any item fails validation, the whole extraction fails** — the plain extension of "one field
+failing validation fails the whole extraction". Partial acceptance is the worse failure: the model
+drops three postings from a page of fifty, we store forty-seven, and report success. That is the
+recall case failing silently, and the recall case is protected. A whole-page failure is loud,
+lands as a structured `parse_failed` cause, and per N16 does **not** disable the portal — so it
+retries on the next sweep and recovers by itself the moment the page or the model output is
+well-formed. The availability cost (a 98%-fine source yielding nothing) is real and accepted,
+because it is visible and fixable while silent under-recall is neither.
+
+**An empty array is a legitimate zero-result page, not a failure** — mirrors freehire's
+empty-items rule (N19).
+
+The structured cause must record **where** extraction failed: the item index and the offending
+field name, bounded to that. Not "parse_failed" alone, which makes a fifty-posting page
+undebuggable — and not the raw item either, which drags posting bodies into a failure record.
