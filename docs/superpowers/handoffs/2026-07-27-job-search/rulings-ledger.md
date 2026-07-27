@@ -896,3 +896,38 @@ tainted parent on one side renders as normal reviewable text.
 and by other sessions; a rebase to cosmetically fix one historical diff pair trades a real hazard
 (everyone's checkout diverging mid-build) for a cosmetic gain on a commit nobody needs to review
 again.
+
+## N16 — `parse_failed` does NOT disable a portal (revises L14)
+
+Raised by the Task 11 agent, which found `describeFailure`'s `parse_failed` case
+(`records.ts:159-173`, already committed) setting `disabled: false` while L14 and part 16's test 5
+both demanded `true`. It was right to stop rather than route around it, and right that Task 5's
+tests never pinned the value. The implementation is the correct one; **L14's phrasing overreached
+and is revised here.**
+
+What `disabled` actually costs: a disabled portal is never crawled again (part 19, test 4) until
+the user turns it back on. Nothing nudges them to. So disabling on a layout change means that after
+we ship the parser fix, the user's search stays permanently narrower than they asked for, through no
+action of theirs and with nothing to notice — the exact silent-loss class this whole design fights.
+`login_required` earns `disabled: true` because a retry can *never* succeed regardless of what we
+ship: it is terminal by policy. A parse failure is terminal only until our next release, and then it
+self-heals on the next scheduled crawl.
+
+The committed copy already encodes this and would have become a lie under L14: `parse_failed`'s
+`nextAction` is `"This needs a fix on our side. " + retry` — it promises a retry. Every genuinely
+disabled kind pairs with the `"Disabled. Turn it back on if you want to try again."` copy instead.
+
+**Steelmanning L14:** its stated concern is real — an unrecognised envelope must never reach the
+user as a successful zero-result search. But `disabled` was never what prevents that. What prevents
+it is `kind === "parse_failed"` plus the structured `cause` the board renders verbatim (part 25,
+test 8) and `portal.list` returns (part 21). A degraded portal is visible on every crawl; a disabled
+one is a decision the user has to undo.
+
+**Rule: `disabled: true` is reserved for kinds where retrying can never succeed no matter what we
+ship** — today that is `login_required` alone. `parse_failed`, `rate_limited`, `network` and
+`deadline` all leave the portal enabled and degraded, with the cause rendered.
+
+Follow-ups: part 16 lines 31 and 132 corrected in the same commit (a part file contradicting a
+ruling is a drafting error in the part file, N11). Task 5's `job-search-failure-cause.test.ts` never
+asserted `parse_failed`'s `disabled` value at all, which is why the gap survived four gates — that
+assertion gets added so the value is pinned rather than incidental.

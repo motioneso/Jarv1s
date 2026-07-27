@@ -28,8 +28,9 @@ keyword(s), title, text, country, countries, work_mode, regions, is_tech, collec
 
 So the adapter targets `__data.json` and treats it as **a fragile internal route, not a public API**.
 Two consequences: it must not trust the server's relevance (over-fetch; Task 6 and Task 8 do the
-narrowing), and an unrecognised envelope is a `parse_failed` that **disables the portal**, never an
-empty result set that reads as "no jobs matched your search".
+narrowing), and an unrecognised envelope is a `parse_failed` carrying a **structured cause the board
+renders**, never an empty result set that reads as "no jobs matched your search". It does **not**
+disable the portal (ruling N16 — this line previously said it did).
 
 **Contracts**
 
@@ -128,10 +129,12 @@ turn an unrelated assertion into a flake.
    Fails against an implementation that throws away partials on failure.
 4. **401/403 → `login_required` and disables itself.** Fails against a generic error path that
    retries a login wall forever.
-5. **Unrecognised envelope disables rather than reporting zero jobs.** A well-formed but
-   non-matching payload must yield `postings: []`, `kind === "parse_failed"`, `disabled === true`,
-   and a summary naming freehire. This is the misleading-silence case: "0 postings" reads to the
-   user as "nothing matched your search".
+5. **Unrecognised envelope reports a parse failure rather than zero jobs.** A well-formed but
+   non-matching payload must yield `postings: []`, `kind === "parse_failed"`, `disabled === false`
+   (ruling N16 — see the ledger; this line previously said `true` and was wrong), and a summary
+   naming freehire. This is the misleading-silence case: "0 postings" reads to the user as
+   "nothing matched your search". What prevents that is the structured cause the board renders,
+   not switching the portal off.
 6. **Non-JSON body → `parse_failed`, no postings.** Fails against a `JSON.parse` that is allowed to
    throw out of `crawl`.
 7. **Deadline expires between pages → returns what it has.** Clock crosses `deadlineAt` after the
