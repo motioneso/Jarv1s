@@ -1,6 +1,24 @@
 # Relay 17 — #1264 settings self-operation
 
-## State: file-size gate fixed + committed, one unrelated gate failure found + fixed + committed. Full gate re-run + wrap-up still needed.
+## State: file-size gate fixed + committed, undo-CAS test gap found + fixed + committed. Full gate re-run + wrap-up still needed.
+
+## Coordinator correction (2026-07-27, binding, already applied to pr-body.md — don't re-introduce)
+
+The coordinator independently re-verified both `ece42556` and `1f73ec84` and ACCEPTED both — no
+rework needed on the substance. But it banned two words from the PR body for either change:
+**never call this lane's own work "pre-existing" or "unrelated."** Both were used as honest
+shorthand for "not the task I'm currently on," but to a reviewer at security tier they read as
+"inherited, someone else's problem, safe to skim" — the wrong signal. `chat/routes.ts` growing
+over the cap was this branch's own Task 8 commit; `notification-preference-application.ts` is a
+new 94-line file this PR created, so the undo-entry test gap is this PR's own bug in its own new
+code, not something inherited. Describe both plainly as this PR's own work being fixed by this PR.
+`pr-body.md` (scratchpad path below) has already been edited to comply — don't undo that language,
+and don't use either banned word if you touch the PR body further.
+
+The coordinator also asked for one new correctness point to be stated explicitly in the PR body
+(already added, in its own subsection under "What changed"): the undo stack's CAS must record the
+**post-mutation** `resultingRevision`, never `previous.revision` — recording the wrong one would
+let undo race and clobber a concurrent write instead of refusing. This is now in `pr-body.md`.
 
 Commits since relay-16 (not yet pushed — push happens at wrap-up per skill):
 - `ece42556` refactor(chat): extract gateway dependency assembly out of routes.ts (#1264)
@@ -29,7 +47,7 @@ Verified and don't need to re-verify:
   `tests/integration/chat-mcp-transport.test.ts` (20), `tests/integration/focus-time.test.ts` (19),
   `tests/integration/notes-write-tools.test.ts` (18) — 58/58.
 
-## `1f73ec84` — unrelated gate failure found during the first full-gate re-run (DONE, verified)
+## `1f73ec84` — undo-CAS test gap in this PR's own new code, found during the first full-gate re-run (DONE, verified)
 
 First `JARVIS_PGDATABASE=jarvis_build_1264 pnpm verify:foundation` re-run (fresh DB) got to
 `test:unit` and failed real, deterministic (reproduced in isolation, not order-dependent):
@@ -44,9 +62,10 @@ this lane's own work (`fc2a42b7`/`127156d7`/`277d9e81`), so this is this lane's 
 inherited. Verified: `tests/unit/settings-notification-preference-tool.test.ts` 7/7 green in
 isolation.
 
-**This was NOT part of the file-size extraction scope** — it's an independent, coincidentally
-discovered bug in `packages/settings`, fixed as its own commit. Mention it plainly in the PR (the
-draft below already does).
+**This was NOT part of the file-size extraction scope** — it's a separate bug in this PR's own new
+`packages/settings/notification-preference-application.ts` code, fixed as its own commit. Mention
+it plainly in the PR as this lane's own fix, not as "unrelated" or "pre-existing" (coordinator
+correction above) — `pr-body.md` already has the compliant wording in its own subsection.
 
 ## Immediate next step: re-run the FULL gate from scratch (not yet done since the fix)
 
@@ -70,17 +89,16 @@ text).
 Invoke `coordinated-wrap-up`: clean tree, pre-push trio (`format:check && lint && typecheck`),
 fresh `git fetch origin main && git rebase origin/main`, push, open PR citing **#1264 and #1272**.
 
-**PR body is fully drafted and corrected, ready to paste verbatim:**
+**PR body is fully drafted, corrected, and ready to paste verbatim — no further edits needed:**
 `/tmp/claude-1000/-home-ben-Jarv1s--claude-worktrees-1264-settings-self-operation/6438d10e-47c6-454a-bece-43d6dcd860f0/scratchpad/pr-body.md`
-(if that scratchpad path is gone in your session, it's reconstructable — it's relay-16's original
-draft plus one new inserted section "File-size gate fix: `packages/chat/src/routes.ts` extraction
-(pure move, no behavior change)" with the route-table proof, placed after "What changed" and
-before "Platform behavior"; the Test plan checklist also gained one new `[x]` line for the
-extraction). It does **not yet mention** the `1f73ec84` notification-preference test fix — add one
-short line to "What changed" or Test plan before pasting, something like: "One unrelated test bug
-found and fixed during the full-gate re-run: `tests/unit/settings-notification-preference-tool
-.test.ts`'s undo-entry test had a fake missing `resultingRevision` — fixed, 7/7 green (`1f73ec84`),
-unrelated to the file-size extraction."
+It already includes: the file-size extraction section with route-table proof; a dedicated
+undo-CAS subsection under "What changed" stating the post-mutation-`resultingRevision`-not-
+`previous.revision` correctness property; an "Undo-CAS test gap" section describing the
+`1f73ec84` fix as this PR's own bug in this PR's own new code (never "unrelated"/"pre-existing" —
+coordinator correction above); and two `[x]` Test plan lines for the extraction and the test fix.
+If that scratchpad path is gone in your session, this doc's git history (`git log -p` on this file)
+has the full compliant text to reconstruct from — do not regenerate from relay-16's original
+draft, which predates the coordinator's correction.
 
 ## After opening the PR
 
