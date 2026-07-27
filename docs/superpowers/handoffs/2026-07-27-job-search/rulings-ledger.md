@@ -860,3 +860,39 @@ task's tests and `check:external-modules`. A task is not done until it exits 0.
 Cleaned up wholesale in `881ed512` (formatting only; 30 unit and 7 integration tests re-verified
 after). The recurrence is what the rule is for — one agent forgetting is an oversight, four
 agents forgetting is a missing instruction.
+
+## N14 — Task 24 has no plan part yet, and no code may be written against it
+
+Task 24 (user-added job board sources, #1309) was appended **after** the plan was approved, on
+Ben's ruling that custom sources are in v1. Every other task in this build has a part file carrying
+its contracts, invariants, and test cases; Task 24 has an issue body and nothing else.
+
+That is a hard process gate, not a formality. "Spec before build" is a project invariant, and this
+task is the one that touches the fetch-host allowlist — the boundary that decides which hosts a
+module may reach at all. A task authored straight from an issue body would be inventing that
+contract inside the implementation, which is precisely where a security-relevant shape drifts.
+
+**Rule: Task 24 gets a plan part (`parts/30-task24-sources.md`) reviewed and approved before any
+Task 24 code is written.** The part carries contracts, not implementations, in the same form as
+every other part: the grant record's shape and where it persists, which existing machinery is
+reused (`assertValidFetchHosts` in `packages/host-fetch/src/policy.ts:6` already exists and is
+already enforced on every module fetch — this is a small write against existing enforcement, not a
+new security project), the disable/remove path, and the `parse_failed` handling a user-named source
+gets like any other portal. The login-walled hard stop stays in force: the crawler never signs in
+and never uses stored credentials against a job board.
+
+## N15 — A `Bin` marker on one commit is not proof the new blob is still binary
+
+Follow-up to N12. Git flags a diff binary if **either** side of the pair contains a control byte, so
+the commit that *fixes* literal control bytes still renders as `Bin old -> new bytes` — the tainted
+parent blob is what forces it. That is expected and is not a residual defect.
+
+**Rule: check the blob, not the diff.** `git cat-file -p <sha>:<path>` piped through a byte scan (or
+`file -`) is the authority on whether the stored content is clean. Confirmed this way on `9161c7b4`:
+both blobs are UTF-8 text with zero control bytes, and every future diff that does not have the
+tainted parent on one side renders as normal reviewable text.
+
+**Do not rewrite history to make an old diff render as text.** The branch is shared by six agents
+and by other sessions; a rebase to cosmetically fix one historical diff pair trades a real hazard
+(everyone's checkout diverging mid-build) for a cosmetic gain on a commit nobody needs to review
+again.
