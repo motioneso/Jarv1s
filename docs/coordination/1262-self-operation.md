@@ -2101,3 +2101,51 @@ that lets isolation state be inferred from outcomes alone.
 **State for whoever holds this next:** no PR on either lane; nothing merge-eligible; the adversarial
 Opus QA brief for #1265 is staged and unspawned; #1264 must rebase the inventory to 31/5/4=40 at its
 Task 10; digest stays out of scope; the six stray rows in Ben's `jarv1s` are logged and untouched.
+
+### 2026-07-27 — #1265 PR open + Opus QA spawned; Task 8 ruling sent to #1264
+
+**#1265 is done and in QA.** PR **#1273** (`da5b47fa`, all 7 tasks). Lane reports `VF_EXIT=0`
+`AUDIT_EXIT=0` on the isolated `jarv1s_gate_1265b`. Verified in the tree myself rather than on the
+report: the SSRF post-redirect regression really is restored (`1c961a4b`, plus `935cd955` fixing the
+fetch mock), and the inventory assertion is exact `toBe` — 31 / 5 / 4 with a `toBe(40)` sum at
+`tests/unit/self-operation-manifests.test.ts:377-390`, not loosened to a range to dodge the sibling
+rebase. CI at spawn time: prod compose smoke green, `Verify foundation and app` still running.
+
+Adversarial **Opus** QA spawned per security tier — pane `w1:p137`, agent `qa-1265`, session
+`5d55cb29-b76a-4d32-a97e-eb542fa9972a`, confirmed on **Opus 5** with `coordinated-qa` loaded, on a
+**detached** worktree at `da5b47fa` (`.claude/worktrees/qa-1265`). Spawned via Herdr, not the Agent
+tool — this session is instructed not to call it — which is the documented fallback path. Its verdict
+must be posted to PR #1273 with `gh pr comment` before it messages me.
+
+**#1264 Task 8 — I ruled against both options the lane offered, because the premise was wrong.**
+The lane framed it as "`notificationPreference.setEnabled` lacks revision tracking, the other tools
+have it." It does not hold. `PreferencesRepository.upsert` (line 16) does
+`onConflict … doUpdateSet({ value_json, updated_at })` — it **never bumps `revision`**, while
+`upsertWithRevision` (line 76) is real CAS (`UPDATE … WHERE revision = expected`). So any key with
+both a CAS writer and a plain writer has a revision that stops tracking mutations. Verified on three
+keys already in the branch: `COLOR_MODE_KEY` (`theme-mode-tool.ts:28` vs `themes-routes.ts:117`),
+`LOCALE_PREFERENCE_KEY` (`locale-tools.ts:68,102` vs `locale-routes.ts:51`), and
+`CHAT_SETTINGS_PREFERENCE_KEY` (`response-style-tool.ts:36` vs `chat/routes.ts:492`). Failure: user
+changes theme in the UI (plain write, revision stays 1) → assistant tool CAS-writes against revision
+1, succeeds, silently clobbers the user. Wiring an undo stack on that produces entries recording a
+revision that guarded nothing.
+
+Ordered remediation sent to the lane: (1) make plain `upsert` bump `revision` on conflict — one line
+in the primitive, no plain caller reads the return, fixes every key at once; (2) add the regression
+that fails today (get → plain write lands → CAS must throw `PreferenceRevisionConflictError`); (3)
+only then convert `setNotificationPreferenceEnabled`
+(`packages/settings/src/notification-preference-application.ts:56`) to the same
+`getWithRevision` + `upsertWithRevision` pair the other six tools use, mapping the conflict to 409 on
+the REST route. That is not a hand-rolled read-before-write — the `WHERE revision = expected` makes
+the write atomic. The one forbidden outcome is a **mixed** key (tool on CAS, REST on plain), which is
+the clobber above. `notifications:<moduleId>` has exactly one write path (that app fn, shared by the
+REST route and the tool) and one reader (`module-registry/src/index.ts:864`), so conversion is clean.
+
+**Fleet:** coordinator `w1:p11T` (`43e5f5e2`); #1264 `w1:p136` (`settings-selfop-relay5`, Sonnet 5,
+~58%, Tasks 8–13); #1265 `w1:p134` (`8c64b87c`, idle — **kept alive deliberately** to fix QA
+findings, not reaped); QA `w1:p137` (Opus). Reaped `w1:p135` (`3acc31b4`) after confirming its
+successor was driving, resolved by session id. Ben's panes `w1:p112` / `w1:p12C` / `w1:p12D`
+untouched.
+
+**Merge posture unchanged:** nothing auto-merges. #1273 is `security` tier — it needs the posted Opus
+verdict, CI green, and Ben's sign-off (delegated, GREEN-only). A red check parks until morning.
