@@ -1469,3 +1469,40 @@ elsewhere" — and that claim is only load-bearing if you *run the grep*. One wa
 sites; the other was a transfer that needed an explicit tripwire so the coverage cannot vanish
 between two agents each assuming the other holds it. Never accept "covered elsewhere" as
 scope-reduction without naming the file and line that covers it.
+
+## N38 — a render cap is paid for in row count, never in the explanation text
+
+Caught while verifying `88daf351`, which lowered `REASON_MAX_CHARS` from 400 to 60 in
+`worker/handlers/matches.ts` and described itself as *"Not user-visible — test and internal
+render-safety coverage only."* It is user-visible, and the way it was found is the reusable part:
+the claim was checked against the consumer rather than against the diff.
+
+`screens/inspector.tsx:3` states plainly that it never calls `invokeTool`/`runQueue` — it renders
+`match.fitReason`/`match.wantReason` off the board row at `:53`/`:58`. The manifest declares no
+`job-search.match.get`; `matches.list` is the only tool returning match data. So the 60-char cap is
+the **entire** Fit and Want explanation anywhere in the product. The AI writes a full reason to the
+database and nothing displays it. A locked module rule — Fit and Want each carry their own reason —
+is not satisfied by a 60-character fragment.
+
+**The constraint that motivated it is real.** `boundedAssistantToolResultData`
+(`packages/ai/src/gateway/output-validation.ts:89`, reached from `packages/ai/src/routes.ts:712`,
+which is the browser `invokeTool` path the board uses) returns `result.data` untouched under 16 000
+rendered characters and replaces it **wholesale** with `{text: "…truncated"}` above it. Over the cap
+the board renders no rows at all, not a short list. A budget genuinely has to be spent.
+
+**Ruling: spend it on the row count.** Reasons and the posting URL are the product; rows-per-screen
+is a knob. Any future field added to a capped tool result follows the same order — shrink the list
+before shrinking what each item says. Filed as #1330, scoped to land with #1329 (same two files).
+
+Two mechanical traps recorded with it:
+
+- `BoardMatch` carries **no `url`**, so "Open posting" — one of three plan-named match actions — has
+  no data to work with. Found by grepping the consumers for `url|href`, not by reading the handler.
+- `board.tsx:18`'s `MATCHES_LIMIT` and `MATCHES_LIST_MAX_LIMIT` are two copies of one number. They
+  move together or the board starts throwing `InputError` on every read.
+
+**Generalisation.** "Not user-visible" is a claim about the *consumer*, not about the diff. A change
+to a constant inside a handler looks internal by construction; whether it is depends on who reads
+the field and whether any other path can still reach the untruncated value. Trace to the surface
+before accepting the label — and when a cap must be enforced, ask which axis the product can afford
+to lose, rather than shrinking whichever field the arithmetic makes easiest.
