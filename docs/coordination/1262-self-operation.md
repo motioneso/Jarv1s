@@ -3771,3 +3771,21 @@ tools are scheduled for deletion by this spec while its machinery (revision CAS,
 outcomes, rate limiter) is what the generic writer is built on; recommendation is still to land it.
 PR #1273 (#1265) — QA GREEN, blocked on its unmet spec exit criterion; unaffected by this pivot
 (`app.getMapSlice` survives).
+
+## Continuation note — 2026-07-27, both build lanes reaped
+
+A liveness monitor fired: **neither #1264 nor #1265 has a live pane.** Verified nothing was lost —
+both branches are pushed, all four required checks SUCCESS on each PR, and both lane worktrees are
+already removed (`.claude/worktrees/*1264*` / `*1265*` no longer exist), so there was no uncommitted
+work in a tree. The monitor was stopped; it was watching lanes that no longer exist.
+
+Consequence: the two open follow-ups on these PRs now have **no owner**.
+
+- **PR #1276** (#1264, security tier) — CI green but reopened by **#1310** (a settings write doesn't
+  reach the UI until a manual refresh; fix site is the `action_result` seam at `app-shell.tsx:181`).
+  Needs a fresh lane to land the invalidation, then re-QA, then Ben's merge sign-off.
+- **PR #1273** (#1265) — QA GREEN, still blocked on its unmet spec exit criterion (the e2e-UAT that
+  drives chat turn → tool → DOM). Needs a fresh lane for that test only.
+
+Neither should be respawned until Ben rules on the default-allow spec, because that spec deletes
+#1276's six setter tools. Order of operations is his call.
