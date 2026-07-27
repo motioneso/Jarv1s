@@ -120,7 +120,9 @@ function createFakeStore(input: {
 function createFakeEmbed(): EmbedPort {
   return {
     embedDocuments: vi.fn(async () => {
-      throw new Error("embedDocuments should not be called by runScore — that is the crawl stage's job");
+      throw new Error(
+        "embedDocuments should not be called by runScore — that is the crawl stage's job"
+      );
     }),
     embedQuery: vi.fn(async () => [1, 0, 0]),
     dimensions: vi.fn(async () => 3)
@@ -137,11 +139,22 @@ function createFakeNotify(): NotifyPort & { __posted: Array<{ key: string; body:
   };
 }
 
-const okResult = { fit: 80, want: 70, fitReason: "Strong match on skills.", wantReason: "Team shape fits." };
+const okResult = {
+  fit: 80,
+  want: 70,
+  fitReason: "Strong match on skills.",
+  wantReason: "Team shape fits."
+};
 
 /** A queue of responses, one per call — throws if exhausted, so a test that reads more calls
  * than it planned for fails loudly instead of hanging on `undefined.ok`. */
-function scriptedAi(responses: ReadonlyArray<Parameters<AiPort["generateStructured"]>[0] extends never ? never : Awaited<ReturnType<AiPort["generateStructured"]>>>): AiPort & { calls: Array<{ prompt: string }> } {
+function scriptedAi(
+  responses: ReadonlyArray<
+    Parameters<AiPort["generateStructured"]>[0] extends never
+      ? never
+      : Awaited<ReturnType<AiPort["generateStructured"]>>
+  >
+): AiPort & { calls: Array<{ prompt: string }> } {
   const calls: Array<{ prompt: string }> = [];
   let index = 0;
   return {
@@ -185,7 +198,9 @@ describe("runScore", () => {
     // Ten postings, budget 3: triage selects at most 3, so at most 3 generateStructured calls.
     const candidates = Array.from({ length: 10 }, (_, i) => makePosting(`p-${i}`));
     const store = createFakeStore({ profile: makeProfile(), candidates });
-    const ai = scriptedAi(Array.from({ length: 3 }, () => ({ ok: true as const, object: okResult })));
+    const ai = scriptedAi(
+      Array.from({ length: 3 }, () => ({ ok: true as const, object: okResult }))
+    );
 
     const result = await runScore(runDeps({ store, ai, budget: 3 }));
 
@@ -226,7 +241,9 @@ describe("runScore", () => {
   it("test 3: an {ok: true} envelope whose object fails parseScoreResult leaves the posting unscored and increments failed", async () => {
     const posting = makePosting("p-badparse");
     const store = createFakeStore({ profile: makeProfile(), candidates: [posting] });
-    const ai = scriptedAi([{ ok: true, object: { fit: 200, want: 70, fitReason: "x", wantReason: "y" } }]);
+    const ai = scriptedAi([
+      { ok: true, object: { fit: 200, want: 70, fitReason: "x", wantReason: "y" } }
+    ]);
 
     const result = await runScore(runDeps({ store, ai, budget: 1 }));
 
@@ -289,7 +306,10 @@ describe("runScore", () => {
   it("test 8: provider_error gets exactly one retry across the whole stage, on the same posting", async () => {
     const posting = makePosting("p-retry");
     const store = createFakeStore({ profile: makeProfile(), candidates: [posting] });
-    const ai = scriptedAi([{ ok: false, error: "provider_error" }, { ok: true, object: okResult }]);
+    const ai = scriptedAi([
+      { ok: false, error: "provider_error" },
+      { ok: true, object: okResult }
+    ]);
 
     // Budget 2, not 1: the retry only fires when a call remains in the budget after the first
     // failure (`aiCallsUsed < scoreBudget`) — at budget 1 the stage has no room for a retry at
@@ -324,7 +344,10 @@ describe("runScore", () => {
   it("test 9: validation_failed is per-posting — increments failed, leaves unscored, keeps going", async () => {
     const postings = [makePosting("p-1"), makePosting("p-2")];
     const store = createFakeStore({ profile: makeProfile(), candidates: postings });
-    const ai = scriptedAi([{ ok: false, error: "validation_failed" }, { ok: true, object: okResult }]);
+    const ai = scriptedAi([
+      { ok: false, error: "validation_failed" },
+      { ok: true, object: okResult }
+    ]);
 
     const result = await runScore(runDeps({ store, ai, budget: 2 }));
 
@@ -336,7 +359,9 @@ describe("runScore", () => {
   it("test 10: never more than budget calls, never more than AI_CALL_BUDGET — 40 candidates, budget 8 -> exactly 8 calls, remainder deferred", async () => {
     const postings = Array.from({ length: 40 }, (_, i) => makePosting(`p-${i}`));
     const store = createFakeStore({ profile: makeProfile(), candidates: postings });
-    const ai = scriptedAi(Array.from({ length: 8 }, () => ({ ok: true as const, object: okResult })));
+    const ai = scriptedAi(
+      Array.from({ length: 8 }, () => ({ ok: true as const, object: okResult }))
+    );
 
     const result = await runScore(runDeps({ store, ai, budget: 8 }));
 
@@ -360,7 +385,10 @@ describe("runScore", () => {
   it("test 12: aiCallsUsed equals the number of generateStructured calls, including failures — a retry counts", async () => {
     const posting = makePosting("p-1");
     const store = createFakeStore({ profile: makeProfile(), candidates: [posting] });
-    const ai = scriptedAi([{ ok: false, error: "provider_error" }, { ok: true, object: okResult }]);
+    const ai = scriptedAi([
+      { ok: false, error: "provider_error" },
+      { ok: true, object: okResult }
+    ]);
 
     // Budget 2 for the same reason as test 8 — a retry needs a spare call in the budget.
     const result = await runScore(runDeps({ store, ai, budget: 2 }));
@@ -398,7 +426,10 @@ describe("runScore", () => {
   it("test 15: a notification fires once per pass with the new-match count, not once per match", async () => {
     const postings = [makePosting("p-1"), makePosting("p-2")];
     const store = createFakeStore({ profile: makeProfile(), candidates: postings });
-    const ai = scriptedAi([{ ok: true, object: okResult }, { ok: true, object: okResult }]);
+    const ai = scriptedAi([
+      { ok: true, object: okResult },
+      { ok: true, object: okResult }
+    ]);
     const notify = createFakeNotify();
 
     await runScore(runDeps({ store, ai, budget: 2, notify }));
@@ -427,7 +458,10 @@ describe("runScore", () => {
 
     const postings = [makePosting("p-1"), makePosting("p-2")];
     const store = createFakeStore({ profile: makeProfile(), candidates: postings });
-    const ai = scriptedAi([{ ok: true, object: okResult }, { ok: true, object: okResult }]);
+    const ai = scriptedAi([
+      { ok: true, object: okResult },
+      { ok: true, object: okResult }
+    ]);
     const notify = createFakeNotify();
     await runScore(runDeps({ store, ai, budget: 2, notify }));
 
