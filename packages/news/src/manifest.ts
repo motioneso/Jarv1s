@@ -343,7 +343,11 @@ export const newsModuleManifest = {
       inputSchema: {
         type: "object",
         properties: {
-          label: { type: "string", description: "Short human-readable topic label" }
+          label: {
+            type: "string",
+            description: "Short human-readable topic label",
+            maxLength: 80
+          }
         },
         required: ["label"]
       },
