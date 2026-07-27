@@ -134,3 +134,42 @@ recover them by re-reading this file. **Re-read this section after any compactio
    with nothing committed. Reading is not progress. State assumptions inline rather than leaving to
    verify them — the coordinator corrects a wrong assumption far more cheaply than the lane pays for
    another relay.
+
+## READ DISCIPLINE — mandatory, added 2026-07-27 after four relays with zero code
+
+Four successive contexts in this lane relayed without building a single task. The cause is
+mechanical: the plan is **1129 lines** and contains inline implementation code, so each successor
+spends its whole context reading it and relays before writing anything. Reading the plan whole is
+now **banned**.
+
+**Seek directly to your current task's line range. Read that range and nothing else.**
+`docs/superpowers/plans/2026-07-27-module-self-operation-settings-commands.md`:
+
+| Task | Lines | Task | Lines |
+| --- | --- | --- | --- |
+| 0a preferences CAS | 35–162 | 5 weatherLocation | 681–763 |
+| 0b instance_settings CAS | 163–187 | 6 notificationPreference | 764–854 |
+| 0c audit CHECK widen | 188–228 | 7 chat.setResponseStyle | 855–934 |
+| 1 notification extract | 229–337 | 8 undo stack | 935–1038 |
+| 2 themeMode | 338–445 | 9 no-op suppression | 1039–1087 |
+| 3 locale | 446–590 | 10 inventory counts | 1088–1113 |
+| 4 quietHours | 591–680 | 11 full gate | 1114–1129 |
+| | | 13 rate limiting | see rulings above — no plan section |
+
+**Build → commit → then read the next range.** One task per read. Never read ahead.
+
+### Grounding already done — do NOT re-derive any of this
+
+- **Migration number is `0175`**, not the plan's assumed 0167/0168. Verified; the plan is wrong.
+  #1265 ships no migration, so nothing will shift it.
+- **Test convention:** extend the existing `tests/integration/*.test.ts` files. The plan's
+  per-package test-file and per-package command instructions are **wrong for this repo** — ignore
+  them wherever they appear.
+- The four coordinator rulings above (prerequisite already satisfied, digest dropped, three
+  migrations, chat-response-style on chat's manifest with a closed enum) are settled. Re-verifying
+  them is the behaviour that burned four contexts.
+- Task 13 (rate limiting) is required, gateway-level, reports the existing `denied` outcome, and
+  lands last.
+
+**Any doc you commit gets `prettier --write` before the commit** — `format:check` is an early link of
+the CI gate, so a prettier warning fails the gate and the test suites never run at all.
