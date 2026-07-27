@@ -3,6 +3,7 @@ import { tasksModuleManifest } from "../../packages/tasks/src/manifest.js";
 import { commitmentsModuleManifest } from "../../packages/commitments/src/manifest.js";
 import { goalsModuleManifest } from "../../packages/goals/src/manifest.js";
 import { notesModuleManifest } from "../../packages/notes/src/manifest.js";
+import { peopleModuleManifest } from "../../packages/people/src/manifest.js";
 
 const GRANTED_AT_INSTALL_TASK_TOOLS = [
   "tasks.create",
@@ -29,6 +30,9 @@ const GRANTED_AT_INSTALL_COMMITMENT_TOOLS = [
 const GRANTED_AT_INSTALL_GOALS_TOOLS = ["goals.create", "goals.update", "goals.addEvidence"];
 
 const GRANTED_AT_INSTALL_NOTES_TOOLS = ["notes.create", "notes.edit"];
+
+const GRANTED_AT_INSTALL_PEOPLE_TOOLS = ["people.acceptMatch", "people.rejectMatch"];
+const CONFIRM_ALWAYS_PEOPLE_TOOLS = ["people.merge", "people.splitIdentity"];
 
 describe("Tasks self-operation manifest classification", () => {
   it("classifies all 13 Tasks write tools as granted_at_install", () => {
@@ -97,5 +101,26 @@ describe("Notes self-operation manifest classification", () => {
     expect(createTool?.executionPolicy).toBe("auto");
     expect(createTool?.requiresConfirmation?.({ overwrite: true })).toBe(true);
     expect(createTool?.requiresConfirmation?.({ overwrite: false })).toBe(false);
+  });
+});
+
+describe("People self-operation manifest classification", () => {
+  it("classifies People with exactly two binding confirm_always declarations", () => {
+    const tools = peopleModuleManifest.assistantTools ?? [];
+    for (const name of GRANTED_AT_INSTALL_PEOPLE_TOOLS) {
+      const tool = tools.find((candidate) => candidate.name === name);
+      expect(tool, `expected tool ${name} to exist`).toBeDefined();
+      expect(tool?.selfOperationGrant, `expected ${name} to be granted_at_install`).toBe(
+        "granted_at_install"
+      );
+    }
+    for (const name of CONFIRM_ALWAYS_PEOPLE_TOOLS) {
+      const tool = tools.find((candidate) => candidate.name === name);
+      expect(tool, `expected tool ${name} to exist`).toBeDefined();
+      expect(tool?.risk).toBe("destructive");
+      expect(tool?.selfOperationGrant, `expected ${name} to be confirm_always`).toBe("confirm_always");
+    }
+    const confirmAlwaysCount = tools.filter((tool) => tool.selfOperationGrant === "confirm_always").length;
+    expect(confirmAlwaysCount).toBe(2);
   });
 });
