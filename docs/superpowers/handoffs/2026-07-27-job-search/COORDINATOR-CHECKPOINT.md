@@ -7,10 +7,10 @@ not a recap. Read the four documents below before acting; nothing here restates 
 
 1. `HANDOFF.md` (this directory) — the build's charter. Its Start section is complete; its rules,
    scope guardrails and module rules are all still live.
-2. `rulings-ledger.md` (this directory) — **every** locked decision, N1 through N28. When a build
+2. `rulings-ledger.md` (this directory) — **every** locked decision, N1 through N32. When a build
    agent asks "which helper / is this allowed / what shape", the answer is here or it is a new
-   ruling that belongs here. Latest three are N26 gate-DB isolation, N27 live-path proof,
-   N28 explicit-path commits — all branch-wide, all binding on every agent.
+   ruling that belongs here. The branch-wide ones that bite hardest: N26 gate-DB isolation,
+   N27 live-path proof, N28 explicit-path commits, N32 co-edited files.
 3. `parts/` — one file per task, numbered to match the task numbers. **Task numbering is frozen**;
    never renumber, and reject renumbering findings on sight.
 4. GitHub epic #1280 and its children — the board is the only status source. Do not trust this
@@ -18,8 +18,9 @@ not a recap. Read the four documents below before acting; nothing here restates 
 
 ## Where the work stands
 
-Branch `feat/job-search`, local only — `origin/feat/job-search` does not exist. HEAD at write time
-is `e3ad18da`.
+Branch `feat/job-search`, local only — `origin/feat/job-search` does not exist. HEAD at last update
+is `280691df`. **Six task issues remain open: #1299, #1304, #1305, #1306, #1307** (plus #1087, a
+pre-existing harness-quality issue, not this epic's). Everything else is closed and on the board.
 
 **Task 15 (#1299) is the single gate on the whole epic.** A background agent owns it. Besides its
 own score/pass/surfacing work it must register **all nine Task 16 handler factories plus its own
@@ -27,13 +28,13 @@ two** in `external-modules/job-search/src/worker/index.ts`, which is still
 `defineModuleWorker({ handlers: {} })`. Task 20 (#1304) and Task 21 Tier B (#1305) are both blocked
 behind it; Task 21 Tier A already landed at `1401040e`.
 
-Live assignments at checkpoint time: dedupe on #1309, criteria on #1303, chat-surface on #1301,
-records closing out #1326, scaffold parked waiting on Task 15. Unassigned: #1304, #1306 (UAT),
-#1307 (gate/release notes). **Verify each of these against the board before relying on it.**
+Live assignments at last update: score-agent on #1299, dedupe on #1309 (tests), records on #1306
+(harness half only — it stops before the spec body and reports), scaffold parked on #1305 Tier B
+waiting on Task 15. criteria and chat-surface are free. Unassigned: #1304, #1307.
+**Verify each of these against the board before relying on it.**
 
-Carry-over defect, assigned to criteria inside Task 19: `tests/unit/external-host-actions.test.ts:13`
-and `tests/unit/use-dismissable-menu.test.ts:5` still assert this repo has no jsdom. Task 18 made
-that false.
+Task 20 (#1304) is genuinely blocked, not merely unstarted — it builds against the tool contract
+Task 15 is still defining, so starting it early buys rework.
 
 ## How to coordinate this fleet
 
@@ -51,6 +52,13 @@ Read the timestamps only, never the bodies — they will drown you.
 `git status --porcelain` for staged files belonging to someone else and warn the agent closest to
 committing. Never `git add -A`, never bare `git stash`, no history rewrite (N15) except an agent
 undoing its own unpushed seconds-old sweep.
+
+**And naming paths is not enough (N32).** `git commit <path>` takes that file's whole current
+content, so two agents editing one file means whoever commits first sweeps the other. Before
+clearing any agent to commit, `git diff` the shared entrypoints — `web/root.tsx`,
+`tests/unit/job-search-web-root.test.tsx`, `worker/index.ts`, `jarvis.module.json` — and read the
+added lines. This fired for real on Tasks 17 and 19; the fix is to let the agent still working in
+the file commit both halves, naming both tasks in the message.
 
 **Gates need an exported fresh gate database** (N26) and must be staggered — concurrent runs crash
 the shared dev Postgres. `pnpm test:unit` touches no database and is the correct inner loop.
