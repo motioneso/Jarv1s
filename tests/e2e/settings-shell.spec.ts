@@ -56,7 +56,9 @@ test("desktop shell renders grouped IA, merged panes, and history-aware mode cha
   await expect(page.getByRole("heading", { name: "Account & preferences" })).toBeVisible();
   for (const section of [
     "Identity",
-    "Locale",
+    // Renamed from "Locale" by the recovered 2026-07-19 profile polish: the group now holds a time
+    // zone plus a (disabled) language & region control, so "Location" describes it honestly.
+    "Location",
     "Quiet hours",
     "Active sessions",
     "Your data",
