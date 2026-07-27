@@ -3829,3 +3829,59 @@ Handoffs: `handoff-1310-settings-write-ui-refresh.md`, `handoff-1311-install-gra
 watches both panes.
 
 Both lanes are security tier — neither merges without Ben's explicit sign-off.
+
+## Continuation note — 2026-07-27, both lanes relayed once
+
+### #1311 root cause — corrected, and my own handoff was partly wrong
+
+The lane traced the defect fully. The install-time trust row is a preference key,
+`assistant.action_policy.v1.<moduleId>.<familyId>`. Its **only** writers are the two module-enable
+PATCH handlers in `packages/settings/src/routes-modules.ts` (admin + me). A `defaultEnabled` or
+`required` module never traverses an enable handler on a normal boot, so the row is never written.
+
+`docs/coordination/handoff-1311-install-grant-default-enabled.md` contains **one claim the lane
+disproved**: it says `tasks` works via its own compatibility helper. It does not.
+`TasksCompatibilityHelper.getResolvedTaskChangesPolicy` returns `ask_each_time` when the key is
+unset — the same bug, merely undetected. The lane's finding supersedes the handoff. The handoff did
+instruct the agent to verify rather than trust the brief, which is why this was caught.
+
+### The approved fix, and why it is safe
+
+Self-heal the grant lazily inside `ActionPolicyLookup.getFamilyTier`, at the `gateway.ts:~178`
+dispatch choke point (hit on every tool call, so there is no missed-lifecycle-event risk). Two call
+sites: `packages/chat/src/routes.ts` `buildActionPolicy` and `packages/tasks/src/action-policy.ts`.
+
+The design risk I tested was **revocation defeat** — would a lazy "write it if missing" silently
+re-grant trust a user had taken away? It cannot, and the repo already encodes why:
+
+- `AiRepository.insertActionPolicyIfAbsent` (`packages/ai/src/repository.ts:1930`) is
+  `INSERT … ON CONFLICT DO NOTHING`.
+- A user's own choice is written as an explicit row by `setActionPolicy` (`:1900`).
+
+So an **absent** row means "never decided" and a **present** row means "the user decided". Keying
+the self-heal on absence is sound. Approved on six conditions, sent to the lane: use
+`insertActionPolicyIfAbsent` and never `setActionPolicy`; fail closed to prompting if the insert
+throws; take the tier from the manifest declaration, never from tool input; heal only
+`granted_at_install` families; add a revocation-survival test; keep exit criterion 4 as a real test
+rather than relying on the structural argument.
+
+### New obligation on both live lanes — LIVE-PATH GATE
+
+The coordinate skill family was updated on `main` (`8f1b6d44`). The LIVE-PATH GATE now overrides
+auto-merge at **every** tier: neither PR #1276 nor the #1311 PR merges without a live end-to-end
+proof comment on the PR — real UI, live dev instance, UAT run, screenshots. Manifest status for both
+is therefore `awaiting-live-path` in addition to their security-tier Ben sign-off. This converts my
+earlier note to lane #1310 — where I said the real-dev-instance e2e was wanted but not blocking —
+into a hard gate; that correction still needs to reach #1310's successor.
+
+### Fleet state
+
+| Lane | Agent / session | Pane | Branch | Status |
+| ---- | --------------- | ---- | ------ | ------ |
+| #1310 | `ui-refresh-1310` → successor spawning | `w1:p130` | `1264-settings-self-operation` (PR #1276) | backend half committed `4b5cad05`; frontend half + 4 conditions handed to successor |
+| #1311 | `grant-1311-2` / `1d5b5178` | `w1:p145` | `1311-install-grant` | design approved w/ conditions; writing TDD plan; no code yet |
+
+Old pane `w1:p144` (session `6efadd28`, relayed out) reaped after confirming the successor drives.
+
+**Mid-doing:** waiting on (a) #1310's successor to appear so I can hand it the LIVE-PATH GATE
+correction, and (b) #1311's TDD plan for approval. Merge order is unchanged: #1311 → #1276 → #1273.
