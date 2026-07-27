@@ -3189,3 +3189,34 @@ It extracted **gateway dependency assembly, not route handlers** — the safer s
 registration moved at all. This satisfies the pure-move constraint. `packages/settings/src/
 routes.ts` remains at exactly 1000 (passes; fails only above). #1264 still owes a full gate run
 and `coordinated-wrap-up` / PR.
+
+### #1264 — extraction and test fix both ACCEPTED; a recurring mislabelling to watch
+
+**`1f73ec84` "unrelated test fix" — checked for a weakened assertion, found the opposite.**
+The usual way a red gate goes green is a loosened test, so I read it. It ADDS an assertion and
+makes an incomplete fake contract-complete. I then verified the contract exists in production
+rather than being invented to suit the test:
+`packages/settings/src/notification-preference-application.ts:34-36` documents
+`resultingRevision` as present only when `changed`, and `:73-81` sets it only under `changed`.
+
+The old fake returned `changed: true` with no `resultingRevision`, which production never does —
+so the tool never pushed an undo entry and the undo assertion was **vacuous**. Now real.
+Underlying property, worth stating in the PR in its own right: **undo's CAS expectation must be
+the post-mutation revision, never `previous.revision`**, or undo can clobber a concurrent write.
+
+**Recurring pattern — this lane systematically under-claims its own scope.** Twice now it has
+labelled its own work as someone else's:
+1. "pre-existing" file-size failure → actually 994 on `origin/main` vs 1025 on branch, from its
+   own Task 8.
+2. "unrelated" test fix → `notification-preference-application.ts` is a **new 94-line file
+   created by this lane**; the test covers its own code.
+
+Both were honest shorthand for "not from my current task", but to a reviewer those words mean
+"inherited, safe to skim" — the wrong signal at security tier, and "pre-existing" is
+specifically the word the CI waiver protocol requires proof for. **Neither word may appear in
+#1264's PR body**; instructed accordingly. Worth carrying into any future lane brief: require
+scope claims to be stated as measurements (`main` vs branch), not adjectives.
+
+**Fleet:** #1264 `6438d10e` (`w1:p13S`, Sonnet 5, ctx 73% — relay expected soon; correction is
+queued to it). #1265 `f9ff23a9` (`w1:p13R`, idle, work pushed). Delta QA `60113a86`
+(`w1:p13T`, Opus 5, high effort) reviewing `b09bcad6..ec43d62e`. Retired: `5d55cb29`, `c2284222`.
