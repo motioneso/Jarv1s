@@ -489,3 +489,26 @@ not exist. The working sequence is `herdr pane split <pane> --direction down --c
 → `herdr agent start <name> --kind claude --pane <newPane> -- --model sonnet --permission-mode
 bypassPermissions` → send the brief with `herdr pane run`, then **one `herdr pane send-keys <pane>
 Enter`** (a long brief lands as unsubmitted pasted text).
+
+### 2026-07-26 — Tasks 5 landed; guardrail test corrected and verified
+
+- **Test-validity hole closed.** `a9c65c93` asserted only `statusCode: 409`, but `deleteList`
+  raises two different 409s: the last-list guard (`lists.ts:280`, fires *before* any delete is
+  attempted) and the `ON DELETE RESTRICT` translation. If the created list had been the actor's
+  only list, the test would have passed green without ever exercising the FK guarantee it claims
+  to prove. Corrected in `edd990b4`: the actor now gets a second list first, and the assertion
+  matches `message: "List is not empty"`.
+- **Verified, not assumed:** `grep` confirms `"List is not empty"` is raised in exactly one place
+  — `lists.ts:264`, inside the `catch` wrapping the actual `deleteFrom("app.task_lists")`. No
+  other path can satisfy that assertion, so the test now can only pass via the FK rejection.
+  This matters because that RESTRICT guarantee is the sole guardrail justifying the
+  `tasks.deleteList` risk downgrade (destructive → write, auto-run, no confirmation).
+- **Task 5 (Commitments) `0eb6437d` spot-checked clean:** `accept`/`reject`/`snooze` all
+  `risk: "write"` + `executionPolicy: "auto"` + `actionFamilyId: "commitment_review"` +
+  `selfOperationGrant: "granted_at_install"`; the family's `allowedTiers` carries all three tiers
+  including `always_confirm` (the `action-policy-routes.ts:90` requirement). No new
+  `confirm_always` — count still four, pending Ben on `notes.delete`.
+- **Fleet:** `builder-1263-e` (`b25edf78`, pane `w1:p110`, Sonnet 5) at 62%, now on Tasks 6–7.
+  Expect its stop-and-report inside those two. **5 of 17 tasks committed.**
+- **Herdr note:** `send-keys Enter` did *not* submit a pre-existing input-box line; `send-keys C-u`
+  to clear followed by `herdr pane run` did. Prefer clear-then-run over repeated Enters.
