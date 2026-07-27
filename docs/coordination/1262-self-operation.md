@@ -394,3 +394,25 @@ near 15% rather than 51%.
 
 `builder-1263-d` has been given this instruction and is holding on Task 3 until the plan split
 commits. It is running a regression of the ten Task 2 unit tests in the meantime.
+
+### Plan split verified (2026-07-26)
+
+Committed as `fa7c79dc` on the build branch. Verified rather than taken on the planner's word,
+because a reworded plan would silently diverge from what I approved and from what Tasks 1–2 were
+already built against:
+
+- The commit touches `docs/superpowers/plans/` only — no source file, so it cannot collide with the
+  builder's in-flight `gateway.ts` work, which the planner correctly left unstaged.
+- All 17 task bodies were diffed line by line against the pre-split file at `d11c4481`. **16 are
+  verbatim.** Task 17's 9 differing lines are the "Builder stop conditions" section, which the
+  planner promoted into the index; all 9 were confirmed present there. **Zero lines lost.**
+- Master plan dropped from 647 lines to a short index (571 lines removed).
+
+Gap the promotion opened, and the fix: builders on this lane read exactly one task file and never
+the index, so nobody would have seen the stop conditions. The planner is appending that block
+verbatim to all 17 task files, keeping it in the index too. Duplication is cheap; a missed stop
+condition on a security-tier change is not.
+
+The stop conditions that matter most: a proposed **fifth** `confirm_always` tool halts that package
+task and comes to me, and if Ben changes the pending `notes.delete` ruling, Task 7 plus the Task
+16/17 counts all move together.
