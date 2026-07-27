@@ -8,7 +8,11 @@
 // scored as 0. No spec-pinned test exercises this, so it costs nothing to get right here.
 
 import { describe, expect, it } from "vitest";
-import { RECALL_SLICE, triage, type TriageInput } from "../../external-modules/job-search/src/domain/triage.js";
+import {
+  RECALL_SLICE,
+  triage,
+  type TriageInput
+} from "../../external-modules/job-search/src/domain/triage.js";
 import type { Posting } from "../../external-modules/job-search/src/domain/records.js";
 
 function posting(overrides: Partial<Posting> = {}): Posting {
