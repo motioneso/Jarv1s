@@ -425,6 +425,19 @@ describe("PreferencesRepository", () => {
       expect(result).toBeNull();
     });
   });
+
+  it("a plain upsert() between a read and a CAS write bumps revision, so the stale CAS write conflicts instead of clobbering", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      await repo.upsertWithRevision(scopedDb, "cas.raced", { a: 1 }, null);
+      const held = await repo.getWithRevision(scopedDb, "cas.raced");
+      await repo.upsert(scopedDb, "cas.raced", { a: 2 }); // e.g. a REST route writing the same key
+      await expect(
+        repo.upsertWithRevision(scopedDb, "cas.raced", { a: 3 }, held?.revision ?? null)
+      ).rejects.toThrow(PreferenceRevisionConflictError);
+      const stored = await repo.getWithRevision(scopedDb, "cas.raced");
+      expect(stored).toEqual({ value: { a: 2 }, revision: 2 });
+    });
+  });
 });
 
 // ── VaultWriteBackService ─────────────────────────────────────────────────────

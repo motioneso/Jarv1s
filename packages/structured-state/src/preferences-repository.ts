@@ -26,6 +26,9 @@ export class PreferencesRepository {
       .onConflict((oc) =>
         oc.columns(["owner_user_id", "key"]).doUpdateSet({
           value_json: jsonb(value),
+          // Plain upsert() and CAS upsertWithRevision() write the same column; without this bump
+          // a plain writer (e.g. a REST route) silently defeats every CAS reader's revision check.
+          revision: sql<number>`app.preferences.revision + 1`,
           updated_at: new Date()
         })
       )
