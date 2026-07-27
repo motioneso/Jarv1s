@@ -3789,3 +3789,43 @@ Consequence: the two open follow-ups on these PRs now have **no owner**.
 
 Neither should be respawned until Ben rules on the default-allow spec, because that spec deletes
 #1276's six setter tools. Order of operations is his call.
+
+## Continuation note — 2026-07-27, two lanes respawned + a correction to the merge order
+
+**Correction to the note above:** the two lane worktrees were **not** removed — the earlier check
+used a glob that resolved wrong. `.claude/worktrees/1264-settings-self-operation` and
+`.claude/worktrees/1265-module-content-self-operation` both still exist, both clean
+(only `.claude/context-meter.log` modified, plus one untracked relay handoff on 1265), and both
+level with origin and with their PR heads. Conclusion is unchanged: nothing was lost.
+
+### Verified finding — #1311 blocks #1273, so the lanes are not all parallel
+
+PR #1273's exit criterion (`specs/2026-07-26-module-self-operation-content-commands.md:105-111`) is
+a real dev-instance Playwright run in which **a confirmation card appearing anywhere is a failure**.
+It cannot pass while #1311 exists:
+
+- `news` (`packages/news/src/manifest.ts:69`) and `sports` (`packages/sports/src/manifest.ts:56`)
+  both declare `availability: { defaultEnabled: true, required: false }`.
+- A default-enabled module is never explicitly enabled, so the module-enable PATCH handler — the
+  only writer of the install-time trust row — never fires, and no grant is recorded.
+- `tasks` is masked by its own compatibility helper and proves nothing about the generic path.
+
+So the criterion is unpassable, not merely untested. **#1311 is on the critical path.**
+
+**Revised merge order: #1311 → #1276 → #1273.** #1311 adds no tools, so the second-lander inventory
+arithmetic (`toBe` 39/5/4) in `1262-rebase-brief-second-lander.md` is unaffected.
+
+### Lanes live
+
+| Lane | Agent | Pane | Branch | Tier | State |
+| --- | --- | --- | --- | --- | --- |
+| #1310 UI refresh | `ui-refresh-1310` | `w1:p130` | `1264-settings-self-operation` (PR #1276) | security | building |
+| #1311 install grant | `grant-1311` | `w1:p144` | `1311-install-grant` off main | security | building |
+| #1273 UAT | — | — | `1265-module-content-self-operation` (PR #1273) | security | **held** until #1311 lands |
+
+Both spawned on Sonnet with explicit `--model sonnet` argv, into the new agents tab `w1:t3S`.
+Handoffs: `handoff-1310-settings-write-ui-refresh.md`, `handoff-1311-install-grant-default-enabled.md`
+(read by absolute path so neither PR diff carries a coordination doc). A persistent liveness monitor
+watches both panes.
+
+Both lanes are security tier — neither merges without Ben's explicit sign-off.
