@@ -45,16 +45,21 @@ Two owners and one admin, created once for the file.
 
 **Constraints**
 
-- **Every read goes through `createAppRuntimeRunner().withDataContext({actorUserId})`.** The
-  migration-owner role is `NOBYPASSRLS`, so a raw query against a FORCE-RLS table silently returns
-  zero rows and every assertion passes for the wrong reason.
+- **Every read goes through `asRuntime()`, not `createAppRuntimeRunner()`** (ledger N20 — this
+  bullet named the wrong helper). The migration-owner role is `NOBYPASSRLS`, so a raw query against
+  a FORCE-RLS table silently returns zero rows and every assertion passes for the wrong reason. But
+  `createAppRuntimeRunner()` connects as `jarvis_app_runtime`, which has **no grant at all** on
+  `app.job_search_*` — module tables need the per-module runtime role via `SET LOCAL ROLE`. Clone
+  `asRuntime()` from `tests/integration/job-search-tables-install.test.ts`.
 - **`JOB_SEARCH_TABLES` is imported, never retyped.** A hand-copied list drifts from the migration
   the first time a table is added, and the drift is invisible.
 - **Clean up in `finally`, including on a failing assertion.** `test:uat-seed` runs sequentially
   against one shared, non-reset database, so durable rows leak into whichever file runs next.
-- `pnpm test:integration <file>` **does not narrow the run** — the script passes a directory — so
-  expect the whole integration suite. Read to the end rather than trusting the last screen, and
-  **never pipe to `tail`**: it masks the exit code.
+- `pnpm test:integration <file>` **does narrow the run** — #1314 (`2d08ed78`) moved it to
+  `scripts/test-integration.ts`, which uses CLI args when given and defaults to the directory only
+  when none are. This bullet previously said it did not narrow, which was true when it was written.
+  Whatever you run, read to the end rather than trusting the last screen, and **never pipe to
+  `tail`**: it masks the exit code.
 
 **Tests — tier A** (no worker process)
 
