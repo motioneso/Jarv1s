@@ -95,6 +95,7 @@ import type {
   ListChatThreadMessagesResponse,
   ListChatThreadsResponse,
   ChatSurface,
+  SeedChatRequest,
   SendChatTurnResponse,
   UploadChatAttachmentResponse,
   ListConnectorAccountsResponse,
@@ -852,6 +853,21 @@ export async function sendChatTurn(
       ...(surface ? { surface } : {})
     }
   });
+}
+
+/**
+ * #1284 — frames a surface's thread before the user's first visible turn, with no visible user
+ * message (contrast sendChatTurn). `idempotencyKey` lets a remounted module call this safely
+ * again: the server-side ChatSessionManager treats a repeated key as a no-op instead of re-framing
+ * a conversation already in progress.
+ */
+export async function seedChat(
+  seed: string,
+  idempotencyKey: string,
+  surface?: ChatSurface
+): Promise<void> {
+  const body: SeedChatRequest = { seed, idempotencyKey, ...(surface ? { surface } : {}) };
+  await requestJson<void>("/api/chat/seed", { method: "POST", body });
 }
 
 /**

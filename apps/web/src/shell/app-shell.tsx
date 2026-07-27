@@ -25,7 +25,8 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState
+  useState,
+  useSyncExternalStore
 } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
 
@@ -37,6 +38,8 @@ import { queryKeys } from "../api/query-keys";
 import { ChatDrawer } from "../chat/chat-drawer";
 import {
   AssistantSurfaceHostProvider,
+  getActiveModuleSurface,
+  subscribeActiveModuleSurface,
   type AssistantRecordV1,
   type AssistantSurfaceHostValue
 } from "../chat/assistant-surface";
@@ -55,7 +58,13 @@ import {
   saveShellTheme,
   type ShellTheme
 } from "./theme-storage";
-import type { MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
+import {
+  DEFAULT_CHAT_SURFACE,
+  type ChatSurface,
+  type MeResponse,
+  type ModuleDto,
+  type ModuleNavigationEntryDto
+} from "@jarv1s/shared";
 
 interface AppShellProps {
   readonly children: ReactNode;
@@ -123,12 +132,29 @@ export function AppShell(props: AppShellProps) {
     setModuleDraft(draft);
     setChatOpen(true);
   }, []);
-  // Lifted to the shell so the SSE stream + transcript persist while the drawer is
-  // closed and as the user navigates between pages — the chat follows the user.
-  const { records, clearRecords, streamErrorCount } = useChatStream();
-  // The shell owns exactly one stream today (the drawer). `subscribeRecords`/`recordsForSurface`
-  // still take a surface so a future module can be given its own shell-owned stream without
-  // reshaping the host contract — but no surface-specific branch lives here.
+  // #1284 — which module surface (if any) currently owns the shell's one chat stream. A module
+  // claims one via assistantSurface.setSurfaceKey (handle.ts's module-level store, #1196/#1232's
+  // "one external route mounts at a time" is what makes a single subscribable value sufficient
+  // here); this is the sole subscriber, turning a claim into an actual stream switch below and
+  // into the drawer-isolation check recordsForSurface performs.
+  const activeModuleSurface = useSyncExternalStore(
+    subscribeActiveModuleSurface,
+    getActiveModuleSurface,
+    getActiveModuleSurface
+  );
+  // activeModuleSurface is `string | null` per useSyncExternalStore's snapshot type, but every
+  // non-null value it can ever hold came from moduleChatSurface (handle.ts's setSurfaceKey), whose
+  // fixed 18-char output already satisfies CHAT_SURFACE_PATTERN by construction — so this cast
+  // (rather than a redundant normalizeChatSurface re-validation) just recovers that branding.
+  const activeModuleSurfaceBranded = activeModuleSurface as ChatSurface | null;
+  const activeSurface = activeModuleSurfaceBranded ?? DEFAULT_CHAT_SURFACE;
+  // Lifted to the shell so the SSE stream + transcript persist while the drawer is closed and as
+  // the user navigates between pages — the chat follows the user. `undefined` (no module surface
+  // claimed) keeps the "nothing active" case on the exact request shape it always had — no
+  // `?surface=` query param — so this is a strict widening of the pre-#1284 behaviour.
+  const { records, clearRecords, streamErrorCount } = useChatStream(
+    activeModuleSurfaceBranded ?? undefined
+  );
   const assistantRecordListeners = useRef(
     new Set<(records: readonly AssistantRecordV1[]) => void>()
   );
@@ -165,15 +191,29 @@ export function AppShell(props: AppShellProps) {
   const seedAssistantComposer = useCallback((draft: string) => {
     embeddedComposerRef.current?.(draft);
   }, []);
+  // #1284 — Ben's ruling: a module's thread must never appear in the main drawer. `records` is
+  // whichever surface's stream is currently live (see the useChatStream call above); this only
+  // hands it back for the ONE surface that's actually active right now, so `recordsForSurface`
+  // for any other surface (including "drawer" while a module has claimed the stream) is `[]`.
+  const recordsForSurface = useCallback(
+    (surface: string) => (surface === activeSurface ? records : []),
+    [records, activeSurface]
+  );
   const assistantSurfaceHost = useMemo<AssistantSurfaceHostValue>(
     () => ({
       records,
-      recordsForSurface: () => records,
+      recordsForSurface,
       registerComposer: registerAssistantComposer,
       seedComposer: seedAssistantComposer,
       subscribeRecords: subscribeAssistantRecords
     }),
-    [records, registerAssistantComposer, seedAssistantComposer, subscribeAssistantRecords]
+    [
+      records,
+      recordsForSurface,
+      registerAssistantComposer,
+      seedAssistantComposer,
+      subscribeAssistantRecords
+    ]
   );
   const pendingNotesDelete = useMemo(() => {
     const results = new Set(
@@ -371,7 +411,10 @@ export function AppShell(props: AppShellProps) {
           // #368 + #916: starters are one-shot — a later manual open starts from a blank composer.
           setModuleDraft(undefined);
         }}
-        records={records}
+        // #1284 — the drawer always renders the DRAWER surface specifically, never whichever
+        // surface happens to be live: while a module has claimed the stream, this is `[]`
+        // (drawer-isolation), not the module's transcript.
+        records={recordsForSurface(DEFAULT_CHAT_SURFACE)}
         clearRecords={clearRecords}
         streamErrorCount={streamErrorCount}
         isFounder={props.me.user.isBootstrapOwner}
