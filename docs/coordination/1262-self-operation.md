@@ -3256,3 +3256,20 @@ log so far"). That reads as Ben directing agents himself. Consequences for any c
 **Fleet:** #1264 successor `26659abc` (`w1:p13V`, Sonnet 5, 48%, gate running); predecessor
 `6438d10e` reaped. #1265 builder `f9ff23a9` (`w1:p13R`, idle, pushed). QA `60113a86` (`w1:p13T`,
 Opus 5) re-dispatched. CI on `ec43d62e`: 2 pass, "Verify foundation and app" still pending.
+
+### Status: #1265 CI fully green at `ec43d62e` — still not mergeable
+
+"Verify foundation and app" passed; all three required checks green on the current head. **This
+does not move the merge gate.** Three independent things still hold it, and green CI answers none
+of them: the only security verdict on the PR is grounded on `b09bcad6` and is marked stale by
+`#issuecomment-5093413763`; the re-QA (`60113a86`) is mid-review and has posted nothing; and the
+lane parks on Ben's hands-on LAN UAT pass (AWAITING-BEN item 8). Green CI is the *mechanical*
+gate only — for a security-tier PR it was never the thing being waited on.
+
+Repo slug for tooling is **`motioneso/Jarv1s`** (not `bendlove/…`) — a monitor armed with the
+wrong slug fails silently, returning empty rather than erroring, and looks exactly like "no
+change yet".
+
+**#1264:** `26659abc` is idle-by-design, waiting on its own monitor for the real `EXIT_CODE=` line
+from the full gate against fresh `jarvis_build_1264` — it is explicitly not trusting the
+task-notification summary, which is the right instinct. Idle here is healthy, not stalled.
