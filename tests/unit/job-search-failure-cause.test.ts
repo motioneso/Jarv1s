@@ -6,7 +6,10 @@
 // equality (spec test cases 1-2), not `toContain`.
 import { describe, expect, it } from "vitest";
 
-import { describeFailure, type FailureKind } from "../../external-modules/job-search/src/domain/records.js";
+import {
+  describeFailure,
+  type FailureKind
+} from "../../external-modules/job-search/src/domain/records.js";
 
 describe("job-search describeFailure (#1289)", () => {
   it("a rate-limit cause says what was retrieved, when it last worked, and what happens next", () => {
@@ -22,7 +25,9 @@ describe("job-search describeFailure (#1289)", () => {
 
     // Exact rather than substring: the copy is the deliverable, and a substring assertion
     // passes against a summary that also leaked a model sentence.
-    expect(cause.summary).toBe("LinkedIn rate-limited us after 112 of about 190 postings. Retrying at 10:40.");
+    expect(cause.summary).toBe(
+      "LinkedIn rate-limited us after 112 of about 190 postings. Retrying at 10:40."
+    );
     expect(cause.nextAction).toBe("Retrying at 10:40.");
     expect(cause.disabled).toBe(false);
   });
@@ -48,7 +53,13 @@ describe("job-search describeFailure (#1289)", () => {
   });
 
   it("no kind produces an empty summary", () => {
-    const kinds: FailureKind[] = ["rate_limited", "login_required", "parse_failed", "network", "deadline"];
+    const kinds: FailureKind[] = [
+      "rate_limited",
+      "login_required",
+      "parse_failed",
+      "network",
+      "deadline"
+    ];
 
     for (const kind of kinds) {
       const cause = describeFailure({

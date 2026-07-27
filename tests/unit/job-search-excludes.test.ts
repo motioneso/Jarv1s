@@ -8,7 +8,10 @@
 import { describe, expect, it } from "vitest";
 
 import { applyHardExcludes } from "../../external-modules/job-search/src/domain/excludes.js";
-import type { Posting, SearchCriteria } from "../../external-modules/job-search/src/domain/records.js";
+import type {
+  Posting,
+  SearchCriteria
+} from "../../external-modules/job-search/src/domain/records.js";
 
 // Small Partial<>-override factories so each test states only the field it is about.
 function posting(overrides: Partial<Posting> = {}): Posting {
@@ -82,7 +85,10 @@ describe("job-search applyHardExcludes (#1290)", () => {
     // The adjacent-title case: a title filter here would look correct in every demo and
     // quietly remove the best results.
     const adjacentTitlePosting = posting({ title: "Forward Deployed Engineer" });
-    const result = applyHardExcludes([adjacentTitlePosting], criteria({ titles: ["Software Engineer"] }));
+    const result = applyHardExcludes(
+      [adjacentTitlePosting],
+      criteria({ titles: ["Software Engineer"] })
+    );
 
     expect(result.kept).toEqual([adjacentTitlePosting]);
     expect(result.dropped).toEqual([]);
@@ -102,7 +108,11 @@ describe("job-search applyHardExcludes (#1290)", () => {
 
   it("preserves input order in kept and records every drop", () => {
     const keep1 = posting({ id: "keep-1", url: "https://example.com/jobs/1" });
-    const excluded = posting({ id: "excluded-1", company: "Excluded Co", url: "https://example.com/jobs/2" });
+    const excluded = posting({
+      id: "excluded-1",
+      company: "Excluded Co",
+      url: "https://example.com/jobs/2"
+    });
     const keep2 = posting({ id: "keep-2", url: "https://example.com/jobs/3" });
     const dupe = posting({ id: "dupe-1", url: "https://example.com/jobs/1" });
 

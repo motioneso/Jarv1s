@@ -14,7 +14,10 @@
 // pin that proof directly.
 import { describe, expect, it } from "vitest";
 
-import { dedupePostings, postingIdentity } from "../../external-modules/job-search/src/domain/dedupe.js";
+import {
+  dedupePostings,
+  postingIdentity
+} from "../../external-modules/job-search/src/domain/dedupe.js";
 import type { Posting } from "../../external-modules/job-search/src/domain/records.js";
 
 // Single Partial<>-override factory so each test states only the field it is about.
@@ -155,8 +158,18 @@ describe("job-search dedupePostings (#1291)", () => {
   });
 
   it("preserves first-seen identity order and passes exact duplicates through untouched", () => {
-    const first = posting({ id: "first", company: "Acme", title: "Product Manager", externalId: "a" });
-    const second = posting({ id: "second", company: "Globex", title: "Staff Engineer", externalId: "b" });
+    const first = posting({
+      id: "first",
+      company: "Acme",
+      title: "Product Manager",
+      externalId: "a"
+    });
+    const second = posting({
+      id: "second",
+      company: "Globex",
+      title: "Staff Engineer",
+      externalId: "b"
+    });
     const secondAgain = posting({
       id: "second-again",
       company: "Globex, Inc.",

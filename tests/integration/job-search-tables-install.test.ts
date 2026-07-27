@@ -56,9 +56,7 @@ afterEach(async () => {
   // so it must be revoked explicitly or DROP ROLE below fails with "some objects depend on it" —
   // discovered here because this file installs/tears down 7 times in one run; finance's single-
   // install test never surfaces it.
-  await client.query(
-    `REVOKE REFERENCES (id) ON app.users FROM ${moduleInstallRoleName(moduleId)}`
-  );
+  await client.query(`REVOKE REFERENCES (id) ON app.users FROM ${moduleInstallRoleName(moduleId)}`);
   await client.query(
     `REVOKE EXECUTE ON FUNCTION app.current_actor_user_id() FROM ` +
       `${moduleInstallRoleName(moduleId)} CASCADE`
@@ -111,10 +109,7 @@ async function seedUser(id: string): Promise<void> {
 // per module-role-broker.test.ts's membership assertion), assume it for one transaction with
 // SET LOCAL ROLE, and set the actor GUC the same way data-context.ts does in production. Both die
 // with the transaction, so no test can leak privilege or actor identity into another.
-async function asRuntime<T>(
-  actorUserId: string,
-  fn: (client: Client) => Promise<T>
-): Promise<T> {
+async function asRuntime<T>(actorUserId: string, fn: (client: Client) => Promise<T>): Promise<T> {
   const client = new Client({ connectionString: urls.worker });
   await client.connect();
   try {
@@ -230,9 +225,10 @@ describe("job-search module table install (#1288)", () => {
     );
 
     const read = await asRuntime(ownerA, (client) =>
-      client.query("SELECT vector_dims(embedding) AS dims FROM app.job_search_postings WHERE id = $1", [
-        postingId
-      ])
+      client.query(
+        "SELECT vector_dims(embedding) AS dims FROM app.job_search_postings WHERE id = $1",
+        [postingId]
+      )
     );
     expect(read.rows[0]?.dims).toBe(768);
   });

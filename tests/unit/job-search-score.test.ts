@@ -7,8 +7,15 @@
 // well-meaning collapse back into one number.
 import { describe, expect, it } from "vitest";
 
-import type { Posting, SearchCriteria } from "../../external-modules/job-search/src/domain/records.js";
-import { buildScorePrompt, parseScoreResult, SCORE_SCHEMA } from "../../external-modules/job-search/src/domain/score.js";
+import type {
+  Posting,
+  SearchCriteria
+} from "../../external-modules/job-search/src/domain/records.js";
+import {
+  buildScorePrompt,
+  parseScoreResult,
+  SCORE_SCHEMA
+} from "../../external-modules/job-search/src/domain/score.js";
 
 const posting: Posting = {
   id: "posting-1",
@@ -37,7 +44,12 @@ const criteria: SearchCriteria = {
 
 describe("job-search SCORE_SCHEMA (#1293)", () => {
   it("has exactly the two axes and their reasons", () => {
-    expect(Object.keys(SCORE_SCHEMA.properties).sort()).toEqual(["fit", "fitReason", "want", "wantReason"]);
+    expect(Object.keys(SCORE_SCHEMA.properties).sort()).toEqual([
+      "fit",
+      "fitReason",
+      "want",
+      "wantReason"
+    ]);
   });
 
   it("refuses unknown properties, so a model cannot invent an overall score", () => {
@@ -50,15 +62,19 @@ describe("job-search parseScoreResult (#1293)", () => {
     const result = parseScoreResult({
       fit: 72,
       want: 41,
-      fitReason: "Ten years of payments experience directly matches the stack named in the posting.",
-      wantReason: "Team size and on-call cadence match, but the posting names a five-year roadmap they didn't ask for."
+      fitReason:
+        "Ten years of payments experience directly matches the stack named in the posting.",
+      wantReason:
+        "Team size and on-call cadence match, but the posting names a five-year roadmap they didn't ask for."
     });
 
     expect(result).toEqual({
       fit: 72,
       want: 41,
-      fitReason: "Ten years of payments experience directly matches the stack named in the posting.",
-      wantReason: "Team size and on-call cadence match, but the posting names a five-year roadmap they didn't ask for."
+      fitReason:
+        "Ten years of payments experience directly matches the stack named in the posting.",
+      wantReason:
+        "Team size and on-call cadence match, but the posting names a five-year roadmap they didn't ask for."
     });
   });
 
@@ -113,12 +129,15 @@ describe("job-search buildScorePrompt (#1293)", () => {
     const prompt = buildScorePrompt({
       posting,
       criteria,
-      resume: "Ten years building payments infrastructure at scale, most recently at a Series C fintech.",
+      resume:
+        "Ten years building payments infrastructure at scale, most recently at a Series C fintech.",
       context: "Actively looking; prefers small teams."
     });
 
     expect(prompt).toContain(posting.title);
-    expect(prompt).toContain("Ten years building payments infrastructure at scale, most recently at a Series C fintech.");
+    expect(prompt).toContain(
+      "Ten years building payments infrastructure at scale, most recently at a Series C fintech."
+    );
     expect(prompt).toContain(criteria.wantNarrative);
     expect(prompt).toMatch(/do not (average|combine|blend)/i);
     expect(prompt).toContain("a year in");

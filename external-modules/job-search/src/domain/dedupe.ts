@@ -47,7 +47,14 @@ function normalizeCompany(company: string): string {
 // Keywords whose normalised form (lowercased, punctuation collapsed to single spaces)
 // unambiguously describes a work arrangement rather than a role — "(Remote)", "(Hybrid)",
 // "(On-site)" carry no distinguishing information about the job itself.
-const REMOTE_STYLE_KEYWORDS = new Set(["remote", "hybrid", "onsite", "on site", "in office", "wfh"]);
+const REMOTE_STYLE_KEYWORDS = new Set([
+  "remote",
+  "hybrid",
+  "onsite",
+  "on site",
+  "in office",
+  "wfh"
+]);
 
 // A req number ("REQ-40185", "40185") is mostly digits. Half-or-more of the alphanumeric
 // characters being digits is a cheap, gazetteer-free proxy that doesn't need to recognise
