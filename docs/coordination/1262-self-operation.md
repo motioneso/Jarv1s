@@ -2789,3 +2789,32 @@ The resulting arithmetic, which the second lander needs:
 Neither lane changes the confirm_always or user_promotable counts. So whichever lands second rebases to
 39 / 5 / 4 = 48 — but it must recompute from its own rebased tree and assert that, not copy this table.
 The table is a cross-check, not the source.
+
+### PR #1273 green; Opus QA dispatched. #1264 relayed on a diagnosed hang.
+
+**#1273 CI is green** — `Verify foundation and app` pass (24m38s), both compose smoke checks pass.
+(`Build and publish images` shows pending; it is the post-merge publish job on the same run, not a
+gate.) Adversarial QA dispatched to the held `qa-1265` agent (session `5d55cb29`, pane `w1:p137`,
+Opus 5), briefed to trust CI for the mechanical gate and spend everything on review, to post its
+verdict with `gh pr comment 1273` before replying so the evidence survives my relays, and to attack six
+specific things: the input-validator blast radius (widest change in the PR, reaches external installed
+modules), whether the gateway RLS test can pass for a wrong reason, whether the de-vacuumed exclusion
+assertion would fail if the exclusion list changed, tier/grant widening on the new news and sports
+tools, honesty of the UNMET exit-criterion claim, and the exact-`toBe` inventory. **A green verdict
+means "ready for Ben's sign-off" and nothing more — this does not merge tonight.**
+
+**#1264 relayed again (`03970f3d`) with the limiter implemented, 7 of 9 tests green and two hanging.**
+Both hangs are generic 30-second vitest timeouts with no assertion error, and both are the two tests
+that route through `confirmAndRun`. The predecessor's evidence: the throttled call reaches
+`confirmAndRun` via the pre-existing bottom-of-method fallback and the new trip block never logs. Full
+diagnosis is in agentmemory (`"rate-limit test hang"` / `"gateway.ts recordAudit maxConnections"`).
+
+I briefed the successor with three guardrails, one of which is the reason this needed a coordinator at
+all. **The forbidden fix:** if the cause turns out to be that the auto-run branch was never entered
+because the tool resolved to confirm rather than run, the fix is not to make the tool auto-run — not by
+widening a family `defaultTier`, not by changing a grant, not by touching `allowedTiers`, and not by
+editing `policy.ts` so more things resolve to `run`. Use the existing `example.autoWrite` fixture,
+which is already `granted_at_install` for this purpose. Change the test, never the policy; escalate
+rather than loosen. Also told it to rule out an exhausted test connection pool before changing
+`gateway.ts` — eleven audit writes in a tight loop hanging rather than failing is the classic
+signature, and that is a harness problem, not a product bug.
