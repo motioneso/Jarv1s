@@ -2911,3 +2911,79 @@ Still parks on Ben. QA pane `w1:p137` kept alive for that delta pass rather than
 **Tooling note:** `herdr pane send-keys <pane> C-u` is rejected (`unsupported key`). There is no
 line-clear; verify the input box is empty by reading it before `pane run`, or a queued line concatenates
 with your message.
+
+## Continuation note — 2026-07-27, #1264 Task 13 verified clean; both lanes on successors
+
+### #1264 Task 13 — guardrail check passed on all four axes
+
+The lane reported the two hanging gateway tests green. I did not take that on trust, because the
+one way to get them green cheaply was to loosen something the lane was forbidden to touch. Four
+checks, all clean:
+
+1. **`policy.ts` has zero diff vs `origin/main`.** Nothing in the tier-resolution path moved.
+2. **The read guard survived.** `bad7fc66` touches only `gateway.ts` (13 lines) and the test file
+   (24). Every `-` line in the product diff was a `console.error("[DBG] …")` removal or prettier
+   reflow; the limiter condition still reads
+   `found.tool.risk !== "read" && !this.autoRunLimiter.consume(ctx.actorUserId, found.dto.name)`.
+   Condition 1 holds — the guard is on the limiter itself, not inherited from the audit block.
+3. **No family was mutated.** `settings.preference-write` and `chat.preference-write` are both
+   **net-new** (zero hits for `preference-write` on `origin/main` in either manifest), and the
+   whole diff contains **no `-` line touching `defaultTier` or `allowedTiers`** — so no existing
+   family's default was widened. Both declare `defaultTier: "ask_each_time"` with
+   `allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]`, which satisfies the
+   structural guard for `granted_at_install` (both required tiers present, default is not
+   `always_confirm`).
+4. **The scary prose line was never code.** A plan/doc line quoting
+   `allowedTiers: ["trusted_auto", "confirm_once"], defaultTier: "confirm_once"` would hard-fail
+   the validator if it reached a manifest. It did not — and `confirm_once` is not even a real tier
+   value in this codebase. Stale plan vocabulary only.
+
+The fix was test-only, as required: root cause was **test-order pollution** — an earlier test
+permanently set `tier=always_confirm` for `ids.userA` via `setActionPolicy`, and
+`grantSelfOperationForModule` never overwrites an existing tier row. The lane switched the two
+rate-limit tests to `ids.userB`. 9/9 green. Branch pushed: `badfb53c` on origin.
+
+### A platform behaviour worth more than the test fix
+
+`grantSelfOperationForModule` **never overwrites an existing action-policy tier row.** A user's
+pre-existing, stricter tier therefore survives a module install. That is the safe direction — a
+module can never quietly downgrade a choice the user already made — but it is undocumented, and it
+means an install grant is not idempotent against user state. I have ordered it into #1264's PR body
+so reviewers and Ben see it. Candidate for its own follow-up issue after the epic lands.
+
+### Fleet (2026-07-27, after this round of succession)
+
+| Lane | Pane | Session | Status |
+| ---- | ---- | ------- | ------ |
+| Coordinator | `w1:p11T` | `43e5f5e2` | driving (lock holder) |
+| #1264 | `w1:p13Q` | `c2284222` | working — Sonnet 5 confirmed in pane, on Task 11 |
+| #1265 | `w1:p13P` | `98aaec06` | working — already committing delta fixes (`42966446`) |
+| QA | `w1:p137` | `5d55cb29` | idle, held for the #1265 delta re-QA |
+
+`w1:p112` / `w1:p12D` are **Ben's own** compass sessions — never reap.
+
+**#1264's succession was broken and I repaired it.** The predecessor (`f360dfb5`) announced a relay
+and then went idle **without ever spawning a successor** — the lane was stalled, not handed off. I
+spawned `settings-1264` (`c2284222`) myself into the agents tab `w1:t3Q` and confirmed Sonnet 5 in
+the pane before reaping `w1:p13M`. Mechanics worth recording: `herdr agent start` does **not** take
+`--tab`; it requires an existing pane already at a shell prompt (`--kind claude --pane <id>`), so
+the sequence is `herdr pane split <pane> --cwd <worktree> --no-focus` and then `agent start` into
+the new pane. Agent names must also start with a **lowercase letter** — `1264-settings` is rejected.
+
+### #1265 delta round
+
+Relay-b burned its context investigating without editing, but left relay-c a precise map
+(`39e6db8c`): ESPN timeout at `espn-source.ts:77-83` `fetchJson`, `news.addTopic` maxLength at
+`packages/news/src/manifest.ts:346`, u-flag docstring at `input-validation.ts:44-46`, trust-boundary
+comment at `input-validation.ts:29-32` referencing #1267, plus the PR-body items. Relay-c is driving
+and already landed the news fix.
+
+One thing I want checked when the ESPN timeout lands: it goes into the **shared** `fetchJson`, so it
+changes read paths too, not just the `followTeam` write path. Fail-closed is right for the write
+(timeout → empty teams → input rejected), but an aggressive timeout would turn a merely slow
+scoreboard into an empty one. The timeout should be generous, and the read-path effect belongs in
+the PR body.
+
+**Neither PR merges tonight.** Both are security tier and both park on Ben's hands-on LAN UAT pass
+(AWAITING-BEN items 8 and 8a). Whichever lands second rebases the inventory assertion with an exact
+`toBe`.
