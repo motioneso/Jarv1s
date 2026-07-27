@@ -2344,3 +2344,20 @@ carried rulings back to me verbatim.
 
 #1265 relayed at `f3504fa0` — research and a verified file/line fix plan for every RED item, no code
 yet, which is the right shape for a relay.
+
+### Delta — fleet after both relays
+
+| Lane | Pane | Session | Model | State |
+| --- | --- | --- | --- | --- |
+| #1264 settings | `w1:p13B` | `ff8aa7a0-584c-43ef-a656-b6854fe51170` | Sonnet 5 | Task 9 — implement the `changed` flag against 6 inherited red tests; fix the inherited CAS-conflict bug in `settings-locale-tools.test.ts` |
+| #1265 content | `w1:p13C` | `7048c36b-ee41-466d-a105-3e93a797dd13` | **Opus 5 (1M)** — off-policy | Executing the QA RED remediation; already has red tests for BLOCKING-1(a) incl. fail-closed on a degraded roster |
+| QA #1265 | `w1:p137` | `5d55cb29-b76a-4d32-a97e-eb542fa9972a` | Opus | Idle, held alive for the delta re-review |
+
+**Reaped:** `w1:p13A` (#1264 relay-8), `w1:p134` (#1265 relay-7). Both session-id matched first.
+
+**Off-policy model, deliberately not corrected by force.** `w1:p13C` booted Opus 5 (1M) because
+herdr's default leaked through and the predecessor's `/model sonnet` did not cleanly apply. I queued
+the switch in-pane and told it to switch itself, but **did not kill and respawn**: it already holds
+uncommitted TDD work on a security-tier fix, and destroying that to save tokens is the worse trade.
+Flagging the cost rather than paying it twice. Opus 5 1M is the most expensive tier in the fleet, so
+if this lane runs long it is the first thing to check.
