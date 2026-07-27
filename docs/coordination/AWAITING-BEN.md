@@ -242,10 +242,18 @@ Substituting a different proof for a mandatory exit criterion **is** lowering th
 merge either PR on it. Both will reach: CI green, QA verdict posted, work complete — and then stop,
 waiting on a hands-on LAN pass by you. Expect two PRs parked in that state rather than merged.
 
-**Related tracking defect, already actioned.** The harness gap was filed as **#1121** and **closed
-with the work never done**, while five spec files still cite it as their live blocker — so an audit
-asking "is this tracked?" got a false yes. I reopened it with the evidence and asked, on the issue,
-whether it was closed as superseded; if it was, the five citations need re-pointing.
+**Related tracking defect, already actioned — and now RESOLVED, no input needed from you.** The
+harness gap was filed as **#1121** and **closed with the work never done**, while five spec files
+still cited it as their live blocker — so an audit asking "is this tracked?" got a false yes. I
+reopened it with the evidence and asked whether it had been closed as superseded, which would have
+meant re-pointing every citation.
+
+**Answer: it was not superseded.** #1121 is OPEN (`stateReason: REOPENED`, no `closedAt`), nothing
+in the tracker references it as replaced, and its title — "UAT harness: deterministic scriptable
+chat engine for real-LLM e2e" — describes exactly the blocker the citing specs mean. **The
+citations are valid as written and no re-pointing is needed.** This now matters beyond bookkeeping:
+#1264's Task 11 adds six `test.fixme` UAT halves that each cite #1121 as their reason, so a stale
+citation would have shipped into the PR.
 
 ### 8a. The exact pass to run, so it takes minutes
 
