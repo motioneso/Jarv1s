@@ -26,7 +26,10 @@ export const structuredStateModuleManifest: JarvisModuleManifest = {
     migrations: [
       "sql/0031_structured_state.sql",
       "sql/0070_commitments_worker_grant.sql",
-      "sql/0093_preferences_worker_runtime_grants.sql"
+      "sql/0093_preferences_worker_runtime_grants.sql",
+      "sql/0111_preferences_worker_write.sql",
+      "sql/0167_worker_entities_grant.sql",
+      "sql/0175_preferences_revision.sql"
     ],
     migrationDirectories: ["packages/structured-state/sql"],
     ownedTables: ["app.commitments", "app.entities", "app.preferences"]
