@@ -5,8 +5,15 @@
 // that catches a blended "87% match" instead of the two independent axes (L9).
 import { describe, expect, it } from "vitest";
 
-import type { FailureCause, Match, Posting } from "../../external-modules/job-search/src/domain/records.js";
-import { buildBriefingContribution, newMatchCount } from "../../external-modules/job-search/src/domain/surface.js";
+import type {
+  FailureCause,
+  Match,
+  Posting
+} from "../../external-modules/job-search/src/domain/records.js";
+import {
+  buildBriefingContribution,
+  newMatchCount
+} from "../../external-modules/job-search/src/domain/surface.js";
 
 function posting(overrides: Partial<Posting> & Pick<Posting, "id" | "title" | "company">): Posting {
   return {
@@ -80,7 +87,9 @@ describe("job-search buildBriefingContribution (#1294)", () => {
           id: "profile-1",
           name: "Software Engineer",
           matches: [match({ id: "m1", postingId: "p1", state: "new", fit: 82, want: 91 })],
-          postings: new Map([["p1", posting({ id: "p1", title: "Staff Engineer", company: "Globex" })]])
+          postings: new Map([
+            ["p1", posting({ id: "p1", title: "Staff Engineer", company: "Globex" })]
+          ])
         }
       ],
       detail: "top",
@@ -99,9 +108,18 @@ describe("job-search buildBriefingContribution (#1294)", () => {
           id: "profile-1",
           name: "Software Engineer",
           matches: [
-            match({ id: "m1", postingId: "p1", state: "new", fit: 74, want: 88, outsideFrame: true })
+            match({
+              id: "m1",
+              postingId: "p1",
+              state: "new",
+              fit: 74,
+              want: 88,
+              outsideFrame: true
+            })
           ],
-          postings: new Map([["p1", posting({ id: "p1", title: "Recruiter Ops Lead", company: "Acme" })]])
+          postings: new Map([
+            ["p1", posting({ id: "p1", title: "Recruiter Ops Lead", company: "Acme" })]
+          ])
         }
       ],
       detail: "top",
