@@ -1066,3 +1066,25 @@ path entirely and hardcodes exactly one family key. Correct today, and exactly c
 quiet, which is the failure mode this epic exists to prevent. Ordered an assert: **tasks has
 exactly one `granted_at_install` family and it is `task_changes`**; a second must fail the build,
 commented back to the registry substitution.
+
+### Second builder relay — m → n (2026-07-27 ~02:1x)
+
+- **builder-1263-m reaped** (session `807d55c9`, pane `w1:p12G` closed) after committing Task A
+  (`1751bc7a`, the RED blocker) and pushing. It folded my checkpoint-4 drift guard into
+  `.claude/HANDOFF-1263-m.md` as Task B item 1b before signing off — verified present at lines
+  44-51, including the instruction to **count and report actual numbers rather than match a guess**.
+- **builder-1263-n** is the live builder: pane `w1:p12H`, tab `w1:t3J`, same worktree/branch,
+  Sonnet 5, booted ~47%. Doing Task B (items 1, 1b, 2, 3, 4, 5) as one bundled commit, then
+  messaging me before Task C's gate.
+- **Gap I found and closed by hand:** `HANDOFF-1263-m.md` does **not** mention `web.read` at all
+  (0 hits) and references the five-tool `confirm_always` roster only obliquely. The plan docs
+  `docs/superpowers/plans/1263/task-07a.md`, `task-12a.md`, `task-16.md` still carry the **stale**
+  stop condition "the set is exactly four; a proposed fifth ⇒ stop", which predates my post-Opus
+  ruling and was never rewritten. A successor running the gate could "reconcile" committed code
+  down to a stale plan and strip `web.read`. Messaged n directly with: the roster is five;
+  assert 4b is *NOT PROMOTABLE*, never *implies destructive*; `web.read` stays `risk: "write"`
+  with no family; widening a `defaultTier` to make the gate pass is a stop condition, not a fix;
+  and where a plan doc contradicts a ruling, the ruling wins and I want the contradicting line
+  reported.
+- **Follow-up owed (not blocking the merge):** those three plan docs should be corrected or marked
+  stale before #1264/#1265 start, or the same trap is waiting for them.
