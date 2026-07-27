@@ -126,6 +126,11 @@ export function writeUatEnvFile(input: { readonly webPort: number }): UatEnvFile
       "JARVIS_MODULE_CREDENTIAL_SECRET_KEY=22222222222222222222222222222222",
       `JARVIS_CLI_RUNNER_RPC_SECRET=${UAT_CLI_RUNNER_RPC_SECRET}`,
       "JARVIS_EMBED_PROVIDER=stub",
+      // #1313: this instance runs NODE_ENV=production above (not the vitest NODE_ENV=test
+      // signal), so without this explicit escape hatch createEmbeddingProvider would now refuse
+      // "stub" and silently fall back to "local" -- reintroducing exactly the real-model
+      // download into a per-run cache volume this UAT `bare` level exists to avoid.
+      "JARVIS_ALLOW_STUB_EMBEDDINGS=1",
       // #1110: module-registry's buildUatNewsPreviewOverride() reads these at app runtime (not
       // seed-time) to deterministically fake a transient News preview error for one sentinel
       // input — hence env_file: here, not the seed container's docker -e args below.

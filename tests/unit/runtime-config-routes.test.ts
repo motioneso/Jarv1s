@@ -100,6 +100,10 @@ describe("runtime config admin routes", () => {
   });
 
   it("returns instance config status without exposing anything extra", async () => {
+    // #1313: GET intentionally still surfaces a legacy/misconfigured "stub" instance-settings
+    // row rather than erroring — GET reads via `resolve()`, which does no enum validation, so an
+    // admin can still see (and then correct) an instance that somehow ended up on the fake
+    // provider before this fix shipped. The PATCH write path below is what's actually gated.
     ({ server } = makeServer({
       initialSettings: [[EMBED_PROVIDER_CONFIG_KEY, { value: "stub" }]],
       env: { JARVIS_EMBED_PROVIDER: "local" }
@@ -121,15 +125,15 @@ describe("runtime config admin routes", () => {
     const res = await server.inject({
       method: "PUT",
       url: `/api/admin/runtime-config/${EMBED_PROVIDER_CONFIG_KEY}`,
-      payload: { value: "stub" }
+      payload: { value: "local" }
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ config: { value: "stub", source: "instance" } });
+    expect(res.json()).toEqual({ config: { value: "local", source: "instance" } });
     expect(made.upserts).toMatchObject([
       {
         key: EMBED_PROVIDER_CONFIG_KEY,
-        value: { value: "stub" },
+        value: { value: "local" },
         updatedByUserId: ACTOR_ID,
         requestId: "req-runtime-config",
         action: "runtime_config.ai.embed_provider.set",
@@ -150,6 +154,25 @@ describe("runtime config admin routes", () => {
     });
 
     expect(res.statusCode).toBe(400);
+    expect(made.upserts).toEqual([]);
+  });
+
+  // #1313: acceptance criterion — a PATCH/PUT of ai.embed_provider=stub must be rejected on a
+  // normal instance. "stub" used to be a valid enum value; it's now excluded specifically so
+  // neither an admin nor module self-operation (epic #1262) can silently disable search by
+  // switching a real instance onto the fake, test-only embedding provider.
+  it("rejects the test-only stub embedding provider on a normal instance (#1313)", async () => {
+    const made = makeServer();
+    server = made.server;
+
+    const res = await server.inject({
+      method: "PUT",
+      url: `/api/admin/runtime-config/${EMBED_PROVIDER_CONFIG_KEY}`,
+      payload: { value: "stub" }
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain("stub");
     expect(made.upserts).toEqual([]);
   });
 

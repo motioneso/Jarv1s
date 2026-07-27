@@ -21,11 +21,19 @@ export const RUNTIME_CONFIG_REGISTRY: readonly RuntimeConfigKeyEntry[] = [
     key: EMBED_PROVIDER_CONFIG_KEY,
     label: "Embedding provider",
     type: "enum",
-    description:
-      "Where notes/knowledge embeddings are generated. 'local' = on-device model; 'stub' = no-op (search won't work).",
+    // #1313: "stub" (a SHA-256-stretched fake vector, test-only — see
+    // packages/memory/src/embedding-provider.ts) is deliberately NOT listed here. This list
+    // feeds both the admin/self-operation PATCH write-validation
+    // (runtime-config-routes.ts's validateRuntimeValue) and the description shown to
+    // operators — a real instance must never be steered onto the fake provider, which makes
+    // semantic search silently return noise while the instance looks healthy. Test/CI/UAT
+    // harnesses still reach the stub provider through an explicit escape hatch
+    // (NODE_ENV=test or JARVIS_ALLOW_STUB_EMBEDDINGS=1), enforced in
+    // packages/memory/src/embedding-provider-config.ts, never through this enum.
+    description: "Where notes/knowledge embeddings are generated. 'local' = on-device model.",
     defaultValue: "local",
     envVar: "JARVIS_EMBED_PROVIDER",
-    enumValues: ["local", "stub"],
+    enumValues: ["local"],
     moduleOwner: "memory"
   },
   {
