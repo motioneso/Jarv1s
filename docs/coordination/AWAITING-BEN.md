@@ -49,6 +49,21 @@ plans that drop a stated security requirement, and plans that under-list the fil
 Working rule I have given both lanes: **a task's file list is not trustworthy — only the root
 typecheck is.**
 
+**A fourth mode, and this is the serious one: the inline pseudocode is not merely incomplete, it is
+wrong.** Added 2026-07-27. #1264's Task 1 pseudocode **reimplemented the active-module check by
+hand** instead of calling the existing `computeMyModuleDto`, and in doing so **dropped `required` and
+`supportsUserDisable`** from the result. An agent that followed the plan literally — which is what a
+plan is for — would have shipped a real behaviour regression that no test in the plan would have
+caught. It was caught only because the builder noticed the plan was reinventing something that
+already existed and went to read the original.
+
+That reframes the first three modes. Length burns contexts and a missing requirement can be
+restored, but a plan that contains confidently-wrong implementation code actively pushes a careful
+agent toward a defect, and the more obedient the agent the worse the outcome. This is the same
+lesson already recorded from the Codex review loop — plans carry contracts, invariants, and test
+cases; implementation code in a plan makes new surface every rewrite — now with a concrete
+near-miss attached.
+
 Two things worth your call:
 
 1. **Should plans stop carrying implementation code?** This repeats the lesson already recorded from
