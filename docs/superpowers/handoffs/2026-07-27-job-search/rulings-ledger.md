@@ -816,3 +816,29 @@ location, keeping it costs a duplicate; dropping it costs a job.
 The part file's test 2 (`"Staff Engineer (Seattle)"` equals `"Staff Engineer"`) still passes,
 provided the fixture's `location` names Seattle — which is what a real posting looks like. A fixture
 with a location-bearing title and an empty `location` field is not a case we owe a merge.
+
+## N12 — Control characters in source are written as escapes, never as literal bytes
+
+**Found by verifying `cfeb4712`'s bytes rather than its tests.** Task 10's control-character guard
+was written with the *actual* bytes 0x00, 0x1F and 0x7F inside the regex character class, and its
+test fixture carried a real NUL byte in a string literal. Every test passed — the regex matches the
+same set either way — but `git show --stat` reported both files as `Bin 0 -> N bytes` and `file`
+called them "data".
+
+That is the whole cost: **git produces no diff for a binary file**, so those two files had no
+line-level review, no blame, and every future change to them would be invisible in a PR. Editors,
+greps, formatters and codegen are all entitled to mangle a NUL in a source file.
+
+**Rule: any control character in source is written as an escape sequence** — `/[\x00-\x1f\x7f]/`,
+`"has a\x00nul in it"` — never as the byte itself. This bites specifically where the code is
+*about* control characters, which is exactly where a sanitizer or an input guard lives, so expect it
+again in any task that validates user- or model-supplied text. Comment the escaping at the site: the
+behaviour is identical, so the next reader has no other clue why it matters.
+
+**Rule: check `git show --stat` on a commit, not just the gate.** A file reporting `Bin` instead of
+a line count is the tell, and no unit test, typecheck, or lint run in this repo will surface it.
+
+Also confirmed on the same commit: `format:check` was red on both files. That failure
+**short-circuits the whole gate**, so `test:unit` and `test:integration` never execute behind it —
+a red run that reads as a style nit while actually meaning no tests ran at all. Formatting is a
+correctness signal here, not a cosmetic one.
