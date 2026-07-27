@@ -17,6 +17,18 @@ The user experience is silent for writable settings: the requested change runs w
 confirmation card, returns the user-visible value, and can be undone. Denied settings are not
 offered to the model and cannot be reached by crafting a raw preference key.
 
+This reroutes every settings write through the registry-owned application function, including a
+user clicking a toggle or saving a control in the settings UI, not only assistant writes. That
+migration across every settings pane is the bulk of the work. It is required so "unclassified fails
+the build" is an enforced guarantee rather than a convention applied only to new assistant tools.
+
+## Prior art
+
+- Home Assistant deliberately [exposes entities to voice by opt-in](https://www.home-assistant.io/voice_control/voice_remote_expose_devices/), recommends exposing the minimum in its [voice best practices](https://www.home-assistant.io/voice_control/best_practices/), and excludes administrative tasks from its [LLM API](https://developers.home-assistant.io/docs/core/llm/). We diverge from that enumerate-to-allow model because its lock, garage-door, and other irreversible physical risks mostly do not apply to reversible app settings. Its entity/area/floor aliases independently support this spec's exact alias-based name resolution.
+- VS Code's [`contributes.configuration`](https://code.visualstudio.com/api/references/contribution-points) is the closest registry precedent: per-setting JSON schema, separate stored enum values and user-visible labels/descriptions, and deprecation messages. Runtime-varying enum values remain an [open VS Code request](https://github.com/microsoft/vscode/issues/187141), which is why runtime choice resolution below is treated as a write-path risk rather than static-schema detail.
+- MCP [tool annotations](https://blog.modelcontextprotocol.io/posts/2026-03-16-tool-annotations/) use pessimistic `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint` defaults, but remain hints rather than guarantees. Its emerging [risk vocabulary](https://stacklok.com/blog/tool-annotations-are-becoming-the-risk-vocabulary-for-agentic-systems-that-matters-more-than-it-might-seem/) also motivates future projections without changing our classifications. Our classification is stronger because omission fails the build and execution re-checks the registry. Cursor likewise documents command allowlists as [best-effort rather than a security boundary](https://cursor.com/docs/enterprise/llm-safety-and-controls), reinforcing that enforcement cannot live in generated schema alone.
+- OpenClaw's [perimeter controls](https://docs.openclaw.ai/start/openclaw) and Hermes Agent's [sandbox and approval model](https://hermes-agent.nousresearch.com/docs/user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-hermes-agent) do not let the assistant configure the app itself. A classified registry over an app's own settings is not established practice among comparable self-hosted assistants, so this design's safety case must stand on its own.
+
 ## What survives from the superseded spec
 
 The replacement changes the command surface, not the established safety machinery. These decisions
@@ -67,6 +79,8 @@ Every declaration contains:
 - `valueSchema`: the JSON schema for the canonical input value.
 - `choices`: optional static choices, or a module-owned runtime choice resolver, each returning a
   stored value, display name, and aliases.
+- `deprecation`: optional server-owned message and replacement public id used while retiring a
+  setting without invalidating stored values or pending undo records.
 - `validate`: module-owned validation and normalization for structured or open-domain values.
 - `authorize`: live authorization for the current actor and scope.
 - `read` and `apply`: module-owned application functions used by both REST/UI writes and the
@@ -95,7 +109,7 @@ The build fails when any of these is true:
 - declaration ids collide;
 - normalized aliases collide within a setting's legal choices;
 - a writable declaration lacks validation, authorization, read/apply, or undo support;
-- a denied declaration is included in the generated write-tool schema;
+- a denied declaration is returned by discovery or accepted by the write tool;
 - a writable declaration's fixed storage target intersects the central denied target set;
 - an actual settings write bypasses the registry-owned application path;
 - a setting application function is registered zero times or more than once;
@@ -128,8 +142,7 @@ At minimum, these categories are centrally denied:
    authorization, secret registry entries, and credential bindings expose secrets or grant external
    authority.
 3. **Self-operation authority.** YOLO flags, action-family tiers, self-operation grants,
-   permissions, module installation/enablement/removal, and any value that widens what Jarvis may do
-   are self-promotion.
+   permissions, and any value that widens Jarvis's authority over what it may do are self-promotion.
 4. **Prompt and model control.** Persona text, assistant name, model/provider selection, memory fact
    mutation, source selection, chat-skill mutation, page-context writes, and equivalent values let
    the model alter its own instructions or evidence.
@@ -144,6 +157,36 @@ are validation, authorization, CAS, undo, audit, and rate limiting rather than p
 Instance-scoped settings may be writable only when their declaration is outside the deny categories
 and their live authorization confirms the actor may administer that instance. Admin status never
 permits reading or targeting another user's private setting.
+
+Module availability is feature configuration, not self-promotion. The existing
+`packages/settings/src/routes-module-registry.ts` surface lists the curated module index and supports
+download, removal, purge, and purge cancellation. Its download pipeline validates manifests and
+maps `manifest-invalid` and `extract-failed` to 422 and `index-unavailable` to 503; the curated index
+is the trust boundary, so the v1 premise that these operations introduce unreviewed code
+was false. Declare module operations as follows:
+
+| Action                                            | Scope    | Classification              | Authorization                                                           |
+| ------------------------------------------------- | -------- | --------------------------- | ----------------------------------------------------------------------- |
+| Download/install a module from the index          | instance | `writable`                  | live admin check                                                        |
+| Disable or re-enable a module instance-wide       | instance | `writable`                  | live admin check                                                        |
+| Enable or disable an available module for oneself | user     | `writable`                  | actor from `ToolContext`; manifest `supportsUserDisable` must permit it |
+| Remove or purge a module                          | instance | not a generic setting write | separate `confirm_always` tool                                          |
+
+The current instance enablement route authorizes with `assertAdminUser` before lookup or mutation and
+writes `setInstanceModuleDisabled`. Per-user enablement derives the actor from the request and permits
+disable unless `availability.supportsUserDisable === false`; the sports module, for example, declares
+`defaultEnabled: true`, `required: false`, and `supportsUserDisable: true`.
+
+Remove and purge remain outside `settings.set` because purge destroys module data and cannot be
+reversed by applying an opposite setting value. They use a separate, narrowly named `confirm_always`
+tool. This is a destructive-operation carve-out, not a denial of Ben's ruling that admins may
+download, install, disable, and re-enable modules and users may enable available modules for
+themselves.
+
+Prose and user-facing text call these "modules." Where origin matters, use "a module bundled in the
+image" or "a module downloaded to this instance." Existing code identifiers and routes such as
+`external_module*` and `/api/admin/external-modules/*` are unchanged; terminology cleanup is tracked
+separately in #1312 and is out of scope for #1262.
 
 ## Name and value resolution
 
@@ -165,19 +208,38 @@ to guess which visual theme the user meant. Runtime choices are supported: `appe
 the six built-in themes plus the current user's custom themes from the module-owned resolver, so the
 same exact-name rules apply to both.
 
+Runtime resolver output is not embedded in static tool schema. The declaration's static schema
+contains the value shape and built-in choices; `settings.list` may return the actor's current runtime
+choices, and `settings.set` reruns the resolver immediately before validation. Execution wins when
+discovery and execution disagree: a removed choice returns `invalid`, a new exact choice may resolve,
+and no stale discovery result authorizes a write. Each resolver has a one-second deadline and no
+retry on the write path. Timeout, resolver failure, or any network-I/O failure returns `failed` and
+performs no read-modify-write, audit success, or undo push.
+
 Unknown input returns `invalid` with the setting display name and allowed user-visible choices.
 Ambiguous input returns `invalid` naming the conflicting display names. Neither case writes, audits a
 success, pushes undo state, or silently picks a value.
 
 ## Tool surface
 
-Expose one generated write tool:
+Expose one write tool plus one bounded read-only discovery tool:
 
 `settings.set`
 
-Its schema is a generated discriminated `oneOf` over writable registry declarations. Each branch has
-a constant `setting` id and that declaration's actual value schema. Declarations that need a target,
-such as module notification enablement, add a narrowly validated target object to their branch.
+`settings.list`
+
+`settings.list` accepts an optional exact/substring query and cursor and returns at most 25 writable
+setting declarations, their public ids, display names, value shape, static choices, currently
+resolved runtime choices when available, scope, required target shape, and deprecation state. The
+serialized response is capped at 32 KiB; callers narrow the query or page rather than receiving the
+whole registry.
+
+`settings.set` accepts a public setting id, its value, and an optional target object. Its static input
+schema does not generate one `oneOf` branch per declaration, so registry growth does not linearly
+consume model context. The combined stable-serialized input schemas for `settings.list` and
+`settings.set` must remain at or below 16 KiB UTF-8; the build measures and enforces that bound.
+Declarations that need a target, such as module notification enablement, validate a narrowly shaped
+target after registry lookup.
 
 Representative inputs:
 
@@ -189,9 +251,10 @@ Representative inputs:
 { "setting": "notifications.moduleEnabled", "target": { "moduleId": "news" }, "value": false }
 ```
 
-`setting` is an enum of public ids generated from writable declarations, not a free-form preference
-key. After schema validation, execution performs another registry lookup and classification check;
-the schema is guidance, not the security boundary.
+`setting` is a public registry id resolved through discovery, not a storage key. After schema
+validation, execution performs registry lookup, classification, target-shape, authorization, and
+value validation; discovery and schema are guidance, not the security boundary. Raw preference keys,
+unknown ids, denied ids, and deprecated ids without a writable replacement path are rejected.
 
 The result contains the setting id, setting display name, canonical user-visible value, whether the
 state changed, and server-owned consequence text when required. It does not expose storage keys,
@@ -202,9 +265,17 @@ Keep these existing tools:
 - `settings.undoLast` for "change that back" in the same actor/chat scope;
 - `app.getMapSlice` for navigation help, independent of the writer registry.
 
+For future MCP projection, `settings.list` maps to `readOnlyHint: true`. `settings.set` maps to
+`readOnlyHint: false`, `destructiveHint: false`, and `idempotentHint: true` because a repeated
+canonical value is a no-op. The separate remove/purge tool maps to `destructiveHint: true`. These are
+compatibility hints only; registry enforcement remains authoritative. Proposed
+`reads-private-data`, `sees-untrusted-content`, and `can-exfiltrate` annotations are not adopted now,
+but a future MCP surface may project central registry metadata into them without renaming the
+`writable` and `denied` classifications.
+
 ## Write flow
 
-1. Resolve the constant registry id from the generated schema input.
+1. Resolve the public registry id from the tool input.
 2. Reject missing, denied, or centrally excluded declarations.
 3. Run the declaration's live authorization with `AccessContext` limited to
    `{ actorUserId, requestId }`; derive user ownership from the actor.
@@ -227,6 +298,20 @@ coarse in measurement.
 Undo calls the same declaration's reverse application function with the recorded resulting revision.
 If the row was absent before the write, undo deletes the override rather than pinning an old default.
 If another legitimate write changed the revision, undo is cancelled rather than overwriting it.
+
+## Deprecation and removal
+
+A retiring setting first remains registered with `deprecation.message` and, when applicable,
+`deprecation.replacementId`. It is omitted from normal `settings.list` results but returned when a
+query matches its id, display name, or aliases so the model can explain the replacement. A write to
+the deprecated id returns `invalid` with the server-owned deprecation message and replacement; it
+does not silently redirect because replacement semantics may differ.
+
+Existing stored values continue to be read and honored while the deprecated declaration exists.
+Pending undo records continue to resolve through that declaration. The declaration may be removed
+only after stored values are migrated or intentionally preserved by the owning module and the bounded
+undo retention window has elapsed. Any older opaque undo record that can no longer resolve fails
+closed as unavailable and makes no change.
 
 ## Migration from #1276
 
@@ -292,13 +377,26 @@ The feature is complete only when all statements below are observable and true:
 10. A crafted call using a denied public id or a raw preference key is rejected, creates no mutation,
     and cannot enable YOLO, alter action tiers, change credentials, revoke sessions, or alter persona.
 11. Adding a registry declaration without classification fails the build. Adding a settings write
-    path without a registry declaration also fails the build. Adding a denied target to the generated
-    tool schema fails the build.
-12. The generated schema contains all writable registry ids exactly once and no denied ids; the
-    runtime registry repeats that assertion over the composed built-in module set.
+    path without a registry declaration also fails the build. Returning a denied target from
+    discovery or accepting it in `settings.set` fails the build.
+12. Complete paginated discovery contains every non-deprecated writable registry id exactly once and
+    no denied ids; the runtime registry repeats classification and uniqueness assertions over the
+    composed built-in module set.
 13. A synthetic loop is bounded by the existing gateway auto-run limiter, while repeated no-op writes
     do not create undo mutations or advance revisions.
-14. Full `pnpm verify:foundation` exits zero, followed by security QA because the registry controls a
+14. The stable-serialized `settings.list` plus `settings.set` input schemas are no more than 16 KiB;
+    discovery returns no more than 25 entries or 32 KiB per page. A build check fails above either
+    schema bound, and a runtime contract test proves paging rather than truncation loses no writable
+    declaration.
+15. Runtime choice discovery and execution disagreement is resolved at execution; a timeout,
+    resolver failure, or network failure makes no change. A deprecated setting explains its
+    replacement, preserves existing stored behavior, and remains undoable during the retention
+    window.
+16. Chat downloads/installs a module from the curated index as an admin, disables and re-enables it
+    instance-wide as an admin, and enables/disables an available user-toggleable module for the actor;
+    none produces a confirmation card. Remove/purge is absent from `settings.set` and requires its
+    separate `confirm_always` tool.
+17. Full `pnpm verify:foundation` exits zero, followed by security QA because the registry controls a
     broad write path.
 
 The mandatory UAT is a real chat turn through model selection, tool execution, and DOM assertion.
@@ -317,9 +415,15 @@ satisfy criteria 1, 2, 6, or 7.
   refuse; denied categories remain unreachable; writable settings run silently.
 - **Use the app map as the registry:** app-map settings are navigation surfaces and contain no
   per-value schema, aliases, validation, classification, application function, or undo behavior.
+- **Generate one schema branch per setting:** makes model context grow linearly with the registry.
+  Bounded discovery plus execution-time registry validation keeps the tool schema constant-sized.
+- **Deny module operations as self-promotion:** confuses feature availability with authority. The
+  curated index and live scope authorization are the guardrails; only destructive remove/purge is
+  carved into a confirming tool.
 
 ## Open decisions
 
-None. The directive, classification model, tool shape, migration, and safety boundary are settled by
-this spec. New deny categories may be added centrally when a genuinely new authority boundary is
-introduced; modules may not remove existing categories.
+None. The directive, classification model, bounded discovery/write tool shape, migration,
+deprecation path, module-operation boundary, and safety boundary are settled by this spec. New deny
+categories may be added centrally when a genuinely new authority boundary is introduced; modules may
+not remove existing categories.
