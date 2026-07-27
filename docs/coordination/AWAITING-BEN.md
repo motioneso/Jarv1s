@@ -1,7 +1,8 @@
 # Awaiting Ben — parking lot
 
 Decisions that need Ben and must not be silently resolved by an agent. Coordinator keeps this
-current; nothing here blocks the #1264/#1265 lanes.
+current. **Item 8 blocks the merge of both #1264 and #1265** — it is the only item here that gates a
+merge, and it arrived late; everything else lets its lane keep building.
 
 _Last updated: 2026-07-27, during epic #1262 (module self-operation)._
 
