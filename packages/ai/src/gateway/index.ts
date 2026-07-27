@@ -33,3 +33,11 @@ export {
   type NativeToolPermissionRequest,
   type NativeToolPermissionResponse
 } from "./gateway.js";
+export {
+  assertBuiltInSelfOperationManifests,
+  BUILT_IN_SELF_OPERATION_SCOPE_NOTE,
+  isSelfOperationExcluded,
+  SELF_OPERATION_EXCLUSIONS,
+  type SelfOperationExclusionCategory,
+  type SelfOperationManifestInput
+} from "./self-operation.js";
