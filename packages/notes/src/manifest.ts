@@ -84,7 +84,7 @@ export const notesModuleManifest = {
       label: "Note changes",
       description: "Create and update notes.",
       defaultTier: "ask_each_time",
-      allowedTiers: ["ask_each_time", "trusted_auto"]
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
     }
   ],
   routes: [
@@ -114,6 +114,7 @@ export const notesModuleManifest = {
       actionFamilyId: "note_changes",
       risk: "write",
       executionPolicy: "auto",
+      selfOperationGrant: "granted_at_install",
       requiresServices: ["notesSync"],
       inputSchema: notesCreateInputSchema,
       outputSchema: notesWriteResultSchema,
@@ -134,6 +135,7 @@ export const notesModuleManifest = {
       actionFamilyId: "note_changes",
       risk: "write",
       executionPolicy: "auto",
+      selfOperationGrant: "granted_at_install",
       requiresServices: ["notesSync"],
       inputSchema: notesEditInputSchema,
       outputSchema: notesWriteResultSchema,
@@ -145,6 +147,7 @@ export const notesModuleManifest = {
       description: "Delete a Markdown note from the linked notes source after approval.",
       permissionId: "notes.delete",
       risk: "destructive",
+      selfOperationGrant: "confirm_always",
       requiresServices: ["notesSync"],
       inputSchema: notesDeleteInputSchema,
       outputSchema: notesWriteResultSchema,

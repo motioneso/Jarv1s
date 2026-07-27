@@ -76,6 +76,19 @@ describe("notes write assistant tools", () => {
     ).toContain("x.md");
   });
 
+  it("grants notes.create and notes.edit at install and keeps notes.delete confirm_always", () => {
+    const tools = new Map<string, NonNullable<JarvisModuleManifest["assistantTools"]>[number]>(
+      (notesModuleManifest.assistantTools ?? []).map((tool) => [tool.name, tool])
+    );
+    expect(tools.get("notes.create")?.selfOperationGrant).toBe("granted_at_install");
+    expect(tools.get("notes.edit")?.selfOperationGrant).toBe("granted_at_install");
+    // notes.delete is the planned fourth confirm_always tool (#1263): destructive risk plus
+    // confirm_always both stay set, and it must never gain executionPolicy: "auto".
+    expect(tools.get("notes.delete")?.selfOperationGrant).toBe("confirm_always");
+    expect(tools.get("notes.delete")?.risk).toBe("destructive");
+    expect(tools.get("notes.delete")?.executionPolicy).toBeUndefined();
+  });
+
   it("discloses overwrite in notes.create summary and flags it as always-confirm", () => {
     const tools = new Map<string, NonNullable<JarvisModuleManifest["assistantTools"]>[number]>(
       (notesModuleManifest.assistantTools ?? []).map((tool) => [tool.name, tool])
