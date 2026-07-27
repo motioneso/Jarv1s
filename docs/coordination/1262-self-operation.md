@@ -4205,3 +4205,22 @@ information (his earlier "let it go" predated the discovery that a real credenti
 he reviewed and chose to keep the existing secret. Closed — do not re-raise. The durable fix
 stands regardless: dev servers get an **allowlist** env scrub (`env -i` plus explicit vars), never
 a denylist.
+
+## 2026-07-27 — residual CLOSED; it was a real gap, not theoretical
+
+The `defaultTier` residual I raised on finding #2 was **confirmed real** and is now closed by
+`b2ab1242`: the boot assert is widened to also forbid a `trusted_auto` default on
+`user_promotable` families — the same null-falls-through-to-`defaultTier` hole finding #1 closed
+for `granted_at_install`, which the first assert did not cover. `confirm_always` needs no assert
+and is safe by a different mechanism: the promotability check already forces `trusted_auto` out of
+`allowedTiers`, so such a family cannot declare it as a default either.
+
+No built-in manifest hit the gap (`task_changes`, `task_cleanup`, `calendar_writeback`,
+`calendar_management` are all `ask_each_time` or `always_confirm`) — structural hole, no live bug.
+**Resolved the correct way: assert coverage only. No policy, grant, `defaultTier`, or
+`allowedTiers` value was touched.** New unit test passes. Invariant saved to agentmemory.
+
+**Lane relaying at 71%.** Successor picks up at Task 3 (`tasks/action-policy.ts` self-heal), then
+Task 4 (live UAT, reusing/inverting `live-uat-1310.spec.ts` per the harness-reuse order), Task 5
+(PR), gate, wrap-up. **Verify the successor actually appears** — #1310's predecessor died at 1%
+without spawning one, so a promised handoff is not evidence of a handoff.
