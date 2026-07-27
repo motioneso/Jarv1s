@@ -287,7 +287,31 @@ Roadmap Work" board at **Ready**. Numbering is frozen and the mapping is arithme
 Each issue carries `Part of #1280`, a pointer to its plan section, and the constraints most likely to
 be got wrong — it is a signpost, not a substitute for reading the plan section.
 
-Resume at step 8: report to Ben, then start building at Phase 0.
+Step 8's report to Ben was delivered. **Building has started at Phase 0, Task 1 (#1281).**
+
+### Task 1 grounding already done — do not re-derive
+
+- **Do NOT bump `MODULE_WORKER_CONTRACT_VERSION`.** The plan says to decide from the host check; the
+  check is at `worker-runtime.ts:177` and is an **exact match** (`version !== MODULE_WORKER_CONTRACT_VERSION`
+  → `protocol` failure). The plan's second branch says bump on exact match, but that reasoning does
+  not survive contact with the code: the constant is `1 as const`
+  (`packages/module-sdk/src/index.ts:641`), the manifest validator hardcodes
+  `workerContractVersion !== 1` (`external/validate.ts:416`), and the SDK type is the literal `1`.
+  Bumping under an exact-match check **bricks every already-built worker bundle** the moment the host
+  ships, for no gain — `ctx.embed` is purely additive and an old worker never calls `embed.*`. Leave
+  it at 1, change nothing in finance, and state this deviation and its reason in the commit body.
+- **Both RPC construction sites confirmed**, and `embeddingProvider` must be **required** on both
+  input types so a missed site is a typecheck failure: `apps/api/src/external-module-tools.ts:44`
+  (assistant-tool dispatch) and `apps/worker/src/external-module-job-handler.ts:67` (the queue path
+  the scheduled crawl actually runs on).
+- **Where the embed branches go:** beside `fetch.request` at `worker-rpc-host.ts:130`, after
+  `const params = record(rawParams)` (`:129`) and **before** the `withDataContext` call at `:152`.
+  `ai.generateStructured` (`:197`) is inside that call and is the wrong neighbour.
+- `ExternalModuleRpcError`'s code union is at `worker-rpc-host.ts:26-47` and calls `super(code)`, so
+  the message is the bare code — tests must assert on the new `detail`, never on `message`.
+
+Resume by implementing Task 1 against its plan section (`plans/2026-07-26-job-search-module.md`,
+"### Task 1"), then Verify, then commit and move to #1282.
 
 ## Start
 
