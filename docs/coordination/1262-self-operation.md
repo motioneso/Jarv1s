@@ -2469,3 +2469,26 @@ is proven. `addc0492` is a second, narrower belt on top. Requirement met; no act
 Open on #1265: BLOCKING-2 (UAT spec + a real `module-install.uat.spec.ts` run), the vacuous denylist
 assertion, the unrestored `configureSportsChatTools` singleton, the RLS-span escalation, and the three
 PR-body callouts (validator blast radius, anchoring, external-module reach).
+
+### #1265 BLOCKING-2 — UAT spec accepted (`fd26a9db`), conditions 1 and 2 met
+
+Read the file, not the commit message. It meets the bar I set:
+
+- **Inline structural reason, and a better one than I asked for.** It names `seedAiProviderChunk`'s
+  fake "UAT Fake Provider" bound to `module.news` json only, the absence of any chat-capable
+  `UatSeedChunk` in `tests/uat/seed/types.ts`, and `provisioner.ts` staying credential-free by design —
+  then draws the right line: *"This is model behavior, not a trust boundary the harness owns."*
+- **It cites #1121 correctly** as reopened-and-open, and explicitly warns the reader that the older
+  fixmes in this repo still cite it as closed.
+- **It names both real proofs:** backend record-kind against a real DB + real `AssistantToolGateway`
+  (`tests/integration/mcp-gateway-self-operation.test.ts`), frontend card-withholding under a mocked SSE
+  transport (`tests/e2e/self-operation-no-confirmation-card.spec.ts`).
+- **Mutation-tightness is stated, not implied:** removing the frontend's `action_result`/
+  `action_request` discrimination makes the e2e test fail. That is the sentence I required.
+
+Condition 3 (PR-body language that does not read as "criterion met") lands at wrap-up. Condition 4
+(Ben's manual pass gates the merge) is `AWAITING-BEN.md` item 8 and unchanged.
+
+Still open on #1265: the real `module-install.uat.spec.ts` run with a true exit code, the vacuous
+denylist assertion, the unrestored `configureSportsChatTools` singleton, the RLS-span escalation, and
+the three PR-body callouts.
