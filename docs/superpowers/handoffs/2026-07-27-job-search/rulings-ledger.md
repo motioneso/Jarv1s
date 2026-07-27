@@ -1036,3 +1036,21 @@ Two consequences, both for Task 14:
 
 Recorded here rather than left in `freehire.ts`'s header comment because Task 14 sizes its budget
 from part 19 and the `Portal` contract, and has no reason to open an adapter's source to find it.
+
+### N18 addendum — the integration test to clone, and the two GUCs
+
+Task 24's grant test is not novel work; `tests/integration/module-worker-rpc.test.ts` already does
+exactly this shape and is the file to copy (see also `external-module-finance.test.ts`'s `seedKv`).
+
+- Seed `app.external_modules` with a raw bootstrap-client INSERT at `status = 'enabled'` — the
+  worker RLS policies added in 0157 require it. Note `installModule()` does **not** write that table;
+  it journals to `app.module_installs`. The enabled row comes from `module-reconcile.ts` or the admin
+  route, so a test seeds it directly.
+- Open the connection as `jarvis_worker_runtime` and set **both** GUCs inside the transaction. They
+  are not set by one helper: `DataContextRunner.withDataContext` sets `app.actor_user_id`, and the
+  caller then issues `set_config('app.current_module_id', …, true)` itself — that is precisely what
+  `worker-rpc-host.ts:258-263` does, and a test that mirrors it is testing the real path.
+- **The actor GUC is `app.actor_user_id`, not `app.current_actor_user_id`.** The latter is the SQL
+  *function* the RLS policies call; it reads the former. Setting the function's name as a GUC fails
+  silently — the policy simply sees no actor and the row vanishes, which reads as an RLS bug rather
+  than a typo.
