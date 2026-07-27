@@ -2762,3 +2762,30 @@ delta and knows what it already covered. It is held idle until the PR body is fi
 green — QA trusts CI for the mechanical gate and should not be spent on a moving branch. Note that the
 Agent-tool QA path in the coordinate skill is unavailable this session (standing instruction not to
 call it), so this is the Herdr fallback and is recorded as such.
+
+### Inventory arithmetic settled for the second lander
+
+#1265's Task 6 is done: PR #1273 body rewritten via `gh api PATCH` (`gh pr edit` fails on this repo
+with a projects-classic GraphQL error — worth knowing, it is not a permissions problem), inventory
+recomputed, verification section updated, no code changed.
+
+I checked the inventory count independently rather than accepting it. A raw grep of the branch returns
+33 / 6 / 5, which looks like a mismatch against the lane's 31 / 5 / 4 — but the surplus is the
+validator's own comparison lines in `self-operation.ts` (`tool.selfOperationGrant === "granted_at_install"`
+at :312 and :451, plus one equivalent for each of the other two values). Excluding those gives exactly
+31 granted_at_install + 5 confirm_always + 4 user_promotable = 40, so the existing exact `toBe` in
+`tests/unit/self-operation-manifests.test.ts` passes unchanged. Anyone re-checking this by grep should
+expect the same three phantom hits.
+
+The resulting arithmetic, which the second lander needs:
+
+| Tree | granted_at_install | confirm_always | user_promotable |
+| ---- | ------------------ | -------------- | --------------- |
+| `origin/main` | 29 | 5 | 4 |
+| + #1265 (adds 2) | 31 | 5 | 4 |
+| + #1264 (adds 8) | 37 | 5 | 4 |
+| both landed | **39** | **5** | **4** |
+
+Neither lane changes the confirm_always or user_promotable counts. So whichever lands second rebases to
+39 / 5 / 4 = 48 — but it must recompute from its own rebased tree and assert that, not copy this table.
+The table is a cross-check, not the source.
