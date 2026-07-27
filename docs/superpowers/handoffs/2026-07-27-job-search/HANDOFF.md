@@ -331,31 +331,39 @@ Task 1 landed as `f1cf9986`; issue #1281 is closed. Decisions worth not re-deriv
 over REST and its project-board Status is still "Backlog". Set #1281 → Done, and #1282 → In progress,
 when the quota is back.
 
-## Task 2 (#1282) is HALF landed — resume at the composer half
+## Build state — 2026-07-27
 
-Task 2 splits cleanly in two, and only the first half is committed:
+Planning is finished and the spec is approved. The epic is **#1280**; task issues run #1281–#1307,
+plus #1309 (Task 24) appended later. Phase 0 is the platform work every later phase sits on.
 
-**Done** — the manifest half. `ExternalModuleBriefingDeclaration` on `JsonJarvisModuleManifest`,
-positive validation plus the re-emit line in `validate.ts`, and
-`tests/unit/external-module-briefing-manifest.test.ts` (plan cases 9–11, green).
+**Landed**
 
-**Not started** — the composer half: `packages/briefings/src/external-contributions.ts`, the two
-optional `ComposeDeps` fields, `compose.ts` / `compose-evening.ts`, the `registerBriefingsJobWorkers`
-call site, `apps/worker/src/external-module-invoke.ts` (the extracted trust gate), the job-handler
-rewrite, `worker.ts`, plus plan cases 1–8 and integration 12–15.
+| Task | Issue  | Commits              | What it bought                                                            |
+| ---- | ------ | -------------------- | ------------------------------------------------------------------------- |
+| 1    | #1281  | `f1cf9986`           | `ctx.embed` port on the module worker contract                            |
+| 2c   | #1284  | `8830cad4`           | The chat surface the shell already anticipated is now honoured            |
+| 2    | #1282  | `b38e9b02`+`b043f1d6`| External modules can contribute to briefings (manifest half, then composer)|
 
-Two decisions taken while building the first half:
+**In flight** — #1285 (Task 2d, manifest-declared nav badge) and #1286 (Task 2e, invocation stall
+budget + per-lane isolation + `deadlineAt`).
+
+**Next, and why in this order** — #1283 (Task 2b, `ctx.notify`) is last of Phase 0 because it
+collides with 2d on the notification files, and 2b's own SDK surface collides with 2e's. Then Phase 1
+opens at Task 3 (#1287).
+
+Decisions taken while building, worth not rediscovering:
 
 - **`briefing.handler` is validated as a dotted name** (`/^[a-z][a-zA-Z0-9]*(?:\.[a-z][a-zA-Z0-9]*)*$/`,
   max 64) and requires `runtime`. No `worker.handlers` list exists to cross-check against, so the
   `runtime` presence check is the only real guard available and it is the one that matters.
 - **`href` on a briefing item is relative-path-only.** Task 2's plan prose says "path or `http(s)`
-  absolute" while citing ledger ruling L17, which says absolute is rejected. The ledger wins; see the
-  ledger entry for why an in-app deep link is also the better product shape. Build the sanitizer to
-  the strict rule.
-
-Build the trust gate **without** the `lane` argument — Task 2e (#1286) depends on Task 2 and is what
-adds `lane` as a required parameter.
+  absolute" while citing ledger ruling L17, which says absolute is rejected. The ledger won; see the
+  ledger entry for why an in-app deep link is also the better product shape.
+- **Task 2's trust gate (`apps/worker/src/external-module-invoke.ts`) was built without `lane`.**
+  Task 2e is what makes `lane` a required argument on it.
+- **`pnpm test:integration <file>` silently runs the whole directory** — the npm script hardcodes the
+  directory as its own first positional argument. Filed as **#1314**. Scope one file with
+  `npx tsx scripts/test-integration.ts tests/integration/<name>.test.ts`.
 
 ## Ben's two rulings, 2026-07-27
 
@@ -372,22 +380,29 @@ Both open spec questions are now closed; full text is in the ledger's section L.
 
 ## Start
 
-1. `pnpm install` — this is a fresh worktree with no `node_modules`.
-2. Read this doc's siblings: `thin-brief.md`, then `rulings-ledger.md` (skim the section headers,
-   read A–M as you need them), then `rewrite-method.md` for the row map.
-3. Finish the plan rewrite: draft rows 06–15 into `parts/`, concatenate all 30 in numeric order
-   into `docs/superpowers/plans/2026-07-26-job-search-module.md`, prettier, then verify — 23
-   `### Task` headings, 0 NUL bytes, prettier exit 0. **Do not end your turn between rows;** the
-   previous session stalled that way and idled for hours.
-4. Read the assembled plan end to end yourself and check it against the spec: every spec
-   requirement maps to a task, no contract references a type no task defines, no task name drifts
-   between its definition and its uses.
-5. Optionally run one Codex adversarial round against the thinned plan
-   (`gpt-5.6-sol`, `high`, `-s read-only`). If you do: tell the reviewer the plan **deliberately
-   carries no implementation code**, so "this step doesn't show how" is not a finding. Aim it at the
-   contracts, the invariants, the DDL, the ordering, and whether the test cases would actually catch
-   a broken implementation. Apply what comes back and **stop** — do not open another round.
-6. Flip the spec header from "Draft for approval" to approved, dated.
-7. Create the GitHub epic and child task issues off the frozen numbering.
-8. Report to Ben: the plan's final shape, the two open spec questions, and the Phase 0 sixth task.
-   Then start building.
+The planning phase this doc was originally written to drive is **complete** — plan assembled and
+verified, spec approved, epic #1280 and its task issues created, both of Ben's open questions
+answered above. What is left is building. Resume like this:
+
+1. `pnpm install` if this is a fresh worktree with no `node_modules`.
+2. Read `docs/superpowers/handoffs/2026-07-27-job-search/rulings-ledger.md`. It is the tie-breaker
+   whenever the plan's prose and a ruling disagree — the ledger wins, and that has already mattered
+   once (see `href`/L17 above).
+3. Get true state from GitHub, not from this file: `gh issue list --repo motioneso/Jarv1s --search
+   "Job Search Task" --state all`. The board is the source of truth for status; the table above is a
+   snapshot and will drift.
+4. Pick up the lowest-numbered task issue that is Ready and unblocked. Its full specification is the
+   matching row in `docs/superpowers/plans/2026-07-26-job-search-module.md` (and in `parts/` split
+   one task per file). The plan carries contracts, invariants and test cases — **not**
+   implementations. Write the implementation yourself.
+5. Before committing, run the real gates and read the real exit codes: `pnpm typecheck`,
+   `pnpm lint`, `pnpm test:unit`, plus whatever the task's own Verify block names. **Never pipe a
+   gate to `tail`** — it masks a failure as exit 0.
+6. Stage explicit paths. Never `git add -A` and never `git stash`; this tree is shared with other
+   sessions.
+
+**Still available, on Ben's word only:** one Codex adversarial round against the plan
+(`gpt-5.6-sol`, `high`, `-s read-only`). It was deliberately skipped. If it is ever run, tell the
+reviewer the plan carries no implementation code by design, so "this step doesn't show how" is not a
+finding — aim it at contracts, invariants, DDL, ordering, and whether the test cases would actually
+catch a broken implementation. Then apply what comes back and **stop**; do not open a second round.
