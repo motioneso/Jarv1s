@@ -291,7 +291,7 @@ const PLANNED_CONFIRM_ALWAYS_TOOL_NAMES = [
 ];
 
 describe("Complete built-in self-operation inventory (#1263)", () => {
-  it("classifies every built-in write/destructive tool across exactly the three legal buckets, summing to 38", () => {
+  it("classifies every built-in write/destructive tool across exactly the three legal buckets, summing to 46", () => {
     // People declares its grants in packages/people/src/tools.ts, not a manifest.ts — this
     // walks the real getBuiltInModuleManifests() registry (which resolves that indirection),
     // so it does not undercount the way a manifest.ts-only grep would (34 instead of 38).
@@ -337,7 +337,7 @@ describe("Complete built-in self-operation inventory (#1263)", () => {
       `expected zero excluded built-in write tools, found: ${excluded.join(", ")}`
     ).toEqual([]);
 
-    expect(grantedAtInstall.length).toBe(29);
+    expect(grantedAtInstall.length).toBe(37);
     expect(confirmAlways.length).toBe(5);
     expect(userPromotable.length).toBe(4);
 
@@ -348,9 +348,12 @@ describe("Complete built-in self-operation inventory (#1263)", () => {
     // an auto-run family would have reopened the v0.1.0 audit's exfiltration finding). #1263
     // Task B item 1 moved two more: tasks.deleteList/tasks.deleteTag out of granted_at_install,
     // because task_cleanup's defaultTier is always_confirm and install must never promote an
-    // always_confirm family's tier. Granted is 29, confirm_always is 5, user_promotable is 4 —
-    // still 38 write/destructive tools total.
-    expect(grantedAtInstall.length + confirmAlways.length + userPromotable.length).toBe(38);
+    // always_confirm family's tier. That left granted at 29, confirm_always at 5, user_promotable
+    // at 4 — 38 total. #1268 then added chat.setResponseStyle (granted_at_install), and #1264
+    // added the settings module's seven self-operation tools (theme mode, locale x2, quiet hours,
+    // weather location, notification preference, and the mandatory undo-apply tool), all
+    // granted_at_install — 29 + 1 + 7 = 37 granted, 46 write/destructive tools total.
+    expect(grantedAtInstall.length + confirmAlways.length + userPromotable.length).toBe(46);
 
     expect(confirmAlways.sort()).toEqual([...PLANNED_CONFIRM_ALWAYS_TOOL_NAMES].sort());
     expect(userPromotable.sort()).toEqual(
