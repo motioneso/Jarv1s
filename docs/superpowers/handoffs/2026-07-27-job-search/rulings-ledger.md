@@ -842,3 +842,21 @@ Also confirmed on the same commit: `format:check` was red on both files. That fa
 **short-circuits the whole gate**, so `test:unit` and `test:integration` never execute behind it —
 a red run that reads as a style nit while actually meaning no tests ran at all. Formatting is a
 correctness signal here, not a cosmetic one.
+
+## N13 — `format:check` is part of every task's gate, not a cleanup step
+
+Measured, not asserted: at the point Tasks 4–10 were all reported green, **six job-search files
+from four different agents failed `prettier --check`**. Every one of those agents had run its unit
+tests and `check:external-modules` and reported a real exit 0. None had run `format:check`.
+
+That is not a tidiness problem. A `format:check` failure **short-circuits the gate**, so
+`test:unit` and `test:integration` never execute behind it. The resulting red run reads as a style
+nit while actually meaning *no tests ran at all* — the single most misleading state a gate in this
+repo can be in, and the reason [[format-check-hides-unrun-tests]] exists.
+
+**Rule: every task's gate list includes `pnpm format:check` with a real exit code**, alongside the
+task's tests and `check:external-modules`. A task is not done until it exits 0.
+
+Cleaned up wholesale in `881ed512` (formatting only; 30 unit and 7 integration tests re-verified
+after). The recurrence is what the rule is for — one agent forgetting is an oversight, four
+agents forgetting is a missing instruction.
