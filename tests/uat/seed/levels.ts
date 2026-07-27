@@ -21,6 +21,10 @@ import type { SeedOptions, UatSeedChunk } from "./types.js";
 // OPEN (silently installs) the moment any caller forgets to pass it. Data-only
 // chunks are safe here; module-installing ones must be called explicitly by the
 // one level composition that needs them.
+//
+// #1306/N33: job-search is the concrete instance of this rule — it gets NO chunk
+// here, deliberately, not even a no-op. See the longer rationale beside
+// UAT_SEED_CHUNKS in ./types.ts and rulings-ledger.md#n33.
 const ADMIN_DATA_CHUNKS: ReadonlyArray<{
   key: UatSeedChunk;
   run: (runner: ReturnType<typeof createAppRuntimeRunner>, actorUserId: string) => Promise<void>;

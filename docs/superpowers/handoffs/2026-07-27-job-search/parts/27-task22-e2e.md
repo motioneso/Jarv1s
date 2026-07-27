@@ -10,8 +10,18 @@ anything useful on screen.
 **Files**
 
 - Create: `tests/uat/specs/job-search-board.uat.spec.ts`
-- Create: `tests/uat/seed/chunks/job-search.ts` (+ register the chunk in `tests/uat/seed/types.ts`
-  and in `run-uat.ts`'s `CHUNKS` set, `tests/uat/run-uat.ts:9`)
+- **No new UAT seed chunk (ruling N33).** This part originally called for
+  `tests/uat/seed/chunks/job-search.ts` registered in `tests/uat/seed/types.ts`'s `UatSeedChunk` and
+  in `run-uat.ts`'s `CHUNKS` set. The coordinator overrode that: job-search gets **no chunk at all,
+  not even a documented no-op**. #1087 finding 3 requires job-search to be NOT INSTALLED by default
+  at admin+data, so #1026's absent-module UI path stays reachable — a registered chunk is exactly the
+  vocabulary that invites a future agent to add it to `ADMIN_DATA_CHUNKS`
+  (`tests/uat/seed/levels.ts`) and silently re-break that path. Phase 1 below installs the module
+  LIVE via docker-cp + the admin UI (the finance precedent), so there is no install left for a chunk
+  to do, and seeding a profile/criteria row would skip the very onboarding flow this UAT exists to
+  exercise. See `tests/uat/seed/types.ts` (comment beside `UAT_SEED_CHUNKS`),
+  `tests/uat/seed/levels.ts` (comment beside `ADMIN_DATA_CHUNKS`), and
+  `rulings-ledger.md#n33` for the full reasoning.
 - Create: the fixture portal server (a small static HTTP origin serving Task 11's captures)
 - Modify: `tests/uat/provisioner.ts` — start the fixture origin and publish its base URL into the
   stack's env **before** `docker compose up` (the delta below)
