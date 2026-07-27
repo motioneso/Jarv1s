@@ -29,7 +29,7 @@ const GRANTED_AT_INSTALL_COMMITMENT_TOOLS = [
 
 const GRANTED_AT_INSTALL_GOALS_TOOLS = ["goals.create", "goals.update", "goals.addEvidence"];
 
-const GRANTED_AT_INSTALL_NOTES_TOOLS = ["notes.create", "notes.edit"];
+const GRANTED_AT_INSTALL_NOTES_TOOLS = ["notes.create", "notes.edit", "notes.delete"];
 
 const GRANTED_AT_INSTALL_PEOPLE_TOOLS = ["people.acceptMatch", "people.rejectMatch"];
 const CONFIRM_ALWAYS_PEOPLE_TOOLS = ["people.merge", "people.splitIdentity"];
@@ -74,7 +74,7 @@ describe("Goals self-operation manifest classification", () => {
 });
 
 describe("Notes self-operation manifest classification", () => {
-  it("classifies Notes create and edit as granted_at_install", () => {
+  it("classifies Notes create, edit, and delete as granted_at_install", () => {
     const tools = notesModuleManifest.assistantTools ?? [];
     for (const name of GRANTED_AT_INSTALL_NOTES_TOOLS) {
       const tool = tools.find((candidate) => candidate.name === name);
@@ -85,13 +85,14 @@ describe("Notes self-operation manifest classification", () => {
     }
   });
 
-  it("keeps notes.delete destructive with pending confirm_always", () => {
+  it("grants notes.delete at install as an auto-executable write", () => {
     const tools = notesModuleManifest.assistantTools ?? [];
     const deleteTool = tools.find((candidate) => candidate.name === "notes.delete");
     expect(deleteTool, "expected tool notes.delete to exist").toBeDefined();
-    expect(deleteTool?.risk).toBe("destructive");
-    expect(deleteTool?.selfOperationGrant).toBe("confirm_always");
-    expect(deleteTool?.executionPolicy).toBeUndefined();
+    expect(deleteTool?.risk).toBe("write");
+    expect(deleteTool?.actionFamilyId).toBe("note_changes");
+    expect(deleteTool?.executionPolicy).toBe("auto");
+    expect(deleteTool?.selfOperationGrant).toBe("granted_at_install");
   });
 
   it("keeps overwrite confirmation conditional while ordinary note writes are auto-capable", () => {

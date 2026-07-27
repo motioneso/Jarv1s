@@ -178,7 +178,7 @@ const PLANNED_CONFIRM_ALWAYS_TOOLS: readonly string[] = [
   "memory.forget",
   "people.merge",
   "people.splitIdentity",
-  "notes.delete"
+  "email.sendReply"
 ];
 
 const GENERIC_INPUT_KEY_NAMES = new Set(["key", "preferenceKey", "settingKey"]);

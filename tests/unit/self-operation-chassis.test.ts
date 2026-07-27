@@ -137,10 +137,10 @@ describe("self-operation chassis", () => {
       risk: "destructive",
       selfOperationGrant: "confirm_always"
     };
-    const notesDelete: ModuleAssistantToolManifest = {
-      name: "notes.delete",
-      description: "Delete a note.",
-      permissionId: "notes.manage",
+    const emailSendReply: ModuleAssistantToolManifest = {
+      name: "email.sendReply",
+      description: "Send a reply.",
+      permissionId: "email.manage",
       risk: "destructive",
       selfOperationGrant: "confirm_always"
     };
@@ -148,7 +148,7 @@ describe("self-operation chassis", () => {
       assertBuiltInSelfOperationManifests([
         manifest("memory", [memoryForget]),
         manifest("people", [peopleMerge, peopleSplitIdentity]),
-        manifest("notes", [notesDelete])
+        manifest("email", [emailSendReply])
       ])
     ).not.toThrow();
 
