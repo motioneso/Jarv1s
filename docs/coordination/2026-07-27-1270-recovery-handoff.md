@@ -39,21 +39,40 @@ not new builds.**
   Grep `### FINAL` for the real exit code — **do not trust a wrapper `echo $?`**, that masked the
   rc=1 once already this session. Gate DB is `jarv1s_recover_gate` (DROP/CREATE it before each run).
 
+## Done since
+
+- **Gate green**, read from the log not a wrapper: `### FINAL verify:foundation rc=0`. Integration
+  158 files / 1721 passed / 2 skipped; unit 442 files / 3382 passed.
+- **PR #1323 open** — https://github.com/motioneso/Jarv1s/pull/1323. Body states plainly that the
+  live-path gate is NOT yet met and the PR must not merge on green.
+- **`068c16fc` adds `tests/uat/specs/1270-provider-signin.uat.spec.ts`** (12 commits now). Two
+  tests: the wizard offers all three CLI providers; the Settings walk covers the authMethod
+  passthrough, the real sign-in affordance, and the terminal copy button.
+
 ## Next steps, in order
 
-1. Confirm `### FINAL verify:foundation rc=0` in the gate log.
-2. Open the PR for the 11 commits, referencing #1270 and #1271.
-3. **Satisfy the live-path gate on this very branch** — it is provider sign-in UI, so green is not
-   enough. Write `tests/uat/specs/1270-provider-signin.uat.spec.ts` and run `pnpm test:uat 1270`,
-   then post the run + screenshots as a `gh pr comment`. Harness details in agentmemory
-   `e2e-dev-uat-for-ui-features`. Assert: Settings → Assistant & AI offers CLI sign-in for Claude,
-   Codex, and Gemini (not Claude alone); the flow starts; the terminal copy affordance is present.
-4. **Known limit to state honestly, not paper over:** a *real* Codex device code needs a real Codex
-   CLI and network, which the ephemeral UAT stack does not have. The UAT can prove the surface is
-   reachable and the flow starts. Ben confirming a real device code on his own dev instance is a
-   separate, human step — flag it as such rather than claiming the gate is fully met.
-5. Ben has still not approved the #1270 spec itself
+1. Confirm the UAT run: log at `<scratchpad>/uat1270.log`, grep `### FINAL test:uat`. Screenshots
+   land under `test-results/…/0*.png` in the worktree (the UAT config sets no `screenshot` option,
+   so the spec captures five frames explicitly).
+2. Post the run + screenshots as a `gh pr comment` on #1323 — that comment IS the gate artifact.
+3. **Known limit to state honestly, not paper over:** a *real* Codex device code needs a real Codex
+   CLI and network. The provisioned stack installs CLIs into an empty `/data/cli-tools` volume and
+   leaves `JARVIS_HOST_CLIS` unset, so `cliAvailable` is false and the spec exercises the *fallback*
+   sign-in path. Ben confirming a real device code on his own dev instance is a separate, human
+   step — flag it as such rather than claiming the gate is fully met.
+4. Ben has still not approved the #1270 spec itself
    (`docs/superpowers/specs/2026-07-27-1270-provider-signin-shared-design.md`); #1271 stays open.
+
+## Selector facts the next session should not re-derive
+
+- Wizard order is `welcome → cliAuth → connectors → finish`; advance with **"Start setup"**.
+- Wizard provider labels are **Claude / Codex / Antigravity** — the `google` kind is NOT "Gemini".
+- Settings nav: usermenu → *Settings & permissions* → *Admin / Setup* → *Assistant & AI*.
+- Main's Settings picker **already** listed Anthropic/OpenAI/Google. `f5b44c52`'s Settings-side
+  change is the per-entry `authMethod` passthrough (main hardcoded `"cli"` for every entry); the
+  three-provider widening was the onboarding allowlist in `packages/settings/src/repository.ts`.
+- `supportsAutomatedProviderLogin` requires `cliAvailable`, so "Log in"/"Re-authenticate" only
+  render when a CLI binary is present; otherwise the CLI block shows "Use terminal to sign in".
 
 ## Standing corrections earned this session
 
