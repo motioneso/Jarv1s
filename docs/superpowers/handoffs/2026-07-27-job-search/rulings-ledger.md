@@ -1428,3 +1428,44 @@ Generalisation worth carrying past this epic: when a gate measures a proxy (line
 property we actually care about (readability), the cheapest way to satisfy the gate is usually to
 damage the property. Every mechanical gate repair needs a second, independent measure of the thing
 the gate was standing in for.
+
+## N37 — Tier B integration scope: 6, 8, 9, hash gate, 11. Not 10, not 12.
+
+Task 21 Tier B (#1305) writes exactly five things into
+`tests/integration/job-search.test.ts`: the metadata-only payload whitelist (6), the
+schedule-to-queue binding (8), the `actorUserId` envelope (9), the manifest/package hash trust
+gate, and the briefing round-trip (11). Tests 10 and 12 from the original spec are out.
+
+**Test 12 (no blended score) is dropped as genuinely redundant.** Verified, not asserted: five
+existing unit sites cover it, including the tool-schema boundary an integration test would be
+re-checking — `job-search-manifest.test.ts:102`, `job-search-profile-handler.test.ts:380`,
+`job-search-match-handler.test.ts:203`, `job-search-score.test.ts:55` and `:114`,
+`job-search-surface.test.ts:100`.
+
+**Test 10 (partial-crawl persistence) is deferred to the UAT in #1306, not deleted.** Faking one
+portal succeeding while another rate-limits, through a *live* worker, requires the
+`JARVIS_RUNTIME_MODE=e2e` + `JARVIS_E2E_MODULE_FETCH_BASE` fixture-server machinery that Task 22
+is building concurrently. The substitution point is host-side `createFetch` on the **queue-job
+path only** — `createExternalModuleTools` has no equivalent, so the tool-invoke path cannot fake
+network at all. Deferring avoids two agents building one harness. **If #1306's UAT does not
+exercise the crawl-then-degrade path, test 10 returns to Tier B** — this is a transfer of
+coverage, not a write-off, and the transfer must be checked before #1305 closes.
+
+**Test 11 changed shape.** `collectExternalBriefingContributions` takes no detail-level
+parameter; the module handler resolves it most-generous-wins across active profiles
+(`count=0, top=1, full=2`). Three separate scenarios, one active profile each — two profiles at
+different levels in one scenario collapse to the higher and prove nothing. Route it through the
+**real** `ExternalModuleWorkerRuntime`: the existing `#1282` briefing block stubs
+`runtime.invoke` and never starts a child, so the live path is the only uncovered part.
+
+**The hash gate moved and now checks both hashes.** Not `external-module-job-handler.ts:52` —
+it is `createVerifiedExternalModuleInvoker` in `apps/worker/src/external-module-invoke.ts`
+(~93–124), requiring `manifest_hash` **and** `package_hash` to match, returning a typed
+`{ok:false, reason:"hash-mismatch"}`. Assert both hashes and the reason. `package_hash` is the
+real content anchor; the `manifestHash` in a job payload is a different value.
+
+**Generalisation.** Two of the three scope cuts here were argued from "it's already covered
+elsewhere" — and that claim is only load-bearing if you *run the grep*. One was true at five
+sites; the other was a transfer that needed an explicit tripwire so the coverage cannot vanish
+between two agents each assuming the other holds it. Never accept "covered elsewhere" as
+scope-reduction without naming the file and line that covers it.
