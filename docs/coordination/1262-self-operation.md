@@ -3538,3 +3538,28 @@ the rest of `f7844bb1` green, and a one-file prettier fix would produce a *secon
 anything downstream is also wrong.
 
 Fix is one file, prettier `--write` on it alone — repo-wide `pnpm format` stays banned.
+
+### Checkpoint — state at the 70% meter (holding this session per standing instruction)
+
+**#1264 / PR #1276 — head `0648d0f1`, CI in flight.** The lane came out of auto-compaction cleanly,
+pushed the six-line notifier fix, and is now checking its own CI. Outstanding from it: the **real
+grepped exit code** of the local gate it ran before pushing. Its pane shows the push but not the
+number, and a push is not evidence of a green gate — do not close this lane out until that exit code
+is stated. The delta itself I have already cleared by direct review.
+
+**#1265 / PR #1273 — head `f7844bb1`, red on `format:check` only.** Owed: prettier on the single
+file, the local full gate finishing (nothing past step two has run yet, so the fix is unproven
+below `format:check`), commit, push. Then delta re-QA against the brief already written at
+`scratchpad/qa-brief-1265-delta.md` — grounded on whatever head lands, **not** on `f7844bb1`. That
+brief still stands except for one deletion: **strike its item 3 (the `$`/newline trap) entirely** —
+the premise is false, JS `$` is true end-of-input, and leaving it in would send an Opus QA hunting a
+non-existent bug. Its item 2 (find a *balanced* anchor-escape that survives the bare-compile probe)
+is the one that still matters.
+
+**Budget note:** #1265 has had two RED QA verdicts. Neither the CI red nor the prettier red counts
+toward that — those are gate failures, not QA cycles, and one of them was caused by my own
+push-before-gate instruction. The next QA verdict is the third and decides whether the lane stops.
+
+**Unchanged and load-bearing:** neither PR merges tonight. Both are security tier; both park on
+Ben's LAN pass; AWAITING-BEN item 9 is the only evidence that can show the epic's headline
+no-confirmation-card behaviour actually occurs in production.
