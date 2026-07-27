@@ -328,6 +328,28 @@ The shell already runs the query it needs (`app-shell.tsx:227`) and already has 
 must be added to the shared schema in `packages/shared/*-api.ts` or `fast-json-stringify` strips it.
 Recurring trap. _(memory `fast-json-stringify-schema-strip`; flagged in r2 B2's fix)_
 
+**G8 — A manifest field bound for the browser crosses FOUR strip points, and the plan's file lists
+only cover two.** Found while building Task 2d (#1285): a manifest-declared `navigation[].badge`
+validated in `validate.ts` and rendered by the shell would still never arrive, because between them
+sit `ModuleNavigationEntryDto` (`packages/shared/src/platform-api.ts:34-40`, no `badge`),
+`moduleNavigationEntrySchema` (`:143-154`, `additionalProperties: false`), and
+`serializeExternalModule` (`apps/api/src/server.ts:896-902`, which enumerates navigation fields
+explicitly). Each drops the field silently and independently.
+
+So the full checklist for **any** module-manifest field the browser must see is: SDK type →
+`validate.ts` validation **and re-emit** → shared DTO → shared Fastify schema (declared, and **not**
+in `required`) → the serializer's field literal → the renderer. Follow the `#918` `web` precedent at
+`platform-api.ts:193-198` — it is the same shape, already commented.
+
+Two corollaries. First, **a type-level assertion cannot catch this**: adding the DTO field makes
+typecheck pass while the schema still strips it, so the test must go through a real response
+(`app.inject`), not a constructed DTO. Second, **"Task N asserts it end to end" is not the same as
+"Task N builds the plumbing"** — Task 22 lists 2d under _Depends on_ and only asserts the badge, and
+no task in the plan ever claimed `platform-api.ts` or `server.ts`. Left alone this surfaces as a
+Task 22 failure with nothing in Task 2d's own tests having ever been wrong. _(raised by the build
+agent as a scope question before writing code — the right call; ruled 2026-07-27 to extend 2d's
+boundary to both files. Same family as memory `wired-not-just-defined`.)_
+
 ## H. Chat surfaces and the assistant surface
 
 **H1 — `CHAT_SURFACE_PATTERN = /^[a-z][a-z0-9-]{1,31}$/`** (`packages/shared/src/chat-api.ts:14`).
