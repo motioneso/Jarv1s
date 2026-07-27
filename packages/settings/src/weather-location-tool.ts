@@ -1,8 +1,12 @@
+import { randomUUID } from "node:crypto";
+
 import { assertDataContextDb } from "@jarv1s/db";
 import { HttpError } from "@jarv1s/module-sdk";
 import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
 import { PreferencesRepository } from "@jarv1s/structured-state";
 import type { WeatherLocationDto } from "@jarv1s/shared";
+
+import { settingsUndoStack } from "./undo-stack.js";
 
 // Matches weather-location-routes.ts's WEATHER_LOCATION_PREFERENCE_KEY exactly.
 const WEATHER_LOCATION_PREFERENCE_KEY = "weather-location";
@@ -29,7 +33,8 @@ export const weatherLocationOutputSchema = {
 
 export const weatherLocationSetExecute: ToolExecute = async (
   scopedDb,
-  input
+  input,
+  ctx
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const { lat, lon, label } = input as { lat: number; lon: number; label: string };
@@ -43,5 +48,12 @@ export const weatherLocationSetExecute: ToolExecute = async (
     next,
     current?.revision ?? null
   );
+  settingsUndoStack.push(ctx.actorUserId, ctx.chatSessionId, {
+    mutationId: randomUUID(),
+    key: WEATHER_LOCATION_PREFERENCE_KEY,
+    previousValue: current?.value ?? null,
+    previousRevision: current?.revision ?? null,
+    appliedAt: Date.now()
+  });
   return { data: { ...next } };
 };

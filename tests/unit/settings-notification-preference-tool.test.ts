@@ -10,7 +10,7 @@ function ctx(overrides: Partial<{ actorUserId: string }> = {}) {
   return {
     actorUserId: overrides.actorUserId ?? "user-a",
     requestId: "req:test",
-    chatSessionId: ""
+    chatSessionId: "chat-1"
   };
 }
 
@@ -20,7 +20,8 @@ function fakeService(
   return {
     setEnabled: async (_db, _actorUserId, moduleId, enabled) => ({
       preference: { moduleId, moduleName: "News", enabled },
-      unreadCount: null
+      unreadCount: null,
+      previous: { value: null, revision: null }
     }),
     ...overrides
   };
@@ -73,7 +74,11 @@ describe("notificationPreferenceSetEnabledExecute", () => {
     const service = fakeService({
       setEnabled: async (_db, _actorUserId, moduleId, enabled, clearUnread) => {
         receivedClearUnread = clearUnread;
-        return { preference: { moduleId, moduleName: "News", enabled }, unreadCount: null };
+        return {
+          preference: { moduleId, moduleName: "News", enabled },
+          unreadCount: null,
+          previous: { value: null, revision: null }
+        };
       }
     });
 

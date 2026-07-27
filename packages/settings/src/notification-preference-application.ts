@@ -26,7 +26,11 @@ export interface NotificationPreferenceWriteService {
     moduleId: string,
     enabled: boolean,
     clearUnread: boolean
-  ): Promise<{ preference: NotificationPreferenceDto; unreadCount: number | null }>;
+  ): Promise<{
+    preference: NotificationPreferenceDto;
+    unreadCount: number | null;
+    previous: { value: unknown; revision: number | null };
+  }>;
 }
 
 export async function setNotificationPreferenceEnabled(
@@ -36,7 +40,11 @@ export async function setNotificationPreferenceEnabled(
   moduleId: string,
   enabled: boolean,
   clearUnread: boolean
-): Promise<{ preference: NotificationPreferenceDto; unreadCount: number | null }> {
+): Promise<{
+  preference: NotificationPreferenceDto;
+  unreadCount: number | null;
+  previous: { value: unknown; revision: number | null };
+}> {
   const manifest = deps.listModuleManifests().find((m) => m.id === moduleId);
   if (!manifest) throw new HttpError(404, "Module not found");
   if (manifest.notifications?.supported !== true) {
@@ -64,5 +72,9 @@ export async function setNotificationPreferenceEnabled(
     !enabled && clearUnread && deps.notificationUnreadPort
       ? await deps.notificationUnreadPort.markModuleRead(scopedDb, manifest.id)
       : null;
-  return { preference, unreadCount };
+  return {
+    preference,
+    unreadCount,
+    previous: { value: current?.value ?? null, revision: current?.revision ?? null }
+  };
 }

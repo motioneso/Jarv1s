@@ -1,8 +1,12 @@
+import { randomUUID } from "node:crypto";
+
 import { assertDataContextDb } from "@jarv1s/db";
 import { HttpError } from "@jarv1s/module-sdk";
 import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
 import { PreferencesRepository } from "@jarv1s/structured-state";
 import type { LocaleDateFormat, LocaleSettingsDto } from "@jarv1s/shared";
+
+import { settingsUndoStack } from "./undo-stack.js";
 
 // Matches locale-routes.ts's LOCALE_PREFERENCE_KEY exactly — both read/write the same preference row.
 const LOCALE_PREFERENCE_KEY = "locale";
@@ -56,7 +60,8 @@ export const localeOutputSchema = {
 
 export const localeSetTimezoneExecute: ToolExecute = async (
   scopedDb,
-  input
+  input,
+  ctx
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const { timezone } = input as { timezone: string };
@@ -71,6 +76,13 @@ export const localeSetTimezoneExecute: ToolExecute = async (
     next,
     current?.revision ?? null
   );
+  settingsUndoStack.push(ctx.actorUserId, ctx.chatSessionId, {
+    mutationId: randomUUID(),
+    key: LOCALE_PREFERENCE_KEY,
+    previousValue: current?.value ?? null,
+    previousRevision: current?.revision ?? null,
+    appliedAt: Date.now()
+  });
   return { data: { ...next } };
 };
 
@@ -86,7 +98,8 @@ export const localeSetRegionAndDateFormatInputSchema = {
 
 export const localeSetRegionAndDateFormatExecute: ToolExecute = async (
   scopedDb,
-  input
+  input,
+  ctx
 ): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const { region: rawRegion, dateFormat } = input as {
@@ -105,5 +118,12 @@ export const localeSetRegionAndDateFormatExecute: ToolExecute = async (
     next,
     current?.revision ?? null
   );
+  settingsUndoStack.push(ctx.actorUserId, ctx.chatSessionId, {
+    mutationId: randomUUID(),
+    key: LOCALE_PREFERENCE_KEY,
+    previousValue: current?.value ?? null,
+    previousRevision: current?.revision ?? null,
+    appliedAt: Date.now()
+  });
   return { data: { ...next } };
 };

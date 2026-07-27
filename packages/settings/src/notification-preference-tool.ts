@@ -1,7 +1,13 @@
+import { randomUUID } from "node:crypto";
+
 import { assertDataContextDb } from "@jarv1s/db";
 import type { ToolExecute, ToolResult, ToolServices } from "@jarv1s/module-sdk";
 
 import type { NotificationPreferenceWriteService } from "./notification-preference-application.js";
+import { settingsUndoStack } from "./undo-stack.js";
+
+// Matches notification-preference-application.ts's KEY() exactly — both address the same preference row.
+const notificationPreferenceKey = (moduleId: string) => `notifications:${moduleId}`;
 
 function narrowNotificationPreferenceWrite(
   services: ToolServices | undefined
@@ -52,13 +58,20 @@ export const notificationPreferenceSetEnabledExecute: ToolExecute = async (
     enabled: boolean;
     clearUnread?: boolean;
   };
-  const { preference } = await service.setEnabled(
+  const { preference, previous } = await service.setEnabled(
     scopedDb,
     ctx.actorUserId,
     moduleId,
     enabled,
     clearUnread === true
   );
+  settingsUndoStack.push(ctx.actorUserId, ctx.chatSessionId, {
+    mutationId: randomUUID(),
+    key: notificationPreferenceKey(moduleId),
+    previousValue: previous.value,
+    previousRevision: previous.revision,
+    appliedAt: Date.now()
+  });
   const message = `${enabled ? "Turned on" : "Turned off"} notifications for ${preference.moduleName}.`;
   return {
     data: {
