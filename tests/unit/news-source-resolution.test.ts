@@ -291,4 +291,32 @@ describe("resolveSourceInput", () => {
       )
     ).resolves.toMatchObject({ status: "rejected", reason: "unreachable" });
   });
+
+  // #1265 relay-5 SSRF scope restoration (approved spec lines 47-49): the requested domain is
+  // a normal public publisher, but the HTTP redirect chain lands on a private/internal address
+  // (SSRF via redirect, not a typed-in IP literal). acceptedFinalDomain in source-resolution.ts
+  // must normalize `fetched.finalUrl` (the POST-redirect URL), not the raw input, for this to
+  // reject — a check that only validated the typed domain would miss this.
+  it("refuses a public domain whose redirect chain lands on a private/internal address", async () => {
+    const redirectsToMetadataService: NewsSafeFetchPort = async (url) => {
+      if (url === "https://publisher.example/") {
+        return {
+          ok: true,
+          status: 200,
+          finalUrl: "http://169.254.169.254/latest/meta-data/",
+          contentType: "text/html",
+          body: "<title>internal</title>"
+        };
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    };
+
+    await expect(
+      resolveSourceInput(
+        db,
+        { fetch: redirectsToMetadataService, search: noSearch, ai: ai(), repo: repo() },
+        { raw: "https://publisher.example", hasWebSearch: false }
+      )
+    ).resolves.toMatchObject({ status: "rejected", reason: "policy" });
+  });
 });
