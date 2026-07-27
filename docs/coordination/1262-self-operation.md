@@ -3336,3 +3336,36 @@ never started; applying it consistently is cheap and it works.
 
 **Fleet:** #1265 fix in flight (`3fb8f557`); #1264 gate running (`26659abc`); QA `60113a86` has
 delivered and is spent.
+
+### #1264 → PR #1276 opened, CI RED — lockfile drift, not a code defect
+
+Build agent `26659abc` reported the lane done with a genuinely green local gate (VF_EXIT=0, real
+exit code grepped from the log rather than piped; audit:release-hardening exit 0; 446 unit files /
+3406 tests, 164 integration files / 1762 tests). PR #1276 opened, head `7728e33a`, rebased on
+`origin/main@73e50847`.
+
+**All three required checks failed at the SAME step — "Install dependencies" — and none at a test.**
+That shape alone says environment, not code, and identified the cause in one call without reading a
+line of gate output: `gh run view <id> --json jobs` filtered to failed steps. Worth keeping as a
+reflex; it is much cheaper than pulling a log.
+
+Cause: the branch adds `@jarv1s/structured-state` to `packages/settings/package.json` and never
+regenerated `pnpm-lock.yaml` (`git diff --stat origin/main...branch` shows `1 +` on the package
+file and **no lockfile line**). CI installs with `--frozen-lockfile`; local installs do not.
+
+**The agent's green run was honest — the local gate structurally cannot catch this class.** I said
+so explicitly when relaying, because misattributing an environment blind spot to agent carelessness
+teaches the wrong lesson and makes the next report more defensive, not more accurate. **This does
+not count against #1264's failure budget**: it is a pre-QA CI failure, not a failed QA cycle.
+
+Fix relayed: regenerate the lockfile, commit **only** `pnpm-lock.yaml` by explicit path, push.
+
+**QA held deliberately.** `qa-1264` (`3ea7d2cd`, `w1:p13X`, Opus 5) is spawned but parked — spending
+an adversarial Opus pass on a PR that cannot install is waste, and QA trusts CI for the mechanical
+gate. Re-dispatch once the three checks are green. Its brief is pre-written at
+`scratchpad/qa-brief-1264.md`.
+
+**Second occurrence of the idle-QA trap.** `3ea7d2cd` booted with the right model and worktree and
+then *conversed* ("...or point me elsewhere") instead of starting. Same as `60113a86` earlier. Two
+for two: a freshly spawned QA agent must be verified to have STARTED, and the check is the artifact
+(`gh pr view <n> --json comments`), never the pane looking alive.
