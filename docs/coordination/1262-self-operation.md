@@ -954,3 +954,44 @@ exist, the pane silently falls back to `$HOME`, the agent boots with no repo, an
 lands in bash as `command not found` noise. Also: `herdr agent start --cwd` does not re-root an
 existing pane — close the pane and re-split with the right `--cwd`. Always absolute paths, always
 `git worktree list` before spawning.
+
+### Delta review RED — install grant overrides an explicit user opt-out (blocking)
+
+Third review (Opus, delta-scoped to `eb0470ef`/`ffb58f16`/`8fae3909`), verdict RED, one blocking,
+posted at PR #1268 `#issuecomment-5088140595`. It confirmed all four Fable findings and the
+`web.read` blocker are genuinely closed in code, then found a new one.
+
+**The blocker.** `packages/tasks/src/action-policy.ts:10-26` + `packages/ai/src/repository.ts:1932`.
+Tasks keeps a legacy dual-key compatibility path: the resolver reads both the canonical
+action-policy key and the legacy `tasks.agency_auto_execute` boolean and takes whichever row is
+**newer**. `insertActionPolicyIfAbsent` only checks the canonical key. So a user who explicitly
+turned task auto-execute OFF between #488 and #548 has `legacy=false` and no canonical row; enabling
+the tasks module inserts canonical `trusted_auto` with `updated_at=now`, which wins on timestamp,
+and eleven task write tools begin auto-running with no card. Their settings toggle flips itself back
+on. This is worse than the calendar case: the user did not fail to opt in, they opted **out** and we
+overrode it. Zero tests touch `LEGACY_AGENCY_AUTO_EXECUTE_KEY`.
+
+**The standing rule adopted earlier this run was blind to it, by construction.** "Audit every
+`listActionPolicies` consumer" only finds consumers of that function. This reader goes at the
+preference key directly. **Amended rule for #1264/#1265: audit every reader of the action-policy
+preference keys — including legacy keys and any compatibility resolver — not every caller of
+`listActionPolicies`.** A grep for the function name will not find the next one of these either.
+
+**Rulings issued with it.**
+- **task_cleanup (review item 3), upheld.** `deleteList`/`deleteTag` were `granted_at_install` on a
+  family whose `defaultTier` is `always_confirm` — install overriding the strongest default a family
+  can declare. Fixed from the grant side: both become `user_promotable`. The family's `defaultTier`
+  is untouched, because widening a `defaultTier` is a standing stop condition, and
+  always_confirm + user_promotable is exactly the calendar precedent. A sibling assert now fails the
+  build on `granted_at_install` over an `always_confirm` family.
+- **notes.delete (review item 2), declined again.** Ben ruled on it explicitly, knowing it is an
+  unrecoverable unlink. The reviewer is right that the override of spec 2's bar was never written
+  down — that is what this paragraph is for. Not a defect, and not a decision to revisit at 1am.
+- Items 4/5/6 (unanchored name allowlist, bare `.toThrow()`, stale toggle copy) folded into the
+  second fix commit. The name-allowlist one is real: `seenToolNames` is per-manifest and
+  `executableTools` is first-match-wins, so a future built-in declaring its own `web.read` with a
+  trusted family would shadow the confirming one and pass every assert.
+
+**Expected inventory after the fix: granted_at_install 31→29, user_promotable 2→4, total 38.**
+Verify against the builder's real numbers; PR body disclosure 3 must then be rewritten, since task
+list/tag deletion now asks by default instead of not asking.
