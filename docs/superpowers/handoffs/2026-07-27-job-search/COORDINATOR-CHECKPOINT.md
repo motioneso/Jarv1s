@@ -7,10 +7,11 @@ not a recap. Read the four documents below before acting; nothing here restates 
 
 1. `HANDOFF.md` (this directory) — the build's charter. Its Start section is complete; its rules,
    scope guardrails and module rules are all still live.
-2. `rulings-ledger.md` (this directory) — **every** locked decision, N1 through N32. When a build
+2. `rulings-ledger.md` (this directory) — **every** locked decision, N1 through N34. When a build
    agent asks "which helper / is this allowed / what shape", the answer is here or it is a new
    ruling that belongs here. The branch-wide ones that bite hardest: N26 gate-DB isolation,
-   N27 live-path proof, N28 explicit-path commits, N32 co-edited files.
+   N27 live-path proof, N28 explicit-path commits, N32 co-edited files. **N34 supersedes N30's
+   addendum** — read N30 and N34 together or you will build a withdrawn requirement.
 3. `parts/` — one file per task, numbered to match the task numbers. **Task numbering is frozen**;
    never renumber, and reject renumbering findings on sight.
 4. GitHub epic #1280 and its children — the board is the only status source. Do not trust this
@@ -19,8 +20,9 @@ not a recap. Read the four documents below before acting; nothing here restates 
 ## Where the work stands
 
 Branch `feat/job-search`, local only — `origin/feat/job-search` does not exist. HEAD at last update
-is `280691df`. **Six task issues remain open: #1299, #1304, #1305, #1306, #1307** (plus #1087, a
-pre-existing harness-quality issue, not this epic's). Everything else is closed and on the board.
+is `ec3ffebb`. **Five task issues remain open: #1299, #1304, #1305, #1306, #1307** (plus #1087, a
+pre-existing harness-quality issue, not this epic's). Everything else is closed and on the board —
+Task 24 (#1309, user-added job board sources) landed at `773e8de6` and was verified and closed.
 
 **Task 15 (#1299) is the single gate on the whole epic.** A background agent owns it. Besides its
 own score/pass/surfacing work it must register **all nine Task 16 handler factories plus its own
@@ -28,13 +30,22 @@ two** in `external-modules/job-search/src/worker/index.ts`, which is still
 `defineModuleWorker({ handlers: {} })`. Task 20 (#1304) and Task 21 Tier B (#1305) are both blocked
 behind it; Task 21 Tier A already landed at `1401040e`.
 
-Live assignments at last update: score-agent on #1299, dedupe on #1309 (tests), records on #1306
-(harness half only — it stops before the spec body and reports), scaffold parked on #1305 Tier B
-waiting on Task 15. criteria and chat-surface are free. Unassigned: #1304, #1307.
+Live assignments at last update: score-agent on #1299 (`stages/score.ts`, `handlers/pass.ts`,
+`handlers/matches.ts` all written but uncommitted; `worker/index.ts` still `handlers: {}`), criteria
+on #1304 settings, chat-surface on #1304 board+inspector and **sole owner of `web/root.tsx`**,
+records on #1306 (harness half only — it stops before the spec body and reports), scaffold parked on
+#1305 Tier B, dedupe idle on standby. Unassigned: #1307.
 **Verify each of these against the board before relying on it.**
 
-Task 20 (#1304) is genuinely blocked, not merely unstarted — it builds against the tool contract
-Task 15 is still defining, so starting it early buys rework.
+Task 20 (#1304) is **no longer blocked** — Task 15's agent froze its tool contract (`matches.list`
+input `{profileId, limit}` with `limit` 1..40 and no default; `match-state` and `crawl-run` manual-run
+queues). Treat those three signatures as published API.
+
+**But the manifest's `worker.queues` is still `[]`** — note the nesting, it is not top-level. Neither
+queue exists on disk, nor does `matches.list`; Task 15 lands all three. The board's tests mock the
+transport, so **the board can go fully green while every button on it is inert in production and
+nothing anywhere goes red.** Diffing the board's and settings' literal tool/queue strings against the
+*committed* manifest is a blocking check before #1304 closes.
 
 ## How to coordinate this fleet
 
