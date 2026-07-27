@@ -165,9 +165,10 @@ For each spec cleared to start (serialized specs wait for their predecessor to l
 5. **Record** label/pane/branch in the manifest; status `building`.
 
 **Messaging agents — preferred path:** `herdr pane run <pane> "<msg>"` (types + submits in one
-command), then verify with a bounded pane read; if the text is still sitting in the input box,
-send one `herdr pane send-keys <pane> Enter`. `send-text` / `agent send` are fallbacks only (they
-leave text unsubmitted without an explicit Enter).
+command), or `herdr agent prompt <name-or-pane> "<msg>"` when the target is a named agent — then
+verify with a bounded pane read; if the text is still sitting in the input box, send one
+`herdr pane send-keys <pane> Enter`. `send-text` is a fallback only (it leaves text unsubmitted
+without an explicit Enter). There is no `herdr agent send`.
 
 ## Phase 2 — supervise (resident)
 

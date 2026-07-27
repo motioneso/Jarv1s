@@ -35,8 +35,11 @@ one call:
 herdr pane run <pane_id> "<your message>"
 ```
 
-`herdr agent send "<label>" "<text>"` writes literal text **without** submitting, so it
-always needs a follow-up Enter (step 3). Prefer `pane run`.
+`herdr agent prompt <agent-name-or-pane_id> "<text>"` also types and submits in one call, and
+takes a registered agent name as well as a pane id — use it when the target is a named agent
+(`herdr agent list`). Add `--wait` only when you need to block until the agent settles.
+**There is no `herdr agent send`** — that verb does not exist in the CLI (`herdr agent` offers
+`list get read send-keys prompt rename focus wait attach start explain`).
 
 **3. Long messages may not auto-submit.** A long message types into the input box but the
 Enter can be absorbed (treated as a paste). If so, send a **separate** Enter:
@@ -81,7 +84,7 @@ herdr pane read <their_pane_id> --source recent --lines 30
 | Get one pane                                     | `herdr pane get <pane_id>`                                                         |
 | List / get agents                                | `herdr agent list` · `herdr agent get <label>`                                     |
 | Send by pane + Enter (preferred/default)         | `herdr pane run <pane_id> "<text>"`                                                |
-| Send by label (no Enter — fallback only)         | `herdr agent send "<label>" "<text>"`                                              |
+| Send by agent name or pane + Enter               | `herdr agent prompt <name-or-pane_id> "<text>" [--wait]`                           |
 | Literal text, no Enter (fallback only)           | `herdr pane send-text <pane_id> "<text>"`                                          |
 | Submit / send a key                              | `herdr pane send-keys <pane_id> Enter`                                             |
 | Read output                                      | `herdr pane read <pane_id> --source visible\|recent\|recent-unwrapped [--lines N]` |
