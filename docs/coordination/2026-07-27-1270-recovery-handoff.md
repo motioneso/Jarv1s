@@ -49,6 +49,27 @@ not new builds.**
   tests: the wizard offers all three CLI providers; the Settings walk covers the authMethod
   passthrough, the real sign-in affordance, and the terminal copy button.
 
+## The live-path gate earned its keep — first UAT run found a real bug
+
+First run: **1 passed, 1 failed**. The passing test is the #1270 headline, proven on a real
+provisioned stack: the first-run wizard renders exactly three CLI providers (Claude / Codex /
+Antigravity), which `main` cannot do.
+
+The failure was not a selector problem. Adding an **API-key** provider (Mistral, Local (Ollama),
+OpenAI-compatible, Custom) from Settings is broken end to end — `POST /api/ai/providers` returns
+`400 credentialPayload is required for api_key auth method`
+(`parseCreateProviderBody`, `packages/ai/src/routes.ts:736`) because the picker's `createMutation`
+never sends one. Error toast, nothing added. Filed as **issue #1325** with three candidate fixes and
+a second related defect (`hasCredential` is `encrypted_credential IS NOT NULL` on a `NOT NULL`
+column, so the card's `"No credential"` state is unreachable and an empty credential would claim
+`"API key stored"`). **Needs a Ben ruling — do not fix unilaterally.**
+
+Not a #1270 regression: `main` hardcoded `authMethod: "cli"` for every catalog entry, so the same
+click silently created a bogus "Mistral CLI" with no way to enter a key. Equally unusable, just
+quieter. The UAT now covers only the CLI branch and says so in a comment — which means it does
+**not** prove `f5b44c52`'s passthrough end to end. Restore the API-key half as the regression test
+when #1325 lands.
+
 ## Next steps, in order
 
 1. Confirm the UAT run: log at `<scratchpad>/uat1270.log`, grep `### FINAL test:uat`. Screenshots
