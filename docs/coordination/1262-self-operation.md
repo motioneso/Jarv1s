@@ -416,3 +416,25 @@ condition on a security-tier change is not.
 The stop conditions that matter most: a proposed **fifth** `confirm_always` tool halts that package
 task and comes to me, and if Ben changes the pending `notes.delete` ruling, Task 7 plus the Task
 16/17 counts all move together.
+
+### Task 3 landed and spot-checked — `149b9df8` (2026-07-26)
+
+`fix(ai): enforce exclusions before yolo`. This is the security-critical change in the plan, so I
+verified the shape myself rather than waiting for QA (targeted greps only, no diff read):
+
+- The exclusion is enforced **inside `executableTools`** (`packages/ai/src/gateway/gateway.ts:592`),
+  which is the single source for listing (`:125`), lookup (`:138`) and `callTool` (`:330`).
+- An excluded tool is therefore **structurally absent** from the set, not conditionally rejected
+  later. `!found` returns `Tool not available` at `:141`, and the YOLO branch is at `:161` — so YOLO
+  can never observe an excluded tool at all. That is stronger than the plan's "hoist the check above
+  YOLO" wording, and it removes the ordering hazard rather than managing it.
+- `resolvePolicy` (`:178`), the destructive short-circuit and `requiresConfirmation` are untouched,
+  as Ben required.
+
+Builder evidence: 3 new tests green (`exclude-under-yolo`, `yolo-still-runs-confirm-mechanisms`,
+`yolo-off-still-confirms`), full `mcp-gateway.test.ts` 27/27, `ai` typecheck clean. Self-reported —
+independent QA still owes an adversarial pass on it at PR time; this note is a mid-build sanity
+check, not a sign-off.
+
+Branch is 0 commits behind `origin/main` and `main` CI is green, so no rebase debt is accruing on
+this serial gate. Builder is on `task-04.md`.
