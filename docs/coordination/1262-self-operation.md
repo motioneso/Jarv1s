@@ -3519,3 +3519,22 @@ and briefly flattened the PR #1273 body to one line. The lane caught it on its o
 restored it via `--input`, and diffed the result byte-for-byte against its draft. Recorded because
 it disclosed a self-inflicted error it had already fixed — that is what makes the rest of its
 reports worth trusting.
+
+### The #1273 red was prettier, and my ruling ahead of it was wrong
+
+`verify:foundation` died at **`format:check`** — step two — on a single file,
+`tests/unit/mcp-gateway-validation.test.ts`. No pattern, no fixture, no fail-closed involvement at
+all. I had issued a confident ruling about manifest patterns being correctly rejected *before* I
+had the log, on the reasoning that it was the likeliest cause. It was not the cause, and I have
+told the lane to discard that ruling rather than let it go looking for a problem I invented. The
+log was minutes away; the honest read is that I front-ran a diagnosis I did not need to front-run.
+
+**The part that matters operationally:** `verify:foundation` is a fail-fast `&&` chain, so dying at
+`format:check` means `check:file-size`, `typecheck` and **every test** never executed. A red gate at
+step two carries almost no information about the code — it is easy to read "Verify foundation:
+FAILURE" as "the fix is broken" when nothing has actually been tested yet. That is why I told the
+lane to let its local gate finish rather than just reformat and push: right now nothing has proven
+the rest of `f7844bb1` green, and a one-file prettier fix would produce a *second* red round-trip if
+anything downstream is also wrong.
+
+Fix is one file, prettier `--write` on it alone — repo-wide `pnpm format` stays banned.
