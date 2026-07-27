@@ -97,3 +97,40 @@ silently reconciling it.
 - Never pipe a gate command through `tail` or `head`; it masks a failing gate as exit 0. Report real
   exit codes.
 - No secrets in any doc, payload, log, or prompt.
+
+## READ DISCIPLINE — mandatory, added 2026-07-27
+
+**This file lives on the coordinator branch.** Read it at its absolute path —
+`~/Jarv1s/.claude/worktrees/coord-1262/docs/coordination/handoff-1265-module-content-self-operation.md`
+— your own branch will not have this section.
+
+Your plan is **1128 lines** with inline implementation code. The sibling lane (#1264) burned **four
+whole contexts** reading a plan of the same shape before writing a single line. Do not read it whole.
+Seek to your current task's range, read only that, build, commit, then read the next range.
+
+`docs/superpowers/plans/2026-07-27-module-content-self-operation.md`:
+
+| Task | Lines |
+| --- | --- |
+| 1 drop `guidance` from `news.addTopic` schema | 47–135 — **DONE** (`f9347444`) |
+| 2 `SportsFollowsWriter` + `followTeam`/`unfollowTeam` | 136–384 |
+| 3 route REST follow/unfollow through the service | 385–476 |
+| 4 `sports.*` assistant tools + action family | 477–873 |
+| 5 inventory counts + Sports classification block | 874–960 |
+| 6 cross-actor RLS isolation test via the tool path | 961–1042 |
+| 7 news preview/confirm + denylist regression | 1043–1107 |
+
+**Build → commit → then read the next range.** One task per read.
+
+### Settled — do not re-derive
+
+- **T1 is done and verified by the coordinator in the tree.** `cleanTopic({ label, guidance:
+  undefined })` with a why-comment. Do not revisit it. The earlier schema-only edit (`e71f4f78`) was
+  cosmetic — the gateway validator strips nothing, so the execute function is the only real gate.
+- The prettier failure on the plan doc was ours, fixed at `e027c5db`. **Every doc you commit gets
+  `prettier --write` first** — `format:check` is an early link of the CI gate, so a warning there
+  means the test suites never run at all.
+- The four binding conditions still stand: DELETE stays on the raw repository with a why-comment;
+  the install-grant **routing** test; the `risk !== "destructive"` assertion; and the Task 5 count
+  rebase against whichever of #1264/#1265 lands second — **without** loosening the assertion to a
+  range or `toBeGreaterThan`.
