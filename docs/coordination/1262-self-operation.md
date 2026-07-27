@@ -4045,3 +4045,58 @@ unrepresentative across all lanes, not just this one. Blast radius to be judged 
 list arrives; likely its own issue.
 
 Note for anyone supervising this lane: a live turn genuinely takes ~150s. Silence is not a stall.
+
+## 2026-07-27 — #1310 root cause CONFIRMED; my prime suspect retracted
+
+The "DOM never flipped" UAT failure is **not** a #1310 defect and **not** an invalidation bug.
+My earlier call naming `resolveQueryKeyToken` as prime suspect was **wrong and is retracted** —
+it must not persist in this manifest as an open suspicion. The ruling it produced (fail-closed
+stays; do not widen to a permissive fallback) is unaffected and remains in force.
+
+Actual cause: a confirmation gate the test script never drove. The nested `claude -p` transcript
+shows the tool was called correctly and returned *"Timed out awaiting confirmation — still pending
+in your drawer."* `gateway.ts:574` gates every `themeMode.set` behind an `action_request` card;
+`NATIVE_CONFIRM_TIMEOUT_MS = 150_000` matches the observed 150012ms `/api/mcp` response exactly —
+**that response was the denial, not a slow success.** This is `selfOperationGrant=user_promotable`
+(ask by default) behaving as designed.
+
+The three-discriminator section above is superseded by this entry.
+
+**Durable rule — live-path proof shape.** A headless UAT that only watches the DOM will silently
+fail on any confirmed action, and the symptom is indistinguishable from the feature being broken.
+The proof must: send the chat message → wait up to 150s for the card → click
+`role=button name=Approve` → assert the DOM flip within 30s, **with no manual refresh.** The
+DOM-flip-after-approval assertion is the claim under test.
+
+**#1273 interaction (confirm, do not assume).** #1273's exit criterion asserts that *no*
+confirmation card appears anywhere. That concerns `granted_at_install` tools and should be
+unaffected by this `user_promotable` behaviour — but the lane must confirm it rather than assume it.
+
+## 2026-07-27 — env scrub: denylist failed, allowlist is mandatory
+
+Nohup'ing a dev server from inside an agent's own Claude Code shell inherits that agent's full
+environment. The lane's `env -u` **denylist** scrub missed `AGENTMEMORY_SECRET` (64-char value),
+which therefore sat in both the original and the "clean" relaunch's API process env and
+transitively in every nested `claude -p` child. Verified mitigations: zero hits for the literal
+value in either dev-api log; nested children run `--strict-mcp-config` with no bash/file tool, so
+there was no tool surface to read `process.env`. Surfaced to Ben as new information — his earlier
+"let it go" was given when the reported facts were "no raw credential involved."
+
+Rule: scrub with an **allowlist** (`env -i` plus the explicit vars the server needs), never a
+denylist. A denylist fails silently and you only find the miss by auditing.
+
+## 2026-07-27 — lane state
+
+- **#1311** — relay 5 complete. `confirm_always` negative control CLOSED (live curl dispatch of
+  `web.read`: pending row in `app.ai_assistant_action_requests`, zero `app.preferences` writes,
+  DB-verified; no screenshot, no browser tool that session). Finding #1 DONE (`d1e9b1fe`:
+  boot-time reject of a `granted_at_install` family whose `defaultTier` is `trusted_auto`, new
+  test in `self-operation-chassis.test.ts`, both self-operation test files green). Successor
+  `install-grant-1311-r5` driving in w1:p14C (session `3d06fb7e`), already on Finding #2
+  (`routes.ts` structural fix). Handoff `docs/superpowers/handoffs/2026-07-27-1311-install-grant-relay-5.md`
+  (`cf86d541`). Old pane w1:p14B reaped.
+- **#1310 / PR #1276** — gate green rc=0; ordered to relay at 1% from auto-compact before the UAT
+  rerun. Item 9 (live proof, corrected script) and item 10 carry to its successor.
+- **Still open on #1311:** the A/B validity question — if the "before" state was manufactured by
+  deleting/inserting a policy row, it proves only that the policy system responds to rows. Only a
+  genuine pre-fix bundle makes it a clean A/B.
