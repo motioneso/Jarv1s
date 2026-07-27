@@ -1528,3 +1528,34 @@ Count consequence: it moves the **chat** package's inventory, not settings'.
 PR. Both are `security` tier — adversarial Opus QA with a posted `gh pr comment` verdict before any
 merge, and whichever lands second rebases the exact counts in
 `tests/unit/self-operation-manifests.test.ts`.
+
+## Continuation note — 2026-07-27, T1 reopened on a verified finding
+
+**Fleet:** #1264 `settings-1264-b` / `d88f59be` / `w1:p12Q`; #1265 `relay-1265-3` / `38c461d9` /
+`w1:p12S` (predecessors `7f52e0b8` and `8860e0b7` reaped). Monitor `bjx9jyxt9` — it watches
+**local worktree HEADs**, not `origin` refs; the old monitor could never have fired a commit event
+because neither branch is pushed until PR time.
+
+**T1 as committed was cosmetic, and I reopened it.** #1265 reported the `guidance` drop from
+`news.addTopic` done in `e71f4f78`. Verified in the tree rather than taken from the report:
+`packages/ai/src/gateway/input-validation.ts` states outright that it **deliberately does not
+enforce `additionalProperties`**, and `validateToolInput` returns the caller's input object
+unchanged — it strips nothing. So an undeclared key still reaches the execute function, and
+`packages/news/src/chat-tools.ts:252-255` was still reading `guidance` off the input and persisting
+it through `createCustomTopic`. Dropping the field from the schema only stops the model being *told*
+about it. **My approval was at fault** — I accepted the plan's "schema-only, no execute-fn change"
+framing without checking whether anything enforced the closed set.
+
+Fix ordered before T2: stop reading `guidance` in `chat-tools.ts`, with a why-comment, plus a
+regression that calls `newsAddTopicExecute` with the key present in the input object anyway and
+asserts the persisted value is null. Explicitly **not** removing `guidance` from the repository,
+`packages/shared/src/news-api.ts`, or the REST route — `personalization-routes.ts:469` accepts
+user-typed guidance under a `maxLength: 1000` constraint and that is legitimate; the threat is
+model-authored text, not human-typed text.
+
+Saved as memory `mem_ms3250ny_14d4e340eb65`. The general rule for the rest of this epic: **a field
+removed from a tool's input schema is not contained until the execute function refuses it**, and a
+test that drives the schema proves nothing, because the schema is not what enforces it.
+
+**Mid-doing:** #1265 fixing T1 then continuing to T2; #1264 still owes me its plan pointer. No PRs
+open.
