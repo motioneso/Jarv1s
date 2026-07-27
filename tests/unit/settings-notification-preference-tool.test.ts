@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { dataContextBrand, type DataContextDb } from "@jarv1s/db";
 import type { NotificationPreferenceWriteService } from "../../packages/settings/src/notification-preference-application.js";
 import { notificationPreferenceSetEnabledExecute } from "../../packages/settings/src/notification-preference-tool.js";
+import { settingsUndoStack } from "../../packages/settings/src/undo-stack.js";
 
 const scopedDb = { db: {} as never, [dataContextBrand]: true } satisfies DataContextDb;
 
@@ -21,7 +22,8 @@ function fakeService(
     setEnabled: async (_db, _actorUserId, moduleId, enabled) => ({
       preference: { moduleId, moduleName: "News", enabled },
       unreadCount: null,
-      previous: { value: null, revision: null }
+      previous: { value: null, revision: null },
+      changed: true
     }),
     ...overrides
   };
@@ -77,7 +79,8 @@ describe("notificationPreferenceSetEnabledExecute", () => {
         return {
           preference: { moduleId, moduleName: "News", enabled },
           unreadCount: null,
-          previous: { value: null, revision: null }
+          previous: { value: null, revision: null },
+          changed: true
         };
       }
     });
@@ -97,6 +100,52 @@ describe("notificationPreferenceSetEnabledExecute", () => {
       { notificationPreferenceWrite: service }
     );
     expect(receivedClearUnread).toBe(true);
+  });
+
+  it("does not push an undo entry when the service reports changed=false (no-op)", async () => {
+    settingsUndoStack.clear("user-a", "chat-1");
+    const service = fakeService({
+      setEnabled: async (_db, _actorUserId, moduleId, enabled) => ({
+        preference: { moduleId, moduleName: "News", enabled },
+        unreadCount: null,
+        previous: { value: { enabled }, revision: 1 },
+        changed: false
+      })
+    });
+
+    await notificationPreferenceSetEnabledExecute(
+      scopedDb,
+      { moduleId: "news", enabled: false },
+      ctx(),
+      { notificationPreferenceWrite: service }
+    );
+
+    expect(settingsUndoStack.pop("user-a", "chat-1")).toBeUndefined();
+  });
+
+  it("pushes an undo entry when the service reports changed=true", async () => {
+    settingsUndoStack.clear("user-a", "chat-1");
+    const service = fakeService({
+      setEnabled: async (_db, _actorUserId, moduleId, enabled) => ({
+        preference: { moduleId, moduleName: "News", enabled },
+        unreadCount: null,
+        previous: { value: { enabled: !enabled }, revision: 1 },
+        changed: true
+      })
+    });
+
+    await notificationPreferenceSetEnabledExecute(
+      scopedDb,
+      { moduleId: "news", enabled: false },
+      ctx(),
+      { notificationPreferenceWrite: service }
+    );
+
+    expect(settingsUndoStack.pop("user-a", "chat-1")).toMatchObject({
+      key: "notifications:news",
+      previousValue: { enabled: true },
+      previousRevision: 1
+    });
   });
 
   it("propagates the service's rejection (e.g. unknown module 404) unchanged", async () => {

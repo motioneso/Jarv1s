@@ -8,6 +8,7 @@ import {
   themeModeSetExecute,
   themeModeSetInputSchema
 } from "../../packages/settings/src/theme-mode-tool.js";
+import { settingsUndoStack } from "../../packages/settings/src/undo-stack.js";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -70,5 +71,30 @@ describe("settings.themeMode.set tool", () => {
     // Real validation happens upstream against inputSchema before execute is ever called
     // (module-sdk ToolExecute contract) — this asserts the schema itself is correctly scoped.
     expect(themeModeSetInputSchema.properties.mode.enum).toEqual(["light", "dark"]);
+  });
+
+  it("is a no-op when the mode already matches: no revision bump, no undo entry", async () => {
+    await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:theme-mode-noop-seed" },
+      (scopedDb) => themeModeSetExecute(scopedDb, { mode: "dark" }, toolCtx(ids.adminUser))
+    );
+    const before = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:theme-mode-noop-before" },
+      (scopedDb) => preferences.getWithRevision(scopedDb, COLOR_MODE_KEY)
+    );
+    settingsUndoStack.clear(ids.adminUser, "");
+
+    const result = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:theme-mode-noop" },
+      (scopedDb) => themeModeSetExecute(scopedDb, { mode: "dark" }, toolCtx(ids.adminUser))
+    );
+    expect(result.data).toEqual({ mode: "dark" });
+
+    const after = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:theme-mode-noop-after" },
+      (scopedDb) => preferences.getWithRevision(scopedDb, COLOR_MODE_KEY)
+    );
+    expect(after?.revision).toBe(before?.revision);
+    expect(settingsUndoStack.pop(ids.adminUser, "")).toBeUndefined();
   });
 });

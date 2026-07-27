@@ -5,6 +5,7 @@ import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/
 import type { ToolContext } from "@jarv1s/module-sdk";
 import { PreferencesRepository } from "@jarv1s/structured-state";
 import { quietHoursSetExecute } from "../../packages/settings/src/quiet-hours-tool.js";
+import { settingsUndoStack } from "../../packages/settings/src/undo-stack.js";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -98,5 +99,45 @@ describe("settings.quietHours.set tool", () => {
           )
       )
     ).rejects.toThrow();
+  });
+
+  it("is a no-op when enabled/start/end/timezone already match: no revision bump, no undo entry", async () => {
+    await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:quiet-hours-noop-seed" },
+      (scopedDb) =>
+        quietHoursSetExecute(
+          scopedDb,
+          { enabled: true, start: "22:00", end: "07:00", timezone: "America/Denver" },
+          toolCtx(ids.adminUser)
+        )
+    );
+    const before = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:quiet-hours-noop-before" },
+      (scopedDb) => preferences.getWithRevision(scopedDb, QUIET_HOURS_PREFERENCE_KEY)
+    );
+    settingsUndoStack.clear(ids.adminUser, "");
+
+    const result = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:quiet-hours-noop" },
+      (scopedDb) =>
+        quietHoursSetExecute(
+          scopedDb,
+          { enabled: true, start: "22:00", end: "07:00", timezone: "America/Denver" },
+          toolCtx(ids.adminUser)
+        )
+    );
+    expect(result.data).toEqual({
+      enabled: true,
+      start: "22:00",
+      end: "07:00",
+      timezone: "America/Denver"
+    });
+
+    const after = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:quiet-hours-noop-after" },
+      (scopedDb) => preferences.getWithRevision(scopedDb, QUIET_HOURS_PREFERENCE_KEY)
+    );
+    expect(after?.revision).toBe(before?.revision);
+    expect(settingsUndoStack.pop(ids.adminUser, "")).toBeUndefined();
   });
 });

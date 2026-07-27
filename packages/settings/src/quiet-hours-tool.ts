@@ -61,6 +61,16 @@ export const quietHoursSetExecute: ToolExecute = async (
   const timezone = rawTimezone && rawTimezone.trim().length > 0 ? rawTimezone.trim() : null;
   const next: QuietHoursSettingsDto = { enabled, start, end, timezone };
   const current = await preferences.getWithRevision(scopedDb, QUIET_HOURS_PREFERENCE_KEY);
+  const currentValue = current?.value as QuietHoursSettingsDto | undefined;
+  if (
+    currentValue &&
+    currentValue.enabled === next.enabled &&
+    currentValue.start === next.start &&
+    currentValue.end === next.end &&
+    currentValue.timezone === next.timezone
+  ) {
+    return { data: { ...next } };
+  }
   await preferences.upsertWithRevision(
     scopedDb,
     QUIET_HOURS_PREFERENCE_KEY,

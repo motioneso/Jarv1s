@@ -30,6 +30,7 @@ export interface NotificationPreferenceWriteService {
     preference: NotificationPreferenceDto;
     unreadCount: number | null;
     previous: { value: unknown; revision: number | null };
+    changed: boolean;
   }>;
 }
 
@@ -44,6 +45,7 @@ export async function setNotificationPreferenceEnabled(
   preference: NotificationPreferenceDto;
   unreadCount: number | null;
   previous: { value: unknown; revision: number | null };
+  changed: boolean;
 }> {
   const manifest = deps.listModuleManifests().find((m) => m.id === moduleId);
   if (!manifest) throw new HttpError(404, "Module not found");
@@ -62,12 +64,16 @@ export async function setNotificationPreferenceEnabled(
   };
   const key = KEY(manifest.id);
   const current = await deps.preferencesRepository.getWithRevision(scopedDb, key);
-  await deps.preferencesRepository.upsertWithRevision(
-    scopedDb,
-    key,
-    { enabled },
-    current?.revision ?? null
-  );
+  const currentEnabled = (current?.value as { enabled?: boolean } | undefined)?.enabled;
+  const changed = currentEnabled !== enabled;
+  if (changed) {
+    await deps.preferencesRepository.upsertWithRevision(
+      scopedDb,
+      key,
+      { enabled },
+      current?.revision ?? null
+    );
+  }
   const unreadCount =
     !enabled && clearUnread && deps.notificationUnreadPort
       ? await deps.notificationUnreadPort.markModuleRead(scopedDb, manifest.id)
@@ -75,6 +81,7 @@ export async function setNotificationPreferenceEnabled(
   return {
     preference,
     unreadCount,
-    previous: { value: current?.value ?? null, revision: current?.revision ?? null }
+    previous: { value: current?.value ?? null, revision: current?.revision ?? null },
+    changed
   };
 }

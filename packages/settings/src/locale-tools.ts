@@ -69,7 +69,11 @@ export const localeSetTimezoneExecute: ToolExecute = async (
     throw new HttpError(400, "Not a recognized time zone");
   }
   const current = await preferences.getWithRevision(scopedDb, LOCALE_PREFERENCE_KEY);
-  const next: LocaleSettingsDto = { ...readCurrentLocale(current?.value), timezone };
+  const normalizedCurrent = readCurrentLocale(current?.value);
+  if (current && normalizedCurrent.timezone === timezone) {
+    return { data: { ...normalizedCurrent } };
+  }
+  const next: LocaleSettingsDto = { ...normalizedCurrent, timezone };
   await preferences.upsertWithRevision(
     scopedDb,
     LOCALE_PREFERENCE_KEY,
@@ -111,7 +115,15 @@ export const localeSetRegionAndDateFormatExecute: ToolExecute = async (
     throw new HttpError(400, "Language and region is required");
   }
   const current = await preferences.getWithRevision(scopedDb, LOCALE_PREFERENCE_KEY);
-  const next: LocaleSettingsDto = { ...readCurrentLocale(current?.value), region, dateFormat };
+  const normalizedCurrent = readCurrentLocale(current?.value);
+  if (
+    current &&
+    normalizedCurrent.region === region &&
+    normalizedCurrent.dateFormat === dateFormat
+  ) {
+    return { data: { ...normalizedCurrent } };
+  }
+  const next: LocaleSettingsDto = { ...normalizedCurrent, region, dateFormat };
   await preferences.upsertWithRevision(
     scopedDb,
     LOCALE_PREFERENCE_KEY,

@@ -42,6 +42,15 @@ export const weatherLocationSetExecute: ToolExecute = async (
   if (lon < -180 || lon > 180) throw new HttpError(400, "Longitude out of range");
   const next: WeatherLocationDto = { lat, lon, label: label.trim().slice(0, 200) };
   const current = await preferences.getWithRevision(scopedDb, WEATHER_LOCATION_PREFERENCE_KEY);
+  const currentValue = current?.value as WeatherLocationDto | undefined;
+  if (
+    currentValue &&
+    currentValue.lat === next.lat &&
+    currentValue.lon === next.lon &&
+    currentValue.label === next.label
+  ) {
+    return { data: { ...next } };
+  }
   await preferences.upsertWithRevision(
     scopedDb,
     WEATHER_LOCATION_PREFERENCE_KEY,

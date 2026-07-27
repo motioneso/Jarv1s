@@ -214,4 +214,50 @@ describe("setNotificationPreferenceEnabled", () => {
     const stored = await base.preferencesRepository.get(scopedDb, "notifications:news");
     expect(stored).toEqual({ enabled: true });
   });
+
+  it("is a no-op when enabled already matches: no revision bump, changed=false", async () => {
+    const base = deps();
+    await base.preferencesRepository.upsertWithRevision(
+      scopedDb,
+      "notifications:news",
+      { enabled: false },
+      null
+    );
+
+    const result = await setNotificationPreferenceEnabled(
+      scopedDb,
+      base,
+      "user-a",
+      "news",
+      false,
+      false
+    );
+    expect(result.changed).toBe(false);
+
+    const stored = await base.preferencesRepository.getWithRevision(scopedDb, "notifications:news");
+    expect(stored?.revision).toBe(1);
+  });
+
+  it("sets changed=true when enabled actually flips", async () => {
+    const base = deps();
+    await base.preferencesRepository.upsertWithRevision(
+      scopedDb,
+      "notifications:news",
+      { enabled: false },
+      null
+    );
+
+    const result = await setNotificationPreferenceEnabled(
+      scopedDb,
+      base,
+      "user-a",
+      "news",
+      true,
+      false
+    );
+    expect(result.changed).toBe(true);
+
+    const stored = await base.preferencesRepository.getWithRevision(scopedDb, "notifications:news");
+    expect(stored?.revision).toBe(2);
+  });
 });

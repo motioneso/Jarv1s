@@ -33,6 +33,9 @@ export const themeModeSetExecute: ToolExecute = async (
   assertDataContextDb(scopedDb);
   const { mode } = input as { mode: "light" | "dark" };
   const current = await preferences.getWithRevision(scopedDb, COLOR_MODE_KEY);
+  if (current && current.value === mode) {
+    return { data: { mode } };
+  }
   await preferences.upsertWithRevision(scopedDb, COLOR_MODE_KEY, mode, current?.revision ?? null);
   settingsUndoStack.push(ctx.actorUserId, ctx.chatSessionId, {
     mutationId: randomUUID(),

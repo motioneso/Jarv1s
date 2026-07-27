@@ -58,20 +58,22 @@ export const notificationPreferenceSetEnabledExecute: ToolExecute = async (
     enabled: boolean;
     clearUnread?: boolean;
   };
-  const { preference, previous } = await service.setEnabled(
+  const { preference, previous, changed } = await service.setEnabled(
     scopedDb,
     ctx.actorUserId,
     moduleId,
     enabled,
     clearUnread === true
   );
-  settingsUndoStack.push(ctx.actorUserId, ctx.chatSessionId, {
-    mutationId: randomUUID(),
-    key: notificationPreferenceKey(moduleId),
-    previousValue: previous.value,
-    previousRevision: previous.revision,
-    appliedAt: Date.now()
-  });
+  if (changed) {
+    settingsUndoStack.push(ctx.actorUserId, ctx.chatSessionId, {
+      mutationId: randomUUID(),
+      key: notificationPreferenceKey(moduleId),
+      previousValue: previous.value,
+      previousRevision: previous.revision,
+      appliedAt: Date.now()
+    });
+  }
   const message = `${enabled ? "Turned on" : "Turned off"} notifications for ${preference.moduleName}.`;
   return {
     data: {

@@ -5,6 +5,7 @@ import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/
 import type { ToolContext } from "@jarv1s/module-sdk";
 import { PreferencesRepository } from "@jarv1s/structured-state";
 import { weatherLocationSetExecute } from "../../packages/settings/src/weather-location-tool.js";
+import { settingsUndoStack } from "../../packages/settings/src/undo-stack.js";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -81,5 +82,40 @@ describe("settings.weatherLocation.set tool", () => {
         )
     );
     expect(result.data.label).toBe("x".repeat(200));
+  });
+
+  it("is a no-op when lat/lon/label already match: no revision bump, no undo entry", async () => {
+    await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:weather-noop-seed" },
+      (scopedDb) =>
+        weatherLocationSetExecute(
+          scopedDb,
+          { lat: 39.7392, lon: -104.9903, label: "Denver, CO" },
+          toolCtx(ids.adminUser)
+        )
+    );
+    const before = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:weather-noop-before" },
+      (scopedDb) => preferences.getWithRevision(scopedDb, WEATHER_LOCATION_PREFERENCE_KEY)
+    );
+    settingsUndoStack.clear(ids.adminUser, "");
+
+    const result = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:weather-noop" },
+      (scopedDb) =>
+        weatherLocationSetExecute(
+          scopedDb,
+          { lat: 39.7392, lon: -104.9903, label: "Denver, CO" },
+          toolCtx(ids.adminUser)
+        )
+    );
+    expect(result.data).toEqual({ lat: 39.7392, lon: -104.9903, label: "Denver, CO" });
+
+    const after = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:weather-noop-after" },
+      (scopedDb) => preferences.getWithRevision(scopedDb, WEATHER_LOCATION_PREFERENCE_KEY)
+    );
+    expect(after?.revision).toBe(before?.revision);
+    expect(settingsUndoStack.pop(ids.adminUser, "")).toBeUndefined();
   });
 });

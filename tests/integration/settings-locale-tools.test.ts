@@ -9,6 +9,7 @@ import {
   localeSetRegionAndDateFormatExecute,
   localeSetTimezoneExecute
 } from "../../packages/settings/src/locale-tools.js";
+import { settingsUndoStack } from "../../packages/settings/src/undo-stack.js";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -122,5 +123,79 @@ describe("settings.locale.setTimezone / settings.locale.setRegionAndDateFormat t
           )
       )
     ).rejects.toThrow();
+  });
+
+  it("setTimezone is a no-op when the timezone already matches: no revision bump, no undo entry", async () => {
+    await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:locale-tz-noop-seed" },
+      (scopedDb) =>
+        preferences.upsertWithRevision(
+          scopedDb,
+          LOCALE_PREFERENCE_KEY,
+          { timezone: "America/Denver", region: "en-US", dateFormat: "24" },
+          null
+        )
+    );
+    const before = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:locale-tz-noop-before" },
+      (scopedDb) => preferences.getWithRevision(scopedDb, LOCALE_PREFERENCE_KEY)
+    );
+    settingsUndoStack.clear(ids.adminUser, "");
+
+    const result = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:locale-tz-noop" },
+      (scopedDb) =>
+        localeSetTimezoneExecute(scopedDb, { timezone: "America/Denver" }, toolCtx(ids.adminUser))
+    );
+    expect(result.data).toEqual({ timezone: "America/Denver", region: "en-US", dateFormat: "24" });
+
+    const after = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:locale-tz-noop-after" },
+      (scopedDb) => preferences.getWithRevision(scopedDb, LOCALE_PREFERENCE_KEY)
+    );
+    expect(after?.revision).toBe(before?.revision);
+    expect(settingsUndoStack.pop(ids.adminUser, "")).toBeUndefined();
+  });
+
+  it("setRegionAndDateFormat is a no-op when region/dateFormat already match: no revision bump, no undo entry", async () => {
+    // Reuses ids.adminUser + the "locale" key from the setTimezone no-op test above, which already
+    // wrote a row — seeding with an assumed-null revision would throw PreferenceRevisionConflictError.
+    const beforeSeed = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:locale-region-noop-seed-read" },
+      (scopedDb) => preferences.getWithRevision(scopedDb, LOCALE_PREFERENCE_KEY)
+    );
+    await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:locale-region-noop-seed" },
+      (scopedDb) =>
+        preferences.upsertWithRevision(
+          scopedDb,
+          LOCALE_PREFERENCE_KEY,
+          { timezone: "America/Denver", region: "fr-FR", dateFormat: "12" },
+          beforeSeed?.revision ?? null
+        )
+    );
+    const before = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:locale-region-noop-before" },
+      (scopedDb) => preferences.getWithRevision(scopedDb, LOCALE_PREFERENCE_KEY)
+    );
+    settingsUndoStack.clear(ids.adminUser, "");
+
+    const result = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:locale-region-noop" },
+      (scopedDb) =>
+        localeSetRegionAndDateFormatExecute(
+          scopedDb,
+          { region: "fr-FR", dateFormat: "12" },
+          toolCtx(ids.adminUser)
+        )
+    );
+    expect(result.data).toEqual({ timezone: "America/Denver", region: "fr-FR", dateFormat: "12" });
+
+    const after = await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:locale-region-noop-after" },
+      (scopedDb) => preferences.getWithRevision(scopedDb, LOCALE_PREFERENCE_KEY)
+    );
+    expect(after?.revision).toBe(before?.revision);
+    expect(settingsUndoStack.pop(ids.adminUser, "")).toBeUndefined();
   });
 });
