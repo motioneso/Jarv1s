@@ -26,3 +26,14 @@
 **Commit**
 
 `feat(tasks): classify assistant writes for install grants`
+
+## Stop conditions (apply to every task)
+
+- A proposed fifth `confirm_always` tool: stop that package task and message the Coordinator.
+- Ben rejects or changes the pending `notes.delete` ruling: update Task 7 and the Task 16/17 counts
+  before implementation.
+- Any implementation that widens `defaultTier`, adds a migration, creates a parallel command
+  registry, moves ordinary policy ahead of YOLO, clobbers an existing stored tier, or expands
+  #1263 into the external ABI owned by #1267: stop.
+- Stage and commit only the exact files in each task. Never use `git add -A` or run repo-wide format
+  rewrites.
