@@ -1849,3 +1849,34 @@ the working form. Saved to memory; a coordinator would otherwise discover this m
 
 **#1264 landed 0c** (`7a52e28d`) — action-audit outcome CHECK widened with `invalid`/`conflict`,
 migration `0177`, on the isolated database. Lane is 4 of 13 in and on the settings tools next.
+
+### 2026-07-27 — #1264 relay; the count-rebase direction is now settled
+
+**#1264 relayed at 70%** into session `10610ff9` ("settings-selfop-1264"), same worktree/branch,
+confirmed **Sonnet**, resuming at Task 1. Outgoing `43e08f2d` reaped by session id. Both lanes are
+one-agent-per-lane again.
+
+**Its relay doc was good on DB isolation and the frozen `0176`/`0177` but omitted two coordinator
+rulings, so I sent them inline** — the recurring lesson that a ruling only survives if it is written
+where the successor will actually read it:
+
+1. **Digest stays dropped from #1264's scope.** Restated with the reasoning so nobody re-invents the
+   workaround: `settings.digest.` is a centrally excluded prefix
+   (`packages/ai/src/gateway/self-operation.ts:153`), so such a tool is unreachable regardless of the
+   tier it declares, and renaming it to dodge a **name-prefix-matched** denylist would make the
+   denylist decorative. Narrowing the prefix is the honest version but loosens a security control —
+   Ben's call, parked at `AWAITING-BEN.md` §3b.
+2. **The rebase direction has flipped and is now concrete: #1264 rebases, not #1265.** #1265 is
+   further ahead and lands first, and has already moved the assertion to **31 / 5 / 4 = 40**
+   (`3408c1ee`). #1264 therefore rebases onto 31/5/4, **not** onto main's 29/5/4 = 38. A conflict in
+   `tests/unit/self-operation-manifests.test.ts` at rebase time is expected and cheap; loosening the
+   assertion to dodge it is prohibited, because the exactness is what fails the build when a write
+   tool ships with no grant declaration. Keep #1265's `getBuiltInModuleManifests()` walk rather than a
+   `manifest.ts` grep — that is what makes People's `tools.ts` indirection count correctly.
+
+**Third instance of the same plan-quality defect.** Task 0c needed a fix to
+`settings-activity-pane.tsx` that **the plan's file list did not name**; it surfaced only under a root
+`pnpm typecheck`. So these plans have now (a) run ~1128 lines and burned contexts, (b) dropped an
+approved security requirement outright, and (c) under-listed the files a task actually touches. The
+pattern is consistent enough to state plainly in `AWAITING-BEN.md` §2: **a task's declared file list
+is not trustworthy — only the root typecheck is.**
