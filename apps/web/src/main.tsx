@@ -23,17 +23,40 @@ const queryClient = new QueryClient({
   }
 });
 
-createRoot(document.getElementById("root") as HTMLElement).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ErrorBoundary>
-        <App />
-      </ErrorBoundary>
-    </QueryClientProvider>
-  </StrictMode>
-);
+// ---------------------------------------------------------------------------
+// PROTOTYPE ROUTE — THROWAWAY. Delete this block together with
+// apps/web/src/job-search-prototype/ once the job-search layout question is settled.
+//
+// Mounted here rather than as a react-router route because App() calls its hooks before a
+// chain of early returns (auth, onboarding, fatal state), so a prototype branch inside it
+// would still require a session. Intercepting at the root gives a bare page with no auth,
+// no shell and no API calls. DEV-guarded, and the import is dynamic, so none of it reaches
+// a production bundle.
+// ---------------------------------------------------------------------------
+const isPrototypeRoute =
+  import.meta.env.DEV && window.location.pathname.startsWith("/prototype/job-search");
 
-registerServiceWorker();
+if (isPrototypeRoute) {
+  void import("./job-search-prototype/prototype-page").then(({ JobSearchPrototype }) => {
+    createRoot(document.getElementById("root") as HTMLElement).render(
+      <StrictMode>
+        <JobSearchPrototype />
+      </StrictMode>
+    );
+  });
+} else {
+  createRoot(document.getElementById("root") as HTMLElement).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
+      </QueryClientProvider>
+    </StrictMode>
+  );
+
+  registerServiceWorker();
+}
 
 // Dev-only annotation toolbar (agentation): click any UI element to queue structured
 // comments (CSS selector + React component name + your note) for the coding agent.

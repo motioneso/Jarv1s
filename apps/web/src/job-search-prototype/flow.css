@@ -1,0 +1,145 @@
+/* PROTOTYPE — THROWAWAY. Styles for Variant D ("Flow"), the decided shape:
+ * full-chat onboarding → console once the profile has criteria → chat lives in the drawer.
+ * Kept out of prototype.css because that file is already near the 1000-line cap.
+ * Tokens only, no literals. */
+
+/* ---------------------------------------------------------------- onboarding */
+/* Onboarding is a conversation and nothing else. No rail, no table, no chrome
+ * competing with it — there is nothing to look at yet, so nothing is shown. */
+.jp-onb {
+  max-width: 62ch;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  height: calc(100vh - 88px);
+  box-sizing: border-box;
+}
+.jp-onb__head {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.jp-onb__sub {
+  font-size: 13px;
+  color: var(--ink-3);
+  margin-top: calc(-1 * var(--space-3));
+}
+.jp-onb__thread {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.jp-onb__composer {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-4);
+}
+
+/* Progress readout so onboarding is never an open-ended chat with no visible end.
+ * Renders from the profile record, not from anything the model said. */
+.jp-onb__prog {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.jp-onb__step {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  color: var(--ink-3);
+}
+.jp-onb__step.is-done {
+  border-color: var(--forest);
+  background: var(--forest-soft);
+  color: var(--forest-ink);
+}
+
+/* ------------------------------------------------------------------- drawer */
+/* The Jarvis drawer, opened from inside a profile. Same chrome as the global one;
+ * the transcript it carries is the profile's, never the main thread. */
+.jp-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(460px, 100vw);
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  box-shadow: var(--shadow-drawer);
+  display: flex;
+  flex-direction: column;
+  z-index: 40;
+}
+.jp-drawer__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--line);
+}
+.jp-drawer__title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+}
+.jp-drawer__scope {
+  font-size: 11px;
+  color: var(--ink-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+}
+.jp-drawer__close {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.jp-drawer__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.jp-drawer__composer {
+  border-top: 1px solid var(--line);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  gap: var(--space-2);
+}
+.jp-drawer__note {
+  font-size: 11px;
+  color: var(--ink-3);
+  line-height: 1.5;
+  border-top: 1px dashed var(--line);
+  padding-top: var(--space-3);
+}
+
+/* A row sent into the drawer arrives as a record card, not as pasted prose. */
+.jp-drawer__pull {
+  border: 1px solid var(--ink-3);
+  border-radius: var(--radius-card);
+  background: var(--paper);
+  padding: var(--space-4);
+}
+.jp-drawer__pull-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: var(--space-2);
+}

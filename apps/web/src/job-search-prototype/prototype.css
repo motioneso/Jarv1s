@@ -1,0 +1,902 @@
+/*
+ * PROTOTYPE — THROWAWAY. Delete with the rest of job-search-prototype/.
+ *
+ * Only Park Press tokens are used here; no hex or rgb() literals, per the tokens.css rule.
+ * Translucency is done with color-mix() against a token rather than a raw rgba().
+ *
+ * Sections:  1 shell + variant switcher  2 shared primitives  3 Desk  4 Broadsheet  5 Console
+ */
+
+/* ------------------------------------------------------------------ 1. shell */
+
+.jp-root {
+  min-height: 100vh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 88px; /* clearance for the fixed switcher */
+}
+
+.jp-switch {
+  position: fixed;
+  bottom: var(--space-5);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-pop);
+}
+.jp-switch__label {
+  padding: 0 var(--space-3) 0 var(--space-4);
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.jp-switch__btn {
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+.jp-switch__btn:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.jp-switch__btn.is-active {
+  background: var(--forest);
+  color: var(--surface);
+}
+
+/* Banner so nobody mistakes this for the real feature. */
+.jp-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  background: color-mix(in srgb, var(--amber) 14%, var(--paper));
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* ------------------------------------------------------- 2. shared primitives */
+
+.jp-axes {
+  display: flex;
+  gap: var(--space-4);
+}
+.jp-axis {
+  flex: 1;
+  min-width: 0;
+}
+.jp-axis__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-1);
+}
+.jp-axis__name {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.jp-axis__num {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.jp-axis__bar {
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.jp-axis__fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--forest);
+}
+.jp-axis--want .jp-axis__fill {
+  background: var(--gold);
+}
+
+.jp-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.jp-tag--new {
+  background: var(--forest-soft);
+  color: var(--forest-ink);
+}
+.jp-tag--reach {
+  background: color-mix(in srgb, var(--gold) 20%, var(--surface));
+  color: var(--amber);
+}
+.jp-tag--pending {
+  background: var(--surface-3);
+  color: var(--ink-3);
+}
+
+/* Portal health. Degraded is amber (drift), never red — red is reserved for true errors. */
+.jp-portal {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.jp-portal:last-child {
+  border-bottom: 0;
+}
+.jp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  margin-top: 6px;
+  flex: none;
+  background: var(--forest);
+}
+.jp-dot--degraded {
+  background: var(--amber);
+}
+.jp-dot--disabled {
+  background: var(--ink-3);
+}
+.jp-portal__body {
+  min-width: 0;
+}
+.jp-portal__name {
+  font-size: 13px;
+  font-weight: 500;
+}
+.jp-portal__meta {
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.jp-portal__cause {
+  margin-top: var(--space-2);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--surface-3);
+}
+.jp-portal__next {
+  color: var(--ink-3);
+}
+
+.jp-btn {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.jp-btn:hover {
+  background: var(--surface-2);
+}
+.jp-btn--primary {
+  background: var(--forest);
+  border-color: var(--forest);
+  color: var(--surface);
+}
+.jp-btn--primary:hover {
+  background: var(--forest-hover);
+}
+.jp-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-2);
+}
+
+.jp-empty {
+  text-align: center;
+  padding: var(--space-10) var(--space-5);
+  color: var(--ink-3);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ------------------------------------------------------------------- 3. Desk */
+/* Conversation-first. The chat IS the page; matches ride in a right-hand rail. */
+
+.jp-desk {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 0;
+  height: calc(100vh - 88px);
+}
+.jp-desk__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px solid var(--line);
+}
+.jp-desk__head {
+  padding: var(--space-5) var(--space-8) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.jp-desk__profiles {
+  display: flex;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+.jp-desk__chip {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.jp-desk__chip.is-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+.jp-desk__badge {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  background: var(--forest);
+  color: var(--surface);
+  border-radius: var(--radius-pill);
+  padding: 0 6px;
+  line-height: 16px;
+}
+.jp-desk__chip.is-active .jp-desk__badge {
+  background: var(--gold);
+  color: var(--ink);
+}
+
+.jp-desk__thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+.jp-turn {
+  max-width: 62ch;
+  font-size: 15px;
+  line-height: 1.65;
+}
+.jp-turn--you {
+  align-self: flex-end;
+  background: var(--surface-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-card);
+}
+.jp-turn__who {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: var(--space-2);
+}
+
+/* Rendered-from-records card dropped inline in the conversation. Not model prose. */
+.jp-inlinecard {
+  max-width: 62ch;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  padding: var(--space-4);
+}
+.jp-inlinecard__eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: var(--space-3);
+}
+
+.jp-desk__composer {
+  border-top: 1px solid var(--line);
+  padding: var(--space-4) var(--space-8);
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+.jp-desk__input {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  padding: var(--space-3) var(--space-5);
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--ink);
+}
+.jp-desk__input:focus {
+  outline: none;
+  border-color: var(--forest);
+}
+
+.jp-desk__rail {
+  overflow-y: auto;
+  background: var(--surface);
+  padding: var(--space-5);
+}
+.jp-rail__title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-bottom: var(--space-1);
+}
+.jp-rail__sub {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-bottom: var(--space-4);
+}
+.jp-matchcard {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--paper);
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+  display: block;
+}
+.jp-matchcard:hover {
+  box-shadow: var(--shadow-sm);
+}
+.jp-matchcard.is-open {
+  border-color: var(--ink-3);
+}
+.jp-matchcard__title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.jp-matchcard__co {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-bottom: var(--space-3);
+}
+.jp-matchcard__meta {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.jp-matchcard__why {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.jp-matchcard__why p {
+  margin: 0 0 var(--space-2);
+}
+.jp-matchcard__why strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------- 4. Broadsheet */
+/* Editorial digest. Big type, printed-rubric axes, chat slides in from the right. */
+
+.jp-broad {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6) var(--space-12);
+}
+.jp-broad__masthead {
+  border-bottom: 3px double var(--ink);
+  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-6);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+.jp-broad__title {
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin: 0;
+}
+.jp-broad__dateline {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.7;
+}
+.jp-broad__tabs {
+  display: flex;
+  gap: var(--space-6);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--space-8);
+}
+.jp-broad__tab {
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: var(--space-3) 0;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.jp-broad__tab.is-active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+.jp-lede {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-8);
+  padding-bottom: var(--space-8);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--space-8);
+}
+.jp-lede__kicker {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin-bottom: var(--space-2);
+}
+.jp-lede__hed {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  margin: 0 0 var(--space-2);
+}
+.jp-lede__dek {
+  font-size: 15px;
+  color: var(--ink-2);
+  margin-bottom: var(--space-5);
+}
+.jp-lede__body p {
+  font-size: 15px;
+  line-height: 1.7;
+  margin: 0 0 var(--space-3);
+  max-width: 58ch;
+}
+
+/* The rubric: two axes as a printed scorecard, never a single blended number. */
+.jp-rubric {
+  border-top: 2px solid var(--ink);
+  padding-top: var(--space-3);
+}
+.jp-rubric__row {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.jp-rubric__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+.jp-rubric__name {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.jp-rubric__val {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.jp-rubric__note {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.jp-cols {
+  columns: 3;
+  column-gap: var(--space-8);
+  column-rule: 1px solid var(--line);
+}
+.jp-brief {
+  break-inside: avoid;
+  margin-bottom: var(--space-6);
+  cursor: pointer;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  padding: 0;
+  display: block;
+  width: 100%;
+}
+.jp-brief__hed {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  margin-bottom: 2px;
+}
+.jp-brief:hover .jp-brief__hed {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.jp-brief__co {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-bottom: var(--space-2);
+}
+.jp-brief__scores {
+  display: flex;
+  gap: var(--space-4);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  padding: var(--space-1) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--space-2);
+}
+.jp-brief__scores b {
+  color: var(--ink);
+  font-weight: 700;
+}
+.jp-brief__note {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.jp-broad__standing {
+  margin-top: var(--space-10);
+  padding-top: var(--space-5);
+  border-top: 3px double var(--ink);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-8);
+}
+.jp-broad__standinghed {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: var(--space-2);
+}
+
+/* Slide-in chat — same machinery as the drawer, different skin. */
+.jp-slide {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(460px, 92vw);
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  box-shadow: var(--shadow-drawer);
+  display: flex;
+  flex-direction: column;
+  z-index: 90;
+}
+.jp-slide__head {
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.jp-slide__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.jp-slide__foot {
+  border-top: 1px solid var(--line);
+  padding: var(--space-4) var(--space-5);
+}
+.jp-fab {
+  position: fixed;
+  right: var(--space-6);
+  bottom: 96px;
+  z-index: 80;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--forest);
+  background: var(--forest);
+  color: var(--surface);
+  font-family: inherit;
+  font-size: 13px;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-pop);
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------- 5. Console */
+/* Dense operator view. Sortable table, axes as columns, portal health always visible. */
+
+.jp-con {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr) 340px;
+  height: calc(100vh - 88px);
+}
+.jp-con__side {
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  padding: var(--space-4) 0;
+  overflow-y: auto;
+}
+.jp-con__sect {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: var(--space-3) var(--space-4) var(--space-2);
+}
+.jp-con__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--ink-2);
+  text-align: left;
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+.jp-con__item:hover {
+  background: var(--surface-2);
+}
+.jp-con__item.is-active {
+  background: var(--surface-2);
+  border-left-color: var(--forest);
+  color: var(--ink);
+  font-weight: 500;
+}
+.jp-con__count {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+.jp-con__count.is-new {
+  background: var(--forest);
+  color: var(--surface);
+  border-radius: var(--radius-pill);
+  padding: 0 6px;
+  line-height: 16px;
+}
+
+.jp-con__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.jp-con__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.jp-con__bar strong {
+  color: var(--ink);
+}
+
+/* Health strip — always visible, so a degraded portal is never a surprise. */
+.jp-strip {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+.jp-chiph {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 11.5px;
+  padding: 3px var(--space-3);
+  border-radius: var(--radius-xs);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  cursor: default;
+}
+.jp-chiph .jp-dot {
+  margin-top: 0;
+}
+
+.jp-table {
+  flex: 1;
+  overflow-y: auto;
+}
+.jp-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.jp-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+  padding: var(--space-3) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.jp-table th.jp-num,
+.jp-table td.jp-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  width: 64px;
+}
+.jp-table tbody tr {
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.jp-table tbody tr:hover {
+  background: var(--surface);
+}
+.jp-table tbody tr.is-active {
+  background: var(--forest-soft);
+}
+.jp-table td {
+  padding: var(--space-3) var(--space-3);
+  vertical-align: top;
+}
+.jp-table__title {
+  font-weight: 500;
+}
+.jp-table__co {
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+.jp-score {
+  font-weight: 600;
+}
+.jp-score--low {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.jp-con__insp {
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  overflow-y: auto;
+  padding: var(--space-5);
+}
+.jp-insp__title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+}
+.jp-insp__co {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-bottom: var(--space-4);
+}
+.jp-insp__block {
+  margin-top: var(--space-5);
+}
+.jp-insp__h {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: var(--space-2);
+}
+.jp-insp__p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  margin: 0 0 var(--space-3);
+}
+.jp-insp__actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 1100px) {
+  .jp-desk,
+  .jp-con {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+  .jp-desk__rail,
+  .jp-con__side,
+  .jp-con__insp {
+    border-left: 0;
+    border-right: 0;
+    border-top: 1px solid var(--line);
+  }
+  .jp-cols {
+    columns: 1;
+  }
+  .jp-lede,
+  .jp-broad__standing {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
