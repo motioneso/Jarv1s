@@ -335,6 +335,26 @@ export function assertBuiltInSelfOperationManifests(
               `granted_at_install family must not default to always_confirm`
           );
         }
+        // #1311 coordinator security review: selfHealGrantedAtInstallTier fails closed (returns
+        // null) if the install-time grant insert throws, and policy.ts's
+        // `lookup.getFamilyTier(...) ?? manifest.defaultTier` fallback then reads defaultTier
+        // straight off this family. The type union above already excludes "trusted_auto" and the
+        // always_confirm check above already excludes that value too, so this is unreachable via
+        // well-typed manifests today -- that safety is an emergent property of two separately
+        // motivated checks, not a named invariant. Pin it explicitly (cast mirrors how a malformed
+        // or dynamically-built manifest could still carry this value at runtime) so fail-closed can
+        // never silently become fail-open if either of those other checks is ever weakened.
+        if (
+          resolvedFamily &&
+          (resolvedFamily.defaultTier as string) === "trusted_auto"
+        ) {
+          throw new Error(
+            `module "${manifest.id}" tool "${tool.name}" declares granted_at_install for action ` +
+              `family "${tool.actionFamilyId}" whose defaultTier is "trusted_auto": self-heal's ` +
+              `fail-closed fallback (a failed install-time grant insert) would silently resolve ` +
+              `to full trust instead of asking`
+          );
+        }
         if (tool.actionFamilyId) {
           grantedAtInstallFamilyIds.add(tool.actionFamilyId);
         }
