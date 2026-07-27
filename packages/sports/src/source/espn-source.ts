@@ -74,8 +74,15 @@ function resolve(competitionKey: string): { sport: string; league: string } {
   return { sport: entry.espnSport, league: entry.espnLeague };
 }
 
+// Bounded so `followTeam`'s roster check (sports-service.ts:599-621) can't pin a pooled
+// RLS-scoped DB connection on a hung ESPN request indefinitely. A timeout throws an AbortError
+// here, which rides the same already-fail-closed path as any other adapter error: it's caught by
+// datasets/client.ts's getDataset, degrades to `{ data: [], degraded: true }`, and followTeam
+// already rejects on a degraded/empty teams list — no new catch or bypass needed.
+const ESPN_FETCH_TIMEOUT_MS = 8_000;
+
 async function fetchJson(fetchFn: typeof fetch, url: string, label: string): Promise<unknown> {
-  const response = await fetchFn(url);
+  const response = await fetchFn(url, { signal: AbortSignal.timeout(ESPN_FETCH_TIMEOUT_MS) });
   if (!response.ok) {
     throw new Error(`ESPN ${label} returned ${response.status}`);
   }
