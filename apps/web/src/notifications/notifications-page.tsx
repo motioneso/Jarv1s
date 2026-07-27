@@ -118,6 +118,13 @@ function NotificationRow(props: {
           <Link className="jds-btn jds-btn--sm jds-btn--secondary" to="/settings?section=host">
             View changes
           </Link>
+        ) : props.notification.href ? (
+          // Task 2b (#1283): module-supplied deep link. Always same-origin — validated at
+          // the RPC boundary and again in NotificationsRepository — so a plain router Link
+          // (not a full page anchor) is safe here.
+          <Link className="jds-btn jds-btn--sm jds-btn--secondary" to={props.notification.href}>
+            View
+          </Link>
         ) : null}
         <div className="task-meta">
           <span>{unread ? "Unread" : "Read"}</span>

@@ -12,11 +12,12 @@
 import type { Kysely } from "kysely";
 
 import type { ExternalBriefingInvoker } from "@jarv1s/briefings";
-import type { DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
 import {
   createRuntimeEmbeddingProvider,
   type ExternalModuleDiscovery
 } from "@jarv1s/module-registry";
+import type { CreateNotificationInput } from "@jarv1s/notifications";
 import { createExternalModuleRpcHandler } from "@jarv1s/module-registry/node";
 import type {
   ExternalModuleAiRequest,
@@ -72,6 +73,15 @@ export interface VerifiedExternalModuleInvokerDeps {
     moduleId: string,
     request: ExternalModuleAiRequest
   ) => Promise<ExternalModuleAiResult>;
+  // ctx.notify (Task 2b, #1283): optional, mirroring `ai` above — a briefing
+  // invocation always runs at toolRisk "read" (see createExternalBriefingInvoker
+  // below), so notify.post fails closed there via worker-rpc-host.ts's own risk
+  // gate regardless of whether this is wired; threading it through anyway keeps
+  // one rpc-handler construction site for both callers, exactly like `ai`.
+  readonly postNotification?: (
+    access: AccessContext,
+    input: CreateNotificationInput
+  ) => Promise<void>;
 }
 
 export function createVerifiedExternalModuleInvoker(
@@ -129,6 +139,10 @@ export function createVerifiedExternalModuleInvoker(
                 .executeTakeFirst()
             )?.is_instance_admin === true
         ),
+      // ctx.notify (Task 2b, #1283): passed through as-is — unlike `ai` below, the
+      // signature already matches what createExternalModuleRpcHandler expects, so
+      // no per-call moduleId-binding wrapper is needed.
+      postNotification: deps.postNotification,
       ...(deps.ai ? { ai: (scopedDb, request) => deps.ai!(scopedDb, args.moduleId, request) } : {})
     });
     const result = await deps.runtime.invoke(

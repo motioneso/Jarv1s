@@ -115,7 +115,8 @@ export function serializeNotification(notification: NotificationWithReadState): 
     body: notification.body,
     metadata: projectNotificationMetadata(notification.metadata),
     readAt: toIsoString(notification.read_at),
-    createdAt: toIsoString(notification.created_at)
+    createdAt: toIsoString(notification.created_at),
+    href: notification.href
   };
 }
 

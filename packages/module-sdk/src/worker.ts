@@ -29,6 +29,24 @@ export interface ModuleEmbedPort {
   dimensions(): Promise<number>;
 }
 
+/**
+ * In-app notification port (Task 2b, #1283). A generic seam: finance posts a sync
+ * failure, news posts a breaking story, job-search posts new matches — the host
+ * renders exactly the caller-declared fields, never model prose. `key` is renamed
+ * to `eventKey` at the host boundary (worker-rpc-host.ts) so the module-facing
+ * name matches the assistant tool vocabulary while the repository's column stays
+ * `event_key`. Re-posting the same `key` updates the existing notification in
+ * place and returns it to unread — there is no separate "update" method.
+ */
+export interface ModuleNotifyPort {
+  post(input: {
+    readonly key: string;
+    readonly title: string;
+    readonly body: string;
+    readonly href?: string;
+  }): Promise<void>;
+}
+
 export interface ModuleWorkerContext {
   readonly input: Record<string, unknown>;
   /**
@@ -114,6 +132,8 @@ export interface ModuleWorkerContext {
       readonly text: string;
     } | null>;
   };
+  /** In-app notification post — see ModuleNotifyPort. */
+  readonly notify: ModuleNotifyPort;
 }
 
 type Handler = (ctx: ModuleWorkerContext) => Promise<unknown>;
@@ -182,6 +202,9 @@ export function defineModuleWorker(input: {
         ModuleWorkerContext["attachments"]["readText"]
       >
   };
+  const notify: ModuleNotifyPort = {
+    post: (postInput) => callParent("notify.post", postInput) as Promise<void>
+  };
 
   createInterface({ input: process.stdin }).on("line", (line) => {
     void (async () => {
@@ -235,7 +258,8 @@ export function defineModuleWorker(input: {
           ai,
           db,
           embed,
-          attachments
+          attachments,
+          notify
         });
         send({ jsonrpc: "2.0", id: message.id, result });
       } catch {

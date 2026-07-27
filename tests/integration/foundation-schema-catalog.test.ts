@@ -304,7 +304,12 @@ describe("MVP foundation schema catalog", () => {
         { version: "0173", name: "0173_backfill_execution_mode_under_force_rls.sql" },
         // JS-00 #1231 — surface-scoped live chat thread lineage and cleanup identity.
         // Renumbered 0172→0174 on integration: P-02a (#1239) landed 0172/0173 first.
-        { version: "0174", name: "0174_chat_surface.sql" }
+        { version: "0174", name: "0174_chat_surface.sql" },
+        // Task 2b #1283 — ctx.notify keyed upsert: event_key/href/updated_at columns, the
+        // partial unique index that makes a re-fired key update its row in place, and the
+        // UPDATE-on-notifications + DELETE-on-notification_reads grant/policy pairs (both
+        // runtime roles) the keyed upsert and its return-to-unread clear actually need.
+        { version: "0175", name: "0175_notification_event_keys.sql" }
       ]);
     } finally {
       await client.end();

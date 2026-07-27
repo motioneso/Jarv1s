@@ -8,6 +8,7 @@ import {
   type DataContextRunner
 } from "@jarv1s/db";
 import type { EmbeddingProvider } from "@jarv1s/memory";
+import type { CreateNotificationInput } from "@jarv1s/notifications";
 import type { ModuleAssistantToolRisk } from "@jarv1s/module-sdk";
 import { EMBED_BATCH_MAX } from "@jarv1s/module-sdk";
 import type { ModuleFetchRequest, ModuleFetchResponse } from "@jarv1s/module-sdk";
@@ -41,7 +42,13 @@ export class ExternalModuleRpcError extends Error {
       | "undeclared_database"
       | "forbidden_db_statement"
       | "forbidden_db_mutation"
-      | "invalid_rpc",
+      | "invalid_rpc"
+      // Task 2b (#1283): notify.post's own two failure modes. forbidden_notify_mutation
+      // mirrors forbidden_kv_mutation/forbidden_credential_write — a read-risk tool may
+      // not post a notification, because unlike db.query there is no degraded read-only
+      // mode to fall back into. rate_limited is the per-invocation cap tripping.
+      | "forbidden_notify_mutation"
+      | "rate_limited",
     /**
      * Human-readable reason. Never crosses the worker boundary to the module —
      * it is for host logs and tests. The module still sees only the code.
@@ -98,6 +105,11 @@ const AI_ERRORS = new Set<string>([
 const AI_TIERS = new Set(["reasoning", "interactive", "economy"]);
 const AI_MAX_OUTPUT_TOKENS_CAP = 32_768;
 
+// Max ctx.notify.post calls per tool invocation (Task 2b, #1283): five distinct
+// things to tell the user about in one run is generous; a runaway loop posting
+// hundreds is the failure mode this caps, not a legitimate burst.
+export const NOTIFY_CALLS_PER_INVOCATION_CAP = 5;
+
 export function createExternalModuleRpcHandler(input: {
   readonly module: ExternalModuleDiscovery;
   readonly toolRisk: ModuleAssistantToolRisk;
@@ -118,6 +130,19 @@ export function createExternalModuleRpcHandler(input: {
     access: AccessContext,
     attachmentId: string
   ) => Promise<ExternalModuleAttachmentText | null>;
+  /**
+   * ctx.notify (Task 2b, #1283): posts/updates an in-app notification for the
+   * active actor. Optional like readAttachmentText — not every construction
+   * site wires it (the briefing invoker shares this same input shape but its
+   * calls are always toolRisk "read", so notify.post is rejected there before
+   * this even runs). Typed against the repository's real CreateNotificationInput,
+   * never an inline shape, so a shape drift there fails typecheck here instead
+   * of silently dropping a field at the RPC boundary.
+   */
+  readonly postNotification?: (
+    access: AccessContext,
+    input: CreateNotificationInput
+  ) => Promise<void>;
   readonly createFetch?: (allowedHosts: readonly string[]) => typeof fetch;
   readonly ai?: (
     scopedDb: DataContextDb,
@@ -140,6 +165,7 @@ export function createExternalModuleRpcHandler(input: {
   // these closures implement D6's composition guard and call cap in memory.
   const resolvedSecrets = new Set<string>();
   let aiCalls = 0;
+  let notifyCalls = 0;
 
   return async (method, rawParams, rememberSecret, hostSignal) => {
     if (method === "attachments.readText") {
@@ -155,6 +181,33 @@ export function createExternalModuleRpcHandler(input: {
       }
     }
     const params = record(rawParams);
+    if (method === "notify.post") {
+      if (!input.postNotification) throw new ExternalModuleRpcError("invalid_rpc");
+      // Read-risk tools must not mutate — the same policy as kv.set and
+      // auth.setCredential. A notification is not an internal side effect: it's
+      // a row the user SEES and a badge count that moves, so an exception here
+      // would be exactly the mismatch the read/write split exists to prevent.
+      // Unlike db.query, there is no degraded read-only mode to fall back into.
+      if (input.toolRisk === "read") {
+        throw new ExternalModuleRpcError("forbidden_notify_mutation");
+      }
+      notifyCalls += 1;
+      if (notifyCalls > NOTIFY_CALLS_PER_INVOCATION_CAP) {
+        throw new ExternalModuleRpcError("rate_limited");
+      }
+      const notifyInput = notifyRequest(params);
+      await input.postNotification(
+        { actorUserId: input.actorUserId, requestId: input.requestId },
+        {
+          moduleId: input.module.id,
+          title: notifyInput.title,
+          body: notifyInput.body,
+          eventKey: notifyInput.key,
+          ...(notifyInput.href === undefined ? {} : { href: notifyInput.href })
+        }
+      );
+      return undefined;
+    }
     if (method === "fetch.request") {
       const request = fetchRequest(params);
       const hosts = input.module.manifest.fetchHosts;
@@ -497,4 +550,69 @@ function scopeParam(value: Record<string, unknown>): "instance" | "user" {
     throw new ExternalModuleRpcError("invalid_rpc");
   }
   return scope;
+}
+
+const NOTIFY_ALLOWED_KEYS = new Set(["key", "title", "body", "href"]);
+const NOTIFY_KEY_MAX = 200;
+const NOTIFY_TITLE_MAX = 200;
+const NOTIFY_BODY_MAX = 2000;
+
+/**
+ * Validate and reconstruct a clean notify.post payload — same "allow-list,
+ * rebuild the object" pattern as fetchRequest/aiRequest below, so a caller can
+ * never smuggle an extra field through to the repository. Caps are REJECTED,
+ * never coerced/truncated: a module that overflows a cap has a bug worth
+ * surfacing, not content worth silently mangling.
+ */
+function notifyRequest(value: Record<string, unknown>): {
+  readonly key: string;
+  readonly title: string;
+  readonly body: string;
+  readonly href?: string;
+} {
+  for (const k of Object.keys(value)) {
+    if (!NOTIFY_ALLOWED_KEYS.has(k)) throw new ExternalModuleRpcError("invalid_rpc");
+  }
+  const key = stringParam(value, "key");
+  const title = stringParam(value, "title");
+  const body = stringParam(value, "body");
+  if (key.length > NOTIFY_KEY_MAX) {
+    throw new ExternalModuleRpcError(
+      "invalid_rpc",
+      `notify.post key must be at most ${NOTIFY_KEY_MAX} characters`
+    );
+  }
+  if (title.length > NOTIFY_TITLE_MAX) {
+    throw new ExternalModuleRpcError(
+      "invalid_rpc",
+      `notify.post title must be at most ${NOTIFY_TITLE_MAX} characters`
+    );
+  }
+  if (body.length > NOTIFY_BODY_MAX) {
+    throw new ExternalModuleRpcError(
+      "invalid_rpc",
+      `notify.post body must be at most ${NOTIFY_BODY_MAX} characters`
+    );
+  }
+  return { key, title, body, href: notifyHref(value.href) };
+}
+
+/**
+ * Same-origin path only — never an absolute URL, protocol-relative URL, or a
+ * scheme. Checked here AND again in NotificationsRepository (defense in depth
+ * against open redirect): a caller that only guards one of the two layers is
+ * one refactor away from losing the guarantee entirely.
+ */
+function notifyHref(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    !value.startsWith("/") ||
+    value.startsWith("//") ||
+    value.includes(":")
+  ) {
+    throw new ExternalModuleRpcError("invalid_rpc", "notify.post href must be a same-origin path");
+  }
+  return value;
 }

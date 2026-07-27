@@ -13,7 +13,7 @@
 import type { Job } from "pg-boss";
 import type { Kysely } from "kysely";
 
-import type { DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
 import { assertModuleJobPayload, type ExternalModuleJobPayload } from "@jarv1s/jobs";
 import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
 import type {
@@ -22,6 +22,7 @@ import type {
   ExternalModuleWorkerRuntime
 } from "@jarv1s/module-registry/node";
 import type { ExternalModuleQueueDeclaration } from "@jarv1s/module-sdk";
+import type { CreateNotificationInput } from "@jarv1s/notifications";
 import type { ModuleCredentialCipher } from "@jarv1s/settings";
 
 import { createVerifiedExternalModuleInvoker } from "./external-module-invoke.js";
@@ -44,6 +45,14 @@ export interface ExternalModuleJobHandlerDeps {
     moduleId: string,
     request: ExternalModuleAiRequest
   ) => Promise<ExternalModuleAiResult>;
+  // ctx.notify (Task 2b, #1283): threaded through to the shared trust gate below,
+  // same optional-pass-through shape as `ai` above — a queue job runs write-risk
+  // by default (see toolRisk: "write" below), so this is the one worker path
+  // where notify.post can actually succeed.
+  readonly postNotification?: (
+    access: AccessContext,
+    input: CreateNotificationInput
+  ) => Promise<void>;
 }
 
 export function createExternalModuleJobHandler(
@@ -57,7 +66,8 @@ export function createExternalModuleJobHandler(
     cipher: deps.cipher,
     runtime: deps.runtime,
     listActiveUserIds: deps.listActiveUserIds,
-    ai: deps.ai
+    ai: deps.ai,
+    postNotification: deps.postNotification
   });
   return async (job) => {
     assertModuleJobPayload(queue, job.data);

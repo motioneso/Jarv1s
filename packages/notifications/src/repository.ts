@@ -38,6 +38,21 @@ export interface CreateNotificationInput {
   readonly body?: string | null;
   readonly metadata?: Record<string, unknown>;
   readonly urgency?: "urgent" | "normal" | "low";
+  /**
+   * Task 2b (#1283): a module-supplied dedup key. Re-posting the same
+   * (recipient, moduleId, eventKey) updates the existing row in place and
+   * clears any existing read state, rather than creating a duplicate — see
+   * `create()`. Omitted (or `null`) means "always insert a new row," the
+   * behavior every caller before this task already gets.
+   */
+  readonly eventKey?: string | null;
+  /**
+   * Same-origin path only ("/settings", never "https://…" or "//host/…").
+   * Validated again here even though the RPC boundary (worker-rpc-host.ts)
+   * already checked it — defense in depth against open redirect for any
+   * caller that reaches this repository directly.
+   */
+  readonly href?: string | null;
 }
 
 /**
@@ -150,6 +165,22 @@ export async function resolveTimezone(
   return localeTz ?? "UTC";
 }
 
+/**
+ * Task 2b (#1283): same rule as worker-rpc-host.ts's `notifyHref` — a same-origin
+ * path only, never an absolute URL, a protocol-relative URL, or a scheme. This is
+ * the SECOND of the two layers the docblock on `CreateNotificationInput.href`
+ * promises; a caller that reaches this repository by any path other than the RPC
+ * boundary (there is none today, but nothing stops a future one) still gets the
+ * open-redirect guard.
+ */
+function validateHref(href: string | null | undefined): string | null {
+  if (href === undefined || href === null) return null;
+  if (href.length === 0 || !href.startsWith("/") || href.startsWith("//") || href.includes(":")) {
+    throw new Error("href must be a same-origin path");
+  }
+  return href;
+}
+
 export class NotificationsRepository {
   constructor(
     private readonly quietHoursPort?: QuietHoursPort,
@@ -179,6 +210,22 @@ export class NotificationsRepository {
       .executeTakeFirst();
   }
 
+  /**
+   * Insert a notification, or — when `input.eventKey` is set and already exists for this
+   * (recipient, moduleId) — update that existing row in place and return it to unread instead
+   * of creating a duplicate (Task 2b, #1283 ruling: re-firing a key resurfaces the notification
+   * exactly as a fresh one would).
+   *
+   * Both the insert and the keyed-update path run through ONE upsert CTE: the
+   * `notifications_recipient_module_event_key_idx` partial unique index (migration 0175) is
+   * the ON CONFLICT arbiter, and it only indexes rows with a non-null `event_key` — so an
+   * un-keyed call (the only kind that existed before this task) never matches it and always
+   * inserts, unchanged from prior behavior. The `cleared_read` CTE deletes any existing read
+   * row for the (possibly pre-existing) notification id in the SAME statement as the upsert,
+   * so "update in place" and "return to unread" cannot happen as two separate, racy writes —
+   * a concurrent `markRead` either lands before this transaction (and gets cleared) or after
+   * (and re-reads a row this statement already returned as unread).
+   */
   async create(
     scopedDb: DataContextDb,
     input: CreateNotificationInput
@@ -196,6 +243,8 @@ export class NotificationsRepository {
 
     const projectedMetadata = projectNotificationMetadata(input.metadata);
     const urgency = input.urgency ?? "normal";
+    const eventKey = input.eventKey ?? null;
+    const href = validateHref(input.href);
 
     let deferredUntil: Date | null = null;
     if (urgency !== "urgent" && this.quietHoursPort) {
@@ -207,25 +256,69 @@ export class NotificationsRepository {
       }
     }
 
-    const notification = await scopedDb.db
-      .insertInto("app.notifications")
-      .values({
-        id: randomUUID(),
-        // V1 actor-scoped delivery: both ids are always the active actor.
-        module_id: input.moduleId,
-        actor_user_id: sql<string>`app.current_actor_user_id()`,
-        recipient_user_id: sql<string>`app.current_actor_user_id()`,
-        title: input.title,
-        body: input.body ?? null,
-        metadata: projectedMetadata,
-        created_at: new Date(),
-        urgency,
-        deferred_until: deferredUntil
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    const rows = await sql<NotificationWithReadState>`
+      WITH upserted AS (
+        INSERT INTO app.notifications (
+          id, module_id, actor_user_id, recipient_user_id, title, body, metadata,
+          created_at, urgency, deferred_until, event_key, href, updated_at
+        )
+        VALUES (
+          ${randomUUID()}::uuid,
+          ${input.moduleId},
+          app.current_actor_user_id(),
+          app.current_actor_user_id(),
+          ${input.title},
+          ${input.body ?? null},
+          ${JSON.stringify(projectedMetadata)}::jsonb,
+          now(),
+          ${urgency},
+          ${deferredUntil},
+          ${eventKey},
+          ${href},
+          now()
+        )
+        ON CONFLICT (recipient_user_id, module_id, event_key) WHERE event_key IS NOT NULL
+        DO UPDATE SET
+          title = excluded.title,
+          body = excluded.body,
+          metadata = excluded.metadata,
+          urgency = excluded.urgency,
+          deferred_until = excluded.deferred_until,
+          href = excluded.href,
+          updated_at = now()
+        RETURNING *
+      ),
+      cleared_read AS (
+        DELETE FROM app.notification_reads
+        WHERE notification_id IN (SELECT id FROM upserted)
+      )
+      SELECT
+        upserted.id AS id,
+        upserted.module_id AS module_id,
+        upserted.actor_user_id AS actor_user_id,
+        upserted.recipient_user_id AS recipient_user_id,
+        upserted.title AS title,
+        upserted.body AS body,
+        upserted.metadata AS metadata,
+        upserted.created_at AS created_at,
+        upserted.urgency AS urgency,
+        upserted.deferred_until AS deferred_until,
+        upserted.event_key AS event_key,
+        upserted.href AS href,
+        upserted.updated_at AS updated_at,
+        NULL::timestamptz AS read_at
+      FROM upserted
+    `.execute(scopedDb.db);
 
-    return { ...notification, read_at: null };
+    // The upsert CTE always produces exactly one row (INSERT ... ON CONFLICT DO UPDATE
+    // never returns zero) — an empty result here is a genuine bug, not the "module
+    // disabled" case, which already returned above and never reaches this query. Keep
+    // that distinct from the `| null` return type: throwing here mirrors the previous
+    // `executeTakeFirstOrThrow()` failure semantics instead of silently reusing `null`
+    // for two unrelated meanings.
+    const row = rows.rows[0];
+    if (!row) throw new Error("notifications upsert returned no row");
+    return row;
   }
 
   /**
@@ -243,6 +336,12 @@ export class NotificationsRepository {
    * subject to RLS, so a row that does not exist OR is invisible yields zero inserted
    * rows and the final JOIN returns no rows → `undefined`. markAllRead is intentionally
    * NOT collapsed (it returns a count, not a row, so there is no redundant follow-up read).
+   *
+   * `FOR UPDATE` on the inner SELECT (Task 2b, #1283) locks the parent notification row
+   * for the duration of this transaction, so a concurrent `create()` keyed re-fire of the
+   * SAME notification cannot interleave its `cleared_read` DELETE between this INSERT and
+   * this query's final read — one of the two transactions waits, then sees the other's
+   * committed result, instead of a lost-update race deciding the read state by timing.
    */
   async markRead(
     scopedDb: DataContextDb,
@@ -259,6 +358,7 @@ export class NotificationsRepository {
         SELECT n.id, app.current_actor_user_id(), now()
         FROM app.notifications n
         WHERE n.id = ${notificationId}::uuid
+        FOR UPDATE OF n
         ON CONFLICT (notification_id, user_id) DO UPDATE SET read_at = excluded.read_at
         RETURNING notification_id, read_at
       )
@@ -273,6 +373,9 @@ export class NotificationsRepository {
         n.created_at AS created_at,
         n.urgency AS urgency,
         n.deferred_until AS deferred_until,
+        n.event_key AS event_key,
+        n.href AS href,
+        n.updated_at AS updated_at,
         inserted.read_at AS read_at
       FROM app.notifications n
       JOIN inserted ON inserted.notification_id = n.id
@@ -353,8 +456,13 @@ export class NotificationsRepository {
   }
 
   private async listVisibleRows(scopedDb: DataContextDb): Promise<NotificationWithReadState[]> {
+    // Task 2b (#1283): ordering moves from created_at to "most recently touched" so a keyed
+    // re-fire resurfaces at the top of the list exactly like a new notification would —
+    // matching the notifications_recipient_updated_at_idx index added in migration 0175.
+    // coalesce() covers rows from before this column existed (backfilled to now() by the
+    // ADD COLUMN default, but the query stays defensive).
     return this.visibleRowsQuery(scopedDb)
-      .orderBy("notifications.created_at", "desc")
+      .orderBy(sql`coalesce(notifications.updated_at, notifications.created_at)`, "desc")
       .orderBy("notifications.id")
       .execute();
   }
@@ -432,6 +540,9 @@ export class NotificationsRepository {
         "notifications.created_at as created_at",
         "notifications.urgency as urgency",
         "notifications.deferred_until as deferred_until",
+        "notifications.event_key as event_key",
+        "notifications.href as href",
+        "notifications.updated_at as updated_at",
         "reads.read_at as read_at"
       ])
       .where(

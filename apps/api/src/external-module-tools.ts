@@ -2,6 +2,7 @@ import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db
 import { ChatAttachmentsService } from "@jarv1s/chat";
 import type { JarvisModuleManifest, ToolResult } from "@jarv1s/module-sdk";
 import {
+  createNotificationPreferencePort,
   createRuntimeEmbeddingProvider,
   reconcileExternalModules,
   type ExternalModuleDiscovery,
@@ -14,6 +15,7 @@ import {
   type ExternalModuleAiRequest,
   type ExternalModuleAiResult
 } from "@jarv1s/module-registry/node";
+import { NotificationsRepository } from "@jarv1s/notifications";
 import { createModuleCredentialSecretCipher, type SettingsRepository } from "@jarv1s/settings";
 import { getVaultBaseDir, VaultContextRunner } from "@jarv1s/vault";
 
@@ -39,6 +41,11 @@ export function createExternalModuleTools(input: {
   const runtime = new ExternalModuleWorkerRuntime({ logger: input.logger });
   const cipher = createModuleCredentialSecretCipher();
   const attachments = new ChatAttachmentsService(new VaultContextRunner(getVaultBaseDir()));
+  // ctx.notify (Task 2b, #1283): no quiet-hours port, matching
+  // registerUpgradeNotifyWorker's own NotificationsRepository construction
+  // (apps/worker/src/worker.ts) — a module-posted notification is not deferred
+  // by the recipient's quiet hours any more than the system upgrade notice is.
+  const notifications = new NotificationsRepository(undefined, createNotificationPreferencePort());
   const manifests = createExternalToolManifests(
     input.discoveries,
     async (module, tool, toolInput, context) => {
@@ -74,6 +81,15 @@ export function createExternalModuleTools(input: {
                 text: content.text
               }
             : null;
+        },
+        // ctx.notify (Task 2b, #1283): opens its own scoped db via appDataContext,
+        // separate from workerDataContext above — notify.post runs outside the
+        // db.query/ai.generateStructured withDataContext block in worker-rpc-host.ts,
+        // so it needs a context of its own rather than reusing one already closed.
+        postNotification: async (access, notifyInput) => {
+          await input.appDataContext.withDataContext(access, (scopedDb) =>
+            notifications.create(scopedDb, notifyInput)
+          );
         },
         // Bind the module id here so the rpc host stays module-agnostic; the host
         // still enforces risk gating, the composition guard, and the call cap.

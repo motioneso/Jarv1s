@@ -104,7 +104,8 @@ describe("notification digest rendering", () => {
             rawBody: "RAW-PRIVATE-PAYLOAD"
           },
           readAt: null,
-          createdAt: "2026-07-08T12:00:00.000Z"
+          createdAt: "2026-07-08T12:00:00.000Z",
+          href: null
         }
       ]
     });

@@ -3,7 +3,12 @@ import { pino, type Logger as PinoLogger } from "pino";
 import type { FastifyBaseLogger } from "fastify";
 import { sql } from "kysely";
 
-import { DataContextRunner, createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
+import {
+  DataContextRunner,
+  createDatabase,
+  getJarvisDatabaseUrls,
+  type AccessContext
+} from "@jarv1s/db";
 import { RlsProbeRepository } from "@jarv1s/db/probes";
 import {
   RLS_PROBE_QUEUE,
@@ -35,7 +40,7 @@ import {
   resolveModulesDir
 } from "@jarv1s/module-registry/node";
 import { AiRepository } from "@jarv1s/ai";
-import { NotificationsRepository } from "@jarv1s/notifications";
+import { NotificationsRepository, type CreateNotificationInput } from "@jarv1s/notifications";
 import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
 
 import { createModuleWorkerAiBridge } from "./external-module-ai-bridge.js";
@@ -201,6 +206,22 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
     aiRepository: new AiRepository(),
     logger: workerLogger as unknown as FastifyBaseLogger
   });
+  // ctx.notify (Task 2b, #1283): same construction as apps/api/src/external-module-tools.ts
+  // — no quiet-hours port, parity with registerUpgradeNotifyWorker's own repository above.
+  // A separate instance from that one: NotificationsRepository holds no per-call state, so
+  // this only avoids implying the module-notify and upgrade-notify paths share a lifecycle.
+  const moduleNotifications = new NotificationsRepository(
+    undefined,
+    createNotificationPreferencePort()
+  );
+  const postModuleNotification = async (
+    access: AccessContext,
+    notifyInput: CreateNotificationInput
+  ): Promise<void> => {
+    await dataContext.withDataContext(access, (scopedDb) =>
+      moduleNotifications.create(scopedDb, notifyInput)
+    );
+  };
   const discoveryById = new Map(discoveries.map((module) => [module.id, module]));
   const listActiveUserIds = async (moduleId: string): Promise<readonly string[]> =>
     (
@@ -219,7 +240,8 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
     cipher,
     runtime,
     listActiveUserIds,
-    ai: moduleAiBridge
+    ai: moduleAiBridge,
+    postNotification: postModuleNotification
   });
 
   await registerBuiltInModuleWorkers(boss, {
@@ -284,7 +306,8 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
           cipher,
           discoveryById,
           listActiveUserIds,
-          ai: moduleAiBridge
+          ai: moduleAiBridge,
+          postNotification: postModuleNotification
         })
       );
     },
