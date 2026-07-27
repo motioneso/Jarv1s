@@ -4167,3 +4167,35 @@ until the gate exit code is green.
 predecessor. Correct pattern for this box, handed to the successor:
 `docker exec jarv1s-postgres psql -U postgres -c 'DROP DATABASE IF EXISTS <db> WITH (FORCE);'`
 then `CREATE DATABASE <db>`, then `export JARVIS_PGDATABASE=<db>` (exported, never inline).
+
+## 2026-07-27 — #1311 finding #2 fixed; residual raised; harness reuse ordered
+
+**Finding #2 fixed — `473080cd`.** `routes.ts` `getFamilyTier`: the `tasks`/`task_changes` branch
+is now unconditional and **fails closed (null) when preferences are absent**, instead of falling
+through to the generic self-heal — which ignored a legacy `tasks.agency_auto_execute` revocation.
+Two new regression tests in `chat-action-policy-self-heal.test.ts`; full integration suite green
+(159 files / 1726 tests, 0 fail). Both security findings from the Fable review are now fixed.
+Kill gate and the `confirm_always` negative control were already closed in relay 5.
+
+**RESIDUAL I RAISED — open, must be answered before finding #2 closes.** Returning null is
+"fail closed" only if null cannot resolve to an auto-executing tier. It does not resolve to
+`ask_each_time`; it resolves to `manifest.defaultTier` (`packages/ai/src/policy.ts:47`). Finding
+#1's new boot assert closes that hole **only for `granted_at_install` families**. So: can the null
+path in `getFamilyTier` be reached for a `confirm_always` or `user_promotable` family whose
+`defaultTier` is `trusted_auto`? If yes, null fails **open** there and the assert does not cover
+it. Resolution is either widening the boot assert's coverage to every family reachable by that
+path, or a stated proof of unreachability in the PR — **never** a `defaultTier` or grant change.
+
+**Harness reuse ordered (saves the lane a full build).** #1311's exit requirement 3 (no
+confirmation card for a `granted_at_install` tool on a real dev instance) must reuse
+`live-uat-1310.spec.ts` from `1264-settings-self-operation` rather than build its own: real login,
+real chat turn, no mocks, clicks Approve, asserts DOM — and it already drives
+`settings.themeMode.set`, the same `granted_at_install` tool that showed a card live. #1311's
+version asserts the inverse: no card, tool auto-executes.
+
+**This also settles the A/B validity question I had been holding open** on #1311's kill-gate
+evidence. #1310's run is a *genuine* pre-fix reproduction on a real instance, not a before-state
+manufactured by deleting/inserting a policy row. Same tool, same instance, card-before /
+no-card-after is a clean A/B.
+
+Lane proceeding to Task 3 (`tasks/action-policy.ts`); no pause ordered.
