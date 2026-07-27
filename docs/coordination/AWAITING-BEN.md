@@ -143,5 +143,32 @@ environment on delegated authority.
    and the checksum will match when #1264 merges, so nothing is broken — but your dev DB is currently
    ahead of `main` with unmerged work, and that file is now effectively frozen against edits.
 
-Corrected the agent and the run rule holds, but worth knowing your environment drifted.
+3. **The #1265 lane's first gate attempt seeded synthetic rows into your shared dev DB.** Added
+   2026-07-27. It ran `pnpm verify:foundation` with `JARVIS_PGDATABASE` **unset**, which resolves to
+   the default database name `jarv1s` (`packages/db/src/urls.ts`) — your dev DB. Precise inventory,
+   which I asked for explicitly and the agent gave without softening:
+   - `db:migrate` — **no writes** (165 already current, no DDL). No schema drift from this one.
+   - `test:uat-seed` — **did write**: at least **2 synthetic solo-admin users plus AI provider/model
+     chunk rows**, not cleaned up (no `afterEach` rollback in `chunks/ai.test.ts`). Both seed calls
+     completed before the assertions that failed.
+   - Everything since ran on an isolated `jarvis_gate_1265`. Nothing further touched `jarv1s`.
+
+   Your dev DB also had **pre-existing** dirty rows that predate this session (the `#1087` pattern),
+   so the stray-row problem is not solely ours — but ours added to it.
+
+**Why the guard didn't catch it, because this is the fixable part.** `assertTargetIsEphemeral` is
+correctly wired as a preflight on the **CLI** path (`tests/uat/seed/cli.ts:58`). But `pnpm
+test:uat-seed` runs the **vitest suite**, whose files call `seedSoloAdmin()`/`seedAiProviderChunk()`
+directly without going through `cli.ts`, and nothing in `tests/setup-env.ts` re-arms it. So the entry
+point the gate actually uses has no ephemeral-target preflight; the guard appears in the suite only
+as the subject of `guard.test.ts`. The run does go red eventually — but only *after* sibling files
+have seeded, so red looks like "nothing happened" when rows were in fact written.
+
+I recorded the full mechanism and a suggested fix as a comment on **issue #1087** (whose title
+already says "seed suite runs in no gate") rather than opening a duplicate. **I did not implement
+it** — it needs its own task issue and spec per project rules, and I would not change test-safety
+machinery on delegated authority.
+
+Corrected the agent and the run rule holds, but worth knowing your environment drifted **twice** this
+run, and that cleaning the stray rows is yours to do — I will not touch your database.
 
