@@ -1281,3 +1281,30 @@ posts there.
 **Until then the honest per-task status is "code-complete, unverified".** Say exactly that. Do not
 post a live proof onto a closed task issue to discharge the obligation — a closed issue is not
 where anyone looks, and the obligation is not discharged by filing it somewhere.
+
+## N32 — Naming paths on a commit does not protect a file two agents are editing
+
+N28 fixed a dirty **index**: `git commit <explicit paths>` instead of a bare `git commit`. It does
+not fix a dirty **file**. `git commit <path>` takes the whole current content of that path, so if
+two agents have in-flight edits in the same file, whoever commits first carries the other's
+unfinished work under a message that does not mention it.
+
+Observed 2026-07-27: `external-modules/job-search/src/web/root.tsx` and
+`tests/unit/job-search-web-root.test.tsx` each held Task 17 (chat-surface) and Task 19 (criteria)
+work at the same time — the `useProfileThread` wiring and the `OnboardingScreen` branch. A
+correct-looking N28-compliant commit from either agent would have swept the other.
+
+**The rule.** Before committing, run `git diff <path>` on every shared-looking file and read the
+added lines. If they include work that is not yours:
+
+1. Commit the files that are **exclusively yours** now. That is always safe.
+2. Leave the co-edited files to the agent still working in them; their commit carries both, and
+   **its message must name both tasks**.
+3. Never `git checkout`, revert or hand-restore a co-edited file to strip what looks like someone
+   else's edits — that destroys verified work and is a history problem, not a staging one.
+4. The task whose wiring rode along **stays open** until the coordinator confirms it is in
+   committed state. "My files are committed" is not "my task is committed".
+
+Files most exposed on this branch are the shared entrypoints: `web/root.tsx`,
+`tests/unit/job-search-web-root.test.tsx`, `worker/index.ts`, and `jarvis.module.json`. Treat a
+commit touching any of them as requiring the `git diff` read above.
