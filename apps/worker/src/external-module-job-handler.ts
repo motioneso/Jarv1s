@@ -3,20 +3,19 @@
 // Per-job handler for external-module queues, extracted verbatim from the
 // inline closure in worker.ts (JS-07 Step 0) so the queue path is testable
 // with real deps in tests/integration/module-worker-queue-ai.test.ts.
-// Behavior is identical to the pre-extraction closure; the only addition is
-// the optional `ai` dep, adapted to the rpc host's 2-arg shape exactly like
-// apps/api/src/external-module-tools.ts does for assistant tools. Handlers
-// built without `ai` keep failing closed (host throws `invalid_rpc`).
+// #1282 Task 2: the trust gate this handler used to inline (active-user
+// membership, status/manifest_hash/package_hash, actor-scoped rpc construction)
+// is now shared with the briefing composer's worker invoker via
+// createVerifiedExternalModuleInvoker (external-module-invoke.ts) — this file
+// is a thin adapter from a pg-boss Job onto that shared gate, not a second
+// copy of it. Behavior is unchanged: any non-ok gate result resolves to
+// `undefined` exactly as the inline early-returns did.
 import type { Job } from "pg-boss";
 import type { Kysely } from "kysely";
 
 import type { DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
 import { assertModuleJobPayload, type ExternalModuleJobPayload } from "@jarv1s/jobs";
-import {
-  createRuntimeEmbeddingProvider,
-  type ExternalModuleDiscovery
-} from "@jarv1s/module-registry";
-import { createExternalModuleRpcHandler } from "@jarv1s/module-registry/node";
+import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
 import type {
   ExternalModuleAiRequest,
   ExternalModuleAiResult,
@@ -24,6 +23,8 @@ import type {
 } from "@jarv1s/module-registry/node";
 import type { ExternalModuleQueueDeclaration } from "@jarv1s/module-sdk";
 import type { ModuleCredentialCipher } from "@jarv1s/settings";
+
+import { createVerifiedExternalModuleInvoker } from "./external-module-invoke.js";
 
 export interface ExternalModuleJobHandlerDeps {
   readonly module: ExternalModuleDiscovery;
@@ -48,63 +49,31 @@ export interface ExternalModuleJobHandlerDeps {
 export function createExternalModuleJobHandler(
   deps: ExternalModuleJobHandlerDeps
 ): (job: Job<ExternalModuleJobPayload>) => Promise<unknown> {
-  const { module, queue, runtime, workerDb, dataContext, cipher, ai } = deps;
+  const { module, queue } = deps;
+  const invoke = createVerifiedExternalModuleInvoker({
+    workerDb: deps.workerDb,
+    discoveryById: deps.discoveryById,
+    dataContext: deps.dataContext,
+    cipher: deps.cipher,
+    runtime: deps.runtime,
+    listActiveUserIds: deps.listActiveUserIds,
+    ai: deps.ai
+  });
   return async (job) => {
     assertModuleJobPayload(queue, job.data);
-    if (!(await deps.listActiveUserIds(module.id)).includes(job.data.actorUserId)) return;
-    const current = deps.discoveryById.get(module.id);
-    if (!current) return;
-    const state = await workerDb
-      .selectFrom("app.external_modules")
-      .select(["status", "manifest_hash", "package_hash"])
-      .where("id", "=", module.id)
-      .executeTakeFirst();
-    if (
-      state?.status !== "enabled" ||
-      state.manifest_hash !== current.manifestHash ||
-      state.package_hash !== current.packageHash
-    ) {
-      return;
-    }
-    const requestId = `module-job:${job.id}`;
-    const rpc = createExternalModuleRpcHandler({
-      module: current,
-      toolRisk: "write",
+    const outcome = await invoke({
+      moduleId: module.id,
+      handler: queue.handler,
       actorUserId: job.data.actorUserId,
-      requestId,
-      workerDataContext: dataContext,
-      cipher,
-      // ctx.embed (#1281). This is the path scheduled crawls run on, so it must
-      // be threaded here too — an api-only wiring would pass every manual test
-      // and fail every scheduled job.
-      embeddingProvider: () =>
-        dataContext.withDataContext({ actorUserId: job.data.actorUserId, requestId }, (scopedDb) =>
-          createRuntimeEmbeddingProvider(scopedDb)
-        ),
-      isActorAdmin: () =>
-        dataContext.withDataContext(
-          { actorUserId: job.data.actorUserId, requestId },
-          async (scopedDb) =>
-            (
-              await scopedDb.db
-                .selectFrom("app.users")
-                .select("is_instance_admin")
-                .where("id", "=", job.data.actorUserId)
-                .executeTakeFirst()
-            )?.is_instance_admin === true
-        ),
-      ...(ai ? { ai: (scopedDb, request) => ai(scopedDb, module.id, request) } : {})
+      requestId: `module-job:${job.id}`,
+      jobKind: job.data.jobKind,
+      idempotencyKey: `${job.data.moduleId}:${job.data.jobKind}:${job.id}`,
+      params: job.data.params ?? {},
+      // A queue job runs write-risk work by default (parity with the pre-extraction
+      // inline gate, which always passed toolRisk: "write" here).
+      toolRisk: "write"
     });
-    return runtime.invoke(
-      current,
-      queue.handler,
-      {
-        actorUserId: job.data.actorUserId,
-        jobKind: job.data.jobKind,
-        idempotencyKey: `${job.data.moduleId}:${job.data.jobKind}:${job.id}`,
-        params: job.data.params ?? {}
-      },
-      rpc
-    );
+    if (!outcome.ok) return;
+    return outcome.result;
   };
 }

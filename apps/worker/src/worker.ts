@@ -39,6 +39,7 @@ import { NotificationsRepository } from "@jarv1s/notifications";
 import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
 
 import { createModuleWorkerAiBridge } from "./external-module-ai-bridge.js";
+import { createExternalBriefingInvoker } from "./external-module-invoke.js";
 import { createExternalModuleJobHandler } from "./external-module-job-handler.js";
 
 // ---------------------------------------------------------------------------
@@ -174,34 +175,14 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
     repository: new NotificationsRepository(undefined, createNotificationPreferencePort())
   });
 
-  await registerBuiltInModuleWorkers(boss, {
-    rootDb: workerDb,
-    dataContext,
-    focusSignals: async (ctx) => {
-      const providers = focusSignalProvidersFor(await resolveActiveModules(ctx.actorUserId));
-      if (providers.length === 0) return [];
-      return aggregateFocusSignals(
-        providers,
-        (work) =>
-          dataContext.withDataContext(
-            { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
-            (scopedDb) => work(scopedDb)
-          ),
-        ctx,
-        {
-          onProviderError: (moduleId, errorName) =>
-            workerLogger.warn({ moduleId, errorName }, "focus-signal provider failed (soft)")
-        }
-      );
-    },
-    // Pino's Logger is structurally what FastifyBaseLogger wraps at runtime
-    // (Fastify uses pino internally). The cast bridges the nominal type gap.
-    logger: workerLogger as unknown as FastifyBaseLogger
-  });
-
   // #996/#860: external-module job reconciliation is always-on now (the
   // JARVIS_ENABLE_EXTERNAL_MODULES gate was removed) — resolveExternalWorkerConfig
   // always resolves a modulesDir, so this block runs unconditionally.
+  //
+  // Moved above registerBuiltInModuleWorkers (#1282 Task 2): the briefings module
+  // needs externalBriefingManifests + invokeExternalBriefing at registration time,
+  // and both are built from this same discovery/runtime/cipher setup. Building it
+  // once here and threading it down avoids a second discovery scan.
   const externalConfig = resolveExternalWorkerConfig();
   const reservedQueueNames = new Set(getAllQueueDefinitions().map((queue) => queue.name));
   const discoveries = getExternalModuleRegistrations({
@@ -227,6 +208,46 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
         user_id: string;
       }>`SELECT user_id FROM app.list_active_external_module_users(${moduleId})`.execute(workerDb)
     ).rows.map((row) => row.user_id);
+
+  // #1282 Task 2: same discovery/runtime/cipher this file already built above for the job
+  // queue path, adapted to the narrower shape the briefing composer calls (see
+  // external-module-invoke.ts for the shared trust gate both paths run through).
+  const invokeExternalBriefing = createExternalBriefingInvoker({
+    workerDb,
+    discoveryById,
+    dataContext,
+    cipher,
+    runtime,
+    listActiveUserIds,
+    ai: moduleAiBridge
+  });
+
+  await registerBuiltInModuleWorkers(boss, {
+    rootDb: workerDb,
+    dataContext,
+    focusSignals: async (ctx) => {
+      const providers = focusSignalProvidersFor(await resolveActiveModules(ctx.actorUserId));
+      if (providers.length === 0) return [];
+      return aggregateFocusSignals(
+        providers,
+        (work) =>
+          dataContext.withDataContext(
+            { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+            (scopedDb) => work(scopedDb)
+          ),
+        ctx,
+        {
+          onProviderError: (moduleId, errorName) =>
+            workerLogger.warn({ moduleId, errorName }, "focus-signal provider failed (soft)")
+        }
+      );
+    },
+    // Pino's Logger is structurally what FastifyBaseLogger wraps at runtime
+    // (Fastify uses pino internally). The cast bridges the nominal type gap.
+    logger: workerLogger as unknown as FastifyBaseLogger,
+    externalBriefingManifests: discoveries.map((module) => module.manifest),
+    invokeExternalBriefing
+  });
 
   const externalReconciler = new ExternalModuleJobReconciler({
     boss,

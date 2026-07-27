@@ -5,6 +5,8 @@ import { EVENING_FALLBACK_QUESTIONS, EVENING_SECTION_HEADERS } from "@jarv1s/sha
 import {
   emptySection,
   buildPersonaBlock,
+  buildExternalModulesSection,
+  ctxFor,
   gatherToolSection,
   isActionableTriage,
   readEmailSignalSettings,
@@ -21,6 +23,7 @@ import {
   type Section,
   type SynthesisFailureReason
 } from "./compose-shared.js";
+import { collectExternalBriefingContributions } from "./external-contributions.js";
 import { filterEveningCalendar, partitionEveningTasks } from "./evening-lenses.js";
 import { resolveBriefingFreshness } from "./freshness.js";
 import { timezoneFor } from "./schedule.js";
@@ -397,6 +400,25 @@ export async function composeEveningBriefing(
   if (sportsSelected) {
     sections.push(sports);
   }
+
+  // #1282: same seam as the morning composer (compose.ts) — see the comment there for why
+  // the manifests/invoker are injected rather than filtered off `deps.moduleManifests` (J1).
+  if (deps.invokeExternalBriefing) {
+    const ctx = ctxFor(definition, input);
+    const externalContributions = await collectExternalBriefingContributions({
+      manifests: deps.externalBriefingManifests ?? [],
+      selectedToolNames: definition.selected_tool_names,
+      section: "evening",
+      actorUserId: ctx.actorUserId,
+      requestId: ctx.requestId,
+      invoke: deps.invokeExternalBriefing
+    });
+    const externalModules = buildExternalModulesSection(externalContributions);
+    if (externalModules) {
+      sections.push(externalModules);
+    }
+  }
+
   sections.push(chats);
 
   const morningPlan = morningPlanSection(input.sameDayMorningMeta);

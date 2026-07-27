@@ -7,13 +7,14 @@ import type { FocusSignalInput } from "@jarv1s/priority";
 import type { BriefingDefinition, BriefingRunStatus, DataContextDb } from "@jarv1s/db";
 import type { CalendarSignalSettings, EmailSignalSettings } from "./signals.js";
 import type { MemoryRetriever } from "@jarv1s/memory";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { JarvisModuleManifest, JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
 import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@jarv1s/source-behaviors";
 import {
   parseCalendarAutomationMode,
   normalizePersonaSettings,
   renderPersonaText
 } from "@jarv1s/shared";
+import type { BriefingContribution, ExternalBriefingInvoker } from "./external-contributions.js";
 
 export type GenerateChatFn = (input: GenerateChatInput) => Promise<{ readonly text: string }>;
 
@@ -86,6 +87,16 @@ export interface ComposeDeps {
     apiKey: string,
     baseUrl: string | null
   ) => { generateChat: GenerateChatFn };
+  /**
+   * External modules ship JSON manifests with no in-process `execute`, so the composer
+   * cannot resolve them through findExecute(). The composition root injects a worker
+   * invoker instead. Absent in tests and in defaultComposeDeps → no external sections (#1282).
+   */
+  readonly invokeExternalBriefing?: ExternalBriefingInvoker;
+  /** External manifests, injected separately — NOT read off `moduleManifests` (J1): that
+   *  array's only production supplier is getBuiltInModuleManifests(), which never contains
+   *  an external (JSON-manifest) module. */
+  readonly externalBriefingManifests?: readonly JsonJarvisModuleManifest[];
 }
 
 export interface ComposeRunInput {
@@ -133,6 +144,35 @@ export function ctxFor(definition: BriefingDefinition, input: ComposeRunInput) {
     actorUserId: definition.owner_user_id,
     requestId: input.jobId ? `pgboss:${input.jobId}` : `briefing:${input.runId ?? randomUUID()}`,
     chatSessionId: ""
+  };
+}
+
+/**
+ * Folds already-sanitized external-module contributions (#1282) into one fixed, enumerable
+ * channel (`external_modules`) rather than one block per installed module id — TRUST_BOUNDARY
+ * names its channels as a static literal, and a dynamic per-module channel name could never be
+ * listed there ahead of time. Shared by compose.ts and compose-evening.ts so the two briefing
+ * kinds render external contributions identically. `undefined` when there is nothing to say,
+ * matching every other conditionally-pushed section (goals, sports) rather than emitting an
+ * always-present empty block.
+ */
+export function buildExternalModulesSection(
+  contributions: readonly BriefingContribution[]
+): Section | undefined {
+  if (contributions.length === 0) return undefined;
+  return {
+    key: "external_modules",
+    label: "EXTERNAL MODULES",
+    lines: contributions.flatMap((contribution) =>
+      contribution.items.length > 0
+        ? contribution.items.map((item) =>
+            [contribution.headline, item.title, item.detail, item.href ? `(${item.href})` : ""]
+              .filter(Boolean)
+              .join(" · ")
+          )
+        : [contribution.headline]
+    ),
+    count: contributions.reduce((total, contribution) => total + contribution.items.length, 0)
   };
 }
 
