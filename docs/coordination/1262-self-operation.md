@@ -928,3 +928,29 @@ follow-through writer" regression actually exercises the install-grant path**, n
 declaration. A unit assert that `proposeFocusBlock` is declared `user_promotable` does NOT prove
 install skips it — the declaration and the install logic are two different code paths, and the whole
 point of this change is the second one. This is the #1257 "wired, not just defined" failure mode.
+
+### Merge authority change — Ben delegated, 2026-07-26 (late)
+
+Ben: **"I need to sleep, lets push to get this completed without me."** That is an explicit,
+in-session override of the coordinate skill's security-tier rule requiring his personal merge
+sign-off. Authority to merge #1268 without waiting for him is therefore granted, and this line is
+the record of it.
+
+**What the delegation does NOT cover.** It is authority to merge a GREEN result, not authority to
+lower the bar. A RED verdict from the in-flight delta review goes back to the builder and gets
+re-verified; it does not get merged because nobody is awake to argue with. Same for a red CI check
+— the waiver protocol needs Ben, so a red check parks the merge until morning rather than being
+waived.
+
+**Sequence being executed unattended:** delta review verdict → merge #1268 (squash, delete branch)
+→ close #1263, board/epic bookkeeping → reap builder l + its worktree + qa2-1263 → spawn #1264 and
+#1265 in parallel (separate worktrees, `--model sonnet`, agents tab `w1:t3J`) → write Ben's morning
+digest.
+
+**Worktree trap hit and fixed while spawning the reviewer** (saved to agentmemory): `git worktree
+add` with a RELATIVE path from inside a worktree nests the new worktree under the current one
+(`coord-1262/.claude/worktrees/qa2-1263`). The absolute path then handed to `herdr … --cwd` does not
+exist, the pane silently falls back to `$HOME`, the agent boots with no repo, and the briefing text
+lands in bash as `command not found` noise. Also: `herdr agent start --cwd` does not re-root an
+existing pane — close the pane and re-split with the right `--cwd`. Always absolute paths, always
+`git worktree list` before spawning.
