@@ -319,8 +319,9 @@ describe("AssistantToolGateway self-operation", () => {
         return true;
       }
     };
-    // `datasetClient` is unused by followTeam/unfollowTeam (only catalogEntry() + repository), so
-    // an unused stub is fine here — see relay-5 handoff SETTLED notes.
+    // This call follows a whole competition (no teamKey), which needs only catalogEntry() + the
+    // repository — the league-roster lookup `followTeam` performs for a *team* follow (#1265 QA
+    // BLOCKING-1a) is not reached, so an unused dataset-client stub is still fine here.
     configureSportsChatTools({} as never, fakeWriter);
 
     function dbBackedSportsActionPolicy(ctx: { actorUserId: string; requestId: string }) {

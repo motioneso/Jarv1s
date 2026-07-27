@@ -604,6 +604,61 @@ describe("tool input validation", () => {
   it("accepts anything when no schema is declared", () => {
     expect(validateToolInput(undefined, { whatever: true })).toEqual({ whatever: true });
   });
+
+  // #1265 security QA BLOCKING-1(b): the sports follow tools bound their catalog keys with
+  // minLength/maxLength/pattern precisely so a model-supplied key cannot be arbitrary. Those
+  // keywords were previously parsed by nobody, which would have made the manifest bound decorative
+  // — a declared belt that never fires. This is the gateway chokepoint for every module's tool
+  // input, so the enforcement lives here rather than in any one module.
+  describe("string bounds", () => {
+    const bounded = {
+      type: "object",
+      required: ["key"],
+      properties: {
+        key: { type: "string", minLength: 1, maxLength: 8, pattern: "^[a-z0-9.]{1,8}$" }
+      }
+    };
+
+    it("accepts a value inside every bound", () => {
+      expect(validateToolInput(bounded, { key: "eng.1" })).toEqual({ key: "eng.1" });
+    });
+
+    it("rejects a value over maxLength", () => {
+      expect(() => validateToolInput(bounded, { key: "abcdefghij" })).toThrow(
+        ToolInputValidationError
+      );
+    });
+
+    it("rejects a value under minLength", () => {
+      expect(() => validateToolInput(bounded, { key: "" })).toThrow(ToolInputValidationError);
+    });
+
+    it("rejects a value that does not match the pattern", () => {
+      expect(() => validateToolInput(bounded, { key: "../evil" })).toThrow(
+        ToolInputValidationError
+      );
+    });
+
+    // An unanchored pattern must not be satisfied by a matching substring — otherwise
+    // "ok/../../etc" would pass a naive `/[a-z]+/.test(...)`.
+    it("requires the whole string to match, not a substring", () => {
+      const loose = { type: "object", properties: { key: { type: "string", pattern: "[a-z]+" } } };
+      expect(() => validateToolInput(loose, { key: "ok/../evil" })).toThrow(
+        ToolInputValidationError
+      );
+    });
+
+    it("leaves non-strings and undeclared bounds alone", () => {
+      const mixed = {
+        type: "object",
+        properties: { n: { type: "number" }, s: { type: "string" } }
+      };
+      expect(validateToolInput(mixed, { n: 12345678901234, s: "anything at all" })).toEqual({
+        n: 12345678901234,
+        s: "anything at all"
+      });
+    });
+  });
 });
 
 describe("gateway tool output sanitization", () => {

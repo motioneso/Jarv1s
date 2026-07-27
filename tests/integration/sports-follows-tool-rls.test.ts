@@ -24,8 +24,31 @@ describe("sports follow tools — cross-actor RLS isolation (#1265)", () => {
   let server: ReturnType<typeof createApiServer>;
   let dataCtx: DataContextRunner;
   const repository = new SportsFollowsRepository();
+  // `followTeam` closes an assistant-supplied teamKey against the league roster before writing
+  // (#1265 QA BLOCKING-1a), so this test needs a roster source. A static stub keeps the test
+  // hermetic — no ESPN call — while letting the real "dal" follow through to the real DB, which is
+  // what this test is actually about.
+  const datasetClient = {
+    async getDataset(_key: string, params: Record<string, unknown>) {
+      const competitionKey = String(params.competitionKey ?? "");
+      return {
+        data: [
+          {
+            teamKey: "dal",
+            competitionKey,
+            name: "Dallas",
+            shortName: "DAL",
+            crestUrl: null,
+            sourceTeamId: null
+          }
+        ],
+        degraded: false,
+        cacheMiss: false
+      };
+    }
+  };
   const service = new SportsService({
-    datasetClient: {} as never,
+    datasetClient: datasetClient as never,
     dataContext: {
       withDataContext() {
         throw new Error(

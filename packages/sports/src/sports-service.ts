@@ -586,8 +586,16 @@ export class SportsService {
     }
   }
 
-  /** Follow a catalog team or whole competition. Catalog-key validated, same rule as
-   *  `POST /api/sports/follows` (routes.ts) — the route and the assistant tool share this. */
+  /** Follow a catalog team or whole competition. Both keys are closed against the catalog, same
+   *  rule as `POST /api/sports/follows` (routes.ts) — the route and the assistant tool share this.
+   *
+   *  The teamKey check exists because this is a `granted_at_install` auto-run write tool (#1265
+   *  security QA BLOCKING-1a): an assistant-supplied teamKey lands here with no human
+   *  confirmation, is persisted, and is later interpolated into an outbound ESPN schedule URL
+   *  (espn-source.ts `getSchedule`). Closing it against the league roster — the same list the
+   *  picker and `GET /api/sports/leagues/:competitionKey/teams` serve — keeps an attacker-chosen
+   *  string out of that sink at the earliest layer. Two further independent belts back this up:
+   *  the manifest input schema's length/pattern bounds, and encodeURIComponent at the URL site. */
   async followTeam(
     scopedDb: DataContextDb,
     input: { competitionKey: string; teamKey?: string | null }
@@ -595,9 +603,19 @@ export class SportsService {
     if (!catalogEntry(input.competitionKey)) {
       return { ok: false, error: `Unknown competition: ${input.competitionKey}` };
     }
+    const teamKey = input.teamKey ?? null;
+    if (teamKey !== null) {
+      // `getLeagueTeams` fails soft (empty list + degraded) on an ESPN outage rather than
+      // throwing, so an outage rejects every teamKey. That is deliberate fail-CLOSED behavior for
+      // an auto-run write tool — do not add a degraded-bypass.
+      const { teams } = await this.getLeagueTeams(input.competitionKey);
+      if (!teams.some((team) => team.teamKey === teamKey)) {
+        return { ok: false, error: `Unknown team: ${teamKey}` };
+      }
+    }
     const follow = await this.repository.create(scopedDb, {
       competitionKey: input.competitionKey,
-      teamKey: input.teamKey ?? null
+      teamKey
     });
     return { ok: true, follow };
   }

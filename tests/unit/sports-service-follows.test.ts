@@ -42,9 +42,38 @@ function makeFakeWriter(initial: SportsFollowDto[] = []): SportsFollowsWriter & 
   };
 }
 
-function makeService(writer: SportsFollowsWriter) {
+/** Minimal dataset-client stand-in for the "teams" roster lookup `followTeam` now performs to
+ *  close the teamKey against the catalog (#1265 QA BLOCKING-1a). `rosters` is keyed by
+ *  competitionKey; a missing/empty entry models the fail-soft ESPN outage path (empty list +
+ *  degraded), which `followTeam` must treat as fail-CLOSED. */
+function makeDatasetClient(rosters: Record<string, readonly string[]>, degraded = false) {
+  return {
+    async getDataset(_key: string, params: Record<string, unknown>) {
+      const competitionKey = String(params.competitionKey ?? "");
+      const teamKeys = rosters[competitionKey] ?? [];
+      return {
+        data: teamKeys.map((teamKey) => ({
+          teamKey,
+          competitionKey,
+          name: teamKey.toUpperCase(),
+          shortName: teamKey.toUpperCase(),
+          crestUrl: null,
+          sourceTeamId: null
+        })),
+        degraded,
+        cacheMiss: false
+      };
+    }
+  };
+}
+
+function makeService(
+  writer: SportsFollowsWriter,
+  rosters: Record<string, readonly string[]> = { nfl: ["dal", "nyy"] },
+  degraded = false
+) {
   return new SportsService({
-    datasetClient: {} as never,
+    datasetClient: makeDatasetClient(rosters, degraded) as never,
     dataContext: {
       withDataContext() {
         throw new Error("not used by followTeam/unfollowTeam");
@@ -90,6 +119,47 @@ describe("SportsService.followTeam / unfollowTeam (#1265)", () => {
     });
     expect(refollowed.ok).toBe(true);
     expect(writer.rows).toHaveLength(1);
+  });
+
+  // #1265 security QA BLOCKING-1(a): `followTeam` is a `granted_at_install` auto-run write tool,
+  // so an assistant-supplied teamKey reaches it with no human confirmation, and the row it writes
+  // is later interpolated into an outbound ESPN schedule URL. The teamKey must therefore be closed
+  // against the same league roster the picker/REST route serve — an unknown key is rejected BEFORE
+  // the write, not nulled-and-continued.
+  it("rejects a teamKey that is not in the competition's roster, before any write", async () => {
+    const writer = makeFakeWriter();
+    const service = makeService(writer);
+    const result = await service.followTeam({} as DataContextDb, {
+      competitionKey: "nfl",
+      teamKey: "../../../evil"
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("Unknown team");
+    expect(writer.rows).toHaveLength(0);
+  });
+
+  // Whole-competition follows carry no teamKey, so the roster lookup must not apply to them.
+  it("still allows a competition-wide follow with no teamKey", async () => {
+    const writer = makeFakeWriter();
+    const service = makeService(writer);
+    const result = await service.followTeam({} as DataContextDb, { competitionKey: "nfl" });
+    expect(result.ok).toBe(true);
+    expect(writer.rows).toHaveLength(1);
+    expect(writer.rows[0]?.teamKey).toBeNull();
+  });
+
+  // `teamsFor` fails soft (empty list + degraded) on an ESPN outage rather than throwing. For a
+  // security-tier auto-run write tool that must fail CLOSED: no roster means no team follow.
+  // Deliberate — do not add a degraded-bypass here (#1265 coordinator ruling).
+  it("fails closed on a degraded/empty roster instead of trusting the caller's teamKey", async () => {
+    const writer = makeFakeWriter();
+    const service = makeService(writer, { nfl: [] }, true);
+    const result = await service.followTeam({} as DataContextDb, {
+      competitionKey: "nfl",
+      teamKey: "dal"
+    });
+    expect(result.ok).toBe(false);
+    expect(writer.rows).toHaveLength(0);
   });
 
   it("unfollowing something never followed is a no-op, not an error", async () => {

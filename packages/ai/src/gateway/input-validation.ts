@@ -21,6 +21,56 @@ interface SchemaNode {
   readonly required?: readonly string[];
   readonly properties?: Record<string, SchemaNode>;
   readonly items?: SchemaNode;
+  readonly minLength?: number;
+  readonly maxLength?: number;
+  readonly pattern?: string;
+}
+
+/** Compiled `pattern` cache — manifests are static, so each pattern compiles once per process
+ *  instead of once per tool call. Patterns come from module manifests, which are trusted code
+ *  (a manifest also supplies `execute`), so a manifest author who wanted to burn CPU has far more
+ *  direct means than a backtracking regex — this is not a new trust boundary. */
+const patternCache = new Map<string, RegExp | null>();
+
+function compilePattern(pattern: string): RegExp | null {
+  const cached = patternCache.get(pattern);
+  if (cached !== undefined) return cached;
+  let compiled: RegExp | null;
+  try {
+    // Anchored on both ends: an unanchored manifest pattern must not be satisfied by a matching
+    // substring of a hostile value ("ok/../../etc" vs `[a-z]+`). `(?:...)` keeps any top-level
+    // alternation in the manifest pattern inside the anchors.
+    compiled = new RegExp(`^(?:${pattern})$`, "u");
+  } catch {
+    // An unparseable pattern is a manifest bug, not caller input — ignore it here rather than
+    // failing every call to that tool. Schema linting is the manifest validator's job.
+    compiled = null;
+  }
+  patternCache.set(pattern, compiled);
+  return compiled;
+}
+
+/** String bounds (#1265 security QA BLOCKING-1b). These are enforced because modules declare them
+ *  as a real safety belt — the sports follow tools bound their catalog keys so a model-supplied
+ *  key cannot be arbitrary before it reaches a persisted row and, later, an outbound URL. A
+ *  declared bound that nothing enforces is worse than no bound: it reads as protection in review. */
+function validateStringBounds(schema: SchemaNode, value: string, path: string): void {
+  if (typeof schema.minLength === "number" && value.length < schema.minLength) {
+    throw new ToolInputValidationError(
+      `Field ${path} must be at least ${schema.minLength} characters`
+    );
+  }
+  if (typeof schema.maxLength === "number" && value.length > schema.maxLength) {
+    throw new ToolInputValidationError(
+      `Field ${path} must be at most ${schema.maxLength} characters`
+    );
+  }
+  if (typeof schema.pattern === "string") {
+    const compiled = compilePattern(schema.pattern);
+    if (compiled && !compiled.test(value)) {
+      throw new ToolInputValidationError(`Field ${path} has an invalid format`);
+    }
+  }
 }
 
 function joinPath(base: string, key: string): string {
@@ -57,6 +107,10 @@ function validateValue(schema: SchemaNode, value: unknown, path: string): void {
     }
   }
 
+  if (typeof value === "string") {
+    validateStringBounds(schema, value, path);
+  }
+
   if (schema.type === "object" && schema.properties) {
     validateObject(schema, value as ToolInput, path);
   }
@@ -76,13 +130,22 @@ function validateValue(schema: SchemaNode, value: unknown, path: string): void {
  *   - all `required` keys are present, recursively into nested objects;
  *   - each declared property matches its `type`
  *     (string/number/boolean/object/array);
- *   - `enum` membership, and `array` `items` types, recursively.
+ *   - `enum` membership, and `array` `items` types, recursively;
+ *   - string `minLength`/`maxLength`/`pattern` (added for #1265 — see below).
  *
- * It deliberately does NOT enforce `format`, `pattern`, numeric bounds
- * (minimum/maximum), `additionalProperties`, or composition keywords
- * (`oneOf`/`anyOf`/`allOf`/`$ref`). Callers MUST NOT treat a passing result as
- * full JSON-Schema conformance. When a real module ships a schema that needs
- * those, swap in a full validator (ajv) rather than extending this by hand (#133).
+ * It deliberately does NOT enforce `format`, numeric bounds (minimum/maximum),
+ * `additionalProperties`, or composition keywords (`oneOf`/`anyOf`/`allOf`/`$ref`).
+ * Callers MUST NOT treat a passing result as full JSON-Schema conformance. When a
+ * real module ships a schema that needs those, swap in a full validator (ajv)
+ * rather than extending this by hand (#133).
+ *
+ * String bounds are the one deliberate exception to that "don't extend by hand"
+ * rule (#1265 security QA). The sports follow tools auto-run under a
+ * granted_at_install grant and bound their catalog keys with minLength/maxLength/
+ * pattern as a safety belt; leaving those keywords unenforced would have shipped a
+ * bound that reads as protection in review and does nothing at runtime. Three
+ * string keywords are a far smaller change than adopting ajv, and this is the
+ * chokepoint every module's tool input passes through.
  */
 export function validateToolInput(schema: JsonSchema | undefined, input: unknown): ToolInput {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {

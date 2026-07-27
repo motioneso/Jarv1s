@@ -30,6 +30,32 @@ describe("sports manifest", () => {
     }
   });
 
+  // #1265 security QA BLOCKING-1(b): both follow tools auto-run under a granted_at_install grant,
+  // and their keys end up interpolated into an outbound ESPN URL. Bare `{ type: "string" }` puts
+  // no bound at all on what the model may pass, so the schema itself is one of the three
+  // independent belts (alongside the service-layer roster check and encodeURIComponent at the URL
+  // site). Bounds mirror the REST schema (packages/shared/src/sports-api.ts
+  // `createSportsFollowRequestSchema`), plus a character-class pattern the REST schema lacks.
+  it("bounds both follow tools' key inputs with length and a catalog-shaped pattern", () => {
+    const byName = Object.fromEntries(
+      sportsModuleManifest.assistantTools.map((tool) => [tool.name, tool])
+    );
+    for (const name of ["sports.followTeam", "sports.unfollowTeam"]) {
+      const properties = (
+        byName[name]?.inputSchema as {
+          properties?: Record<string, { maxLength?: number; minLength?: number; pattern?: string }>;
+        }
+      )?.properties;
+      for (const field of ["competitionKey", "teamKey"]) {
+        expect(properties?.[field]?.maxLength).toBe(100);
+        // Catalog keys are lowercase alphanumeric with dots ("nfl", "eng.1"); ESPN team keys are a
+        // lowercased abbreviation or a bare numeric id. Nothing that can traverse a URL path.
+        expect(properties?.[field]?.pattern).toBe("^[a-z0-9.]{1,100}$");
+      }
+      expect(properties?.competitionKey?.minLength).toBe(1);
+    }
+  });
+
   it("declares exactly one action family, sports_follows, with trusted_auto allowed", () => {
     expect(sportsModuleManifest.assistantActionFamilies).toHaveLength(1);
     const family = sportsModuleManifest.assistantActionFamilies?.[0];

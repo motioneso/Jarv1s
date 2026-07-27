@@ -267,7 +267,12 @@ async function getSchedule(
   // Numeric id first — the abbreviation slug 404s-to-empty on soccer schedule URLs (see
   // EspnScheduleParams.sourceTeamId); teamKey stays as the fallback for callers without a
   // catalog in hand.
-  const pathKey = params.sourceTeamId ?? teamKey;
+  // Percent-encoded because this is the outbound sink for a key that can originate in an
+  // assistant tool call (#1265 security QA BLOCKING-1c): the value must stay inside its own path
+  // segment no matter what upstream validation did or didn't catch. `getHeadlines` below already
+  // encodes its query-string use of teamKey; this is the same rule for the path use. Catalog-clean
+  // keys ("nfl", "dal", "22529") are unchanged by encoding, so this is invisible in practice.
+  const pathKey = encodeURIComponent(params.sourceTeamId ?? teamKey);
   const data = (await fetchJson(
     fetchFn,
     `${SITE_BASE}/${sport}/${league}/teams/${pathKey}/schedule`,
