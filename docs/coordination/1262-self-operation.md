@@ -1039,3 +1039,30 @@ tool rule for #1264, and the **amended preference-key audit rule** born from the
 Shared surface flagged in both: the exact-count inventory assertion in
 `tests/unit/self-operation-manifests.test.ts`. Second to land rebases and updates the numbers;
 both are explicitly forbidden from loosening the assert to dodge the conflict.
+
+### RED blocker resolved — `1751bc7a` (coordinator-verified at diff level)
+
+`fix(tasks): preserve legacy agency_auto_execute opt-out on module re-enable`. Touches
+`packages/module-registry/src/index.ts`, `packages/tasks/src/action-policy.ts`,
+`tests/integration/module-enablement.test.ts` (+105/−2).
+
+Verified by me, not taken on report:
+
+- `TasksCompatibilityHelper.grantInstallTimeTrustIfUnset` is a **single atomic**
+  `insert … select … where not exists (… key in (canonical, legacy))` — no read-then-write race
+  between concurrent enable requests. Either key present ⇒ no insert, so a legacy
+  `tasks.agency_auto_execute = false` opt-out survives a module re-enable.
+- `assertDataContextDb(db)` then `.execute(db.db)` — precedent in
+  `packages/ai/src/terminal-password-repository.ts`. Branded handle in, no root Kysely.
+- Registry imports `TasksCompatibilityHelper`/`tasksModuleManifest` from the **`@jarv1s/tasks`
+  package root**, not a deep path — module isolation holds.
+- Builder proved the test red before green by temporarily reverting the fix (`ask_each_time` →
+  `trusted_auto` reproduced), as ordered.
+
+**Latent trap I ordered guarded in Task B:** the substitution makes tasks bypass the generic grant
+path entirely and hardcodes exactly one family key. Correct today, and exactly correct once
+`task_cleanup` goes `user_promotable` — but a future third tasks family declared
+`granted_at_install` would be granted by neither the special case nor the generic path. Fails
+quiet, which is the failure mode this epic exists to prevent. Ordered an assert: **tasks has
+exactly one `granted_at_install` family and it is `task_changes`**; a second must fail the build,
+commented back to the registry substitution.
