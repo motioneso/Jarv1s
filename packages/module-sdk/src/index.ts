@@ -648,6 +648,17 @@ export const MODULE_WORKER_CONTRACT_VERSION = 1 as const;
  */
 export const EMBED_BATCH_MAX = 128;
 
+/**
+ * Ceiling on any worker queue's declared `timeoutMs` (#1286 Task 2e). Declared here
+ * rather than in worker-runtime.ts (which needs `node:child_process`) so that
+ * validate.ts — the browser-safe manifest validator re-exported from
+ * @jarv1s/module-registry's browser entry — can import and enforce it without
+ * pulling a node:* dependency into a bundle apps/web also consumes. worker-runtime.ts
+ * imports and re-exports this same constant so the runtime and the validator can
+ * never drift.
+ */
+export const MAX_INVOCATION_MS = 600_000;
+
 export type ModuleParamScalarSchema =
   | { readonly type: "uuid" | "identifier" | "timestamp" | "boolean" | "null" }
   | { readonly type: "integer" | "number"; readonly min: number; readonly max: number }
@@ -678,6 +689,10 @@ export interface ExternalModuleQueueDeclaration {
   readonly retryLimit?: number;
   readonly deadLetterQueue?: string;
   readonly allowManualRun?: boolean;
+  // #1286 Task 2e: per-queue override of the worker's hard invocation ceiling
+  // (WorkerLane's invocationHardTimeoutMs default), clamped to MAX_INVOCATION_MS by
+  // validateWorker below. Absent means the runtime's own default applies.
+  readonly timeoutMs?: number;
 }
 
 export interface ExternalModuleScheduleDeclaration {
@@ -757,6 +772,17 @@ export interface ExternalModuleNavigationEntry {
   readonly path: string;
   readonly icon?: string;
   readonly order?: number;
+  /**
+   * A count badge on this nav entry (#1285). Closed enum with one member today. A badge
+   * is always derived from a core-owned count — never from module-supplied text or a
+   * module tool result (the `action_result.result` channel doesn't exist yet at HEAD) —
+   * so the module can only choose *which* core count to display, never the number
+   * itself. `"notifications"` means this module's unread notification count
+   * (`NotificationDto.moduleId`, rulings-ledger G6).
+   */
+  readonly badge?: {
+    readonly source: "notifications";
+  };
 }
 
 /**

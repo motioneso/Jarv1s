@@ -13,6 +13,12 @@ export interface NotificationWithReadState extends Notification {
 export interface ListNotificationsResult {
   readonly notifications: readonly NotificationWithReadState[];
   readonly unreadCount: number;
+  // #1285: per-module unread breakdown of the SAME count `unreadCount` rolls up — a module
+  // nav badge is defined as "that module's unread notification count" (rulings-ledger G6)
+  // rather than a new polling channel, so the badge and the bell can never disagree. Core
+  // notifications (module_id IS NULL) are excluded; they already reach the bell via
+  // `unreadCount` and have no nav entry to badge.
+  readonly unreadByModule: Readonly<Record<string, number>>;
 }
 
 /**
@@ -153,12 +159,13 @@ export class NotificationsRepository {
   async listVisible(scopedDb: DataContextDb): Promise<ListNotificationsResult> {
     assertDataContextDb(scopedDb);
 
-    const [notifications, unreadCount] = await Promise.all([
+    const [notifications, unreadCount, unreadByModule] = await Promise.all([
       this.listVisibleRows(scopedDb),
-      this.countUnread(scopedDb)
+      this.countUnread(scopedDb),
+      this.countUnreadByModule(scopedDb)
     ]);
 
-    return { notifications, unreadCount };
+    return { notifications, unreadCount, unreadByModule };
   }
 
   async getById(
@@ -368,6 +375,42 @@ export class NotificationsRepository {
       .executeTakeFirstOrThrow();
 
     return Number(row.unread_count);
+  }
+
+  // #1285: mirrors `countUnread` above EXACTLY — same left join to `notification_reads`,
+  // same `deferred_until` guard, same RLS-scoped `scopedDb` — but grouped by `module_id`
+  // instead of collapsed to one total. `module_id IS NOT NULL` excludes core notifications,
+  // which have no module nav entry to badge and already surface via `countUnread`. A left
+  // join that forgets the read-state exclusion would count already-read notifications
+  // toward a module's badge (rulings-ledger G1: read state lives in a separate table).
+  private async countUnreadByModule(scopedDb: DataContextDb): Promise<Record<string, number>> {
+    const rows = await scopedDb.db
+      .selectFrom("app.notifications as notifications")
+      .leftJoin("app.notification_reads as reads", (join) =>
+        join
+          .onRef("reads.notification_id", "=", "notifications.id")
+          .on("reads.user_id", "=", sql<string>`app.current_actor_user_id()`)
+      )
+      .select(({ fn }) => [
+        "notifications.module_id as module_id",
+        fn.count<string>("notifications.id").as("unread_count")
+      ])
+      .where("reads.notification_id", "is", null)
+      .where("notifications.module_id", "is not", null)
+      .where(
+        sql<SqlBool>`(notifications.deferred_until IS NULL OR now() >= notifications.deferred_until)`
+      )
+      .groupBy("notifications.module_id")
+      .execute();
+
+    const unreadByModule: Record<string, number> = {};
+    for (const row of rows) {
+      // `module_id IS NOT NULL` is enforced in the WHERE clause above, so this is never
+      // actually null at runtime — the guard here is only to satisfy the nullable column type.
+      if (row.module_id === null) continue;
+      unreadByModule[row.module_id] = Number(row.unread_count);
+    }
+    return unreadByModule;
   }
 
   private visibleRowsQuery(scopedDb: DataContextDb) {

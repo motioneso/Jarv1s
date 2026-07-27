@@ -30,6 +30,10 @@ export interface NotificationDto {
 export interface ListNotificationsResponse {
   readonly notifications: readonly NotificationDto[];
   readonly unreadCount: number;
+  // #1285: this module's unread count, keyed by module_id, for the nav badge (rulings-ledger
+  // G6 — the badge IS this number, not a new polling channel). Not in the response schema's
+  // `required` list below; the client defaults a missing/old-shape response to `{}`.
+  readonly unreadByModule: Readonly<Record<string, number>>;
 }
 
 export interface MarkNotificationReadResponse {
@@ -99,6 +103,13 @@ export const listNotificationsResponseSchema = {
     unreadCount: {
       type: "integer",
       minimum: 0
+    },
+    // #1285: fast-json-stringify strips any field missing here even if the handler returns
+    // it (recurring trap — see agentmemory `fast-json-stringify-schema-strip`). Not required:
+    // callers default a missing map to `{}` rather than treating it as a schema violation.
+    unreadByModule: {
+      type: "object",
+      additionalProperties: { type: "integer", minimum: 0 }
     }
   }
 } as const;

@@ -898,7 +898,12 @@ function serializeExternalModule(m: ReconciledExternalModule): ModuleDto {
       label: entry.label,
       path: entry.path === "/" ? `/m/${m.id}` : `/m/${m.id}${entry.path}`,
       icon: entry.icon ?? null,
-      order: entry.order ?? null
+      order: entry.order ?? null,
+      // #1285: badge lives only on ExternalModuleNavigationEntry (built-ins never
+      // declare one, see serializeModule above), so this mapper is the only one that
+      // re-emits it. Omit rather than emit undefined — same reason `web` is
+      // conditionally spread below, and the response schema declares `badge` optional.
+      ...(entry.badge ? { badge: entry.badge } : {})
     })),
     settings: [],
     external: true,

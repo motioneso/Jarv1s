@@ -18,7 +18,11 @@ import type {
   ModuleWebDeclaration
 } from "@jarv1s/module-sdk";
 import { assertValidFetchHosts } from "@jarv1s/host-fetch/policy";
-import { isValidModuleParamsSchema, matchesModuleParamsSchema } from "@jarv1s/module-sdk";
+import {
+  isValidModuleParamsSchema,
+  matchesModuleParamsSchema,
+  MAX_INVOCATION_MS
+} from "@jarv1s/module-sdk";
 import { satisfiesCoreVersion } from "@jarv1s/module-sdk/core-version";
 
 export type ExternalModuleValidation =
@@ -134,10 +138,27 @@ function validateWorker(
     ) {
       errors.push("worker queue retryLimit must be a non-negative integer");
     }
+    // #1286 Task 2e: timeoutMs is the per-queue override of the worker's hard
+    // invocation ceiling. Reject anything that isn't a positive integer (0, negative,
+    // fractional, NaN, a string, or null all fail Number.isInteger or the <= 0 check)
+    // rather than silently coercing — a bad ceiling is a security-relevant
+    // misconfiguration, not a typo to paper over.
+    if (
+      queue.timeoutMs !== undefined &&
+      (!Number.isInteger(queue.timeoutMs) || (queue.timeoutMs as number) <= 0)
+    ) {
+      errors.push("worker queue timeoutMs must be a positive integer");
+    }
     normalizedQueues.push({
       ...queue,
       ...(typeof queue.retryLimit === "number"
         ? { retryLimit: Math.min(queue.retryLimit, 10) }
+        : {}),
+      // Clamp rather than reject above the ceiling: MAX_INVOCATION_MS protects the
+      // host (worker-runtime.ts's resolveHardTimeout re-clamps defensively too), but a
+      // module declaring an oversized timeout is not itself a validation failure.
+      ...(typeof queue.timeoutMs === "number"
+        ? { timeoutMs: Math.min(queue.timeoutMs, MAX_INVOCATION_MS) }
         : {})
     });
   }
@@ -572,12 +593,12 @@ export function validateExternalModuleManifest(
         }
         const navEntry = entry as Record<string, unknown>;
         const unknownKeys = Object.keys(navEntry).filter(
-          (key) => !["id", "label", "path", "icon", "order"].includes(key)
+          (key) => !["id", "label", "path", "icon", "order", "badge"].includes(key)
         );
         if (unknownKeys.length > 0) {
           errors.push(`navigation entry contains unknown fields: ${unknownKeys.join(", ")}`);
         }
-        const { id, label, path, icon, order } = navEntry;
+        const { id, label, path, icon, order, badge } = navEntry;
         let entryValid = unknownKeys.length === 0;
 
         // #1019 (D5): anti-spoof — a nav entry id must be prefixed with this module's own
@@ -639,13 +660,38 @@ export function validateExternalModuleManifest(
           entryValid = false;
         }
 
+        // #1285: badge is a closed enum with one member today — an object containing
+        // EXACTLY the key `source`, valued strictly "notifications". Rejecting any other
+        // shape outright (rather than normalizing it away) is deliberate: a future badge
+        // source must be an explicit validator change, not something a manifest can opt
+        // into by accident. See ExternalModuleNavigationEntry.badge (module-sdk) for why
+        // this can never carry a module-supplied number.
+        if (badge !== undefined) {
+          if (typeof badge !== "object" || badge === null || Array.isArray(badge)) {
+            errors.push("navigation entry badge must be an object");
+            entryValid = false;
+          } else {
+            const badgeObj = badge as Record<string, unknown>;
+            const badgeUnknownKeys = Object.keys(badgeObj).filter((key) => key !== "source");
+            if (badgeUnknownKeys.length > 0 || badgeObj.source !== "notifications") {
+              errors.push('navigation entry badge must be exactly {"source": "notifications"}');
+              entryValid = false;
+            }
+          }
+        }
+
         if (entryValid) {
           validated.push({
             id: id as string,
             label: label as string,
             path: path as string,
             ...(icon !== undefined ? { icon: icon as string } : {}),
-            ...(order !== undefined ? { order: order as number } : {})
+            ...(order !== undefined ? { order: order as number } : {}),
+            // #1285: the validator reconstructs from an allow-list — a field validated but
+            // not re-emitted here vanishes with `ok: true` and nothing to say why (F1, the
+            // exact bug class the #1282 briefing block hit). badge is safe to re-emit as-is
+            // here because entryValid being true means the shape check above already passed.
+            ...(badge !== undefined ? { badge: badge as { source: "notifications" } } : {})
           });
         }
       }

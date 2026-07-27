@@ -265,6 +265,10 @@ export function AppShell(props: AppShellProps) {
     saveShellColorMode(mode);
   }, [activeThemeId, colorMode, themesQuery.data?.custom, themesQuery.data?.mode]);
   const unreadCount = notificationsQuery.data?.unreadCount ?? 0;
+  // #1285: per-module breakdown of the same unread count, for the nav badge. Defaults to `{}`
+  // while loading or if an older cached response lacks the field — never renders a badge in
+  // that case (NavItem only shows a badge for a strictly-positive count).
+  const unreadByModule = notificationsQuery.data?.unreadByModule ?? {};
   const onTodayPage = location.pathname.startsWith("/today");
   const weatherQuery = useQuery({
     queryKey: queryKeys.weather.today,
@@ -304,7 +308,12 @@ export function AppShell(props: AppShellProps) {
             <div className="nav-group" key={section.key}>
               {section.label ? <p className="nav-group__label">{section.label}</p> : null}
               {section.items.map((entry) => (
-                <NavItem key={entry.id} entry={entry} onClick={closeMobileNav} />
+                <NavItem
+                  key={entry.id}
+                  entry={entry}
+                  unreadByModule={unreadByModule}
+                  onClick={closeMobileNav}
+                />
               ))}
             </div>
           ))}
@@ -527,11 +536,33 @@ function RailUserMenu(props: {
   );
 }
 
+/**
+ * #1285: `ModuleNavigationEntryDto` (packages/shared/src/platform-api.ts) does not yet declare
+ * a `badge` field — extending it there, and re-emitting it from `serializeExternalModule` in
+ * apps/api/src/server.ts, is outside this task's file boundary pending a scope decision from
+ * team-lead. This local extension keeps NavItem forward-compatible without touching that DTO:
+ * `badge` is simply always `undefined` until the DTO gains the field, so this is inert, not a
+ * behavior change. The manifest-facing counterpart (`ExternalModuleNavigationEntry.badge` in
+ * module-sdk) is already validated and re-emitted end-to-end by validate.ts.
+ */
+type NavEntryWithBadge = ModuleNavigationEntryDto & {
+  readonly badge?: { readonly source: "notifications" };
+};
+
 function NavItem(props: {
   readonly entry: ModuleNavigationEntryDto;
+  readonly unreadByModule: Readonly<Record<string, number>>;
   readonly onClick: () => void;
 }) {
   const Icon = props.entry.icon ? (iconMap[props.entry.icon] ?? Layers3) : Layers3;
+  const entry = props.entry as NavEntryWithBadge;
+  // #1285: a nav entry id is always exactly the owning module's id, or "<moduleId>.<slug>"
+  // (validate.ts's #1019 anti-spoof rule enforces this at manifest-validation time), so
+  // splitting on "." reliably recovers the true module id without needing a separate
+  // moduleId prop threaded through app-route-metadata.ts's buildShellNavigation.
+  const moduleId = entry.id.split(".")[0] ?? entry.id;
+  const unreadCount =
+    entry.badge?.source === "notifications" ? (props.unreadByModule[moduleId] ?? 0) : 0;
 
   return (
     <NavLink
@@ -541,6 +572,17 @@ function NavItem(props: {
     >
       <Icon size={17} />
       <span>{props.entry.label}</span>
+      {unreadCount > 0 ? (
+        // #1285: a module can only ever select WHICH core-owned count to display
+        // (badge.source is a closed enum), never supply its own number — this renders
+        // exactly `unreadByModule`, never anything module-authored. Inline flex override
+        // is needed because `.module-link span` (styles.css) sets flex:1 on every span
+        // descendant, including this one, and styles.css is outside this task's file
+        // boundary to edit.
+        <span className="jds-badge-count" style={{ flex: "0 0 auto" }}>
+          {formatUnreadCount(unreadCount)}
+        </span>
+      ) : null}
     </NavLink>
   );
 }
