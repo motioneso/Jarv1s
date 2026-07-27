@@ -258,7 +258,36 @@ them), and Task 17 binds `profile.surfaceKey` rather than `profile.id`, matching
 deletion cascades (every table is `ON DELETE CASCADE`), so NFR-7 holds, but a user cannot remove one
 search of several. Not a spec requirement, so it was flagged rather than built.
 
-Resume at step 5.
+## State as of 2026-07-27 (steps 5–7 done)
+
+**Step 5 (the optional Codex round) was skipped, deliberately.** It is optional in this doc, an
+independent conformance read had just found and fixed real defects, and Ben watches token spend.
+Recorded here rather than silently omitted. If anyone wants it later, it is still one round only.
+
+**Step 6:** the spec header is flipped to `Approved` / `2026-07-27`, with an approval note recording
+the two open questions as non-blocking and dynamic fetch-host grants as deferred out of v1
+(commit `2ab07ed3`).
+
+**Step 7:** epic #1280 and 27 child `task` issues are open, all labelled `RFA`, all on the "Issue and
+Roadmap Work" board at **Ready**. Numbering is frozen and the mapping is arithmetic for Tasks 3–23
+(issue = 1284 + task number):
+
+| Task | Issue | Task | Issue | Task | Issue | Task | Issue |
+| ---- | ----- | ---- | ----- | ---- | ----- | ---- | ----- |
+| 1    | #1281 | 2e   | #1286 | 8    | #1292 | 15   | #1299 |
+| 2    | #1282 | 3    | #1287 | 9    | #1293 | 16   | #1300 |
+| 2b   | #1283 | 4    | #1288 | 10   | #1294 | 17   | #1301 |
+| 2c   | #1284 | 5    | #1289 | 11   | #1295 | 18   | #1302 |
+| 2d   | #1285 | 6    | #1290 | 12   | #1296 | 19   | #1303 |
+|      |       | 7    | #1291 | 13   | #1297 | 20   | #1304 |
+|      |       |      |       | 14   | #1298 | 21   | #1305 |
+|      |       |      |       |      |       | 22   | #1306 |
+|      |       |      |       |      |       | 23   | #1307 |
+
+Each issue carries `Part of #1280`, a pointer to its plan section, and the constraints most likely to
+be got wrong — it is a signpost, not a substitute for reading the plan section.
+
+Resume at step 8: report to Ben, then start building at Phase 0.
 
 ## Start
 
