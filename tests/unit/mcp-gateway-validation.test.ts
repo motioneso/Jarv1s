@@ -123,8 +123,10 @@ describe("tool input validation", () => {
 
       expect(patterns.length).toBeGreaterThan(0);
       for (const pattern of patterns) {
-        expect(() => new RegExp(`^(?:${pattern})$`, "u"), `pattern failed to compile: ${pattern}`)
-          .not.toThrow();
+        expect(
+          () => new RegExp(`^(?:${pattern})$`, "u"),
+          `pattern failed to compile: ${pattern}`
+        ).not.toThrow();
       }
     });
   });
