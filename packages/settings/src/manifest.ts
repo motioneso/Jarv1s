@@ -534,7 +534,7 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       name: "settings.undoLast",
       description:
-        'Undo the user\'s most recent settings preference change in this conversation (e.g. "change that back"). No-op if nothing tracked, or if the setting changed again since.',
+        'Undo the user\'s most recent settings preference change in this conversation (e.g. "change that back"). No-op if nothing tracked, or if the setting changed again since. Only remembers changes made earlier in this same chat session since the app last restarted — it does not track changes made in the settings UI, in a different conversation, or before a restart.',
       permissionId: "settings.write",
       risk: "write",
       selfOperationGrant: "granted_at_install",
