@@ -2863,3 +2863,51 @@ exit criterion by another route.
 **Trap recorded to agentmemory:** a QA agent's detached worktree pins at spawn time; holding it for CI
 green while the lane keeps committing is exactly what makes a verdict stale. Detect with
 `git merge-base --is-ancestor <reviewed-sha> <tip>`.
+
+## Continuation note — 2026-07-27, #1273 re-QA GREEN; delta round opened
+
+**Re-review at the tip returned GREEN, zero blocking** (comment 5092733223, reviewed `b09bcad6`,
+tip confirmed via `git ls-remote`). CI green: `Verify foundation and app` PASS (24m38s, run
+30273200009); build-and-publish is a post-merge job, not a gate. All three belts re-verified by reading
+the tip rather than taking my correction on trust, and the agent explicitly did not defend its withdrawn
+verdict. Both items the correction left open are now settled: the same-host redirect SSRF cases (http
+downgrade, `:8443`, `user:pass@`) are closed by the delta and confirmed **non-vacuous** — hostname is
+identical so `samePublisherIdentity` returns true and only `normalizePublisherDomain`'s ok flag rejects,
+which was exactly the named mutation gap. Inventory exact at 31/5/4/40, matching my own count. No family
+`defaultTier` widened anywhere; hard stop not triggered.
+
+**`MERGE-READY: NO` for one reason only — the UAT exit criterion is structurally unmet and parks on Ben.**
+Not a code defect. Read as "ready for Ben's hands-on sign-off, nothing more."
+
+**Delta round opened on the lane (pane `w1:p13N`, 59% ctx) for four non-blocking findings.** All small,
+none touches policy; three are cases where the code currently claims something untrue, which is why they
+go in this PR rather than into follow-up issues.
+
+1. **`followTeam` pins an RLS-scoped connection across an untimed outbound fetch — introduced by my own
+   ordered belt 1.** The roster check at `sports-service.ts:611` awaits `getLeagueTeams`, and
+   `espn-source.ts` has no `AbortSignal`/`AbortController`/timeout anywhere (verified directly). A hung
+   ESPN pins a pooled connection indefinitely. Fix = bounded `AbortSignal` timeout (+ hoist ahead of the
+   write transaction if cheap). **Ordered to fail CLOSED** — a timed-out roster lookup must reject the
+   `teamKey`, never admit one, or it silently reintroduces the hole belt 1 closed.
+2. **`news.addTopic.label` unbounded on the tool path** while REST caps it at 80 — the identical parity
+   gap just fixed for sports `teamKey`.
+3. **u-flag fail-open + a false docstring.** A pattern that will not compile under `/u` is silently
+   skipped, so the bound is decorative again; the docstring defers linting to a manifest validator that
+   does no inputSchema linting. **Ruled: do NOT make the runtime throw** — that breaks already-installed
+   external modules mid-operation, and the compatibility call is the coordinator's. Instead: honest
+   docstring + a unit test that every built-in tool's pattern compiles under `/u` + a follow-up issue for
+   external-module linting.
+4. **Trust-boundary comment wrong for external modules** — a third-party pattern runs unconfined and
+   untimed on the host API event loop while the same module's `execute` is Worker-capped at 30s. Comment
+   corrected in scope; **the confinement itself is #1267 and explicitly out of scope.**
+
+Plus a PR-body fix: state that numeric `minimum`/`maximum`, `anyOf` and `additionalProperties` remain
+UNENFORCED, and that `app-map-tool.ts`'s own `anyOf` is still decorative — the body names that file as
+the one flipped to enforced, so a reader would otherwise draw the wrong conclusion.
+
+After the round: fresh isolated gate DB, push, then a short **delta** re-QA scoped to these changes only.
+Still parks on Ben. QA pane `w1:p137` kept alive for that delta pass rather than reaped.
+
+**Tooling note:** `herdr pane send-keys <pane> C-u` is rejected (`unsupported key`). There is no
+line-clear; verify the input box is empty by reading it before `pane run`, or a queued line concatenates
+with your message.
