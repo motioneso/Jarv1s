@@ -1570,6 +1570,13 @@ the module can post notifications. Task 22 asserts the badge end to end (L8).
 - Modify: `packages/module-registry/src/external/validate.ts` — validate it and re-emit it in the
   navigation entry literal (~:640)
 - Modify: the shell nav renderer (`rg -n "navigation" apps/web/src/shell --files-with-matches`)
+- Modify: `packages/shared/src/platform-api.ts` — `badge?` on `ModuleNavigationEntryDto` (:34-40)
+  **and** on `moduleNavigationEntrySchema` (:143-154, `additionalProperties: false`), declared in
+  `properties` but NOT in `required`. Follow the `#918` `web` precedent at :193-198.
+- Modify: `apps/api/src/server.ts` — `serializeExternalModule` (:896-902) hand-enumerates the
+  navigation fields, so it must re-emit `badge` conditionally. NOT the mapper at :863; badge is
+  external-only. **Ruling G8** — without these two the badge validates, renders, and never
+  arrives, and a type-level assertion still passes.
 - Test: `tests/unit/external-module-nav-badge.test.ts`,
   `tests/integration/notifications-unread-by-module.test.ts`
 
@@ -4950,7 +4957,10 @@ Tasks 15 and 16 (the handlers), Task 2 (`collectBriefingContributions`).
 
 **Files**
 
-- Create: `tests/integration/job-search.test.ts`
+- **Extend, do NOT create:** `tests/integration/job-search.test.ts` — Task 2 (#1282) already
+  created this file at commit `b043f1d6` with four passing briefing-trust-gate cases. Append
+  your describe blocks; writing it fresh silently destroys verified coverage of the briefing
+  manifest re-emit path.
 - Read first, and copy their setup rather than inventing one:
   `tests/integration/external-module-gateway.test.ts`, `tests/integration/module-install.test.ts`,
   `tests/integration/module-worker-queue-ai.test.ts`, `tests/integration/module-worker-rpc.test.ts`,

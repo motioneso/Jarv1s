@@ -11,7 +11,10 @@ Tasks 15 and 16 (the handlers), Task 2 (`collectBriefingContributions`).
 
 **Files**
 
-- Create: `tests/integration/job-search.test.ts`
+- **Extend, do NOT create:** `tests/integration/job-search.test.ts` — Task 2 (#1282) already
+  created this file at commit `b043f1d6` with four passing briefing-trust-gate cases. Append
+  your describe blocks; writing it fresh silently destroys verified coverage of the briefing
+  manifest re-emit path.
 - Read first, and copy their setup rather than inventing one:
   `tests/integration/external-module-gateway.test.ts`, `tests/integration/module-install.test.ts`,
   `tests/integration/module-worker-queue-ai.test.ts`, `tests/integration/module-worker-rpc.test.ts`,

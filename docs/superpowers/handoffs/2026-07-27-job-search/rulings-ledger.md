@@ -646,3 +646,36 @@ Two operational rules earned the hard way:
   survive a read of the cited file, and round 6 also _understated_ one.
 - **A finding accepted in an earlier round is not settled.** It can be overturned by a later, better
   reading of the same file.
+
+## N. Plan audit findings, 2026-07-27 (read-only sweep for the G8 gap class)
+
+Run after G8 to find other instances. Tasks 1, 2b, 2c, 2e, 11, 12, 14, 22, 23 came back clean —
+they carry no value travelling manifest/worker/DB → browser, so the gap class cannot apply.
+
+**N1 — Task 21 must EXTEND `tests/integration/job-search.test.ts`, never create it.** Task 2 already
+created it at `b043f1d6` with four briefing-trust-gate cases. The plan said "Create". Anyone
+following it literally would have destroyed verified coverage of the briefing re-emit path — and the
+suite would still be green, because the replacement file has its own passing tests. Both the part
+file and the assembled plan are corrected. _(This is the finding the audit paid for.)_
+
+**N2 — Task 2d's Files list never carried G8's fix.** The ruling recorded the diagnosis; the task row
+that an implementer actually reads still named neither `platform-api.ts` nor `server.ts`. Corrected.
+General lesson: **a ruling is not applied until the row an implementer reads carries it.** When a
+ruling changes a task's scope, edit the task row in the same pass.
+
+**N3 — `job-search.matches.list` can silently collapse to unstructured text.** Reported, NOT
+independently verified — verify before building Task 15. The claim: the REST route at
+`packages/ai/src/routes.ts:709-712` pipes tool results through the deprecated
+`boundedAssistantToolResultData`, which renders via `JSON.stringify(data, null, 2)` (the result key
+is `matches`, not `items`, so it never takes the table-row path) and, above
+`MAX_RENDERED_TOOL_RESULT_CHARS` (16 000, `output-validation.ts:4`), **replaces the whole structured
+result with `{ text: "<truncated>" }`**. `matches.list` allows `limit: 100` with two free-text reason
+fields per row, so a full board plausibly crosses it. If true this is a direct hit on the invariant
+that the board renders from records, never from model prose. Task 15's own tests call the handler
+directly and would never catch it.
+
+**N4 — Task 5 defines no `Profile` type, though `job_search_profiles` is the richest table.** Later
+consumers each invent an ad-hoc subset (Task 10's `buildBriefingContribution` takes
+`{id, name, matches, postings}`, dropping `state`/`schedule`/`briefingDetail`/`surfaceKey`/
+`contextSummary`). Not a drop today; it is the precondition for two tasks drifting on what a profile
+contains. Add the canonical type when Task 5 is built.
