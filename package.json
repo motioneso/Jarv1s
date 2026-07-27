@@ -44,7 +44,7 @@
     "test:e2e": "playwright test",
     "capture:screens": "CAPTURE=1 playwright test capture-screens --workers=1",
     "start:worker": "pnpm --filter @jarv1s/worker start",
-    "test:unit": "vitest run tests/unit",
+    "test:unit": "tsx scripts/test-unit.ts",
     "test:uat-seed": "vitest run tests/uat/seed",
     "test:integration": "tsx scripts/test-integration.ts",
     "test:ai": "tsx scripts/test-integration.ts tests/integration/ai.test.ts tests/integration/ai-capability-routes.test.ts tests/integration/ai-structured.test.ts",
