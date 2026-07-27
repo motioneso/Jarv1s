@@ -557,6 +557,14 @@ export interface ModuleAssistantToolManifest {
    * reaching the model. Internal tools whose output Jarvis controls must leave this unset.
    */
   readonly externalContent?: boolean;
+  /**
+   * Dot-path tokens into the frontend's `queryKeys` object (e.g. "settings.themes") that this
+   * tool's successful write makes stale. The gateway copies this onto the `action_result` live
+   * stream record only when the call executed; the frontend resolves each token generically and
+   * invalidates the matching React Query cache entry. Declaration only — no frontend code needed
+   * per tool. Omit for read-only tools and for writes with no cached frontend read to refresh.
+   */
+  readonly affectsQueryKeys?: readonly string[];
 }
 
 export interface JarvisModuleManifest {

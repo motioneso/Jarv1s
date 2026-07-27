@@ -467,7 +467,8 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       executionPolicy: "auto",
       inputSchema: themeModeSetInputSchema,
       outputSchema: themeModeSetOutputSchema,
-      execute: themeModeSetExecute
+      execute: themeModeSetExecute,
+      affectsQueryKeys: ["settings.themes"]
     },
     {
       name: "settings.locale.setTimezone",
