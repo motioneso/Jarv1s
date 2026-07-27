@@ -1102,3 +1102,46 @@ A hardcoded enumeration passes while a tool goes untested: someone adds a tenth 
 still checks nine, and the gap is green and invisible. Manifest-derived enumeration fails loudly the
 moment a tool is added without coverage, which is the failure worth having. Same class as prose tool
 names being unvalidated — a renamed tool fails at runtime with nothing red beforehand.
+
+### N24 — a module's runtime fetch-host grant namespace is a declared manifest field, not a convention
+
+Task 24 asked whether `fetchHostGrantsNamespace` — a manifest field naming which `storage` namespace
+holds a module's runtime-granted fetch hosts — should exist, or whether the platform should just know
+the namespace by convention. **It is a declared field. Approved.**
+
+A convention means any module that happens to declare a conventionally-named namespace silently
+acquires the ability to extend its own network reach, with nothing at review or install time saying
+so. A declared field makes runtime host-granting opt-in and legible in the reviewed, hash-pinned
+manifest — which is what Ben's "consent = install" ruling requires. This is the only new schema Task
+24 adds anywhere, and it is the right one.
+
+### N25 — bounds on extracting a `Posting` from an arbitrary third-party page
+
+Task 24's custom-source adapter fetches a user-registered URL and hands the page to
+`ctx.ai.generateStructured`. There is no precedent for that in this codebase, so these bounds are
+decisions rather than transcriptions:
+
+- **Strip `<script>`/`<style>` contents and HTML comments (tolerant regex, no DOM dependency), then
+  cap at `CUSTOM_SOURCE_PAGE_BYTE_CAP = 60_000` bytes.** The bound is about latency, not cost: the
+  module worker's 30s invocation cap **includes host AI time** and blows with an empty
+  `handler_error` carrying no cause. A 300 KB prompt (~75k input tokens) on a source that is fragile
+  by construction is the shape that trips it. `ctx.deadlineAt` is the lever after the call; this is
+  the lever before it. **Do not** justify the number by scaling `MAX_RENDERED_TOOL_RESULT_CHARS`
+  (16,000, `packages/ai/src/gateway/output-validation.ts:4`) — that is a rendered-tool-output
+  precedent, not a page-fetch one, and citing it as a derivation is misleading.
+- **The strict parser rejects any extracted `url` that is not `https:`,** failing the whole
+  extraction per the fail-the-whole-extraction rule. `url` is the one model-derived field that
+  becomes a link the user follows off the board, and the page it was derived from is attacker-
+  controlled. **Not** same-host: job boards legitimately link out to ATS domains — that is freehire's
+  entire model — and a same-host rule breaks the common case to close a hazard `https:`-only already
+  closes.
+- **Nothing the model returns may ever influence what gets fetched.** The adapter fetches exactly the
+  one registered `url`; no extracted field feeds a later request. State this as a constraint, not
+  only as a test. A future task adding "follow the posting links for full descriptions" would break
+  it without touching a line Task 24 wrote.
+
+One correction to a citation, not to a rule: the four-layer LLM-field exfiltration defense in this
+codebase guards LLM-derived fields persisted **next to private cached content**, where the hazard is
+smuggling the private body into the derived fields. A public job board page has no private content to
+smuggle, so that posture does not transfer. The whole-extraction-fails-on-one-bad-field rule stands
+on its own reasoning: a fabricated or blank field is worse than no posting.
