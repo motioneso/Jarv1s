@@ -38,6 +38,7 @@ vi.mock("../../external-modules/job-search/src/web/styles.css", () => ({ default
 
 import { Root, type HostActions } from "../../external-modules/job-search/src/web/root";
 import * as api from "../../external-modules/job-search/src/web/api";
+import type { AssistantSurfaceHandleV1 } from "../../external-modules/job-search/src/domain/seed-prompt";
 import type {
   Profile,
   ProfilesState
@@ -49,7 +50,7 @@ function profile(overrides: Partial<Profile> = {}): Profile {
     name: "Acme SWE search",
     state: "active",
     briefingDetail: null,
-    completedSteps: 3,
+    completedSteps: ["role", "want", "where", "comp", "sources"],
     readyToCrawl: true,
     ...overrides
   };
@@ -76,12 +77,24 @@ function empty(): MockedProfilesState {
   return { status: "empty", refetch: vi.fn(), select: vi.fn() };
 }
 
-async function renderRoot(actions: HostActions = hostActions()): Promise<ReactTestRenderer> {
+async function renderRoot(
+  actions: HostActions = hostActions(),
+  assistantSurface?: AssistantSurfaceHandleV1
+): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
-    renderer = create(createElement(Root, { hostActions: actions }));
+    renderer = create(createElement(Root, { hostActions: actions, assistantSurface }));
   });
   return renderer;
+}
+
+// Only the two methods Root's useProfileThread actually calls — the narrow local mirror of the
+// host's real AssistantSurfaceHandleV1 (module isolation: no import of host chat internals).
+function assistantSurface(): AssistantSurfaceHandleV1 {
+  return {
+    setSurfaceKey: vi.fn(),
+    seedContext: vi.fn().mockResolvedValue(undefined)
+  };
 }
 
 // Flushes the microtask queue a few times over — enough for a mocked
@@ -97,9 +110,10 @@ async function flush(renderer: ReactTestRenderer): Promise<void> {
 }
 
 function text(renderer: ReactTestRenderer): string {
-  // Adjacent JSX text expressions (e.g. "Finishing setup for {name}…") render
-  // as separate string children that flatten() joins with a space — collapse
-  // runs of whitespace so assertions don't have to guess the exact split.
+  // Adjacent JSX text expressions (e.g. QueueNotice's "Couldn't queue a search
+  // run: {outcome.message}") render as separate string children that
+  // flatten() joins with a space — collapse runs of whitespace so assertions
+  // don't have to guess the exact split.
   return flatten(renderer.toJSON()).replace(/\s+/g, " ").trim();
 }
 
@@ -171,11 +185,11 @@ describe("job-search web Root", () => {
     expect(text(renderer)).toMatch(/Setting up your job search profile/);
   });
 
-  it("renders the onboarding placeholder for a profile with no criteria yet", async () => {
+  it("renders the real onboarding screen for a profile with no criteria yet", async () => {
     mockUseProfiles.mockReturnValue(ready([profile({ state: "in_conversation" })]));
     const renderer = await renderRoot();
 
-    expect(text(renderer)).toMatch(/Finishing setup for Acme SWE search/);
+    expect(text(renderer)).toMatch(/work out what this search is for/);
     expect(renderer.root.findAllByType("table")).toHaveLength(0);
   });
 
@@ -185,7 +199,7 @@ describe("job-search web Root", () => {
     await flush(renderer);
 
     expect(renderer.root.findAllByType("table")).toHaveLength(1);
-    expect(text(renderer)).not.toMatch(/Finishing setup for/);
+    expect(text(renderer)).not.toMatch(/work out what this search is for/);
   });
 
   it("never renders a chat button anywhere on the surface", async () => {
@@ -271,5 +285,41 @@ describe("job-search web Root", () => {
     await flush(renderer2);
 
     expect(text(renderer2)).toMatch(/Manual search runs are turned off for this account/);
+  });
+
+  // Test 11 (Task 17, #1301): assistant-surface binding.
+  it("binds the surface before framing it, and frames it only once across a re-render", async () => {
+    mockUseProfiles.mockReturnValue(ready([profile({ profileId: "p1", state: "active" })]));
+    const surface = assistantSurface();
+    const actions = hostActions();
+    const renderer = await renderRoot(actions, surface);
+    await flush(renderer);
+
+    expect(surface.setSurfaceKey).toHaveBeenCalledWith("p1");
+    expect(surface.seedContext).toHaveBeenCalledTimes(1);
+    const [seedText, idempotencyKey] = vi.mocked(surface.seedContext).mock.calls[0];
+    expect(idempotencyKey).toBe("job-search:p1:v1");
+    expect(seedText).toContain("job-search.criteria.set");
+
+    // Ordering, not just presence: seeding before binding frames the drawer instead of this
+    // module's own thread (H4 — the consent boundary).
+    const setSurfaceKeyOrder = vi.mocked(surface.setSurfaceKey).mock.invocationCallOrder[0];
+    const seedContextOrder = vi.mocked(surface.seedContext).mock.invocationCallOrder[0];
+    expect(setSurfaceKeyOrder).toBeLessThan(seedContextOrder);
+
+    // A re-render with the same surface and the same profile must not re-seed.
+    await act(async () => {
+      renderer.update(createElement(Root, { hostActions: actions, assistantSurface: surface }));
+    });
+    await flush(renderer);
+    expect(surface.seedContext).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders fine when the host gives it no assistant surface", async () => {
+    mockUseProfiles.mockReturnValue(ready([profile({ profileId: "p1", state: "active" })]));
+    const renderer = await renderRoot(hostActions());
+    await flush(renderer);
+
+    expect(renderer.root.findAllByType("table")).toHaveLength(1);
   });
 });

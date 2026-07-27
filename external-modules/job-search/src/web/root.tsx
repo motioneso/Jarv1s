@@ -1,7 +1,8 @@
 // external-modules/job-search/src/web/root.tsx
 // Task 18 (#1302): the module's web entrypoint. Owns the empty-install bootstrap handoff, the
-// enqueue latch, and the onboarding/board branch — the two branches themselves are intentionally
-// minimal placeholders for Tasks 19 (onboarding) and 20 (board) to replace.
+// enqueue latch, and the onboarding/board branch. The onboarding branch renders the real
+// screen (Task 19, ./screens/onboarding.tsx); the board branch is still BoardPlaceholder,
+// a minimal stand-in for Task 20 to replace.
 //
 // No chat button lives here (variant-flow.tsx:145's drawer button is prototype-only and must not
 // be ported) — the only way into the assistant from this surface is hostActions.openAssistant,
@@ -10,6 +11,8 @@ import { Fragment, h, useCallback, useEffect, useState, type ReactNodeLike } fro
 import { runQueue, type RunOutcome } from "./api";
 import { isLatched, setLatched } from "./latch";
 import { useProfiles, type Profile } from "./use-profiles";
+import { useProfileThread, type AssistantSurfaceHandleV1 } from "../domain/seed-prompt.js";
+import { OnboardingScreen } from "./screens/onboarding";
 import styles from "./styles.css";
 
 export interface HostActions {
@@ -19,8 +22,12 @@ export interface HostActions {
 
 export interface RootProps {
   hostActions: HostActions;
-  // Task 17 owns binding an assistant surface handle; Task 18 doesn't read it.
-  assistantSurface?: unknown;
+  // #1284/Task 17: optional only so a v1.1 module bundle can fail closed on an older host
+  // (mirrors ExternalWebContributionProps's own optionality). Root is the sole caller of
+  // useProfileThread — see that function's header for why the binding effect lives here rather
+  // than inside useProfiles (root.test.tsx mocks the whole use-profiles module, so logic buried
+  // inside that hook would be untestable from here).
+  assistantSurface?: AssistantSurfaceHandleV1;
 }
 
 const BOOTSTRAP_PROMPT =
@@ -68,17 +75,6 @@ function BootstrapPanel(props: {
       <button type="button" className="jds-btn jds-btn--primary" onClick={props.onStart}>
         Start your job search
       </button>
-    </div>
-  );
-}
-
-// Placeholder for Task 19: rendered while a profile has no criteria yet
-// (state === "in_conversation" — briefing not complete, readyToCrawl false).
-function OnboardingPlaceholder(props: { profile: Profile }): ReactNodeLike {
-  return (
-    <div className="jds-card jds-card--sunken jsm-state">
-      <span className="jds-eyebrow">Job search</span>
-      <p>Finishing setup for {props.profile.name}…</p>
     </div>
   );
 }
@@ -172,6 +168,19 @@ export function Root(props: RootProps): ReactNodeLike {
 
   const profiles = useProfiles({ pollArmed, onPollExpired });
 
+  // The profile the rest of Root renders around — same fallback the board branch below already
+  // used, hoisted so useProfileThread and the render branch share one derivation instead of two.
+  const selectedProfile: Profile | null =
+    profiles.status === "ready"
+      ? (profiles.profiles.find((p) => p.profileId === profiles.selectedId) ??
+        profiles.profiles[0])
+      : null;
+
+  // Binds this module's chat surface to whichever profile is selected, and frames it with the
+  // seed prompt (Task 17). A no-op whenever the host gave no assistantSurface, or there's no
+  // profile yet to bind.
+  useProfileThread(props.assistantSurface, selectedProfile);
+
   // Enqueue exactly one crawl.run per profile that arrives "active" and isn't
   // already latched for this actor+profile. in_conversation and paused never
   // enqueue (bound: paused is a deliberate user pause, not a stall).
@@ -207,11 +216,12 @@ export function Root(props: RootProps): ReactNodeLike {
   } else if (profiles.status === "empty") {
     body = <BootstrapPanel phase={phase} onStart={handleStart} onRetry={handleRetry} />;
   } else {
-    const selected =
-      profiles.profiles.find((p) => p.profileId === profiles.selectedId) ?? profiles.profiles[0];
+    // Non-null here: profiles.status === "ready" (the only remaining branch) is exactly the
+    // condition selectedProfile above was derived under.
+    const selected = selectedProfile as Profile;
     body =
       selected.state === "in_conversation" ? (
-        <OnboardingPlaceholder profile={selected} />
+        <OnboardingScreen profile={selected} />
       ) : (
         <BoardPlaceholder
           profiles={profiles.profiles}
