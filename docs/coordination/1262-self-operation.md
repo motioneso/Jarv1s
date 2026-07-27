@@ -1339,3 +1339,88 @@ grant (`settings/routes-modules.ts:306-308`, unconditional when `!disabled`), so
 mutation really would invoke the raw spy.
 
 **Merge gate now: CI green on the Task F head. Nothing else outstanding.**
+
+## 2026-07-27 — #1263 MERGED; parallel wave #1264 + #1265 spawned
+
+### #1263 merged
+
+**PR #1268 squash-merged as `73e50847`** on the head `ace5fd98`. Merge performed under Ben's
+standing verbal delegation ("I need to sleep, lets push to get this completed without me"), **not a
+fresh approval** — the digest must say so plainly. The delegation's limit held: authority to merge
+GREEN only, never to lower the bar.
+
+Merge preconditions, all satisfied before the merge:
+
+- **Session-id authority re-confirmed** (Phase 3 step 0): exactly one `Coordinator` pane, `w1:p11T`,
+  session `43e5f5e2-0deb-4ab5-9237-436e8795b611`, matching the lock line at the top of this file.
+- **CI green on the merged head** `ace5fd98`: Verify foundation and app **pass 24m43s**, Compose
+  deployment smoke pass, Prod compose deployment smoke pass. "Build and publish images" was still
+  in progress — non-required post-merge packaging, not a gate on the code.
+- **QA3 final verdict: MERGE-READY YES**, and it is the verification worth keeping. Rather than
+  trusting the green tick, QA3 pulled job log 89931094945 and walked the chain to prove the test
+  steps *actually executed* this time (`format:check` 08:56:09 → `test:unit` 08:57:06 → `db:migrate`
+  → `test:uat-seed` 08:59:20 → `test:integration` 08:59:29–09:16:45). Counts CI itself saw:
+  unit 443 files / **3383** passed / 2 skipped; uat-seed 11 files; integration 158 files / **1721**
+  passed / 2 skipped; release-hardening 19 passed. Zero failures; the 2+2 skips are pre-existing.
+- **The four new tests were proven to have run by delta, not by the file being green** — the failure
+  mode QA3 was hunting is a new test silently never collected while its file still reports green.
+  `self-operation-chassis.test.ts` 18 → **21** (+3 = NB-1's three negative tests) with the unit total
+  moving 3380 → 3383, the same +3, so nothing else shifted.
+  `module-enablement.test.ts` 25 → **27** (+2 = NB-4's two wiring tests) with the integration total
+  moving 1719 → 1721, the same +2. NB-2 and NB-3 were rewrites of existing tests, so they add no
+  count and ran inside that green 27.
+- **`ace5fd98` confirmed formatting-only**: one file, +5/−2, exactly the two predicted hunks. The
+  L407 change (escaped-double → single-quote delimiter) leaves the runtime string byte-identical —
+  which matters, because that string is a pinned `.toThrow` substring; one character of drift would
+  have broken the drift-guard test. It passed.
+- **Integration risk nil**: `origin/main` had moved by one docs-only commit (`84d1c291`), no source
+  overlap, so no rebase-and-re-QA was required.
+
+Bookkeeping done: issue #1263 closed (auto, by the PR), board item **Done**, no milestone attached,
+remote branch `1263-self-operation-chassis` deleted (the `gh` "failed to run git" line was only its
+local branch-switch cleanup — `main` is checked out by the shared `/home/ben/Jarv1s` tree — not the
+merge). Builder pane `w1:p12J`, QA3 pane `w1:p12K`, and both worktrees reaped.
+
+### Relay trigger fired and was overridden — recorded so it is not lost
+
+A **security-tier merge fires an unconditional relay** under the `coordinate` skill. Ben's standing
+override ("No don't worry about successor's, keep going here") cancels it, and the context meter has
+also passed 70% without a relay for the same reason. **This manifest is therefore the only durable
+record of the run** — a successor adopts from here, not from a handoff.
+
+### Parallel wave spawned (Phase 1b)
+
+Both worktrees were created off **fresh `origin/main` at `73e50847`** (i.e. with the chassis in),
+and both agents booted on **Sonnet 5** with bypass permissions, verified by pane read.
+
+| Issue | Branch / worktree | Agent | Pane | Session id |
+| --- | --- | --- | --- | --- |
+| #1264 settings self-operation | `1264-settings-self-operation` | `build-1264` | `w1:p12M` | `7f52e0b8-8667-4102-9c4a-4776ba866a48` |
+| #1265 module content self-operation | `1265-module-content-self-operation` | `build-1265` | `w1:p12N` | `13aa3da8-3214-4b2b-bf82-7298053a411f` |
+
+Each was handed the **absolute path** to its pre-staged handoff inside this coordinator worktree —
+the handoffs live on `coord/1262-self-operation`, **not on `main`**, so a repo-relative path would
+have 404'd in their fresh worktrees. Both approved specs *are* on `main` (verified before spawning).
+
+**New agents tab is `w1:t3Q`** (the old `w1:t3J` disappeared when its last pane was reaped; recreate
+with `herdr pane move <pane> --new-tab --workspace w1 --label "agents"`). Coordinator tab stays
+`w1:t3K` and remains coordinator-only.
+
+### Herdr spawn API — one more correction, verified this session
+
+`herdr agent start <name> --kind claude --pane <ID> -- claude --model sonnet …` **silently eats the
+prompt.** `--kind claude` already supplies the binary, so the literal `claude` after `--` is taken as
+the prompt and the real one is dropped. The flags still apply (both panes came up on Sonnet with
+bypass permissions), so the pane *looks* correctly spawned — the only symptom is the agent replying
+"It looks like your message came through empty — just 'claude'". Always read the pane after spawning;
+recover by delivering the prompt with `herdr pane run <pane> "<prompt>"` + one `send-keys Enter`.
+
+### Carried forward for the digest — the sizing question is the real one
+
+Not a defect, but the pattern worth Ben's judgement: **#1263 took three relays on one task**, which
+suggests tasks are being decomposed past what one context can hold. Also for the digest: the
+`format:check` omission above; and the **"too heavy to test" justification in `af2ec6d4`'s commit
+body that proved wrong** — it claimed the full `PATCH /api/me/modules/tasks` path needed chat engine
+factories, RPC connections, a boss queue and onboarding probes, but Task E drove exactly that path
+and found only four required fields on `BuiltInRouteDependencies`. The assessment erred in the
+direction that avoids work. #1264/#1265 must not cite it as precedent.
