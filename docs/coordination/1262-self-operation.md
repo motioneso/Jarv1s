@@ -1307,3 +1307,35 @@ isolated DB.
 
 **Blocking merge:** QA3 scoped re-verify (mutation check — does each new negative test fail when its
 assert is removed?) + CI green on `7dc37352`.
+
+### [CRIT] Gate RED on `7dc37352` — and it was my instruction that caused it
+
+QA3's scoped re-verify caught what my own acceptance would have missed. CI failed at
+`prettier --check` — **link 2** of `verify:foundation` — so `test:unit` and `test:integration`
+**never ran**. The four tests Task E exists to add had executed nowhere except the builder's local
+run, while its commit body truthfully reported eslint 0, typecheck 0, 21/21, 27/27.
+
+**My miss.** My Task E instruction said "lint, typecheck, and the affected test files. Not the full
+gate." That list omitted `format:check`. The builder ran exactly what I asked for. Third time
+formatting has stopped this branch's gate. **`format:check` goes in every verification list from
+here, however small the change**, and builders should add it even when I forget. Saved as durable
+memory (`mem_ms2zoj7l_9cf09d234b32`) — the failure mode is that a format failure reads as "tests
+pending" rather than "tests failed", which is easy to misread as nothing being wrong.
+
+Task F: `prettier --write` on `tests/unit/self-operation-chassis.test.ts` only (two hunks — a call
+needing a wrap ~L327, a string wanting single quotes ~L407), then lint + **format:check** + typecheck
++ both test files.
+
+**QA3's mutation check cleared all four NB fixes analytically**, and the detail worth keeping is that
+NB-1's `always_confirm` fixture declares `allowedTiers: [always_confirm, trusted_auto]`. The natural
+reading — declaring only `[always_confirm]` — would trip an earlier assert with a *different*
+message, and since `.toThrow` substring-matches, the test would have passed for the wrong reason.
+QA3 also verified each pinned message has exactly one producer in the tree, and walked all nine
+asserts preceding each target to prove the fixtures actually reach them. That is the standard for a
+negative test: not "it throws" but "it throws *because of the assert under test*".
+
+NB-4's vacuity risk was checked too: `PATCH` on an already-enabled required module does reach the
+grant (`settings/routes-modules.ts:306-308`, unconditional when `!disabled`), so the pass-through
+mutation really would invoke the raw spy.
+
+**Merge gate now: CI green on the Task F head. Nothing else outstanding.**
