@@ -307,6 +307,110 @@ describe("self-operation chassis", () => {
     );
   });
 
+  it("rejects a tool name declared by more than one built-in module", () => {
+    // #1263 Task E NB-1: self-operation.ts:267 was shipped with zero negative tests. Two modules
+    // declaring the same tool name is exactly what "tool names must be unique across all modules"
+    // exists to catch -- without this test the guard could be deleted and nothing would fail.
+    const toolA: ModuleAssistantToolManifest = {
+      name: "shared.duplicateName",
+      description: "Fixture.",
+      permissionId: "memory.view",
+      risk: "read"
+    };
+    const toolB: ModuleAssistantToolManifest = {
+      name: "shared.duplicateName",
+      description: "Fixture.",
+      permissionId: "people.view",
+      risk: "read"
+    };
+    expect(() =>
+      assertBuiltInSelfOperationManifests([manifest("memory", [toolA]), manifest("people", [toolB])])
+    ).toThrow(
+      'tool name "shared.duplicateName" is declared by more than one built-in module (most ' +
+        'recently "people"): tool names must be unique across all modules'
+    );
+  });
+
+  it("rejects a granted_at_install tool whose family defaults to always_confirm", () => {
+    // #1263 Task E NB-1: self-operation.ts:327 was shipped with zero negative tests. This is the
+    // guard that stops install from silently widening a family the module itself gated at
+    // always_confirm the moment the module installs.
+    const alwaysConfirmDefaultFamily: ModuleAssistantActionFamilyManifest = {
+      id: "memory.alwaysConfirmDefaultFamily",
+      label: "memory.alwaysConfirmDefaultFamily",
+      description: "memory.alwaysConfirmDefaultFamily",
+      defaultTier: "always_confirm",
+      allowedTiers: ["always_confirm", "trusted_auto"]
+    };
+    const tool: ModuleAssistantToolManifest = {
+      name: "memory.autoOperate",
+      description: "Auto-operate.",
+      permissionId: "memory.manage",
+      risk: "write",
+      executionPolicy: "auto",
+      actionFamilyId: "memory.alwaysConfirmDefaultFamily",
+      selfOperationGrant: "granted_at_install"
+    };
+    expect(() =>
+      assertBuiltInSelfOperationManifests([
+        manifest("memory", [tool], [alwaysConfirmDefaultFamily])
+      ])
+    ).toThrow(
+      'module "memory" tool "memory.autoOperate" declares granted_at_install for action ' +
+        'family "memory.alwaysConfirmDefaultFamily" whose defaultTier is "always_confirm": a ' +
+        "granted_at_install family must not default to always_confirm"
+    );
+  });
+
+  it("rejects the tasks module declaring a second granted_at_install family beyond task_changes", () => {
+    // #1263 Task E NB-1: self-operation.ts:409 was shipped with zero negative tests, and per
+    // Coordinator this is the sole guard on a full-bypass path -- packages/module-registry's tasks
+    // wiring hardcodes writing only "task_changes" and never calls the generic grant path for tasks
+    // at all, so a second granted_at_install family here would silently get no install-time grant.
+    const taskChangesFamily: ModuleAssistantActionFamilyManifest = {
+      id: "task_changes",
+      label: "task_changes",
+      description: "task_changes",
+      defaultTier: "ask_each_time",
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
+    };
+    const otherFamily: ModuleAssistantActionFamilyManifest = {
+      id: "tasks.otherFamily",
+      label: "tasks.otherFamily",
+      description: "tasks.otherFamily",
+      defaultTier: "ask_each_time",
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
+    };
+    const taskChangesTool: ModuleAssistantToolManifest = {
+      name: "tasks.updateSomething",
+      description: "Update something.",
+      permissionId: "tasks.manage",
+      risk: "write",
+      executionPolicy: "auto",
+      actionFamilyId: "task_changes",
+      selfOperationGrant: "granted_at_install"
+    };
+    const otherTool: ModuleAssistantToolManifest = {
+      name: "tasks.otherOperate",
+      description: "Auto-operate on something else.",
+      permissionId: "tasks.manage",
+      risk: "write",
+      executionPolicy: "auto",
+      actionFamilyId: "tasks.otherFamily",
+      selfOperationGrant: "granted_at_install"
+    };
+    expect(() =>
+      assertBuiltInSelfOperationManifests([
+        manifest("tasks", [taskChangesTool, otherTool], [taskChangesFamily, otherFamily])
+      ])
+    ).toThrow(
+      "module \"tasks\" must declare exactly one granted_at_install action family, " +
+        '"task_changes" (found: task_changes, tasks.otherFamily) -- ' +
+        "packages/module-registry/src/index.ts special-cases tasks' install grant to write only " +
+        '"task_changes" and will silently fail to grant any other family'
+    );
+  });
+
   it("accepts built-in read tools without a declaration", () => {
     const tool: ModuleAssistantToolManifest = {
       name: "memory.search",

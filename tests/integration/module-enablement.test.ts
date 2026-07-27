@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import pg from "pg";
 import type { Kysely } from "kysely";
 
@@ -14,12 +14,15 @@ import {
   DataContextRunner,
   createDatabase,
   type AdminAuditEvent,
+  type DataContextDb,
   type JarvisDatabase
 } from "@jarv1s/db";
 import {
   createActiveModulesResolver,
+  getBuiltInModuleRegistrations,
   getModuleDeletionTables,
-  resolveGrantSelfOperationForModule
+  resolveGrantSelfOperationForModule,
+  type BuiltInRouteDependencies
 } from "@jarv1s/module-registry";
 import {
   HttpError,
@@ -691,10 +694,13 @@ describe("module enable routes grant self-operation policy (#1263 Task 15)", () 
 });
 
 describe("tasks legacy agency_auto_execute opt-out survives install grant (#1263)", () => {
+  const userNeitherKey = "00000000-0000-4000-8000-000000000004";
+
   let appDb: Kysely<JarvisDatabase>;
   let dataContext: DataContextRunner;
   let prefs: PreferencesRepository;
   let tasksCompat: TasksCompatibilityHelper;
+  let aiRepo: AiRepository;
 
   beforeAll(async () => {
     await resetFoundationDatabase();
@@ -702,6 +708,23 @@ describe("tasks legacy agency_auto_execute opt-out survives install grant (#1263
     dataContext = new DataContextRunner(appDb);
     prefs = new PreferencesRepository();
     tasksCompat = new TasksCompatibilityHelper(prefs);
+    aiRepo = new AiRepository();
+
+    // Every seeded fixture user (ids.userA/userB/adminUser) picks up a canonical or legacy
+    // task_changes row somewhere in this block's own tests before the routing tests run, so none
+    // of them is usable as a "neither key set" actor for the routing tests below. Seed a fourth
+    // user with no preference rows at all, mirroring seedProbeData's raw insert
+    // (tests/integration/test-database.ts).
+    const client = new pg.Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      await client.query(
+        `INSERT INTO app.users (id, email, is_instance_admin) VALUES ($1, 'user-neither-key@example.test', false)`,
+        [userNeitherKey]
+      );
+    } finally {
+      await client.end();
+    }
   });
 
   afterAll(async () => {
@@ -761,10 +784,15 @@ describe("tasks legacy agency_auto_execute opt-out survives install grant (#1263
   // wired into the settings module's registerRoutes. Deleting that manifest.id check would leave
   // every test above green while silently reintroducing the original #1263 bug in production.
   it("resolveGrantSelfOperationForModule routes the tasks manifest to the compat helper, not the generic grant", async () => {
-    // genericGrant is a no-op spy: it never touches the DB, so the policy-value assertions below
-    // stay unchanged regardless of whether it's called. The signal that catches a mis-route is
-    // `genericGrant` not being invoked, not an observed change in the resolved policy value.
-    const genericGrant = vi.fn(async () => {});
+    // genericGrant wraps the REAL grantSelfOperationForModule, not a no-op spy. It writes to
+    // "assistant.action_policy.v1.tasks.task_changes" for any granted_at_install tool on the
+    // manifest it's handed -- the exact key TasksCompatibilityHelper reads. If a mis-route ever
+    // sends tasksModuleManifest through this generic path instead of the compat helper, it would
+    // really clobber userA's legacy opt-out below (flipping the resolved policy to
+    // trusted_auto), not just fail a "was it called" check.
+    const genericGrant = vi.fn((scopedDb: DataContextDb, manifest: JarvisModuleManifest) =>
+      grantSelfOperationForModule(scopedDb, aiRepo, manifest)
+    );
     const resolved = resolveGrantSelfOperationForModule(genericGrant);
 
     await dataContext.withDataContext(
@@ -783,22 +811,127 @@ describe("tasks legacy agency_auto_execute opt-out survives install grant (#1263
   });
 
   it("resolveGrantSelfOperationForModule routes a non-tasks manifest to the generic grant, not the compat helper", async () => {
-    const genericGrant = vi.fn(async () => {});
+    // Same real-implementation wrapper as the test above -- a mis-route here would skip the
+    // generic grant path (and the DB write it performs for the manifest's granted_at_install
+    // tools) entirely, which the "not called" assertion below catches directly.
+    const genericGrant = vi.fn((scopedDb: DataContextDb, manifest: JarvisModuleManifest) =>
+      grantSelfOperationForModule(scopedDb, aiRepo, manifest)
+    );
     const resolved = resolveGrantSelfOperationForModule(genericGrant);
     const otherManifest = { id: "not-tasks-fixture" } as JarvisModuleManifest;
 
     await dataContext.withDataContext(
-      { actorUserId: ids.adminUser, requestId: "req:routing-other" },
+      // userNeitherKey has no canonical or legacy task_changes row (unlike ids.userA/userB/
+      // adminUser, each of which picks one up elsewhere in this block before this test runs),
+      // so a mis-route to the compat helper's grantInstallTimeTrustIfUnset would flip the
+      // resolved policy to trusted_auto (its "neither key exists" branch, proven above) instead
+      // of leaving it at ask_each_time.
+      { actorUserId: userNeitherKey, requestId: "req:routing-other" },
       async (scopedDb) => {
+        expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("ask_each_time");
+
         await resolved(scopedDb, otherManifest);
 
-        // adminUser already carries a canonical always_confirm row from the test above -- proves
-        // the compat helper's insert-if-neither-key-exists path was never reached for this manifest.
-        expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("always_confirm");
+        expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("ask_each_time");
       }
     );
 
     expect(genericGrant).toHaveBeenCalledTimes(1);
     expect(genericGrant).toHaveBeenCalledWith(expect.anything(), otherManifest);
+  });
+});
+
+// The "tasks legacy ..." block above proves resolveGrantSelfOperationForModule() itself routes
+// correctly given a raw generic-grant function. It does not prove that function is what's
+// actually wired at the settings module's registration site
+// (packages/module-registry/src/index.ts:1037-1039: `resolveGrantSelfOperationForModule(deps.
+// grantSelfOperationForModule)`, not a bare `deps.grantSelfOperationForModule`). Drive the real
+// registration through getBuiltInModuleRegistrations() so a regression to the raw pass-through
+// is caught at the wiring site, not just in the routing helper's own unit coverage.
+describe("settings module registration wires grantSelfOperationForModule through resolveGrantSelfOperationForModule (#1263)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+  let server: FastifyInstance;
+  let grantSpy: ReturnType<typeof vi.fn>;
+
+  const controlManifest: JarvisModuleManifest = {
+    id: "wiring-control-fixture",
+    name: "Wiring Control Fixture",
+    version: "0.1.0",
+    publisher: "test",
+    lifecycle: "optional",
+    compatibility: { jarv1s: ">=0.0.0" },
+    availability: { defaultEnabled: true, required: false, supportsUserDisable: true },
+    assistantTools: [
+      tool("wiring-control-fixture.autoThing", {
+        selfOperationGrant: "granted_at_install",
+        actionFamilyId: "wiring-control-fixture.family"
+      })
+    ]
+  };
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+    grantSpy = vi.fn(async () => {});
+
+    const settingsRegistration = getBuiltInModuleRegistrations().find(
+      (registration) => registration.manifest.id === "settings"
+    );
+    if (!settingsRegistration?.registerRoutes) {
+      throw new Error("settings module registration is missing registerRoutes");
+    }
+
+    server = Fastify({ logger: false });
+    // Only rootDb/dataContext/resolveAccessContext/listModuleManifests are required by
+    // registerSettingsRoutes (packages/settings/src/routes.ts) -- every other
+    // BuiltInRouteDependencies field is optional and defaulted internally, so this fixture stays
+    // deliberately minimal.
+    settingsRegistration.registerRoutes(server, {
+      rootDb: appDb,
+      dataContext,
+      resolveAccessContext: async (request: FastifyRequest) => {
+        const token = request.headers.authorization?.replace(/^Bearer\s+/i, "");
+        if (token === ids.sessionA) return { actorUserId: ids.userA, requestId: "req:wiring-a" };
+        throw new HttpError(401, "Unauthorized");
+      },
+      listModuleManifests: () => [tasksModuleManifest, controlManifest],
+      grantSelfOperationForModule: grantSpy
+    } as unknown as BuiltInRouteDependencies);
+    await server.ready();
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server.close(), appDb.destroy()]);
+  });
+
+  it("enabling the required tasks module never invokes the raw grantSelfOperationForModule dependency", async () => {
+    const response = await server.inject({
+      method: "PATCH",
+      url: "/api/me/modules/tasks",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { disabled: false }
+    });
+
+    expect(response.statusCode).toBe(200);
+    // If the wiring at index.ts:1037-1039 ever regressed to passing deps.grantSelfOperationForModule
+    // straight through instead of resolveGrantSelfOperationForModule(deps.grantSelfOperationForModule),
+    // this raw spy would be invoked for the tasks manifest instead of being intercepted by the
+    // compat-helper route -- that regression is exactly what this assertion catches.
+    expect(grantSpy).not.toHaveBeenCalled();
+  });
+
+  it("enabling a non-tasks module invokes the raw grantSelfOperationForModule dependency", async () => {
+    const response = await server.inject({
+      method: "PATCH",
+      url: "/api/me/modules/wiring-control-fixture",
+      headers: { authorization: `Bearer ${ids.sessionA}` },
+      payload: { disabled: false }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(grantSpy).toHaveBeenCalledTimes(1);
+    expect(grantSpy).toHaveBeenCalledWith(expect.anything(), controlManifest);
   });
 });
