@@ -146,13 +146,11 @@ export function registerSportsRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = request.body as CreateSportsFollowRequest;
-        if (!catalogEntry(input.competitionKey)) {
-          throw new HttpError(400, `Unknown competition: ${input.competitionKey}`);
-        }
-        const follow = await dependencies.dataContext.withDataContext(accessContext, (db) =>
-          repository.create(db, input)
+        const result = await dependencies.dataContext.withDataContext(accessContext, (db) =>
+          service.followTeam(db, input)
         );
-        return { follow };
+        if (!result.ok) throw new HttpError(400, result.error);
+        return { follow: result.follow };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -165,6 +163,9 @@ export function registerSportsRoutes(
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
+        // Stays on the raw repository, not service.unfollowTeam: REST already has the row id
+        // (from GET /api/sports/follows), so the service's catalogKey -> id resolution is only
+        // needed by the assistant tool, which never sees row ids (#1265).
         const { id } = request.params as { id: string };
         const ok = await dependencies.dataContext.withDataContext(accessContext, (db) =>
           repository.remove(db, id)

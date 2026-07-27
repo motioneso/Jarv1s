@@ -343,7 +343,7 @@ describe("sports routes", () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.follow.competitionKey).toBe("nba");
-    expect(repo.created).toEqual([{ competitionKey: "nba" }]);
+    expect(repo.created).toEqual([{ competitionKey: "nba", teamKey: null }]);
     await app.close();
   });
 
