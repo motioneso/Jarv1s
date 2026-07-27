@@ -3983,3 +3983,35 @@ Scope of the delegation, stated precisely so a successor does not over-read it:
 
 Reviewer continuity: the `fable-sec-1311` agent holds the traced context for #1311 and should be
 re-sent the finished branch rather than respawned cold.
+
+## #1310 — live UAT FAILED, 2026-07-27 (lane is RED)
+
+Reported by the lane before its relay: a real Playwright run against the restarted instance
+(api pid 1190206 :3000, web pid 1189688 :5173, both launched ~16:02, after fix commit `1146a76e`),
+real login as `ben@ben.com`, real chat turn, no mocked routes. The page loaded already in dark mode,
+the run sent "switch to light mode", and **the DOM never flipped within 60s**.
+
+That is the original #1310 symptom reproducing *on the fix*. **PR #1276 is RED until it is explained.**
+A green `verify:foundation` must not be reported alongside this without it attached — a passing gate
+next to a failing live path is the exact pairing that let this bug reach Ben's hands the first time.
+The gate itself was healthy at last check (past `test:uat-seed` 23/23, into `test:integration`,
+no `### FINAL` marker yet) — that is not in dispute and does not discharge anything.
+
+Discriminators handed to the lane, cheapest first:
+
+1. Did `themes.color-mode` change in the DB during the run? Row changed + DOM stale = the write works
+   and the invalidation did not fire (fix incomplete). Row unchanged = the tool never ran, which is a
+   chat-routing/tool-selection problem, not a refresh problem.
+2. If the write landed, prime suspect is `resolveQueryKeyToken`, made fail-closed in `a05fad65`: an
+   unrecognised token returns null and the invalidation silently does nothing — no error, no log, no
+   refresh, which is exactly this symptom. Unit tests cannot catch it because they pass a token the
+   resolver already knows. Compare the token the settings tool emits at runtime byte-for-byte against
+   the resolver's table.
+3. Confirm the `action_result` record reached the shell with a non-empty `affectsQueryKeys` at all —
+   `app-shell.tsx` skips the record entirely when that array is empty or missing.
+
+**Ruling: fail-closed stays.** Do not fix this by widening the resolver to a permissive fallback. If
+the token is wrong, fix the emitter or add the token deliberately.
+
+Lane relayed mid-debug at ~71% context; the successor must start from "the live UAT failed, here is
+the evidence", not from "run the live UAT".
