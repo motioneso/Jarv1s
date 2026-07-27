@@ -535,3 +535,48 @@ Enter`** (a long brief lands as unsubmitted pasted text).
 - **Stop rule restated to f with the missing clause made explicit:** commit finished work *first*,
   then one line to the Coordinator, then stop.
 - Monitor `bifjssgyk` stopped (watched the dead session); replaced with `boxl5xgsc` on `w1:p121`.
+
+### 2026-07-26 — Ben's two rulings; Tasks 7 and 8 landed; builder g driving
+
+**Ben ruled on both open questions (binding).**
+
+1. **`notes.delete` is approve-once, not confirm-always** — "don't need to baby proof." Written up
+   as `docs/superpowers/plans/1263/task-07a.md`, which corrects the already-committed `63a38cdd`.
+   The consequence matters and is stated in that file: `policy.ts:37` confirms **any** destructive
+   tool regardless of tier, so approve-once is unreachable while `notes.delete` stays
+   `risk: "destructive"`. Implementing the ruling *requires* the downgrade to `risk: "write"` +
+   `executionPolicy: "auto"` + `actionFamilyId`. Declaring `granted_at_install` on a still-destructive
+   tool would silently prompt forever — the exact trap Task 2's assertion exists to catch.
+   **Accepted residual, recorded for the PR body:** `notesDeleteExecute`
+   (`write-tools.ts:232`) is a bare `unlink` — no trash, no restore. Unlike the `tasks.deleteList`
+   downgrade, there is **no structural guardrail** behind this one. Ben was told and ruled anyway;
+   a soft-delete path is a possible follow-up, not #1263 scope.
+2. **Email requires approval before sending** — "Jarvis should approve for email. Again users can
+   give it full freedom though." This **reverses** the previous Task 11 ruling, which would have had
+   Jarvis send mail with no card ever. `task-11.md` rewritten: `email.sendReply` **keeps
+   `risk: "destructive"`, no family, no `executionPolicy`**, and merely declares `confirm_always`
+   — preserved-by-declaration, zero runtime change. `email.draftReply` is `granted_at_install`
+   (drafting reaches nobody and is reversible).
+   - **Judgment call flagged to Ben:** "full freedom" is satisfied today only by global YOLO, which
+     bypasses `confirm_always`/destructive/`requiresConfirmation` alike. A per-family email
+     auto-send tier would need the destructive floor removed, which is what makes "never silently
+     sends mail" a hard guarantee rather than a flippable default. Kept the floor; per-family
+     control is a separate decision (candidate for #1266).
+
+**`confirm_always` roster is still four, with one swap:** `memory.forget`, `people.merge`,
+`people.splitIdentity`, **`email.sendReply`** (in), **`notes.delete`** (out). `task-16.md` and
+`task-17.md` counts updated. Plan commit `1b622d93`.
+
+**Tasks landed.** Task 7 (Notes) `63a38cdd` — superseded in part by 7a. Task 8 (People) `32a75627`
+spot-checked clean: `people.merge`/`people.splitIdentity` keep `risk: "destructive"` +
+`executionPolicy: "confirm"` + `confirm_always`; `acceptMatch`/`rejectMatch` granted.
+**Checked the obvious bypass and it holds:** `people.acceptMatch` is granted-at-install and takes an
+arbitrary `candidateId`, so if it could accept a `merge_people` candidate it would be a
+no-confirmation route around the confirm-always `people.merge`. It cannot — `service.ts:75` throws
+`RequiresExplicitActionError` for `merge_people` and `split_identity` kinds, and that guard is
+enforced in code (not just tool prose) and pinned by `service.test.ts:78`. **8 of 17 committed.**
+
+**Fleet.** Builder f stopped mid-Task-9 (memory family added, uncommitted) and was reaped with pane
+`w1:p121`. **`builder-1263-g`** spawned, pane `w1:p122`, tab `w1:t3J`, **Sonnet 5 confirmed**, queue
+= task-07a → task-09 (told to `git diff` first so it builds on f's partial) → task-10. Stop rule
+restated with "commit FIRST" called out as the clause f violated.
