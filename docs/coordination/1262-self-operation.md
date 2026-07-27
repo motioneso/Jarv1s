@@ -768,3 +768,41 @@ test files by the builder. Re-run in flight.
 
 **19 of 19 committed.** Next: full gate green → PR → Opus adversarial QA (security tier, must post
 its verdict to the PR) → Ben's merge sign-off → merge.
+
+## Continuation note — 2026-07-27, post-compaction (coordinator session 43e5f5e2)
+
+All 19 tasks committed. Test split committed as `19fa10b9` (mcp-gateway.test.ts 899 lines,
+new tests/integration/mcp-gateway-self-operation.test.ts 240, tests/unit/mcp-gateway-units.test.ts
+back to its origin/main 969, new tests/unit/self-operation-chassis.test.ts).
+
+**Isolated gate run (builder l, JARVIS_PGDATABASE=jarvis_gate_1263, DROP/CREATE before run):**
+exit 1. Clean through test:unit (3377/3377), db:migrate clean, test:uat-seed 23/23 — the 3
+uat-seed failures from the contaminated run were an artifact of hitting the live DB, not a
+regression. test:integration 1712 passed / 1 failed.
+
+**The one failure is ours and the test is what's wrong.** `tests/integration/focus-time.test.ts:97`
+asserts `allowedTiers` `toEqual(["ask_each_time", "trusted_auto"])`; Task 12a (`d70b8386`)
+deliberately added `always_confirm` to `calendar_writeback` under the standing epic rule that every
+family must let the user demand a prompt back. Coordinator verified the assertion directly and
+ruled: **fix the test, never the manifest.** Reverting the manifest would break the rule — this is
+the third stale-assertion-vs-ruling collision on this run.
+
+**Shared dev DB remediation — verified clean:** UAT Fake Provider rows 0, UAT Fake Model rows 0,
+`ai.service_bindings` = `{"chat":{"kind":"mode","tier":"interactive"}}`, `module.news` key absent
+(not dangling).
+
+**Open for Ben, dev instance only, not a code defect:**
+- `ai.service_bindings.module.news` was overwritten and is unrecoverable — news topic/source add
+  will 503 "Topic checking unavailable" until he reconfigures it. Ben acknowledged: "reconfigure
+  news later, keep going."
+- `instance_settings.onboarding.state` was also touched inside the incident window
+  (04:01:10–04:01:18 UTC, synthetic UAT actor `00000000-0000-4000-8000-000000000001`); current
+  value `{"value":"completed"}`. No pre-incident snapshot exists, so it is flagged as touched, not
+  confirmed unchanged. Nothing else in `instance_settings` has a timestamp in the window.
+
+**Next:** builder l fixes focus-time.test.ts + re-runs the full gate on a fresh gate DB → coordinator
+opens the PR (body drafted, four disclosures: notes delete is permanent/no trash; email always
+asks and only global YOLO removes it; task-list/tag delete no longer asks and tag-assignment loss
+is silent; calendar delete asks by default but is user-promotable) → Opus `coordinated-qa`
+(security tier, must `gh pr comment` its verdict) → surface to Ben → **PAUSE for his merge
+sign-off** → merge → then spawn #1264 + #1265 in parallel.
