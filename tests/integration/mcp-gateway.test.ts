@@ -7,9 +7,12 @@ import {
   AssistantToolGateway,
   ConfirmationRegistry,
   SessionTokenRegistry,
-  type GatewaySessionRecord
+  grantSelfOperationForModule,
+  type GatewaySessionRecord,
+  type SelfOperationManifestInput
 } from "@jarv1s/ai";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 import type { JarvisModuleManifest, ToolExecute } from "@jarv1s/module-sdk";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -341,6 +344,114 @@ describe("AssistantToolGateway", () => {
       }
     ]);
     expect(emitted[0]?.record.actionRequestId).toMatch(/^mcp_/);
+  });
+
+  // #1263 Task 17: unlike the two tests above (which stub getFamilyTier directly), these read the
+  // tier the way production does — from the real AiRepository/DataContextRunner — so they actually
+  // prove the install-grant write path and a stored user override are honored end to end.
+  function dbBackedActionPolicy(ctx: { actorUserId: string; requestId: string }) {
+    return {
+      getFamilyTier: async (moduleId: string, familyId: string) =>
+        runner.withDataContext(
+          { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+          async (scopedDb) => {
+            const policies = await repository.listActionPolicies(scopedDb);
+            return (
+              policies.find((p) => p.moduleId === moduleId && p.actionFamilyId === familyId)
+                ?.tier ?? null
+            );
+          }
+        ),
+      getFamilyManifest: async (moduleId: string, familyId: string) =>
+        moduleId === exampleToolModule.id
+          ? (exampleToolModule.assistantActionFamilies?.find((f) => f.id === familyId) ?? null)
+          : null
+    };
+  }
+
+  it("first use after install grant runs without an action card", async () => {
+    const grantManifest: SelfOperationManifestInput = {
+      id: exampleToolModule.id,
+      assistantTools: exampleToolModule.assistantTools?.map((tool) =>
+        tool.name === "example.autoWrite"
+          ? { ...tool, selfOperationGrant: "granted_at_install" as const }
+          : tool
+      )
+    };
+
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-install-grant-1" },
+      (scopedDb) => grantSelfOperationForModule(scopedDb, repository, grantManifest)
+    );
+
+    const installGrantGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [exampleToolModule],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 30_000,
+      actionPolicy: (ctx) => dbBackedActionPolicy(ctx)
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-install-grant",
+      allowedToolNames: null
+    });
+
+    const res = await installGrantGateway.callTool(token, "example.autoWrite", { value: "quiet" });
+
+    expect(res.ok).toBe(true);
+    expect(emitted.map((entry) => entry.record.kind)).toEqual(["action_result"]);
+  });
+
+  it("stored always_confirm override still produces an action card", async () => {
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-always-confirm-override" },
+      (scopedDb) =>
+        repository.setActionPolicy(scopedDb, exampleToolModule.id, "dummy", "always_confirm")
+    );
+
+    const overrideGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [exampleToolModule],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 30_000,
+      actionPolicy: (ctx) => dbBackedActionPolicy(ctx)
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-always-confirm-override",
+      allowedToolNames: null
+    });
+
+    const call = overrideGateway.callTool(token, "example.autoWrite", { value: "quiet" });
+    const request = await waitForActionRequest();
+
+    expect(request.toolName).toBe("example.autoWrite");
+    expect(exampleToolCalls).toHaveLength(0);
+
+    await overrideGateway.resolveActionRequest(ids.userA, request.actionRequestId, "cancelled");
+    await call;
+  });
+
+  it("the four built-in confirm_always tools remain the only confirmation declarations", () => {
+    const confirmAlwaysTools: string[] = [];
+    for (const manifest of getBuiltInModuleManifests()) {
+      for (const tool of manifest.assistantTools ?? []) {
+        if (tool.selfOperationGrant === "confirm_always") {
+          confirmAlwaysTools.push(tool.name);
+        }
+      }
+    }
+
+    expect(confirmAlwaysTools.sort()).toEqual(
+      ["email.sendReply", "memory.forget", "people.merge", "people.splitIdentity"].sort()
+    );
   });
 
   it("always confirms destructive tools even if executionPolicy is auto", async () => {
