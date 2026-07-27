@@ -14,6 +14,7 @@ import type { Job } from "pg-boss";
 import type { Kysely } from "kysely";
 
 import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
+import { HostPinningViolationError } from "@jarv1s/host-fetch";
 import { assertModuleJobPayload, type ExternalModuleJobPayload } from "@jarv1s/jobs";
 import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
 import type {
@@ -26,6 +27,98 @@ import type { CreateNotificationInput } from "@jarv1s/notifications";
 import type { ModuleCredentialCipher } from "@jarv1s/settings";
 
 import { createVerifiedExternalModuleInvoker } from "./external-module-invoke.js";
+
+// ---------------------------------------------------------------------------
+// #1306 Task 22: a host-only, opt-in fetch bypass for UAT/e2e runs.
+//
+// Generic on purpose — keyed on nothing about job-search, so any external
+// module's UAT spec can turn it on. Lives here (rather than in
+// external-module-invoke.ts, which owns the actual `createExternalModuleRpcHandler`
+// construction site) because this is the file the worker composes a queue
+// handler from — see registerWorker in worker.ts, which calls
+// createExternalModuleJobHandler() exactly once per queue at boot time inside
+// externalReconciler.reconcileAll(). "Read at handler construction" therefore
+// means read once at worker startup, never per-job.
+//
+// Three routes to a deterministic fixture were considered and rejected (full
+// reasoning in docs/superpowers/handoffs/2026-07-27-job-search/parts/27-task22-e2e.md):
+// ctx.fetch itself refuses a Compose-network 10.x address before the allowlist
+// is even consulted; Playwright route interception can't see a worker child
+// process's requests; and a module-side env read is dead code because a worker
+// child's environment is exactly three keys (LANG, LC_ALL, TZ) — none of them
+// this one. Injecting `createFetch` at the host, in the worker app, is the only
+// seam that leaves the module's shipped bytes identical between UAT and prod.
+// ---------------------------------------------------------------------------
+
+/**
+ * Decides whether the fixture-fetch bypass is active this process, and fails
+ * loudly if it is half-configured.
+ *
+ * The guard is POSITIVE and `NODE_ENV` plays no part. `process.env.NODE_ENV
+ * !== "production"` is fail-OPEN: NODE_ENV is unset in a plain `node
+ * dist/index.js`, in a container that forgot to set it, and in most systemd
+ * units, and `undefined !== "production"` is true — a bypass whose guard
+ * defaults to "on" is not a guard. JARVIS_RUNTIME_MODE is net-new (nothing
+ * else in the tree reads it); unset never opens the seam.
+ *
+ * Returns an object with a `createFetch` key ONLY when the bypass is active —
+ * callers must spread the result (`...resolveE2eFetchOverride()`) rather than
+ * read a possibly-undefined property, so a stray `createFetch: undefined`
+ * can never slip past a `??` further down the chain undetected.
+ */
+export function resolveE2eFetchOverride(env: NodeJS.ProcessEnv = process.env): {
+  readonly createFetch?: (allowedHosts: readonly string[]) => typeof fetch;
+} {
+  const e2eMode = env.JARVIS_RUNTIME_MODE === "e2e";
+  const fixtureBase = env.JARVIS_E2E_MODULE_FETCH_BASE;
+
+  if (fixtureBase && !e2eMode) {
+    throw new Error(
+      'JARVIS_E2E_MODULE_FETCH_BASE is set but JARVIS_RUNTIME_MODE is not "e2e". ' +
+        "This variable enables a host-fetch bypass and must never be set outside the UAT harness."
+    );
+  }
+
+  if (!e2eMode || !fixtureBase) {
+    return {};
+  }
+
+  return { createFetch: createE2eFixtureFetch(fixtureBase) };
+}
+
+/**
+ * Builds a `createFetch` override with the exact shape
+ * `createExternalModuleRpcHandler`'s `createFetch` option expects
+ * (`(allowedHosts) => typeof fetch`, see worker-rpc-host.ts's `fetch.request`
+ * RPC method) — answers from a static fixture origin (`base`) instead of the
+ * real internet.
+ *
+ * Still enforces the module's declared `fetchHosts` BEFORE rewriting the
+ * origin, exactly as `createHostPinnedFetch` enforces them for a real fetch:
+ * a fixture fetch that answered every hostname would silently disable the one
+ * check `fetchHosts` exists to make, handing the module the open internet in
+ * disguise. `base` must already be reachable from inside the worker container
+ * — this function does no container-vs-host address translation of its own,
+ * it only rewrites the path+query onto whatever origin it is given.
+ */
+export function createE2eFixtureFetch(
+  base: string
+): (allowedHosts: readonly string[]) => typeof fetch {
+  const baseUrl = new URL(base);
+  return (allowedHosts: readonly string[]) => {
+    const allowed = new Set(allowedHosts);
+    return (async (input, init) => {
+      const requestedUrl = new URL(
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url
+      );
+      if (!allowed.has(requestedUrl.hostname)) {
+        throw new HostPinningViolationError(requestedUrl.hostname, "host_not_declared");
+      }
+      const rewritten = new URL(`${requestedUrl.pathname}${requestedUrl.search}`, baseUrl);
+      return fetch(rewritten, init);
+    }) as typeof fetch;
+  };
+}
 
 export interface ExternalModuleJobHandlerDeps {
   readonly module: ExternalModuleDiscovery;
@@ -67,7 +160,8 @@ export function createExternalModuleJobHandler(
     runtime: deps.runtime,
     listActiveUserIds: deps.listActiveUserIds,
     ai: deps.ai,
-    postNotification: deps.postNotification
+    postNotification: deps.postNotification,
+    ...resolveE2eFetchOverride()
   });
   return async (job) => {
     assertModuleJobPayload(queue, job.data);

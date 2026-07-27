@@ -82,6 +82,12 @@ export interface VerifiedExternalModuleInvokerDeps {
     access: AccessContext,
     input: CreateNotificationInput
   ) => Promise<void>;
+  // #1306 Task 22: host-only, opt-in fetch override for UAT/e2e runs (see
+  // external-module-job-handler.ts's resolveE2eFetchOverride/createE2eFixtureFetch,
+  // the only caller that ever populates this today). Passed straight through to
+  // createExternalModuleRpcHandler's own `createFetch` seam below — this type has
+  // no opinion about what it does, only that it is optional and module-agnostic.
+  readonly createFetch?: (allowedHosts: readonly string[]) => typeof fetch;
 }
 
 export function createVerifiedExternalModuleInvoker(
@@ -143,7 +149,11 @@ export function createVerifiedExternalModuleInvoker(
       // signature already matches what createExternalModuleRpcHandler expects, so
       // no per-call moduleId-binding wrapper is needed.
       postNotification: deps.postNotification,
-      ...(deps.ai ? { ai: (scopedDb, request) => deps.ai!(scopedDb, args.moduleId, request) } : {})
+      ...(deps.ai ? { ai: (scopedDb, request) => deps.ai!(scopedDb, args.moduleId, request) } : {}),
+      // #1306 Task 22: spread only when present — a bare `createFetch: undefined`
+      // key would still be "own key `in` the object" and defeat the seam's own
+      // "constructed with no createFetch key at all" test when this is unset.
+      ...(deps.createFetch ? { createFetch: deps.createFetch } : {})
     });
     const result = await deps.runtime.invoke(
       current,
