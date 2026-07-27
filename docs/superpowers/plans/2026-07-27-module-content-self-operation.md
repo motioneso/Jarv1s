@@ -47,10 +47,12 @@ holds the tool `execute`/`summarize` functions, composed at boot the same way
 ### Task 1: Drop `guidance` from `news.addTopic`'s assistant-tool input schema
 
 **Files:**
+
 - Modify: `packages/news/src/manifest.ts:335–356` (the `news.addTopic` tool declaration)
 - Create: `tests/unit/news-manifest.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: nothing new — this is a schema-only edit. `newsAddTopicExecute`
   (`packages/news/src/chat-tools.ts:243`) keeps reading `guidance` dynamically off the raw input
@@ -134,6 +136,7 @@ git commit -m "fix(news): drop unvalidated guidance field from addTopic tool sch
 ### Task 2: Widen `SportsService` with a shared `SportsFollowsWriter` + `followTeam`/`unfollowTeam`
 
 **Files:**
+
 - Modify: `packages/sports/src/sports-service.ts` (add `SportsFollowsWriter`, widen
   `SportsServiceDependencies.repository`, add two methods)
 - Modify: `packages/sports/src/routes.ts` (import `SportsFollowsWriter` from `sports-service.js`
@@ -142,6 +145,7 @@ git commit -m "fix(news): drop unvalidated guidance field from addTopic tool sch
 - Create: `tests/unit/sports-service-follows.test.ts`
 
 **Interfaces:**
+
 - Consumes: `catalogEntry(competitionKey: string)` from `./source/catalog.js` (existing, returns
   `undefined` for an unknown key — same validator `routes.ts:161` uses today).
 - Produces (for Task 3/4 to call):
@@ -158,7 +162,10 @@ import { describe, expect, it } from "vitest";
 import type { CreateSportsFollowRequest, SportsFollowDto } from "@jarv1s/shared";
 import type { DataContextDb } from "@jarv1s/db";
 
-import { SportsService, type SportsFollowsWriter } from "../../packages/sports/src/sports-service.js";
+import {
+  SportsService,
+  type SportsFollowsWriter
+} from "../../packages/sports/src/sports-service.js";
 
 function makeFakeWriter(initial: SportsFollowDto[] = []): SportsFollowsWriter & {
   readonly rows: SportsFollowDto[];
@@ -209,7 +216,9 @@ describe("SportsService.followTeam / unfollowTeam (#1265)", () => {
   it("rejects a competitionKey outside the catalog before any write", async () => {
     const writer = makeFakeWriter();
     const service = makeService(writer);
-    const result = await service.followTeam({} as DataContextDb, { competitionKey: "not-a-league" });
+    const result = await service.followTeam({} as DataContextDb, {
+      competitionKey: "not-a-league"
+    });
     expect(result.ok).toBe(false);
     expect(writer.rows).toHaveLength(0);
   });
@@ -280,6 +289,7 @@ Change `SportsServiceDependencies.repository` (line 82) from `SportsFollowsReade
 ```typescript
   readonly repository: SportsFollowsWriter;
 ```
+
 ```typescript
   private readonly repository: SportsFollowsWriter;
 ```
@@ -332,7 +342,11 @@ In `packages/sports/src/routes.ts`, delete the locally-declared `SportsFollowsWr
 (lines 24–31) and import it from `sports-service.js` instead:
 
 ```typescript
-import { SportsService, type SportsFollowsReader, type SportsFollowsWriter } from "./sports-service.js";
+import {
+  SportsService,
+  type SportsFollowsReader,
+  type SportsFollowsWriter
+} from "./sports-service.js";
 ```
 
 (the module already imports `SportsService, type SportsFollowsReader` from that path — just add
@@ -371,10 +385,12 @@ git commit -m "feat(sports): add SportsService.followTeam/unfollowTeam (#1265)"
 ### Task 3: Route the REST follow/unfollow endpoints through the service
 
 **Files:**
+
 - Modify: `packages/sports/src/routes.ts:153–188` (`POST /api/sports/follows`,
   `DELETE /api/sports/follows/:id`)
 
 **Interfaces:**
+
 - Consumes: `SportsService.followTeam`/`SportsService.unfollowTeam` from Task 2.
 - Produces: no interface change — response shapes (`{ follow }`, `{ ok }`) are unchanged, so
   `tests/unit/sports-routes.test.ts` (already exists, already injects a full fake `repository`)
@@ -394,15 +410,15 @@ Add one case to `tests/unit/sports-routes.test.ts` (a repo-injected assertion, a
 existing `"POST /api/sports/follows persists via the repository"` test at line 335):
 
 ```typescript
-  it("POST /api/sports/follows still rejects an unknown competitionKey with 400", async () => {
-    const app = buildApp();
-    const response = await app.inject({
-      method: "POST",
-      url: "/api/sports/follows",
-      payload: { competitionKey: "not-a-league" }
-    });
-    expect(response.statusCode).toBe(400);
+it("POST /api/sports/follows still rejects an unknown competitionKey with 400", async () => {
+  const app = buildApp();
+  const response = await app.inject({
+    method: "POST",
+    url: "/api/sports/follows",
+    payload: { competitionKey: "not-a-league" }
   });
+  expect(response.statusCode).toBe(400);
+});
 ```
 
 (Match the existing file's `buildApp()`/injection helper name exactly — read the file's top-of-file
@@ -421,23 +437,23 @@ file after the refactor.
 In `packages/sports/src/routes.ts`, replace the `POST /api/sports/follows` handler body:
 
 ```typescript
-  server.post(
-    "/api/sports/follows",
-    { schema: createSportsFollowResponseSchema },
-    async (request, reply) => {
-      try {
-        const accessContext = await dependencies.resolveAccessContext(request);
-        const input = request.body as CreateSportsFollowRequest;
-        const result = await dependencies.dataContext.withDataContext(accessContext, (db) =>
-          service.followTeam(db, input)
-        );
-        if (!result.ok) throw new HttpError(400, result.error);
-        return { follow: result.follow };
-      } catch (error) {
-        return handleRouteError(error, reply);
-      }
+server.post(
+  "/api/sports/follows",
+  { schema: createSportsFollowResponseSchema },
+  async (request, reply) => {
+    try {
+      const accessContext = await dependencies.resolveAccessContext(request);
+      const input = request.body as CreateSportsFollowRequest;
+      const result = await dependencies.dataContext.withDataContext(accessContext, (db) =>
+        service.followTeam(db, input)
+      );
+      if (!result.ok) throw new HttpError(400, result.error);
+      return { follow: result.follow };
+    } catch (error) {
+      return handleRouteError(error, reply);
     }
-  );
+  }
+);
 ```
 
 Leave `DELETE /api/sports/follows/:id` exactly as-is (still calls `repository.remove(db, id)`
@@ -461,6 +477,7 @@ git commit -m "refactor(sports): route POST /follows through SportsService.follo
 ### Task 4: Add `sports.followTeam` / `sports.unfollowTeam` assistant tools + action family
 
 **Files:**
+
 - Create: `packages/sports/src/chat-tools.ts`
 - Modify: `packages/sports/src/manifest.ts` (add `assistantActionFamilies`, two new
   `assistantTools` entries)
@@ -471,6 +488,7 @@ git commit -m "refactor(sports): route POST /follows through SportsService.follo
   assertions)
 
 **Interfaces:**
+
 - Consumes: `SportsService`, `SportsFollowsRepository` (Task 2/existing), `catalogEntry` (existing).
 - Produces: `sportsFollowTeamExecute`, `sportsUnfollowTeamExecute`, `summarizeSportsFollowTeam`,
   `summarizeSportsUnfollowTeam`, `configureSportsChatTools(datasetClient)` — all exported from
@@ -672,7 +690,10 @@ function requireService(): SportsService {
   return service;
 }
 
-export const sportsFollowTeamExecute: ToolExecute = async (scopedDb, input): Promise<ToolResult> => {
+export const sportsFollowTeamExecute: ToolExecute = async (
+  scopedDb,
+  input
+): Promise<ToolResult> => {
   assertDataContextDb(scopedDb);
   const competitionKey = stringField(input, "competitionKey");
   if (!competitionKey) return { data: { error: "Provide a competitionKey to follow." } };
@@ -804,33 +825,33 @@ In `packages/module-registry/src/index.ts`, add the import next to `configureSpo
 and call it right after the existing `configureSportsBriefingService(datasetClient);` (line ~1515):
 
 ```typescript
-      configureSportsBriefingService(datasetClient);
-      configureSportsChatTools(datasetClient);
+configureSportsBriefingService(datasetClient);
+configureSportsChatTools(datasetClient);
 ```
 
 Update `tests/unit/sports-manifest.test.ts`'s tool-count test and add new assertions:
 
 ```typescript
-  it("exposes one read-risk briefing tool and two write-risk follow tools", () => {
-    expect(sportsModuleManifest.assistantTools).toHaveLength(3);
-    const byName = Object.fromEntries(
-      sportsModuleManifest.assistantTools.map((tool) => [tool.name, tool])
-    );
-    expect(byName["sports.followedFactsToday"]?.risk).toBe("read");
-    for (const name of ["sports.followTeam", "sports.unfollowTeam"]) {
-      expect(byName[name]?.risk).toBe("write");
-      expect(byName[name]?.actionFamilyId).toBe("sports_follows");
-      expect(byName[name]?.executionPolicy).toBe("auto");
-      expect(byName[name]?.selfOperationGrant).toBe("granted_at_install");
-    }
-  });
+it("exposes one read-risk briefing tool and two write-risk follow tools", () => {
+  expect(sportsModuleManifest.assistantTools).toHaveLength(3);
+  const byName = Object.fromEntries(
+    sportsModuleManifest.assistantTools.map((tool) => [tool.name, tool])
+  );
+  expect(byName["sports.followedFactsToday"]?.risk).toBe("read");
+  for (const name of ["sports.followTeam", "sports.unfollowTeam"]) {
+    expect(byName[name]?.risk).toBe("write");
+    expect(byName[name]?.actionFamilyId).toBe("sports_follows");
+    expect(byName[name]?.executionPolicy).toBe("auto");
+    expect(byName[name]?.selfOperationGrant).toBe("granted_at_install");
+  }
+});
 
-  it("declares exactly one action family, sports_follows, with trusted_auto allowed", () => {
-    expect(sportsModuleManifest.assistantActionFamilies).toHaveLength(1);
-    const family = sportsModuleManifest.assistantActionFamilies?.[0];
-    expect(family?.id).toBe("sports_follows");
-    expect(family?.allowedTiers).toContain("trusted_auto");
-  });
+it("declares exactly one action family, sports_follows, with trusted_auto allowed", () => {
+  expect(sportsModuleManifest.assistantActionFamilies).toHaveLength(1);
+  const family = sportsModuleManifest.assistantActionFamilies?.[0];
+  expect(family?.id).toBe("sports_follows");
+  expect(family?.allowedTiers).toContain("trusted_auto");
+});
 ```
 
 (Replace the existing `it("exposes exactly one read-risk briefing tool", ...)` test with the first
@@ -853,9 +874,11 @@ git commit -m "feat(sports): add sports.followTeam/unfollowTeam assistant tools,
 ### Task 5: Update the complete built-in self-operation inventory + add a Sports classification block
 
 **Files:**
+
 - Modify: `tests/unit/self-operation-manifests.test.ts`
 
 **Interfaces:**
+
 - Consumes: `sportsModuleManifest` (needs adding to the file's manifest import list),
   `getBuiltInModuleManifests()` (existing).
 - Produces: nothing further downstream — this is the terminal inventory check.
@@ -903,9 +926,9 @@ block (lines ~340–353): change `expect(grantedAtInstall.length).toBe(29)` to
 and "40" instead of "29"/"38", and add a one-line comment noting the 2-tool addition:
 
 ```typescript
-  // #1265: +2 (sports.followTeam, sports.unfollowTeam), both granted_at_install — the sports
-  // module's first write tools. Collides with #1264's own count bump on this same shared test;
-  // whichever PR lands second must re-add the other's delta, not silently overwrite it.
+// #1265: +2 (sports.followTeam, sports.unfollowTeam), both granted_at_install — the sports
+// module's first write tools. Collides with #1264's own count bump on this same shared test;
+// whichever PR lands second must re-add the other's delta, not silently overwrite it.
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -938,9 +961,11 @@ git commit -m "test(self-operation): classify sports.followTeam/unfollowTeam, bu
 ### Task 6: Cross-actor RLS isolation test for sports follows via the tool path
 
 **Files:**
+
 - Create: `tests/integration/sports-follows-tool-rls.test.ts`
 
 **Interfaces:**
+
 - Consumes: real `DataContextRunner`/`withDataContext` test harness already used by
   `tests/integration/sports-follows-repository.test.ts` (mirror its setup — read that file's
   top-of-file imports/helpers before writing this one, since the exact harness helper names live
@@ -968,7 +993,9 @@ describe("sports follow tools — cross-actor RLS isolation (#1265)", () => {
       datasetClient: {} as never,
       dataContext: {
         withDataContext() {
-          throw new Error("not used — this test calls followTeam/unfollowTeam with a scoped db directly");
+          throw new Error(
+            "not used — this test calls followTeam/unfollowTeam with a scoped db directly"
+          );
         }
       },
       repository
@@ -987,7 +1014,7 @@ describe("sports follow tools — cross-actor RLS isolation (#1265)", () => {
 Run: `pnpm vitest run tests/integration/sports-follows-tool-rls.test.ts`
 Expected: FAIL — the test body above is intentionally incomplete pending the harness read; this
 step is a placeholder marker for the implementer to replace with a real assertion body using the
-exact harness from the sibling repository test file, then re-run until it fails for the *right*
+exact harness from the sibling repository test file, then re-run until it fails for the _right_
 reason (missing implementation, not a typo) before Step 3.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1016,6 +1043,7 @@ git commit -m "test(sports): cross-actor RLS isolation for followTeam/unfollowTe
 ### Task 7: News preview/confirm regression check + denylist check
 
 **Files:**
+
 - Read (verify only, no edit expected): `tests/integration/news-revalidation.test.ts` or
   `tests/unit/news-settings-pane.test.tsx` — grep for an existing test asserting `confirmSource`
   rejects a label/domain mismatch against the cached preview.
@@ -1024,6 +1052,7 @@ git commit -m "test(sports): cross-actor RLS isolation for followTeam/unfollowTe
 - Modify: `tests/unit/self-operation-manifests.test.ts` (one additional denylist assertion)
 
 **Interfaces:**
+
 - Consumes: `isSelfOperationExcluded` (existing, already imported in the test file).
 
 - [ ] **Step 1: Write the failing test**
