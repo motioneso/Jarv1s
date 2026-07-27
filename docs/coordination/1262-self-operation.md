@@ -3637,3 +3637,54 @@ his sign-off, not a substitute for it.
 `herdr pane run` CONCATENATES onto whatever is already in the box, so any message to those two panes
 must be preceded by a fresh read, and must not carry a blanket "ignore the text above" prefix that
 would make the agent discard a genuine request from him.
+
+## Continuation note — 2026-07-27, dev instance up for Ben's LAN pass
+
+**Both PRs green, both parked on Ben. Nothing merged.**
+
+- **PR #1276 (#1264)** head `0648d0f1` — QA green, delta coordinator-cleared, local gate exit 0.
+  All four CI checks SUCCESS (build-and-publish, verify-foundation, compose smoke, prod compose
+  smoke), re-verified directly via `gh pr checks` rather than trusting the monitor event alone.
+- **PR #1273 (#1265)** head `52c96e41` — all required checks SUCCESS. QA verdict GREEN but
+  **MERGE-READY: NO**, blocked solely by the unmet spec exit criterion (the LAN pass). Verdict
+  posted: https://github.com/motioneso/Jarv1s/pull/1273#issuecomment-5094636879
+- Security tier both — neither merges without Ben's explicit sign-off. The sleep-time delegation
+  covers *merging green work*; it does not discharge a mandatory exit criterion by another route.
+
+### Dev instance stood up for AWAITING-BEN item 9
+
+Ben asked "where am I testing this?" — nothing was running. `:5173` held a **zombie vite (pid
+3980183, ~2d19h old) serving `.claude/worktrees/js-03-perms`, a worktree the 2026-07-26 repo reset
+deleted**; `:3000` was empty. An open port is not a running instance.
+
+Now up, from `/home/ben/Jarv1s` on `main` @ `73e50847` (the #1263 chassis — the correct build,
+since the confirmation-card question is chassis behaviour, not either open PR):
+
+- web `http://192.168.50.36:5173` (bound `--host` for LAN), api `:3000`, worker running
+- dev Postgres `jarv1s-postgres` on `:55433`, db `jarv1s`
+- `BETTER_AUTH_SECRET` pinned to a fixed dev value → pre-existing session cookies invalidated,
+  Ben must sign in again as `ben@ben.com` (3 Anthropic models configured, so chat works)
+- `/api/auth/get-session` returns 200 both direct and through the Vite proxy — the earlier
+  `/api/auth/session` 404 was a wrong route name on my part, not a proxy fault
+
+**Test handed to Ben:** ask Jarvis to change a setting. No card → epic works. Card every time →
+the install-time grant never fires for built-in modules (AWAITING-BEN item 9), a #1263 chassis
+issue CI is blind to by construction.
+
+### Pane labels lost — do not reap
+
+`herdr pane list` now returns `label: None` for every pane except `Coordinator` (`w1:p11T`,
+session `43e5f5e2`). The build lanes and the spent `qa-1265-delta` pane can no longer be
+distinguished from **Ben's own `w1` sessions**. Reaping blind would kill one of his. Ruling:
+**reap nothing until labels are re-established** — idle panes cost zero tokens, a destroyed
+session does not. The QA pane monitor was stopped (its verdict is durable on the PR); the PR
+head/check monitor stays armed.
+
+### Still open
+
+- Ben's LAN pass → then merge in order (#1276 first, #1273 second), second lander rebases the
+  inventory assertion to an exact `toBe(39/5/4)` per `1262-rebase-brief-second-lander.md`, then a
+  fresh integration-scoped QA on the rebased result.
+- QA's four non-blocking findings to triage: no install-time pattern lint for external modules
+  (#1274); no test pins external-module tools to this validator; rejection message names the field
+  not the tool; PR #1273 body cites the stale gate DB `jarvis_gate_1265d`.
