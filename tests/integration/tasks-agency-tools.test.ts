@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Kysely } from "kysely";
 
 import {
@@ -12,8 +12,6 @@ import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/
 import { TasksRepository, tasksModuleManifest } from "@jarv1s/tasks";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
-
-const tick = () => new Promise((resolve) => setTimeout(resolve, 50));
 
 describe("Tasks agency tools through AssistantToolGateway", () => {
   let appDb: Kysely<JarvisDatabase>;
@@ -39,7 +37,17 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
   });
 
   beforeEach(() => {
-    emitted = [];
+    // #1308 defect 2: build the array as a local `sink` FIRST and close the notifier over that
+    // local, not over the outer `emitted` binding. `emitted` is a `let` that every beforeEach
+    // reassigns to a new array; the notifier below only ever reads the `sink` it was created
+    // with, so a call left dangling by a failed assertion in a PRIOR test (its `await call`
+    // never reached) can still only emit into that prior test's own array, never into
+    // whichever array `emitted` points to now. Without this, that late emit exactly reproduced
+    // the observed CI failure: a `tasks.deleteList` action_request from the list-delete test
+    // landing in the tag-delete test's array. `emitted = sink` keeps every test's existing
+    // `emitted.find(...)`/`emitted.push(...)` reads working unchanged.
+    const sink: { chatSessionId: string; record: GatewaySessionRecord }[] = [];
+    emitted = sink;
     agencyPrefs = {};
     tokens = new SessionTokenRegistry();
     confirmations = new ConfirmationRegistry();
@@ -49,7 +57,7 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
       runner,
       tokens,
       confirmations,
-      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      notifier: { emit: (chatSessionId, record) => sink.push({ chatSessionId, record }) },
       confirmTimeoutMs: 1000,
       agencyPrefs: () => ({
         get: async (key: string) => agencyPrefs[key] ?? null,
@@ -85,6 +93,25 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
     });
   });
 
+  afterEach(async () => {
+    // #1308 defect 2/3 belt-and-suspenders: if a test's own assertion throws between issuing a
+    // destructive call and reaching its `resolveActionRequest`/`await call` cleanup lines, that
+    // call is left blocked on the ConfirmationRegistry waiter for the rest of the run. Sink
+    // isolation above stops its late emit from landing in a later test's array, but the call
+    // itself should still be settled rather than left in flight. Cancel every action_request
+    // this test emitted; resolveActionRequest is a documented no-op once a row is no longer
+    // pending (or owned by a different actor), so trying both fixture actors on every
+    // outstanding id cannot disturb an unrelated row.
+    for (const entry of emitted) {
+      if (entry.record.kind !== "action_request") continue;
+      await Promise.all(
+        [ids.userA, ids.userB].map((actorUserId) =>
+          gateway.resolveActionRequest(actorUserId, entry.record.actionRequestId, "cancelled")
+        )
+      );
+    }
+  });
+
   function tokenFor(userId: string) {
     return tokens.mint({
       actorUserId: userId,
@@ -102,7 +129,13 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
     const call = gateway.callTool(tokenFor(ids.userA), "tasks.create", {
       title: "gateway agency task"
     });
-    await tick();
+    // #1308: wait on the condition actually being awaited (an action_request has landed in
+    // `emitted`) instead of a fixed 50ms delay. Emitting an action_request does DB round-trips,
+    // so a fixed sleep can elapse before the emit lands on a loaded CI runner and read a stale
+    // (empty) array — this was the observed intermittent failure.
+    await vi.waitFor(() => {
+      expect(emitted.some((entry) => entry.record.kind === "action_request")).toBe(true);
+    });
 
     const request = emitted.find((entry) => entry.record.kind === "action_request")?.record;
     expect(request?.toolName).toBe("tasks.create");
@@ -125,7 +158,10 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
     const call1 = gateway.callTool(tokenFor(ids.userA), "tasks.create", {
       title: "first-run-notice-1"
     });
-    await tick();
+    // #1308: condition wait, not a fixed delay — same fix as above.
+    await vi.waitFor(() => {
+      expect(emitted.some((entry) => entry.record.kind === "action_request")).toBe(true);
+    });
 
     const firstRequest = emitted.find((entry) => entry.record.kind === "action_request")?.record;
     if (!firstRequest || firstRequest.kind !== "action_request")
@@ -138,7 +174,10 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
     const call2 = gateway.callTool(tokenFor(ids.userA), "tasks.create", {
       title: "first-run-notice-2"
     });
-    await tick();
+    // #1308: condition wait, not a fixed delay — same fix as above.
+    await vi.waitFor(() => {
+      expect(emitted.some((entry) => entry.record.kind === "action_request")).toBe(true);
+    });
 
     const secondRequest = emitted.find((entry) => entry.record.kind === "action_request")?.record;
     if (!secondRequest || secondRequest.kind !== "action_request")
@@ -183,7 +222,10 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
       taskId: task.id,
       status: "archived"
     });
-    await tick();
+    // #1308: condition wait, not a fixed delay — same fix as above.
+    await vi.waitFor(() => {
+      expect(emitted.some((entry) => entry.record.kind === "action_request")).toBe(true);
+    });
 
     const request = emitted.find((entry) => entry.record.kind === "action_request")?.record;
     expect(request?.toolName).toBe("tasks.updateStatus");
@@ -225,7 +267,12 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
     const listId = (created.list as { id: string }).id;
 
     const call = gateway.callTool(tokenFor(ids.userA), "tasks.deleteList", { listId });
-    await tick();
+    // #1308: this was the exact reported flake — a fixed 50ms `tick()` raced the DB round-trip
+    // an emitted action_request requires, so `.find()` below intermittently returned undefined
+    // on a loaded CI runner. Wait on the condition instead, matching the tag-delete test below.
+    await vi.waitFor(() => {
+      expect(emitted.some((entry) => entry.record.kind === "action_request")).toBe(true);
+    });
 
     const request = emitted.find((entry) => entry.record.kind === "action_request")?.record;
     expect(request).toMatchObject({ kind: "action_request", toolName: "tasks.deleteList" });

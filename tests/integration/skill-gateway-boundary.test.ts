@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Kysely } from "kysely";
 
 import {
@@ -27,8 +27,6 @@ import { exampleToolCalls, exampleToolModule } from "./fixtures/example-tool-mod
  * mcp-gateway.test.ts, but with the tool-call value sourced from composeTurnText output, to
  * prove the pipeline treats skill-sourced content identically to plain user text.
  */
-
-const tick = () => new Promise((resolve) => setTimeout(resolve, 50));
 
 function skillFixture(overrides: Partial<ChatSkillDto> = {}): ChatSkillDto {
   return {
@@ -97,7 +95,15 @@ describe("skill-sourced turns at the gateway boundary (#760 Task 6)", () => {
 
   beforeEach(() => {
     exampleToolCalls.length = 0;
-    emitted = [];
+    // #1308 defect 2: build the array as a local `sink` first and close the shared gateway's
+    // notifier over that local, not over the outer `emitted` binding. `emitted` is a `let` that
+    // every beforeEach reassigns to a new array; if the notifier closed over `emitted` instead,
+    // a call left dangling by a failed assertion in a prior test could still emit into whatever
+    // array `emitted` points to by the time it settles — i.e. a LATER test's array. Assigning
+    // `emitted = sink` keeps every test's existing `emitted`/`firstActionRequest()` reads
+    // working unchanged.
+    const sink: { chatSessionId: string; record: GatewaySessionRecord }[] = [];
+    emitted = sink;
     tokens = new SessionTokenRegistry();
     confirmations = new ConfirmationRegistry();
     gateway = new AssistantToolGateway({
@@ -106,9 +112,27 @@ describe("skill-sourced turns at the gateway boundary (#760 Task 6)", () => {
       runner,
       tokens,
       confirmations,
-      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      notifier: { emit: (chatSessionId, record) => sink.push({ chatSessionId, record }) },
       confirmTimeoutMs: 30_000
     });
+  });
+
+  afterEach(async () => {
+    // #1308 defect 2/3 belt-and-suspenders: an assertion thrown between issuing a confirm-gated
+    // call and reaching its own resolveActionRequest/`await call` cleanup leaves that call
+    // blocked on the ConfirmationRegistry waiter. Sink isolation above stops its late emit from
+    // landing in a later test's array, but the call itself should still be settled rather than
+    // left in flight. Cancel every action_request this test emitted; resolveActionRequest is a
+    // documented no-op once a row is no longer pending (or owned by a different actor), so
+    // trying both fixture actors on every outstanding id cannot disturb an unrelated row.
+    for (const entry of emitted) {
+      if (entry.record.kind !== "action_request") continue;
+      await Promise.all(
+        [ids.userA, ids.userB].map((actorUserId) =>
+          gateway.resolveActionRequest(actorUserId, entry.record.actionRequestId, "cancelled")
+        )
+      );
+    }
   });
 
   it("blocks a skill-sourced write until approved — identical to a plain-text write", async () => {
@@ -120,7 +144,13 @@ describe("skill-sourced turns at the gateway boundary (#760 Task 6)", () => {
     });
 
     const call = gateway.callTool(token, "example.write", { value: turnText });
-    await tick();
+    // #1308: wait on the condition actually being awaited (the action_request card has
+    // landed) instead of a fixed 50ms delay. Emitting an action_request does DB round-trips,
+    // so a fixed sleep can elapse before the emit lands on a loaded CI runner and read a stale
+    // (empty) array.
+    await vi.waitFor(() => {
+      expect(emitted).toHaveLength(1);
+    });
 
     // Pending, never silently executed — the gateway has no skill-origin field to branch on.
     expect(emitted).toHaveLength(1);
@@ -159,7 +189,11 @@ describe("skill-sourced turns at the gateway boundary (#760 Task 6)", () => {
     });
 
     const result = await yoloGateway.callTool(token, "example.destroy", { value: turnText });
-    await tick();
+    // #1308: condition wait, not a fixed delay — same fix as above. The gateway's own promise
+    // can resolve before its notifier's emit (a DB-backed audit write) settles.
+    await vi.waitFor(() => {
+      expect(emitted.map((entry) => entry.record.kind)).toEqual(["action_result"]);
+    });
 
     expect(result.ok).toBe(true);
     expect(exampleToolCalls).toEqual([
@@ -201,7 +235,10 @@ describe("skill-sourced turns at the gateway boundary (#760 Task 6)", () => {
       allowedToolNames: null
     });
     const call = gateway.callTool(token, "example.write", { value: turnText });
-    await tick();
+    // #1308: condition wait, not a fixed delay — same fix as above.
+    await vi.waitFor(() => {
+      expect(emitted).toHaveLength(1);
+    });
     const card = firstActionRequest();
     await gateway.resolveActionRequest(ids.userA, card.actionRequestId, "confirmed");
     await call;

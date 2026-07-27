@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { sql } from "kysely";
 import type { Kysely } from "kysely";
 
@@ -14,8 +14,6 @@ import type { JarvisModuleManifest, ToolExecute } from "@jarv1s/module-sdk";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import { exampleToolCalls, exampleToolModule } from "./fixtures/example-tool-module.js";
-
-const tick = () => new Promise((resolve) => setTimeout(resolve, 50));
 
 describe("AssistantToolGateway", () => {
   let appDb: Kysely<JarvisDatabase>;
@@ -58,7 +56,15 @@ describe("AssistantToolGateway", () => {
 
   beforeEach(() => {
     exampleToolCalls.length = 0;
-    emitted = [];
+    // #1308 defect 2: build the array as a local `sink` first and close the shared gateway's
+    // notifier over that local, not over the outer `emitted` binding. `emitted` is a `let` that
+    // every beforeEach reassigns to a new array; if the notifier closed over `emitted` instead,
+    // a call left dangling by a failed assertion in a prior test could still emit into whatever
+    // array `emitted` points to by the time it settles — i.e. a LATER test's array. Assigning
+    // `emitted = sink` keeps every test's existing `emitted.find(...)`/`emitted.push(...)` reads
+    // working unchanged.
+    const sink: { chatSessionId: string; record: GatewaySessionRecord }[] = [];
+    emitted = sink;
     tokens = new SessionTokenRegistry();
     confirmations = new ConfirmationRegistry();
     gateway = new AssistantToolGateway({
@@ -67,12 +73,30 @@ describe("AssistantToolGateway", () => {
       runner,
       tokens,
       confirmations,
-      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      notifier: { emit: (chatSessionId, record) => sink.push({ chatSessionId, record }) },
       // Generous so the approve always lands before the await times out, even under heavy
       // full-suite DB load (vitest runs integration files concurrently). The post-timeout
       // no-op path is covered separately by the 20ms `fastTimeoutGateway` test below.
       confirmTimeoutMs: 30_000
     });
+  });
+
+  afterEach(async () => {
+    // #1308 defect 2/3 belt-and-suspenders: an assertion thrown between issuing a destructive/
+    // write call and reaching its own resolveActionRequest/`await call` cleanup leaves that
+    // call blocked on the ConfirmationRegistry waiter. Sink isolation above stops its late emit
+    // from landing in a later test's array, but the call itself should still be settled rather
+    // than left in flight. Cancel every action_request this test emitted; resolveActionRequest
+    // is a documented no-op once a row is no longer pending (or owned by a different actor), so
+    // trying both fixture actors on every outstanding id cannot disturb an unrelated row.
+    for (const entry of emitted) {
+      if (entry.record.kind !== "action_request") continue;
+      await Promise.all(
+        [ids.userA, ids.userB].map((actorUserId) =>
+          gateway.resolveActionRequest(actorUserId, entry.record.actionRequestId, "cancelled")
+        )
+      );
+    }
   });
 
   it("lists only tools that have an execute handler", async () => {
@@ -391,7 +415,13 @@ describe("AssistantToolGateway", () => {
     });
 
     const result = await yoloGateway.callTool(token, "example.destroy", { value: "boom" });
-    await tick();
+    // #1308: wait on the condition actually being awaited (the action_result card has landed)
+    // instead of a fixed 50ms delay. The gateway's own promise can resolve before its
+    // notifier's emit (which does a DB-backed audit write) settles, so a fixed sleep can read
+    // `emitted` before the emit lands on a loaded CI runner.
+    await vi.waitFor(() => {
+      expect(emitted.map((entry) => entry.record.kind)).toEqual(["action_result"]);
+    });
 
     expect(result.ok).toBe(true);
     expect(exampleToolCalls).toEqual([
