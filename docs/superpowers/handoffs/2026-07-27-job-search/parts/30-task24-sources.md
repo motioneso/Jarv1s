@@ -346,7 +346,7 @@ and the two new `ExternalModuleRpcError` codes above. `source.add`/`source.remov
   to know job-search's schema (or any other module's) to enforce it. N18 replaces the bespoke table
   this bullet originally proposed with the already-existing platform KV store; the "nobody's module
   table" reasoning is unchanged, only which table it points at.
-- **Three real constraints bound self-granting — state them plainly, claim nothing more (ledger
+- **Four real constraints bound self-granting — state them plainly, claim nothing more (ledger
   N18).** A module that can add a host at runtime can, by construction, add a host at runtime; no
   storage choice changes that. What actually constrains it: (1) **the capability is manifest-
   declared** — `kv.set` rejects any namespace the module's reviewed, hash-pinned manifest does not
@@ -356,8 +356,12 @@ and the two new `ExternalModuleRpcError` codes above. `source.add`/`source.remov
   `assertValidFetchHosts`/`createHostPinnedFetch` treat a granted host exactly as a manifest host, so
   the BLOCKED loopback/link-local/RFC1918/cloud-metadata subnets and DNS pinning apply identically;
   (3) **every granted host must be visible and revocable** on the module's settings surface (Task
-  20) — a capability the user cannot see is one we could not defend. Per Ben's ruling (ledger lines
-  594–601): no new security machinery beyond these three.
+  20) — a capability the user cannot see is one we could not defend. A fourth fact worth stating
+  plainly rather than leaving implicit: `kv.set`/`kv.delete` already reject a `toolRisk: "read"`
+  caller (`forbidden_kv_mutation`, unchanged by this task), so the grant write can only ever come
+  from a manual-risk tool invocation — never something the assistant calls on its own on the user's
+  behalf mid-conversation. Per Ben's ruling (ledger lines 594–601): no new security machinery beyond
+  these four.
 - **Reuse, don't rebuild, the host check — with one disclosed trade-off from moving to generic KV.**
   `isPinnableHost`/`assertValidFetchHosts` (`packages/host-fetch/src/policy.ts:1,6`) remain the only
   host-format validation this task touches. `source.add` still checks `isPinnableHost` before ever
