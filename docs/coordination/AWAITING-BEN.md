@@ -288,3 +288,21 @@ asked the first time, say so and it is a one-line change to `user_promotable`.
 
 If both passes are clean, reply with a merge OK for each PR and I will land them in order and rebase
 whichever goes second. If either fails, the finding goes back to its lane, not into a waiver.
+
+## 9. Epic #1262: does self-operation actually run without a confirmation card? (BLOCKS both merges)
+
+**Do this first on the LAN instance — before any other UAT step.** Ask Jarvis to change a setting
+it now owns (e.g. a notification preference). Watch whether a **confirmation card appears**.
+
+- **No card, change applies** → the epic's headline criterion is met; PR #1276 and PR #1273 are
+  clear to merge on their existing green verdicts.
+- **Card appears every time** → the install-time grant never reaches `settings`/`chat`, because
+  both are `lifecycle: "required"` / `defaultEnabled: true` and the only production callers of the
+  grant are the module-**enable** PATCH handlers, which such modules never go through. The tools
+  then fall back to `ask_each_time`. That is a **#1263 chassis gap, not a #1264 defect** — it wants
+  its own issue, not a revert.
+
+Why you have to be the one to check: **CI cannot see this.** Every integration test seeds the grant
+row directly instead of exercising the production grant path, and the UAT that would catch it is
+`test.fixme`. Green CI + green security QA + correct code are all consistent with the feature being
+inert. Same latent gap already ships on `main` for `tasks` (11 tools), `email` (2), `notes` (3).

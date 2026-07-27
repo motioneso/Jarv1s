@@ -3394,3 +3394,47 @@ Second RED on this lane; a third stops it and goes to Ben.
 2. `herdr pane run` leaves text as `[Pasted text #1]` and **concatenates onto anything already in
    the box** — including lines a human typed. Read the box, `send-keys Enter` to submit and clear,
    then send. `send-keys C-u` is rejected. A busy agent will not accept the Enter; wait until idle.
+
+### #1264 / PR #1276 — QA **GREEN, MERGE-READY: YES**. I am still not merging it, and the verdict is why.
+
+Grounded `28bf044f`, preflight exit 0, ahead 55 / behind 0. All 7 brief items answered concretely:
+limiter carries its own `risk !== "read"` guard at `gateway.ts:196-199` with a regression test
+pinning it; `confirmAndRun` never consults the limiter on any path; the env knobs appear in no
+`inputSchema` anywhere in `packages/` or `apps/`, so no tool can raise its own ceiling;
+`resultingRevision` is the post-mutation value and the tests assert behaviour rather than the
+comment; **route-table parity re-verified by enumeration** — 16 registrations before and after,
+identical verbs/order/paths, preHandler 1→1, and the apparent `.get` drop 13→9 is four repository
+accessors that moved, not routes. Invariants all clean; `policy.ts` untouched; no tier widened.
+
+**The finding that matters is not a defect in this PR — it may be that the epic's headline outcome
+does not happen in production at all.**
+
+The install-time grant has exactly two production callers, both module-enable PATCH handlers
+(`routes-modules.ts:128,308`). `insertActionPolicyIfAbsent` has no other production caller, and
+there is no boot-time or new-user grant loop. But `settings` and `chat` are both
+`lifecycle: "required"` / `defaultEnabled: true` — **no ordinary flow ever PATCHes them to
+enabled.** If that holds at runtime, they never receive their `trusted_auto` row, `resolvePolicy`
+falls back to `defaultTier: "ask_each_time"`, and **all 8 new tools show a confirmation card on
+every call** — the exact opposite of "guardrails, not permission prompts".
+
+Three things make this severe rather than academic. It is **invisible to CI by construction**: the
+integration tests seed the grant themselves via direct `grantSelfOperationForModule(...)` calls
+(lines 101/168/242/296/371), and the UAT that would catch it is `test.fixme`. **No test exercises
+the production grant path at all.** It is **not this PR's regression** — `tasks` (11), `email` (2)
+and `notes` (3) already ship `granted_at_install` tools on required modules on `main`; the gap
+arrived with #1263. And it means a green CI, a green QA verdict, and a correct implementation are
+all mutually consistent with the feature being inert for users.
+
+**This is the single strongest vindication of the UAT parking.** Merging on green here would have
+shipped an epic whose headline criterion is unproven end-to-end. The QA's own recommendation was
+"land it, then confirm by hand" — I am inverting that order, because confirming first costs a night
+and confirming second risks shipping a feature that does nothing. If it reproduces it wants its own
+issue against the #1263 chassis, not a revert of #1264.
+
+**Non-blocking, dispositions:** yolo-branch rate-limit denial writes its audit row but emits no
+notifier `action_result` unlike every other deny path (`gateway.ts:173-177` vs `547-552`) — sending
+back, because a security control whose trip is invisible in the activity stream contradicts the
+epic's thesis, and the PR is parked anyway so there is no schedule cost. `settings/routes.ts` at
+exactly 1000 lines — accepted, recorded, next change to that file turns the gate red. `0176` adds a
+column its own comment says has "No consumer in this PR" — accepted, noted as speculative infra in
+a permanently immutable artifact. UAT fixmes — already correctly declared in the body.
