@@ -678,3 +678,51 @@ traps: no migration, and insert-if-absent so a user's `always_confirm` survives 
 
 **13 of 17 committed.** Remaining: 12 Calendar, 13 Web Research, 14 install-grant persistence,
 15 enable-path wiring, 16 startup assertion + inventory lock, 17 walk-away regression + full gate.
+
+### 2026-07-26 — Calendar regression caught and ruled on; a third declaration value
+
+**I found a real regression in Task 12 (`0991ab47`) and it was my plan's fault, not the builder's.**
+Verified against `origin/main` rather than trusting the commit message. On `main`,
+`calendar.deleteEvent` was deliberately **double-belted**: no `executionPolicy: "auto"` (so
+`policy.ts` always confirmed it) **and** `calendar_management.allowedTiers: ["always_confirm"]` (so
+no tier — user, install, or otherwise — could ever promote it). `task-12.md` instructed removing
+**both** belts and declaring `granted_at_install`. The builder followed it exactly. Once Task 14's
+install grant landed, Jarvis would have deleted calendar events with no card at all — and deleting an
+event emails a cancellation to every attendee, which cannot be un-sent.
+
+**Why I escalated instead of deciding.** Ben's framework says `confirm_always` means durable
+unrecoverable loss and that third-party disclosure is explicitly *not* grounds for a prompt. But his
+email ruling requires a prompt precisely because mail reaches people. Calendar deletion sits on that
+line, so I gave him three concrete options rather than guessing.
+
+**Ben's ruling: "Ask by default, but I can turn it off."** Jarvis shows a confirmation card before
+deleting a calendar event. The user may flip it to automatic themselves in settings. Nothing changes
+silently at install.
+
+**Neither existing declaration value could express that**, which is the interesting part.
+`granted_at_install` is false (install must not promote). `confirm_always` is *also* false — it
+claims an unflippable guarantee while the tool is `risk:"write"` with `executionPolicy:"auto"` and a
+family permitting `trusted_auto`; a user who promoted the family would get silent deletes and the
+declaration would be a lie the Task 2 assertion trusts. **A declaration that can be false is worse
+than no declaration.**
+
+**So `task-12a.md` adds a third value, `user_promotable`** (`34983211`): wired for auto-run, but
+install does not promote it; the family's `defaultTier` stands until the user says otherwise. The
+build assertion is extended to reject a false `user_promotable` claim — the tool must be
+`risk:"write"`, have a family, have `executionPolicy:"auto"`, and the family must allow **both**
+`trusted_auto` (or promotion is impossible) and `always_confirm` (or the user can never demand the
+prompt back). A unit test per bullet. `defaultTier`'s type is untouched — that ban is unchanged.
+
+A three-values ruling header was prepended to `task-14/15/16/17` so install skips `user_promotable`
+exactly as it skips `confirm_always`, and every roster/count/exhaustiveness assertion covers all
+three.
+
+**Ordering is load-bearing: 12a must land BEFORE 14.**
+
+**Task 13 Web Research (`9ce5d558`)** committed. Builder j re-queued: 12a next, then 14.
+
+**14 of 19 committed** (1–13 plus 7a). Remaining: 12a, 14 install-grant persistence, 15 enable-path
+wiring, 16 startup assertion + inventory lock, 17 walk-away regression + full gate.
+
+**Fourth PR disclosure** (add to the three already pinned): deleting a calendar event still asks
+first, and the user can turn that off in settings if they want to.
