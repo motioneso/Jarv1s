@@ -375,3 +375,22 @@ so no successor rebuilds them.
 
 Session `70c722a2…` is to be reaped once the split commits — verified `git status` clean of any
 uncommitted source, only the context-meter log and its own relay doc were dirty.
+
+### Standing policy change: builders stop, they do not relay (2026-07-26)
+
+`builder-1263-c` (`70c722a2…`) did relay successfully after all, into `builder-1263-d`
+(`ff620bd0…`, pane resolved fresh, confirmed Sonnet 5). `70c722a2…` is reaped; continuation doc
+`3ddc7a23`.
+
+But `builder-1263-d` booted to **51% context with zero code written**. That is the real cost driver
+and it is the relay itself: each successor pays a full boot — relay skill, continuation doc,
+handoff doc, plan — before it can act. The continuity a relay buys is worth less than the context
+it costs, because the commit history plus the per-task plan files already carry the state.
+
+**New rule for this lane:** a builder at its threshold commits, sends one line naming the last
+completed task and its sha, and stops. No continuation doc, no successor, no relay skill. The
+coordinator spawns the replacement with a short brief pointing at one task file, which should boot
+near 15% rather than 51%.
+
+`builder-1263-d` has been given this instruction and is holding on Task 3 until the plan split
+commits. It is running a regression of the ten Task 2 unit tests in the meantime.
