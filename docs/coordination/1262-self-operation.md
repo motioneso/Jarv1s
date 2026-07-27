@@ -879,3 +879,40 @@ stays 38. The inventory assertions are exact, so they fail loudly if a bucket is
 Builder l (`w1:p128`, 69% — near rotation, watch it) is implementing, then re-running the full gate
 on a fresh `jarvis_gate_1263`. Opus `qa-1263` still running as the second lens. PR body still needs
 the YOLO note and the focus-block behaviour change before Ben's sign-off.
+
+### Continuation note — web.read ruling + PR body rewrite
+
+**Builder l stop-and-ask, answered.** It correctly refused to widen
+`PLANNED_CONFIRM_ALWAYS_TOOLS` (`packages/ai/src/gateway/self-operation.ts:192-197`) without
+authorisation and reported the real constraint: the `confirm_always` check at `:324-331` is a pure
+tool-NAME allowlist with no risk-field requirement, so widening the roster is the only path to
+declare `web.read` as `confirm_always`.
+
+**Ruling: widen the roster, keep `risk: "write"`.** The roster is a list of intended declarations,
+not the security control — the control is `policy.ts:40`, which confirms unconditionally for any
+write tool with no `actionFamilyId`. Promoting `web.read` to `destructive` to satisfy the informal
+"all four are destructive" convention was rejected: destructive means irreversible loss, `web.read`
+is an exfiltration vector, and overloading the risk field to mean two things would cost more than
+it buys.
+
+**Collision resolved before it could bite.** The Opus review's non-blocking #1 proposed asserting
+`confirm_always ⇒ risk destructive`. That phrasing directly contradicts the ruling above —
+`web.read` would fail it. Hardening assert 4(b) is therefore specified as the structural version:
+a `confirm_always` tool must not be promotable (no `executionPolicy: "auto"`, and either no
+`actionFamilyId` or a family whose `allowedTiers` cannot reach `trusted_auto`). All five satisfy
+it, and it catches the real regression — someone later re-risking one of the four to `write` and
+silently inheriting its family's floor. It must land in the same commit as the `web.read` change,
+not after it, because it is what converts the name-allowlist convention into a structural
+guarantee. Both reviewers independently flagged this same weakness from different angles.
+
+**Confirm-always set is now five:** `memory.forget`, `people.merge`, `people.splitIdentity`,
+`email.sendReply`, `web.read`. The plan files (`task-07a.md`, `task-12a.md`, `task-16.md`) all name
+four and carry a "a proposed fifth is a stop condition" clause — that stop condition fired, was
+escalated, and was ruled on here. Those plan lines are now stale by ruling; do not let a later
+agent "reconcile" the code back down to four.
+
+**PR body rewritten** (scratchpad `pr-1263-body.md`, not yet pushed): added the YOLO caveat, a
+fifth behaviour disclosure for focus blocks, the web-research scope paragraph, and the two new
+regressions. Inventory line now reads 31 granted / 5 confirm / 2 promotable = 38. **That split is
+derived, not verified** — hold the push until builder l's inventory test reports the real counts,
+and correct the line if they differ.
