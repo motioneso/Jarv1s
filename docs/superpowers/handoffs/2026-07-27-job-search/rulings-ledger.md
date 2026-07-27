@@ -1400,3 +1400,31 @@ re-run it, do not trust it.
 the first was true. Before calling any gate failure pre-existing, diff the file against `main` —
 `git show main:<path> | wc -l`. A failure this branch caused, described as background noise, is how
 a gate stays red across a whole epic.
+
+## N36 — a split is verified by counting test cases, not lines
+
+N35 says split rather than exempt. **Split means the cases keep running from a new path, not that
+they stop existing.** Deleting test cases to get a file under the cap is strictly worse than the
+exemption we refused: `check:file-size` goes green, `test:integration` is the *last* link in
+`verify:foundation` so the loss surfaces nowhere, and nothing in the toolchain counts cases across
+a split.
+
+Caught live: `tests/integration/notifications.test.ts` went 33 cases → 12 in the working tree, with
+the extracted `notifications-harness.ts` holding four helper exports and **zero** cases — ~574 lines
+and 21 cases with no destination.
+
+So for every test file split under this or any later gate repair, prove conservation in the commit
+message:
+
+```
+git show HEAD:<path> | grep -cE '^\s*(it|test)\('     # before
+grep -chE '^\s*(it|test)\(' <each resulting file>     # after, summed
+```
+
+The two numbers must match. A falling **line** count is the goal; a falling **case** count is a
+defect. The same applies to a helpers-only extraction, where the expected delta is exactly zero.
+
+Generalisation worth carrying past this epic: when a gate measures a proxy (line count) for a
+property we actually care about (readability), the cheapest way to satisfy the gate is usually to
+damage the property. Every mechanical gate repair needs a second, independent measure of the thing
+the gate was standing in for.
