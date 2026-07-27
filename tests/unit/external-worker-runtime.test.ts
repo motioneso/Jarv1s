@@ -78,13 +78,13 @@ describe("ExternalModuleWorkerRuntime", () => {
     process.env.JARVIS_TEST_SECRET = "must-not-cross";
     const module = await fixture();
     const runtime = new ExternalModuleWorkerRuntime({
-      invocationTimeoutMs: 500,
+      invocationStallMs: 500,
       idleTimeoutMs: 500
     });
     const rpc = async () => null;
     const [first, second] = (await Promise.all([
-      runtime.invoke(module, "echo", { delay: 30 }, rpc),
-      runtime.invoke(module, "echo", {}, rpc)
+      runtime.invoke(module, "echo", { delay: 30 }, rpc, { lane: "queue" }),
+      runtime.invoke(module, "echo", {}, rpc, { lane: "queue" })
     ])) as [
       { active: number; cwd: string; env: Record<string, string>; pid: number },
       { active: number; cwd: string; env: Record<string, string>; pid: number }
@@ -104,16 +104,22 @@ describe("ExternalModuleWorkerRuntime", () => {
   it("times out, reports crashes, and respawns on the next call", async () => {
     const module = await fixture();
     const runtime = new ExternalModuleWorkerRuntime({
-      invocationTimeoutMs: 300,
+      invocationStallMs: 300,
       idleTimeoutMs: 500
     });
-    await expect(runtime.invoke(module, "hang", {}, async () => null)).rejects.toMatchObject({
+    await expect(
+      runtime.invoke(module, "hang", {}, async () => null, { lane: "queue" })
+    ).rejects.toMatchObject({
       code: "timeout"
     });
-    await expect(runtime.invoke(module, "crash", {}, async () => null)).rejects.toMatchObject({
+    await expect(
+      runtime.invoke(module, "crash", {}, async () => null, { lane: "queue" })
+    ).rejects.toMatchObject({
       code: "crash"
     });
-    await expect(runtime.invoke(module, "echo", {}, async () => null)).resolves.toMatchObject({
+    await expect(
+      runtime.invoke(module, "echo", {}, async () => null, { lane: "queue" })
+    ).resolves.toMatchObject({
       active: 1
     });
     await runtime.close();
@@ -121,22 +127,22 @@ describe("ExternalModuleWorkerRuntime", () => {
 
   it("rejects a mismatched protocol version", async () => {
     const runtime = new ExternalModuleWorkerRuntime({
-      invocationTimeoutMs: 100,
+      invocationStallMs: 100,
       idleTimeoutMs: 500
     });
     await expect(
-      runtime.invoke(await fixture(2), "echo", {}, async () => null)
+      runtime.invoke(await fixture(2), "echo", {}, async () => null, { lane: "queue" })
     ).rejects.toBeInstanceOf(ExternalModuleWorkerError);
     await runtime.close();
   });
 
   it("times out when a worker never announces readiness", async () => {
     const runtime = new ExternalModuleWorkerRuntime({
-      invocationTimeoutMs: 30,
+      invocationStallMs: 30,
       idleTimeoutMs: 500
     });
     await expect(
-      runtime.invoke(await fixture(null), "echo", {}, async () => null)
+      runtime.invoke(await fixture(null), "echo", {}, async () => null, { lane: "queue" })
     ).rejects.toMatchObject({ code: "timeout" });
     await runtime.close();
   });
@@ -144,7 +150,7 @@ describe("ExternalModuleWorkerRuntime", () => {
   it("redacts learned credentials from bounded stderr", async () => {
     const logs: unknown[] = [];
     const runtime = new ExternalModuleWorkerRuntime({
-      invocationTimeoutMs: 500,
+      invocationStallMs: 500,
       idleTimeoutMs: 500,
       logger: { warn: (data) => logs.push(data) }
     });
@@ -155,7 +161,8 @@ describe("ExternalModuleWorkerRuntime", () => {
       async (_method, _params, rememberSecret) => {
         rememberSecret("runtime-secret");
         return "runtime-secret";
-      }
+      },
+      { lane: "queue" }
     );
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(JSON.stringify(logs)).toContain("[REDACTED]");
@@ -165,7 +172,7 @@ describe("ExternalModuleWorkerRuntime", () => {
 
   it("rejects handler output containing a credential learned during the call", async () => {
     const runtime = new ExternalModuleWorkerRuntime({
-      invocationTimeoutMs: 500,
+      invocationStallMs: 500,
       idleTimeoutMs: 500
     });
     await expect(
@@ -176,7 +183,8 @@ describe("ExternalModuleWorkerRuntime", () => {
         async (_method, _params, rememberSecret) => {
           rememberSecret("runtime-secret");
           return "runtime-secret";
-        }
+        },
+        { lane: "queue" }
       )
     ).rejects.toMatchObject({ code: "handler_failed" });
     await runtime.close();
@@ -185,18 +193,24 @@ describe("ExternalModuleWorkerRuntime", () => {
   it("rejects learned credentials in later parent RPC params before dispatch", async () => {
     const methods: string[] = [];
     const runtime = new ExternalModuleWorkerRuntime({
-      invocationTimeoutMs: 500,
+      invocationStallMs: 500,
       idleTimeoutMs: 500
     });
     await expect(
-      runtime.invoke(await fixture(), "compose", {}, async (method, _params, rememberSecret) => {
-        methods.push(method);
-        if (method === "auth.getCredential") {
-          rememberSecret("runtime-secret");
-          return "runtime-secret";
-        }
-        throw new Error("fetch must be blocked before dispatch");
-      })
+      runtime.invoke(
+        await fixture(),
+        "compose",
+        {},
+        async (method, _params, rememberSecret) => {
+          methods.push(method);
+          if (method === "auth.getCredential") {
+            rememberSecret("runtime-secret");
+            return "runtime-secret";
+          }
+          throw new Error("fetch must be blocked before dispatch");
+        },
+        { lane: "queue" }
+      )
     ).resolves.toEqual({ blocked: true });
     expect(methods).toEqual(["auth.getCredential"]);
     await runtime.close();

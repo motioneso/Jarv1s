@@ -1,14 +1,51 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { join } from "node:path";
 
-import { MODULE_WORKER_CONTRACT_VERSION } from "@jarv1s/module-sdk";
+import { MAX_INVOCATION_MS, MODULE_WORKER_CONTRACT_VERSION } from "@jarv1s/module-sdk";
 
 import type { ExternalModuleDiscovery } from "./types.js";
+
+// #1286 Task 2e: re-export so callers of this (node-only) module don't also need to
+// import from @jarv1s/module-sdk directly. The constant itself lives in module-sdk
+// because validate.ts (browser-safe, re-exported from this package's browser entry)
+// needs it too and cannot pull in this file's node:child_process import.
+export { MAX_INVOCATION_MS };
+
+// #1286 Task 2e: one child process per (module, lane). Splitting only the promise
+// queue while sharing a single child was the bug this task fixes — the RPC handler's
+// per-invocation closure state (resolvedSecrets, actorUserId, the AI-call budget) is
+// bound to whichever invocation currently owns the shared process, so two lanes
+// racing on one child could run under, or leak into, the wrong actor's grant. A
+// dedicated child per lane makes that structurally impossible: lanes never share
+// process state, stdio, or environment.
+export type WorkerLane = "queue" | "tool" | "briefing";
+
+// Margin subtracted from the hard ceiling when computing the absolute deadline shipped
+// to the module (ctx.deadlineAt). Leaves the host time to observe the ceiling, abort
+// in-flight host RPCs, and kill the child before the module's own "surely I've timed
+// out" logic would fire on a deadline that has already passed host-side.
+export const DEADLINE_MARGIN_MS = 5_000;
+
+/**
+ * The absolute ceiling for one invocation, honouring a queue's declared `timeoutMs`
+ * (already clamped once by validate.ts) but re-clamping defensively here too — this
+ * function is the single source of truth callers rely on, not a trust boundary that
+ * assumes validate.ts always ran first. Falls back to 120_000ms (the constructor's
+ * `invocationHardTimeoutMs` default) when no `timeoutMs` is given at all.
+ */
+export function resolveHardTimeout(options: { readonly timeoutMs?: number }): number {
+  return Math.min(options.timeoutMs ?? 120_000, MAX_INVOCATION_MS);
+}
 
 type Rpc = (
   method: string,
   params: unknown,
-  rememberSecret: (value: string) => void
+  rememberSecret: (value: string) => void,
+  // Host-side only (#1286 Task 2e): the per-invocation AbortController's signal,
+  // aborted when the hard ceiling fires. Never serialized onto the wire — the module
+  // never sees it and never gets a ctx.signal; cancelling host-held work (a pinned
+  // fetch, an AI call) is the host's job alone.
+  hostSignal?: AbortSignal
 ) => Promise<unknown>;
 
 interface Invocation {
@@ -16,6 +53,17 @@ interface Invocation {
   readonly secrets: Set<string>;
   stdout: string;
   stderr: string;
+  readonly controller: AbortController;
+  // Reference count, not a boolean (B6/B7): a handler may have a fetch and an
+  // ai.generateStructured in flight at once, and the first to finish must not resume
+  // the stall clock while the second is still blocked on the host.
+  inFlightRpcs: number;
+  stallTimer?: ReturnType<typeof setTimeout>;
+  // Arms (or re-arms) the silence-budget timer for a fresh full window. Defined as an
+  // arrow property (not a method) so it closes over the runtime instance's `this` and
+  // over `stallMs`/`kill` from the enclosing `run()` call, not over whatever object it
+  // happens to be a property of.
+  readonly armStall: () => void;
 }
 
 interface ProcessState {
@@ -39,14 +87,28 @@ export class ExternalModuleWorkerError extends Error {
   }
 }
 
+function laneKey(moduleId: string, lane: WorkerLane): string {
+  return `${moduleId}:${lane}`;
+}
+
 export class ExternalModuleWorkerRuntime {
+  // Keyed by `${moduleId}:${lane}` (#1286 Task 2e), not by moduleId alone — see
+  // WorkerLane above for why a shared key (and therefore a shared child) is the bug.
   private readonly states = new Map<string, ProcessState>();
   private readonly queues = new Map<string, Promise<unknown>>();
   private nextId = 0;
 
   constructor(
     private readonly options: {
-      readonly invocationTimeoutMs?: number;
+      // Max time the module may go WITHOUT progress (#1286 Task 2e). Measures
+      // silence, not duration: suspended for as long as any host RPC is in flight, so
+      // slow host-side work (a large fetch, a slow model) is never charged against
+      // the module's own budget. Default 30_000.
+      readonly invocationStallMs?: number;
+      // Absolute ceiling on one invocation regardless of progress, never suspended.
+      // Default 120_000. A per-queue manifest `timeoutMs` (clamped to
+      // MAX_INVOCATION_MS) overrides this per call — see resolveHardTimeout.
+      readonly invocationHardTimeoutMs?: number;
       readonly idleTimeoutMs?: number;
       readonly logger?: { warn(data: Record<string, unknown>, message?: string): void };
     } = {}
@@ -56,14 +118,18 @@ export class ExternalModuleWorkerRuntime {
     module: ExternalModuleDiscovery,
     handler: string,
     input: Record<string, unknown>,
-    rpc: Rpc
+    rpc: Rpc,
+    options: { readonly lane: WorkerLane; readonly timeoutMs?: number }
   ): Promise<unknown> {
-    const prior = this.queues.get(module.id) ?? Promise.resolve();
-    const call = prior.catch(() => undefined).then(() => this.run(module, handler, input, rpc));
-    this.queues.set(module.id, call);
+    const key = laneKey(module.id, options.lane);
+    const prior = this.queues.get(key) ?? Promise.resolve();
+    const call = prior
+      .catch(() => undefined)
+      .then(() => this.run(module, handler, input, rpc, options));
+    this.queues.set(key, call);
     void call
       .finally(() => {
-        if (this.queues.get(module.id) === call) this.queues.delete(module.id);
+        if (this.queues.get(key) === call) this.queues.delete(key);
       })
       .catch(() => undefined);
     return call;
@@ -80,16 +146,39 @@ export class ExternalModuleWorkerRuntime {
     module: ExternalModuleDiscovery,
     handler: string,
     input: Record<string, unknown>,
-    rpc: Rpc
+    rpc: Rpc,
+    options: { readonly lane: WorkerLane; readonly timeoutMs?: number }
   ): Promise<unknown> {
-    const state = this.states.get(module.id) ?? this.start(module);
+    const key = laneKey(module.id, options.lane);
+    const state = this.states.get(key) ?? this.start(module, options.lane, key);
     clearTimeout(state.idleTimer);
-    const invocation: Invocation = { rpc, secrets: new Set(), stdout: "", stderr: "" };
-    const timeout = setTimeout(() => {
-      const error = new ExternalModuleWorkerError("timeout");
-      this.states.delete(module.id);
+    const stallMs = this.options.invocationStallMs ?? 30_000;
+    const hardTimeoutMs = resolveHardTimeout({
+      timeoutMs: options.timeoutMs ?? this.options.invocationHardTimeoutMs
+    });
+    // Owned by the host alone (#1286 Task 2e): passed into `rpc(...)` as a 4th,
+    // host-side-only argument so the RPC handler can forward it into a pinned fetch or
+    // generateStructured call. Never put on the wire, never exposed as ctx.signal.
+    const controller = new AbortController();
+    const kill = (error: ExternalModuleWorkerError): void => {
+      controller.abort();
+      if (this.states.get(key) === state) this.states.delete(key);
       this.stop(state, error);
-    }, this.options.invocationTimeoutMs ?? 30_000);
+    };
+    const invocation: Invocation = {
+      rpc,
+      secrets: new Set(),
+      stdout: "",
+      stderr: "",
+      controller,
+      inFlightRpcs: 0,
+      armStall: () => {
+        clearTimeout(invocation.stallTimer);
+        invocation.stallTimer = setTimeout(() => kill(new ExternalModuleWorkerError("timeout")), stallMs);
+      }
+    };
+    invocation.armStall();
+    const hardTimer = setTimeout(() => kill(new ExternalModuleWorkerError("timeout")), hardTimeoutMs);
     try {
       await state.ready;
       state.current = invocation;
@@ -97,29 +186,39 @@ export class ExternalModuleWorkerRuntime {
       const response = new Promise<unknown>((resolve, reject) =>
         state.pending.set(id, { resolve, reject })
       );
+      // Absolute epoch-ms deadline the module can read off ctx.deadlineAt (#1286 Task
+      // 2e) — computed fresh at send time, margin-adjusted so the module's own
+      // "am I nearly out of time" checks land before the host's hard kill, never after.
+      const deadlineAt = Date.now() + Math.max(1_000, hardTimeoutMs - DEADLINE_MARGIN_MS);
       state.child.stdin.write(
-        `${JSON.stringify({ jsonrpc: "2.0", id, method: "module.invoke", params: { handler, input } })}\n`
+        `${JSON.stringify({
+          jsonrpc: "2.0",
+          id,
+          method: "module.invoke",
+          params: { handler, input, deadlineAt }
+        })}\n`
       );
       return await response;
     } finally {
-      clearTimeout(timeout);
-      this.flushLogs(module.id, invocation);
+      clearTimeout(hardTimer);
+      clearTimeout(invocation.stallTimer);
+      this.flushLogs(module.id, options.lane, invocation);
       state.current = undefined;
-      if (this.states.get(module.id) === state) {
+      if (this.states.get(key) === state) {
         state.idleTimer = setTimeout(() => {
-          this.states.delete(module.id);
+          this.states.delete(key);
           this.stop(state, new ExternalModuleWorkerError("crash"));
         }, this.options.idleTimeoutMs ?? 60_000);
       }
     }
   }
 
-  private start(module: ExternalModuleDiscovery): ProcessState {
+  private start(module: ExternalModuleDiscovery, lane: WorkerLane, key: string): ProcessState {
     const entrypoint = module.manifest.runtime?.workerEntrypoint;
     if (!entrypoint) throw new ExternalModuleWorkerError("protocol");
     const env: NodeJS.ProcessEnv = {};
-    for (const key of ["LANG", "LC_ALL", "TZ"] as const) {
-      if (process.env[key] !== undefined) env[key] = process.env[key];
+    for (const envKey of ["LANG", "LC_ALL", "TZ"] as const) {
+      if (process.env[envKey] !== undefined) env[envKey] = process.env[envKey];
     }
     const child = spawn(process.execPath, [join(module.dir, entrypoint)], {
       cwd: module.dir,
@@ -140,24 +239,23 @@ export class ExternalModuleWorkerRuntime {
       rejectReady,
       buffer: ""
     };
-    this.states.set(module.id, state);
+    this.states.set(key, state);
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => this.onStdout(module.id, state, chunk));
+    child.stdout.on("data", (chunk: string) => this.onStdout(module.id, key, state, chunk));
     child.stderr.on("data", (chunk: string) => this.capture(state, "stderr", chunk));
     child.once("error", () =>
-      this.failProcess(module.id, state, new ExternalModuleWorkerError("crash"))
+      this.failProcess(key, state, new ExternalModuleWorkerError("crash"))
     );
-    child.once("exit", () =>
-      this.failProcess(module.id, state, new ExternalModuleWorkerError("crash"))
-    );
+    child.once("exit", () => this.failProcess(key, state, new ExternalModuleWorkerError("crash")));
+    void lane; // reserved for lane-scoped diagnostics; not otherwise needed here
     return state;
   }
 
-  private onStdout(moduleId: string, state: ProcessState, chunk: string): void {
+  private onStdout(moduleId: string, key: string, state: ProcessState, chunk: string): void {
     state.buffer += chunk;
     if (state.buffer.length > 1_048_576) {
-      this.failProcess(moduleId, state, new ExternalModuleWorkerError("protocol"));
+      this.failProcess(key, state, new ExternalModuleWorkerError("protocol"));
       return;
     }
     for (;;) {
@@ -175,14 +273,14 @@ export class ExternalModuleWorkerRuntime {
       if (message.method === "worker.ready") {
         const version = (message.params as { version?: unknown } | undefined)?.version;
         if (version !== MODULE_WORKER_CONTRACT_VERSION) {
-          this.failProcess(moduleId, state, new ExternalModuleWorkerError("protocol"));
+          this.failProcess(key, state, new ExternalModuleWorkerError("protocol"));
         } else state.resolveReady();
         continue;
       }
       if (typeof message.method === "string" && message.id !== undefined) {
         const invocation = state.current;
         if (!invocation) {
-          this.failProcess(moduleId, state, new ExternalModuleWorkerError("protocol"));
+          this.failProcess(key, state, new ExternalModuleWorkerError("protocol"));
           continue;
         }
         if (containsSecret(message.params, invocation.secrets)) {
@@ -191,8 +289,21 @@ export class ExternalModuleWorkerRuntime {
           );
           continue;
         }
+        // Stall budget suspension (#1286 Task 2e, B6/B7): the module just asked the
+        // host for something, so silence stops counting against it until every
+        // in-flight RPC settles. Ref-counted, not boolean — see Invocation.inFlightRpcs.
+        invocation.inFlightRpcs += 1;
+        if (invocation.inFlightRpcs === 1) {
+          clearTimeout(invocation.stallTimer);
+          invocation.stallTimer = undefined;
+        }
         void invocation
-          .rpc(message.method, message.params, (secret) => invocation.secrets.add(secret))
+          .rpc(
+            message.method,
+            message.params,
+            (secret) => invocation.secrets.add(secret),
+            invocation.controller.signal
+          )
           .then(
             (result) =>
               state.child.stdin.write(
@@ -202,7 +313,17 @@ export class ExternalModuleWorkerRuntime {
               state.child.stdin.write(
                 `${JSON.stringify({ jsonrpc: "2.0", id: message.id, error: { code: -32001, message: "rpc_failed" } })}\n`
               )
-          );
+          )
+          .finally(() => {
+            invocation.inFlightRpcs -= 1;
+            // Only the invocation that's still current re-arms its own clock — a
+            // straggling RPC settling after its invocation already finished (killed
+            // by the hard ceiling, or resolved normally) must not schedule a kill
+            // against a state that has moved on.
+            if (invocation.inFlightRpcs === 0 && state.current === invocation) {
+              invocation.armStall();
+            }
+          });
         continue;
       }
       const pending = state.pending.get(message.id as string | number);
@@ -221,23 +342,19 @@ export class ExternalModuleWorkerRuntime {
     invocation[stream] = (invocation[stream] + chunk).slice(-16_384);
   }
 
-  private flushLogs(moduleId: string, invocation: Invocation): void {
+  private flushLogs(moduleId: string, lane: WorkerLane, invocation: Invocation): void {
     for (const stream of ["stdout", "stderr"] as const) {
       let output = invocation[stream];
       if (!output) continue;
       for (const secret of [...invocation.secrets].sort((a, b) => b.length - a.length)) {
         if (secret) output = output.split(secret).join("[REDACTED]");
       }
-      this.options.logger?.warn({ moduleId, stream, output }, "external module worker output");
+      this.options.logger?.warn({ moduleId, lane, stream, output }, "external module worker output");
     }
   }
 
-  private failProcess(
-    moduleId: string,
-    state: ProcessState,
-    error: ExternalModuleWorkerError
-  ): void {
-    if (this.states.get(moduleId) === state) this.states.delete(moduleId);
+  private failProcess(key: string, state: ProcessState, error: ExternalModuleWorkerError): void {
+    if (this.states.get(key) === state) this.states.delete(key);
     this.stop(state, error);
   }
 

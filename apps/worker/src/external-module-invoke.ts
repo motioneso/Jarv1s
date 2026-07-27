@@ -24,6 +24,7 @@ import type {
   ExternalModuleWorkerRuntime
 } from "@jarv1s/module-registry/node";
 import type { ModuleCredentialCipher } from "@jarv1s/settings";
+import type { WorkerLane } from "@jarv1s/module-registry/node";
 
 export interface VerifiedExternalModuleInvokeArgs {
   readonly moduleId: string;
@@ -33,12 +34,15 @@ export interface VerifiedExternalModuleInvokeArgs {
   readonly jobKind: string;
   readonly idempotencyKey: string;
   readonly params: Record<string, unknown>;
-  // Task 2e (#1286) adds `lane: WorkerLane` here once that type exists — this task predates
-  // it, so every call site below passes no lane and the runtime keeps its single queue.
+  // #1286 Task 2e: which of the module's three separate child processes this call
+  // runs on. Required, not defaulted — every caller (job handler, briefing invoker)
+  // must say explicitly which actor/lane isolation boundary it wants; a silent
+  // default here is exactly the kind of ambiguity that let two lanes share one
+  // process before this task.
+  readonly lane: WorkerLane;
   readonly toolRisk: "read" | "write";
-  // B7: no per-request timeout yet — ExternalModuleWorkerRuntime only has a constructor-level
-  // invocationTimeoutMs. Accepted here so callers can already pass it; wiring it through is
-  // out of scope for this task and does nothing until the runtime grows a per-call knob.
+  // Per-call override of the runtime's hard invocation ceiling (#1286 Task 2e); a
+  // queue's manifest-declared, already-clamped timeoutMs flows through here.
   readonly timeoutMs?: number;
 }
 
@@ -136,7 +140,8 @@ export function createVerifiedExternalModuleInvoker(
         idempotencyKey: args.idempotencyKey,
         params: args.params
       },
-      rpc
+      rpc,
+      { lane: args.lane, timeoutMs: args.timeoutMs }
     );
     return { ok: true, result };
   };
@@ -162,7 +167,10 @@ export function createExternalBriefingInvoker(
       jobKind: "briefing",
       idempotencyKey: `briefing:${args.section}:${args.moduleId}:${args.actorUserId}:${args.requestId}`,
       params: { section: args.section },
-      toolRisk: "read"
+      toolRisk: "read",
+      // #1286 Task 2e: briefings get their own lane/child process, separate from a
+      // scheduled job or a same-tick tool call for the same module.
+      lane: "briefing"
     });
     if (!outcome.ok) {
       throw new Error(`external module briefing invoke declined: ${outcome.reason}`);

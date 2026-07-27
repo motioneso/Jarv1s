@@ -90,7 +90,10 @@ export function createExternalModuleTools(input: {
           module,
           tool.handler,
           { ...toolInput, actorUserId: context.actorUserId },
-          rpc
+          rpc,
+          // #1286 Task 2e: an assistant tool call gets its own child process,
+          // separate from this module's queue jobs and briefing invocations.
+          { lane: "tool" }
         )
       );
     }

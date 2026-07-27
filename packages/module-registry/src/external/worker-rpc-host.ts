@@ -58,6 +58,11 @@ export interface ExternalModuleAiRequest {
   readonly prompt: string;
   readonly maxOutputTokens?: number;
   readonly tierHint?: "reasoning" | "interactive" | "economy";
+  // #1286 Task 2e: host-side only, set from the runtime's per-invocation
+  // AbortController below — never parsed out of the wire params (see aiRequest's
+  // allow-list). Both ai-bridge implementations spread this request straight into
+  // generateStructured's input, which already honours `signal` end to end.
+  readonly signal?: AbortSignal;
 }
 
 // "usage_limited" is produced by the RPC layer's per-invocation cap (spec D6);
@@ -118,7 +123,15 @@ export function createExternalModuleRpcHandler(input: {
     scopedDb: DataContextDb,
     request: ExternalModuleAiRequest
   ) => Promise<ExternalModuleAiResult>;
-}): (method: string, params: unknown, rememberSecret: (value: string) => void) => Promise<unknown> {
+}): (
+  method: string,
+  params: unknown,
+  rememberSecret: (value: string) => void,
+  // Host-side only (#1286 Task 2e): the runtime's per-invocation AbortController
+  // signal, aborted at the hard ceiling. Forwarded into the pinned fetch below and
+  // attached to the ai.generateStructured request; never reaches the module.
+  hostSignal?: AbortSignal
+) => Promise<unknown> {
   const declarations = new Map((input.module.manifest.auth ?? []).map((item) => [item.id, item]));
   const storage = new Map(
     (input.module.manifest.storage ?? []).map((item) => [item.namespace, item])
@@ -128,7 +141,7 @@ export function createExternalModuleRpcHandler(input: {
   const resolvedSecrets = new Set<string>();
   let aiCalls = 0;
 
-  return async (method, rawParams, rememberSecret) => {
+  return async (method, rawParams, rememberSecret, hostSignal) => {
     if (method === "attachments.readText") {
       const attachmentId = attachmentIdParam(rawParams);
       if (!input.readAttachmentText || !attachmentId) return null;
@@ -151,7 +164,10 @@ export function createExternalModuleRpcHandler(input: {
         ...(request.headers ? { headers: request.headers } : {}),
         ...(request.bodyBase64
           ? { body: new Uint8Array(Buffer.from(request.bodyBase64, "base64")) }
-          : {})
+          : {}),
+        // #1286 Task 2e: aborts this fetch the moment the hard ceiling fires, instead
+        // of letting it resolve into a dead invocation after the child is killed.
+        ...(hostSignal ? { signal: hostSignal } : {})
       });
       const headers: Record<string, string> = {};
       for (const name of ["content-type", "content-length", "last-modified", "etag"]) {
@@ -236,7 +252,13 @@ export function createExternalModuleRpcHandler(input: {
           // closed: resume prose must never flow through pg-boss payloads.
           if (!input.ai) throw new ExternalModuleRpcError("invalid_rpc");
           if (input.toolRisk === "read") throw new ExternalModuleRpcError("forbidden_ai_call");
-          const request = aiRequest(params);
+          // #1286 Task 2e: hostSignal is host-side only and never part of the wire
+          // params aiRequest() parses — attach it after parsing, not inside it, so it
+          // can never be spoofed by anything the module sends.
+          const request: ExternalModuleAiRequest = {
+            ...aiRequest(params),
+            ...(hostSignal ? { signal: hostSignal } : {})
+          };
           // D6 composition guard: reject prompts/schemas containing any credential
           // resolved via auth.getCredential during this invocation (defense in
           // depth on top of the child-side transport containsSecret check).

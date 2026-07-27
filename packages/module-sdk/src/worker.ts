@@ -31,6 +31,20 @@ export interface ModuleEmbedPort {
 
 export interface ModuleWorkerContext {
   readonly input: Record<string, unknown>;
+  /**
+   * Absolute epoch-ms deadline for this invocation (#1286 Task 2e). A handler doing
+   * its own long-running work (a multi-page crawl, a batch loop) can check
+   * `Date.now() < ctx.deadlineAt` between steps to wind down gracefully instead of
+   * being killed mid-step.
+   *
+   * There is deliberately NO `ctx.signal` here. Cancelling host-held work (a pinned
+   * fetch, an ai.generateStructured call) is entirely the host's job — it holds a
+   * per-invocation AbortController that is aborted at the hard ceiling and passed
+   * into those RPCs on the host side only. Exposing that controller's signal to the
+   * module would let it observe host-internal cancellation timing it has no business
+   * seeing, for a capability (checking a deadline) `deadlineAt` already provides.
+   */
+  readonly deadlineAt: number;
   readonly auth: {
     getCredential(authId: string): Promise<string>;
     setCredential(authId: string, value: string): Promise<void>;
@@ -186,7 +200,13 @@ export function defineModuleWorker(input: {
         return;
       }
       if (message.method !== "module.invoke") return;
-      const params = message.params as { handler?: unknown; input?: unknown };
+      const params = message.params as { handler?: unknown; input?: unknown; deadlineAt?: unknown };
+      // Version-skew default (#1286 Task 2e): only a host older than this SDK change
+      // would ever omit deadlineAt. 30_000 mirrors the runtime's pre-Task-2e default
+      // stall timeout so an old host's behavior doesn't visibly change for a module
+      // built against the new SDK.
+      const deadlineAt =
+        typeof params.deadlineAt === "number" ? params.deadlineAt : Date.now() + 30_000;
       const handler =
         typeof params.handler === "string" ? input.handlers[params.handler] : undefined;
       if (!handler) {
@@ -203,6 +223,7 @@ export function defineModuleWorker(input: {
             params.input && typeof params.input === "object" && !Array.isArray(params.input)
               ? (params.input as Record<string, unknown>)
               : {},
+          deadlineAt,
           auth: {
             getCredential: (authId) =>
               callParent("auth.getCredential", { authId }) as Promise<string>,

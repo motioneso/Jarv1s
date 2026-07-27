@@ -71,7 +71,16 @@ export function createExternalModuleJobHandler(
       params: job.data.params ?? {},
       // A queue job runs write-risk work by default (parity with the pre-extraction
       // inline gate, which always passed toolRisk: "write" here).
-      toolRisk: "write"
+      toolRisk: "write",
+      // #1286 Task 2e: the queue lane gets its own child process, separate from the
+      // tool and briefing lanes, so a scheduled job can never share process state
+      // (secrets, actor identity, AI-call budget) with a same-tick tool call or
+      // briefing invocation for the same module.
+      lane: "queue",
+      // A queue's manifest-declared timeoutMs (already clamped to MAX_INVOCATION_MS
+      // by validate.ts) becomes this invocation's hard ceiling; undefined falls back
+      // to the runtime's own default.
+      timeoutMs: queue.timeoutMs
     });
     if (!outcome.ok) return;
     return outcome.result;
