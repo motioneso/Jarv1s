@@ -1,17 +1,36 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import Fastify, { type FastifyInstance } from "fastify";
 import pg from "pg";
 import type { Kysely } from "kysely";
 
+import { AiRepository, grantSelfOperationForModule } from "@jarv1s/ai";
 import {
   DataContextRunner,
   createDatabase,
   type AdminAuditEvent,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { createActiveModulesResolver } from "@jarv1s/module-registry";
+import { createActiveModulesResolver, getModuleDeletionTables } from "@jarv1s/module-registry";
+import {
+  HttpError,
+  type JarvisModuleManifest,
+  type JsonJarvisModuleManifest,
+  type ModuleAssistantToolManifest
+} from "@jarv1s/module-sdk";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 
+import {
+  registerSettingsRoutes,
+  type ExternalModuleDiscovery,
+  type ExternalModulesDependencies
+} from "../../packages/settings/src/routes.js";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
-import { connectionStrings, ids, resetEmptyFoundationDatabase } from "./test-database.js";
+import {
+  connectionStrings,
+  ids,
+  resetEmptyFoundationDatabase,
+  resetFoundationDatabase
+} from "./test-database.js";
 import {
   instanceOnlyDisablableModule,
   optionalModule,
@@ -19,6 +38,22 @@ import {
 } from "./fixtures/optional-module.js";
 
 const { Client } = pg;
+
+function tool(
+  name: string,
+  overrides: Partial<ModuleAssistantToolManifest> = {}
+): ModuleAssistantToolManifest {
+  return {
+    name,
+    description: name,
+    permissionId: "test.permission",
+    risk: "write",
+    executionPolicy: "auto",
+    inputSchema: { type: "object", properties: {} },
+    execute: async () => ({ data: {} }),
+    ...overrides
+  };
+}
 
 describe("module-enablement store (app.module_enablement)", () => {
   let client: InstanceType<typeof Client>;
@@ -442,5 +477,205 @@ describe("createActiveModulesResolver", () => {
       })
     );
     expect((await resolver()(ids.userA)).map((m) => m.id)).toContain("tasks-fixture");
+  });
+});
+
+describe("module enable routes grant self-operation policy (#1263 Task 15)", () => {
+  let appDb: Kysely<JarvisDatabase>;
+  let dataContext: DataContextRunner;
+  let aiRepo: AiRepository;
+  let server: FastifyInstance;
+
+  const grantableManifest: JarvisModuleManifest = {
+    id: "grantable-fixture",
+    name: "Grantable Fixture",
+    version: "0.1.0",
+    publisher: "test",
+    lifecycle: "optional",
+    compatibility: { jarv1s: ">=0.0.0" },
+    availability: { defaultEnabled: true, required: false, supportsUserDisable: true },
+    assistantTools: [
+      tool("grantable-fixture.autoThing", {
+        selfOperationGrant: "granted_at_install",
+        actionFamilyId: "grantable-fixture.family"
+      })
+    ]
+  };
+
+  const externalDiscoveryManifest = {
+    id: "ext-fixture",
+    name: "Ext Fixture",
+    version: "0.1.0",
+    publisher: "test",
+    lifecycle: "optional",
+    compatibility: { jarv1s: ">=0.0.0" },
+    assistantTools: [
+      tool("ext-fixture.autoThing", {
+        selfOperationGrant: "granted_at_install",
+        actionFamilyId: "ext-fixture.family"
+      })
+    ]
+  } as unknown as JsonJarvisModuleManifest;
+
+  const externalModules: ExternalModulesDependencies = {
+    enabled: true,
+    discoveries: [
+      {
+        id: "ext-fixture",
+        dir: "/tmp/ext-fixture",
+        manifest: externalDiscoveryManifest,
+        manifestHash: "hash-manifest",
+        packageHash: "hash-package"
+      } satisfies ExternalModuleDiscovery
+    ],
+    rejected: [],
+    reconcile: () => ({
+      modules: [
+        {
+          id: "ext-fixture",
+          name: "Ext Fixture",
+          version: "0.1.0",
+          publisher: "test",
+          status: "enabled",
+          active: true,
+          drifted: false,
+          disabledReason: null,
+          web: null
+        }
+      ],
+      driftDisable: []
+    })
+  };
+
+  function authHeaders(sessionId: string): Record<string, string> {
+    return { authorization: `Bearer ${sessionId}` };
+  }
+
+  async function policyFor(actorUserId: string, moduleId: string, actionFamilyId: string) {
+    return dataContext.withDataContext(
+      { actorUserId, requestId: "req:grant-read" },
+      async (scopedDb) => {
+        const policies = await aiRepo.listActionPolicies(scopedDb);
+        return policies.find((p) => p.moduleId === moduleId && p.actionFamilyId === actionFamilyId);
+      }
+    );
+  }
+
+  beforeAll(async () => {
+    await resetFoundationDatabase();
+    appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
+    dataContext = new DataContextRunner(appDb);
+    aiRepo = new AiRepository();
+    server = Fastify({ logger: false });
+    registerSettingsRoutes(server, {
+      rootDb: appDb,
+      dataContext,
+      resolveAccessContext: async (request) => {
+        const token = request.headers.authorization?.replace(/^Bearer\s+/i, "");
+        if (token === ids.sessionA) return { actorUserId: ids.userA, requestId: "req:grant-a" };
+        if (token === ids.sessionB) return { actorUserId: ids.userB, requestId: "req:grant-b" };
+        if (token === ids.sessionAdmin) {
+          return { actorUserId: ids.adminUser, requestId: "req:grant-admin" };
+        }
+        throw new HttpError(401, "Unauthorized");
+      },
+      listModuleManifests: () => [grantableManifest],
+      moduleDeletionTables: getModuleDeletionTables(),
+      preferencesRepository: new PreferencesRepository(),
+      externalModules,
+      grantSelfOperationForModule: (scopedDb, manifest) =>
+        grantSelfOperationForModule(scopedDb, aiRepo, manifest)
+    });
+    await server.ready();
+  });
+
+  afterAll(async () => {
+    await Promise.allSettled([server.close(), appDb.destroy()]);
+  });
+
+  it("user enable stores trusted_auto for eligible module families", async () => {
+    const response = await server.inject({
+      method: "PATCH",
+      url: "/api/me/modules/grantable-fixture",
+      headers: authHeaders(ids.sessionA),
+      payload: { disabled: false }
+    });
+    expect(response.statusCode).toBe(200);
+    const stored = await policyFor(ids.userA, "grantable-fixture", "grantable-fixture.family");
+    expect(stored?.tier).toBe("trusted_auto");
+  });
+
+  it("admin enable stores grants only for the acting admin", async () => {
+    const response = await server.inject({
+      method: "PATCH",
+      url: "/api/admin/modules/grantable-fixture",
+      headers: authHeaders(ids.sessionAdmin),
+      payload: { disabled: false }
+    });
+    expect(response.statusCode).toBe(200);
+    const adminStored = await policyFor(
+      ids.adminUser,
+      "grantable-fixture",
+      "grantable-fixture.family"
+    );
+    expect(adminStored?.tier).toBe("trusted_auto");
+    // Scoped to the acting admin only — userB never enabled anything in this describe block yet.
+    const otherActor = await policyFor(ids.userB, "grantable-fixture", "grantable-fixture.family");
+    expect(otherActor).toBeUndefined();
+  });
+
+  it("re-enable does not overwrite always_confirm", async () => {
+    await dataContext.withDataContext(
+      { actorUserId: ids.userB, requestId: "req:grant-preset" },
+      (scopedDb) =>
+        aiRepo.setActionPolicy(
+          scopedDb,
+          "grantable-fixture",
+          "grantable-fixture.family",
+          "always_confirm"
+        )
+    );
+
+    const response = await server.inject({
+      method: "PATCH",
+      url: "/api/me/modules/grantable-fixture",
+      headers: authHeaders(ids.sessionB),
+      payload: { disabled: false }
+    });
+    expect(response.statusCode).toBe(200);
+
+    const stored = await policyFor(ids.userB, "grantable-fixture", "grantable-fixture.family");
+    expect(stored?.tier).toBe("always_confirm");
+  });
+
+  it("disable never mutates action-policy preferences", async () => {
+    const before = await policyFor(ids.userA, "grantable-fixture", "grantable-fixture.family");
+    expect(before?.tier).toBe("trusted_auto");
+
+    const response = await server.inject({
+      method: "PATCH",
+      url: "/api/me/modules/grantable-fixture",
+      headers: authHeaders(ids.sessionA),
+      payload: { disabled: true }
+    });
+    expect(response.statusCode).toBe(200);
+
+    const after = await policyFor(ids.userA, "grantable-fixture", "grantable-fixture.family");
+    expect(after?.tier).toBe("trusted_auto");
+  });
+
+  it("external enable remains outside built-in grant wiring", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/admin/external-modules/ext-fixture",
+      headers: authHeaders(ids.sessionAdmin),
+      payload: { enabled: true }
+    });
+    expect(response.statusCode).toBe(200);
+
+    // Even though the discovered manifest declares a granted_at_install tool, the external-module
+    // route never calls grantSelfOperationForModule (#1267 territory) — no policy row appears.
+    const stored = await policyFor(ids.adminUser, "ext-fixture", "ext-fixture.family");
+    expect(stored).toBeUndefined();
   });
 });

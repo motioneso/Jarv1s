@@ -508,6 +508,15 @@ export interface BuiltInRouteDependencies {
   ) => Promise<void>;
   /** TEST-ONLY. Inject a fake fetch for weather (and any other external HTTP) without real network. */
   readonly fetchFn?: typeof fetch;
+  /**
+   * #1263 Task 15: install-time self-operation grant port, built by the API composition root
+   * over its one AiRepository instance and forwarded to the settings module (module isolation —
+   * settings never imports @jarv1s/ai). Threaded straight through to registerSettingsRoutes.
+   */
+  readonly grantSelfOperationForModule?: (
+    scopedDb: DataContextDb,
+    manifest: JarvisModuleManifest
+  ) => Promise<void>;
 }
 
 export interface BuiltInWorkerDependencies {
@@ -1004,6 +1013,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         externalModules: deps.externalModules, // #917: thread the boot snapshot to settings routes
         moduleDistribution: deps.moduleDistribution,
         reconcileExternalModuleJobs: deps.reconcileExternalModuleJobs,
+        grantSelfOperationForModule: deps.grantSelfOperationForModule,
         personaPreview:
           deps.personaPreview ??
           createDefaultPersonaPreview(deps.dataContext, {

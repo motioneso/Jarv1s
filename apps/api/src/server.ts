@@ -8,7 +8,12 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { sql, type Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
-import { AiRepository, type TerminalRpcConnectOptions, type TerminalRpcHandle } from "@jarv1s/ai";
+import {
+  AiRepository,
+  grantSelfOperationForModule,
+  type TerminalRpcConnectOptions,
+  type TerminalRpcHandle
+} from "@jarv1s/ai";
 import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
 import { createCliStructuredAdapterFactory } from "@jarv1s/chat";
 import {
@@ -541,6 +546,11 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
         reconcile: (states) => reconcileExternalModules(externalModuleSnapshot.discoveries, states)
       },
       moduleDistribution,
+      // #1263 Task 15: install-time self-operation grants also apply on (re-)enable. Built here
+      // over the one AiRepository instance this file already owns, so settings never imports
+      // @jarv1s/ai directly (module isolation).
+      grantSelfOperationForModule: (scopedDb, manifest) =>
+        grantSelfOperationForModule(scopedDb, aiRepository, manifest),
       reconcileExternalModuleJobs: async (change) => {
         if (change.kind === "module") {
           await sendModuleControl(boss, { moduleId: change.moduleId, action: "reconcile" });

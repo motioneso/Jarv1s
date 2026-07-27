@@ -121,6 +121,12 @@ export function registerModuleRoutes(server: FastifyInstance, ctx: ModuleRoutesC
               actorUserId: accessContext.actorUserId,
               requestId: requireRequestId(accessContext)
             });
+            // #1263 Task 15: install-time grants also apply on (re-)enable, so a module
+            // disabled before #1263 shipped still gets its granted_at_install families
+            // wired up. insertActionPolicyIfAbsent never overwrites a user's own choice.
+            if (!disabled) {
+              await dependencies.grantSelfOperationForModule?.(scopedDb, manifest);
+            }
             return computeMyModuleDto(repository, scopedDb, manifest, accessContext.actorUserId);
           }
         );
@@ -297,6 +303,10 @@ export function registerModuleRoutes(server: FastifyInstance, ctx: ModuleRoutesC
               actorUserId: accessContext.actorUserId,
               requestId: requireRequestId(accessContext)
             });
+            // #1263 Task 15: same install-time grant wiring as the admin enable path above.
+            if (!disabled) {
+              await dependencies.grantSelfOperationForModule?.(scopedDb, manifest);
+            }
             return computeMyModuleDto(repository, scopedDb, manifest, accessContext.actorUserId);
           }
         );
