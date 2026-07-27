@@ -309,6 +309,21 @@ const PLANNED_CONFIRM_ALWAYS_TOOL_NAMES = [
   "web.read"
 ];
 
+describe("Sports/News denylist check (#1265)", () => {
+  it("neither news nor sports write tools intersect the Spec 1 excluded set", () => {
+    const modules = [newsModuleManifest, sportsModuleManifest];
+    for (const manifest of modules) {
+      for (const tool of manifest.assistantTools ?? []) {
+        if (tool.risk === "read") continue;
+        expect(
+          isSelfOperationExcluded(manifest.id, tool),
+          `expected ${manifest.id}.${tool.name} not to be self-operation-excluded`
+        ).toBe(false);
+      }
+    }
+  });
+});
+
 describe("Complete built-in self-operation inventory (#1263)", () => {
   it("classifies every built-in write/destructive tool across exactly the three legal buckets, summing to 48", () => {
     // People declares its grants in packages/people/src/tools.ts, not a manifest.ts — this
