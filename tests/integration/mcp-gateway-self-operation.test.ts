@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Kysely } from "kysely";
 
 import {
@@ -17,6 +17,7 @@ import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 import { SETTINGS_MODULE_ID, settingsModuleManifest } from "@jarv1s/settings";
 import {
   configureSportsChatTools,
+  resetSportsChatToolsForTests,
   sportsModuleManifest,
   type SportsFollowsWriter
 } from "@jarv1s/sports";
@@ -68,6 +69,13 @@ describe("AssistantToolGateway self-operation", () => {
     emitted = [];
     tokens = new SessionTokenRegistry();
     confirmations = new ConfirmationRegistry();
+  });
+
+  // ALSO-3: configureSportsChatTools sets a module-wide singleton; the sports install-grant test
+  // below configures it with a fake writer and never restores it, which would otherwise leak a
+  // stale fake into whatever test runs next in the same worker.
+  afterEach(() => {
+    resetSportsChatToolsForTests();
   });
 
   // #1263 Task 17: unlike gateway tests that stub getFamilyTier directly, these read the tier the

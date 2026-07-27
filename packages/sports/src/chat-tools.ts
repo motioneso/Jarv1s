@@ -28,6 +28,16 @@ export function configureSportsChatTools(
   });
 }
 
+/**
+ * Test-only: restores the module-wide singleton to its unconfigured state (same convention as
+ * @jarv1s/web-research's setWebFetchForTests et al). A test that calls configureSportsChatTools
+ * must call this in an afterEach, or the fake writer/dataset client it installed leaks into
+ * whatever test runs next in the same worker.
+ */
+export function resetSportsChatToolsForTests(): void {
+  service = undefined;
+}
+
 function stringField(input: unknown, key: string): string | undefined {
   const value = (input as Record<string, unknown> | undefined)?.[key];
   return typeof value === "string" && value.length > 0 ? value : undefined;

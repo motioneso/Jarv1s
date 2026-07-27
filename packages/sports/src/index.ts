@@ -13,5 +13,5 @@ export {
   configureSportsBriefingService,
   sportsFollowedFactsTodayExecute
 } from "./briefing-tool.js";
-export { configureSportsChatTools } from "./chat-tools.js";
+export { configureSportsChatTools, resetSportsChatToolsForTests } from "./chat-tools.js";
 export { createEspnDatasetAdapter } from "./source/espn-source.js";
