@@ -2017,3 +2017,37 @@ prior run" before creating the isolated DB). Answer goes to `AWAITING-BEN.md` §
 
 **Neither lane has opened a PR. Nothing is merge-eligible.** The pre-written adversarial Opus QA
 brief for #1265 is staged and unspawned; it spawns on the PR, not before.
+
+### 2026-07-27 — #1265 gate RED, and the lane's root cause was wrong (verified, not accepted)
+
+`GATE_EXIT:1`, captured from a `.rc` file as instructed. All failures are in `tests/uat/seed/`
+(`admin.test.ts`, `guard.test.ts`, `levels.test.ts`, `chunks/ai.test.ts`). **No news, sports or
+self-operation file is in the failure list**, so nothing in the PR's own surface is implicated.
+
+The lane self-diagnosed it as "I reused my isolated `jarvis_gate_1265` across three runs without
+dropping it." **That is false, and I checked instead of accepting it:**
+
+1. **There is no `jarvis_gate_1265` database on `jarv1s-postgres`.** The isolated DB the lane
+   believed it had been using for three runs does not exist. (Every real gate DB on that server is
+   spelled `jarv1s_gate_NNNN`.)
+2. **`JARVIS_PGDATABASE` was unset in the live gate.** I read `/proc/<pid>/environ` on the running
+   vitest workers while the chain was still executing. Unset resolves to the default database name
+   — Ben's shared dev DB.
+3. **Ben's `jarv1s` has 3 `app.ai_provider_configs` + 3 `app.ai_configured_models` rows written
+   today at 11:05:16Z**, and **zero** new `app.users` (newest is still 2026-07-15).
+
+So the real cause is the opposite of the lane's: the gate was pointed at a database full of Ben's
+**real** rows, and `assertTargetIsEphemeral` correctly refused it. **The guard worked; the target was
+wrong.** `seedSoloAdmin` was refused, `seedAiProviderChunk` got a write in first.
+
+This also **corrects my own earlier entry**, which had propagated the lane's account: the lane told me
+attempt 1 created "at least 2 synthetic solo-admin users." It created none. Damage is smaller than I
+reported (6 config rows, no fake users); the cause is worse (every attempt in this lane targeted the
+shared DB, not just the first). `AWAITING-BEN.md` §7 rewritten with the queried numbers.
+
+**Standing rule this hardens:** a lane's account of *which database it ran against* is not evidence.
+`echo $JARVIS_PGDATABASE` is not evidence either — the successor is required to read
+`/proc/<pid>/environ` of a live worker and to report the **literal** gate command, not a paraphrase.
+
+Correction sent into the relay handoff as `[CRIT]` before the successor booted, so it cannot inherit
+the wrong diagnosis. I did **not** clean the six stray rows — Ben's database, Ben's call.

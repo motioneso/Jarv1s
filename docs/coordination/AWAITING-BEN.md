@@ -143,18 +143,38 @@ environment on delegated authority.
    and the checksum will match when #1264 merges, so nothing is broken — but your dev DB is currently
    ahead of `main` with unmerged work, and that file is now effectively frozen against edits.
 
-3. **The #1265 lane's first gate attempt seeded synthetic rows into your shared dev DB.** Added
-   2026-07-27. It ran `pnpm verify:foundation` with `JARVIS_PGDATABASE` **unset**, which resolves to
-   the default database name `jarv1s` (`packages/db/src/urls.ts`) — your dev DB. Precise inventory,
-   which I asked for explicitly and the agent gave without softening:
-   - `db:migrate` — **no writes** (165 already current, no DDL). No schema drift from this one.
-   - `test:uat-seed` — **did write**: at least **2 synthetic solo-admin users plus AI provider/model
-     chunk rows**, not cleaned up (no `afterEach` rollback in `chunks/ai.test.ts`). Both seed calls
-     completed before the assertions that failed.
-   - Everything since ran on an isolated `jarvis_gate_1265`. Nothing further touched `jarv1s`.
+3. **The #1265 lane wrote into your shared dev DB — six rows, and the isolation it reported was
+   never real.** Added 2026-07-27, then **corrected the same day after I checked the database server
+   directly rather than trusting the lane's self-report.** Read the corrected numbers, not the first
+   ones — I had propagated the agent's account, and it was wrong in both directions.
+
+   **Verified inventory (queried on `jarv1s-postgres`, not reported):**
+   - `app.ai_provider_configs` — **3 rows written today at 11:05:16Z**.
+   - `app.ai_configured_models` — **3 rows written today at 11:05:16Z**.
+   - `app.users` — **nothing.** Newest user in your dev DB is still 2026-07-15. The lane had told me
+     it created "at least 2 synthetic solo-admin users"; **that did not happen.** `seedSoloAdmin` was
+     correctly refused; `seedAiProviderChunk` wrote before anything stopped it.
+   - `db:migrate` — no writes (already current, no DDL). No schema drift from this.
+
+   So the damage is **smaller than I first told you** (6 config rows, no fake users) but the cause is
+   **worse**: this was not one slip on attempt 1.
+
+   **The isolated database never existed.** The lane reported creating and reusing
+   `jarvis_gate_1265`. There is **no such database on the server** — the gate DBs that exist are all
+   spelled `jarv1s_gate_NNNN`. I then read `/proc/<pid>/environ` on the live vitest workers of the
+   running gate and found `JARVIS_PGDATABASE` **unset**, which resolves to the default name `jarv1s`
+   (`packages/db/src/urls.ts`) — your dev DB. Every gate attempt in this lane has been pointed at
+   your dev DB, including the one running when I looked.
+
+   That also means the lane's own root-cause for its red gate — "I dirtied my own isolated DB" — is
+   wrong. The uat-seed suite went red because it was pointed at a database containing **your real
+   user rows**, which is exactly what `assertTargetIsEphemeral` is for. The guard did its job; the
+   target was wrong. I sent the correction into the lane's relay handoff so its successor cannot
+   inherit the wrong diagnosis, and required it to verify isolation by reading the worker's
+   environment rather than by trusting that it typed the variable.
 
    Your dev DB also had **pre-existing** dirty rows that predate this session (the `#1087` pattern),
-   so the stray-row problem is not solely ours — but ours added to it.
+   so the stray-row problem is not solely ours — but those six rows are.
 
 **Why the guard didn't catch it, because this is the fixable part.** `assertTargetIsEphemeral` is
 correctly wired as a preflight on the **CLI** path (`tests/uat/seed/cli.ts:58`). But `pnpm
