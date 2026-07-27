@@ -1376,3 +1376,27 @@ importing `@jarv1s/host-fetch/policy`, because the module's tsconfig `paths` del
 import host packages at runtime, and the module's copy is a UX pre-check only — the authoritative
 enforcement is the host's pinned fetch, which independently resolves and blocks. Document it as
 defence-in-depth with the host authoritative; do not widen module `paths` to "fix" it.
+
+## N35 — the file-size gate is repaired by splitting, never by exemption
+
+`scripts/check-file-size.ts` carries an `exemptFiles` allowlist. It is **not** available to this
+epic. Three files were pushed over the 1000-line cap by our own commits — `apps/api/src/server.ts`
+(997 on main → 1002), `packages/module-sdk/src/index.ts` (998 → 1064) and
+`tests/integration/notifications.test.ts` (996 → 1179). All three get split. None gets exempted.
+
+The allowlist is legitimate for files that genuinely cannot be made smaller — `packages/db/src/
+types.ts` is on it because hand-maintained Kysely table types grow with the schema. Reaching for
+the same hatch to absorb damage we caused converts a design rule into a formality, and the next
+agent inherits an allowlist that reads as permission.
+
+Two consequences that outlive the fix:
+
+**`check:file-size` is step 3 of `verify:foundation`**, ahead of `typecheck`, `test:unit`,
+`db:migrate`, `test:uat-seed` and `test:integration`. While it is red, none of those steps run at
+all. Any "full gate green" claimed on this branch after `444c64d2` is unverified by construction —
+re-run it, do not trust it.
+
+**"Untouched by me" is not "pre-existing."** Both statements were made about these files and only
+the first was true. Before calling any gate failure pre-existing, diff the file against `main` —
+`git show main:<path> | wc -l`. A failure this branch caused, described as background noise, is how
+a gate stays red across a whole epic.
