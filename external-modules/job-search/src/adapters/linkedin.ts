@@ -157,20 +157,26 @@ function parseCard(block: string): ParsedCard {
     throw new Error("linkedin: posting url is not absolute");
   }
 
+  // noUncheckedIndexedAccess: a truthy `xMatch` narrows the match object, not the capture-group
+  // element access, so `xMatch[1]` is still `string | undefined` even inside `xMatch ? … : …`.
+  // Reading the group into a local first (or `?.[1] ?? …`) is the proper narrowing — see #1320.
+  const rawDate = dateMatch?.[1];
+  const rawBenefits = benefitsMatch?.[1];
+
   return {
     externalId,
     title: decodeEntities(rawTitle),
     company: decodeEntities(rawCompany),
     location: decodeEntities(rawLocation),
     url,
-    postedAt: dateMatch ? dateMatch[1] : null,
+    postedAt: rawDate ?? null,
     // The guest fragment carries no job description — the plan's own "snippet text" is, in
     // practice, at most one short benefits badge line ("Be an early applicant") and is often
     // absent entirely (flagged to the team lead: there is no distinct snippet field to fall
     // back on, only this). Falling back to "" rather than inventing filler text is deliberate:
     // Task 8's triage genuinely has less signal from this source than from freehire, and that
     // is a real asymmetry, not an oversight.
-    body: benefitsMatch ? decodeEntities(benefitsMatch[1]) : ""
+    body: rawBenefits ? decodeEntities(rawBenefits) : ""
   };
 }
 
