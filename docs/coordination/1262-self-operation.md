@@ -1788,3 +1788,39 @@ So the standing rule now resolves concretely: **#1264 lands second and rebases t
 (`43e5f5e2`), #1264 `w1:p12V` (`43e08f2d`) 3 of 13 tasks in, #1265 `w1:p12X` (`ff9430d4`) 5 of 7 in
 with task #8, T6 and T7 remaining. Neither lane has opened a PR. Both remain `security` tier:
 adversarial Opus QA plus a posted `gh pr comment` verdict before either can merge.
+
+### 2026-07-27 — #1265's plan silently dropped an approved spec requirement (SSRF containment)
+
+Found by inspection while checking T7's scope, not reported by anyone. **The plan contains zero
+occurrences of "SSRF" or "previewSource" across all 1128 lines**, but the approved spec requires it
+at lines 47–49:
+
+> `news.previewSource` is already `risk: "read"` but **fetches an arbitrary user-named URL** and is
+> marked `externalContent: true`. Confirm the existing SSRF/host controls on that fetch are adequate;
+> that is a containment check, not a reason to prompt.
+
+This is the single reason #1265 is classified `security` tier at all — a network-exposed surface.
+Had it stayed dropped, the lane would have wrapped up without it and the Opus QA would have found it,
+costing a full QA cycle on a lane that is otherwise clean.
+
+**Traced it myself before directing, so the agent spends its remaining context building rather than
+rediscovering:** `news.previewSource` → `resolveSourceInput`
+(`packages/news/src/discovery/source-resolution.ts`) → `normalizePublisherDomain` at lines 83, 102,
+132, 160. The reject-by-default control (`packages/news/src/personalization-domain.ts`, from #953)
+refuses `non_https_scheme`, `credentials`, `explicit_port`, `ip_literal`, `single_label`, plus IDN
+hardening. **The control is real and appears adequate — this is a confirmation, not new hardening.**
+
+**The load-bearing property is line 83: it normalizes the FINAL URL after redirects**, not merely the
+user-typed one. That is what defeats "public domain 302s to `169.254.169.254`"; a check on typed
+input alone would pass and then fetch the internal address. So the regression must exercise the
+post-redirect path — a test proving only that a typed IP literal is rejected is the weaker test and
+was explicitly ruled insufficient. If post-redirect coverage turns out to be absent, the agent is to
+stop and escalate `[SECURITY]` rather than fix it: that would be a live hole, not a test gap.
+
+Also ruled: **no confirmation prompt on `previewSource` and no risk-tier change.** The spec says
+containment, and a prompt does not stop SSRF.
+
+**This sharpens `AWAITING-BEN.md` §2.** The `gpt-5.6-sol high` planner's problem is not only that its
+plans run ~1128 lines — it is that a plan that long also **lost a requirement the spec stated
+explicitly**. Length and fidelity failed together, which strengthens the case that plans should carry
+contracts and invariants rather than inline implementation code.
