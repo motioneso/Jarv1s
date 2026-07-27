@@ -3054,3 +3054,48 @@ to the lane. A reviewer must not have to discover a new attack surface by readin
 **For the delta re-QA:** assess this explicitly rather than deferring to the source comment. It is
 the most security-relevant thing in the delta. Note also that #1275 supersedes the external-module
 inputSchema-linting follow-up I had queued to file — do not file a duplicate.
+
+## CHECKPOINT — 2026-07-27, coordinator at 70% (no relay, per Ben's standing override)
+
+Ben's standing instruction ("don't worry about successors, keep going here") cancels the skill's
+mandatory 70% relay. Flushing state here instead. **If a successor ever does adopt this run, this
+section plus the two preceding rulings are the entry point — do not deep-read the history above.**
+
+### Fleet
+
+| Lane | Pane | Session | Where it is |
+| ---- | ---- | ------- | ----------- |
+| Coordinator | `w1:p11T` | `43e5f5e2` | driving (lock holder) |
+| #1264 | `w1:p13Q` | `c2284222` | Task 11 DONE (`daa081c9`) → `coordinated-wrap-up` + open PR |
+| #1265 | `w1:p13R` | `f9ff23a9` | PR body → fresh gate → rebase → push → report |
+| QA | `w1:p137` | `5d55cb29` | idle, HELD for the #1265 delta re-QA |
+
+`w1:p112` / `w1:p12D` are Ben's own compass sessions — never reap.
+
+### Task 11 accepted (#1264)
+
+`daa081c9` adds `tests/uat/specs/1264-settings-self-operation.uat.spec.ts` (+104) and 61 lines to
+`tests/e2e/app-shell.spec.ts`. Six `test.fixme` halves, each **inline-reasoned** and citing #1121
+rather than left bare; the real halves carry the mutation-tightness argument. Same standard I
+accepted for #1265's Task 5. #1264 has **no PR yet** — correct, it opens at wrap-up. Branch pushed
+and in sync at the time of writing.
+
+### Live dependency — #1121
+
+#1264's six UAT fixmes all cite **#1121**, which is REOPENED and still awaiting an answer on
+whether it was closed as superseded. If it was superseded, those six citations (and the five spec
+files already noted) need re-pointing. This is now load-bearing for #1264's PR, not just
+bookkeeping.
+
+### The two things that must not be forgotten
+
+1. **PR #1273's green is stale-in-waiting.** `origin` is still `b09bcad6`; all of #1265's delta is
+   local. Do not read the current green as a passed re-QA. Full sequence in the "MERGE HAZARD"
+   section above. Background watcher `bzeblslks` is armed on the remote ref and fires when it moves.
+2. **The #1275 ruling is mine and has a PR-body condition attached** — see the RULING section
+   directly above. The delta re-QA must assess it directly.
+
+### Standing
+
+Neither PR merges tonight. Both security tier, both parked on Ben's hands-on LAN UAT pass
+(AWAITING-BEN 8 and 8a). Whichever lands second rebases the inventory assertion to an exact `toBe`.
