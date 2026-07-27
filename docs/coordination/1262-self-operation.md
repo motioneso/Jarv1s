@@ -341,3 +341,37 @@ letter** — `1263-chassis` was rejected (`invalid_agent_name`), which is why th
 `chassis-1263`. Fresh build worktrees have **no `node_modules`**, so run prettier from this coord
 worktree against the build worktree's path before committing there. `git worktree add` resolves
 relative to your cwd, so pass an absolute path or you get a worktree nested inside this one.
+
+## Builder burn-rate intervention (2026-07-26)
+
+Three consecutive builders on #1263 died at roughly one task each:
+
+| Builder session | Outcome | Work landed |
+| --------------- | ------- | ----------- |
+| `6c9e4e26…` | auto-compacted at 72%, zero code | none |
+| `7467c98e…` | relayed at 70% after Task 1 | `b2840f7b` |
+| `70c722a2…` | **auto-compacted** at ~87% mid-relay after Task 2 | `d11c4481` |
+
+Diagnosed cause: `docs/superpowers/plans/1263-chassis-plan.md` is 647 lines, and a cold builder
+read it end to end before writing a line. That single read costs roughly a third of a fresh
+context, so every builder started its first task already close to the relay threshold. Re-briefing
+builders on reading discipline did not fix it — builder three received the explicit
+"grep your task heading, read only that section" instruction and still burned out.
+
+**Intervention:** `planner-1263` is splitting the plan into `docs/superpowers/plans/1263/task-01.md`
+… `task-17.md`, one task per file, content copied verbatim (no rewording — a content change here
+would silently diverge from the approved plan and from what Tasks 1–2 were already built against).
+Each task file additionally carries its dependency line and any coordinator ruling it needs, so a
+builder can start cold from one file. The master plan file becomes a short index.
+
+Sequencing note: the split is a docs-only change on the build branch and touches no source, so it
+cannot conflict with the committed work. Tasks 1 and 2 get files too, marked DONE with their shas,
+so no successor rebuilds them.
+
+**Next builder starts at Task 3** (the gateway exclusion hoist) reading only
+`docs/superpowers/plans/1263/task-03.md`. Task 7 is unblocked: four `confirm_always` tools
+(`memory.forget`, `people.merge`, `people.splitIdentity`, `notes.delete`), all keeping
+`risk: "destructive"`, so the declaration is status quo at runtime.
+
+Session `70c722a2…` is to be reaped once the split commits — verified `git status` clean of any
+uncommitted source, only the context-meter log and its own relay doc were dirty.
