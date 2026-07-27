@@ -3438,3 +3438,28 @@ epic's thesis, and the PR is parked anyway so there is no schedule cost. `settin
 exactly 1000 lines — accepted, recorded, next change to that file turns the gate red. `0176` adds a
 column its own comment says has "No consumer in this PR" — accepted, noted as speculative infra in
 a permanently immutable artifact. UAT fixmes — already correctly declared in the body.
+
+### Continuation note — both lanes dispatched, neither merges
+
+**#1265 / PR #1273.** `3fb8f557` (`w1:p13W`) finished the B1 fix plus N3/N4 and verified N1/N2 true,
+52/52 local tests green — **but left all of it uncommitted in the working tree** and stopped at its
+relay threshold, telling itself "nothing uncommitted is at risk". That is backwards, and it is the
+reason PR head is still `ec43d62e`: **the green checks on #1273 are green on the pre-fix code.** I
+told it to commit by explicit path and push *before* anything else, and explicitly not to run the
+local full gate first — CI runs the identical gate, so pushing tested work is the same bar applied
+earlier, not a lowered one. It reads 54% on its status bar (its own 70% figure is the hook's meter,
+which counts differently), so it finishes in place rather than spending a successor spawn. Still
+owes me its `/u`-flag reasoning — I reserved that ruling and want the reason, not the choice.
+
+**#1264 / PR #1276.** Sent the yolo-branch notifier gap back to `26659abc` (`w1:p13V`) as a strictly
+additive fix. Worth doing precisely because the PR is parked: zero schedule cost, and it closes a
+security control whose trip is currently invisible. That lane is at 69% with ~6% to auto-compact —
+if it compacts mid-gate I spawn a successor rather than let it thrash.
+
+Reaped `qa-1264` (`3ea7d2cd`); its verdict is durable on the PR. Fleet is now the two build lanes
+plus me. Monitor `balk35mgt` watches both PR heads and check states (the earlier attempt died 127 on
+quoting — the script lives in the scratchpad now, not inline).
+
+**Neither PR merges tonight regardless of colour.** Both are security tier and both park on Ben's
+LAN pass, which AWAITING-BEN item 9 has now turned from routine sign-off into the only evidence that
+the epic's headline behaviour happens at all.
