@@ -580,3 +580,35 @@ enforced in code (not just tool prose) and pinned by `service.test.ts:78`. **8 o
 `w1:p121`. **`builder-1263-g`** spawned, pane `w1:p122`, tab `w1:t3J`, **Sonnet 5 confirmed**, queue
 = task-07a → task-09 (told to `git diff` first so it builds on f's partial) → task-10. Stop rule
 restated with "commit FIRST" called out as the clause f violated.
+
+### 2026-07-26 (later) — Task 7a landed; builder g → h
+
+**Task 7a (`d011dba5`) reviewed and approved.** `notes.delete` is now `risk: "write"` +
+`actionFamilyId: "note_changes"` + `executionPolicy: "auto"` + `granted_at_install`, with
+`always_confirm` still in `allowedTiers` so a user can demand the prompt back. The commit also
+swapped `notes.delete` → `email.sendReply` in `PLANNED_CONFIRM_ALWAYS_TOOLS`
+(`packages/ai/src/gateway/self-operation.ts:178`). That file was **not** in task 7a's file list, but
+the edit is correct and necessary — the roster is encoded in code, so approved rather than bounced.
+
+**Caught a stale line in my own plan file.** `task-07a.md` said the roster "drops from four to
+three" and told the builder to fix any "four" it found — which would have reverted the email ruling
+in tasks 16/17. Corrected in `67bf5e46` before it did damage; builder g had already reasoned to the
+right answer independently.
+
+**Caught stale prose the model reads.** Both `notes.delete` descriptions still said "after
+approval" after the confirmation was removed. A tool description is decision-time input to the
+model, not a comment, so a stale promise of a confirmation is a real defect. Fixed in `4b7a5049`
+("immediately and permanently", no trash path added — that stays out of #1263 scope).
+
+**Fleet.** Builder g reaped with pane `w1:p122` after committing cleanly at its threshold (stop rule
+held this time — the "commit FIRST" restatement worked). **`builder-1263-h`** spawned, pane
+`w1:p123`, **Sonnet 5 confirmed**, queue = task-09 (memory; told to `git status` first because
+builder f's `memory_management` family is still uncommitted in the tree) → task-10 (news) →
+task-11 (email, with the reversing ruling called out in the brief). Monitor re-armed on `w1:p123`.
+
+**10 of 17 committed.** Sequence: `b2840f7b … 1b622d93`, `63a38cdd`, `32a75627`, `d011dba5`,
+`4b7a5049`.
+
+**Herdr note (recurring):** a long brief sent with `herdr pane run` lands as an unsubmitted paste
+("paste again to expand", context still 0%) and needs one follow-up `send-keys Enter`. Always
+confirm the context meter moved off 0% before believing a builder is driving.
