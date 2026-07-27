@@ -11,6 +11,7 @@ import {
   type GatewaySessionRecord,
   type SelfOperationManifestInput
 } from "@jarv1s/ai";
+import { calendarModuleManifest } from "@jarv1s/calendar";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 import type { JarvisModuleManifest, ToolExecute } from "@jarv1s/module-sdk";
@@ -436,6 +437,74 @@ describe("AssistantToolGateway", () => {
     expect(exampleToolCalls).toHaveLength(0);
 
     await overrideGateway.resolveActionRequest(ids.userA, request.actionRequestId, "cancelled");
+    await call;
+  });
+
+  it("install grants for the calendar module still leave calendar.deleteEvent asking (user_promotable is not promoted by install)", async () => {
+    const grantManifest: SelfOperationManifestInput = {
+      id: calendarModuleManifest.id,
+      assistantTools: calendarModuleManifest.assistantTools,
+      assistantActionFamilies: calendarModuleManifest.assistantActionFamilies
+    };
+
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-calendar-install-grant" },
+      (scopedDb) => grantSelfOperationForModule(scopedDb, repository, grantManifest)
+    );
+
+    const fakeCalendarWrite = {
+      async proposeAndInsert() {
+        throw new Error("should not be called — deleteEvent must confirm first");
+      },
+      async deleteEvent() {
+        throw new Error("should not be called — deleteEvent must confirm first");
+      }
+    };
+
+    function dbBackedCalendarActionPolicy(ctx: { actorUserId: string; requestId: string }) {
+      return {
+        getFamilyTier: async (moduleId: string, familyId: string) =>
+          runner.withDataContext(
+            { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+            async (scopedDb) => {
+              const policies = await repository.listActionPolicies(scopedDb);
+              return (
+                policies.find((p) => p.moduleId === moduleId && p.actionFamilyId === familyId)
+                  ?.tier ?? null
+              );
+            }
+          ),
+        getFamilyManifest: async (_moduleId: string, familyId: string) =>
+          calendarModuleManifest.assistantActionFamilies?.find((f) => f.id === familyId) ?? null
+      };
+    }
+
+    const calendarGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [calendarModuleManifest],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 30_000,
+      actionPolicy: (ctx) => dbBackedCalendarActionPolicy(ctx),
+      toolServices: { calendarWrite: fakeCalendarWrite }
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-calendar-install-grant",
+      allowedToolNames: null
+    });
+
+    const call = calendarGateway.callTool(token, "calendar.deleteEvent", {
+      eventId: "some-uuid",
+      displayTitle: "Board sync"
+    });
+    const request = await waitForActionRequest();
+
+    expect(request.toolName).toBe("calendar.deleteEvent");
+
+    await calendarGateway.resolveActionRequest(ids.userA, request.actionRequestId, "cancelled");
     await call;
   });
 
