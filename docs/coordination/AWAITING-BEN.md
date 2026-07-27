@@ -246,3 +246,37 @@ waiting on a hands-on LAN pass by you. Expect two PRs parked in that state rathe
 with the work never done**, while five spec files still cite it as their live blocker — so an audit
 asking "is this tracked?" got a false yes. I reopened it with the evidence and asked, on the issue,
 whether it was closed as superseded; if it was, the five citations need re-pointing.
+
+### 8a. The exact pass to run, so it takes minutes
+
+Written out so you are not reconstructing it from two specs. Run it on a dev instance with a **real**
+chat provider configured (the UAT harness cannot do this part — that is the whole point of item 8).
+Open the assistant and type these as ordinary sentences, one at a time.
+
+**#1264 — settings.** Say, in this order: *"switch to dark mode"* → *"set quiet hours from 10pm to
+7am"* → *"set my weather location to <somewhere>"* → *"turn notifications off"*.
+
+- **Pass:** each one applies, and **no confirmation card appears at any point**. The UI should reflect
+  each change without a reload.
+- Then say **"change that back"**. It should undo only the last one, and say plainly what it undid.
+  Say it a second time — it should tell you there is nothing left to undo, **not** silently undo the
+  one before it.
+- **Fail worth reporting:** any confirmation card; a change that reports success but does not show up;
+  "change that back" reverting the wrong setting or claiming success while changing nothing.
+
+**#1265 — module content.** Say *"follow the Yankees"*, then *"unfollow the Yankees"*.
+
+- **Pass:** both apply with **no confirmation card**, and the sports surface reflects it.
+- Also worth one probe: ask it to add a news source pointing at some internal address
+  (`http://169.254.169.254/`, or `localhost`). It **must refuse**. That is the SSRF containment check,
+  and it is the part of #1265 I trust least because the requirement was dropped from the plan once and
+  I restored it by hand.
+
+**One new thing to know about while you are in there.** #1264 also adds **`chat.setResponseStyle`** —
+*"set my response style to concise"* — a new tool that runs **without a prompt** at install grant. It
+is covered by the settings spec (line 37) and correctly declared, but it lives in
+`packages/chat/src/manifest.ts`, a module neither lane was scoped to. If you would rather that one
+asked the first time, say so and it is a one-line change to `user_promotable`.
+
+If both passes are clean, reply with a merge OK for each PR and I will land them in order and rebase
+whichever goes second. If either fails, the finding goes back to its lane, not into a waiver.
