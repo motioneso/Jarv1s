@@ -1972,3 +1972,26 @@ successor inheriting it inherits unvalidated work.
 
 This does not change the merge bar (the full gate catches it either way). It does confirm the
 standing rule: **an agent's per-task "done + verified" is a progress signal, never merge evidence.**
+
+### 2026-07-27 — #1264 relay #4; burn rate is now the epic's main cost
+
+- **#1264** → Task 2 done (`69cb940f`, `settings.themeMode.set`). Successor pane `w1:p132`, session
+  `19398efe`, **Sonnet 5 confirmed**, at **Task 3 of 13**. Predecessor `34525487` idle, asked to be
+  reaped by session id, verified and closed. New drift the lane logged: `chatSessionId` is required
+  on `ToolContext`, and **DB-backed tool tests belong in `tests/integration/`, not `tests/unit/`** —
+  consistent with the four-glob vitest whitelist finding.
+- **#1265** → gate running. lint/format/typecheck/test:unit/db:migrate/test:uat-seed green on an
+  isolated `jarvis_gate_1265`; `test:integration` detached (446+ files, exceeded the 10-min command
+  cap). SSRF test confirmed executing: **exit 0, 7/7**, pure unit test with a `{}` handle so no DB
+  isolation applies. Awaiting the integration exit code.
+
+**Burn rate is the thing to fix, and it is not agent quality.** #1264 has now spent **four contexts
+to complete two of thirteen tasks** — roughly one task per context, each relay paying a full boot to
+re-read the handoff. At this rate the lane needs ~10 more relays. Every successor has been correct
+and well-behaved; the cost is structural, from the 1129-line plan they must re-enter each time.
+This is the same defect logged in `AWAITING-BEN.md` §2, now with a measured rate attached rather than
+an anecdote. It is Ben's call whether to keep spending it or re-cut the plan into contracts.
+
+**Open question outstanding to #1265:** whether its first gate attempt ran against Ben's shared
+`jarv1s` dev DB and wrote anything there (it reported hitting the #1087 stale-uat-seed trap "from a
+prior run" before creating the isolated DB). Answer goes to `AWAITING-BEN.md` §7 if it wrote.
