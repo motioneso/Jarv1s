@@ -23,6 +23,11 @@ import {
   themeModeSetInputSchema,
   themeModeSetOutputSchema
 } from "./theme-mode-tool.js";
+import {
+  weatherLocationOutputSchema,
+  weatherLocationSetExecute,
+  weatherLocationSetInputSchema
+} from "./weather-location-tool.js";
 
 export const settingsModuleSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
@@ -489,6 +494,18 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       inputSchema: quietHoursSetInputSchema,
       outputSchema: quietHoursOutputSchema,
       execute: quietHoursSetExecute
+    },
+    {
+      name: "settings.weatherLocation.set",
+      description: "Set the user's saved weather location (latitude, longitude, and label).",
+      permissionId: "settings.write",
+      risk: "write",
+      selfOperationGrant: "granted_at_install",
+      actionFamilyId: "settings.preference-write",
+      executionPolicy: "auto",
+      inputSchema: weatherLocationSetInputSchema,
+      outputSchema: weatherLocationOutputSchema,
+      execute: weatherLocationSetExecute
     }
   ]
 };
