@@ -1,102 +1,82 @@
-# Handoff — #1270 recovery branch + live-path gate (2026-07-27)
+# Handoff — #1270 recovery + live-path gate (2026-07-27)
 
-Pointer-style. Details live in the commits, the spec, and agentmemory — not here.
+Pointer-style. Details live in the commits, the PR, the spec, and agentmemory — not here.
 
-## Done and pushed to `main`
+## Where this stands
 
-- `818bf2c0` — **live-path gate adopted** (Ben ruled 2026-07-27). Hard invariant in `CLAUDE.md`,
-  full rule in `docs/DEVELOPMENT_STANDARDS.md` → Live-Path Gate, pre-merge check in
-  `.claude/skills/coordinate/SKILL.md` that overrides every tier's auto-merge-after-green.
-  Same commit corrected two stale statuses (below).
-- `bcfcabe3` — replaced the nonexistent `herdr agent send` with `herdr agent prompt` in
-  `docs/agents/herdr-pane-message.md` + the coordinate skill.
-- Three #1270 spec commits (`eaaf75c5` and earlier).
+**#1270 is done pending merge.** Both process gates are clear and both halves of the live-path gate
+are recorded on **PR #1323** (`recover/1270-0719-settings-onboarding`, worktree
+`~/jarvis-recover-1270`, 13 commits).
 
-## Resolved, needs no further action
+- **Spec approved** by Ben 2026-07-27 —
+  `docs/superpowers/specs/2026-07-27-1270-provider-signin-shared-design.md`.
+- **Gate, automated half:** `pnpm test:uat 1270` → 2 passed, `### FINAL test:uat rc=0` on a freshly
+  provisioned real stack, with screenshots. Spec:
+  `tests/uat/specs/1270-provider-signin.uat.spec.ts`.
+- **Gate, human half:** Ben confirmed he ran the provider sign-in **device code** on his own dev
+  instance and it worked. The UAT cannot cover this — a provisioned stack has no provider CLIs, so
+  `cliAvailable` is false and the automated dialog never renders; the spec walks the fallback
+  "Use terminal to sign in" branch. **Do not re-litigate whether the device code works.**
+- **Foundation gate green locally** before the UAT: unit 442 files / 3382 passed; integration 158
+  files / 1721 passed / 2 skipped; migrations through `0128_person_context.sql`.
 
-- **Voice/STT spec was never actually pending.** Issue #874 closed *completed* 2026-07-09 and the
-  feature is on `main` (`apps/web/src/settings/settings-voice-config-group.tsx`,
-  `packages/ai/src/voice-endpoint-routes.ts`). Only its status line was stale; corrected.
-  Ben's "make sure that spec has an issue" → it already has one.
+Remaining: merge #1323 once CI is green, then close #1270 and #1271 and move the board to Done.
+
+## The gate's first real catch — issue #1325, PARKED
+
+Adding an **API-key** provider from Settings (Mistral / Local (Ollama) / OpenAI-compatible / Custom)
+fails end to end: `POST /api/ai/providers` returns `400 credentialPayload is required for api_key
+auth method` because the picker never sends one. Error toast, nothing added. CI and code review both
+passed; the live walk found it.
+
+Ben's ruling: **"noted, we'll pick this up later."** Filed with three candidate fixes and a second
+related defect (`hasCredential` is `encrypted_credential IS NOT NULL` on a `NOT NULL` column, so the
+card's `"No credential"` state is unreachable and an empty credential would claim
+`"API key stored"`). **Do not fix it unprompted, and do not fix it by sending
+`credentialPayload: {}`** — that makes the UI lie about credential state.
+
+Not a regression from this branch: `main` hardcoded `authMethod: "cli"` for every catalog entry, so
+the same click silently created a bogus "Mistral CLI". Equally unusable, just quieter.
+
+Consequence to remember: with the API-key assertion dropped, the UAT **no longer proves**
+`f5b44c52`'s `authMethod` passthrough end to end — the remaining CLI assertion passes on `main` too.
+Restore the API-key half as the regression test when #1325 lands.
+
+## Also done and pushed to `main`
+
+- `818bf2c0` — **live-path gate adopted**: hard invariant in `CLAUDE.md`, full rule in
+  `docs/DEVELOPMENT_STANDARDS.md` → Live-Path Gate, pre-merge check in the `coordinate` skill that
+  overrides every tier's auto-merge-after-green.
+- `bcfcabe3` — replaced the nonexistent `herdr agent send` with `herdr agent prompt` in the docs.
+- Ben approved the one behaviour-removing commit on the branch (`fdbe5f2e`, −296 lines, drops the
+  #368 "Ask Jarvis" finish affordance).
+
+## Closed, needs no further action
+
+- **Voice/STT spec was never pending** — #874 closed *completed* 2026-07-09, feature is on `main`.
 - **`docs/coordination/AWAITING-BEN.md` has no open items.**
-- **Rescue directory `~/jarvis-uncommitted-rescue-2026-07-26/` is closed** — do not re-triage.
-  Verdict in agentmemory `rescue-patch-triage-2026-07-27`. Only live find became issue #1318.
+- **Rescue directory `~/jarvis-uncommitted-rescue-2026-07-26/` is closed** — verdict in agentmemory
+  `rescue-patch-triage-2026-07-27`; only live find became #1318.
 
-## In flight — the recovery branch
+## Traps earned here (also in agentmemory)
 
-`recover/1270-0719-settings-onboarding` at **`/home/ben/jarvis-recover-1270`** (separate worktree;
-`/home/ben/Jarv1s` is the shared checkout — never `git add -A` there). 11 commits, rebased clean on
-today's `main`. Recovers the 2026-07-19 settings/onboarding stack: **#1270 and #1271 are recoveries,
-not new builds.**
+- **Read the real exit code.** Grep `### FINAL` in the run log; a wrapper `echo $?` reports the
+  echo's status and masked an rc=1 twice this session.
+- **CI red is not always code.** "Verify foundation and app" failed purely on a Docker Hub registry
+  timeout pulling postgres/greenmail. `gh run rerun <id> --failed` clears it.
+- **Playwright selector traps** are consolidated in agentmemory `uat-spec-gotchas` (six now) —
+  including that a provider card's own "Edit" collides with its models' `Edit <model>` buttons.
 
-- Ben approved the one behaviour-removing commit (`fdbe5f2e`, −296 lines, drops the #368 "Ask
-  Jarvis" finish affordance).
-- `e7876203` fixes the only gate failure — two stale assertions in
-  `tests/integration/onboarding-provider-install.test.ts`. Background: agentmemory
-  `onboarding-provider-allowlist`.
-- **Gate:** first run was rc=1 on those two tests. Re-run in progress at checkpoint time; log at
-  `/tmp/claude-1000/-home-ben-Jarv1s/3691cb7d-1069-47ff-8e46-76d18086f1b6/scratchpad/gate2.log`.
-  Grep `### FINAL` for the real exit code — **do not trust a wrapper `echo $?`**, that masked the
-  rc=1 once already this session. Gate DB is `jarv1s_recover_gate` (DROP/CREATE it before each run).
+## Selector facts, do not re-derive
 
-## Done since
-
-- **Gate green**, read from the log not a wrapper: `### FINAL verify:foundation rc=0`. Integration
-  158 files / 1721 passed / 2 skipped; unit 442 files / 3382 passed.
-- **PR #1323 open** — https://github.com/motioneso/Jarv1s/pull/1323. Body states plainly that the
-  live-path gate is NOT yet met and the PR must not merge on green.
-- **`068c16fc` adds `tests/uat/specs/1270-provider-signin.uat.spec.ts`** (12 commits now). Two
-  tests: the wizard offers all three CLI providers; the Settings walk covers the authMethod
-  passthrough, the real sign-in affordance, and the terminal copy button.
-
-## The live-path gate earned its keep — first UAT run found a real bug
-
-First run: **1 passed, 1 failed**. The passing test is the #1270 headline, proven on a real
-provisioned stack: the first-run wizard renders exactly three CLI providers (Claude / Codex /
-Antigravity), which `main` cannot do.
-
-The failure was not a selector problem. Adding an **API-key** provider (Mistral, Local (Ollama),
-OpenAI-compatible, Custom) from Settings is broken end to end — `POST /api/ai/providers` returns
-`400 credentialPayload is required for api_key auth method`
-(`parseCreateProviderBody`, `packages/ai/src/routes.ts:736`) because the picker's `createMutation`
-never sends one. Error toast, nothing added. Filed as **issue #1325** with three candidate fixes and
-a second related defect (`hasCredential` is `encrypted_credential IS NOT NULL` on a `NOT NULL`
-column, so the card's `"No credential"` state is unreachable and an empty credential would claim
-`"API key stored"`). **Needs a Ben ruling — do not fix unilaterally.**
-
-Not a #1270 regression: `main` hardcoded `authMethod: "cli"` for every catalog entry, so the same
-click silently created a bogus "Mistral CLI" with no way to enter a key. Equally unusable, just
-quieter. The UAT now covers only the CLI branch and says so in a comment — which means it does
-**not** prove `f5b44c52`'s passthrough end to end. Restore the API-key half as the regression test
-when #1325 lands.
-
-## Next steps, in order
-
-1. Confirm the UAT run: log at `<scratchpad>/uat1270.log`, grep `### FINAL test:uat`. Screenshots
-   land under `test-results/…/0*.png` in the worktree (the UAT config sets no `screenshot` option,
-   so the spec captures five frames explicitly).
-2. Post the run + screenshots as a `gh pr comment` on #1323 — that comment IS the gate artifact.
-3. **Known limit to state honestly, not paper over:** a *real* Codex device code needs a real Codex
-   CLI and network. The provisioned stack installs CLIs into an empty `/data/cli-tools` volume and
-   leaves `JARVIS_HOST_CLIS` unset, so `cliAvailable` is false and the spec exercises the *fallback*
-   sign-in path. Ben confirming a real device code on his own dev instance is a separate, human
-   step — flag it as such rather than claiming the gate is fully met.
-4. Ben has still not approved the #1270 spec itself
-   (`docs/superpowers/specs/2026-07-27-1270-provider-signin-shared-design.md`); #1271 stays open.
-
-## Selector facts the next session should not re-derive
-
-- Wizard order is `welcome → cliAuth → connectors → finish`; advance with **"Start setup"**.
+- Wizard order `welcome → cliAuth → connectors → finish`; advance with **"Start setup"**.
 - Wizard provider labels are **Claude / Codex / Antigravity** — the `google` kind is NOT "Gemini".
 - Settings nav: usermenu → *Settings & permissions* → *Admin / Setup* → *Assistant & AI*.
-- Main's Settings picker **already** listed Anthropic/OpenAI/Google. `f5b44c52`'s Settings-side
-  change is the per-entry `authMethod` passthrough (main hardcoded `"cli"` for every entry); the
-  three-provider widening was the onboarding allowlist in `packages/settings/src/repository.ts`.
-- `supportsAutomatedProviderLogin` requires `cliAvailable`, so "Log in"/"Re-authenticate" only
-  render when a CLI binary is present; otherwise the CLI block shows "Use terminal to sign in".
+- `supportsAutomatedProviderLogin` requires `cliAvailable`, so "Log in"/"Re-authenticate" render only
+  when a CLI binary is present; otherwise the CLI block shows "Use terminal to sign in".
 
-## Standing corrections earned this session
+## Standing corrections
 
-- Ben wants terse reporting. Lead with the result; no recaps, no option surveys.
+- Terse reporting. Lead with the result; no recaps, no option surveys.
 - Never conclude "never built" from a `main`-only grep in this repo, and never conclude "not
   approved" from a spec status line — check whether the issue closed *completed* first.
