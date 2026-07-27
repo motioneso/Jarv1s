@@ -2079,3 +2079,25 @@ The remediation sent to the lane is unaffected and remains correct.
 by resolving `/proc/<pid>/cwd` and `cmdline` first and confirming it belongs to the lane, before
 reading its environment. The successor's gate (`852192`) was verified this way and **does** carry
 `export JARVIS_PGDATABASE=jarv1s_gate_1265b`, with the exit code captured to `/tmp/gate-1265b.rc`.
+
+### 2026-07-27 — checkpoint: #1265 isolation verified properly, #1264 at Task 7
+
+**#1265 gate DB isolation is now genuinely confirmed**, using the method that survives scrutiny
+(resolve `/proc/<pid>/cwd` and `cmdline` to the lane's worktree FIRST, then read `environ`). Six live
+gate processes — `verify:foundation`, `test:integration`, and its vitest workers — all carry
+`JARVIS_PGDATABASE=jarv1s_gate_1265b`. Nothing in this run is pointed at the shared dev DB. Gate has
+been running ~10 min; exit code will land in `/tmp/gate-1265b.rc`, log at `/tmp/gate-1265b.log`.
+
+**#1264** → Task 6 done (`fc2a42b7`, `settings.notificationPreference.setEnabled`), reported
+TDD/typecheck/lint green. Relaying again for Tasks 7–13, same worktree/branch. That is **relay #6 on
+this lane**, ~one task per context, exactly the burn rate already escalated in `AWAITING-BEN.md` §2.
+
+**Coordinator context checkpoint at 70%.** Per Ben's standing override ("don't worry about
+successors, keep going here") I am **not** relaying; the substitute is this manifest flush plus
+durable memory saves. Two saved this window: the `pgrep -f` self-match trap with the correct
+cwd-first verification pattern, and the nullish-coalescing asymmetry in `packages/db/src/urls.ts:22`
+that lets isolation state be inferred from outcomes alone.
+
+**State for whoever holds this next:** no PR on either lane; nothing merge-eligible; the adversarial
+Opus QA brief for #1265 is staged and unspawned; #1264 must rebase the inventory to 31/5/4=40 at its
+Task 10; digest stays out of scope; the six stray rows in Ben's `jarv1s` are logged and untouched.
