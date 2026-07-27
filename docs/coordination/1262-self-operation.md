@@ -3605,3 +3605,35 @@ mid-run.
 
 Budget unchanged: this is the third QA cycle; two RED verdicts precede it, and gate reds do not
 count toward that. Neither PR merges tonight regardless of colour.
+
+### 2026-07-27 — #1264 CI fully green; reversing the "reap after CI" call
+
+PR #1276 at `0648d0f1`: **Verify foundation and app = SUCCESS**, both deployment smokes SUCCESS.
+All three required checks green. (`Build and publish images` is the post-merge publish job, not a
+gate — ignore it.) The lane is verified end to end: QA GREEN at `28bf044f`, the `0648d0f1` delta
+cleared by coordinator review, local full gate exit 0, and now CI green at head.
+
+**I said I would reap the lane once CI confirmed. I am not going to, and the reason is a real one
+rather than caution.** Two pieces of work are still owed on these branches and both need an owner
+who holds the context:
+
+1. **The inventory-assertion rebase falls on whichever lane lands second** and that is still
+   unsettled. #1265 asserts exact `toBe` 31/5/4 (29+2), #1264 asserts 37/5/4 (29+8); the second to
+   land must become 39/5/4 = 48. That is feature-adjacent test code, and the standing rule is that
+   I do not hand-edit it — the owning lane does.
+2. **Ben's LAN pass may return findings.** If the confirmation card fires (AWAITING-BEN item 9),
+   the likely home is the #1263 chassis, but I cannot know that before he looks.
+
+Idle panes cost no tokens and idle agents do not act unprompted, so holding them is close to free;
+reaping them and re-spawning later costs a full re-onboarding into context these agents already
+have. Both lane panes (`w1:p13V` #1264, `w1:p13W` #1265) and both worktrees stay until the merges
+actually happen.
+
+**Still not merged, and not merging.** Security tier, parked on Ben. Green CI is a precondition for
+his sign-off, not a substitute for it.
+
+**Pane hygiene note:** `w1:p13W`'s input box holds an unsubmitted line I did not write, and
+`w1:p13Y`'s now holds "post the verdict once VF lands" — also not mine. Either could be Ben typing.
+`herdr pane run` CONCATENATES onto whatever is already in the box, so any message to those two panes
+must be preceded by a fresh read, and must not carry a blanket "ignore the text above" prefix that
+would make the agent discard a genuine request from him.
