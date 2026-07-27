@@ -1091,3 +1091,14 @@ the module's whole premise is that we do not do that. The heuristic is accepted 
 fails to the safe side — a misclassification yields `parse_failed` (enabled, retried, cause shown to
 the user), never a silent success or a spurious permanent disable. Worth one manual spot-check if
 someone ever has a real wall in hand; not worth manufacturing one.
+
+### N23 — enumerate tools from the manifest, never from a literal
+
+Task 21's test 9 said "invoke each of the eight Task 16 tools"; the manifest declares nine. The stale
+count is the smaller problem. **Derive the list from the manifest's declared `assistantTools` and
+assert every declared tool is invoked** — never hardcode a count or a name list.
+
+A hardcoded enumeration passes while a tool goes untested: someone adds a tenth tool, the assertion
+still checks nine, and the gap is green and invisible. Manifest-derived enumeration fails loudly the
+moment a tool is added without coverage, which is the failure worth having. Same class as prose tool
+names being unvalidated — a renamed tool fails at runtime with nothing red beforehand.
