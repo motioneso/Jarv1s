@@ -34,6 +34,14 @@ the handoff so an agent seeks to its own task and reads ~130 lines instead of 11
 grounding written down so nobody re-derives it. #1264 started producing code within minutes of
 getting the map.
 
+**It is not only length — a long plan also lost a requirement.** Added 2026-07-27. Checking #1265's
+last task, I found its plan contains **zero occurrences of "SSRF" or "previewSource" across all 1128
+lines**, while the approved spec requires that containment check explicitly at lines 47–49. That
+requirement is the single reason #1265 is classified `security` tier. Nobody reported it; it surfaced
+only because I read the task's scope against the spec. Restored into the lane before wrap-up, so it
+costs nothing — but a plan that both bloats contexts *and* silently drops a stated security
+requirement is a stronger argument than "plans are too long."
+
 Two things worth your call:
 
 1. **Should plans stop carrying implementation code?** This repeats the lesson already recorded from
