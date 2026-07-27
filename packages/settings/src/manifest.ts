@@ -6,6 +6,11 @@ import {
   appGetMapSliceInputSchema,
   appGetMapSliceOutputSchema
 } from "./app-map-tool.js";
+import {
+  themeModeSetExecute,
+  themeModeSetInputSchema,
+  themeModeSetOutputSchema
+} from "./theme-mode-tool.js";
 
 export const settingsModuleSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
@@ -405,6 +410,15 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       permissionId: "settings.manage"
     }
   ],
+  assistantActionFamilies: [
+    {
+      id: "settings.preference-write",
+      label: "Settings preference changes",
+      description: "Update personal app preferences such as color mode.",
+      defaultTier: "ask_each_time",
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
+    }
+  ],
   assistantTools: [
     {
       name: "app.getMapSlice",
@@ -415,6 +429,18 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       inputSchema: appGetMapSliceInputSchema,
       outputSchema: appGetMapSliceOutputSchema,
       execute: appGetMapSliceExecute
+    },
+    {
+      name: "settings.themeMode.set",
+      description: "Set the app's color mode (light or dark) for this user.",
+      permissionId: "settings.write",
+      risk: "write",
+      selfOperationGrant: "granted_at_install",
+      actionFamilyId: "settings.preference-write",
+      executionPolicy: "auto",
+      inputSchema: themeModeSetInputSchema,
+      outputSchema: themeModeSetOutputSchema,
+      execute: themeModeSetExecute
     }
   ]
 };

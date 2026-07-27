@@ -51,3 +51,8 @@ export {
   appGetMapSliceOutputSchema,
   appGetMapSliceExecute
 } from "./app-map-tool.js";
+export {
+  themeModeSetInputSchema,
+  themeModeSetOutputSchema,
+  themeModeSetExecute
+} from "./theme-mode-tool.js";
