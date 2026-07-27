@@ -334,7 +334,7 @@ export const newsModuleManifest = {
     {
       name: "news.addTopic",
       description:
-        "Follow a custom news topic (e.g. 'local climate policy'). The topic is policy-checked before it is added; optional guidance steers article selection.",
+        "Follow a custom news topic (e.g. 'local climate policy'). The topic is policy-checked before it is added.",
       permissionId: "news.prefs",
       actionFamilyId: "news_personalization",
       risk: "write",
@@ -343,11 +343,7 @@ export const newsModuleManifest = {
       inputSchema: {
         type: "object",
         properties: {
-          label: { type: "string", description: "Short human-readable topic label" },
-          guidance: {
-            type: "string",
-            description: "Optional steering for article selection within the topic"
-          }
+          label: { type: "string", description: "Short human-readable topic label" }
         },
         required: ["label"]
       },
