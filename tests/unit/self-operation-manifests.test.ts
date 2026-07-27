@@ -4,6 +4,7 @@ import { commitmentsModuleManifest } from "../../packages/commitments/src/manife
 import { goalsModuleManifest } from "../../packages/goals/src/manifest.js";
 import { notesModuleManifest } from "../../packages/notes/src/manifest.js";
 import { peopleModuleManifest } from "../../packages/people/src/manifest.js";
+import { memoryModuleManifest } from "../../packages/memory/src/manifest.js";
 
 const GRANTED_AT_INSTALL_TASK_TOOLS = [
   "tasks.create",
@@ -119,9 +120,30 @@ describe("People self-operation manifest classification", () => {
       const tool = tools.find((candidate) => candidate.name === name);
       expect(tool, `expected tool ${name} to exist`).toBeDefined();
       expect(tool?.risk).toBe("destructive");
-      expect(tool?.selfOperationGrant, `expected ${name} to be confirm_always`).toBe("confirm_always");
+      expect(tool?.selfOperationGrant, `expected ${name} to be confirm_always`).toBe(
+        "confirm_always"
+      );
     }
-    const confirmAlwaysCount = tools.filter((tool) => tool.selfOperationGrant === "confirm_always").length;
+    const confirmAlwaysCount = tools.filter(
+      (tool) => tool.selfOperationGrant === "confirm_always"
+    ).length;
     expect(confirmAlwaysCount).toBe(2);
+  });
+});
+
+describe("Memory self-operation manifest classification", () => {
+  it("classifies remember as granted and forget as binding confirm_always", () => {
+    const tools = memoryModuleManifest.assistantTools ?? [];
+    const remember = tools.find((candidate) => candidate.name === "memory.remember");
+    expect(remember, "expected tool memory.remember to exist").toBeDefined();
+    expect(remember?.risk).toBe("write");
+    expect(remember?.actionFamilyId).toBe("memory_management");
+    expect(remember?.executionPolicy).toBe("auto");
+    expect(remember?.selfOperationGrant).toBe("granted_at_install");
+
+    const forget = tools.find((candidate) => candidate.name === "memory.forget");
+    expect(forget, "expected tool memory.forget to exist").toBeDefined();
+    expect(forget?.risk).toBe("destructive");
+    expect(forget?.selfOperationGrant).toBe("confirm_always");
   });
 });
