@@ -2,6 +2,7 @@ import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db
 import { ChatAttachmentsService } from "@jarv1s/chat";
 import type { JarvisModuleManifest, ToolResult } from "@jarv1s/module-sdk";
 import {
+  createRuntimeEmbeddingProvider,
   reconcileExternalModules,
   type ExternalModuleDiscovery,
   type ReconciledExternalModule
@@ -54,6 +55,15 @@ export function createExternalModuleTools(input: {
             async (scopedDb) =>
               (await input.settingsRepository.getUserById(scopedDb, context.actorUserId))
                 ?.is_instance_admin === true
+          ),
+        // ctx.embed (#1281): resolved from the same runtime seam memory search
+        // uses, so the configured provider/model stays a single decision and is
+        // never named here. Lazy — only an invocation that actually embeds pays
+        // for the config read.
+        embeddingProvider: () =>
+          input.appDataContext.withDataContext(
+            { actorUserId: context.actorUserId, requestId: context.requestId },
+            (scopedDb) => createRuntimeEmbeddingProvider(scopedDb)
           ),
         readAttachmentText: async (access, attachmentId) => {
           const content = await attachments.readContent(access, attachmentId);

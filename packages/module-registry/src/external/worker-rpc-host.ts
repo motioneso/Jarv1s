@@ -7,7 +7,9 @@ import {
   type DataContextDb,
   type DataContextRunner
 } from "@jarv1s/db";
+import type { EmbeddingProvider } from "@jarv1s/memory";
 import type { ModuleAssistantToolRisk } from "@jarv1s/module-sdk";
+import { EMBED_BATCH_MAX } from "@jarv1s/module-sdk";
 import type { ModuleFetchRequest, ModuleFetchResponse } from "@jarv1s/module-sdk";
 import { createHostPinnedFetch } from "@jarv1s/host-fetch";
 import {
@@ -39,9 +41,14 @@ export class ExternalModuleRpcError extends Error {
       | "undeclared_database"
       | "forbidden_db_statement"
       | "forbidden_db_mutation"
-      | "invalid_rpc"
+      | "invalid_rpc",
+    /**
+     * Human-readable reason. Never crosses the worker boundary to the module —
+     * it is for host logs and tests. The module still sees only the code.
+     */
+    readonly detail?: string
   ) {
-    super(code);
+    super(detail ? `${code}: ${detail}` : code);
     this.name = "ExternalModuleRpcError";
   }
 }
@@ -94,6 +101,14 @@ export function createExternalModuleRpcHandler(input: {
   readonly workerDataContext: DataContextRunner;
   readonly cipher: ModuleCredentialCipher;
   readonly isActorAdmin: () => Promise<boolean>;
+  /**
+   * Resolver for the instance embedder behind ctx.embed (#1281). Required, not
+   * optional: there are exactly two production construction sites and Job
+   * Search embeds on the scheduled-crawl one, so an optional field would let a
+   * missed site pass typecheck and fail only at run time. Lazy, because most
+   * invocations never embed and resolving reads runtime config.
+   */
+  readonly embeddingProvider: () => Promise<EmbeddingProvider>;
   readonly readAttachmentText?: (
     access: AccessContext,
     attachmentId: string
@@ -148,6 +163,28 @@ export function createExternalModuleRpcHandler(input: {
         headers,
         bodyBase64: Buffer.from(await response.arrayBuffer()).toString("base64")
       } satisfies ModuleFetchResponse;
+    }
+    // Embedding touches no table, so these three sit outside withDataContext
+    // alongside fetch.request rather than beside ai.generateStructured: opening
+    // a data context for a CPU-bound transform would hold a pooled connection
+    // for the whole batch.
+    if (method === "embed.dimensions") {
+      return { dimensions: (await input.embeddingProvider()).dimensions };
+    }
+    if (method === "embed.embedQuery") {
+      const text = stringParam(params, "text");
+      // embedQuery, never embedDocument: the embedder applies a different task
+      // prefix to each, and using the wrong one degrades retrieval silently.
+      return { vector: await (await input.embeddingProvider()).embedQuery(text) };
+    }
+    if (method === "embed.embedDocuments") {
+      const texts = embedTexts(params);
+      const provider = await input.embeddingProvider();
+      const vectors: number[][] = [];
+      // Sequential on purpose: the in-process embedder is CPU-bound, so a
+      // 128-wide Promise.all would stall the worker host for every other module.
+      for (const text of texts) vectors.push(await provider.embedDocument(text));
+      return { vectors };
     }
     return input.workerDataContext.withDataContext(
       { actorUserId: input.actorUserId, requestId: input.requestId },
@@ -381,6 +418,29 @@ function aiRequest(value: Record<string, unknown>): ExternalModuleAiRequest {
       ? {}
       : { tierHint: value.tierHint as ExternalModuleAiRequest["tierHint"] })
   };
+}
+
+/**
+ * Validates an embedDocuments batch before the provider is touched at all, so
+ * the cap is a guard rather than a post-hoc check on work already done.
+ */
+function embedTexts(value: Record<string, unknown>): readonly string[] {
+  if (Object.keys(value).some((key) => key !== "texts") || !Array.isArray(value.texts)) {
+    throw new ExternalModuleRpcError("invalid_rpc", "embed.embedDocuments needs a texts array");
+  }
+  if (value.texts.length > EMBED_BATCH_MAX) {
+    throw new ExternalModuleRpcError(
+      "invalid_rpc",
+      `embed.embedDocuments accepts at most ${EMBED_BATCH_MAX} texts per call`
+    );
+  }
+  if (value.texts.some((text) => typeof text !== "string" || text.length === 0)) {
+    throw new ExternalModuleRpcError(
+      "invalid_rpc",
+      "embed.embedDocuments texts must all be non-empty strings"
+    );
+  }
+  return value.texts as readonly string[];
 }
 
 function record(value: unknown): Record<string, unknown> {

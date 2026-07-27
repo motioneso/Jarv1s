@@ -321,6 +321,9 @@ export type { ChatEngineFactory } from "@jarv1s/chat";
 export type { TerminalRpcConnectOptions, TerminalRpcHandle } from "@jarv1s/ai";
 export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 export { aggregateFocusSignals } from "@jarv1s/module-sdk";
+// Re-exported for the two external-module rpc construction sites (#1281): they
+// need the same embedder seam built-in modules use, without naming a provider.
+export { createRuntimeEmbeddingProvider } from "./built-in-module-helpers.js";
 
 export * from "./external/validate.js";
 export * from "./external/types.js";

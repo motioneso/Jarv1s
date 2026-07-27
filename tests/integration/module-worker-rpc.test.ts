@@ -8,6 +8,7 @@ import {
   generateModuleTableRlsSql,
   type JarvisDatabase
 } from "@jarv1s/db";
+import { StubEmbeddingProvider } from "@jarv1s/memory";
 import {
   AI_CALLS_PER_INVOCATION_CAP,
   createExternalModuleRpcHandler,
@@ -159,7 +160,9 @@ describe("external module worker RLS", () => {
       requestId: "rpc-auth",
       workerDataContext: new DataContextRunner(workerDb),
       cipher: createModuleCredentialSecretCipher(),
-      isActorAdmin: async () => false
+      isActorAdmin: async () => false,
+      // Required dep (#1281); these tests never reach an embed.* method.
+      embeddingProvider: async () => new StubEmbeddingProvider()
     });
     await expect(
       rpc("auth.getCredential", { authId: "acme-a.shared" }, (value) => remembered.push(value))
@@ -185,7 +188,9 @@ describe("external module worker RLS", () => {
       requestId: "rpc-setcred",
       workerDataContext: new DataContextRunner(workerDb),
       cipher: createModuleCredentialSecretCipher(),
-      isActorAdmin: async () => false
+      isActorAdmin: async () => false,
+      // Required dep (#1281); these tests never reach an embed.* method.
+      embeddingProvider: async () => new StubEmbeddingProvider()
     };
     const write = createExternalModuleRpcHandler({ ...base, toolRisk: "write" });
 
@@ -254,7 +259,9 @@ describe("external module worker RLS", () => {
       requestId: "rpc-kv-policy",
       workerDataContext: new DataContextRunner(workerDb),
       cipher: createModuleCredentialSecretCipher(),
-      isActorAdmin: async () => false
+      isActorAdmin: async () => false,
+      // Required dep (#1281); these tests never reach an embed.* method.
+      embeddingProvider: async () => new StubEmbeddingProvider()
     });
     await expect(
       write(
@@ -271,7 +278,9 @@ describe("external module worker RLS", () => {
       requestId: "rpc-kv-policy-read",
       workerDataContext: new DataContextRunner(workerDb),
       cipher: createModuleCredentialSecretCipher(),
-      isActorAdmin: async () => false
+      isActorAdmin: async () => false,
+      // Required dep (#1281); these tests never reach an embed.* method.
+      embeddingProvider: async () => new StubEmbeddingProvider()
     });
     await expect(
       read(
@@ -289,7 +298,9 @@ describe("external module worker RLS", () => {
       requestId: "rpc-kv",
       workerDataContext: new DataContextRunner(workerDb),
       cipher: createModuleCredentialSecretCipher(),
-      isActorAdmin: async () => false
+      isActorAdmin: async () => false,
+      // Required dep (#1281); these tests never reach an embed.* method.
+      embeddingProvider: async () => new StubEmbeddingProvider()
     };
     const read = createExternalModuleRpcHandler({ ...base, toolRisk: "read" });
     await expect(
@@ -330,6 +341,8 @@ describe("external module worker RLS", () => {
       workerDataContext: new DataContextRunner(workerDb),
       cipher: createModuleCredentialSecretCipher(),
       isActorAdmin: async () => false,
+      // Required dep (#1281); these tests never reach an embed.* method.
+      embeddingProvider: async () => new StubEmbeddingProvider(),
       createFetch: () => async (input, init) => {
         requests.push({ input: String(input), init });
         return new Response("{}", {
@@ -371,7 +384,9 @@ describe("ai.generateStructured", () => {
     requestId: "req-ai",
     workerDataContext: new DataContextRunner(workerDb),
     cipher: createModuleCredentialSecretCipher(),
-    isActorAdmin: async () => false
+    isActorAdmin: async () => false,
+    // Required dep (#1281); these tests never reach an embed.* method.
+    embeddingProvider: async () => new StubEmbeddingProvider()
   });
   const noSecret = () => undefined;
 
@@ -614,7 +629,9 @@ describe("db.query (#1167)", () => {
       requestId: "rpc-db-1",
       workerDataContext: new DataContextRunner(workerDb),
       cipher: createModuleCredentialSecretCipher(),
-      isActorAdmin: async () => false
+      isActorAdmin: async () => false,
+      // Required dep (#1281); these tests never reach an embed.* method.
+      embeddingProvider: async () => new StubEmbeddingProvider()
     });
 
   it("rejects modules without a database declaration", async () => {
@@ -625,7 +642,9 @@ describe("db.query (#1167)", () => {
       requestId: "rpc-db-2",
       workerDataContext: new DataContextRunner(workerDb),
       cipher: createModuleCredentialSecretCipher(),
-      isActorAdmin: async () => false
+      isActorAdmin: async () => false,
+      // Required dep (#1281); these tests never reach an embed.* method.
+      embeddingProvider: async () => new StubEmbeddingProvider()
     });
     await expect(rpc("db.query", { text: "SELECT 1" }, () => undefined)).rejects.toMatchObject({
       code: "undeclared_database"

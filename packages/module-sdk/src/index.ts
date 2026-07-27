@@ -640,6 +640,14 @@ export interface ModuleWorkerDeclaration {
 
 export const MODULE_WORKER_CONTRACT_VERSION = 1 as const;
 
+/**
+ * Max texts a module may hand `ctx.embed.embedDocuments` in one call (#1281).
+ * Declared here, not in the host, so the SDK and the host validation share one
+ * number: the in-process embedder is CPU-bound and instance-wide, so an
+ * unbounded batch from one module would pin it for every other module.
+ */
+export const EMBED_BATCH_MAX = 128;
+
 export type ModuleParamScalarSchema =
   | { readonly type: "uuid" | "identifier" | "timestamp" | "boolean" | "null" }
   | { readonly type: "integer" | "number"; readonly min: number; readonly max: number }

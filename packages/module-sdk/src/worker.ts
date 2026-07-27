@@ -6,9 +6,28 @@ import {
   type WorkerRpcRequest,
   type WorkerRpcResponse
 } from "./worker-protocol.js";
+import { EMBED_BATCH_MAX } from "./index.js";
 import type { ModuleFetchRequest, ModuleFetchResponse } from "./index.js";
 
 export { MODULE_WORKER_CONTRACT_VERSION } from "./worker-protocol.js";
+export { EMBED_BATCH_MAX } from "./index.js";
+
+/**
+ * Semantic-search capability backed by the instance's configured embedder
+ * (#1281). Provider- and model-agnostic by construction: the module asks for
+ * vectors, the host decides what produces them.
+ */
+export interface ModuleEmbedPort {
+  /** Embed postings/documents for indexing. One vector per input, same order. */
+  embedDocuments(texts: readonly string[]): Promise<number[][]>;
+  /** Embed a search query (criteria text). Different task prefix from documents. */
+  embedQuery(text: string): Promise<number[]>;
+  /**
+   * Dimensionality of the configured embedder, so callers validate their
+   * pgvector column instead of hardcoding 768.
+   */
+  dimensions(): Promise<number>;
+}
 
 export interface ModuleWorkerContext {
   readonly input: Record<string, unknown>;
@@ -67,6 +86,12 @@ export interface ModuleWorkerContext {
       params?: readonly unknown[]
     ): Promise<{ rows: T[] }>;
   };
+  /**
+   * Vectors from the instance embedder. Documents and queries are separate
+   * calls on purpose — the embedder applies a different task prefix to each,
+   * and collapsing them degrades retrieval invisibly.
+   */
+  readonly embed: ModuleEmbedPort;
   /** Actor-scoped, extracted text only; missing, foreign, or image attachments return null. */
   readonly attachments: {
     readText(attachmentId: string): Promise<{
@@ -119,6 +144,24 @@ export function defineModuleWorker(input: {
         rows: Record<string, unknown>[];
       }>
   } as ModuleWorkerContext["db"];
+  const embed: ModuleEmbedPort = {
+    // An empty batch is answered locally: there is nothing to embed, and a
+    // round trip would still cost the host a config read.
+    embedDocuments: async (texts) => {
+      if (texts.length === 0) return [];
+      // Same cap the host enforces, checked here too so a module author sees
+      // why rather than a generic rpc failure travelling back over stdio.
+      if (texts.length > EMBED_BATCH_MAX) {
+        throw new Error(`embedDocuments accepts at most ${EMBED_BATCH_MAX} texts per call`);
+      }
+      return ((await callParent("embed.embedDocuments", { texts })) as { vectors: number[][] })
+        .vectors;
+    },
+    embedQuery: async (text) =>
+      ((await callParent("embed.embedQuery", { text })) as { vector: number[] }).vector,
+    dimensions: async () =>
+      ((await callParent("embed.dimensions", {})) as { dimensions: number }).dimensions
+  };
   const attachments: ModuleWorkerContext["attachments"] = {
     readText: (attachmentId) =>
       callParent("attachments.readText", { attachmentId }) as ReturnType<
@@ -170,6 +213,7 @@ export function defineModuleWorker(input: {
           kv,
           ai,
           db,
+          embed,
           attachments
         });
         send({ jsonrpc: "2.0", id: message.id, result });

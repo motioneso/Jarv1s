@@ -12,7 +12,10 @@ import type { Kysely } from "kysely";
 
 import type { DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
 import { assertModuleJobPayload, type ExternalModuleJobPayload } from "@jarv1s/jobs";
-import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
+import {
+  createRuntimeEmbeddingProvider,
+  type ExternalModuleDiscovery
+} from "@jarv1s/module-registry";
 import { createExternalModuleRpcHandler } from "@jarv1s/module-registry/node";
 import type {
   ExternalModuleAiRequest,
@@ -71,6 +74,13 @@ export function createExternalModuleJobHandler(
       requestId,
       workerDataContext: dataContext,
       cipher,
+      // ctx.embed (#1281). This is the path scheduled crawls run on, so it must
+      // be threaded here too — an api-only wiring would pass every manual test
+      // and fail every scheduled job.
+      embeddingProvider: () =>
+        dataContext.withDataContext({ actorUserId: job.data.actorUserId, requestId }, (scopedDb) =>
+          createRuntimeEmbeddingProvider(scopedDb)
+        ),
       isActorAdmin: () =>
         dataContext.withDataContext(
           { actorUserId: job.data.actorUserId, requestId },
