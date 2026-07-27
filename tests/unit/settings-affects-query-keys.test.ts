@@ -1,11 +1,13 @@
+import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 import { describe, expect, it } from "vitest";
 
 import { resolveQueryKeyToken } from "../../apps/web/src/api/query-keys.js";
-import { settingsModuleManifest } from "../../packages/settings/src/manifest.js";
 
-describe("settings manifest affectsQueryKeys tokens", () => {
-  const toolsWithTokens = (settingsModuleManifest.assistantTools ?? []).filter(
-    (tool) => tool.affectsQueryKeys && tool.affectsQueryKeys.length > 0
+describe("built-in module manifest affectsQueryKeys tokens", () => {
+  const toolsWithTokens = getBuiltInModuleManifests().flatMap((manifest) =>
+    (manifest.assistantTools ?? [])
+      .filter((tool) => tool.affectsQueryKeys && tool.affectsQueryKeys.length > 0)
+      .map((tool) => ({ moduleId: manifest.id, toolName: tool.name, tool }))
   );
 
   it("has at least one tool declaring affectsQueryKeys (sanity check the walk below runs)", () => {
@@ -13,10 +15,10 @@ describe("settings manifest affectsQueryKeys tokens", () => {
   });
 
   it.each(
-    toolsWithTokens.flatMap((tool) =>
-      (tool.affectsQueryKeys ?? []).map((token) => ({ toolName: tool.name, token }))
+    toolsWithTokens.flatMap(({ moduleId, toolName, tool }) =>
+      (tool.affectsQueryKeys ?? []).map((token) => ({ moduleId, toolName, token }))
     )
-  )("$toolName declares a resolvable token: $token", ({ token }) => {
+  )("$moduleId/$toolName declares a resolvable token: $token", ({ token }) => {
     const resolved = resolveQueryKeyToken(token);
     expect(resolved).toBeDefined();
     expect(Array.isArray(resolved)).toBe(true);
