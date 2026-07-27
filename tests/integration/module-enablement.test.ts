@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
 import pg from "pg";
 import type { Kysely } from "kysely";
@@ -16,7 +16,11 @@ import {
   type AdminAuditEvent,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { createActiveModulesResolver, getModuleDeletionTables } from "@jarv1s/module-registry";
+import {
+  createActiveModulesResolver,
+  getModuleDeletionTables,
+  resolveGrantSelfOperationForModule
+} from "@jarv1s/module-registry";
 import {
   HttpError,
   type JarvisModuleManifest,
@@ -748,5 +752,53 @@ describe("tasks legacy agency_auto_execute opt-out survives install grant (#1263
         expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("always_confirm");
       }
     );
+  });
+
+  // The tests above prove TasksCompatibilityHelper.grantInstallTimeTrustIfUnset is correct in
+  // isolation. They do NOT prove module-registry actually routes a real module-enable call to it
+  // instead of the generic canonical-key-only grant — that routing lives in
+  // resolveGrantSelfOperationForModule (packages/module-registry/src/index.ts), the exact function
+  // wired into the settings module's registerRoutes. Deleting that manifest.id check would leave
+  // every test above green while silently reintroducing the original #1263 bug in production.
+  it("resolveGrantSelfOperationForModule routes the tasks manifest to the compat helper, not the generic grant", async () => {
+    // genericGrant is a no-op spy: it never touches the DB, so the policy-value assertions below
+    // stay unchanged regardless of whether it's called. The signal that catches a mis-route is
+    // `genericGrant` not being invoked, not an observed change in the resolved policy value.
+    const genericGrant = vi.fn(async () => {});
+    const resolved = resolveGrantSelfOperationForModule(genericGrant);
+
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req:routing-tasks" },
+      async (scopedDb) => {
+        // userA already carries a legacy false opt-out from the first test in this block.
+        expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("ask_each_time");
+
+        await resolved(scopedDb, tasksModuleManifest);
+
+        expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("ask_each_time");
+      }
+    );
+
+    expect(genericGrant).not.toHaveBeenCalled();
+  });
+
+  it("resolveGrantSelfOperationForModule routes a non-tasks manifest to the generic grant, not the compat helper", async () => {
+    const genericGrant = vi.fn(async () => {});
+    const resolved = resolveGrantSelfOperationForModule(genericGrant);
+    const otherManifest = { id: "not-tasks-fixture" } as JarvisModuleManifest;
+
+    await dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "req:routing-other" },
+      async (scopedDb) => {
+        await resolved(scopedDb, otherManifest);
+
+        // adminUser already carries a canonical always_confirm row from the test above -- proves
+        // the compat helper's insert-if-neither-key-exists path was never reached for this manifest.
+        expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("always_confirm");
+      }
+    );
+
+    expect(genericGrant).toHaveBeenCalledTimes(1);
+    expect(genericGrant).toHaveBeenCalledWith(expect.anything(), otherManifest);
   });
 });
