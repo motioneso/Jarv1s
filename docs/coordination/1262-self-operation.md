@@ -3563,3 +3563,11 @@ push-before-gate instruction. The next QA verdict is the third and decides wheth
 **Unchanged and load-bearing:** neither PR merges tonight. Both are security tier; both park on
 Ben's LAN pass; AWAITING-BEN item 9 is the only evidence that can show the epic's headline
 no-confirmation-card behaviour actually occurs in production.
+
+**#1264 exit code received — lane is complete pending CI.** Full `verify:foundation` on a fresh
+`jarvis_build_1264`, `EXIT_CODE=0` grepped direct rather than piped: unit 446/446 files
+(3406 passed, 2 skipped), uat-seed 11/11 (23/23), integration 164/164 (1762 passed, 2 skipped).
+That was the last thing I was holding the lane open for. PR #1276 is now green-at-`28bf044f`-by-QA,
+delta-`0648d0f1`-cleared-by-coordinator-review, and locally gate-green — **complete, and parked on
+Ben, not merged.** Keeping the lane alive only until CI confirms; reap after that, not before, so a
+red CI has an owner who still has the context.
