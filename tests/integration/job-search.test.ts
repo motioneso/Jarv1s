@@ -7,16 +7,25 @@
 // Every case asserts on the COMPOSED OUTPUT of collectExternalBriefingContributions — the
 // actual function compose.ts/compose-evening.ts call — never on a thrown error (J3): a
 // module that fails a trust check must silently contribute nothing, not fail the briefing.
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
+
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 
 import { collectExternalBriefingContributions } from "@jarv1s/briefings";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import { StubEmbeddingProvider } from "@jarv1s/memory";
 import type { JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
 import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
 import type { Kysely } from "kysely";
 
 import { createExternalBriefingInvoker } from "../../apps/worker/src/external-module-invoke.js";
+import { installModule } from "../../scripts/module-install.js";
+import {
+  moduleInstallRoleName,
+  moduleRuntimeRoleName
+} from "../../packages/db/src/module-role-broker.js";
+import { JOB_SEARCH_TABLES } from "../../external-modules/job-search/src/db/tables.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -144,5 +153,287 @@ describe("external module briefing contribution — real trust gate (#1282)", ()
         items: [{ id: "job-1", title: "Staff Engineer", detail: "Posted today" }]
       }
     ]);
+  });
+});
+
+// Task 21 (#1305): the REAL job-search module's tables under real RLS. Distinct from the
+// synthetic "job-search-briefing" fixture above, which only exercises the generic trust gate
+// with a minimal fake manifest — this uses the real module id, the real DDL
+// (external-modules/job-search/sql), and JOB_SEARCH_TABLES imported, never retyped.
+//
+// Tier A only: DB-level RLS with no worker process. asRuntime() below, not
+// createAppRuntimeRunner() — the task spec names the latter, but N20 in the rulings ledger
+// settles that createAppRuntimeRunner() (tests/uat/seed/connections.ts) connects as
+// jarvis_app_runtime, which has no grant on app.job_search_* at all; those tables require the
+// per-module runtime role via SET LOCAL ROLE, which is what asRuntime() does (cloned from
+// tests/integration/job-search-tables-install.test.ts).
+//
+// Tier B (queue payload whitelist, manual-run route, schedule->queue binding, real-gateway tool
+// calls, partial-crawl persistence, briefing round-trip, no-blended-score sweep) is NOT in this
+// file yet. As of this commit: external-modules/job-search/src/worker/index.ts still has an
+// empty handler map ("Tasks 15 and 16 add the actual tools"), jarvis.module.json's
+// worker.{queues,schedules,reconcileJobs} are all still empty arrays with no allowManualRun
+// field, and there is no worker/handlers/briefing.ts despite the manifest already declaring a
+// briefing.contribute handler. Tier A "must never depend on the worker being up" per the task
+// spec, and by the same logic it doesn't need the heavier build-package/discovery-dir/enable
+// ceremony that exists only to get a worker live — so this suite skips straight to a direct
+// installModule() call, the same pattern Task 4's job-search-tables-install.test.ts and Task
+// 13's job-search-store.test.ts already use. Add tier B, with the full finance-style harness
+// (buildExternalModule + a live worker child process), once Tasks 15/16 land.
+describe("job-search module RLS (#1305, tier A — no worker process)", () => {
+  const realModuleId = "job-search";
+  const runtimeRole = moduleRuntimeRoleName(realModuleId);
+  const ownedTables = JOB_SEARCH_TABLES.map((table) => `app.${table}`);
+
+  beforeAll(async () => {
+    await installModule({
+      moduleId: realModuleId,
+      manifest: { database: { ownedTables } },
+      bootstrapConnectionString: connectionStrings.bootstrap,
+      migrationConnectionString: connectionStrings.migration,
+      migrationsDirectory: "external-modules/job-search/sql"
+    });
+  });
+
+  afterAll(async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      for (const table of ownedTables) {
+        await client.query(`DROP TABLE IF EXISTS ${table} CASCADE`);
+      }
+      // Same REVOKE-before-DROP-CASCADE ordering as job-search-tables-install.test.ts's
+      // afterEach — see its comments for why CASCADE and this exact order are both required.
+      await client.query(
+        `REVOKE ALL PRIVILEGES ON SCHEMA app FROM ${moduleInstallRoleName(realModuleId)} CASCADE`
+      );
+      await client.query(
+        `REVOKE ALL PRIVILEGES ON app.users FROM ${moduleInstallRoleName(realModuleId)}`
+      );
+      await client.query(
+        `REVOKE REFERENCES (id) ON app.users FROM ${moduleInstallRoleName(realModuleId)}`
+      );
+      await client.query(
+        `REVOKE EXECUTE ON FUNCTION app.current_actor_user_id() FROM ` +
+          `${moduleInstallRoleName(realModuleId)} CASCADE`
+      );
+      await client
+        .query(`DROP ROLE IF EXISTS ${moduleInstallRoleName(realModuleId)}`)
+        .catch(() => {});
+      await client.query(`DROP ROLE IF EXISTS ${runtimeRole}`).catch(() => {});
+      await client.query("DELETE FROM app.module_installs WHERE module_id = $1", [realModuleId]);
+      await client.query("DELETE FROM app.module_schema_migrations WHERE module_id = $1", [
+        realModuleId
+      ]);
+    } finally {
+      await client.end();
+    }
+  });
+
+  // Every job_search_* row this describe block's `it`s create, cleared between cases so tests
+  // 2/3's isolation loops always start from an empty table — this file's DB is shared and never
+  // reset between integration files (N21), and this cleanup must run even on a failing
+  // assertion, which is exactly what vitest's afterEach guarantees.
+  afterEach(async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      for (const table of ownedTables) {
+        await client.query(`DELETE FROM ${table}`);
+      }
+    } finally {
+      await client.end();
+    }
+  });
+
+  async function asRuntime<T>(
+    actorUserId: string,
+    fn: (client: pg.Client) => Promise<T>
+  ): Promise<T> {
+    const client = new Client({ connectionString: connectionStrings.worker });
+    await client.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL ROLE ${runtimeRole}`);
+      await client.query("SELECT set_config('app.actor_user_id', $1, true)", [actorUserId]);
+      const result = await fn(client);
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      await client.end();
+    }
+  }
+
+  async function seedProfile(ownerUserId: string, profileId: string): Promise<void> {
+    await asRuntime(ownerUserId, (client) =>
+      client.query(
+        `INSERT INTO app.job_search_profiles (id, owner_user_id, name, state)
+         VALUES ($1, $2, 'Staff Engineer search', 'active')`,
+        [profileId, ownerUserId]
+      )
+    );
+  }
+
+  async function seedPosting(
+    ownerUserId: string,
+    profileId: string,
+    postingId: string
+  ): Promise<void> {
+    await asRuntime(ownerUserId, (client) =>
+      client.query(
+        `INSERT INTO app.job_search_postings
+           (id, owner_user_id, profile_id, source_id, external_id, title, company, location, url,
+            body)
+         VALUES ($1, $2, $3, 'linkedin', $4, 'Staff Engineer', 'Acme', 'Remote',
+                 'https://www.linkedin.com/jobs/1', 'Job body text')`,
+        [postingId, ownerUserId, profileId, postingId]
+      )
+    );
+  }
+
+  // Exactly one row under test per table, plus whatever FK parents that row needs — a fresh
+  // profile (and posting, where required) per call, so two calls for two different owners never
+  // collide (task spec, test 2: "insert as owner A ... then the reverse").
+  async function seedOwnedRow(table: string, ownerUserId: string): Promise<void> {
+    const profileId = randomUUID();
+    await seedProfile(ownerUserId, profileId);
+    if (table === "job_search_profiles") return;
+
+    const postingId = randomUUID();
+    if (table === "job_search_postings" || table === "job_search_matches") {
+      await seedPosting(ownerUserId, profileId, postingId);
+      if (table === "job_search_postings") return;
+    }
+
+    if (table === "job_search_portals") {
+      await asRuntime(ownerUserId, (client) =>
+        client.query(
+          `INSERT INTO app.job_search_portals (owner_user_id, profile_id, source_id)
+           VALUES ($1, $2, 'linkedin')`,
+          [ownerUserId, profileId]
+        )
+      );
+      return;
+    }
+    if (table === "job_search_resumes") {
+      await asRuntime(ownerUserId, (client) =>
+        client.query(
+          `INSERT INTO app.job_search_resumes (owner_user_id, profile_id, version, content)
+           VALUES ($1, $2, 1, 'resume text')`,
+          [ownerUserId, profileId]
+        )
+      );
+      return;
+    }
+    if (table === "job_search_matches") {
+      await asRuntime(ownerUserId, (client) =>
+        client.query(
+          `INSERT INTO app.job_search_matches (owner_user_id, profile_id, posting_id, state)
+           VALUES ($1, $2, $3, 'unscored')`,
+          [ownerUserId, profileId, postingId]
+        )
+      );
+      return;
+    }
+    throw new Error(`seedOwnedRow: unhandled table ${table}`);
+  }
+
+  it("the database's tables are exactly the canonical list", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      const result = await client.query<{ table_name: string }>(
+        `SELECT table_name FROM information_schema.tables
+         WHERE table_schema = 'app' AND table_name LIKE 'job_search_%'`
+      );
+      expect(result.rows.map((row) => row.table_name).sort()).toEqual(
+        [...JOB_SEARCH_TABLES].sort()
+      );
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("cross-owner isolation, both directions, on every table", async () => {
+    for (const table of JOB_SEARCH_TABLES) {
+      await seedOwnedRow(table, ids.userA);
+      const seenByB = await asRuntime(ids.userB, (client) =>
+        client.query(`SELECT 1 FROM app.${table}`)
+      );
+      expect(seenByB.rows, `${table}: B must not see A's row`).toHaveLength(0);
+
+      await seedOwnedRow(table, ids.userB);
+      const seenByA = await asRuntime(ids.userA, (client) =>
+        client.query(`SELECT 1 FROM app.${table}`)
+      );
+      // Table now holds one row for A and one for B — A must see only its own, not both.
+      expect(seenByA.rows, `${table}: A must not see B's row`).toHaveLength(1);
+    }
+  });
+
+  it("an admin actor sees nothing — same loop, admin context", async () => {
+    for (const table of JOB_SEARCH_TABLES) {
+      await seedOwnedRow(table, ids.userA);
+      const seenByAdmin = await asRuntime(ids.adminUser, (client) =>
+        client.query(`SELECT 1 FROM app.${table}`)
+      );
+      // Admin power is configuration power, not private-data access (CLAUDE.md hard invariant)
+      // — this is the assertion that says so for every job-search table.
+      expect(seenByAdmin.rows, `${table}: admin must not see any owner's row`).toHaveLength(0);
+    }
+  });
+
+  it("every owned table actually has an RLS policy", async () => {
+    const client = new Client({ connectionString: connectionStrings.bootstrap });
+    await client.connect();
+    try {
+      // installModule() Phase B generates RLS from manifest.database.ownedTables — a table
+      // missing from that array gets no policy at all, which fails open. Test 2 alone would
+      // still pass if this row simply were not there (an empty table looks isolated either way),
+      // so this is a distinct assertion, not a restatement of it.
+      const result = await client.query<{ tablename: string }>(
+        `SELECT DISTINCT tablename FROM pg_policies
+         WHERE schemaname = 'app' AND tablename = ANY($1::text[])`,
+        [[...JOB_SEARCH_TABLES]]
+      );
+      const withPolicies = new Set(result.rows.map((row) => row.tablename));
+      for (const table of JOB_SEARCH_TABLES) {
+        expect(withPolicies.has(table), `${table} has no pg_policies row at all`).toBe(true);
+      }
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("the stored embedding has the dimension the port reports", async () => {
+    const profileId = randomUUID();
+    await seedProfile(ids.userA, profileId);
+    const postingId = randomUUID();
+    // No worker process in tier A, so there is no live ctx.embed to call — the port's
+    // dimensions come from the same StubEmbeddingProvider the host resolves in tests (never
+    // production; see LocalEmbeddingProvider for the real 768-dim nomic model this stands in
+    // for), not a hand-picked constant.
+    const { dimensions } = new StubEmbeddingProvider();
+    const vectorLiteral = `[${Array(dimensions).fill(0.001).join(",")}]`;
+    await asRuntime(ids.userA, (client) =>
+      client.query(
+        `INSERT INTO app.job_search_postings
+           (id, owner_user_id, profile_id, source_id, external_id, title, company, location, url,
+            body, embedding)
+         VALUES ($1, $2, $3, 'linkedin', $4, 'Staff Engineer', 'Acme', 'Remote',
+                 'https://www.linkedin.com/jobs/1', 'Job body text', $5::vector)`,
+        [postingId, ids.userA, profileId, postingId, vectorLiteral]
+      )
+    );
+    const read = await asRuntime(ids.userA, (client) =>
+      client.query<{ dims: number }>(
+        "SELECT vector_dims(embedding) AS dims FROM app.job_search_postings WHERE id = $1",
+        [postingId]
+      )
+    );
+    expect(read.rows[0]?.dims).toBe(dimensions);
   });
 });
