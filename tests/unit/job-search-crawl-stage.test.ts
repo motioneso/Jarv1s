@@ -1,0 +1,450 @@
+// tests/unit/job-search-crawl-stage.test.ts
+//
+// Task 14 (#1298): unit tests for the crawl stage, against an in-memory fake `JobSearchStore`
+// and fake `Portal`s — no SDK, no network, no model. Every method on the fake store is a
+// `vi.fn()` so a test can assert not just the resulting state but which calls did or did not
+// happen (test 4's "never crawled" and test 6's "never writes fit or want" both depend on that).
+
+import { describe, expect, it, vi } from "vitest";
+import {
+  runCrawl,
+  type EmbedPort
+} from "../../external-modules/job-search/src/worker/stages/crawl.js";
+import {
+  describeFailure,
+  type FailureCause,
+  type Posting,
+  type SearchCriteria
+} from "../../external-modules/job-search/src/domain/records.js";
+import type {
+  JobSearchStore,
+  Profile,
+  PortalState
+} from "../../external-modules/job-search/src/domain/store-port.js";
+import type {
+  CrawlResult,
+  FetchLike,
+  Portal
+} from "../../external-modules/job-search/src/adapters/types.js";
+
+const PROFILE_ID = "profile-1";
+const NOW = "2026-07-27T10:00:00.000Z";
+
+function makeCriteria(overrides: Partial<SearchCriteria> = {}): SearchCriteria {
+  return {
+    titles: ["Staff Engineer"],
+    seniority: ["staff"],
+    locations: ["Remote"],
+    remote: "preferred",
+    compFloorCents: null,
+    excludeCompanies: [],
+    mustHave: [],
+    niceToHave: [],
+    dealbreakers: [],
+    wantNarrative: "",
+    ...overrides
+  };
+}
+
+function makeProfile(overrides: Partial<Profile> = {}): Profile {
+  return {
+    id: PROFILE_ID,
+    name: "Default search",
+    state: "active",
+    criteria: makeCriteria(),
+    contextSummary: null,
+    schedule: null,
+    briefingDetail: "top",
+    surfaceKey: "job-search-default",
+    createdAt: NOW,
+    ...overrides
+  };
+}
+
+function makePosting(overrides: Partial<Posting> & { id: string; sourceId: string }): Posting {
+  return {
+    externalId: overrides.id,
+    title: "Staff Engineer",
+    company: `Company for ${overrides.id}`,
+    location: "Remote",
+    url: `https://example.com/${overrides.id}`,
+    body: `Full description for ${overrides.id}`,
+    postedAt: null,
+    ...overrides
+  };
+}
+
+/** Every method is a `vi.fn()` wrapping a tiny in-memory implementation, so tests can assert
+ * on call counts/args as well as on the resulting state. Methods `runCrawl` never touches
+ * (listProfiles, createProfile, ...) still need a body — they throw, so a test that
+ * accidentally depends on one fails loudly instead of silently returning `undefined`. */
+function createFakeStore(
+  profile: Profile,
+  priorPortalStates: readonly PortalState[] = []
+): JobSearchStore {
+  const profiles = new Map<string, Profile>([[profile.id, profile]]);
+  const portalStates = new Map<string, PortalState>(priorPortalStates.map((s) => [s.sourceId, s]));
+  const postings = new Map<string, Posting>();
+  const embeddings = new Map<string, readonly number[]>();
+
+  const notUsed = (name: string) => async () => {
+    throw new Error(`FakeStore.${name} should not be called by runCrawl`);
+  };
+
+  return {
+    listProfiles: vi.fn(notUsed("listProfiles")),
+    getProfile: vi.fn(async (id: string) => profiles.get(id) ?? null),
+    createProfile: vi.fn(notUsed("createProfile")),
+    updateCriteria: vi.fn(notUsed("updateCriteria")),
+    setProfileState: vi.fn(notUsed("setProfileState")),
+    setProfileContext: vi.fn(notUsed("setProfileContext")),
+    setBriefingDetail: vi.fn(notUsed("setBriefingDetail")),
+    listPortals: vi.fn(async () => [...portalStates.values()]),
+    setPortalState: vi.fn(async (_profileId: string, state: PortalState) => {
+      portalStates.set(state.sourceId, state);
+    }),
+    upsertPostings: vi.fn(async (_profileId: string, incoming: readonly Posting[]) => {
+      for (const posting of incoming) postings.set(posting.id, posting);
+      return incoming.slice();
+    }),
+    setEmbedding: vi.fn(async (postingId: string, vector: readonly number[]) => {
+      embeddings.set(postingId, vector);
+    }),
+    listUnscored: vi.fn(notUsed("listUnscored")),
+    listUnscoredPostingsWithEmbeddings: vi.fn(notUsed("listUnscoredPostingsWithEmbeddings")),
+    listMatches: vi.fn(notUsed("listMatches")),
+    upsertMatch: vi.fn(notUsed("upsertMatch")),
+    setMatchState: vi.fn(notUsed("setMatchState")),
+    getLatestResume: vi.fn(notUsed("getLatestResume")),
+    getResumeVersion: vi.fn(notUsed("getResumeVersion")),
+    setResume: vi.fn(notUsed("setResume")),
+    getSweepCursor: vi.fn(notUsed("getSweepCursor")),
+    setSweepCursor: vi.fn(notUsed("setSweepCursor")),
+    // Exposed for assertions only; not part of the JobSearchStore surface `runCrawl` sees.
+    __postings: postings,
+    __embeddings: embeddings,
+    __portalStates: portalStates
+  } as JobSearchStore & {
+    __postings: Map<string, Posting>;
+    __embeddings: Map<string, readonly number[]>;
+    __portalStates: Map<string, PortalState>;
+  };
+}
+
+function makePortal(
+  id: string,
+  crawl: Portal["crawl"] = vi.fn(
+    async () => ({ postings: [], failure: null }) satisfies CrawlResult
+  )
+): Portal {
+  return { id, label: `Label for ${id}`, host: `${id}.example.com`, crawl };
+}
+
+function healthyCrawl(postings: Posting[]): Portal["crawl"] {
+  return vi.fn(async () => ({ postings, failure: null }) satisfies CrawlResult);
+}
+
+function failingCrawl(postings: Posting[], failure: FailureCause): Portal["crawl"] {
+  return vi.fn(async () => ({ postings, failure }) satisfies CrawlResult);
+}
+
+function createFakeEmbed(): EmbedPort & {
+  embedDocuments: ReturnType<typeof vi.fn>;
+  embedQuery: ReturnType<typeof vi.fn>;
+} {
+  return {
+    embedDocuments: vi.fn(async (texts: readonly string[]) => texts.map(() => [0.1, 0.2, 0.3])),
+    embedQuery: vi.fn(async () => {
+      throw new Error(
+        "embedQuery should not be called by runCrawl — that is the triage stage's job"
+      );
+    }),
+    dimensions: vi.fn(async () => 3)
+  };
+}
+
+const noopFetch: FetchLike = vi.fn(async () => {
+  throw new Error("this test's portals do not call fetch directly");
+});
+
+describe("runCrawl", () => {
+  it("test 1: a clean crawl stores deduped postings and records lastOkAt for each portal", async () => {
+    const profile = makeProfile();
+    const store = createFakeStore(profile) as ReturnType<typeof createFakeStore> & {
+      __postings: Map<string, Posting>;
+      __portalStates: Map<string, PortalState>;
+    };
+    const freehirePosting = makePosting({ id: "fh-1", sourceId: "freehire", company: "Acme" });
+    const linkedinPosting = makePosting({ id: "li-1", sourceId: "linkedin", company: "Globex" });
+    const portals = [
+      makePortal("freehire", healthyCrawl([freehirePosting])),
+      makePortal("linkedin", healthyCrawl([linkedinPosting]))
+    ];
+    const embed = createFakeEmbed();
+
+    const result = await runCrawl({
+      store,
+      portals,
+      fetch: noopFetch,
+      embed,
+      profileId: PROFILE_ID,
+      now: NOW,
+      deadlineAt: Date.now() + 60_000,
+      clock: () => Date.now()
+    });
+
+    expect(result.found).toBe(2);
+    expect(result.kept).toBe(2);
+    expect(result.degraded).toEqual([]);
+    expect(result.truncated).toBe(false);
+    expect(store.__postings.has("fh-1")).toBe(true);
+    expect(store.__postings.has("li-1")).toBe(true);
+
+    const freehireState = store.__portalStates.get("freehire");
+    const linkedinState = store.__portalStates.get("linkedin");
+    expect(freehireState).toEqual({
+      sourceId: "freehire",
+      enabled: true,
+      lastOkAt: NOW,
+      cause: null
+    });
+    expect(linkedinState).toEqual({
+      sourceId: "linkedin",
+      enabled: true,
+      lastOkAt: NOW,
+      cause: null
+    });
+  });
+
+  it("test 2: one portal failing does not lose the others' results", async () => {
+    const profile = makeProfile();
+    const store = createFakeStore(profile) as ReturnType<typeof createFakeStore> & {
+      __postings: Map<string, Posting>;
+    };
+    const freehirePosting = makePosting({ id: "fh-2", sourceId: "freehire", company: "Acme" });
+    const linkedinPartial = makePosting({ id: "li-2", sourceId: "linkedin", company: "Initech" });
+    const rateLimited = describeFailure({
+      kind: "rate_limited",
+      sourceId: "linkedin",
+      sourceLabel: "LinkedIn",
+      retrieved: 1,
+      expected: null,
+      lastOkAt: null,
+      retryAt: null
+    });
+    const portals = [
+      makePortal("freehire", healthyCrawl([freehirePosting])),
+      makePortal("linkedin", failingCrawl([linkedinPartial], rateLimited))
+    ];
+    const embed = createFakeEmbed();
+
+    const result = await runCrawl({
+      store,
+      portals,
+      fetch: noopFetch,
+      embed,
+      profileId: PROFILE_ID,
+      now: NOW,
+      deadlineAt: Date.now() + 60_000,
+      clock: () => Date.now()
+    });
+
+    expect(store.__postings.has("fh-2")).toBe(true);
+    expect(store.__postings.has("li-2")).toBe(true);
+    expect(result.degraded).toEqual([rateLimited]);
+  });
+
+  it("test 3: a login_required portal is written back with enabled: false", async () => {
+    const profile = makeProfile();
+    const store = createFakeStore(profile) as ReturnType<typeof createFakeStore> & {
+      __portalStates: Map<string, PortalState>;
+    };
+    const loginRequired = describeFailure({
+      kind: "login_required",
+      sourceId: "linkedin",
+      sourceLabel: "LinkedIn",
+      retrieved: 0,
+      expected: null,
+      lastOkAt: null,
+      retryAt: null
+    });
+    const portals = [makePortal("linkedin", failingCrawl([], loginRequired))];
+    const embed = createFakeEmbed();
+
+    await runCrawl({
+      store,
+      portals,
+      fetch: noopFetch,
+      embed,
+      profileId: PROFILE_ID,
+      now: NOW,
+      deadlineAt: Date.now() + 60_000,
+      clock: () => Date.now()
+    });
+
+    expect(store.__portalStates.get("linkedin")?.enabled).toBe(false);
+  });
+
+  it("test 4: a disabled portal is not crawled on the next pass", async () => {
+    const profile = makeProfile();
+    const priorState: PortalState = {
+      sourceId: "linkedin",
+      enabled: false,
+      lastOkAt: null,
+      cause: describeFailure({
+        kind: "login_required",
+        sourceId: "linkedin",
+        sourceLabel: "LinkedIn",
+        retrieved: 0,
+        expected: null,
+        lastOkAt: null,
+        retryAt: null
+      })
+    };
+    const store = createFakeStore(profile, [priorState]);
+    const disabledCrawl = healthyCrawl([]);
+    const portals = [
+      makePortal("linkedin", disabledCrawl),
+      makePortal("freehire", healthyCrawl([]))
+    ];
+    const embed = createFakeEmbed();
+
+    await runCrawl({
+      store,
+      portals,
+      fetch: noopFetch,
+      embed,
+      profileId: PROFILE_ID,
+      now: NOW,
+      deadlineAt: Date.now() + 60_000,
+      clock: () => Date.now()
+    });
+
+    expect(disabledCrawl).not.toHaveBeenCalled();
+  });
+
+  it("test 5: postings are embedded in batches of <=128, and embedQuery is never called", async () => {
+    const profile = makeProfile();
+    const store = createFakeStore(profile);
+    const postings = Array.from({ length: 150 }, (_, index) =>
+      makePosting({
+        id: `fh-${index}`,
+        sourceId: "freehire",
+        company: `Company ${index}`,
+        title: `Role ${index}`,
+        url: `https://example.com/${index}`
+      })
+    );
+    const portals = [makePortal("freehire", healthyCrawl(postings))];
+    const embed = createFakeEmbed();
+
+    const result = await runCrawl({
+      store,
+      portals,
+      fetch: noopFetch,
+      embed,
+      profileId: PROFILE_ID,
+      now: NOW,
+      deadlineAt: Date.now() + 60_000,
+      clock: () => Date.now()
+    });
+
+    expect(result.kept).toBe(150);
+    expect(embed.embedDocuments).toHaveBeenCalledTimes(2);
+    const batchSizes = embed.embedDocuments.mock.calls.map(
+      (call: unknown[]) => (call[0] as readonly string[]).length
+    );
+    expect(batchSizes).toEqual([128, 22]);
+    for (const size of batchSizes) expect(size).toBeLessThanOrEqual(128);
+    expect(embed.embedQuery).not.toHaveBeenCalled();
+  });
+
+  it("test 6: the stage never writes a fit or want value", async () => {
+    const profile = makeProfile();
+    const store = createFakeStore(profile);
+    const portals = [
+      makePortal("freehire", healthyCrawl([makePosting({ id: "fh-6", sourceId: "freehire" })]))
+    ];
+    const embed = createFakeEmbed();
+
+    await runCrawl({
+      store,
+      portals,
+      fetch: noopFetch,
+      embed,
+      profileId: PROFILE_ID,
+      now: NOW,
+      deadlineAt: Date.now() + 60_000,
+      clock: () => Date.now()
+    });
+
+    // upsertMatch is the only store method that could carry a fit/want value; runCrawl never
+    // calls it, leaving the crawled posting visibly `unscored` rather than silently absent.
+    expect(store.upsertMatch).not.toHaveBeenCalled();
+  });
+
+  it("test 7: stops starting portals past the deadline and reports that it did", async () => {
+    const profile = makeProfile();
+    const store = createFakeStore(profile) as ReturnType<typeof createFakeStore> & {
+      __postings: Map<string, Posting>;
+    };
+    const deadlineAt = 1_000;
+    const firstPosting = makePosting({ id: "fh-7", sourceId: "freehire" });
+    const firstCrawl = healthyCrawl([firstPosting]);
+    const secondCrawl = healthyCrawl([makePosting({ id: "li-7", sourceId: "linkedin" })]);
+    const portals = [makePortal("freehire", firstCrawl), makePortal("linkedin", secondCrawl)];
+    const embed = createFakeEmbed();
+
+    // One clock() read per loop iteration: the first is before starting portal one (inside the
+    // deadline), the second is before starting portal two (the deadline has since passed).
+    const clock = vi.fn().mockReturnValueOnce(900).mockReturnValueOnce(1_050);
+
+    const result = await runCrawl({
+      store,
+      portals,
+      fetch: noopFetch,
+      embed,
+      profileId: PROFILE_ID,
+      now: NOW,
+      deadlineAt,
+      clock
+    });
+
+    expect(firstCrawl).toHaveBeenCalledTimes(1);
+    expect(secondCrawl).not.toHaveBeenCalled();
+    expect(store.__postings.has("fh-7")).toBe(true);
+    expect(result.truncated).toBe(true);
+  });
+
+  it("test 8: a portal that throws does not prevent later portals from running", async () => {
+    const profile = makeProfile();
+    const store = createFakeStore(profile) as ReturnType<typeof createFakeStore> & {
+      __postings: Map<string, Posting>;
+      __portalStates: Map<string, PortalState>;
+    };
+    const throwingCrawl = vi.fn(async () => {
+      throw new Error("invalid_rpc");
+    });
+    const secondPosting = makePosting({ id: "li-8", sourceId: "linkedin" });
+    const secondCrawl = healthyCrawl([secondPosting]);
+    const portals = [makePortal("freehire", throwingCrawl), makePortal("linkedin", secondCrawl)];
+    const embed = createFakeEmbed();
+
+    await runCrawl({
+      store,
+      portals,
+      fetch: noopFetch,
+      embed,
+      profileId: PROFILE_ID,
+      now: NOW,
+      deadlineAt: Date.now() + 60_000,
+      clock: () => Date.now()
+    });
+
+    expect(secondCrawl).toHaveBeenCalledTimes(1);
+    expect(store.__postings.has("li-8")).toBe(true);
+    const freehireState = store.__portalStates.get("freehire");
+    expect(freehireState?.cause?.kind).toBe("network");
+    expect(freehireState?.lastOkAt).toBeNull();
+  });
+});
