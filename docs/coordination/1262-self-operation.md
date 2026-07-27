@@ -1700,3 +1700,29 @@ numbers are repeated inline in the pane message, so a ruling survives their comp
 **Corrected a stale note in `MEMORY.md`:** the full applied-migration list is asserted in
 `tests/integration/foundation-schema-catalog.test.ts`, **not** `foundation.test.ts`. The memory body
 was already right; the one-line index — which is what a session reads first — named the wrong file.
+
+### 2026-07-27 — pre-existing manifest drift found; issue #1272 filed
+
+The manifest-migrations gap I flagged on #1264 Task 0a turned out to be **wider than my flag**. The
+agent's fix (`96edbcaa`, one file, verified against the directory listing) added three entries, not
+one: `0111_preferences_worker_write.sql` and `0167_worker_entities_grant.sql` had been missing from
+`packages/structured-state/src/manifest.ts` **before this epic started**. So the epic surfaced
+pre-existing drift rather than creating it.
+
+Root cause: structured-state has **no manifest-migrations pinning test**, while sports, chat,
+connectors, and briefings all have one. Nothing compares the declared array to the `sql/` directory,
+so the two diverged silently — the #254 failure shape again.
+
+**Scope ruling:** the pinning test does **not** go into #1264. It is new work and this repo requires
+a GitHub task issue before anything is built. Filed as **issue #1272**. What #1264 owes instead is a
+line in its PR body stating that the array had drifted, that it was corrected here, and that no test
+yet prevents recurrence — a fixed-but-unguarded gap that goes unmentioned reads as fully solved.
+
+`0176` confirmed as the next free migration number for Task 0b (`0175` is the current repo-wide max).
+
+**#1265 T2/T3 verified in the tree:** `62d8b375` uses `DataContextDb` throughout with no root Kysely
+handle and no cross-module internal imports (111 tests green); `3e78b741` routes POST through
+`SportsService.followTeam` while **DELETE `/api/sports/follows/:id` correctly stays on the raw
+repository** inside `withDataContext`, carrying the required why-comment — REST already holds the row
+id, so the service's `catalogKey` → id resolution is only needed by the assistant tool, which never
+sees row ids. The binding ruling is honoured. #1265 is 3 of 7 tasks in; #1264 is 1 of 13.
