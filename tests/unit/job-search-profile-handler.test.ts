@@ -417,41 +417,18 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
     }
   });
 
-  it("11. the manifest declares exactly these eleven handlers, checked in both directions", () => {
-    const manifestPath = fileURLToPath(
-      new URL("../../external-modules/job-search/jarvis.module.json", import.meta.url)
-    );
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
-      assistantTools?: Array<{ handler: string }>;
-    };
-    const manifestHandlers = (manifest.assistantTools ?? []).map((tool) => tool.handler).sort();
-
-    // The nine dotted keys createCriteriaSetHandler/createProfileCreateHandler/etc. above are
-    // actually registered under, per profile.ts/resume.ts/portal.ts (Task 16), plus the two
-    // Task 24 (#1309) handlers registered in source.ts (createSourceAddHandler/
-    // createSourceRemoveHandler, exercised by job-search-source-handler.test.ts, not here).
-    // There is no landed registry (Task 13's index.ts) to import this list from yet, so this
-    // is the independent source of truth the manifest is checked against.
-    const registeredHandlers = [
-      "profile.create",
-      "profile.list",
-      "criteria.set",
-      "profile.set-context",
-      "profile.set-briefing-detail",
-      "resume.set",
-      "resume.get",
-      "portal.set-enabled",
-      "portal.list",
-      "source.add",
-      "source.remove"
-    ].sort();
-
-    for (const handler of registeredHandlers) {
-      expect(manifestHandlers).toContain(handler);
-    }
-    for (const handler of manifestHandlers) {
-      expect(registeredHandlers).toContain(handler);
-    }
-    expect(manifestHandlers).toEqual(registeredHandlers);
-  });
+  // Case 11 ("the manifest declares exactly these eleven handlers") was removed here, not lost.
+  // It compared the manifest against a hand-typed list of eleven names, and said so itself: "There
+  // is no landed registry (Task 13's index.ts) to import this list from yet, so this is the
+  // independent source of truth the manifest is checked against." That premise stopped being true
+  // when `7c4ac2e7` landed `worker/registry.ts`'s HANDLERS map, and the list then went stale the
+  // moment Task 15 added the crawl handlers — a hand-maintained roster in one task's test file
+  // fails every time a *different* task adds a handler, with no clear owner to fix it.
+  //
+  // The replacement is strictly stronger and lives in
+  // `tests/unit/job-search-manifest.test.ts:192` — describe("registry.ts's HANDLERS map vs. the
+  // manifest's declared handler names (#1299)"). It checks both directions against the real
+  // imported HANDLERS map rather than a retyped copy, covers `worker.queues[].handler` and
+  // `briefing.handler` as well as `assistantTools[].handler` (this case only ever read the last
+  // of the three), and carries its own vacuous-pass floor.
 });
