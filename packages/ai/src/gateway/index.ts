@@ -36,6 +36,7 @@ export {
 export {
   assertBuiltInSelfOperationManifests,
   BUILT_IN_SELF_OPERATION_SCOPE_NOTE,
+  grantSelfOperationForModule,
   isSelfOperationExcluded,
   SELF_OPERATION_EXCLUSIONS,
   type SelfOperationExclusionCategory,

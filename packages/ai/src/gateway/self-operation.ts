@@ -2,6 +2,9 @@ import type {
   ModuleAssistantActionFamilyManifest,
   ModuleAssistantToolManifest
 } from "@jarv1s/module-sdk";
+import type { DataContextDb } from "@jarv1s/db";
+
+import type { AiRepository } from "../repository.js";
 
 export type SelfOperationExclusionCategory =
   | "self_authority"
@@ -51,9 +54,15 @@ export const SELF_OPERATION_EXCLUSIONS: readonly SelfOperationExclusionRule[] = 
   {
     id: "self_authority.ai",
     category: "self_authority",
-    reason: "AI service bindings, default provider, chat-model override, and admin pin are self-authority surfaces.",
+    reason:
+      "AI service bindings, default provider, chat-model override, and admin pin are self-authority surfaces.",
     moduleId: "ai",
-    toolNamePrefixes: ["ai.serviceBinding.", "ai.defaultProvider.", "ai.chatModelOverride.", "ai.adminPin."]
+    toolNamePrefixes: [
+      "ai.serviceBinding.",
+      "ai.defaultProvider.",
+      "ai.chatModelOverride.",
+      "ai.adminPin."
+    ]
   },
   {
     id: "prompt_shaping.settings",
@@ -76,7 +85,8 @@ export const SELF_OPERATION_EXCLUSIONS: readonly SelfOperationExclusionRule[] = 
   {
     id: "secrets.settings",
     category: "secrets",
-    reason: "Credentials, secret registry entries, provider keys, and connector auth flows never self-operate.",
+    reason:
+      "Credentials, secret registry entries, provider keys, and connector auth flows never self-operate.",
     moduleId: "settings",
     toolNamePrefixes: [
       "settings.secretRegistry.",
@@ -97,7 +107,8 @@ export const SELF_OPERATION_EXCLUSIONS: readonly SelfOperationExclusionRule[] = 
   {
     id: "identity_auth_registration.settings",
     category: "identity_auth_registration",
-    reason: "Account lifecycle, admin promotion, session revocation, and registration state are identity surfaces.",
+    reason:
+      "Account lifecycle, admin promotion, session revocation, and registration state are identity surfaces.",
     moduleId: "settings",
     toolNamePrefixes: [
       "settings.account.lifecycle.",
@@ -110,14 +121,16 @@ export const SELF_OPERATION_EXCLUSIONS: readonly SelfOperationExclusionRule[] = 
   {
     id: "data_scope_consent.settings",
     category: "data_scope_consent",
-    reason: "Wellness AI consent and future prompt-data-widening flags require explicit human consent.",
+    reason:
+      "Wellness AI consent and future prompt-data-widening flags require explicit human consent.",
     moduleId: "settings",
     toolNamePrefixes: ["settings.wellnessAiConsent.", "settings.promptDataWidening."]
   },
   {
     id: "assistant_brain.ai",
     category: "assistant_brain",
-    reason: "Chat model override, embed provider, provider revoke, model disable, and multiplexer reshape the brain.",
+    reason:
+      "Chat model override, embed provider, provider revoke, model disable, and multiplexer reshape the brain.",
     moduleId: "ai",
     toolNamePrefixes: [
       "ai.chatModelOverride.",
@@ -161,7 +174,9 @@ function matchingExclusionRule(
   tool: Pick<ModuleAssistantToolManifest, "name">
 ): SelfOperationExclusionRule | undefined {
   return SELF_OPERATION_EXCLUSIONS.find(
-    (rule) => rule.moduleId === moduleId && rule.toolNamePrefixes.some((prefix) => tool.name.startsWith(prefix))
+    (rule) =>
+      rule.moduleId === moduleId &&
+      rule.toolNamePrefixes.some((prefix) => tool.name.startsWith(prefix))
   );
 }
 
@@ -206,7 +221,9 @@ export const BUILT_IN_SELF_OPERATION_SCOPE_NOTE =
  * have made the real built-in inventory valid. Error messages name the offending module/tool and
  * invariant only — never tool inputs.
  */
-export function assertBuiltInSelfOperationManifests(manifests: readonly SelfOperationManifestInput[]): void {
+export function assertBuiltInSelfOperationManifests(
+  manifests: readonly SelfOperationManifestInput[]
+): void {
   for (const manifest of manifests) {
     const tools = manifest.assistantTools ?? [];
     const families = manifest.assistantActionFamilies ?? [];
@@ -214,7 +231,9 @@ export function assertBuiltInSelfOperationManifests(manifests: readonly SelfOper
     const seenFamilyIds = new Set<string>();
     for (const familyManifest of families) {
       if (seenFamilyIds.has(familyManifest.id)) {
-        throw new Error(`module "${manifest.id}" declares duplicate action family id "${familyManifest.id}"`);
+        throw new Error(
+          `module "${manifest.id}" declares duplicate action family id "${familyManifest.id}"`
+        );
       }
       seenFamilyIds.add(familyManifest.id);
     }
@@ -241,7 +260,9 @@ export function assertBuiltInSelfOperationManifests(manifests: readonly SelfOper
       }
 
       if (tool.risk !== "read") {
-        const genericKey = inputSchemaPropertyNames(tool).find((name) => GENERIC_INPUT_KEY_NAMES.has(name));
+        const genericKey = inputSchemaPropertyNames(tool).find((name) =>
+          GENERIC_INPUT_KEY_NAMES.has(name)
+        );
         if (genericKey) {
           throw new Error(
             `module "${manifest.id}" tool "${tool.name}" exposes generic input property "${genericKey}": tools must hardcode their target`
@@ -251,7 +272,9 @@ export function assertBuiltInSelfOperationManifests(manifests: readonly SelfOper
 
       let resolvedFamily: ModuleAssistantActionFamilyManifest | undefined;
       if (tool.actionFamilyId) {
-        resolvedFamily = families.find((familyManifest) => familyManifest.id === tool.actionFamilyId);
+        resolvedFamily = families.find(
+          (familyManifest) => familyManifest.id === tool.actionFamilyId
+        );
         if (!resolvedFamily) {
           throw new Error(
             `module "${manifest.id}" tool "${tool.name}" references action family "${tool.actionFamilyId}" which does not resolve in its own module`
@@ -298,17 +321,50 @@ export function assertBuiltInSelfOperationManifests(manifests: readonly SelfOper
         }
       }
 
-      if (tool.selfOperationGrant === "confirm_always" && !PLANNED_CONFIRM_ALWAYS_TOOLS.includes(tool.name)) {
+      if (
+        tool.selfOperationGrant === "confirm_always" &&
+        !PLANNED_CONFIRM_ALWAYS_TOOLS.includes(tool.name)
+      ) {
         throw new Error(
           `module "${manifest.id}" tool "${tool.name}" declares confirm_always outside the planned allowlist`
         );
       }
 
-      if (tool.selfOperationGrant && resolvedFamily && !resolvedFamily.allowedTiers.includes("always_confirm")) {
+      if (
+        tool.selfOperationGrant &&
+        resolvedFamily &&
+        !resolvedFamily.allowedTiers.includes("always_confirm")
+      ) {
         throw new Error(
           `module "${manifest.id}" tool "${tool.name}" references action family "${tool.actionFamilyId}" which must allow always_confirm`
         );
       }
     }
+  }
+}
+
+/**
+ * #1263 Task 14: install-time self-operation grant for a single built-in module. Derives the
+ * unique action family ids referenced by that module's `granted_at_install` tools ONLY — a
+ * `confirm_always` or `user_promotable` tool's family is never touched here, exactly like
+ * `assertBuiltInSelfOperationManifests` treats them as distinct from `granted_at_install` (see the
+ * ruling atop docs/superpowers/plans/1263/task-14.md: `user_promotable` is fully wired for
+ * auto-run but install must not promote its family). Each derived family gets `trusted_auto`
+ * written via `insertActionPolicyIfAbsent`, which never clobbers an existing stored tier.
+ */
+export async function grantSelfOperationForModule(
+  scopedDb: DataContextDb,
+  repository: Pick<AiRepository, "insertActionPolicyIfAbsent">,
+  manifest: SelfOperationManifestInput
+): Promise<void> {
+  const familyIds = new Set<string>();
+  for (const tool of manifest.assistantTools ?? []) {
+    if (tool.selfOperationGrant === "granted_at_install" && tool.actionFamilyId) {
+      familyIds.add(tool.actionFamilyId);
+    }
+  }
+
+  for (const familyId of familyIds) {
+    await repository.insertActionPolicyIfAbsent(scopedDb, manifest.id, familyId, "trusted_auto");
   }
 }
