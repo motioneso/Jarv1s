@@ -35,6 +35,8 @@ export interface TranscriptRecord {
   readonly summary?: string;
   readonly outcome?: "executed" | "denied" | "error" | "allowed";
   readonly result?: Record<string, unknown>;
+  /** #1310: dot-path tokens into the frontend `queryKeys` object, resolved by app-shell's generic invalidation effect. */
+  readonly affectsQueryKeys?: readonly string[];
   readonly answerProvenance?: readonly AnswerSourceSupportCard[];
   readonly answerProvenanceCitedIds?: readonly string[];
   readonly sourceFreshness?: SourceFreshnessV1 | null;
@@ -200,6 +202,11 @@ export function parseRecord(data: unknown): TranscriptRecord | null {
       result:
         parsed.result && typeof parsed.result === "object" && !Array.isArray(parsed.result)
           ? (parsed.result as Record<string, unknown>)
+          : undefined,
+      affectsQueryKeys:
+        Array.isArray(parsed.affectsQueryKeys) &&
+        parsed.affectsQueryKeys.every((token) => typeof token === "string")
+          ? (parsed.affectsQueryKeys as readonly string[])
           : undefined,
       sourceFreshness:
         parsed.sourceFreshness && typeof parsed.sourceFreshness === "object"

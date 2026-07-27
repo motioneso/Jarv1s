@@ -33,7 +33,7 @@ import { listNotifications, listThemes, sendChatTurn, signOut } from "../api/cli
 import { getWeatherToday } from "../api/weather-client";
 import { buildShellNavigation, resolvePageHeading } from "../app-route-metadata";
 import { useUserLocale } from "../locale/locale-format";
-import { queryKeys } from "../api/query-keys";
+import { queryKeys, resolveQueryKeyToken } from "../api/query-keys";
 import { ChatDrawer } from "../chat/chat-drawer";
 import {
   AssistantSurfaceHostProvider,
@@ -179,6 +179,26 @@ export function AppShell(props: AppShellProps) {
         ) ?? null
     );
   }, [records]);
+  // #1310: generic, declaration-driven cache invalidation. A tool's manifest entry
+  // declares which frontend query-key tokens its write affects; this effect resolves
+  // each token via resolveQueryKeyToken (fail-closed) and invalidates only that key —
+  // never a blanket invalidation, and never anything theme-specific hardcoded here.
+  const invalidatedActionRequestIds = useRef(new Set<string>());
+  useEffect(() => {
+    for (const record of records) {
+      if (record.kind !== "action_result" || record.outcome !== "executed") continue;
+      if (!record.affectsQueryKeys || record.affectsQueryKeys.length === 0) continue;
+      const actionRequestId = record.actionRequestId;
+      if (!actionRequestId || invalidatedActionRequestIds.current.has(actionRequestId)) continue;
+      invalidatedActionRequestIds.current.add(actionRequestId);
+      for (const token of record.affectsQueryKeys) {
+        const queryKey = resolveQueryKeyToken(token);
+        if (queryKey) {
+          void queryClient.invalidateQueries({ queryKey: [...queryKey] });
+        }
+      }
+    }
+  }, [records, queryClient]);
   const openActionRequest = useCallback((actionRequestId: string) => {
     setFocusActionRequestId(actionRequestId);
     setChatOpen(true);
