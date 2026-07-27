@@ -2620,3 +2620,39 @@ Reiterated to the lane: no tool takes a preference key as a parameter, and a lim
 the argument for widening a family `defaultTier` ("it is capped now, so it can auto-run" is wrong).
 Also corrected its assumption that #1265 rebases the inventory assertion — **whichever lands second**
 rebases, and it may be #1264.
+
+### Task 13 approved to build, with two conditions
+
+Grounded in `gateway.ts` and the audit schema before approving rather than taking the plan on trust.
+Two plan assumptions checked out clean: `outcome: "denied"` needs **no migration** (migration `0177`,
+applied and frozen, already widened the `jarvis_action_audit_log.outcome` check constraint to include
+`denied`), and `errorClass` is free-form `string | null`, so `"rate_limited"` needs no type or schema
+change.
+
+**Condition 1 — a real bug in the plan as written.** The two insertion points are not symmetric. The
+yolo branch (~161) carries `found.tool.risk !== "read"` in its own condition, so read tools never reach
+it. The `resolvePolicy(...) === "run"` branch (~178) does **not**: its `if (found.tool.risk !== "read")`
+wraps only the notify + audit block, not the `runHandler` call above it, so **read tools execute
+straight through that branch**. A limiter inserted there unguarded would rate-limit every read tool in
+the product — search, `news.previewSource`, all of it. That is a cross-module behaviour change far
+outside #1264's scope, and it guards nothing: the thing being stopped is a runaway loop of *writes*.
+Required: mirror the audit guard's condition, plus a test that a read tool is not limited.
+
+**Condition 2 — a tripped limit must never be a silent no-op.** The failure mode that matters is the
+assistant appearing to comply while nothing happens; in a runaway loop the user cannot distinguish
+that from success. Stated preference (arguable with reasons): on the **auto** branch degrade to the
+confirmation card rather than hard-denying — it still breaks the loop, keeps the user able to do what
+they asked, and moves strictly in the tightening direction so it cannot collide with the no-widening
+rule. On the **yolo** branch a visible hard denial is defensible since the user opted into unattended
+operation. Either way audited as `outcome: "denied"` / `errorClass: "rate_limited"`.
+
+Rest of the plan approved as described: nested `actorUserId -> toolName` map, in-memory with
+restart-clearing under the explicit runaway-loop-guard framing (code comment + PR body), ceiling and
+window not parameterised by any tool, no `defaultTier` widening, TDD via
+`mcp-gateway(-self-operation).test.ts`. Then Task 11 and `coordinated-wrap-up`, PR citing #1272.
+
+### Context checkpoint
+
+Coordinator hit the 70% meter warning again. Per Ben's standing override ("don't worry about
+successors, keep going here"), no relay was performed; substituted this manifest flush plus a durable
+memory save of the gateway read-guard trap.
