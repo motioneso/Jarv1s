@@ -3220,3 +3220,39 @@ scope claims to be stated as measurements (`main` vs branch), not adjectives.
 **Fleet:** #1264 `6438d10e` (`w1:p13S`, Sonnet 5, ctx 73% — relay expected soon; correction is
 queued to it). #1265 `f9ff23a9` (`w1:p13R`, idle, work pushed). Delta QA `60113a86`
 (`w1:p13T`, Opus 5, high effort) reviewing `b09bcad6..ec43d62e`. Retired: `5d55cb29`, `c2284222`.
+
+### CRITICAL — the delta re-QA had NOT run; stale GREEN verdict neutralised on the PR
+
+**A spawned QA agent can sit idle without doing the review, and the pane looks healthy.**
+`60113a86` had the right model (Opus 5), right worktree, 33% context and plausible output — but
+it was *conversing* ("want me to watch the checks?"), not executing its brief. `herdr agent
+start` had succeeded and its argv contained the prompt, so nothing errored anywhere.
+
+**Do not infer QA progress from pane liveness or context %.** The authoritative check is the
+artifact the brief requires: `gh pr view <n> --json comments`. No verdict naming the reviewed
+commit = the review did not happen. That check is what caught this.
+
+**Compounding hazard, now neutralised.** PR #1273 carried a **GREEN security verdict grounded on
+`b09bcad6`** while the head is `ec43d62e` — 8 commits later. Any reader, or a future coordinator
+session, could have merged on it. Posted a coordinator comment on the PR
+(`#issuecomment-5093413763`) explicitly marking that verdict **STALE / do not merge on it**, with
+both SHAs, the `merge-base --is-ancestor` proof, and the table of commits it never saw. This lives
+on GitHub and survives coordinator relay or compaction — a manifest note would not. There is
+precedent: an earlier RED verdict on this PR was withdrawn the same way.
+
+QA re-dispatched to `60113a86` grounded on `ec43d62e`. Note the monitor false-positived on
+"verdict posted" by counting *my own* staleness comment (3→4); a real verdict is comment **5+**.
+
+### Ben may be driving panes directly — do not assume he is asleep
+
+Three panes have held **unsubmitted** human-style text: `w1:p137` ("Fix the u-flag fail-open
+and t…"), `w1:p13T` ("watch the checks and tell me when they land"), `w1:p13V` ("check the gate
+log so far"). That reads as Ben directing agents himself. Consequences for any coordinator here:
+- **`herdr pane run` CONCATENATES onto pending text**, and `send-keys C-u` is rejected. Read the
+  input box before messaging; submitting the pending text with `send-keys Enter` clears it safely
+  and honours whoever typed it. Never assume leftover text is yours to discard.
+- I reaped `w1:p137` while it held such text. Avoid reaping any pane with pending input.
+
+**Fleet:** #1264 successor `26659abc` (`w1:p13V`, Sonnet 5, 48%, gate running); predecessor
+`6438d10e` reaped. #1265 builder `f9ff23a9` (`w1:p13R`, idle, pushed). QA `60113a86` (`w1:p13T`,
+Opus 5) re-dispatched. CI on `ec43d62e`: 2 pass, "Verify foundation and app" still pending.
