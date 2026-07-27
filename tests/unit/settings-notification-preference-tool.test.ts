@@ -130,7 +130,11 @@ describe("notificationPreferenceSetEnabledExecute", () => {
         preference: { moduleId, moduleName: "News", enabled },
         unreadCount: null,
         previous: { value: { enabled: !enabled }, revision: 1 },
-        changed: true
+        changed: true,
+        // resultingRevision is required for changed=true (see the contract comment in
+        // notification-preference-application.ts) — the tool only pushes an undo entry when
+        // it's present, so omitting it here silently skipped the exact behavior under test.
+        resultingRevision: 2
       })
     });
 
@@ -144,7 +148,8 @@ describe("notificationPreferenceSetEnabledExecute", () => {
     expect(settingsUndoStack.pop("user-a", "chat-1")).toMatchObject({
       key: "notifications:news",
       previousValue: { enabled: true },
-      previousRevision: 1
+      previousRevision: 1,
+      resultingRevision: 2
     });
   });
 
