@@ -10,7 +10,8 @@ not a recap. Read the four documents below before acting; nothing here restates 
 2. `rulings-ledger.md` (this directory) — **every** locked decision, N1 through N35. When a build
    agent asks "which helper / is this allowed / what shape", the answer is here or it is a new
    ruling that belongs here. The branch-wide ones that bite hardest: N26 gate-DB isolation,
-   N27 live-path proof, N28 explicit-path commits, N32 co-edited files, N35 the file-size gate.
+   N27 live-path proof, N28 explicit-path commits, N32 co-edited files, N35 the file-size gate,
+   N36 a split must conserve test cases.
    **N34 supersedes N30's addendum** — read N30 and N34 together or you will build a withdrawn
    requirement.
 3. `parts/` — one file per task, numbered to match the task numbers. **Task numbering is frozen**;
@@ -21,35 +22,42 @@ not a recap. Read the four documents below before acting; nothing here restates 
 ## Where the work stands
 
 Branch `feat/job-search`, local only — `origin/feat/job-search` does not exist. HEAD at last update
-is `0dc695e0`. **Six task issues remain open: #1299, #1304, #1305, #1306, #1307, #1328** (plus #1087, a
+is `b9d7cefc`. **Five task issues remain open: #1304, #1305, #1306, #1307, #1328** (plus #1087, a
 pre-existing harness-quality issue, not this epic's). Everything else is closed and on the board —
-Task 24 (#1309, user-added job board sources) landed at `773e8de6` and was verified and closed.
+Task 24 (#1309) landed at `773e8de6`.
 
-**Task 15 (#1299) is the single gate on the whole epic.** A background agent owns it. Besides its
-own score/pass/surfacing work it must register **all nine Task 16 handler factories plus its own
-two** in `external-modules/job-search/src/worker/index.ts`, which is still
-`defineModuleWorker({ handlers: {} })`. Task 20 (#1304) and Task 21 Tier B (#1305) are both blocked
-behind it; Task 21 Tier A already landed at `1401040e`.
+**Task 15 (#1299) — the single gate on the whole epic — is DONE, verified and closed.** `7c4ac2e7`
+(manifest, worker entrypoint, registry, five handlers, job-input, score stage) plus `fe14f009`
+(24 unit cases, exit 0). `src/worker/index.ts` is finally `defineModuleWorker({ handlers: HANDLERS })`
+— the empty map is gone, and the map itself lives in `src/worker/registry.ts` because
+`defineModuleWorker` is side-effecting at import time, so **no test may import `worker/index.ts`**.
 
-Live assignments at last update: score-agent on #1299 (`stages/score.ts`, `handlers/pass.ts`,
-`handlers/matches.ts`, `registry.ts` all written but uncommitted; `worker/index.ts` still
-`handlers: {}`; it also holds `jarvis.module.json` — nobody else may touch that file), chat-surface
-on #1304 board+inspector and **sole owner of `web/root.tsx`**, dedupe on #1328, criteria parked
-holding the conformance test, records parked with Task 22's harness half done (`c4da977a`,
-`7b766f75`, `0dc695e0`) and the UAT spec body deliberately unwritten until the board commits,
-scaffold parked on #1305 Tier B. Unassigned: #1307.
-**Verify each of these against the board before relying on it.**
+Verified against **committed** state, not the working tree: the registry cross-checks clean in both
+directions (17 handler keys, 17 manifest consumers, nothing missing and nothing orphaned), and all
+seven `job-search.*` literals in committed `src/web/` resolve — three tools at `risk: "read"`, four
+queues at `allowManualRun: true`. That unblocked Task 21 Tier B (#1305); Tier A landed at `1401040e`.
 
-Task 20 (#1304) is **no longer blocked** — Task 15's agent froze its tool contract (`matches.list`
-input `{profileId, limit}` with `limit` 1..40 and no default; `match-state` and `crawl-run` manual-run
-queues). Treat those three signatures as published API.
+Task 20's UI is fully committed: settings at `5c3d2975`/`f0af28a8`, board + inspector + root wiring
+at `73cf8b46` — a Board/Settings tab switcher, Fit and Want rendered and sorted as two independent
+values, unscored rows dashed and sorted last, portal failures rendering their authored cause
+verbatim. #1304 stays open only until criteria commits
+`tests/unit/job-search-manifest-conformance.test.ts`.
 
-**But the manifest's `worker.queues` is still `[]`** — note the nesting, it is not top-level. Neither
-queue exists on disk, nor does `matches.list`; Task 15 lands all three plus the two the settings
-screen needs. The board's tests mock the transport, so **a screen can go fully green while every
-button on it is inert in production and nothing anywhere goes red.** That already happened once: the
-settings screen landed at `5c3d2975` calling two queues declared nowhere, and only a hand-read of the
-diff caught it.
+**Resolving a handler key is not string-slicing the tool name.** `assistantTools[].handler` is an
+explicit optional field — `job-search.match.dismiss` uses it to point at the `match.set-state`
+handler. Resolve as `handler ?? name-suffix`. Deriving from the name reports a phantom missing
+handler; I made that mistake once and nearly propagated it into the permanent conformance test.
+
+Live assignments at last update — **verify each against the board before relying on it**: dedupe on
+#1328 (see below, it is holding), criteria owing one commit, records writing
+`tests/uat/specs/job-search-board.uat.spec.ts` for #1306, scaffold on #1305 Tier B. Unassigned:
+#1307, which opens the PR and is blocked on a green gate.
+
+The manifest's `worker.queues` — note the nesting, it is not top-level — now declares all five
+queues. Screen tests mock the transport, so **a screen can go fully green while every button on it
+is inert in production and nothing anywhere goes red.** That happened once for real: the settings
+screen landed at `5c3d2975` calling two queues declared nowhere, and only a hand-read of the diff
+caught it.
 
 The durable fix is a **manifest-conformance test**, held by criteria in the session scratchpad until
 Task 15's manifest lands (it is deliberately red, and vitest globs by path regardless of git status —
@@ -74,9 +82,18 @@ Two failures are confirmed **ours**, not pre-existing: three files pushed over t
 open: a `tests/uat/run-uat.test.ts` failure that looks pre-existing but has not been run against
 `main` to prove it.
 
+**A split must conserve test cases (N36).** Caught live while dedupe was repairing the cap:
+`tests/integration/notifications.test.ts` went 33 cases → 12, and the extracted
+`notifications-harness.ts` held four helper exports and **zero** cases — 21 cases and ~574 lines with
+no destination, and the sibling notification test files untouched. Deleting cases turns
+`check:file-size` green while removing coverage, and `test:integration` is the *last* gate link so
+nothing surfaces it. dedupe was told to hold. **Before accepting any split, sum
+`grep -cE '^\s*(it|test)\('` across the resulting files and match it against `git show HEAD:<path>`.**
+A falling line count is the goal; a falling case count is a defect.
+
 **"Not mine" and "not new" are different claims.** The first is a `git status` question, the second
-is a `git show main:<path>` question, and only the second licenses moving past a red gate. Both were
-conflated here by two different agents on the same day. Check it yourself every time.
+is a `git show main:<path>` question, and only the second licenses moving past a red gate. **Three**
+different agents conflated them on the same day — expect the next one to as well. Check it yourself every time.
 
 ## How to coordinate this fleet
 
