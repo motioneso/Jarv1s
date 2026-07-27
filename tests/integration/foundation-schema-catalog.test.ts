@@ -304,7 +304,9 @@ describe("MVP foundation schema catalog", () => {
         { version: "0173", name: "0173_backfill_execution_mode_under_force_rls.sql" },
         // JS-00 #1231 — surface-scoped live chat thread lineage and cleanup identity.
         // Renumbered 0172→0174 on integration: P-02a (#1239) landed 0172/0173 first.
-        { version: "0174", name: "0174_chat_surface.sql" }
+        { version: "0174", name: "0174_chat_surface.sql" },
+        // #1264 — optimistic-concurrency revision column for assistant self-operation writes.
+        { version: "0175", name: "0175_preferences_revision.sql" }
       ]);
     } finally {
       await client.end();

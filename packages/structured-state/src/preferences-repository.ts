@@ -5,6 +5,13 @@ function jsonb(value: unknown) {
   return sql<Record<string, unknown>>`${JSON.stringify(value)}::jsonb`;
 }
 
+export class PreferenceRevisionConflictError extends Error {
+  constructor(public readonly key: string) {
+    super(`Preference "${key}" was modified concurrently`);
+    this.name = "PreferenceRevisionConflictError";
+  }
+}
+
 export class PreferencesRepository {
   async upsert(scopedDb: DataContextDb, key: string, value: unknown): Promise<void> {
     assertDataContextDb(scopedDb);
@@ -64,5 +71,52 @@ export class PreferencesRepository {
   async delete(scopedDb: DataContextDb, key: string): Promise<void> {
     assertDataContextDb(scopedDb);
     await scopedDb.db.deleteFrom("app.preferences").where("key", "=", key).execute();
+  }
+
+  async upsertWithRevision(
+    scopedDb: DataContextDb,
+    key: string,
+    value: unknown,
+    expectedRevision: number | null
+  ): Promise<{ revision: number }> {
+    assertDataContextDb(scopedDb);
+    if (expectedRevision === null) {
+      const row = await scopedDb.db
+        .insertInto("app.preferences")
+        .values({
+          owner_user_id: sql<string>`app.current_actor_user_id()`,
+          key,
+          value_json: jsonb(value),
+          revision: 1,
+          updated_at: new Date()
+        })
+        .onConflict((oc) => oc.columns(["owner_user_id", "key"]).doNothing())
+        .returning("revision")
+        .executeTakeFirst();
+      if (!row) throw new PreferenceRevisionConflictError(key);
+      return { revision: row.revision };
+    }
+    const row = await scopedDb.db
+      .updateTable("app.preferences")
+      .set({ value_json: jsonb(value), revision: expectedRevision + 1, updated_at: new Date() })
+      .where("key", "=", key)
+      .where("revision", "=", expectedRevision)
+      .returning("revision")
+      .executeTakeFirst();
+    if (!row) throw new PreferenceRevisionConflictError(key);
+    return { revision: row.revision };
+  }
+
+  async getWithRevision(
+    scopedDb: DataContextDb,
+    key: string
+  ): Promise<{ value: unknown; revision: number } | null> {
+    assertDataContextDb(scopedDb);
+    const row = await scopedDb.db
+      .selectFrom("app.preferences")
+      .select(["value_json", "revision"])
+      .where("key", "=", key)
+      .executeTakeFirst();
+    return row ? { value: row.value_json, revision: row.revision } : null;
   }
 }
