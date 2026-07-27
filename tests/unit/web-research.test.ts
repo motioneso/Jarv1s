@@ -15,6 +15,7 @@ import {
   webReadExecute,
   webSearchExecute
 } from "@jarv1s/web-research";
+import type { ModuleAssistantToolManifest } from "@jarv1s/module-sdk";
 
 afterEach(() => {
   setWebFetchForTests(undefined);
@@ -34,18 +35,19 @@ describe("web research manifest", () => {
     expect(webModuleManifest.routes ?? []).toEqual([]);
     expect(webModuleManifest.navigation ?? []).toEqual([]);
 
-    const tools = webModuleManifest.assistantTools ?? [];
+    const tools: readonly ModuleAssistantToolManifest[] = webModuleManifest.assistantTools ?? [];
     expect(tools.map((tool) => tool.name)).toEqual(["web.search", "web.read"]);
     expect(tools.every((tool) => tool.permissionId === "web.research")).toBe(true);
     expect(tools.find((t) => t.name === "web.search")?.risk).toBe("read");
 
-    // web.read fetches arbitrary URLs (#359); it is a write granted at install, auto-executable
-    // unless the user's stored tier for web_research_requests demotes it (see self-operation.ts).
+    // web.read fetches arbitrary URLs (#359) and is the v0.1.0 audit's prompt-injection-to-
+    // exfiltration finding — it stays confirm_always with no actionFamilyId/executionPolicy so
+    // policy.ts:40 confirms every call (Opus security review, PR #1268; #1263 Task 5).
     const webRead = tools.find((t) => t.name === "web.read");
     expect(webRead?.risk).toBe("write");
-    expect(webRead?.actionFamilyId).toBe("web_research_requests");
-    expect(webRead?.executionPolicy).toBe("auto");
-    expect(webRead?.selfOperationGrant).toBe("granted_at_install");
+    expect(webRead?.actionFamilyId).toBeUndefined();
+    expect(webRead?.executionPolicy).toBeUndefined();
+    expect(webRead?.selfOperationGrant).toBe("confirm_always");
   });
 });
 

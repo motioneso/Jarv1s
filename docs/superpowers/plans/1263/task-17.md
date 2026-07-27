@@ -12,7 +12,13 @@ three values, and "every write tool declares something" now has three legal answ
 
 **Dependency:** Task 16 must already be committed.
 
-**Coordinator ruling:** The four planned `confirm_always` tools are `memory.forget`, `people.merge`, `people.splitIdentity`, and `email.sendReply`, all retaining destructive risk (Ben ruled 2026-07-26: `notes.delete` is granted_at_install, email requires approval). #1263 inventory is built-in-only; external completeness is #1267, and external family-less writes remain safe because `packages/ai/src/gateway/policy.ts:40` always confirms.
+**Coordinator ruling:** The four originally planned `confirm_always` tools are `memory.forget`, `people.merge`, `people.splitIdentity`, and `email.sendReply`, all retaining destructive risk (Ben ruled 2026-07-26: `notes.delete` is granted_at_install, email requires approval). #1263 inventory is built-in-only; external completeness is #1267, and external family-less writes remain safe because `packages/ai/src/gateway/policy.ts:40` always confirms.
+
+**Update (PR #1268 Opus security review, Coordinator-authorised):** the roster is now FIVE —
+`web.read` was added, keeping risk `"write"` (not `"destructive"`), because it has no
+`actionFamilyId` and `policy.ts:40` must confirm every call. The stop condition below already
+fired for this addition and the Coordinator ruled on it explicitly; do not reconcile the roster
+back down to four.
 
 ## Task 17 — Runtime walk-away regression and final gate
 
@@ -25,7 +31,7 @@ three values, and "every write tool declares something" now has three legal answ
 
 - `"first use after install grant runs without an action card"`
 - `"stored always_confirm override still produces an action card"`
-- `"the four built-in confirm_always tools remain the only confirmation declarations"`
+- `"the five built-in confirm_always tools remain the only confirmation declarations"`
 
 The first test must persist the grant through the real repository/helper and let the gateway read the
 stored tier; a stubbed `getFamilyTier:"trusted_auto"` is insufficient. Assert no `action_request`

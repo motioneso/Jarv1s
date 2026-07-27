@@ -12,7 +12,14 @@ three values, and "every write tool declares something" now has three legal answ
 
 **Dependency:** Task 15 must already be committed.
 
-**Coordinator ruling:** The four planned `confirm_always` tools are `memory.forget`, `people.merge`, `people.splitIdentity`, and `email.sendReply`, all retaining destructive risk (Ben ruled 2026-07-26: `notes.delete` is granted_at_install, email requires approval). #1263 assertions cover built-ins only; external completeness is #1267, and external family-less writes remain safe because `packages/ai/src/gateway/policy.ts:40` always confirms.
+**Coordinator ruling:** The four originally planned `confirm_always` tools are `memory.forget`, `people.merge`, `people.splitIdentity`, and `email.sendReply`, all retaining destructive risk (Ben ruled 2026-07-26: `notes.delete` is granted_at_install, email requires approval). #1263 assertions cover built-ins only; external completeness is #1267, and external family-less writes remain safe because `packages/ai/src/gateway/policy.ts:40` always confirms.
+
+**Update (PR #1268 Opus security review, Coordinator-authorised):** the roster is now FIVE, not
+four — `web.read` was added as a deliberate exception, not a new baseline. It retains risk
+`"write"` (not `"destructive"`); the guarantee it protects is "no `actionFamilyId`, so
+`policy.ts:40` confirms every call," restoring the pre-#1268 shape after an earlier draft of this
+PR briefly made it `granted_at_install`. See the Task 16 changes section below for why. The stop
+condition below still applies to any _sixth_ addition.
 
 ## Task 16 — Wire the built-in assertion at startup and lock the inventory
 
@@ -31,13 +38,20 @@ three values, and "every write tool declares something" now has three legal answ
    cite #1267 and `policy.ts:40`.
 3. Add the complete built-in inventory test:
    - 38 write/destructive tools;
-   - 33 `granted_at_install`;
-   - four `confirm_always`: memory.forget, people.merge, people.splitIdentity, email.sendReply;
-   - one `user_promotable`: `calendar.deleteEvent` (Task 12a moved it out of `granted_at_install`,
-     which is why the granted count is 33 and not 34);
+   - 31 `granted_at_install`;
+   - five `confirm_always`: memory.forget, people.merge, people.splitIdentity, email.sendReply,
+     web.read (PR #1268 Opus security review moved web.read here — no approved spec covers
+     web-research, and an auto-run family would have reopened the v0.1.0 audit's web.read
+     prompt-injection-to-exfiltration finding; web.read is the deliberate odd one out at risk
+     "write", not "destructive" — do not "tidy" it to match the other four);
+   - two `user_promotable`: `calendar.deleteEvent` and `calendar.proposeFocusBlock` (Task 12a moved
+     deleteEvent out of `granted_at_install`; PR #1268's Fable security review moved
+     proposeFocusBlock out too, because the proactive follow-through worker
+     (`module-registry/src/index.ts:711`) is a second, unattended reader of `calendar_writeback`'s
+     tier — granting it at install would arm unattended background calendar writes);
    - zero unclassified and zero excluded built-in tools;
    - exact planned confirm set `memory.forget`, `people.merge`, `people.splitIdentity`,
-     `email.sendReply`.
+     `email.sendReply`, `web.read`.
 
    **The three counts must sum to 38** — assert that explicitly, so a future reclassification that
    moves a tool between buckets cannot leave the totals silently inconsistent. Note that People

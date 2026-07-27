@@ -11,6 +11,7 @@ import { calendarModuleManifest } from "../../packages/calendar/src/manifest.js"
 import { webModuleManifest } from "../../packages/web-research/src/manifest.js";
 import { getBuiltInModuleManifests } from "../../packages/module-registry/src/index.js";
 import { isSelfOperationExcluded } from "../../packages/ai/src/gateway/self-operation.js";
+import type { ModuleAssistantToolManifest } from "../../packages/module-sdk/src/index.js";
 
 const GRANTED_AT_INSTALL_TASK_TOOLS = [
   "tasks.create",
@@ -201,7 +202,7 @@ describe("Email self-operation manifest classification", () => {
 });
 
 describe("Calendar self-operation manifest classification", () => {
-  it("classifies proposeFocusBlock as granted_at_install and deleteEvent as user_promotable", () => {
+  it("classifies both proposeFocusBlock and deleteEvent as user_promotable", () => {
     const tools = calendarModuleManifest.assistantTools ?? [];
 
     const proposeFocusBlock = tools.find(
@@ -211,7 +212,9 @@ describe("Calendar self-operation manifest classification", () => {
     expect(proposeFocusBlock?.risk).toBe("write");
     expect(proposeFocusBlock?.actionFamilyId).toBe("calendar_writeback");
     expect(proposeFocusBlock?.executionPolicy).toBe("auto");
-    expect(proposeFocusBlock?.selfOperationGrant).toBe("granted_at_install");
+    // Not granted_at_install: the proactive follow-through worker (module-registry/src/index.ts:711)
+    // reads calendar_writeback's tier unattended, so install must not promote it (Fable, PR #1268).
+    expect(proposeFocusBlock?.selfOperationGrant).toBe("user_promotable");
 
     const deleteEvent = tools.find((candidate) => candidate.name === "calendar.deleteEvent");
     expect(deleteEvent, "expected tool calendar.deleteEvent to exist").toBeDefined();
@@ -238,30 +241,38 @@ describe("Calendar self-operation manifest classification", () => {
 });
 
 describe("Web Research self-operation manifest classification", () => {
-  it("classifies web.read as granted_at_install", () => {
-    const tools = webModuleManifest.assistantTools ?? [];
+  it("classifies web.read as confirm_always with no promotable family", () => {
+    const tools: readonly ModuleAssistantToolManifest[] = webModuleManifest.assistantTools ?? [];
     const webRead = tools.find((candidate) => candidate.name === "web.read");
     expect(webRead, "expected tool web.read to exist").toBeDefined();
     expect(webRead?.risk).toBe("write");
-    expect(webRead?.actionFamilyId).toBe("web_research_requests");
-    expect(webRead?.executionPolicy).toBe("auto");
-    expect(webRead?.selfOperationGrant).toBe("granted_at_install");
+    // No actionFamilyId, no executionPolicy: policy.ts:40 must confirm every call. web-research
+    // has no approved spec (spec 2's remaining-modules list stops at calendar/email/ai), and
+    // web.read is the v0.1.0 audit's prompt-injection-to-exfiltration finding — an unattended
+    // auto-approve here would resurrect that HIGH. Opus security review on PR #1268; #1263.
+    expect(webRead?.actionFamilyId).toBeUndefined();
+    expect(webRead?.executionPolicy).toBeUndefined();
+    expect(webRead?.selfOperationGrant).toBe("confirm_always");
 
-    const family = webModuleManifest.assistantActionFamilies?.find(
-      (candidate) => candidate.id === "web_research_requests"
-    );
-    expect(family, "expected family web_research_requests to exist").toBeDefined();
-    expect(family?.defaultTier).toBe("ask_each_time");
-    expect(family?.allowedTiers).toContain("trusted_auto");
-    expect(family?.allowedTiers).toContain("always_confirm");
+    const manifestAssistantActionFamilies = (
+      webModuleManifest as { assistantActionFamilies?: readonly unknown[] }
+    ).assistantActionFamilies;
+    expect(manifestAssistantActionFamilies ?? []).toEqual([]);
   });
 });
 
+// Five tools, not four: the odd one out is web.read (risk "write", not "destructive"). It is
+// deliberately listed here rather than made auto-run-eligible: pre-PR #1268 it carried no
+// actionFamilyId, so policy.ts:40 confirmed every call, and that card was the last human control
+// on the v0.1.0 audit's web.read prompt-injection-to-exfiltration finding. Do not "tidy" this to
+// risk: "destructive" to match the other four, and do not give it a family — either would either
+// misclassify the risk or reopen the auto-approve door. See Opus security review on PR #1268 (#1263).
 const PLANNED_CONFIRM_ALWAYS_TOOL_NAMES = [
   "memory.forget",
   "people.merge",
   "people.splitIdentity",
-  "email.sendReply"
+  "email.sendReply",
+  "web.read"
 ];
 
 describe("Complete built-in self-operation inventory (#1263)", () => {
@@ -311,15 +322,21 @@ describe("Complete built-in self-operation inventory (#1263)", () => {
       `expected zero excluded built-in write tools, found: ${excluded.join(", ")}`
     ).toEqual([]);
 
-    expect(grantedAtInstall.length).toBe(33);
-    expect(confirmAlways.length).toBe(4);
-    expect(userPromotable.length).toBe(1);
+    expect(grantedAtInstall.length).toBe(31);
+    expect(confirmAlways.length).toBe(5);
+    expect(userPromotable.length).toBe(2);
 
-    // Task 12a moved calendar.deleteEvent out of granted_at_install, which is why the
-    // granted count is 33 (not 34) even though there are 38 write/destructive tools total.
+    // Task 12a moved calendar.deleteEvent out of granted_at_install (33 -> ...). PR #1268's
+    // security reviews moved two more: Fable moved calendar.proposeFocusBlock to user_promotable
+    // (the proactive follow-through worker is a second unattended reader of calendar_writeback's
+    // tier), and Opus moved web.read to confirm_always (no approved spec covers web-research, and
+    // an auto-run family would have reopened the v0.1.0 audit's exfiltration finding). Granted is
+    // 31, confirm_always is 5, user_promotable is 2 — still 38 write/destructive tools total.
     expect(grantedAtInstall.length + confirmAlways.length + userPromotable.length).toBe(38);
 
     expect(confirmAlways.sort()).toEqual([...PLANNED_CONFIRM_ALWAYS_TOOL_NAMES].sort());
-    expect(userPromotable).toEqual(["calendar.deleteEvent"]);
+    expect(userPromotable.sort()).toEqual(
+      ["calendar.deleteEvent", "calendar.proposeFocusBlock"].sort()
+    );
   });
 });

@@ -223,7 +223,41 @@ describe("AssistantToolGateway self-operation", () => {
     await call;
   });
 
-  it("the four built-in confirm_always tools remain the only confirmation declarations", () => {
+  it("installing calendar does not arm the background follow-through writer", async () => {
+    // #1263 Fable security review, PR #1268: buildCalendarFollowThroughPort.executeAutoActions
+    // (module-registry/src/index.ts:711) is a second, unattended reader of calendar_writeback's
+    // tier — on a block_time signal it calls calendarWrite.proposeAndInsert directly, no card, no
+    // chat session, no gateway. Granting trusted_auto at install would arm unattended background
+    // calendar writes the instant the module is enabled. Task 1 moved proposeFocusBlock to
+    // user_promotable so install must not write trusted_auto for calendar_writeback at all.
+    const grantManifest: SelfOperationManifestInput = {
+      id: calendarModuleManifest.id,
+      assistantTools: calendarModuleManifest.assistantTools,
+      assistantActionFamilies: calendarModuleManifest.assistantActionFamilies
+    };
+
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-calendar-install-grant-no-writeback" },
+      (scopedDb) => grantSelfOperationForModule(scopedDb, repository, grantManifest)
+    );
+
+    const writebackTier = await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-calendar-install-grant-no-writeback-read" },
+      async (scopedDb) => {
+        const policies = await repository.listActionPolicies(scopedDb);
+        return (
+          policies.find(
+            (p) =>
+              p.moduleId === calendarModuleManifest.id && p.actionFamilyId === "calendar_writeback"
+          )?.tier ?? null
+        );
+      }
+    );
+
+    expect(writebackTier).not.toBe("trusted_auto");
+  });
+
+  it("the five built-in confirm_always tools remain the only confirmation declarations", () => {
     const confirmAlwaysTools: string[] = [];
     for (const manifest of getBuiltInModuleManifests()) {
       for (const tool of manifest.assistantTools ?? []) {
@@ -233,8 +267,18 @@ describe("AssistantToolGateway self-operation", () => {
       }
     }
 
+    // web.read is the fifth (PR #1268 Opus security review): risk "write", not "destructive" —
+    // it is on this list because it has no actionFamilyId, so policy.ts:40 confirms every call,
+    // restoring the pre-PR guarantee that protected the v0.1.0 audit's web.read
+    // prompt-injection-to-exfiltration finding.
     expect(confirmAlwaysTools.sort()).toEqual(
-      ["email.sendReply", "memory.forget", "people.merge", "people.splitIdentity"].sort()
+      [
+        "email.sendReply",
+        "memory.forget",
+        "people.merge",
+        "people.splitIdentity",
+        "web.read"
+      ].sort()
     );
   });
 });
