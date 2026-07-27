@@ -3734,3 +3734,40 @@ the earlier PR poll loop); resets 1785177208. File as soon as it clears.
 
 **Merge status: #1276 is no longer green.** C reopens the lane. B is a chassis fix that should
 land before the epic closes. A needs Ben.
+
+## Continuation note — 2026-07-27, default-allow pivot
+
+**Direction changed.** Ben's directive: *"I don't want to have to define every setting that Jarvis
+can change. I want it to be able to change every setting unless we say it can't."* The
+tool-per-setting model in `specs/2026-07-26-module-self-operation-settings-commands.md` is
+superseded.
+
+- **v1 spec** `specs/2026-07-27-settings-default-allow-writer.md` @ `097a3f3b` (sol-high). One
+  generic `settings.set` generated from a mandatory settings registry; unclassified setting fails
+  the build; no confirmation cards for writable settings.
+- **Revision 1 brief** `docs/coordination/1262-spec-revision-1-default-allow-writer.md` @ `fe1857c9`.
+  In flight on sol-high, revising the spec in place. Folds in: Ben's module ruling, the terminology
+  correction, and three findings from an external prior-art survey (schema size bound, runtime
+  choice resolution, setting deprecation).
+- **Spec is PROPOSED — Ben has not approved it.** Nothing may be built until he does.
+
+**Ben's rulings this session:**
+1. Modules are assistant-operable. Admin may install/download and disable instance-wide; a user may
+   enable an available module for themselves. Only remove/purge is carved out (destroys data).
+2. "External module" is the wrong term — every module is a Jarvis module. Prose/UI say "module";
+   the code rename is **#1312**, out of scope for #1262.
+3. The registry reroutes *every* settings write (REST + UI toggles), not just the assistant path.
+
+**Open with Ben:** spec approval; the replacement word for `external_module*` in code (proposed
+`bundled` vs `downloaded`).
+
+**Bugs filed from Ben's hands-on test:** #1310 (settings writes don't refresh the UI — the theme
+query is never invalidated on a tool write), #1311 (`granted_at_install` never applies to required
+modules, so the first settings write wrongly shows an approval card). #1311 is a stated prerequisite
+of the generic writer.
+
+**PR lanes unchanged:** #1276 (#1264) — still security-tier, reopened by #1310, and its six setter
+tools are scheduled for deletion by this spec while its machinery (revision CAS, undo stack, audit
+outcomes, rate limiter) is what the generic writer is built on; recommendation is still to land it.
+PR #1273 (#1265) — QA GREEN, blocked on its unmet spec exit criterion; unaffected by this pivot
+(`app.getMapSlice` survives).
