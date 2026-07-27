@@ -1726,3 +1726,36 @@ handle and no cross-module internal imports (111 tests green); `3e78b741` routes
 repository** inside `withDataContext`, carrying the required why-comment — REST already holds the row
 id, so the service's `catalogKey` → id resolution is only needed by the assistant tool, which never
 sees row ids. The binding ruling is honoured. #1265 is 3 of 7 tasks in; #1264 is 1 of 13.
+
+### 2026-07-27 — INCIDENT: migration run against the shared dev DB (#1264 Task 0b)
+
+**Reported as** a migration-number collision. **Actually** two problems, and the reported one is the
+lesser.
+
+**What was reported.** `pnpm db:migrate` failed with version `0175` already recorded in
+`app.schema_migrations` as `0175_chat_messages_attachment_only_body.sql`, applied 2026-07-26T01:35 —
+a filename in neither branch nor `origin/main`.
+
+**Ruling: (b) stale orphaned DB state. Numbering stands; nothing renumbers.** Verified independently
+rather than accepted: searched **all 2712 commits and all 44 `archive/2026-07-26/*` tags** — the only
+`0175` SQL file anywhere in git is the agent's own `0175_preferences_revision.sql`. `origin/main`'s
+highest is `0174_chat_surface.sql`. The phantom is a casualty of the **2026-07-26 repo reset** (~500
+branches collapsed); its timestamp falls inside that window and predates both lanes in this run, and
+#1265 ships no migration, so no live lane produced it.
+
+**The real incident: the migration ran against the shared dev DB with no `JARVIS_PGDATABASE`
+isolation** — an explicit run-rule violation. The collision is only what made it visible. Had `0175`
+been free, `0176` would have applied silently and nobody would have known. `0176_instance_settings_
+revision.sql` **did** apply to Ben's dev DB before the loop hit the conflict.
+
+Directed: isolate immediately and keep it isolated; **treat `0176` as frozen** — editing a file
+already recorded as applied throws "Migration has changed after being applied" for anyone on that DB,
+so a needed change comes to me rather than being edited in place; re-verify 0b on the isolated DB so
+the green is real and not inherited from a polluted one.
+
+**Explicitly refused: cleaning the shared dev DB.** It is Ben's working environment and he is asleep.
+The delegation he gave covers merging green work, not mutating his environment — see `AWAITING-BEN.md`.
+
+**Lane state.** #1264: 0b landed (`c366b877`). #1265: T4 landed (`eb924e7c`) — sports tools, manifest
+with the `sports_follows` family, and the `risk !== "destructive"` assertion; relaying into T5, where
+it must rebase the inventory counts against #1264 without loosening the assertion.
