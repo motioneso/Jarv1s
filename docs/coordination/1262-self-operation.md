@@ -1594,3 +1594,31 @@ silently does nothing for response style.
 
 **Mid-doing:** #1264 building Tasks 0a→12; #1265 fixing the reopened T1 then T2. No PRs open. Both
 security tier.
+
+## Continuation note — 2026-07-27, both lanes building, coordinator at 70%
+
+**Fleet:** #1264 `settings-1264-c` / pane `w1:p12T` (predecessors `7f52e0b8`, `d88f59be` reaped);
+#1265 `relay-1265-3` / `38c461d9` / pane `w1:p12S`. Monitor `bjx9jyxt9` watches local worktree HEADs
+and lane liveness by worktree path, so it survives pane renumbering — no update needed on a relay.
+
+**Rate-limiting ruling survived the relay intact** — verified by grepping commit `6e269049`, not
+assumed: the gateway-level placement, the `denied` outcome mapping, and the no-op-is-not-enough
+rationale all made it into #1264's relay doc, which numbers it Task 13. Numbering differs from my
+"Task 12"; content is what matters and it is correct.
+
+**Process note — five contexts across this epic have now ended with zero code**, all in the
+grounding phase. Two counter-measures are in force and both worked: order the plan to disk as the
+next output with assumptions stated inline (four of #1264's five flagged assumptions are
+self-correcting at typecheck), and put rulings in the handoff doc rather than pane messages, which
+die at compaction. Saved as memory `mem_ms32dyxp_006b75eaf7e0`. The underlying question — tasks too
+small, handoffs too thin, or normal relay cost — stays parked for Ben in `AWAITING-BEN.md` §2.
+
+**Coordinator context at 70%.** Not relaying, per Ben's standing "keep going here" override; this
+manifest is therefore the only durable record of the run and is current as of this note.
+
+**Mid-doing:** both lanes building, no PRs open. #1264 runs Tasks 0a→13 (rate limiting last, and a
+stall there is an escalation plus a stated PR gap, never a silent omission). #1265 fixes the reopened
+T1 — the `guidance` read in `chat-tools.ts`, since the schema drop alone was not containment — then
+continues T2→T7. Both are `security` tier: adversarial Opus QA with a posted `gh pr comment` verdict
+before any merge, and whichever lands second rebases the exact counts in
+`tests/unit/self-operation-manifests.test.ts` without loosening the assertion.
