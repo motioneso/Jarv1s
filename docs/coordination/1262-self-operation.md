@@ -630,3 +630,24 @@ the user-visible consequences of this change and Ben signs the merge off against
 
 Everything else in this PR is invisible to users: it declares guarantees that already existed so the
 build can check them.
+
+### 2026-07-26 — Task 9 (Memory) landed; builder h → i
+
+**Task 9 (`a9502e4f`) verified.** `memory.remember` = `risk:"write"` + `memory_management` family +
+`executionPolicy:"auto"` + `granted_at_install`. `memory.forget` = `risk:"destructive"` +
+`confirm_always` with **no family and no executionPolicy** — the same preserved-by-declaration shape
+as `email.sendReply`, so the destructive floor keeps confirming it. Family `allowedTiers` includes
+`always_confirm`. **11 of 17.**
+
+**Builder h retired after one task.** It reported stopping "per the 70% rule" while actually at
+**56%** — builders misjudge their own context meter, so verify with a bounded pane read before
+accepting a stop report. Rotated anyway (it was already winding down) rather than push it into a
+half-finished task, which has cost two review cycles in this run already.
+
+**Efficiency note for future rotations:** a fresh builder boots at ~40% from CLAUDE.md/skills
+overhead *plus* the brief itself, and one classification task costs ~30%. That is the real reason
+each builder only gets 1–3 tasks. Builder i's brief was trimmed ~40% against h's for this reason.
+
+**`builder-1263-i`** spawned, pane `w1:p125`, **Sonnet 5 confirmed**, at 41% and driving. Queue =
+task-10 (News) → task-11 (Email, reversing ruling flagged in the brief) → task-12 (Calendar).
+Monitor re-armed on `w1:p125`.
