@@ -2592,3 +2592,31 @@ pass/fail criteria, the internal-address SSRF probe for #1265, and a heads-up th
 `chat.setResponseStyle` as a new no-prompt tool in a third module — with the one-line
 `user_promotable` fallback if Ben would rather it asked first. Item 8 previously said his pass gated
 both merges without saying what the pass was.
+
+### Task 13 (#1264 rate limiting) — verified net-new, and two rulings issued ahead of the plan
+
+Searched `origin/main` before the lane could spend a context on it. **No rate-limiting machinery exists
+to reuse.** Every `rateLimit`/`throttle` hit in the tree is inbound-response *classification* — a
+`"rate_limited"` degraded-reason enum in `packages/connectors/src/source-context/types.ts` (mapping an
+upstream 429) and the same shape in `packages/news/src/discovery/ports.ts`. The assistant gateway has
+zero quota/budget/call-count concept, and a sweep of `packages/**/src` found no existing cap
+convention anywhere. Task 13 is genuinely net-new; the lane was told not to go looking.
+
+Two rulings issued now rather than at plan review, because they are the coordinator's to set:
+
+1. **Keying is per-actor per-tool, and nothing else.** Not chat-scoped — a new chat would reset the
+   limit and make it trivially bypassable. Not process-global — a shared counter leaks one actor's
+   activity into another's limit and crosses the per-actor boundary. Use the nested-map shape
+   `undo-stack.ts` already landed (`actorUserId -> toolName`) rather than a concatenated string key;
+   same delimiter-collision trap, same fix.
+2. **The restart question must be asked out loud.** In-memory state clears on restart. For the undo
+   stack that is a documented convenience limitation (`2d96084d`) and fine. For a limiter it is
+   materially different: if this is a *safety* control then "restart to clear" is a bypass. In-memory
+   with restart-clearing is **accepted** provided the plan states plainly that this is a runaway-loop
+   guard and not a security boundary, and the tool description promises the user nothing more. What is
+   not accepted is the question going unasked.
+
+Reiterated to the lane: no tool takes a preference key as a parameter, and a limiter must never become
+the argument for widening a family `defaultTier` ("it is capped now, so it can auto-run" is wrong).
+Also corrected its assumption that #1265 rebases the inventory assertion — **whichever lands second**
+rebases, and it may be #1264.
