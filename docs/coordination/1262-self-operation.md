@@ -2818,3 +2818,48 @@ which is already `granted_at_install` for this purpose. Change the test, never t
 rather than loosen. Also told it to rule out an exhausted test connection pool before changing
 `gateway.ts` — eleven audit writes in a tight loop hanging rather than failing is the classic
 signature, and that is a harness problem, not a product bug.
+
+## Continuation note — 2026-07-27, QA verdict withdrawn (stale grounding)
+
+**Fleet:** coordinator `w1:p11T` / session `43e5f5e2` (lock holder, unchanged).
+`w1:p13M` session `f360dfb5` — #1264, driving again, 65% ctx.
+`w1:p13N` session `2fa16a74` — #1265, idle, lane work complete.
+`w1:p137` session `5d55cb29` — QA (Opus), re-review queued.
+`w1:p112`, `w1:p12C`, `w1:p12D` — **Ben's own panes, never reap.**
+
+**#1264 (settings self-operation) — recovered from a stall.** The pane had gone idle with Task 13's
+entire limiter implementation *uncommitted* (untracked `packages/ai/src/gateway/auto-run-rate-limit.ts`
+plus three modified files). Ordered an immediate WIP commit by explicit path; landed as `d14c3c9a`
+("AutoRunRateLimiter for gateway auto-run dispatch, Task 13 WIP, 7/9 green"). The limiter is in its own
+file per the earlier structural steer, not inside `gateway.ts`. Two tests still hang; the lane was told
+to rule out an exhausted test-DB connection pool (`recordAudit` writes once per call) *before* touching
+`gateway.ts`, and that if a fix appears to need a policy loosened it must escalate rather than loosen.
+Told to continue in place — at 65% a relay would spend a third of a context rebuilding held knowledge.
+
+**#1265 (module content self-operation) — QA verdict RED, WITHDRAWN by coordinator.** The QA pass was
+grounded on `da5b47fa`, an **ancestor** of tip `b09bcad6`. Its BLOCKING finding (sports `followTeam`
+accepting free-text `teamKey`, reaching an unencoded ESPN URL-path interpolation) had already been fixed
+at `bc506b6a`. Verified at tip by direct read — all three belts present: catalog closure in `followTeam`
+(fails **closed** on an ESPN outage, deliberately), `maxLength: 100` + `^[a-z0-9.]{1,100}$` in
+`manifest.ts`, `encodeURIComponent` at `espn-source.ts:275`. Belt 2 only bites because the same commit
+taught `validateToolInput` to enforce `pattern`/`maxLength`, which it previously ignored.
+Non-blocking findings 3/5 also stale (`c5a37543`, `8f5a8c76`, `dba071e2`); the CI line stale too
+(`Verify foundation and app` has since passed, run 30273200009).
+
+Correction posted to PR #1273 (comment 5092687782) — a wrong RED on a security-tier PR is durable
+misleading evidence. Re-review ordered, **scoped to the delta `da5b47fa..b09bcad6`** to reuse the
+agent's spec/threat-model context rather than buy a second full Opus pass, with an explicit warning
+against anchoring on its own withdrawn analysis.
+
+**Still live and NOT cleared by the correction:** the same-host redirect SSRF cases (scheme downgrade,
+explicit non-443 port, embedded credentials — where `normalizePublisherDomain` is the sole gate), and
+the UAT exit criterion, which remains structurally unmet.
+
+**Neither PR merges tonight.** Both are security tier and park on Ben's hands-on LAN UAT pass
+(AWAITING-BEN 8 / 8a). Merge authority delegated tonight covers merging *green* work only — it does not
+extend to substituting a coordinator re-verification for a mandatory QA verdict, nor to discharging an
+exit criterion by another route.
+
+**Trap recorded to agentmemory:** a QA agent's detached worktree pins at spawn time; holding it for CI
+green while the lane keeps committing is exactly what makes a verdict stale. Detect with
+`git merge-base --is-ancestor <reviewed-sha> <tip>`.
