@@ -207,3 +207,41 @@ machinery on delegated authority.
 Corrected the agent and the run rule holds, but worth knowing your environment drifted **twice** this
 run, and that cleaning the stray rows is yours to do — I will not touch your database.
 
+
+## 8. BOTH #1264 and #1265 will land with their exit criterion UNMET — your manual pass is the gate
+
+Added 2026-07-27. **This is the item that stops both security-tier PRs, and it is not a defect in
+either lane's work.**
+
+Both specs make the same thing mandatory: a real chat turn on a real dev instance — "change the
+theme… then quiet hours… then the weather location… then turn notifications off", and for #1265
+"Follow the Yankees" — with **no confirmation card at any point**, then "change that back". #1264's
+spec calls that "the whole exit criterion".
+
+**The UAT harness cannot drive a model turn, by design.** Verified by me in the tree, not taken from
+an agent's report:
+
+- `tests/uat/seed/chunks/ai.ts:27` seeds a deliberately fake credential — the comment says "never a
+  real credential".
+- `tests/uat/provisioner.ts:167` keeps the run **credential-free** as a stated property.
+- There is **no chat seed chunk** at all under `tests/uat/seed/chunks/`.
+- Five existing spec files already `test.fixme` their real-LLM halves for exactly this reason
+  (`app-map-grounding`, `runtime-context`, `1133-chat-attachments`, `1089-1090-chat-drawer-private`,
+  `real-chat-onboarding`).
+
+**What I approved instead:** a UAT spec per lane with `test.fixme` per scenario and the structural
+reason stated inline; the backend half proven against the real gateway (no card emitted for a granted
+tool, asserted on the whole emitted stream); the frontend half proven by a mocked e2e (no
+action-request card renders on an auto tool result); both required to be mutation-tight. For #1264 I
+also pushed the effort toward **undo**, which is the one part of that criterion that can be driven
+end-to-end without a model.
+
+**Why this needs you and not me.** Your delegation was explicit — merge GREEN, never lower the bar.
+Substituting a different proof for a mandatory exit criterion **is** lowering the bar, so I will not
+merge either PR on it. Both will reach: CI green, QA verdict posted, work complete — and then stop,
+waiting on a hands-on LAN pass by you. Expect two PRs parked in that state rather than merged.
+
+**Related tracking defect, already actioned.** The harness gap was filed as **#1121** and **closed
+with the work never done**, while five spec files still cite it as their live blocker — so an audit
+asking "is this tracked?" got a false yes. I reopened it with the evidence and asked, on the issue,
+whether it was closed as superseded; if it was, the five citations need re-pointing.
