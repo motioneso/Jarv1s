@@ -331,8 +331,44 @@ Task 1 landed as `f1cf9986`; issue #1281 is closed. Decisions worth not re-deriv
 over REST and its project-board Status is still "Backlog". Set #1281 → Done, and #1282 → In progress,
 when the quota is back.
 
-Resume by implementing Task 2 (#1282, briefing invoker on `ComposeDeps`) against its plan section,
-then Verify, then commit.
+## Task 2 (#1282) is HALF landed — resume at the composer half
+
+Task 2 splits cleanly in two, and only the first half is committed:
+
+**Done** — the manifest half. `ExternalModuleBriefingDeclaration` on `JsonJarvisModuleManifest`,
+positive validation plus the re-emit line in `validate.ts`, and
+`tests/unit/external-module-briefing-manifest.test.ts` (plan cases 9–11, green).
+
+**Not started** — the composer half: `packages/briefings/src/external-contributions.ts`, the two
+optional `ComposeDeps` fields, `compose.ts` / `compose-evening.ts`, the `registerBriefingsJobWorkers`
+call site, `apps/worker/src/external-module-invoke.ts` (the extracted trust gate), the job-handler
+rewrite, `worker.ts`, plus plan cases 1–8 and integration 12–15.
+
+Two decisions taken while building the first half:
+
+- **`briefing.handler` is validated as a dotted name** (`/^[a-z][a-zA-Z0-9]*(?:\.[a-z][a-zA-Z0-9]*)*$/`,
+  max 64) and requires `runtime`. No `worker.handlers` list exists to cross-check against, so the
+  `runtime` presence check is the only real guard available and it is the one that matters.
+- **`href` on a briefing item is relative-path-only.** Task 2's plan prose says "path or `http(s)`
+  absolute" while citing ledger ruling L17, which says absolute is rejected. The ledger wins; see the
+  ledger entry for why an in-app deep link is also the better product shape. Build the sanitizer to
+  the strict rule.
+
+Build the trust gate **without** the `lane` argument — Task 2e (#1286) depends on Task 2 and is what
+adds `lane` as a required parameter.
+
+## Ben's two rulings, 2026-07-27
+
+Both open spec questions are now closed; full text is in the ledger's section L.
+
+1. **Briefing content:** top most-confident matches only, not the full new list. No user-facing
+   "detail level" setting — that idea is dropped. Lands in the job-search briefing handler (a later
+   phase), not in the generic Task 2 seam.
+2. **Custom job-board sources are IN v1.** The portal list is not fixed at package time; the user
+   asks Jarvis to add a board and it becomes a source. This **un-defers dynamic fetch-host grants**.
+   Numbering is frozen, so it is appended as **Task 24 = issue #1309**, not folded into an existing
+   task. Ben asked for a light security touch: reuse `assertValidFetchHosts` from
+   `@jarv1s/host-fetch/policy`, build nothing new.
 
 ## Start
 

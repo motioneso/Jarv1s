@@ -760,6 +760,25 @@ export interface ExternalModuleNavigationEntry {
 }
 
 /**
+ * How an external module contributes to a daily briefing (#1282).
+ *
+ * Core modules reach a briefing by registering an in-process assistant tool the
+ * composer resolves and calls. An external module ships JSON and has no `execute`
+ * function it could ever register, so it declares a WORKER HANDLER here instead and
+ * the composer reaches it through an injected invoker. This is a worker handler, not
+ * an `assistantTools` entry, so it is already invisible to the chat tool registry —
+ * that is why there is no `briefingOnly` flag to set.
+ */
+export interface ExternalModuleBriefingDeclaration {
+  /** Worker handler name. Requires `runtime.workerEntrypoint` — a briefing handler with no worker to run it is an error, not a no-op. */
+  readonly handler: string;
+  /** Which briefings this module may appear in. Non-empty. */
+  readonly sections: readonly ("morning" | "evening")[];
+  /** The name the user selects in briefing settings; conventionally `<moduleId>.briefing`. */
+  readonly toolName: string;
+}
+
+/**
  * The JSON-serializable subset of {@link JarvisModuleManifest} that an EXTERNAL
  * (non-compiled) module ships as `jarvis.module.json` (#917). It deliberately omits
  * every function-valued or executable-surface field of the compiled manifest —
@@ -798,6 +817,12 @@ export interface JsonJarvisModuleManifest {
    * validated positively in packages/module-registry/src/external/validate.ts.
    */
   readonly navigation?: readonly ExternalModuleNavigationEntry[];
+  /**
+   * Briefing contribution (#1282). External modules cannot register an in-process
+   * assistant tool, so the composer reaches them through an injected worker invoker
+   * instead. Optional: a module that declares none contributes no briefing section.
+   */
+  readonly briefing?: ExternalModuleBriefingDeclaration;
   readonly assistantOnboarding?: ModuleAssistantOnboardingManifest;
 }
 

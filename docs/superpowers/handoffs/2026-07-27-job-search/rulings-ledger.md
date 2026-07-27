@@ -551,6 +551,32 @@ Split DB/RLS tests from process/gateway tests if one harness cannot honestly do 
   _(r6 #12 — NOT APPLIED)_
 - **`href` must be a validated relative path** (`/…`, no scheme, no `//`); a module-supplied
   absolute or protocol-relative URL is rejected. _(r3 #11 fix)_
+- **This overrides the looser prose in Task 2's plan section**, which reads "a same-origin path or an
+  `http:`/`https:` absolute URL" while citing this very ruling. The ledger wins. A briefing item
+  links to an **in-app deep link** (`/m/job-search/…`) — which is the better product shape anyway:
+  the user lands on the match with its Fit and Want intact and clicks out from there, rather than
+  jumping to a raw posting straight from the briefing. _(settled 2026-07-27 while building Task 2)_
+
+### Ben's rulings, 2026-07-27 — the two questions the spec left open
+
+- **The briefing says "here are new jobs that might be a good fit" — not everything.** It surfaces
+  only the **top most-confident matches**, not the full new-since-yesterday list. The briefing is a
+  nudge, not an inbox; the module page is where the complete list lives. The exact cut (a top-N, a
+  percentile, or a Fit floor) is an implementation choice inside the job-search briefing handler and
+  is **not** a user-facing setting — the "detail levels" idea the spec floated is dropped. This is
+  content of the module's own handler, not of the generic Task 2 seam.
+- **Custom job-board sources are IN v1, and the portal list is NOT fixed at package time.** Ben:
+  the user talks to Jarvis — "go grab this and add it as a job board source" — and it becomes a
+  source. This **un-defers dynamic fetch-host grants**, which the approved plan had cut. Numbering is
+  frozen, so this lands as a **new task appended at the end**, never by renumbering.
+- **Light-touch on the security work for that path, deliberately.** Ben's call, stated plainly. The
+  honest read: fetching a user-named URL from the host is the one genuinely new risk surface in this
+  module (an internal address or a cloud metadata endpoint reached through our own network). The way
+  to honour "don't do a lot of security work" without leaving that open is to **reuse the machinery
+  that already exists** — `assertValidFetchHosts` in `@jarv1s/host-fetch/policy`, already imported by
+  the manifest validator, already enforced on every module fetch — rather than build anything new.
+  Adding a host to a grant list is then a small write, not a security project. Anything beyond
+  reusing that policy is out of scope unless Ben asks.
 
 ## M. Claims that were rejected or corrected — do not re-derive
 

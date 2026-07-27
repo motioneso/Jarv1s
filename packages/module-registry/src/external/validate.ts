@@ -7,6 +7,7 @@
 import type {
   JsonJarvisModuleManifest,
   ExternalModuleAssistantToolDeclaration,
+  ExternalModuleBriefingDeclaration,
   ExternalModuleDatabaseDeclaration,
   ExternalModuleNavigationEntry,
   ExternalModuleWorkerDeclaration,
@@ -33,6 +34,9 @@ export const MODULE_ID_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 // Postgres's 63-char identifier limit.
 export const MODULE_OWNED_TABLE_RE = /^app\.[a-z][a-z0-9_]{0,62}$/;
 export const ASSISTANT_ONBOARDING_GUIDANCE_MAX_BYTES = 8 * 1024;
+
+/** The briefings an external module may contribute to (#1282). */
+const BRIEFING_SECTIONS: readonly string[] = ["morning", "evening"];
 
 const LIFECYCLES: readonly ModuleLifecycle[] = [
   "required",
@@ -651,6 +655,63 @@ export function validateExternalModuleManifest(
     }
   }
 
+  // #1282: positive validation of the briefing contribution declaration. Same shape as
+  // every other allow-listed surface above: unknown keys rejected outright rather than
+  // ignored, bounded strings, and a cross-check that the handler has a worker to run in.
+  let briefing: ExternalModuleBriefingDeclaration | undefined;
+  if (obj.briefing !== undefined) {
+    if (typeof obj.briefing !== "object" || obj.briefing === null || Array.isArray(obj.briefing)) {
+      errors.push("briefing must be an object");
+    } else {
+      const block = obj.briefing as Record<string, unknown>;
+      const unknownKeys = Object.keys(block).filter(
+        (key) => !["handler", "sections", "toolName"].includes(key)
+      );
+      if (unknownKeys.length > 0) {
+        errors.push(`briefing contains unknown fields: ${unknownKeys.join(", ")}`);
+      }
+      // A briefing handler with no worker entrypoint is the real error case: the
+      // manifest promises a section the host has no process to produce it from.
+      if (obj.runtime === undefined) {
+        errors.push("runtime is required when briefing is declared");
+      }
+      if (
+        typeof block.handler !== "string" ||
+        block.handler.length > 64 ||
+        !/^[a-z][a-zA-Z0-9]*(?:\.[a-z][a-zA-Z0-9]*)*$/.test(block.handler)
+      ) {
+        errors.push("briefing.handler must be a dotted handler name (max 64 chars)");
+      }
+      if (
+        !Array.isArray(block.sections) ||
+        block.sections.length === 0 ||
+        block.sections.length > BRIEFING_SECTIONS.length ||
+        block.sections.some((section) => !BRIEFING_SECTIONS.includes(section as never)) ||
+        new Set(block.sections).size !== block.sections.length
+      ) {
+        errors.push(
+          `briefing.sections must be a non-empty unique subset of ${JSON.stringify(BRIEFING_SECTIONS)}`
+        );
+      }
+      // The name the user selects in briefing settings, so it shares the namespaced
+      // shape core briefing tools use — never a bare word that could collide.
+      if (
+        typeof block.toolName !== "string" ||
+        block.toolName.length > 64 ||
+        !/^[a-z][a-z0-9-]*\.[a-z][a-zA-Z0-9]*$/.test(block.toolName)
+      ) {
+        errors.push("briefing.toolName must look like <module-id>.<name>");
+      }
+      if (errors.length === 0) {
+        briefing = {
+          handler: block.handler as string,
+          sections: block.sections as readonly ("morning" | "evening")[],
+          toolName: block.toolName as string
+        };
+      }
+    }
+  }
+
   if (errors.length > 0) return { ok: false, errors };
 
   // Re-shape to exactly the allowed fields (drop unknown keys defensively). schemaVersion is
@@ -679,6 +740,11 @@ export function validateExternalModuleManifest(
     ...(obj.fetchHosts !== undefined ? { fetchHosts: obj.fetchHosts as readonly string[] } : {}),
     ...(database !== undefined ? { database } : {}),
     ...(navigation !== undefined ? { navigation } : {}),
+    // #1282: this literal is an allow-list — a validated field that is not re-emitted
+    // here vanishes from the manifest with validation still returning ok. Omitting this
+    // line is silent, and only tests/unit/external-module-briefing-manifest.test.ts
+    // case 9 catches it.
+    ...(briefing !== undefined ? { briefing } : {}),
     ...(assistantOnboarding !== undefined ? { assistantOnboarding } : {})
   };
   return { ok: true, manifest };
