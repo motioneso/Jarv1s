@@ -2,73 +2,69 @@
 
 Pointer doc. Nothing here is a recap; each line tells you where to look.
 
+Branch `feat/job-search`, worktree `~/Jarv1s/.claude/worktrees/job-search`.
+Last verified live on the dev instance at commit `2493b3da`.
+
 ## Where it stands
 
-Epic #1280. The module is installed, running, and **proven live end to end** on the dev instance:
-sign in → Job Search → board of scored roles → click a role → inspector opens beside it →
-Discuss → Jarvis returns a substantive fit/want verdict. A human can walk this today.
+Epic #1280. The module is installed, running, and **proven live end to end** against the real model
+and a real crawl — not mocked:
 
-Branch `feat/job-search`. Landed commits:
+1. Onboarding interview — typed answers, model replies, criteria persisted. Writes land through
+   Approve/Reject cards; nothing persists until Approve is clicked.
+2. Activation — the profile leaves `in_conversation` for `active` once `wantNarrative` is set.
+3. Crawl — 81 postings for one profile (Duolingo, Netflix, Gusto, Runway, Ashby, Discord, Patreon).
+4. Scoring — `AI_CALL_BUDGET = 8` per pass by design; the scheduled sweep continues (observed
+   8 → 14 scored across two passes).
+5. Board — 25 roles, sortable, with Dismiss.
+6. Detail panel — opens from the role title; the Want reasoning is specific to the typed want
+   narrative and honest about what it cannot know.
+
+## Landed commits
 
 - `14abc59b` — board and match inspector usable end to end (layout, host `jds-table`,
   selected-row marking, scroll-into-view)
 - `a1548f23` — search runs actually produce scored matches
-- crawler relevance: one free-text query per title, never all titles joined
-  (see [[job-board-query-one-title-per-request]] for why)
-- Fit/Want render as a number plus a proportional bar (host `jds-score`)
+- `9e37f6a9` — Fit and Want render as a bar, not just a number
+- `a53893b7` — the setup screen is centred and sized to its own content (it had been pinned to the
+  top of an empty page, in a card twice as wide as the text inside it)
+- `2493b3da` — approval cards say "Needs your approval" / "Approved", not `SET` / `SET-ENABLED`
 
-## Try it
+## Known defects, in priority order
 
-`http://192.168.50.36:5197` — sign in as `ben@ben.com`. Credentials in
-[[dev-instance-lan-spinup-trusted-origins]] memory.
+1. **Fit is `0` on every row** — onboarding activates without a résumé, and `domain/score.ts` tells
+   the model to return `fit: 0` when no résumé exists. The detail panel says "Fit is not knowable";
+   the table prints `0` and sorts on it (`FIT ▼` is the default sort). Needs a profile-level résumé
+   signal so the cell can render `—`, or a hard résumé gate on activation. Analysis in agentmemory
+   `job-search-fit-zero-without-resume`.
+2. **Stale banner** — "Searching for new roles — they'll appear below as they're scored" stays up
+   after the crawl has finished.
+3. **Company names are raw source slugs** — `spikelabs`, `apartment-list`, `revv-hq`, `lilly`.
+   Reads as scraped data rather than a product.
+4. **The sidebar background stops partway down** a long board page, leaving a black void beneath.
+5. **`Dismiss` repeats on all 25 rows**, making the action column the loudest thing on the page.
+6. **Park Press reconciliation still outstanding** — Claude Design project
+   `Jarvis — Park Press Design System`, `projectId 0501fab4-7c60-457d-9a46-b717d55e16c9`.
+   `get_file` elides anything over ~4KB, so `ui_kits/job-search-onboarding/JobsOnboarding.jsx`
+   (23.5KB) and `design_handoff_job_search_onboarding/README.md` (13.5KB) are unread. The mockup's
+   mono eyebrows are superseded — mono was retired 2026-07-08.
 
-## Restart loop after any module change
+## Operational notes
 
-Scratchpad `$SP` =
-`/tmp/claude-1000/-home-ben-Jarv1s--claude-worktrees-job-search/3dfd5b33-2e51-4c28-ac09-03d48971c180/scratchpad`
-(export it inline in every Bash call — it does not persist).
+- **A dead queue consumer looks exactly like a hash problem.** A poison job (crawl for a deleted
+  profile) left the worker no longer consuming `job-search.*`; later jobs sat in pg-boss `created`
+  forever, with matching hashes and a live worker process. Restarting the worker fixed it instantly.
+  See agentmemory `module-queue-consumer-dies-after-repeated-failures`.
+- **Never use `locator("textarea").first()` in a drive** — the Agentation dev overlay owns the first
+  textarea on the page and the send silently does nothing. Use
+  `getByRole("textbox", { name: "Message Jarvis" })` and `{ name: "Send", exact: true }`.
+- **Pace a drive on the typing indicator**, not a fixed sleep: sending while a turn is in flight
+  returns `409 A chat turn is already in progress` and the answer is lost with nothing on screen to
+  say so. Wait for `.assistant-surface__typing` to clear.
+- Board rows are not clickable; only the role title (`.jds-table__rowlink`) is.
 
-1. `pnpm build:external:job-search` (repo root)
-2. `bash $SP/restart-api.sh`
-3. `until grep -q "Server listening" "$SP/devapi.log"; do :; done`
-4. `bash $SP/reenable.sh` — **must print `patch=200`**; `patch=000` means the API wasn't up yet
-5. `bash $SP/restart-worker.sh` if worker code changed
+## Not yet run
 
-Logs: `$SP/devapi.log`, `$SP/devworker.log`. `psql` is not on PATH — use
-`docker exec jarv1s-postgres psql -U postgres -d jarv1s`. Tables are `app.job_search_*`; the score
-columns are `fit` and `want`, not `fit_score`/`want_score`. `test-results/drive18.mjs` (gitignored)
-drives the whole flow headlessly and screenshots into `$SP/live18/`.
-
-## Gates run
-
-`pnpm typecheck` green. `pnpm test:unit` green at 488 files / 3812 tests (the unit entry point is
-`tsx scripts/test-unit.ts` — there is no `vitest.unit.config.ts`). **`pnpm verify:foundation` has
-not been run** — format, lint, and integration are unverified. Needs a fresh exported gate DB, see
-[[gate-db-isolation-mandatory]].
-
-## Open
-
-1. **Discuss appends to the profile's thread**, so opening it replays the onboarding Q&A. This is
-   deliberate and documented in `screens/discuss.tsx`'s header (one conversation per profile).
-   Changing it is a design fork and needs Ben's ruling, not a patch.
-2. **Onboarding design pass unfinished** — weak `jds-card--sunken` card/ground separation, the bare
-   "Resolved." confirmation, the `SET` eyebrow exposing a raw action name, "Behind the scenes /
-   1 step" chrome, the model directing users to "your drawer".
-3. **Park Press mockup not reconciled.** Claude Design project `Jarvis — Park Press Design System`,
-   `projectId 0501fab4-7c60-457d-9a46-b717d55e16c9`. `get_file` elides anything over ~4KB, so
-   `ui_kits/job-search-onboarding/JobsOnboarding.jsx` (23.5KB) and the design handoff README
-   (13.5KB) are still unread. The mockup's mono eyebrows are superseded — mono was retired
-   2026-07-08.
-4. **Host changes need their own review line.** `components-core.css` (`jds-table`, `jds-sr-only`,
-   selected-row) and `surface.tsx` / `assistant-surface.css` affect every module surface, not just
-   this one.
-5. **Coordination debt** — the module was installed and migrations run against the shared dev DB
-   without a `herdr-pane-message` heads-up to other worktree sessions.
-6. Filed and unassigned: #1333, #1335, #1336, #1337, #1340. `MANUAL-TEST.md` and its published
-   artifact predate real behaviour and are stale.
-
-## Standing rules that bite here
-
-Ben's instruction is *"keep looping until a human could go e2e"* — do not file issues for this run,
-do not stop to ask. Never `git add -A`; stage explicit paths on the `commit` itself. Never touch
-`jarv1s-prod-*` or 10.252. Full rule set: `CLAUDE.md` plus the rulings ledger in this directory.
+`pnpm verify:foundation` has not been run this session — format, lint and integration are unproven
+on `a53893b7` and `2493b3da`. `pnpm typecheck` passes. Run the gate with a fresh exported gate DB
+and no concurrent edits.
