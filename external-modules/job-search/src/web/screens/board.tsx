@@ -10,7 +10,7 @@ import { h, useCallback, useEffect, useState, type ReactNodeLike } from "../runt
 import { invokeTool, runQueue, type RunOutcome } from "../api";
 import { MATCHES_LIST_MAX_LIMIT, type FailureCause } from "../../domain/records.js";
 import { Inspector } from "./inspector";
-import { isScored, type BoardMatch, type PortalListItem } from "../board-types";
+import { isScored, type BoardMatch, type MatchDetail, type PortalListItem } from "../board-types";
 
 // N43: `MATCHES_LIST_MAX_LIMIT` is defined once in domain/records.ts and imported by both this
 // screen and worker/handlers/matches.ts's requireLimit — there is no local literal here to drift
@@ -31,6 +31,16 @@ interface SortState {
   key: SortKey;
   dir: "asc" | "desc";
 }
+
+// #1330: a dedicated state machine for the async job-search.match.get fetch, kept separate from
+// MatchesState because selecting a row must never perturb the list's own loading/ready/error
+// state. Resets to idle whenever nothing is selected, so a later selection can never render a
+// stale detail left over from the previous row.
+type DetailState =
+  | { status: "idle" }
+  | { status: "loading"; matchId: string }
+  | { status: "ready"; matchId: string; detail: MatchDetail }
+  | { status: "error"; matchId: string; message: string };
 
 export interface BoardScreenProps {
   profileId: string;
@@ -177,6 +187,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   const [hiddenIds, setHiddenIds] = useState<ReadonlySet<string>>(new Set());
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [detailState, setDetailState] = useState<DetailState>({ status: "idle" });
 
   // Any id still optimistically hidden that comes back from a fresh read still not dismissed
   // means the write never landed — un-hide it and say so plainly rather than leaving it
@@ -241,6 +252,49 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
     return () => window.removeEventListener("focus", handler);
   }, [fetchMatches]);
 
+  // #1330: fetches the untruncated detail (fitReason/wantReason, per N39) the instant a row is
+  // selected — Inspector never calls invokeTool itself (see that file's header). `cancelled`
+  // guards the same kind of race reconcileHidden's id-set tracking guards above: if the
+  // selection changes again before this resolves, the stale response must never overwrite the
+  // newer selection's state. An unscored match's id never resolves to a real row (#1329), so
+  // match.get correctly answers `null` for it — surfaced here as an error state that Inspector
+  // simply never reads, since it only renders fit/want reasons for scored matches.
+  useEffect(() => {
+    if (selectedMatchId === null) {
+      setDetailState({ status: "idle" });
+      return;
+    }
+    let cancelled = false;
+    const matchId = selectedMatchId;
+    setDetailState({ status: "loading", matchId });
+    invokeTool("job-search.match.get", { matchId })
+      .then((result) => {
+        if (cancelled) return;
+        const detail = (result as { match?: MatchDetail | null } | null)?.match ?? null;
+        if (detail === null) {
+          setDetailState({
+            status: "error",
+            matchId,
+            message: "Couldn't load the full detail for this match."
+          });
+          return;
+        }
+        setDetailState({ status: "ready", matchId, detail });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setDetailState({
+          status: "error",
+          matchId,
+          message:
+            error instanceof Error ? error.message : "Couldn't load the full detail for this match."
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMatchId]);
+
   const handleDismiss = useCallback(
     (matchId: string): void => {
       setHiddenIds((prev) => new Set(prev).add(matchId));
@@ -289,6 +343,19 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   );
   const sorted = sortMatches(visibleItems, sort);
   const selectedMatch = sorted.find((item) => item.id === selectedMatchId) ?? null;
+
+  // Guarded by matchId, not just detailState.status: effects run after render, so there is one
+  // render frame where selectedMatchId has already changed but the fetch effect above hasn't
+  // fired yet. Without this check, that frame would briefly show the previous row's detail (or
+  // error) under the new row's heading.
+  const detail =
+    detailState.status === "ready" && detailState.matchId === selectedMatchId
+      ? detailState.detail
+      : null;
+  const detailError =
+    detailState.status === "error" && detailState.matchId === selectedMatchId
+      ? detailState.message
+      : null;
 
   return (
     <div className="jsm-board-screen">
@@ -365,6 +432,8 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
       )}
       <Inspector
         match={selectedMatch}
+        detail={detail}
+        detailError={detailError}
         onClose={() => setSelectedMatchId(null)}
         onDismiss={(matchId) => handleDismiss(matchId)}
       />

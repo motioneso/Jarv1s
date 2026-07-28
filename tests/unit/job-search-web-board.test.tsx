@@ -18,6 +18,7 @@ import * as api from "../../external-modules/job-search/src/web/api";
 import { setLatched } from "../../external-modules/job-search/src/web/latch";
 import type {
   BoardMatch,
+  MatchDetail,
   PortalListItem
 } from "../../external-modules/job-search/src/web/board-types";
 import type { FailureCause } from "../../external-modules/job-search/src/domain/records";
@@ -48,6 +49,24 @@ function match(overrides: Partial<BoardMatch> = {}): BoardMatch {
     id: "m1",
     title: "Senior Engineer",
     company: "Acme",
+    fit: 80,
+    want: 70,
+    outsideFrame: false,
+    state: "new",
+    url: "https://example.com/jobs/senior-engineer",
+    ...overrides
+  };
+}
+
+// #1330: the untruncated record job-search.match.get answers with, fetched by board.tsx once a
+// row is selected. A separate helper from match() — MatchDetail is its own type, not
+// BoardMatch-plus-fields (see board-types.ts's own comment on why).
+function matchDetail(overrides: Partial<MatchDetail> = {}): MatchDetail {
+  return {
+    id: "m1",
+    title: "Senior Engineer",
+    company: "Acme",
+    url: "https://example.com/jobs/senior-engineer",
     fit: 80,
     want: 70,
     fitReason: "Matches your stated skills.",
@@ -90,6 +109,13 @@ function portal(overrides: Partial<PortalListItem> = {}): PortalListItem {
 let matchesShouldReject = false;
 let matchesItems: BoardMatch[] = [];
 let portalsItems: PortalListItem[] = [];
+// #1330: job-search.match.get's fixture. `undefined` (the default) means "the test never
+// exercises this path" and throws, same as any other unmapped tool name below — a test that
+// opens the inspector without setting this is deliberately exercising the failure branch, not
+// an oversight (see the "queued not dropped" and "never renders a combined score" tests, which
+// open a row but only assert on content that never reads detail/detailError).
+let matchGetResult: { match: MatchDetail | null } | undefined;
+let matchGetShouldReject = false;
 
 function installTransportMock(): void {
   vi.mocked(api.invokeTool).mockImplementation(async (name: string) => {
@@ -100,6 +126,11 @@ function installTransportMock(): void {
     if (name === "job-search.portal.list") {
       return { portals: portalsItems };
     }
+    if (name === "job-search.match.get") {
+      if (matchGetShouldReject) throw new Error("Request failed (500)");
+      if (matchGetResult !== undefined) return matchGetResult;
+      throw new Error(`unexpected invokeTool ${name}`);
+    }
     throw new Error(`unexpected invokeTool ${name}`);
   });
 }
@@ -109,6 +140,8 @@ beforeEach(() => {
   matchesShouldReject = false;
   matchesItems = [];
   portalsItems = [];
+  matchGetResult = undefined;
+  matchGetShouldReject = false;
   vi.mocked(api.invokeTool).mockReset();
   vi.mocked(api.runQueue).mockReset();
   vi.mocked(api.runQueue).mockResolvedValue({ kind: "queued" });
@@ -219,8 +252,6 @@ describe("job-search web BoardScreen", () => {
         title: "Unscored Role",
         fit: null,
         want: null,
-        fitReason: "",
-        wantReason: "",
         state: "unscored"
       })
     ];
@@ -246,8 +277,6 @@ describe("job-search web BoardScreen", () => {
         title: "Unscored",
         fit: null,
         want: null,
-        fitReason: "",
-        wantReason: "",
         state: "unscored"
       }),
       match({ id: "m3", title: "Scored High", fit: 90, want: 90 })
@@ -283,8 +312,6 @@ describe("job-search web BoardScreen", () => {
         title: "Role B",
         fit: null,
         want: null,
-        fitReason: "",
-        wantReason: "",
         state: "unscored"
       })
     ];
@@ -489,5 +516,117 @@ describe("job-search web BoardScreen", () => {
     expect(text(renderer)).toMatch(/No matches yet/i);
     expect(text(renderer)).not.toMatch(/Loading/i);
     expect(findByRole(renderer, "alert")).toHaveLength(0);
+  });
+
+  // #1330: the inspector's "Open posting" link uses BoardMatch's own url field, so it must not
+  // wait on the job-search.match.get round trip the reasons below depend on.
+  it("renders the 'Open posting' link from the row's own url, before the detail fetch resolves", async () => {
+    matchesItems = [match({ id: "m1", title: "Role A", url: "https://jobs.example.com/role-a" })];
+    // Never resolves — proves the link is present before, not because of, this response landing.
+    matchGetResult = undefined;
+    vi.mocked(api.invokeTool).mockImplementation(async (name: string) => {
+      if (name === "job-search.matches.list") return { items: matchesItems };
+      if (name === "job-search.portal.list") return { portals: [] };
+      if (name === "job-search.match.get") return new Promise(() => undefined);
+      throw new Error(`unexpected invokeTool ${name}`);
+    });
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    await act(async () => {
+      findButton(renderer, /Role A/)!.props.onClick();
+    });
+
+    const link = renderer.root.findAllByType("a").find((item) => item.props.href);
+    expect(link).toBeTruthy();
+    expect(link!.props.href).toBe("https://jobs.example.com/role-a");
+  });
+
+  it("fetches job-search.match.get with the selected matchId and renders its fitReason/wantReason once resolved", async () => {
+    matchesItems = [match({ id: "m1", title: "Role A", fit: 80, want: 20 })];
+    matchGetResult = {
+      match: matchDetail({
+        id: "m1",
+        fitReason: "Matches your stated skills.",
+        wantReason: "Aligns with your stated priorities."
+      })
+    };
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    // Deliberately not asserting the "Loading the reason…" text here: this test harness's
+    // act(async () => {...}) drains the mock's already-resolved promise within the same act
+    // call, so the loading frame isn't independently observable — the loading branch itself is
+    // simple JSX with nothing left to verify beyond what TypeScript already checks.
+    await act(async () => {
+      findButton(renderer, /Role A/)!.props.onClick();
+    });
+    await flush(renderer);
+
+    expect(api.invokeTool).toHaveBeenCalledWith("job-search.match.get", { matchId: "m1" });
+    expect(text(renderer)).toContain("Matches your stated skills.");
+    expect(text(renderer)).toContain("Aligns with your stated priorities.");
+    expect(findByRole(renderer, "alert")).toHaveLength(0);
+  });
+
+  it("shows a plain error message, not a crash, when job-search.match.get fails", async () => {
+    matchesItems = [match({ id: "m1", title: "Role A" })];
+    matchGetShouldReject = true;
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    await act(async () => {
+      findButton(renderer, /Role A/)!.props.onClick();
+    });
+    await flush(renderer);
+
+    // board.tsx's catch surfaces the real Error's own message (same pattern as fetchMatches's
+    // catch above) rather than papering over it with the generic fallback, which only applies
+    // to a non-Error throw or a match.get response that resolves to { match: null }.
+    expect(findByRole(renderer, "alert").length).toBeGreaterThan(0);
+    expect(text(renderer)).toMatch(/Request failed \(500\)/i);
+  });
+
+  it("never shows a stale row's detail after the selection moves to a different row", async () => {
+    matchesItems = [
+      match({ id: "m1", title: "Role A", fit: 80, want: 20 }),
+      match({ id: "m2", title: "Role B", fit: 60, want: 40 })
+    ];
+    let resolveFirst!: (value: { match: MatchDetail | null }) => void;
+    let callCount = 0;
+    vi.mocked(api.invokeTool).mockImplementation(async (name: string, params?: unknown) => {
+      if (name === "job-search.matches.list") return { items: matchesItems };
+      if (name === "job-search.portal.list") return { portals: [] };
+      if (name === "job-search.match.get") {
+        callCount += 1;
+        if (callCount === 1) {
+          return new Promise((resolve) => {
+            resolveFirst = resolve;
+          });
+        }
+        return { match: matchDetail({ id: (params as { matchId: string }).matchId }) };
+      }
+      throw new Error(`unexpected invokeTool ${name}`);
+    });
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    // Open Role A — its match.get call is left pending on purpose.
+    await act(async () => {
+      findButton(renderer, /Role A/)!.props.onClick();
+    });
+    // Switch to Role B before Role A's fetch resolves, then let Role B's own fetch land.
+    await act(async () => {
+      findButton(renderer, /Role B/)!.props.onClick();
+    });
+    await flush(renderer);
+
+    // Now the stale Role A response arrives — it must not overwrite Role B's already-ready state.
+    await act(async () => {
+      resolveFirst({ match: matchDetail({ id: "m1", fitReason: "Stale reason for Role A." }) });
+    });
+    await flush(renderer);
+
+    expect(text(renderer)).not.toContain("Stale reason for Role A.");
   });
 });

@@ -11,16 +11,22 @@
 //   "queued for scoring", never "dropped" or a generic error, because it hasn't failed, it just
 //   hasn't been read yet.
 import { h, type ReactNodeLike } from "../runtime";
-import { isScored, type BoardMatch } from "../board-types";
+import { isScored, type BoardMatch, type MatchDetail } from "../board-types";
 
 export interface InspectorProps {
   match: BoardMatch | null;
+  // #1330: fetched by board.tsx via job-search.match.get on selection, never by this file (see
+  // header). null while the fetch is in flight or hasn't started, regardless of `detailError` —
+  // the two are mutually exclusive states board.tsx guarantees, not asserted again here, since
+  // this file only renders what it's handed.
+  detail: MatchDetail | null;
+  detailError: string | null;
   onClose(): void;
   onDismiss(matchId: string): void;
 }
 
 export function Inspector(props: InspectorProps): ReactNodeLike {
-  const { match } = props;
+  const { match, detail, detailError } = props;
   if (match === null) {
     return null;
   }
@@ -45,17 +51,41 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
         <span className="jds-badge jsm-inspector__flag">Outside your stated frame</span>
       ) : null}
 
+      {/* #1330: url is BoardMatch's own field (real per-row data, never detail-only prose per
+          N39), so the link works the instant a row opens — it never waits on the match.get
+          round trip the reasons below depend on. */}
+      <a
+        className="jds-btn jds-btn--secondary"
+        href={match.url}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Open posting ↗
+      </a>
+
       {scored ? (
         <div className="jsm-inspector__axes">
           <div className="jsm-inspector__axis">
             <span className="jds-eyebrow">Fit</span>
             <p className="jsm-inspector__value">{match.fit}</p>
-            <p>{match.fitReason}</p>
+            {detail ? (
+              <p>{detail.fitReason}</p>
+            ) : detailError ? (
+              <p role="alert">{detailError}</p>
+            ) : (
+              <p role="status">Loading the reason…</p>
+            )}
           </div>
           <div className="jsm-inspector__axis">
             <span className="jds-eyebrow">Want</span>
             <p className="jsm-inspector__value">{match.want}</p>
-            <p>{match.wantReason}</p>
+            {detail ? (
+              <p>{detail.wantReason}</p>
+            ) : detailError ? (
+              <p role="alert">{detailError}</p>
+            ) : (
+              <p role="status">Loading the reason…</p>
+            )}
           </div>
         </div>
       ) : (

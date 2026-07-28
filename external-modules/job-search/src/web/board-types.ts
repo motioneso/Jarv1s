@@ -11,10 +11,32 @@ import type { FailureCause } from "../domain/records.js";
 
 export type MatchState = "unscored" | "new" | "seen" | "dismissed";
 
+// N39: no fitReason/wantReason here — board.tsx's table never renders them (a field belongs on
+// the list row only if the list renders it), so they don't belong on this wire shape at all, not
+// merely truncated. `url` stays: it's per-row real data the row uses directly (the inspector's
+// "Open posting" link), not detail-only prose. The full reasons live on `MatchDetail` below,
+// fetched separately by job-search.match.get when a row is opened.
 export interface BoardMatch {
   id: string;
   title: string;
   company: string;
+  fit: number | null;
+  want: number | null;
+  outsideFrame: boolean;
+  state: MatchState;
+  url: string;
+}
+
+// #1330: mirrors worker/handlers/matches.ts's MatchDetail — the untruncated record behind
+// job-search.match.get, fetched by board.tsx when a row is selected and handed to the inspector
+// as its own prop (never fetched by the inspector itself; see that file's header for why). A
+// separate type from BoardMatch, not BoardMatch-plus-fields, because it's exempt from the
+// render-cap/row-count arithmetic that shapes the list row — this is always exactly one record.
+export interface MatchDetail {
+  id: string;
+  title: string;
+  company: string;
+  url: string;
   fit: number | null;
   want: number | null;
   fitReason: string;
