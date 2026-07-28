@@ -4406,3 +4406,56 @@ predates both the rebase and the #1310 chat/SSE change, so it does not carry. Re
 required it to state plainly whether it never started, has an unposted verdict, or is blocked, and
 to re-ground on `f369e61d` rather than reconstruct from the earlier look. An unposted or hedged
 verdict blocks the merge outright, since Ben delegated sign-off to it.
+
+## 2026-07-27 — RULING: merge order reversed to #1276 first; two harness corrections
+
+**Fable verdict GREEN on PR #1276 @ `f369e61d`**, posted to the PR (comment `5098397443`), 0 blocking
+/ 4 non-blocking (quiet-hours tz validation parity nit; per-tool rather than per-family rate budget;
+a stale exclusions comment; and grants staying inert until #1311 lands). It checked all five briefed
+priorities and reported one thing stronger than I had: **fail-open is structurally impossible here** —
+`module-sdk` types `defaultTier` as `ask_each_time | always_confirm` only, so the `policy.ts:47` null
+fallback can never land on `trusted_auto`, independent of the `server.ts` boot assert. That closes the
+residual I raised earlier by type, not by assertion. Per Ben's delegation, **Fable green = his
+approve**, so the security gate on #1276 is satisfied.
+
+**Merge order REVERSED: #1276 → #1311 → #1273** (was #1311 → #1276 → #1273). Justification:
+
+- #1276 is fully green *now* — local gate rc=0, CI green on the exact head, security verdict in hand.
+- #1311 is not close: live UAT spec not yet written, an unexplained integration failure open, and the
+  lane just relayed again.
+- **The order was never a safety requirement.** Fable confirmed #1276 landing without #1311 **fails
+  CLOSED** — grants sit inert at `ask_each_time`. There is no unsafe intermediate state on main.
+- The two branches overlap on only 2 files (`packages/ai/src/gateway/index.ts`,
+  `packages/chat/src/routes.ts`), and `1311-install-grant` is behind main and must rebase regardless.
+  Whoever lands second resolves that overlap either way; making it #1311 costs nothing extra.
+- Holding a ready branch only accrues drift and another force-push cycle.
+
+**Not merging blind, though.** `1264-settings-self-operation` is **behind `origin/main`**, whose tip
+`45b8a424` is *"test(e2e): realign the browser specs with the recovered profile and finish steps"* —
+touching the very specs #1276 adds to. GitHub says `MERGEABLE`, but that only rules out a textual
+conflict, not semantic breakage. Ordered the lane to rebase, re-run the full gate on the rebased
+result with a fresh isolated DB, pay specific attention to the e2e + `tests/uat/specs` suites after
+`45b8a424`, push with the same lease discipline, and report the new head. Merge follows that.
+
+### Two harness corrections — both mine, both caught by the lane
+
+1. I called `tests/e2e/app-shell.spec.ts:~412` "a real chat turn". **It is not.** `tests/e2e/` is the
+   **mocked** suite (`page.route()` SSE stubs, `tests/e2e/mock-*.ts`), and the file's own comment
+   block disclaims satisfying the real-instance criterion.
+2. The real-instance harness is a **separate suite**: `tests/uat/specs/*.uat.spec.ts` —
+   `requireBaseURL()`, `signIn()`, no mocks. #1311's template is
+   **`tests/uat/specs/1264-settings-self-operation.uat.spec.ts`**; siblings
+   `real-chat-onboarding.uat.spec.ts` and `runtime-context.uat.spec.ts` show the pattern. #1311's
+   proof therefore lands as a new `tests/uat/specs/1311-*.uat.spec.ts`, which also collides with
+   nothing.
+
+**Pattern worth naming:** that is three coordinator claims about test files corrected by lanes in one
+session (the phantom `live-uat-1310.spec.ts`, then mocked-vs-live, now the suite split). All three
+share a cause — I asserted a path or a property of a file I had not opened, and a handoff laundered it
+into a fact. The lanes stopping to check rather than complying is the only reason none of it reached
+a merge. **Resolve the file before it goes in a message.**
+
+Also flagged to #1311: the failing `resolveGrantSelfOperationForModule routes a non-tasks manifest to
+the generic grant` test must be re-run cleanly rather than written off as stale log output — a **6ms**
+failure is a synchronous assertion, not a timeout, and usually means genuinely wrong routing. If real,
+fix the routing; do not adjust the assertion.
