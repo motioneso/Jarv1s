@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +12,7 @@ import type {
 } from "../../packages/module-registry/src/node.js";
 import {
   buildRegistryArtifacts,
+  discoverModuleDirs,
   mergePreviousVersions,
   packModuleArtifact,
   REGISTRY_RETAINED_VERSIONS
@@ -123,17 +124,18 @@ describe("packModuleArtifact", () => {
 
 describe("module discovery", () => {
   // Ruling N47 (#1307): the CLI entrypoint discovers modules generically via
-  // readdirSync(external-modules/) — there is no per-module allowlist, and there must
-  // never be one (a hardcoded id would go stale the moment a module is renamed or
-  // removed, silently or otherwise). Asserting only the directory listing (as an earlier
-  // version of this test did) proves the modules exist on disk, not that the publisher
-  // finds and packs them — the same gap team-lead flagged in the manifest-hash tautology
-  // below. This drives the real buildRegistryArtifacts (the exact function the CLI calls)
-  // against every module readdirSync finds, into a scratch out-dir, and asserts on what
-  // actually got published: entries in the returned index, and a real tarball on disk
-  // for each. Deliberately not scoped to job-search alone — a test that only knows about
-  // one module has the same asymmetry problem the publisher would have had. Measured
-  // ~50ms end to end for both real modules (bundling included) — cheap enough not to fake.
+  // discoverModuleDirs (readdirSync(external-modules/), no per-module allowlist, and
+  // there must never be one — a hardcoded id would go stale the moment a module is
+  // renamed or removed, silently or otherwise). Calling the exported discovery function
+  // instead of re-implementing the walk here means an allowlist filter added to it later
+  // makes this test fail, not just the packing step below. Combined with driving the real
+  // buildRegistryArtifacts (the exact function the CLI calls) against every module it
+  // finds, into a scratch out-dir, and asserting on what actually got published — entries
+  // in the returned index, and a real tarball on disk for each — both halves of "the
+  // publisher finds and packs everything" are now exercised, not assumed. Deliberately
+  // not scoped to job-search alone — a test that only knows about one module has the same
+  // asymmetry problem the publisher would have had. Measured ~50ms end to end for both
+  // real modules (bundling included) — cheap enough not to fake.
   const scratchOutDirs: string[] = [];
   afterAll(() => {
     for (const dir of scratchOutDirs) rmSync(dir, { recursive: true, force: true });
@@ -141,10 +143,7 @@ describe("module discovery", () => {
 
   it("publishes every known external module, not a hardcoded subset", async () => {
     const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-    const externalModulesDir = join(repoRoot, "external-modules");
-    const moduleDirs = readdirSync(externalModulesDir, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => join(externalModulesDir, e.name));
+    const moduleDirs = discoverModuleDirs(repoRoot);
 
     const outDir = mkdtempSync(join(tmpdir(), "registry-discovery-"));
     scratchOutDirs.push(outDir);
