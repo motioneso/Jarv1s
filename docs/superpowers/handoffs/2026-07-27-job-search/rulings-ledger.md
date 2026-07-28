@@ -1506,3 +1506,38 @@ to a constant inside a handler looks internal by construction; whether it is dep
 the field and whether any other path can still reach the untruncated value. Trace to the surface
 before accepting the label — and when a cap must be enforced, ask which axis the product can afford
 to lose, rather than shrinking whichever field the arithmetic makes easiest.
+
+### N39 — a field belongs in the list row only if the list renders it
+
+**Ruling.** `fitReason` and `wantReason` come **out** of `BoardMatch` and live only on
+`MatchDetail`, behind `job-search.match.get`. The board row keeps `id`, `title`, `company`, `fit`,
+`want`, `outsideFrame`, `state`, `url`. `MATCHES_LIST_MAX_LIMIT` is then recomputed from the real
+formatter against the freed budget — it must not be left at a number chosen while the reasons were
+still in the row.
+
+**Why.** Verified, not assumed: `grep -n "reason" board.tsx` returns **nothing**. The board table
+renders Fit and Want as two sortable numeric columns and no prose. The only consumer of either
+reason is `inspector.tsx:53,58`, which is open for exactly one match at a time. So the row was
+paying `2 × REASON_MAX_CHARS` on every row for a field no row displays, and that cost was what
+pushed `MATCHES_LIST_MAX_LIMIT` from 40 down to 15 once `url` (N38, #1330) had to be added.
+
+This is strictly better on both axes at once, which is why it is a ruling and not a preference:
+the board gets its row count back, *and* the inspector gets the **full untruncated** reasoning
+instead of 150 characters — which is what spec §7 asks for ("an inspector showing the two axes and
+the model's reasoning for each"). Truncating a field down to fit a budget it never needed to be in
+is a loss with no corresponding gain.
+
+**The structural contract still holds.** `inspector.tsx:3` states "this file never calls
+invokeTool/runQueue"; `board.tsx` "owns every fetch/sort/dismiss decision". The detail read is
+therefore issued by `board.tsx` on selection and handed down as a prop — the inspector stays pure
+presentation. Do not move the fetch into the inspector to make this easier.
+
+`url` stays on the row: plan tests 16 and 17 put all three actions on **every** match and assert
+"Open posting" is a real link to `posting.url` per row, so unlike the reasons it genuinely is
+per-row data. The model reaching `matches.list` still gets full reasoning — via `match.get`, the
+same door the inspector uses.
+
+**Generalisation.** Before spending render budget on a field, grep the renderer for it. A field
+that only a detail view reads is a detail field, however natural it looks on the list type. When a
+cap forces a trade, first check whether anything in the row is not actually rendered — reclaiming
+dead weight beats choosing which live thing to shrink.
