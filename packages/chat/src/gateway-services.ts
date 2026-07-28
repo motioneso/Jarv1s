@@ -2,13 +2,14 @@ import { sql } from "kysely";
 import type { PgBoss } from "pg-boss";
 
 import type { DataContextDb, DataContextRunner, PreferencesPort } from "@jarv1s/db";
-import type {
-  AiRepository,
-  ConfirmationRegistry,
-  SessionTokenRegistry,
-  ActiveModulesResolver,
-  AssistantToolGatewayDependencies,
-  SessionNotifier
+import {
+  selfHealGrantedAtInstallTier,
+  type AiRepository,
+  type ConfirmationRegistry,
+  type SessionTokenRegistry,
+  type ActiveModulesResolver,
+  type AssistantToolGatewayDependencies,
+  type SessionNotifier
 } from "@jarv1s/ai";
 import { CalendarRepository, sendCalendarCacheEvictJob } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
@@ -235,7 +236,14 @@ function buildActionPolicy(args: {
       return args.runner.withDataContext(
         { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
         async (scopedDb) => {
-          if (moduleId === "tasks" && familyId === "task_changes" && args.preferences) {
+          if (moduleId === "tasks" && familyId === "task_changes") {
+            // #1311 finding #2: task_changes must resolve ONLY through the legacy-aware compat
+            // helper, never fall through to the generic granted_at_install self-heal below — that
+            // path only checks the canonical action_policies table and is blind to a legacy
+            // `tasks.agency_auto_execute=false` revocation stored in app.preferences. Structural
+            // guard: even if `args.preferences` is ever absent, fail closed (null → manifest's
+            // ask_each_time default) rather than let the generic heal grant trusted_auto.
+            if (!args.preferences) return null;
             const compat = new TasksCompatibilityHelper(args.preferences);
             return compat.getResolvedTaskChangesPolicy(scopedDb);
           }
@@ -243,7 +251,12 @@ function buildActionPolicy(args: {
           const policy = policies.find(
             (p) => p.moduleId === moduleId && p.actionFamilyId === familyId
           );
-          return policy?.tier ?? null;
+          if (policy) return policy.tier;
+
+          const activeModules = await args.resolveActiveModules(ctx.actorUserId);
+          const manifest = activeModules.find((m) => m.id === moduleId);
+          if (!manifest) return null;
+          return selfHealGrantedAtInstallTier(scopedDb, args.repository, manifest, familyId);
         }
       );
     },
