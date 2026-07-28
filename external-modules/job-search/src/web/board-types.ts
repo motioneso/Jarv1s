@@ -59,6 +59,14 @@ export interface PortalListItem {
 // A type predicate rather than a plain boolean so callers that render or compare the numbers get
 // them as `number` instead of re-asserting non-null at every use — the guard already proves it,
 // and a `!` at the use site would be an unchecked claim sitting next to a checked one.
-export function isScored(item: BoardMatch): item is BoardMatch & { fit: number; want: number } {
-  return item.state !== "unscored" && item.fit !== null && item.want !== null;
+//
+// "Read" is keyed on WANT, not on both axes. Fit is judged against the résumé, so a match read
+// before one was uploaded carries `fit: null` — a real, scored row with one axis it had no basis
+// to answer. Requiring both would file that row under "not read yet", which is a different and
+// wrong claim: it was read, and the Want number beside it was genuinely reasoned about. Want is
+// the axis that is always answerable, because activation already requires the sentence it is
+// judged against. Callers render Fit through an explicit `item.fit === null` branch — the guard
+// deliberately no longer narrows it, so the compiler asks the question at every use site.
+export function isScored(item: BoardMatch): item is BoardMatch & { want: number } {
+  return item.state !== "unscored" && item.want !== null;
 }

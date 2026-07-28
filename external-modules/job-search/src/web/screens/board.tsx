@@ -65,13 +65,31 @@ export interface BoardScreenProps {
  * them keeps the top of the board answerable. */
 const DEFAULT_SORT: SortState = { key: "fit", dir: "desc" };
 
+/** Which default actually applies to THESE rows.
+ *
+ * Fit is the better default, but only where there is a Fit to sort by. With no résumé on file
+ * every read row carries `fit: null`, and defaulting to a column of blanks leaves the board in
+ * whatever order the store happened to return — the exact "reads as a broken matcher" the
+ * default sort exists to prevent, now with a ▼ over an empty column claiming it is sorted. Want
+ * is answerable without a résumé, so it takes over until a résumé makes Fit mean something. */
+function defaultSortFor(items: BoardMatch[]): SortState {
+  return items.some((item) => item.fit !== null) ? DEFAULT_SORT : { key: "want", dir: "desc" };
+}
+
 function sortMatches(items: BoardMatch[], sort: SortState | null): BoardMatch[] {
-  const { key, dir } = sort ?? DEFAULT_SORT;
+  const { key, dir } = sort ?? defaultSortFor(items);
   const scored = items.filter(isScored);
   const unscored = items.filter((item) => !isScored(item));
   scored.sort((a, b) => {
-    const av = (key === "fit" ? a.fit : a.want) as number;
-    const bv = (key === "fit" ? b.fit : b.want) as number;
+    const av = key === "fit" ? a.fit : a.want;
+    const bv = key === "fit" ? b.fit : b.want;
+    // A null on the active axis means "no basis to score", not "scored zero", so it sorts to the
+    // bottom in BOTH directions — the same treatment an unread row gets. Subtracting it as if it
+    // were 0 would make ascending order open on a block of blanks and rank them beneath a row
+    // the model actually judged badly.
+    if (av === null && bv === null) return 0;
+    if (av === null) return 1;
+    if (bv === null) return -1;
     return dir === "asc" ? av - bv : bv - av;
   });
   return [...scored, ...unscored];
@@ -79,8 +97,8 @@ function sortMatches(items: BoardMatch[], sort: SortState | null): BoardMatch[] 
 
 /** Shows the effective sort, including the default one nobody has clicked — a table that is
  *  sorted but shows no indicator invites the reader to distrust the order. */
-function sortIndicator(sort: SortState | null, key: SortKey): string {
-  const effective = sort ?? DEFAULT_SORT;
+function sortIndicator(sort: SortState | null, key: SortKey, items: BoardMatch[]): string {
+  const effective = sort ?? defaultSortFor(items);
   if (effective.key !== key) return "";
   return effective.dir === "asc" ? " ▲" : " ▼";
 }
@@ -358,11 +376,14 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   );
 
   function toggleSort(key: SortKey): void {
-    // `prev ?? DEFAULT_SORT`, because the board arrives already sorted by fit descending. Treating
-    // an untouched board as "no sort" meant the first click on Fit re-applied the order that was
-    // on screen already, and the header did nothing.
+    // `prev ?? the effective default`, because the board arrives already sorted. Treating an
+    // untouched board as "no sort" meant the first click on the column it was already sorted by
+    // re-applied the order that was on screen already, and the header did nothing. Read the
+    // default off the rows for the same reason `sortIndicator` does: which column the board
+    // opened on depends on whether Fit has anything in it.
+    const items = matchesState.status === "ready" ? matchesState.items : [];
     setSort((prev) => {
-      const current = prev ?? DEFAULT_SORT;
+      const current = prev ?? defaultSortFor(items);
       if (current.key !== key) return { key, dir: "desc" };
       return { key, dir: current.dir === "desc" ? "asc" : "desc" };
     });
@@ -398,6 +419,13 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   );
   const sorted = sortMatches(visibleItems, sort);
   const scoredCount = sorted.filter(isScored).length;
+  // Every read row has an empty Fit, which only ever has one cause: no résumé is on file, so
+  // there was nothing to judge Fit against. A column of em dashes with no explanation reads as a
+  // product that is broken rather than one that is waiting on something, and the fix is a thing
+  // only the user can do — so it has to be said, and said with the action in it. Keyed on
+  // `every`, not on a profile flag: a résumé added mid-board leaves some rows scored and some
+  // not, and the notice must retire itself the moment the first real Fit lands.
+  const fitNeedsResume = scoredCount > 0 && sorted.filter(isScored).every((item) => item.fit === null);
   const selectedMatch = sorted.find((item) => item.id === selectedMatchId) ?? null;
 
   // Guarded by matchId, not just detailState.status: effects run after render, so there is one
@@ -483,6 +511,12 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
           {restoreMessage}
         </p>
       ) : null}
+      {fitNeedsResume ? (
+        <p className="jsm-queue-notice" role="status">
+          Fit is empty because there's no résumé on file — it's the only thing Fit is judged
+          against. Paste yours into the chat and these roles get read again with it.
+        </p>
+      ) : null}
       {/* The list and the open match are one two-column region, not a table with a panel dropped
           under it — see `.jsm-board-body` for why. The modifier is what turns the second column on,
           so a closed board still gets the full width for the table. */}
@@ -503,7 +537,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
                     className="jds-table__sort"
                     onClick={() => toggleSort("fit")}
                   >
-                    Fit{sortIndicator(sort, "fit")}
+                    Fit{sortIndicator(sort, "fit", visibleItems)}
                   </button>
                 </th>
                 <th className="jds-table__num">
@@ -512,7 +546,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
                     className="jds-table__sort"
                     onClick={() => toggleSort("want")}
                   >
-                    Want{sortIndicator(sort, "want")}
+                    Want{sortIndicator(sort, "want", visibleItems)}
                   </button>
                 </th>
                 {/* Named for screen readers, blank on screen: a column of Dismiss buttons needs no
@@ -549,10 +583,17 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
                     been — not as a badge over by the Dismiss button, which pushed the actions
                     column out of line with every scored row above it. */}
                   <td className="jds-table__num">
-                    {isScored(item) ? (
-                      <Score value={item.fit} />
-                    ) : (
+                    {!isScored(item) ? (
                       <span className="jds-table__sub">Not read yet</span>
+                    ) : item.fit === null ? (
+                      // Read, but with nothing to judge Fit against — the same em dash the Want
+                      // column uses for a row that has no number, because it is the same claim.
+                      // Never a 0: a zero is a score, drawn in the same bar as every other score,
+                      // and it sits next to a Want the model genuinely reasoned about. The line
+                      // above the table is what explains the blanks; the cell just doesn't lie.
+                      "—"
+                    ) : (
+                      <Score value={item.fit} />
                     )}
                   </td>
                   <td className="jds-table__num">

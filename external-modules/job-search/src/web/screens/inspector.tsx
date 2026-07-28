@@ -125,7 +125,12 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
         <div className="jsm-inspector__axes">
           <div className="jsm-inspector__axis">
             <span className="jds-eyebrow">Fit</span>
-            <p className="jsm-inspector__value">{match.fit}</p>
+            {/* An em dash, not the raw value, when Fit has no basis: `null` renders as nothing at
+                all here, leaving a labelled axis with an empty space where its number goes, and
+                the older behaviour — a stored 0 — put a real-looking score under the heading. The
+                reason below already says the résumé is missing; this just stops the number line
+                from claiming otherwise. */}
+            <p className="jsm-inspector__value">{match.fit === null ? "—" : match.fit}</p>
             {detail ? (
               <p>{detail.fitReason}</p>
             ) : detailError ? (

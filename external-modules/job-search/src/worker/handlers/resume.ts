@@ -39,7 +39,14 @@ export function createResumeSetHandler(store: JobSearchStore) {
     // never overwrites it.
     const resume = await store.setResume(profileId, content);
 
-    return { profileId, version: resume.version, updatedAt: resume.updatedAt };
+    // Everything scored before this moment has an empty Fit, because Fit is judged against the
+    // résumé and there wasn't one. Those rows are past the scoring stage for good unless they
+    // are cleared — so saving a résumé would leave the board looking exactly as broken as it
+    // did before, which is the opposite of what the user just did. Clearing them puts the
+    // postings back in the queue and the next pass fills the column in.
+    const rescoring = await store.clearUnfittedMatches(profileId);
+
+    return { profileId, version: resume.version, updatedAt: resume.updatedAt, rescoring };
   };
 }
 

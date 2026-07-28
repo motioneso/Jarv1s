@@ -108,6 +108,7 @@ function createFakeStore(input: {
     getLatestResume: vi.fn(async () => resume),
     getResumeVersion: vi.fn(notUsed("getResumeVersion")),
     setResume: vi.fn(notUsed("setResume")),
+    clearUnfittedMatches: vi.fn(notUsed("clearUnfittedMatches")),
     getSweepCursor: vi.fn(notUsed("getSweepCursor")),
     setSweepCursor: vi.fn(notUsed("setSweepCursor")),
     listCustomSources: vi.fn(notUsed("listCustomSources")),
@@ -243,6 +244,41 @@ describe("runScore", () => {
 
     expect(store.__matches).toHaveLength(1);
     expect(store.__matches[0]?.outsideFrame).toBe(true);
+  });
+
+  it("test 2c: with no résumé on file the match stores fit null, not the model's placeholder 0", async () => {
+    // The live-path regression this pair of tests exists for. Fit is judged against the résumé
+    // and nothing else, so with none on file the prompt tells the model to answer 0 — but 0 is a
+    // SCORE. Persisted, it lands in the board's Fit column drawn as a bar, sorts as the worst
+    // possible match, and is indistinguishable from a 0 the model reasoned its way to, sitting
+    // next to a Want it genuinely judged. Null is the difference between "terrible fit" and "no
+    // basis to say". Want is unaffected: it is judged against the user's own words, which are
+    // there either way.
+    const store = createFakeStore({ profile: makeProfile(), candidates: [makePosting("p-1")] });
+    const ai = scriptedAi([{ ok: true, object: { ...okResult, fit: 0 } }]);
+
+    await runScore(runDeps({ store, ai, budget: 1 }));
+
+    expect(store.__matches[0]?.fit).toBeNull();
+    expect(store.__matches[0]?.want).toBe(70);
+  });
+
+  it("test 2d: with a résumé on file the model's fit is persisted verbatim", async () => {
+    const store = createFakeStore({
+      profile: makeProfile(),
+      candidates: [makePosting("p-1")],
+      resume: {
+        id: "resume-1",
+        version: 1,
+        content: "Ten years building design systems.",
+        updatedAt: "2026-07-28T00:00:00.000Z"
+      }
+    });
+    const ai = scriptedAi([{ ok: true, object: okResult }]);
+
+    await runScore(runDeps({ store, ai, budget: 1 }));
+
+    expect(store.__matches[0]?.fit).toBe(80);
   });
 
   it("test 2b: a profile with no context summary is embedded once and yields no recall-bucket match (#1306)", async () => {
@@ -451,19 +487,26 @@ describe("runScore", () => {
     expect(result.halted?.reason).toBe("usage_limited");
   });
 
-  it("test 14: a retry cannot exceed AI_CALL_BUDGET either — 8 candidates, budget 8, first returns provider_error -> exactly 8 calls total", async () => {
-    const postings = Array.from({ length: 8 }, (_, i) => makePosting(`p-${i}`));
+  it("test 14: a retry cannot exceed AI_CALL_BUDGET either — budget-many candidates, first returns provider_error -> exactly AI_CALL_BUDGET calls total", async () => {
+    // Sized off the constant, not a literal: the budget is a product decision that moves, and
+    // a fixture pinned to the old value of 8 would stop exhausting the budget the moment it
+    // did — the retry would then have spare calls to spend and the invariant under test here
+    // would go unexercised while the test still passed.
+    const postings = Array.from({ length: AI_CALL_BUDGET }, (_, i) => makePosting(`p-${i}`));
     const store = createFakeStore({ profile: makeProfile(), candidates: postings });
     const responses: Array<Awaited<ReturnType<AiPort["generateStructured"]>>> = [
       { ok: false, error: "provider_error" },
-      ...Array.from({ length: 7 }, () => ({ ok: true as const, object: okResult }))
+      ...Array.from({ length: AI_CALL_BUDGET - 1 }, () => ({
+        ok: true as const,
+        object: okResult
+      }))
     ];
     const ai = scriptedAi(responses);
 
     const result = await runScore(runDeps({ store, ai, budget: AI_CALL_BUDGET }));
 
-    expect(ai.generateStructured).toHaveBeenCalledTimes(8);
-    // The retry consumed the eighth posting's call, so the eighth posting is deferred.
+    expect(ai.generateStructured).toHaveBeenCalledTimes(AI_CALL_BUDGET);
+    // The retry consumed the last posting's call, so that posting is deferred.
     expect(result.deferred).toBe(1);
   });
 

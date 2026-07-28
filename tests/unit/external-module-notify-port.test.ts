@@ -12,6 +12,7 @@ import {
 import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
 import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
 import {
+  AI_CALLS_PER_INVOCATION_CAP,
   createExternalModuleRpcHandler,
   type ExternalModuleAiResult
 } from "@jarv1s/module-registry/node";
@@ -192,8 +193,12 @@ describe("external worker ctx.notify port (Task 2b, #1283)", () => {
       ai
     });
 
-    // Spend the entire AI budget (8, AI_CALLS_PER_INVOCATION_CAP) on this one handler.
-    for (let i = 0; i < 8; i++) {
+    // Spend the entire AI budget on this one handler. Counted off the constant rather than a
+    // literal: the cap is a runaway guard whose value is a product decision and it has already
+    // moved once (8 -> 500), and a loop pinned to the old number stops exhausting anything the
+    // moment it changes — leaving the "one call past the cap is refused" assertion below testing
+    // nothing at all while still passing.
+    for (let i = 0; i < AI_CALLS_PER_INVOCATION_CAP; i++) {
       await expect(
         rpc("ai.generateStructured", { schema: {}, prompt: "x" }, () => undefined)
       ).resolves.toEqual({ ok: true, object: {} });
@@ -201,7 +206,7 @@ describe("external worker ctx.notify port (Task 2b, #1283)", () => {
     await expect(
       rpc("ai.generateStructured", { schema: {}, prompt: "x" }, () => undefined)
     ).resolves.toEqual({ ok: false, error: "usage_limited" });
-    expect(aiCallCount).toBe(8);
+    expect(aiCallCount).toBe(AI_CALLS_PER_INVOCATION_CAP);
 
     // If notifyCalls were the counter actually touched above, the notify budget (cap 5)
     // would already read as spent — the very first post below would throw rate_limited

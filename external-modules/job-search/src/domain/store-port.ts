@@ -119,6 +119,16 @@ export interface JobSearchStore {
   getLatestResume(profileId: string): Promise<Resume | undefined>;
   getResumeVersion(profileId: string, version: number): Promise<Resume | undefined>;
   setResume(profileId: string, content: string): Promise<Resume>;
+  /** Throw away the matches that were scored with no résumé on file, so the next pass reads
+   * them again now that there is one.
+   *
+   * Without this, adding a résumé fixes nothing the user can see: "unscored" means "no match
+   * row exists" (see `listUnscoredPostingsWithEmbeddings`), so every posting already on the
+   * board is permanently past the scoring stage and keeps its empty Fit forever. Only rows
+   * whose fit is null are touched — a real score is never discarded — and only rows the user
+   * has not acted on: deleting a dismissed row would put the role back on the board, which
+   * reads as the product ignoring them. Returns how many were cleared. */
+  clearUnfittedMatches(profileId: string): Promise<number>;
   /** Module KV, not a profile column: the sweep's rotation cursor belongs to the sweep, and it
    * has to survive the profile it happens to be pointing at being deleted. */
   getSweepCursor(): Promise<number>;

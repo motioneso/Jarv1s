@@ -93,7 +93,21 @@ export interface ExternalModuleAttachmentText {
 
 // Max ctx.ai.generateStructured calls per tool invocation (spec D6: platform
 // config, enforced in parent memory — the handler is built per invocation).
-export const AI_CALLS_PER_INVOCATION_CAP = 8;
+//
+// This is a RUNAWAY GUARD, not a quota. Every module on this instance is one we wrote,
+// so the thing worth stopping is a loop that never terminates — not a module that
+// legitimately needs to read a hundred things in one pass. The old value of 8 was set
+// as if the caller were untrusted, and it showed: Job Search could score seven postings
+// per crawl against a board of a hundred and thirty, so the board sat mostly unread and
+// looked broken. The real bound on an invocation is the per-queue `timeoutMs` ceiling
+// (MAX_INVOCATION_MS, ten minutes) — a number of calls is a poor proxy for cost when the
+// clock already stops the work.
+//
+// When third-party modules become installable, the quota this used to pretend to be
+// belongs with them: declared per queue in the manifest, clamped host-side, visible to
+// the admin at install. That is a different mechanism from this line, and building it
+// now would only guess at requirements no third-party module has yet.
+export const AI_CALLS_PER_INVOCATION_CAP = 500;
 
 const AI_ERRORS = new Set<string>([
   "needs_config",

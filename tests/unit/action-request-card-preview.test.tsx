@@ -48,11 +48,18 @@ describe("ActionRequestCard email preview", () => {
     expect(html).toContain('data-action-request-id="ar_1"');
   });
 
-  it("renders the tool name as a distinct, humanized label, not just buried in summary", () => {
-    // humanizeToolName strips the module prefix and splits camelCase: "email.draftReply" -> "Draft Reply".
+  it("labels the card by what it is asking for, never by the function it would call", () => {
+    // This asserted the opposite until commit 2493b3da ("say what an approval card is, not which
+    // function it calls"), which deliberately dropped the humanized tool name — "Draft Reply",
+    // derived from `email.draftReply` — in favour of a plain state label. The test was left
+    // asserting the removed behaviour and has been red ever since; it is rewritten here to the
+    // shipped contract rather than deleted, because the thing worth defending is that a tool
+    // identifier never leaks into the label.
     const html = renderToString(createElement(ActionRequestCard, baseProps));
     expect(html).toContain("action-request-preview__label");
-    expect(html).toContain("Draft Reply");
+    expect(html).toContain("Needs your approval");
+    expect(html).not.toContain("Draft Reply");
+    expect(html).not.toContain("draftReply");
   });
 
   // Focus-return-on-resolve (status → done/error) is verified via manual dev QA;

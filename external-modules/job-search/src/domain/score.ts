@@ -90,9 +90,13 @@ export function buildScorePrompt(input: {
       : "(none on file — this person has not added a résumé yet)",
     resume.trim().length > 0
       ? ""
-      : "With no résumé, Fit is not knowable. Return fit: 0 and a fitReason that says the " +
-        "résumé is missing and Fit will mean something once one is added — do not infer Fit " +
-        "from the title, the location, or the Want answer. Score Want normally.",
+      : "With no résumé, Fit is not knowable. The number you return for `fit` is thrown away " +
+        "before anything is stored — the board shows an em dash, not a score — so return 0 as a " +
+        "formality and say nothing about it. Write `fitReason` as a plain statement that there " +
+        "is no résumé on file yet and that Fit will mean something once one is added: no score, " +
+        "no number, no zero, no talk of placeholders, because the reader never sees a number " +
+        "here to explain. Do not infer Fit from the title, the location, or the Want answer. " +
+        "Score Want normally.",
     "",
     "--- WHAT THEY SAID THEY WANT ---",
     criteria.wantNarrative,

@@ -146,6 +146,9 @@ function createFakeStore(seedProfiles: Profile[] = []) {
       resumes.set(profileId, [...list, resume]);
       return resume;
     },
+    // A no-op that answers, not a thrower: `resume.set` calls it on every save, and this fake
+    // keeps no matches at all, so "nothing was cleared" is the honest answer here.
+    clearUnfittedMatches: async () => 0,
     getSweepCursor: notImplemented("getSweepCursor"),
     setSweepCursor: notImplemented("setSweepCursor"),
     // Task 24 (#1309) additions to JobSearchStore — out of scope for these eleven handlers
@@ -322,11 +325,24 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
     const { store } = createFakeStore([makeProfile({ id: "p1" })]);
     const setHandler = createResumeSetHandler(store);
 
+    // `rescoring` is how many matches were thrown back into the queue because they had been
+    // scored with no résumé to judge Fit against. Asserted with toEqual, not toMatchObject, so a
+    // handler that silently stopped clearing them would fail here rather than pass quietly.
     const first = await setHandler(ctx({ profileId: "p1", content: "v1 text" }));
-    expect(first).toEqual({ profileId: "p1", version: 1, updatedAt: expect.any(String) });
+    expect(first).toEqual({
+      profileId: "p1",
+      version: 1,
+      updatedAt: expect.any(String),
+      rescoring: 0
+    });
 
     const second = await setHandler(ctx({ profileId: "p1", content: "v2 text" }));
-    expect(second).toEqual({ profileId: "p1", version: 2, updatedAt: expect.any(String) });
+    expect(second).toEqual({
+      profileId: "p1",
+      version: 2,
+      updatedAt: expect.any(String),
+      rescoring: 0
+    });
 
     expect(await store.getResumeVersion("p1", 1)).toMatchObject({ version: 1, content: "v1 text" });
     expect(await store.getLatestResume("p1")).toMatchObject({ version: 2, content: "v2 text" });

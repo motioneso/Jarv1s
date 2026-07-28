@@ -581,6 +581,24 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
       );
     },
 
+    async clearUnfittedMatches(profileId: string): Promise<number> {
+      // A DELETE, not an UPDATE to state='unscored': "unscored" for the scoring stage means
+      // "no match row exists at all" (its candidate query is a NOT EXISTS over this table), so
+      // a row left behind in any state is a row that will never be read again.
+      // RETURNING, because the host's db contract hands back `{ rows }` and nothing else — there
+      // is no rowCount to read, and a DELETE that reports a count it did not measure would be a
+      // guess.
+      const result = await db.query<{ id: string }>(
+        `DELETE FROM app.job_search_matches
+          WHERE profile_id = $1
+            AND fit IS NULL
+            AND state IN ('unscored', 'new', 'seen')
+          RETURNING id`,
+        [profileId]
+      );
+      return result.rows.length;
+    },
+
     async getSweepCursor(): Promise<number> {
       const record = await kv.get("user", SWEEP_NAMESPACE, SWEEP_KEY);
       const index = record?.index;

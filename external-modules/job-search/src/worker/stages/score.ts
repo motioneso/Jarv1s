@@ -45,11 +45,18 @@ export interface NotifyPort {
   post(input: { key: string; title: string; body: string; href?: string }): Promise<void>;
 }
 
-/** The platform's hard cap, enforced PARENT-SIDE per invocation
- * (`worker-rpc-host.ts`: `AI_CALLS_PER_INVOCATION_CAP = 8`, returns `{ok:false,
- * error:"usage_limited"}` on call nine). This is the budget for the WHOLE invocation — for a
- * sweep, that is every profile put together, not eight each. */
-export const AI_CALL_BUDGET = 8;
+/** What one pass will spend on reading postings, kept safely under the platform's own
+ * per-invocation guard (`worker-rpc-host.ts`: `AI_CALLS_PER_INVOCATION_CAP`, which returns
+ * `{ok:false, error:"usage_limited"}` once exceeded). This is the budget for the WHOLE
+ * invocation — for a sweep, that is every profile put together, not this many each.
+ *
+ * Sized so a first crawl reads the board it just found rather than a seventh of it: the
+ * crawler routinely returns well over a hundred postings, and at the old value of 8 a user
+ * watched a board where all but seven rows said "Not read yet" — which reads as broken, not
+ * as thorough. What actually stops a pass is the invocation deadline (`runScore` halts with
+ * `reason: "deadline"` and defers the rest to the next pass), and that is the honest bound:
+ * a wall clock, not an arbitrary count. */
+export const AI_CALL_BUDGET = 200;
 
 /** How many unscored postings (with an embedding already) are pulled as triage's candidate
  * pool. Deliberately much larger than any realistic `budget`: triage's own selection, not this
@@ -150,6 +157,15 @@ export async function runScore(deps: {
 
   const resume = await store.getLatestResume(profileId);
   const resumeText = resume?.content ?? "";
+  // Fit is judged against the résumé and nothing else, so with none on file there is no basis
+  // for a number at all. The prompt still asks the model for `fit: 0` (the schema requires both
+  // axes), but 0 is a SCORE — on the board it sits in the same column, in the same shape, as a
+  // 0 the model reasoned its way to, and it sorts as the worst possible match. Persisting null
+  // instead is the difference between "we read this and it's a terrible fit" and "we have
+  // nothing to judge it with"; the column is nullable precisely so that distinction can be
+  // stored rather than flattened. `fitReason` still carries the model's own explanation of the
+  // absence, which is what the inspector shows in place of the number.
+  const hasResume = resumeText.trim().length > 0;
   const contextText = profile.contextSummary ?? "";
 
   const criteriaText = criteriaEmbeddingText(profile.criteria);
@@ -250,7 +266,7 @@ export async function runScore(deps: {
           await store.upsertMatch(profileId, {
             profileId,
             postingId: posting.id,
-            fit: parsed.fit,
+            fit: hasResume ? parsed.fit : null,
             want: parsed.want,
             fitReason: parsed.fitReason,
             wantReason: parsed.wantReason,

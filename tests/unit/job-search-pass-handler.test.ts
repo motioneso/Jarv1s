@@ -22,6 +22,7 @@ import {
   createCrawlSweepHandler
 } from "../../external-modules/job-search/src/worker/handlers/pass.js";
 import type { PassResult } from "../../external-modules/job-search/src/worker/handlers/pass.js";
+import { AI_CALL_BUDGET } from "../../external-modules/job-search/src/worker/stages/score.js";
 import type {
   AiPort,
   NotifyPort
@@ -155,6 +156,7 @@ function createFakeStore(input: {
     getLatestResume: vi.fn(async () => undefined),
     getResumeVersion: vi.fn(notUsed("getResumeVersion")),
     setResume: vi.fn(notUsed("setResume")),
+    clearUnfittedMatches: vi.fn(notUsed("clearUnfittedMatches")),
     getSweepCursor: vi.fn(async () => cursor),
     setSweepCursor: vi.fn(async (index: number) => {
       cursor = index;
@@ -362,8 +364,17 @@ describe("createCrawlSweepHandler", () => {
     ]);
   });
 
-  it("test 8: nine active profiles, one sweep — at most 8 AI calls total, the ninth untouched", async () => {
-    const profiles = Array.from({ length: 9 }, (_, i) => makeProfile(`p-${i}`));
+  // Tests 8-10 are all about one thing: the AI budget is shared across the whole sweep, so a sweep
+  // stops mid-list and the next one resumes where it left off. Each profile below owns exactly one
+  // unscored posting, which makes "profiles served" and "AI calls spent" the same number and lets
+  // the fixtures be sized straight off AI_CALL_BUDGET. Sized off the constant and never a literal:
+  // these three were written against a budget of 8 with nine and twenty profiles, and when the
+  // budget became 200 every one of them stopped exhausting anything — the sweep simply served the
+  // whole list, and three tests about resuming a partial sweep were testing a complete one.
+  const OVERFLOW_PROFILE_COUNT = AI_CALL_BUDGET + 1;
+
+  it("test 8: budget-plus-one active profiles, one sweep — exactly AI_CALL_BUDGET AI calls, the last profile untouched", async () => {
+    const profiles = Array.from({ length: OVERFLOW_PROFILE_COUNT }, (_, i) => makeProfile(`p-${i}`));
     const unscoredByProfile = new Map(profiles.map((p) => [p.id, [makePosting(`post-${p.id}`)]]));
     const store = createFakeStore({ profiles, unscoredByProfile });
 
@@ -372,23 +383,26 @@ describe("createCrawlSweepHandler", () => {
       aiCallsUsed: number;
     };
 
-    expect(result.aiCallsUsed).toBe(8);
-    expect(result.processed).toHaveLength(8);
-    expect(store.__getProfileCallOrder).not.toContain("p-8");
+    expect(result.aiCallsUsed).toBe(AI_CALL_BUDGET);
+    expect(result.processed).toHaveLength(AI_CALL_BUDGET);
+    expect(store.__getProfileCallOrder).not.toContain(`p-${AI_CALL_BUDGET}`);
   });
 
-  it("test 9: the next sweep starts at the ninth profile — cursor seeded from the first sweep's write", async () => {
-    const profiles = Array.from({ length: 9 }, (_, i) => makeProfile(`p-${i}`));
+  it("test 9: the next sweep starts at the first unserved profile — cursor seeded from the first sweep's write", async () => {
+    const profiles = Array.from({ length: OVERFLOW_PROFILE_COUNT }, (_, i) => makeProfile(`p-${i}`));
     const unscoredByProfile = new Map(profiles.map((p) => [p.id, [makePosting(`post-${p.id}`)]]));
     const store = createFakeStore({ profiles, unscoredByProfile });
 
     await createCrawlSweepHandler(store)(sweepCtx(Date.now() + 60_000));
 
-    expect(store.__setSweepCursorCalls).toEqual([8]);
+    expect(store.__setSweepCursorCalls).toEqual([AI_CALL_BUDGET]);
   });
 
-  it("test 10: twenty profiles across three sweeps — every profile served exactly once, none twice before the rest", async () => {
-    const profiles = Array.from({ length: 20 }, (_, i) => makeProfile(`p-${i}`));
+  it("test 10: more profiles than three sweeps' worth of budget — every profile served exactly once, none twice before the rest", async () => {
+    // Two full sweeps plus a remainder, so the third sweep is a partial one: that is the case
+    // where a cursor that wrapped early or restarted at zero would show up as a duplicate.
+    const profileCount = AI_CALL_BUDGET * 2 + 1;
+    const profiles = Array.from({ length: profileCount }, (_, i) => makeProfile(`p-${i}`));
     const unscoredByProfile = new Map(profiles.map((p) => [p.id, [makePosting(`post-${p.id}`)]]));
     const store = createFakeStore({ profiles, unscoredByProfile });
 
@@ -400,8 +414,8 @@ describe("createCrawlSweepHandler", () => {
       served.push(...result.processed.map((entry) => entry.profileId));
     }
 
-    expect(served).toHaveLength(20);
-    expect(new Set(served).size).toBe(20);
+    expect(served).toHaveLength(profileCount);
+    expect(new Set(served).size).toBe(profileCount);
   });
 
   it("test 11: zero active profiles — no AI calls, no cursor write, no error", async () => {
@@ -420,12 +434,18 @@ describe("createCrawlSweepHandler", () => {
   it("test 12: a profile that receives zero budget is skipped without an error, first in line next sweep", async () => {
     // Profile 0 has exactly AI_CALL_BUDGET candidates, so it spends the whole invocation's
     // budget by itself; profile 1 is never even started, and the cursor stops at its index.
-    const eightPostings = Array.from({ length: 8 }, (_, i) => makePosting(`post-0-${i}`));
+    // Sized off the constant rather than a literal: the budget is a product decision that
+    // moves (it went from 8 to 200 when a first crawl needed to read the whole board), and a
+    // fixture of eight postings would quietly stop exhausting anything the moment it did —
+    // leaving a test that still passes while testing nothing.
+    const budgetManyPostings = Array.from({ length: AI_CALL_BUDGET }, (_, i) =>
+      makePosting(`post-0-${i}`)
+    );
     const profiles = [makeProfile("p-0"), makeProfile("p-1")];
     const store = createFakeStore({
       profiles,
       unscoredByProfile: new Map([
-        ["p-0", eightPostings],
+        ["p-0", budgetManyPostings],
         ["p-1", [makePosting("post-1-0")]]
       ])
     });
@@ -438,15 +458,19 @@ describe("createCrawlSweepHandler", () => {
     expect(store.__setSweepCursorCalls).toEqual([1]);
   });
 
-  it("test 13: the budget is counted at the port — profile 1 spends 3 calls then throws; profile 2 is offered exactly 5", async () => {
+  it("test 13: the budget is counted at the port — profile 1 spends 3 calls then throws; profile 2 is offered exactly the remainder", async () => {
     const threePostings = Array.from({ length: 3 }, (_, i) => makePosting(`post-1-${i}`));
-    const eightPostings = Array.from({ length: 8 }, (_, i) => makePosting(`post-2-${i}`));
+    // Enough candidates that profile 2 could exhaust whatever is left, so the assertion below
+    // is about the remainder being carried across profiles, not about running out of postings.
+    const restPostings = Array.from({ length: AI_CALL_BUDGET }, (_, i) =>
+      makePosting(`post-2-${i}`)
+    );
     const profiles = [makeProfile("p-1"), makeProfile("p-2")];
     const store = createFakeStore({
       profiles,
       unscoredByProfile: new Map([
         ["p-1", threePostings],
-        ["p-2", eightPostings]
+        ["p-2", restPostings]
       ])
     });
 
@@ -475,9 +499,10 @@ describe("createCrawlSweepHandler", () => {
       { profileId: "p-1", ok: false, error: "notify boom" },
       { profileId: "p-2", ok: true }
     ]);
-    // 3 for profile 1, then exactly 5 for profile 2 (8 - 3) — not 8, which would mean the
-    // budget was re-derived from a return value instead of the counting port.
-    expect(ai.generateStructured).toHaveBeenCalledTimes(8);
+    // 3 for profile 1, then exactly AI_CALL_BUDGET - 3 for profile 2 — a total of exactly the
+    // budget, not the budget plus three, which is what re-deriving the remainder from a return
+    // value instead of the counting port would produce.
+    expect(ai.generateStructured).toHaveBeenCalledTimes(AI_CALL_BUDGET);
   });
 
   it("test 14: the sweep stops at the deadline and the cursor points at the first profile not started", async () => {

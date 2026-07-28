@@ -574,14 +574,38 @@ test("job search: install, bootstrap, onboarding, crawl, board, inspector, chat 
 
   // --- Phase 9: unscored posting opens the Inspector with the "queued, not dropped" status ---
   await test.step("Phase 9: an unscored posting's Inspector says queued, not dropped", async () => {
+    const projectName = requireProjectName();
+
+    // Direct-seeded, for the same reason Phase 10 direct-seeds `outside_frame` below: the UI
+    // contract under test ("an unread row renders as queued rather than being dropped") has to be
+    // exercised deterministically, and the arithmetic that used to guarantee an unread row no
+    // longer does. This phase relied on the scoring stage running out of AI calls — the overflow
+    // fixture's 10 postings against a per-invocation budget of 8 — so exactly two rows were always
+    // left unread. That budget is now 200, because a first crawl of a real board returns well over
+    // a hundred postings and reading a seventh of them made the board look broken. Ten postings no
+    // longer overflow anything, so the guarantee is gone; growing the fixture past 200 postings to
+    // restore it would trade a fast UAT for an arbitrary one. Unscoring a row outright says what
+    // this phase actually means and never rots against a budget constant again.
+    //
+    // Takes the LAST scored row (scored_at DESC) where Phase 10 takes the first, so the two
+    // seeds can never land on the same match and quietly undo each other.
+    const unscoredSeed = execUatSql(
+      projectName,
+      `update app.job_search_matches set state = 'unscored', fit = null, want = null, fit_reason = null, want_reason = null, scored_at = null where id = (select id from app.job_search_matches where profile_id = '${seededProfileId}' and want is not null order by scored_at desc, id desc limit 1) returning id, (select title from app.job_search_postings p where p.id = job_search_matches.posting_id);`
+    );
+    expect(
+      unscoredSeed.trim().length,
+      "a scored match must exist to unscore for this phase"
+    ).toBeGreaterThan(0);
+    const unscoredTitle = unscoredSeed.split("|")[1]?.trim() ?? "";
+    expect(unscoredTitle, "the unscored match must have a posting title").toBeTruthy();
+    await page.reload();
+
     const unscoredRow = page
       .locator("table.jsm-board tbody tr")
-      .filter({ hasText: "Not read yet" })
+      .filter({ hasText: unscoredTitle })
       .first();
-    await expect(
-      unscoredRow,
-      "freehire's overflow fixture has 10 postings vs. an AI budget below that"
-    ).toHaveCount(1);
+    await expect(unscoredRow.getByText("Not read yet")).toBeVisible();
     await unscoredRow.locator("td").first().locator("button").click();
 
     const inspector = page.locator('aside[role="dialog"]');
@@ -606,9 +630,16 @@ test("job search: install, bootstrap, onboarding, crawl, board, inspector, chat 
       projectName,
       // Postgres UPDATE takes no ORDER BY / LIMIT of its own — the pick has to happen in a
       // subquery, or the statement is a syntax error rather than an unlucky choice of row.
-      // Ordered by scored_at (job_search_matches has no created_at; `fit is not null` guarantees
-      // scored_at is set), then id, so the row chosen is the same one on every run.
-      `update app.job_search_matches set outside_frame = true where id = (select id from app.job_search_matches where profile_id = '${seededProfileId}' and fit is not null order by scored_at, id limit 1) returning id, (select title from app.job_search_postings p where p.id = job_search_matches.posting_id);`
+      // Ordered by scored_at (job_search_matches has no created_at; `want is not null` guarantees
+      // scored_at is set), then id, so the row chosen is the same one on every run — and ascending,
+      // where Phase 9's unscore seed takes the last row, so the two never collide.
+      //
+      // Keyed on `want`, not `fit`: Fit is only knowable against a résumé, and #1341 made the
+      // scoring stage write `fit = null` rather than a meaningless 0 when there is no résumé on
+      // file. This UAT profile has no résumé, so `fit is not null` now matches nothing and this
+      // seed silently updated zero rows. Want is scored either way and is the honest test of
+      // "a match that has been read".
+      `update app.job_search_matches set outside_frame = true where id = (select id from app.job_search_matches where profile_id = '${seededProfileId}' and want is not null order by scored_at, id limit 1) returning id, (select title from app.job_search_postings p where p.id = job_search_matches.posting_id);`
     );
     expect(
       matchRow.trim().length,

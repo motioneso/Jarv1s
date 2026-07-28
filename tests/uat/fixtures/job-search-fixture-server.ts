@@ -58,9 +58,14 @@ interface FixtureRoute {
  * `freehire-data.json` — deliberately not the plain Task 11 capture. That file is shared with
  * `tests/unit/job-search-adapter-freehire.test.ts`, which hard-asserts `toHaveLength(3)` against
  * it; inflating it in place would silently break that suite. This UAT-only sibling has the same 3
- * postings plus 7 synthetic ones (10 total > `AI_CALL_BUDGET`, score.ts:52), so a UAT crawl
- * always produces at least one posting the scoring stage never reaches — the row #1329 fixed the
- * board to still render instead of dropping.
+ * postings plus 7 synthetic ones, which is enough rows for the board to look like a board —
+ * sorting, the Inspector, a dismissal — rather than a three-line list.
+ *
+ * It used to carry a second job: 10 postings against an `AI_CALL_BUDGET` of 8 guaranteed a couple
+ * of rows the scoring stage never reached, which is how the board spec got an unscored row to
+ * assert #1329's "queued, not dropped" contract against. The budget is 200 now, so ten postings
+ * overflow nothing; that spec's Phase 9 seeds its unscored row directly instead. Do not re-derive
+ * any assertion from this file's length against a budget constant.
  */
 function buildRoutes(): ReadonlyMap<string, FixtureRoute> {
   return new Map<string, FixtureRoute>([
