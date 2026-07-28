@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import type { DatasetClient } from "@jarv1s/datasets";
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextRunner } from "@jarv1s/db";
 import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
 import {
   createSportsFollowResponseSchema,
@@ -12,23 +12,12 @@ import {
   sportsOverviewResponseSchema,
   sportsStandingsResponseSchema,
   sportsTeamSearchResponseSchema,
-  type CreateSportsFollowRequest,
-  type SportsFollowDto
+  type CreateSportsFollowRequest
 } from "@jarv1s/shared";
 
 import { SportsFollowsRepository } from "./repository.js";
-import { SportsService, type SportsFollowsReader } from "./sports-service.js";
+import { SportsService, type SportsFollowsWriter } from "./sports-service.js";
 import { catalogEntry } from "./source/catalog.js";
-
-/**
- * The follows persistence surface the routes need. `SportsFollowsRepository`
- * satisfies it; tests inject a fake. (`SportsService` only reads via
- * `SportsFollowsReader`; the CRUD routes also write, so this widens it.)
- */
-export interface SportsFollowsWriter extends SportsFollowsReader {
-  create(scopedDb: DataContextDb, input: CreateSportsFollowRequest): Promise<SportsFollowDto>;
-  remove(scopedDb: DataContextDb, id: string): Promise<boolean>;
-}
 
 export interface SportsRoutesDependencies {
   readonly dataContext: DataContextRunner;
@@ -157,13 +146,11 @@ export function registerSportsRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = request.body as CreateSportsFollowRequest;
-        if (!catalogEntry(input.competitionKey)) {
-          throw new HttpError(400, `Unknown competition: ${input.competitionKey}`);
-        }
-        const follow = await dependencies.dataContext.withDataContext(accessContext, (db) =>
-          repository.create(db, input)
+        const result = await dependencies.dataContext.withDataContext(accessContext, (db) =>
+          service.followTeam(db, input)
         );
-        return { follow };
+        if (!result.ok) throw new HttpError(400, result.error);
+        return { follow: result.follow };
       } catch (error) {
         return handleRouteError(error, reply);
       }
@@ -176,6 +163,9 @@ export function registerSportsRoutes(
     async (request, reply) => {
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
+        // Stays on the raw repository, not service.unfollowTeam: REST already has the row id
+        // (from GET /api/sports/follows), so the service's catalogKey -> id resolution is only
+        // needed by the assistant tool, which never sees row ids (#1265).
         const { id } = request.params as { id: string };
         const ok = await dependencies.dataContext.withDataContext(accessContext, (db) =>
           repository.remove(db, id)

@@ -2,6 +2,7 @@ import type { DatasetClient } from "@jarv1s/datasets";
 import type { AccessContext, DataContextDb } from "@jarv1s/db";
 import {
   localDay,
+  type CreateSportsFollowRequest,
   type FollowedLeagueCard,
   type FollowedLeagueRef,
   type FollowedTeamCard,
@@ -70,6 +71,13 @@ export interface SportsFollowsReader {
   list(scopedDb: DataContextDb): Promise<SportsFollowDto[]>;
 }
 
+/** The subset of `SportsFollowsRepository` the service needs to follow/unfollow (injectable for
+ *  tests). The routes' CRUD handlers and the assistant tools share this same write surface. */
+export interface SportsFollowsWriter extends SportsFollowsReader {
+  create(scopedDb: DataContextDb, input: CreateSportsFollowRequest): Promise<SportsFollowDto>;
+  remove(scopedDb: DataContextDb, id: string): Promise<boolean>;
+}
+
 export interface SportsServiceDependencies {
   /**
    * The dataset-connector-SDK runtime client bound to the sports module's `espn` external
@@ -79,7 +87,7 @@ export interface SportsServiceDependencies {
    */
   readonly datasetClient: DatasetClient;
   readonly dataContext: SportsDataContext;
-  readonly repository: SportsFollowsReader;
+  readonly repository: SportsFollowsWriter;
   /** Clock seam (default `() => new Date()`); tests inject a fixed instant. */
   readonly now?: () => Date;
 }
@@ -140,7 +148,7 @@ interface FollowedTeamBundle {
 export class SportsService {
   private readonly datasetClient: DatasetClient;
   private readonly dataContext: SportsDataContext;
-  private readonly repository: SportsFollowsReader;
+  private readonly repository: SportsFollowsWriter;
   private readonly now: () => Date;
 
   constructor(deps: SportsServiceDependencies) {
@@ -576,6 +584,60 @@ export class SportsService {
     } catch {
       return { facts: [] };
     }
+  }
+
+  /** Follow a catalog team or whole competition. Both keys are closed against the catalog, same
+   *  rule as `POST /api/sports/follows` (routes.ts) — the route and the assistant tool share this.
+   *
+   *  The teamKey check exists because this is a `granted_at_install` auto-run write tool (#1265
+   *  security QA BLOCKING-1a): an assistant-supplied teamKey lands here with no human
+   *  confirmation, is persisted, and is later interpolated into an outbound ESPN schedule URL
+   *  (espn-source.ts `getSchedule`). Closing it against the league roster — the same list the
+   *  picker and `GET /api/sports/leagues/:competitionKey/teams` serve — keeps an attacker-chosen
+   *  string out of that sink at the earliest layer. Two further independent belts back this up:
+   *  the manifest input schema's length/pattern bounds, and encodeURIComponent at the URL site. */
+  async followTeam(
+    scopedDb: DataContextDb,
+    input: { competitionKey: string; teamKey?: string | null }
+  ): Promise<{ ok: true; follow: SportsFollowDto } | { ok: false; error: string }> {
+    if (!catalogEntry(input.competitionKey)) {
+      return { ok: false, error: `Unknown competition: ${input.competitionKey}` };
+    }
+    const teamKey = input.teamKey ?? null;
+    if (teamKey !== null) {
+      // `getLeagueTeams` fails soft (empty list + degraded) on an ESPN outage rather than
+      // throwing, so an outage rejects every teamKey. That is deliberate fail-CLOSED behavior for
+      // an auto-run write tool — do not add a degraded-bypass.
+      const { teams } = await this.getLeagueTeams(input.competitionKey);
+      if (!teams.some((team) => team.teamKey === teamKey)) {
+        return { ok: false, error: `Unknown team: ${teamKey}` };
+      }
+    }
+    const follow = await this.repository.create(scopedDb, {
+      competitionKey: input.competitionKey,
+      teamKey
+    });
+    return { ok: true, follow };
+  }
+
+  /** Unfollow by catalog key, not by opaque follow id — the assistant never sees row ids. Removing
+   *  something never followed is a no-op (`removed: false`), not an error: follow -> unfollow ->
+   *  follow must be idempotent (Spec 2). */
+  async unfollowTeam(
+    scopedDb: DataContextDb,
+    input: { competitionKey: string; teamKey?: string | null }
+  ): Promise<{ ok: true; removed: boolean } | { ok: false; error: string }> {
+    if (!catalogEntry(input.competitionKey)) {
+      return { ok: false, error: `Unknown competition: ${input.competitionKey}` };
+    }
+    const teamKey = input.teamKey ?? null;
+    const existing = await this.repository.list(scopedDb);
+    const match = existing.find(
+      (f) => f.competitionKey === input.competitionKey && f.teamKey === teamKey
+    );
+    if (!match) return { ok: true, removed: false };
+    const removed = await this.repository.remove(scopedDb, match.id);
+    return { ok: true, removed };
   }
 
   // --- internals ----------------------------------------------------------

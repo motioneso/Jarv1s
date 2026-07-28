@@ -353,4 +353,13 @@ describe("createHostPinnedFetch — fetch timeout (#858)", () => {
     expect(signals[0]).toBe(signals[1]);
     expect(signals[1]).toBe(signals[2]);
   });
+
+  it("aborts when the CALLER's own signal fires, even with a long timeoutMs (#1265 N3 — signal chaining, not overwrite)", async () => {
+    const { fetchFn } = fakeFetchTimed([{ status: 200, delayMs: 5_000 }]);
+    const pinned = createHostPinnedFetch(["site.api.espn.com"], fetchFn, 60_000);
+    const callerController = new AbortController();
+    const result = pinned("https://site.api.espn.com/slow", { signal: callerController.signal });
+    callerController.abort();
+    await expect(result).rejects.toMatchObject({ name: "AbortError" });
+  });
 });

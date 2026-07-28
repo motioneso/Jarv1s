@@ -74,8 +74,15 @@ function resolve(competitionKey: string): { sport: string; league: string } {
   return { sport: entry.espnSport, league: entry.espnLeague };
 }
 
+// Bounded so `followTeam`'s roster check (sports-service.ts:599-621) can't pin a pooled
+// RLS-scoped DB connection on a hung ESPN request indefinitely. A timeout throws an AbortError
+// here, which rides the same already-fail-closed path as any other adapter error: it's caught by
+// datasets/client.ts's getDataset, degrades to `{ data: [], degraded: true }`, and followTeam
+// already rejects on a degraded/empty teams list — no new catch or bypass needed.
+const ESPN_FETCH_TIMEOUT_MS = 8_000;
+
 async function fetchJson(fetchFn: typeof fetch, url: string, label: string): Promise<unknown> {
-  const response = await fetchFn(url);
+  const response = await fetchFn(url, { signal: AbortSignal.timeout(ESPN_FETCH_TIMEOUT_MS) });
   if (!response.ok) {
     throw new Error(`ESPN ${label} returned ${response.status}`);
   }
@@ -267,7 +274,12 @@ async function getSchedule(
   // Numeric id first — the abbreviation slug 404s-to-empty on soccer schedule URLs (see
   // EspnScheduleParams.sourceTeamId); teamKey stays as the fallback for callers without a
   // catalog in hand.
-  const pathKey = params.sourceTeamId ?? teamKey;
+  // Percent-encoded because this is the outbound sink for a key that can originate in an
+  // assistant tool call (#1265 security QA BLOCKING-1c): the value must stay inside its own path
+  // segment no matter what upstream validation did or didn't catch. `getHeadlines` below already
+  // encodes its query-string use of teamKey; this is the same rule for the path use. Catalog-clean
+  // keys ("nfl", "dal", "22529") are unchanged by encoding, so this is invisible in practice.
+  const pathKey = encodeURIComponent(params.sourceTeamId ?? teamKey);
   const data = (await fetchJson(
     fetchFn,
     `${SITE_BASE}/${sport}/${league}/teams/${pathKey}/schedule`,

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Kysely } from "kysely";
 
 import {
@@ -15,6 +15,13 @@ import { calendarModuleManifest } from "@jarv1s/calendar";
 import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
 import { SETTINGS_MODULE_ID, settingsModuleManifest } from "@jarv1s/settings";
+import {
+  configureSportsChatTools,
+  resetSportsChatToolsForTests,
+  sportsModuleManifest,
+  type SportsFollowsWriter
+} from "@jarv1s/sports";
+import type { CreateSportsFollowRequest, SportsFollowDto } from "@jarv1s/shared";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import { exampleToolCalls, exampleToolModule } from "./fixtures/example-tool-module.js";
@@ -62,6 +69,13 @@ describe("AssistantToolGateway self-operation", () => {
     emitted = [];
     tokens = new SessionTokenRegistry();
     confirmations = new ConfirmationRegistry();
+  });
+
+  // ALSO-3: configureSportsChatTools sets a module-wide singleton; the sports install-grant test
+  // below configures it with a fake writer and never restores it, which would otherwise leak a
+  // stale fake into whatever test runs next in the same worker.
+  afterEach(() => {
+    resetSportsChatToolsForTests();
   });
 
   // #1263 Task 17: unlike gateway tests that stub getFamilyTier directly, these read the tier the
@@ -276,6 +290,185 @@ describe("AssistantToolGateway self-operation", () => {
 
     await calendarGateway.resolveActionRequest(ids.userA, request.actionRequestId, "cancelled");
     await call;
+  });
+
+  it("install grants for the sports module let sports.followTeam run without an action card", async () => {
+    const grantManifest: SelfOperationManifestInput = {
+      id: sportsModuleManifest.id,
+      assistantTools: sportsModuleManifest.assistantTools,
+      assistantActionFamilies: sportsModuleManifest.assistantActionFamilies
+    };
+
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-sports-install-grant" },
+      (scopedDb) => grantSelfOperationForModule(scopedDb, repository, grantManifest)
+    );
+
+    const rows: SportsFollowDto[] = [];
+    const fakeWriter: SportsFollowsWriter = {
+      async list() {
+        return rows;
+      },
+      async create(_db, input: CreateSportsFollowRequest) {
+        const teamKey = input.teamKey ?? null;
+        const created: SportsFollowDto = {
+          id: "f-1",
+          competitionKey: input.competitionKey,
+          teamKey,
+          createdAt: "2026-07-27T00:00:00.000Z"
+        };
+        rows.push(created);
+        return created;
+      },
+      async remove(_db, id) {
+        const index = rows.findIndex((r) => r.id === id);
+        if (index === -1) return false;
+        rows.splice(index, 1);
+        return true;
+      }
+    };
+    // This call follows a whole competition (no teamKey), which needs only catalogEntry() + the
+    // repository — the league-roster lookup `followTeam` performs for a *team* follow (#1265 QA
+    // BLOCKING-1a) is not reached, so an unused dataset-client stub is still fine here.
+    configureSportsChatTools({} as never, fakeWriter);
+
+    function dbBackedSportsActionPolicy(ctx: { actorUserId: string; requestId: string }) {
+      return {
+        getFamilyTier: async (moduleId: string, familyId: string) =>
+          runner.withDataContext(
+            { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+            async (scopedDb) => {
+              const policies = await repository.listActionPolicies(scopedDb);
+              return (
+                policies.find((p) => p.moduleId === moduleId && p.actionFamilyId === familyId)
+                  ?.tier ?? null
+              );
+            }
+          ),
+        getFamilyManifest: async (_moduleId: string, familyId: string) =>
+          sportsModuleManifest.assistantActionFamilies?.find((f) => f.id === familyId) ?? null
+      };
+    }
+
+    const sportsGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [sportsModuleManifest],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 30_000,
+      actionPolicy: (ctx) => dbBackedSportsActionPolicy(ctx)
+    });
+    const token = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-sports-install-grant",
+      allowedToolNames: null
+    });
+
+    const res = await sportsGateway.callTool(token, "sports.followTeam", {
+      competitionKey: "nfl"
+    });
+
+    expect(res.ok).toBe(true);
+    expect(emitted.map((entry) => entry.record.kind)).toEqual(["action_result"]);
+  });
+
+  it("sports.followTeam/unfollowTeam through the gateway are RLS-isolated across actors (#1265 Task 5)", async () => {
+    // Unlike the install-grant test above (fake in-memory writer), this uses the REAL
+    // SportsFollowsRepository so the DB's owner-only RLS policy (migration 0133) is actually on
+    // the line. `sports-follows-tool-rls.test.ts` already proves isolation one layer below the
+    // gateway (calling SportsService.followTeam/unfollowTeam directly with a scoped db); this
+    // proves it through the tool/gateway path — i.e. that AssistantToolGateway.callTool threads
+    // *the calling token's* actorUserId into the data context, not some cached/ambient one. That
+    // threading is the trust boundary self-operation introduces: these tools run with no
+    // confirmation card, so nothing else stands between an untrusted call and the DB.
+    const grantManifest: SelfOperationManifestInput = {
+      id: sportsModuleManifest.id,
+      assistantTools: sportsModuleManifest.assistantTools,
+      assistantActionFamilies: sportsModuleManifest.assistantActionFamilies
+    };
+    await runner.withDataContext(
+      { actorUserId: ids.userA, requestId: "req-sports-rls-grant-a" },
+      (scopedDb) => grantSelfOperationForModule(scopedDb, repository, grantManifest)
+    );
+    await runner.withDataContext(
+      { actorUserId: ids.userB, requestId: "req-sports-rls-grant-b" },
+      (scopedDb) => grantSelfOperationForModule(scopedDb, repository, grantManifest)
+    );
+
+    // Real writer (the default `new SportsFollowsRepository()` — no fake). Following/unfollowing
+    // a whole competition (no teamKey) never reaches the league-roster lookup, so the dataset
+    // client stub is unused and can stay untyped, same as the install-grant test above.
+    configureSportsChatTools({} as never);
+
+    function dbBackedSportsActionPolicy(ctx: { actorUserId: string; requestId: string }) {
+      return {
+        getFamilyTier: async (moduleId: string, familyId: string) =>
+          runner.withDataContext(
+            { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
+            async (scopedDb) => {
+              const policies = await repository.listActionPolicies(scopedDb);
+              return (
+                policies.find((p) => p.moduleId === moduleId && p.actionFamilyId === familyId)
+                  ?.tier ?? null
+              );
+            }
+          ),
+        getFamilyManifest: async (_moduleId: string, familyId: string) =>
+          sportsModuleManifest.assistantActionFamilies?.find((f) => f.id === familyId) ?? null
+      };
+    }
+
+    const sportsGateway = new AssistantToolGateway({
+      resolveActiveModules: async () => [sportsModuleManifest],
+      repository,
+      runner,
+      tokens,
+      confirmations,
+      notifier: { emit: (chatSessionId, record) => emitted.push({ chatSessionId, record }) },
+      confirmTimeoutMs: 30_000,
+      actionPolicy: (ctx) => dbBackedSportsActionPolicy(ctx)
+    });
+
+    const tokenA = tokens.mint({
+      actorUserId: ids.userA,
+      chatSessionId: "s-sports-rls-a",
+      allowedToolNames: null
+    });
+    const tokenB = tokens.mint({
+      actorUserId: ids.userB,
+      chatSessionId: "s-sports-rls-b",
+      allowedToolNames: null
+    });
+
+    const followed = await sportsGateway.callTool(tokenA, "sports.followTeam", {
+      competitionKey: "nfl"
+    });
+    expect(followed.ok).toBe(true);
+
+    // The actual assertion: user B's own token, entering via the same gateway/tool path an
+    // untrusted request would use, must not see or remove user A's follow. Mutation-tight against
+    // the exact bug this test targets: if the gateway ever ignored the token and threaded a fixed
+    // actor (e.g. userA) into the data context instead, this call would execute as userA and the
+    // row WOULD be removed — `removed` would flip to `true` and the assertion below would fail.
+    const bobUnfollow = await sportsGateway.callTool(tokenB, "sports.unfollowTeam", {
+      competitionKey: "nfl"
+    });
+    expect(bobUnfollow.ok).toBe(true);
+    if (bobUnfollow.ok) {
+      expect(bobUnfollow.structuredData).toEqual({ removed: false });
+    }
+
+    // Positive control: user A's own call still finds and removes the row it owns — proves the
+    // follow genuinely exists and user B's `removed: false` isn't vacuously true for everyone.
+    const aliceUnfollow = await sportsGateway.callTool(tokenA, "sports.unfollowTeam", {
+      competitionKey: "nfl"
+    });
+    expect(aliceUnfollow.ok).toBe(true);
+    if (aliceUnfollow.ok) {
+      expect(aliceUnfollow.structuredData).toEqual({ removed: true });
+    }
   });
 
   it("installing calendar does not arm the background follow-through writer", async () => {

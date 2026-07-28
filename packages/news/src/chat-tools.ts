@@ -249,11 +249,11 @@ export const newsAddTopicExecute: ToolExecute = async (
   const d = requireDeps();
   const label = stringField(input, "label");
   if (!label) return { data: { error: "Provide a topic label to follow." } };
-  const guidanceRaw = (input as { guidance?: unknown }).guidance;
-  const topicInput = cleanTopic({
-    label,
-    guidance: typeof guidanceRaw === "string" ? guidanceRaw : undefined
-  });
+  // Do not read `guidance` off `input` even though the schema dropped it: the gateway validator
+  // deliberately does not strip undeclared keys (input-validation.ts), so a model could still emit
+  // one. guidance is free text later framed into prompts, so the execute fn — not the schema — is
+  // the only real gate. Assistant-created topics always persist guidance as null.
+  const topicInput = cleanTopic({ label, guidance: undefined });
   if (!(await d.availability.hasWebSearch(scopedDb))) {
     return { data: { error: "Topic discovery requires a configured web search provider." } };
   }

@@ -219,9 +219,11 @@ export const calendarModuleManifest = {
       selfOperationGrant: "user_promotable",
       actionFamilyId: "calendar_writeback",
       requiresServices: ["calendarWrite"],
-      // NOTE: the gateway's validateToolInput (input-validation.ts) enforces only type + enum +
-      // required (NOT format/pattern/minimum/maximum/additionalProperties — see its docstring and
-      // issue #133). So the `enum` below IS enforced. date/start FORMAT and duration BOUNDS are
+      // NOTE: the gateway's validateToolInput (input-validation.ts) enforces type + enum +
+      // required + string minLength/maxLength/pattern (NOT format/minimum/maximum/
+      // additionalProperties — see its docstring and issue #133). So the `enum` below IS enforced,
+      // and a `pattern` here WOULD be too (that changed in #1265; it used to be decorative).
+      // date/start FORMAT and duration BOUNDS are
       // enforced in the HANDLER: resolveWindow rejects a malformed start/date and clampDuration
       // bounds duration to 15..480 (Codex MED #5). Unknown extra keys are NOT rejected — readInput
       // simply ignores them, which is safe (only the known fields drive the write; an extra key

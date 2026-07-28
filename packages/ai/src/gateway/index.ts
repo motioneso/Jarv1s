@@ -14,7 +14,7 @@ export {
   type ResolutionStatus,
   type AwaitOutcome
 } from "./confirmation-registry.js";
-export { validateToolInput, ToolInputValidationError } from "./input-validation.js";
+export { validateToolInput, ToolInputValidationError, compilePattern } from "./input-validation.js";
 export {
   sanitizeAssistantToolResult,
   boundedAssistantToolResultData,
