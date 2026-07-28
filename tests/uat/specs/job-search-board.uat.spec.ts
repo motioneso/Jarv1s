@@ -591,7 +591,9 @@ test("job search: install, bootstrap, onboarding, crawl, board, inspector, chat 
     // hand-crafting a posting that lands in exactly that band for real.
     const matchRow = execUatSql(
       projectName,
-      `update app.job_search_matches set outside_frame = true where profile_id = '${seededProfileId}' and fit is not null order by created_at limit 1 returning id, (select title from app.job_search_postings p where p.id = job_search_matches.posting_id);`
+      // Postgres UPDATE takes no ORDER BY / LIMIT of its own — the pick has to happen in a
+      // subquery, or the statement is a syntax error rather than an unlucky choice of row.
+      `update app.job_search_matches set outside_frame = true where id = (select id from app.job_search_matches where profile_id = '${seededProfileId}' and fit is not null order by created_at limit 1) returning id, (select title from app.job_search_postings p where p.id = job_search_matches.posting_id);`
     );
     expect(
       matchRow.trim().length,
