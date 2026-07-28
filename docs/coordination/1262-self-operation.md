@@ -4577,3 +4577,22 @@ from other worktrees** — it lives on the unmerged `1264-settings-self-operatio
      spec does **not** satisfy the live-path gate and does not merge.
 - PR #1276 CI run `30318930265`: all jobs green/skipped except "Verify foundation and app", still
   in progress. #1276 merges first under the reversed order (#1276 → #1311 → #1273).
+
+### MERGED — PR #1276 (Spec 1 / issue #1264 + #1310) — 2026-07-28T01:24:57Z
+
+- Squash-merged at head `85d59ec1`. CI run `30318930265`: **all jobs success**, including
+  "Verify foundation and app". Mergeable/CLEAN at merge time.
+- Gates satisfied: security-tier QA verdict posted on the PR (two comments), Fable security review
+  **GREEN** (Ben's standing delegation — "fable green = Ben approve"), and the **live-path gate met
+  by a real dev-instance UAT run** (genuine chat turn driving a theme-mode self-operation write and
+  observing the UI repaint with no reload), evidence in the PR body.
+- Coordinator session-id authority re-confirmed against the lock line immediately before merging.
+- Issue **#1264 auto-closed**; issue **#1310 closed manually** with the root cause
+  (`TranscriptRecord` in `packages/chat/src/live/types.ts` never declared `affectsQueryKeys`;
+  `toTranscriptRecord` in `packages/chat/src/gateway-notifier.ts` rebuilt the record field-by-field
+  and dropped it).
+- Lane pane reaped, worktree `1264-settings-self-operation` removed, local branch deleted.
+- **Merge order now: #1311 next, then #1273.** `merges_since_relay` +1 (security-tier merge; the
+  standing relay is suspended under Ben's "keep going here" override).
+- Still open from Spec 2: issue **#1265** (module content self-operation — news retrofit + sports
+  follow/unfollow).
