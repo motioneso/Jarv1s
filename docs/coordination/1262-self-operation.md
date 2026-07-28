@@ -4247,3 +4247,39 @@ keep it small.
 
 Durable detail already in memory as `briefing-action-rows-1327.md`. Per project rule it needs an
 approved spec before any code — so the first action at #1262 wrap-up is the spec, not a build lane.
+
+## 2026-07-27 — PR #1276 gate GREEN; branch divergence adjudicated (force-push with lease)
+
+**Gate green, rc=0**, fresh DB `jarvis_gate_1264`, full chain end-to-end: lint / format /
+file-size / design-tokens / no-ambient-dates / package-deps / typecheck / build:app-map /
+`test:unit` 446 files 3409 passed / `db:migrate` all applied / `test:uat-seed` 11 files 23 passed /
+`test:integration` 164 files 1763 passed 2 skipped.
+
+**Divergence — the lane's diagnosis was wrong, and it changed the answer.** It reported local
+ahead 86 / behind 56 and suspected origin's 56 commits were lost pre-reset history covered by the
+`archive/2026-07-26/*` tags. **They are not.** Those commits are dated **today**, 08:35–09:43, and
+are the current content of open PR #1276 (head `0648d0f1`). The 2026-07-26 reset and the archive
+tags are not involved at all.
+
+What actually happened: the local branch is a **rebase of that same origin branch onto a newer
+`origin/main`** (hence the history threading through #1270/#1315/#1316/#1277/#1278), with the
+#1310 work stacked on top. Same subjects, different hashes — origin's tip `0648d0f1` is local's
+`49b601fe`.
+
+**Ruling: option (b), `--force-with-lease`.** Justified by patch identity, not by trust:
+`git cherry HEAD origin/1264-settings-self-operation` returns **zero** commits lacking a
+patch-equivalent in local. Local is a strict superset; the force-push orphans nothing in substance.
+
+```
+git push --force-with-lease=1264-settings-self-operation:0648d0f1 origin 1264-settings-self-operation
+```
+
+The lease pin makes it **fail rather than clobber** if origin moved since the fetch; on failure the
+lane stops and reports rather than retrying with a plain `--force`.
+
+**Method note worth keeping.** A tree diff is the WRONG instrument here and is what misled the
+lane — origin-vs-local trees differ by newer-main content and look like divergence. Patch-identity
+(`git cherry`) is the correct test for "would this force-push lose anything."
+
+The lane stopping to ask rather than guessing was the right call; acting on its theory would have
+been expensive. **Still not merged** — merge remains coordinator-only.
