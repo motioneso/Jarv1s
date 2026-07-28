@@ -222,7 +222,7 @@ test.afterEach(async ({}, testInfo) => {
   }
 });
 
-test("job search: install, bootstrap, onboarding, crawl, board, inspector, chat scoping, nav badge (#1306)", async ({
+test("job search: install, bootstrap, onboarding, crawl, board, inspector, chat scoping (#1306)", async ({
   page
 }) => {
   test.setTimeout(900_000);
