@@ -4347,3 +4347,39 @@ shape as loosening a test to get green. Each rewrite must carry a written justif
 test asserted, why the new behaviour is correct and intended, what it now asserts — and must assert
 the new correct behaviour rather than relax or delete an assertion. If any of the three can't be
 justified that way, the change is wrong, not the test, and the lane stops.
+
+## 2026-07-27 — CORRECTION: the "live-uat-1310.spec.ts" harness never existed
+
+**My error, and it cost lane #1311 a stall.** I told two successive #1311 relays to "reuse/invert
+`tests/e2e/live-uat-1310.spec.ts`". **There is no such file and there never was** — I invented the
+filename and then carried it forward through two handoffs without ever checking it resolved. r7
+stopped and asked instead of guessing, which was exactly right; that hard constraint ("do NOT write a
+new harness") would otherwise have deadlocked it against a phantom.
+
+**Where the harness actually lives:** `tests/e2e/app-shell.spec.ts` on branch
+`1264-settings-self-operation`, added by `ae3dbe91` and `b2a02496`. Readable from any worktree
+without a checkout: `git show 1264-settings-self-operation:tests/e2e/app-shell.spec.ts`.
+
+Two tests there, and the more useful one for #1311 is **not** the #1310 test:
+
+- `~line 412` — **"granted-tier settings tool executes with no Approve/Reject card (#1264)"**. This
+  is #1311's template: granted tool, real chat turn, asserts auto-execution and that no
+  Approve/Reject card ever renders.
+- `~line 470` — "chat-driven settings write auto-refreshes theme UI with no reload (#1310)". Useful
+  for assertion style (waits on `html[data-color-mode]`).
+
+**Directed #1311's test into its own spec file**, not appended to `app-shell.spec.ts`: #1276 already
+adds to that file and rebases behind #1311 in the merge order, so appending buys a pointless
+conflict. Clarified what the "no new harness" rule actually protects — don't rebuild sign-in/chat
+plumbing or invent a second style of live UAT; a new file following the established pattern is fine.
+
+Also specified the scenario difference that makes the test *prove #1311*: the module must have been
+**already default-enabled before the grant existed**, so the self-heal path fires on a real read. A
+test over a freshly-installed module would pass without proving anything.
+
+**Process lesson, logged because it will recur:** a file path repeated across relays is a claim, and
+relays launder claims into facts — each successor inherits it with the original's confidence and none
+of its evidence. Resolve any path before putting it in a handoff. Related: the reason the reference
+was resolvable at all is that the #1264 lane **committed** its live-UAT test; had it stayed a
+terminal-only run, the proof would simply be gone. Live-path evidence that was never committed is not
+evidence.
