@@ -4,6 +4,17 @@
 // briefing fixture uses). Split into its own file (not appended to job-search.test.ts) purely to
 // stay under the file-size gate's 1000-line cap — this describe owns its own independent
 // installModule()/dist-build/server lifecycle, so the split has no cross-file coupling.
+//
+// Deliberately absent: a Task 21 "test 10" here (a partial crawl through the real worker
+// asserting both the landed postings and a portal's structured FailureCause persist). Ruling N41
+// (docs/superpowers/handoffs/2026-07-27-job-search/rulings-ledger.md, unreopened through N49)
+// found that coverage already exists at better levels and must NOT grow an integration test:
+// "the postings landed" is tests/unit/job-search-crawl-stage.test.ts:225 (a healthy portal and a
+// rate_limited portal in one crawl pass, fake store), and "lastOkAt intact" is
+// tests/integration/job-search-store.test.ts:380 case 6 (real Postgres, the actual COALESCE at
+// worker/store-sql.ts:361). The plan's Task 21 text predates N41 and was never amended, so an
+// audit that diffs this file against the plan alone will re-find this "gap" — it is a recorded
+// deviation, not a hole (ruling N49).
 import { randomUUID } from "node:crypto";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import type { OutgoingHttpHeaders } from "node:http";
@@ -21,7 +32,7 @@ import {
   validateExternalModuleManifest,
   type ExternalModuleDiscovery
 } from "@jarv1s/module-registry";
-import { ExternalModuleWorkerRuntime } from "@jarv1s/module-registry/node";
+import { ExternalModuleWorkerRuntime, hashCanonicalManifest } from "@jarv1s/module-registry/node";
 import type { JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
 import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
 import type { Kysely } from "kysely";
@@ -66,6 +77,7 @@ describe("job-search module through the real API + worker RPC surface (#1305, te
   let adminUserId: string;
   let realManifest: JsonJarvisModuleManifest;
   let realDiscovery: ExternalModuleDiscovery;
+  let expectedManifestHash: string;
   let workerRuntime: ExternalModuleWorkerRuntime;
 
   beforeAll(async () => {
@@ -131,6 +143,13 @@ describe("job-search module through the real API + worker RPC surface (#1305, te
       manifestHash: row.manifest_hash,
       packageHash: row.package_hash
     };
+    // De-tautologized (#1305 Task 21 test 9 follow-up, N47 review): test 6 asserts the manual-run
+    // job payload's manifestHash against a value from this same app.external_modules row — if
+    // enable-time had written the wrong hash, that assertion would still pass against itself.
+    // hashCanonicalManifest is pure content hashing (packages/module-registry/src/external/
+    // hash.ts) with no filesystem dependency, so recomputing it from the validated manifest here
+    // is a genuine, independent check against what the enable route actually persisted.
+    expectedManifestHash = hashCanonicalManifest(realManifest);
     workerRuntime = new ExternalModuleWorkerRuntime();
   }, 120_000);
 
@@ -238,11 +257,14 @@ describe("job-search module through the real API + worker RPC surface (#1305, te
       );
       // Metadata-only whitelist (CLAUDE.md hard invariant): actor/resource ids, job kind,
       // manifest hash, and the small command param — never posting bodies, prompts, or secrets.
+      // Asserted against expectedManifestHash (independently recomputed), not realDiscovery's
+      // copy of the same DB row this payload was itself populated from — see the comment at
+      // expectedManifestHash's computation above for why that would be tautological.
       expect(payload.rows[0]?.data).toEqual({
         actorUserId: adminUserId,
         moduleId: "job-search",
         jobKind: "job-search.crawl-run",
-        manifestHash: realDiscovery.manifestHash,
+        manifestHash: expectedManifestHash,
         params: { profileId }
       });
     } finally {
@@ -250,7 +272,7 @@ describe("job-search module through the real API + worker RPC surface (#1305, te
     }
   });
 
-  it("test 9: matches.list is exposed and invocable exactly as the manifest declares it", async () => {
+  it("test 9: every manifest tool is exposed and invocable exactly as it declares itself", async () => {
     const toolsResponse = await server.inject({
       method: "GET",
       url: "/api/ai/assistant-tools",
@@ -289,18 +311,100 @@ describe("job-search module through the real API + worker RPC surface (#1305, te
       );
     });
 
-    const invoke = await server.inject({
-      method: "POST",
-      url: "/api/ai/assistant-tools/job-search.matches.list/invoke",
-      headers: { cookie: adminCookie, "content-type": "application/json" },
-      payload: { input: { profileId, limit: 15 } }
-    });
-    expect(invoke.statusCode).toBe(200);
-    const invocation = invoke.json<{
+    const invokeTool = (name: string, input: Record<string, unknown>) =>
+      server.inject({
+        method: "POST",
+        url: `/api/ai/assistant-tools/job-search.${name}/invoke`,
+        headers: { cookie: adminCookie, "content-type": "application/json" },
+        payload: { input }
+      });
+
+    // -- Risk "read" (5 of 15): the invoke route runs manifestTool.execute() directly and
+    // returns 200 succeeded. Each assertion below checks the tool actually did its own job,
+    // not just that a 200 came back.
+    const matchesList = await invokeTool("matches.list", { profileId, limit: 15 });
+    expect(matchesList.statusCode).toBe(200);
+    const matchesListInvocation = matchesList.json<{
       invocation: { status: string; result: { items: Array<{ id: string }> } };
     }>().invocation;
-    expect(invocation.status).toBe("succeeded");
-    expect(invocation.result.items.map((item) => item.id)).toContain(matchId);
+    expect(matchesListInvocation.status).toBe("succeeded");
+    expect(matchesListInvocation.result.items.map((item) => item.id)).toContain(matchId);
+
+    const matchGet = await invokeTool("match.get", { matchId });
+    expect(matchGet.statusCode).toBe(200);
+    const matchGetInvocation = matchGet.json<{
+      invocation: { status: string; result: { matchId: string; match: { id: string } | null } };
+    }>().invocation;
+    expect(matchGetInvocation.status).toBe("succeeded");
+    expect(matchGetInvocation.result.match?.id).toBe(matchId);
+
+    const profileList = await invokeTool("profile.list", {});
+    expect(profileList.statusCode).toBe(200);
+    const profileListInvocation = profileList.json<{
+      invocation: { status: string; result: { profiles: Array<{ profileId: string }> } };
+    }>().invocation;
+    expect(profileListInvocation.status).toBe("succeeded");
+    expect(profileListInvocation.result.profiles.map((p) => p.profileId)).toContain(profileId);
+
+    const resumeGet = await invokeTool("resume.get", { profileId });
+    expect(resumeGet.statusCode).toBe(200);
+    const resumeGetInvocation = resumeGet.json<{
+      invocation: { status: string; result: { profileId: string } };
+    }>().invocation;
+    expect(resumeGetInvocation.status).toBe("succeeded");
+    expect(resumeGetInvocation.result.profileId).toBe(profileId);
+
+    const portalList = await invokeTool("portal.list", { profileId });
+    expect(portalList.statusCode).toBe(200);
+    const portalListInvocation = portalList.json<{
+      invocation: { status: string; result: { portals: unknown[] } };
+    }>().invocation;
+    expect(portalListInvocation.status).toBe("succeeded");
+    expect(Array.isArray(portalListInvocation.result.portals)).toBe(true);
+
+    // -- Risk "write" (10 of 15): packages/ai/src/routes.ts:645 — every non-"read" tool always
+    // 403s with confirmation_required and a fresh PendingAssistantAction row, before ever
+    // reaching manifestTool.execute(). Per that route's own comment (routes.ts:692-697), "Any
+    // service-backed write tool must be invoked via the gateway/CLI path, which threads
+    // per-tool ToolServices only after an Approve" — the generic REST invoke route this test
+    // drives structurally cannot carry a write tool to "succeeded". So for these 10, "the
+    // envelope survives" means asserting the well-formed BLOCKED envelope the route actually
+    // returns (status "blocked", blockedReason "confirmation_required", a real
+    // actionRequestId) — not a false claim that the write itself ran.
+    const writeToolInputs: Record<string, Record<string, unknown>> = {
+      "profile.create": { name: "Staff Engineer search 2" },
+      "criteria.set": { profileId, criteria: { titles: ["Staff Engineer"], remote: "preferred" } },
+      "profile.set-context": { profileId, summary: "Looking for senior IC roles." },
+      "profile.set-briefing-detail": { profileId, detail: "top" },
+      "resume.set": { profileId, content: "Resume text." },
+      "portal.set-enabled": { profileId, sourceId: "linkedin", enabled: true },
+      "source.add": { profileId, url: "https://boards.greenhouse.io/acme" },
+      "source.remove": { profileId, sourceId: "linkedin" },
+      "crawl.run-now": { profileId },
+      "match.dismiss": { matchId }
+    };
+    // Derived from the manifest, same discipline as the tool-name check above (and N47's
+    // registry discovery test): if a write tool is renamed or added without this map keeping
+    // up, this fails loud instead of the loop below silently covering fewer than 10 tools.
+    const writeToolNames = realManifest
+      .assistantTools!.filter((tool) => tool.risk !== "read")
+      .map((tool) => tool.name.replace("job-search.", ""));
+    expect(Object.keys(writeToolInputs).sort()).toEqual([...writeToolNames].sort());
+
+    for (const [name, input] of Object.entries(writeToolInputs)) {
+      const res = await invokeTool(name, input);
+      expect(res.statusCode).toBe(403);
+      const blocked = res.json<{
+        invocation: {
+          status: string;
+          blockedReason: string | null;
+          actionRequestId: string | null;
+        };
+      }>().invocation;
+      expect(blocked.status).toBe("blocked");
+      expect(blocked.blockedReason).toBe("confirmation_required");
+      expect(blocked.actionRequestId).toEqual(expect.any(String));
+    }
   });
 
   // Test 11: three separate actors, one active profile each, so "most generous detail wins"
@@ -434,7 +538,163 @@ describe("job-search module through the real API + worker RPC surface (#1305, te
       }
     ]);
   });
+
+  it("test 12: no response, at any level, carries a blended score", async () => {
+    // The detector must first prove it can actually fail — a walker that always returns []
+    // would make every assertion below pass for the wrong reason (the same reads-like-coverage
+    // failure named in N41's generalisation). Fixtures here are synthetic, never real API output.
+    expect(collectBlendedScoreViolations({ overall: 42 })).toEqual([
+      "$.overall is a forbidden key name holding a numeric/percent value: 42"
+    ]);
+    expect(collectBlendedScoreViolations({ match: 87 })).toEqual([
+      "$.match is a forbidden key name holding a numeric/percent value: 87"
+    ]);
+    expect(collectBlendedScoreViolations({ note: "92% match" })).toEqual([
+      '$.note looks like a blended-score string: "92% match"'
+    ]);
+    // N48: a forbidden key NAME is only a violation when its VALUE is numeric or percent-shaped.
+    // `job-search.match.get`'s shipped, unit-tested envelope is `{ matchId, match: MatchDetail |
+    // null }` (worker/handlers/matches.ts) — `match` is a wrapper key holding an object, never a
+    // blended number. Narrowing on the value lets that envelope through while `match: 87` above
+    // still fails, so `match.get` can be invoked by this test (and by #82) without a collision.
+    expect(
+      collectBlendedScoreViolations({
+        matchId: randomUUID(),
+        match: { fit: 70, want: 80, fitReason: "x", wantReason: "y" }
+      })
+    ).toEqual([]);
+    expect(
+      collectBlendedScoreViolations({ fit: 70, want: 80, fitReason: "x", wantReason: "y" })
+    ).toEqual([]);
+
+    // Now walk the real tier-B response shapes this harness already exercises: the manual-run
+    // enqueue response (test 7's path), the matches.list and match.get invoke responses through
+    // the real gateway (test 9's path — match.get is the one shape carrying fit and want side by
+    // side, the single likeliest place a blend would appear), and a briefing contribution
+    // round-trip (test 11's path). L9/domain score.ts enforces the no-blend rule in the scoring
+    // schema; this is the same rule enforced at the wire boundary, independent of the schema.
+    const profileId = randomUUID();
+    const postingId = randomUUID();
+    const matchId = randomUUID();
+    await asHeavyRuntime(adminUserId, async (client) => {
+      await client.query(
+        `INSERT INTO app.job_search_profiles (id, owner_user_id, name, state)
+         VALUES ($1, $2, 'Staff Engineer search', 'active')`,
+        [profileId, adminUserId]
+      );
+      await client.query(
+        `INSERT INTO app.job_search_postings
+           (id, owner_user_id, profile_id, source_id, external_id, title, company, location, url, body)
+         VALUES ($1, $2, $3, 'linkedin', $4, 'Staff Engineer', 'Acme', 'Remote',
+                 'https://www.linkedin.com/jobs/3', 'Job body text')`,
+        [postingId, adminUserId, profileId, postingId]
+      );
+      await client.query(
+        `INSERT INTO app.job_search_matches (id, owner_user_id, profile_id, posting_id, fit, want, state)
+         VALUES ($1, $2, $3, $4, 65, 55, 'new')`,
+        [matchId, adminUserId, profileId, postingId]
+      );
+    });
+
+    const migrationBoss = createPgBossClient(connectionStrings.migration);
+    await migrationBoss.start();
+    await migrationBoss.createQueue("job-search.crawl-run");
+    await migrationBoss.stop({ graceful: false });
+
+    const run = await server.inject({
+      method: "POST",
+      url: "/api/modules/job-search/queues/job-search.crawl-run/run",
+      headers: { cookie: adminCookie, "content-type": "application/json" },
+      payload: { jobKind: "job-search.crawl-run", params: { profileId } }
+    });
+    expect(run.statusCode).toBe(202);
+
+    const invoke = await server.inject({
+      method: "POST",
+      url: "/api/ai/assistant-tools/job-search.matches.list/invoke",
+      headers: { cookie: adminCookie, "content-type": "application/json" },
+      payload: { input: { profileId, limit: 15 } }
+    });
+    expect(invoke.statusCode).toBe(200);
+
+    // N48: match.get's `{ matchId, match: MatchDetail }` envelope carries fit and want side by
+    // side — the shape most likely to grow a blend — so it must be in this walk, not exempted.
+    const matchGetInvoke = await server.inject({
+      method: "POST",
+      url: "/api/ai/assistant-tools/job-search.match.get/invoke",
+      headers: { cookie: adminCookie, "content-type": "application/json" },
+      payload: { input: { matchId } }
+    });
+    expect(matchGetInvoke.statusCode).toBe(200);
+
+    const briefingScenario = await seedBriefingScenario("full");
+    const briefingInvoke = createExternalBriefingInvoker({
+      workerDb: heavyWorkerDb,
+      discoveryById: new Map([[realModuleId, realDiscovery]]),
+      dataContext: new DataContextRunner(heavyWorkerDb),
+      cipher: createModuleCredentialSecretCipher(),
+      runtime: workerRuntime,
+      listActiveUserIds: async () => [briefingScenario.actorUserId]
+    });
+    const briefing = await collectExternalBriefingContributions({
+      manifests: [realManifest],
+      selectedToolNames: [realManifest.briefing!.toolName],
+      section: "morning",
+      actorUserId: briefingScenario.actorUserId,
+      requestId: `req-briefing-blend-check-${briefingScenario.profileId}`,
+      invoke: briefingInvoke
+    });
+
+    const violations = [
+      ...collectBlendedScoreViolations(run.json(), "$.manualRunResponse"),
+      ...collectBlendedScoreViolations(invoke.json(), "$.matchesListInvokeResponse"),
+      ...collectBlendedScoreViolations(matchGetInvoke.json(), "$.matchGetInvokeResponse"),
+      ...collectBlendedScoreViolations(briefing, "$.briefingContribution")
+    ];
+    expect(violations).toEqual([]);
+  });
 });
+
+const BLENDED_SCORE_KEY = /^(score|overall|match|rank)$/i;
+const BLENDED_SCORE_STRING = /\b\d{1,3}%\s*(match|overall|fit and want)\b/i;
+const BLENDED_SCORE_VALUE = /^\d{1,3}(?:\.\d+)?%$/;
+
+/**
+ * Recursively walks a JSON-shaped value for the blended-score tells plan test 12 names: a key
+ * whose name IS one of the forbidden words AND whose value is itself a number or a bare
+ * percent-shaped string (ruling N48), and a string VALUE anywhere that reads like a percent-based
+ * combined score. Fit and Want are two independent axes, never one number (L9, domain/score.ts)
+ * — this is that invariant enforced at the wire boundary, not just in the scoring schema a
+ * model's output is validated against.
+ *
+ * N48 narrows the key check to the VALUE's shape (not just the key's name) so a wrapper key like
+ * `match` holding an object — job-search.match.get's shipped `{ matchId, match: MatchDetail }`
+ * envelope — passes, while `match: 87` (or `score`/`overall`/`rank` holding a number or "87%")
+ * still fails. See the self-tests above this it() block for both directions.
+ */
+function collectBlendedScoreViolations(value: unknown, path = "$"): string[] {
+  if (typeof value === "string") {
+    return BLENDED_SCORE_STRING.test(value)
+      ? [`${path} looks like a blended-score string: "${value}"`]
+      : [];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) => collectBlendedScoreViolations(item, `${path}[${index}]`));
+  }
+  if (value !== null && typeof value === "object") {
+    const violations: string[] = [];
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      const isNumericLike =
+        typeof child === "number" || (typeof child === "string" && BLENDED_SCORE_VALUE.test(child));
+      if (BLENDED_SCORE_KEY.test(key) && isNumericLike) {
+        violations.push(`${path}.${key} is a forbidden key name holding a numeric/percent value: ${JSON.stringify(child)}`);
+      }
+      violations.push(...collectBlendedScoreViolations(child, `${path}.${key}`));
+    }
+    return violations;
+  }
+  return [];
+}
 
 async function signUp(
   target: ReturnType<typeof createApiServer>,
