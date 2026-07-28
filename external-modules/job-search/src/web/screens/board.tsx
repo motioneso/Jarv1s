@@ -54,12 +54,22 @@ function sortIndicator(sort: SortState | null, key: SortKey): string {
   return sort.dir === "asc" ? " ▲" : " ▼";
 }
 
+// lastOkAt is an ISO timestamp or null (never crawled to a success yet); this is deliberately a
+// plain date, not a relative "3 days ago" phrase — the module has no ambient-clock allowance
+// (check:no-ambient-dates) and a raw ISO slice needs none, unlike a relative-time computation.
+function lastWorkedText(lastOkAt: string | null): string {
+  return lastOkAt ? `Last worked ${lastOkAt.slice(0, 10)}.` : "Has never completed a search.";
+}
+
 // Renders a degraded or disabled portal's authored cause verbatim — never composed here.
 // describeFailure (domain/records.ts) is the single authored voice for every failure sentence
 // (Task 5's rule); N6 is why the board fetches this at all (nothing else can reach
 // listPortals(profileId) from the browser). A self-disabled portal (login_required,
 // cause.disabled === true) renders as calm disabled-with-cause, not an alert — otherwise a user
-// would keep re-enabling a portal that can only ever fail the same way.
+// would keep re-enabling a portal that can only ever fail the same way. cause.summary never
+// mentions lastOkAt (records.ts's describeFailure has no reason to — a login-wall stops before
+// retrieving anything), so "when it last worked" is rendered here, once, for every flagged
+// portal regardless of failure kind.
 function PortalBanner(props: { portals: PortalListItem[] }): ReactNodeLike {
   const flagged = props.portals.filter((portal) => portal.cause !== null);
   if (flagged.length === 0) return null;
@@ -76,7 +86,8 @@ function PortalBanner(props: { portals: PortalListItem[] }): ReactNodeLike {
           >
             <span className="jds-eyebrow">{portal.label}</span>{" "}
             {disabled ? <span className="jds-badge">Turned off</span> : null}
-            <span>{cause.summary}</span> <span>{cause.nextAction}</span>
+            <span>{cause.summary}</span> <span>{cause.nextAction}</span>{" "}
+            <span className="jds-hint">{lastWorkedText(portal.lastOkAt)}</span>
           </p>
         );
       })}

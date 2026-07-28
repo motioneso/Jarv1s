@@ -33,13 +33,14 @@ function requireEnabled(input: Record<string, unknown>): boolean {
   return value;
 }
 
-// Display names for the module's built-in adapters (currently just freehire.ts — Task 11).
-// No shared source registry exists yet (Task 24's "sources" part is a plan stub, not landed
-// code, and Task 16 does not depend on Task 11's adapters), so this is a deliberately small,
-// self-contained stopgap: an unrecognized sourceId (a custom source once Task 24 lands, or a
-// future built-in adapter added here later) falls back to the raw id rather than failing.
+// Display names for the module's built-in adapters (freehire.ts — Task 11, linkedin.ts —
+// Task 12). No shared source registry exists yet (Task 24's "sources" part is a plan stub, not
+// landed code), so this is a deliberately small, self-contained stopgap: an unrecognized
+// sourceId (a custom source once Task 24 lands, or a future built-in adapter added here later)
+// falls back to the raw id rather than failing.
 const BUILT_IN_PORTAL_LABELS: Record<string, string> = {
-  freehire: "freehire.me"
+  freehire: "freehire.me",
+  linkedin: "LinkedIn"
 };
 
 function labelFor(sourceId: string): string {
