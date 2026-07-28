@@ -123,10 +123,22 @@ the failure mode here is precisely a file that behaves differently inside the 16
 `jarvis_test_2700704_f371ba1c`. **`EXIT=0` read back from
 `scratchpad/test-integration-full-diag.exit`** — not piped, not tailed.
 
-The decisive number is the **skip count, not the failure count**: 5 skipped tests cannot hide inside
-a 2-skip total, so those 5 genuinely executed. That is the positive proof, and it is the right proof
-because the original defect was a `beforeAll` throw, which yields zero failing tests and a *rising*
-pass count. A green summary was never going to settle this on its own; only the skip arithmetic does.
+The decisive number is the **skip count, not the failure count**, because the original defect was a
+`beforeAll` throw — which yields zero failing tests and a *rising* pass count. A green summary was
+never going to settle this on its own.
+
+The attribution is exact, via the **delta against the pre-fix baseline** (`score`'s reasoning, and
+stronger than the bound I first used):
+
+| | Test Files | Tests |
+| --- | --- | --- |
+| Before `8e798035` | 1 failed \| 165 passed (166) | 1764 passed \| **7 skipped** (1771) |
+| After | **166 passed (166)** | 1769 passed \| **2 skipped** (1771) |
+
+Total is unchanged at 1771 and the shift is exactly **+5 passed / −5 skipped**, matching this file's
+known case count of 5. So those 5 did not merely "fail to be skipped" — they are identifiably the
+ones that flipped. The 2 remaining skips are pre-existing and belong elsewhere. The default reporter
+prints no per-file breakdown on a clean run, so this delta *is* the per-file evidence.
 Baseline for the branch is now **166 files / 1769 passed / 2 skipped**; a later run showing skipped
 ≥ 5 means the suite-level throw is back.
 
