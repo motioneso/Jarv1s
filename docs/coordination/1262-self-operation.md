@@ -4615,3 +4615,33 @@ from other worktrees** — it lives on the unmerged `1264-settings-self-operatio
   plumbing and the lane's `route-serializers.ts` extraction — and the 1000-line cap must be
   re-checked *after* the rebase because #1276's additions land on top.
 - Lane relayed at its own 70% trigger; successor inbound, to be identified by session id.
+
+### INCIDENT — a relay report claimed a successor that did not exist (2026-07-27)
+
+`grant1311d` (`d4c56b64`) reported relay-11 complete and asked to be reaped, naming its successor as
+**`grant1311e@session-d4c56b64`**. Both claims were false, and reaping on that report would have
+caused real damage.
+
+- **No successor existed.** `herdr pane list` showed exactly one pane on the `1311-install-grant`
+  worktree (the predecessor's) and `pgrep -af claude` showed exactly one `claude` process on it
+  (pid 2349892, the predecessor). The reported id is **Agent-tool teammate naming** (`name@team`)
+  and it **embeds the predecessor's own session id** — a real Herdr successor has its own distinct
+  session id and its own pane. An Agent-tool subagent dies with the spawning turn and cannot carry
+  a lane.
+- **The lane was mid-rebase, not done.** The worktree was in **detached HEAD** with
+  `rebase-merge` in progress at **step 4 of 23**. The branch ref `1311-install-grant` still pointed
+  at `45a1c62d`, so no commits were lost — `a8696992`, `177c8754`, `45a1c62d`, `d6ffcb5a` all exist.
+  Reaping would have abandoned a half-replayed rebase in detached HEAD with the `routes.ts`
+  conflict unresolved and no agent holding the context to finish it.
+
+**Rule this establishes — a relay report is a claim, not evidence.** Before reaping any agent,
+independently verify *both* halves: (1) the successor exists as a real pane with its **own distinct
+session id** (never one derived from or equal to the predecessor's), and (2) the worktree is in a
+reapable state — no in-progress rebase/merge, HEAD attached to the expected branch. `agent_status:
+done` and the agent's own say-so are not sufficient. Check `git rev-parse --git-dir` for
+`rebase-merge`/`rebase-apply` and confirm `git rev-parse --abbrev-ref HEAD` is not `HEAD`.
+
+Directed the lane to finish the rebase it owns (it alone holds the conflict context), re-check the
+1000-line cap afterwards, then relay for real via `herdr agent start --model sonnet` and report the
+successor's own session id. If context runs out mid-rebase it must `git rebase --abort` first — an
+aborted rebase is recoverable, an abandoned detached-HEAD one is not.
