@@ -4556,3 +4556,24 @@ output pasted into the PR body.** An unrun UAT spec does not satisfy the gate.
 
 Note for future lanes: `tests/uat/specs/1264-settings-self-operation.uat.spec.ts` is **not visible
 from other worktrees** — it lives on the unmerged `1264-settings-self-operation` branch.
+
+### Relay-10 — #1311 lane succession (2026-07-27)
+
+- **#1311 lane driver is now `grant1311d`, session `d4c56b64-5df4-4834-a4f0-e8da312ae703`.**
+  Predecessor `grant1311c` (`b1a181b9`) relayed cleanly and was reaped. Two panes briefly coexisted
+  on the `1311-install-grant` worktree; this was a real overlap during handoff, not the earlier
+  phantom. Verified by session id, not pane number.
+- Forced file-size split landed as its own commit `a8696992` (`packages/chat/src/route-serializers.ts`
+  extracted out of `routes.ts`, move-only, all importers swept). Relay-10 handoff `d6ffcb5a`.
+- `verify:foundation` is **not yet green** on the lane — only the file-size link was fixed; full
+  rerun pending on a freshly DROP/CREATEd gate DB.
+- **The two conditions on the Task 4 `test.fixme` are restated here so they stop living in chat:**
+  1. Every `test.fixme` must carry an inline comment naming **#1121** as the cause **and** naming the
+     specific existing test file that proves the deferred behaviour — the shape used by
+     `tests/uat/specs/runtime-context.uat.spec.ts:110,121` and
+     `tests/uat/specs/1133-chat-attachments.uat.spec.ts:154`.
+  2. At least one half of `tests/uat/specs/1311-install-grant.uat.spec.ts` must **actually run live**
+     against a real instance, with real Playwright output pasted into the PR body. A fully-`fixme`d
+     spec does **not** satisfy the live-path gate and does not merge.
+- PR #1276 CI run `30318930265`: all jobs green/skipped except "Verify foundation and app", still
+  in progress. #1276 merges first under the reversed order (#1276 → #1311 → #1273).
