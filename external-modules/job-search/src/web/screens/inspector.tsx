@@ -11,6 +11,7 @@
 //   "queued for scoring", never "dropped" or a generic error, because it hasn't failed, it just
 //   hasn't been read yet.
 import { h, useEffect, useRef, type ReactNodeLike } from "../runtime";
+import { Score } from "../score";
 import { isScored, type BoardMatch, type MatchDetail } from "../board-types";
 
 export interface InspectorProps {
@@ -134,7 +135,14 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
                 the older behaviour — a stored 0 — put a real-looking score under the heading. The
                 reason below already says the résumé is missing; this just stops the number line
                 from claiming otherwise. */}
-            <p className="jsm-inspector__value">{match.fit === null ? "—" : match.fit}</p>
+            {/* Same score primitive the board column uses, at the panel's larger size — a bare
+                numeral over a paragraph read as a stray digit rather than as the thing the
+                paragraph explains, and it lost the track that says "out of 100". */}
+            {match.fit === null ? (
+              <p className="jsm-inspector__value">—</p>
+            ) : (
+              <Score value={match.fit} size="lg" />
+            )}
             {detail ? (
               <p>{detail.fitReason}</p>
             ) : detailError ? (
@@ -145,7 +153,7 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
           </div>
           <div className="jsm-inspector__axis">
             <span className="jds-eyebrow">Want</span>
-            <p className="jsm-inspector__value">{match.want}</p>
+            <Score value={match.want} size="lg" />
             {detail ? (
               <p>{detail.wantReason}</p>
             ) : detailError ? (

@@ -10,6 +10,7 @@ import { h, useCallback, useEffect, useRef, useState, type ReactNodeLike } from 
 import { invokeTool, runQueue, type RunOutcome } from "../api";
 import { MATCHES_LIST_MAX_LIMIT, type FailureCause } from "../../domain/records.js";
 import type { AssistantSurfaceHandleV1 } from "../../domain/seed-prompt.js";
+import { Score } from "../score";
 import { Inspector } from "./inspector";
 import { MatchRecordCard, useDiscuss } from "./discuss";
 import { isScored, type BoardMatch, type MatchDetail, type PortalListItem } from "../board-types";
@@ -101,26 +102,6 @@ function sortIndicator(sort: SortState | null, key: SortKey, items: BoardMatch[]
   const effective = sort ?? defaultSortFor(items);
   if (effective.key !== key) return "";
   return effective.dir === "asc" ? " ▲" : " ▼";
-}
-
-// A 0-100 score rendered as the number plus the host's `jds-score` bar. Twenty rows of bare digits
-// all weigh the same on the page, so an 88 and an 8 are equally loud and finding the strong matches
-// means reading every row instead of seeing them — the bar is what makes the column scannable.
-// All the styling lives in the host primitive (module CSS is layout-only by contract); the only
-// thing passed from here is the value itself, as a 0-1 fraction on a custom property, which is the
-// one case where an inline style is right because the number *is* the data.
-// Clamped because a score is authored by the model via a record and this is a render path — a
-// value outside 0-100 must draw a wrong-looking bar, never a bar that overflows its track.
-function Score(props: { value: number }): ReactNodeLike {
-  const fraction = Math.min(1, Math.max(0, props.value / 100));
-  return (
-    <span className="jds-score">
-      {props.value}
-      <span className="jds-score__track" aria-hidden="true">
-        <span className="jds-score__fill" style={{ "--jds-score": String(fraction) }} />
-      </span>
-    </span>
-  );
 }
 
 // lastOkAt is an ISO timestamp or null (never crawled to a success yet); this is deliberately a
