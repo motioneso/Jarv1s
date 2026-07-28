@@ -1801,3 +1801,40 @@ seed the scoring that produced them.
 
 See also **N42** for the per-phase gating rule this refines, and **N33** for the deliberate absence
 of a job-search seed chunk.
+
+## N46 — Bind the chat surface by `surfaceKey`, never by `profileId`
+
+`domain/seed-prompt.ts:125` binds `assistantSurface.setSurfaceKey(profileId)`. Task 17 required
+`profile.surfaceKey` and warned in advance that binding by id "would compile, pass every unit test,
+and quietly remove" independent thread-identity rotation. It did exactly that. **Fix before the PR**
+(task #78) — this completes Task 17 (#1301) against its approved spec, so it is not scope creep.
+
+### Why nothing caught it
+
+The deviation is **consistent end-to-end**, and that is the whole lesson. The wire `Profile`
+(`web/use-profiles.ts`) never carries `surfaceKey` — its header comment deliberately lists it as a
+domain-only field the tool does not return. `worker/handlers/profile.ts` never emits it: `grep
+surfaceKey` across `worker/` returns exactly one hit, `store-sql.ts:86`. And the committed test
+`job-search-web-root.test.tsx:356` asserts binding by `"p1"`, the profileId. Every layer agrees with
+every other layer, and all of them are wrong together. **A test can only catch a deviation that is
+inconsistent with something else.** No amount of coverage detects a mistake made uniformly.
+
+### Ruled out — no runtime defect
+
+`apps/web/src/shell/chat-surface-key.ts` hashes `(moduleId, key)` through FNV-1a into a fixed
+`m-<16 hex>` shape and never throws, so the `/^[a-z][a-z0-9-]{1,31}$/` wire constraint holds for any
+input. `id` and `surface_key` are both UUID strings
+(`sql/0001_create_job_search_profiles.sql:6` and `:25`). Semantics, not a crash.
+
+### Why fix rather than accept and document
+
+`surface_key` is a real column with its own independent default UUID, and today **nothing reads it**.
+Shipping that makes it dead weight: the next cleanup pass deletes an unused column and closes the
+seam permanently, turning a one-line change into a migration.
+
+### Application
+
+The risky part is not the binding — it is the fixtures. Adding a field to the wire `Profile` dirties
+every `profile()` factory in the `.tsx` tests, and per **#1335** no `.tsx` file is typechecked, so a
+missed fixture does not fail. It passes, drifts silently, and reads as coverage. Name every file
+touched. See also **N45** (seeded vs produced state) and the same "reads as coverage" family.

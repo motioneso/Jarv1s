@@ -205,7 +205,7 @@ means mid-work, **not** stalled — check mtimes before concluding otherwise or 
 | Agent          | Work                                                | Lock                           |
 | -------------- | --------------------------------------------------- | ------------------------------ |
 | `scaffold`     | **#60** — fix committed `8e798035`; owes the full-suite number | **holds the Postgres slot** |
-| `chat-surface` | **#76** — `.tsx` mock-drift audit, all 8 files      | the 8 `.tsx` test files        |
+| `chat-surface` | **#78** — N46 surfaceKey binding; #76 closed 8/8 clean | the 8 `.tsx` test files, `seed-prompt.ts`, `use-profiles.ts`, `handlers/profile.ts` |
 | `records`      | **#52** — 12 UAT phases under **N45**; spec still untracked | `tests/uat/*`          |
 | `score`        | #73 closed and verified at `fa1fc7b0`; stood down from #60 | none                    |
 | `dedupe`       | #63 and #50 both closed and verified; handing off   | none                           |
