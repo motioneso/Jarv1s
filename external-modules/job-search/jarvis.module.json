@@ -393,6 +393,14 @@
         "allowManualRun": true,
         "timeoutMs": 30000,
         "paramsSchema": { "type": "object", "fields": {} }
+      },
+      {
+        "name": "job-search.profile-new",
+        "handler": "profile.new",
+        "retryLimit": 1,
+        "allowManualRun": true,
+        "timeoutMs": 30000,
+        "paramsSchema": { "type": "object", "fields": {} }
       }
     ],
     "schedules": [

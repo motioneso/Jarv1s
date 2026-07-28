@@ -12,7 +12,7 @@
 // instead. runQueue only ever reports "queued" or "already-queued", never "done" (I5), so every
 // write below applies optimistically to local state and is reconciled by re-fetching
 // job-search.portal.list, not assumed to have succeeded.
-import { h, useEffect, useState, type ReactNodeLike } from "../runtime";
+import { Fragment, h, useEffect, useState, type ReactNodeLike } from "../runtime";
 import { invokeTool, runQueue } from "../api";
 import type { Profile } from "../use-profiles";
 import type { BriefingDetail } from "../../domain/store-port.js";
@@ -30,6 +30,11 @@ export const PROFILE_SET_BRIEFING_DETAIL_QUEUE = "job-search.profile-set-briefin
 // through invokeTool 403s with confirmation_required before it runs (rulings I3/I4), so this
 // being declared risk:"read" in the manifest is load-bearing, not decorative.
 export const PORTAL_LIST_TOOL = "job-search.portal.list";
+
+// Read-only, same reason as PORTAL_LIST_TOOL. This screen shows only whether a résumé exists and
+// when it was last replaced — never the text, which is the one thing on this surface the user has
+// no reason to re-read here and every reason not to have sitting on a settings page.
+export const RESUME_GET_TOOL = "job-search.resume.get";
 
 // Wire shape of job-search.portal.list's result (worker/handlers/portal.ts
 // createPortalListHandler) — defined fresh here rather than imported from the domain layer,
@@ -85,20 +90,42 @@ function isBriefingDetail(value: string | null): value is BriefingDetail {
   return value === "count" || value === "top" || value === "full";
 }
 
+/** One rail row: what it is on the left, the control that changes it flush right.
+ *
+ * The row used to be a `jsm-switcher` — a plain left-to-right flex with a 0.5rem gap — so the
+ * toggle sat immediately after the label text and every row ended at a different horizontal
+ * position. Nothing lined up, and a column of controls that doesn't line up reads as unfinished
+ * however carefully everything else is spaced. */
 function PortalRowView(props: {
   key?: string;
   row: PortalRow;
+  divided: boolean;
   onToggle(sourceId: string, enabled: boolean): void;
 }): ReactNodeLike {
   const { row } = props;
   // A self-disabled portal (cause.disabled, e.g. login_required) is not a user choice — it must
   // read as "this went off and here's why," not as an ordinary off toggle.
   const selfDisabled = row.cause !== null && row.cause.disabled;
-  return (
-    <div className="jds-field">
-      <div className="jsm-switcher">
-        <span className="jds-label">{row.label}</span>
-        {selfDisabled ? <span className="jds-badge jds-badge--outline">Disabled</span> : null}
+  return h(
+    Fragment,
+    null,
+    // Rendered as a sibling rather than as a border on the row, because module CSS is layout-only
+    // (styles.css header) and a rule the colour of a hairline is a colour declaration. `jds-divider`
+    // is the host's own hairline, so the module never names a colour.
+    props.divided ? <div className="jds-divider" /> : null,
+    <div className="jsm-rail__row">
+      <div className="jsm-rail__main">
+        <div className="jsm-rail__label">
+          <span className="jds-label">{row.label}</span>
+          {selfDisabled ? <span className="jds-badge jds-badge--outline">Disabled</span> : null}
+        </div>
+        {row.cause ? (
+          <p className={selfDisabled ? "jds-hint jds-hint--error" : "jds-hint"}>
+            {row.cause.summary} {row.cause.nextAction}
+          </p>
+        ) : null}
+      </div>
+      <div className="jsm-rail__control">
         <label className="jds-switch">
           <input
             type="checkbox"
@@ -112,11 +139,72 @@ function PortalRowView(props: {
           </span>
         </label>
       </div>
-      {row.cause ? (
-        <p className={selfDisabled ? "jds-hint jds-hint--error" : "jds-hint"}>
-          {row.cause.summary} {row.cause.nextAction}
-        </p>
-      ) : null}
+    </div>
+  );
+}
+
+// What this screen keeps of a résumé: whether there is one, which version, when it changed, and
+// how long it is. Deliberately NOT the text — `resume.get` returns the full content (it is the
+// owner's own row, read under their own scope), and this screen drops it on arrival rather than
+// holding a copy in component state to render a status line from.
+interface ResumeSummary {
+  version: number;
+  updatedAt: string;
+  length: number;
+}
+
+type ResumeState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "ready"; resume: ResumeSummary | null };
+
+async function fetchResume(profileId: string): Promise<ResumeSummary | null> {
+  const result = (await invokeTool(RESUME_GET_TOOL, { profileId })) as {
+    resume?: { version: number; content: string; updatedAt: string } | null;
+  };
+  const resume = result?.resume;
+  if (!resume || typeof resume.content !== "string") return null;
+  return { version: resume.version, updatedAt: resume.updatedAt, length: resume.content.length };
+}
+
+/** The résumé row.
+ *
+ * Read-only on purpose, and the reason is structural rather than a shortcut: a write from the
+ * browser has to go through a declared queue, and the manifest's params vocabulary
+ * (packages/module-sdk module-params.ts) has no free-text field type — there is no way to declare a
+ * queue that carries a résumé. Chat is the write path, so this row's job is to say what is on file
+ * and point at the place that changes it.
+ *
+ * It exists at all because the board nags about a missing résumé ("Fit is empty because there's no
+ * résumé on file") while settings said nothing about résumés whatsoever — the one screen named
+ * "settings" had no answer to the one thing the product was asking the user for. */
+function ResumeRow(props: { state: ResumeState }): ReactNodeLike {
+  const state = props.state;
+  let detail: string;
+  if (state.status === "loading") {
+    detail = "Checking…";
+  } else if (state.status === "error") {
+    detail = "Couldn't check whether a résumé is on file.";
+  } else if (state.resume === null) {
+    detail =
+      "Nothing on file. Fit stays empty until there is one — it's the only thing Fit is judged " +
+      "against. Paste yours into the chat and every role gets read again with it.";
+  } else {
+    const when = new Date(state.resume.updatedAt).toLocaleDateString();
+    detail = `Version ${state.resume.version}, saved ${when}. Paste a new one into the chat to replace it.`;
+  }
+
+  return (
+    <div className="jsm-rail__row">
+      <div className="jsm-rail__main">
+        <div className="jsm-rail__label">
+          <span className="jds-label">Résumé</span>
+          {state.status === "ready" && state.resume === null ? (
+            <span className="jds-badge jds-badge--outline">None yet</span>
+          ) : null}
+        </div>
+        <p className="jds-hint">{detail}</p>
+      </div>
     </div>
   );
 }
@@ -127,6 +215,7 @@ export function SettingsScreen(props: { profile: Profile }): ReactNodeLike {
   const [briefingDetail, setBriefingDetailState] = useState<BriefingDetail>(
     isBriefingDetail(profile.briefingDetail) ? profile.briefingDetail : "top"
   );
+  const [resume, setResume] = useState<ResumeState>({ status: "loading" });
 
   function refetchPortals(): void {
     fetchPortals(profile.profileId)
@@ -136,6 +225,20 @@ export function SettingsScreen(props: { profile: Profile }): ReactNodeLike {
 
   useEffect(() => {
     refetchPortals();
+    setResume({ status: "loading" });
+    let cancelled = false;
+    fetchResume(profile.profileId)
+      .then((summary) => {
+        if (!cancelled) setResume({ status: "ready", resume: summary });
+      })
+      .catch(() => {
+        if (!cancelled) setResume({ status: "error" });
+      });
+    return () => {
+      // Switching profiles mid-flight would otherwise land the previous profile's résumé status
+      // under the newly selected profile's name.
+      cancelled = true;
+    };
     // Deliberately omits refetchPortals from deps: it's a plain closure
     // redefined every render (not memoized) that only reads profile.profileId,
     // so keying this effect on the function reference would refetch on every
@@ -182,40 +285,69 @@ export function SettingsScreen(props: { profile: Profile }): ReactNodeLike {
     portalsBody = <p className="jds-hint">No job boards yet.</p>;
   } else {
     portalsBody = (
-      <div className="jds-field">
-        {portals.rows.map((row) => (
-          <PortalRowView key={row.sourceId} row={row} onToggle={handleToggle} />
+      <div className="jsm-rail">
+        {portals.rows.map((row, index) => (
+          <PortalRowView key={row.sourceId} row={row} divided={index > 0} onToggle={handleToggle} />
         ))}
       </div>
     );
   }
 
+  // No card. Three controls inside a full-width sunken card left three quarters of a 1100px box
+  // empty and read as a container that failed to fill, so the settings sit directly on the page
+  // ground at a readable measure (styles.css `.jsm-settings`) instead.
+  //
+  // Hierarchy is three distinct kinds rather than three sizes of the same kind: a display-font
+  // title for the screen, uppercase eyebrows for the groups, and body-weight labels on the rows.
+  // Group headings and row labels were both `jds-label` before, which made a parent category and
+  // its children look like peers.
   return (
-    <div className="jds-card jds-card--sunken jsm-state">
-      <span className="jds-eyebrow">Job search settings</span>
+    <div className="jsm-settings">
+      <header className="jsm-settings__head">
+        <h2 className="jds-section-title">Settings</h2>
+        <p className="jds-section-sub">
+          Where this search looks, what it knows about you, and how much it says in your briefing.
+        </p>
+      </header>
 
-      <div className="jds-field">
-        <span className="jds-label">Job boards</span>
-        {portalsBody}
-      </div>
-
-      <div className="jds-field">
-        <span className="jds-label">Briefing detail</span>
-        <div className="jds-segmented" role="group" aria-label="Briefing detail">
-          {BRIEFING_DETAIL_ORDER.map((level) => (
-            <button
-              key={level}
-              type="button"
-              className="jds-segmented__opt"
-              aria-pressed={briefingDetail === level}
-              onClick={() => handleBriefingDetail(level)}
-            >
-              {BRIEFING_DETAIL_LEVELS[level].label}
-            </button>
-          ))}
+      <section className="jsm-settings__group">
+        <span className="jds-eyebrow">About you</span>
+        <div className="jsm-rail">
+          <ResumeRow state={resume} />
         </div>
-        <p className="jds-hint">{BRIEFING_DETAIL_LEVELS[briefingDetail].blurb}</p>
-      </div>
+      </section>
+
+      <section className="jsm-settings__group">
+        <span className="jds-eyebrow">Job boards</span>
+        {portalsBody}
+      </section>
+
+      <section className="jsm-settings__group">
+        <span className="jds-eyebrow">Briefing detail</span>
+        <div className="jsm-rail">
+          <div className="jsm-rail__row">
+            <div className="jsm-rail__main">
+              <span className="jds-label">How much to include</span>
+              <p className="jds-hint">{BRIEFING_DETAIL_LEVELS[briefingDetail].blurb}</p>
+            </div>
+            <div className="jsm-rail__control">
+              <div className="jds-segmented" role="group" aria-label="Briefing detail">
+                {BRIEFING_DETAIL_ORDER.map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    className="jds-segmented__opt"
+                    aria-pressed={briefingDetail === level}
+                    onClick={() => handleBriefingDetail(level)}
+                  >
+                    {BRIEFING_DETAIL_LEVELS[level].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

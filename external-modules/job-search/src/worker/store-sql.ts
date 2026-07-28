@@ -27,6 +27,7 @@ import type {
   PortalState,
   SearchCriteria
 } from "../domain/records.js";
+import { normalizeCompanyName } from "../domain/company.js";
 import { withCriteriaDefaults } from "../domain/criteria.js";
 
 interface SqlDb {
@@ -112,7 +113,12 @@ function mapPosting(row: PostingRow): Posting {
     sourceId: row.source_id,
     externalId: row.external_id,
     title: row.title,
-    company: row.company,
+    // Also on the way out, not only on the way in: every posting already in the table was stored
+    // before upsertPostings normalized, and a posting that has since dropped off its board never
+    // gets re-crawled, so a write-side fix alone would leave those rows encoded forever. Idempotent,
+    // so a row written clean is unaffected (domain/company.ts). Every read of a posting — the board,
+    // the inspector, Discuss, the briefing — goes through this mapper.
+    company: normalizeCompanyName(row.company),
     location: row.location,
     url: row.url,
     body: row.body,
@@ -384,7 +390,9 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
         source_id: posting.sourceId,
         external_id: posting.externalId,
         title: posting.title,
-        company: posting.company,
+        // Normalized here rather than in each adapter: this is the one statement every crawled
+        // posting passes through, so a source added later cannot forget to do it (domain/company.ts).
+        company: normalizeCompanyName(posting.company),
         location: posting.location,
         url: posting.url,
         body: posting.body,

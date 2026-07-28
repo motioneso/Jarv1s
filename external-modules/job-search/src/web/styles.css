@@ -4,13 +4,29 @@
    primitives and document styles (finance's styles.ts precedent). Loaded as raw text by
    scripts/build-external-module.ts's esbuild "text" loader for *.css (see ../../css.d.ts). */
 
+/* The bottom padding is 6rem, not the 3rem the other three sides scale from. The host floats its
+   assistant button in the bottom-right corner, and at 3rem the last row of the board sat directly
+   underneath it — on a full board the final posting was permanently half-covered by a control that
+   has nothing to do with it. 6rem clears the button and its own margin. */
 .jsm-root {
   max-width: 72rem;
   margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
+  padding: 1.5rem 1rem 6rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+/* A standing advisory with a label and a line of explanation (the no-résumé notice above the
+   board). Colour and surface come from the host's `jds-card--sunken`; this only stacks the two. */
+.jsm-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.jsm-notice__body {
+  margin: 0;
 }
 
 .jsm-header {
@@ -32,11 +48,94 @@
   padding: 0.5rem 0.75rem;
 }
 
+/* Settings: a narrow centred column, not a full-width card. `width: 100%` is load-bearing for the
+   same reason it is on `.jsm-onb` below — `.jsm-root` is a column flex container, and an auto
+   margin on a flex item's cross axis cancels `align-items: stretch`, leaving the column
+   shrink-wrapped to its longest line instead of capped at its max-width. */
+.jsm-settings {
+  width: 100%;
+  max-width: 40rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.jsm-settings__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.jsm-settings__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* A rail is a stack of rows sharing one right edge, separated by host hairlines
+   (`jds-divider` elements — see PortalRowView on why the rule is a sibling and not a border). */
+.jsm-rail {
+  display: flex;
+  flex-direction: column;
+}
+
+.jsm-rail__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 0.875rem 0;
+  flex-wrap: wrap;
+}
+
+.jsm-rail__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  /* min-width:0 so a long hint wraps instead of forcing the control off the right edge. */
+  min-width: 0;
+  flex: 1 1 18rem;
+}
+
+.jsm-rail__label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.jsm-rail__control {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  /* Holds the control against the right edge even when the row wraps onto two lines, where
+     `justify-content` on the row no longer has two items to push apart. */
+  margin-left: auto;
+}
+
 .jsm-switcher {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+/* The searches row: tabs left, "New search" pinned right. `space-between` rather than a margin on
+   the button so the two groups keep their own edges when the tab list wraps to a second line. */
+.jsm-profilebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* The tab list is the part that should absorb the extra width when the row is wide, so the button
+   stays at the right edge instead of floating in the middle of it. */
+.jsm-profilebar > .jsm-switcher {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .jsm-switcher-btn[aria-selected="true"] {
@@ -188,6 +287,12 @@
   flex-wrap: wrap;
 }
 
+/* The host already fills a row on hover; this makes the pointer agree with it, now that the whole
+   row opens the match rather than only the title (see board.tsx's row onClick). */
+.jsm-board-row {
+  cursor: pointer;
+}
+
 .jsm-board-row--outside td {
   opacity: 0.85;
 }
@@ -221,8 +326,12 @@
      turned every control in here into a panel-wide block — three stacked full-width buttons reading
      as three equally-weighted decisions. Children that want the full width ask for it below. */
   align-items: flex-start;
-  gap: 0.75rem;
-  padding: 1.25rem;
+  /* 1.5rem/2rem, up from 0.75rem/1.25rem. This panel holds a title, an action row and two
+     paragraphs of reasoning in a 26rem column; at the tighter values every one of those sat the
+     same distance from its neighbour as the words within it, so the panel read as one undivided
+     block of text and the eye had nothing to group on. */
+  gap: 1.5rem;
+  padding: 2rem;
   /* Only matters on a narrow viewport, where this panel stacks under the table and scrolls itself
      into view; the app header is sticky and would otherwise cover its title. */
   scroll-margin-top: 5rem;
@@ -248,12 +357,14 @@
   margin: 0;
 }
 
-/* One row of content-sized controls; wraps rather than squeezing in the 26rem side panel. */
+/* One row of content-sized controls; wraps rather than squeezing in the 26rem side panel. The
+   1rem gap separates the primary "Open posting" from the two quieter controls beside it — at
+   0.5rem the three buttons touched closely enough to read as one segmented control. */
 .jsm-inspector__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 1rem;
 }
 
 .jsm-inspector__dismissed {

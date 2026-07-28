@@ -85,8 +85,12 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
         {/* #1330: url is BoardMatch's own field (real per-row data, never detail-only prose per
             N39), so the link works the instant a row opens — it never waits on the match.get
             round trip the reasons below depend on. */}
+        {/* Primary, and the only primary in the panel. Three secondaries in a row gave equal
+            visual weight to reading the posting, talking about it, and throwing it away — but
+            going to the posting is the single thing this panel is opened to do, and it is the only
+            action here that leaves the app. */}
         <a
-          className="jds-btn jds-btn--secondary jds-btn--sm"
+          className="jds-btn jds-btn--primary jds-btn--sm"
           href={match.url}
           target="_blank"
           rel="noopener noreferrer"

@@ -36,6 +36,14 @@ import styles from "./styles.css";
  * browser cannot be notified about) and there is no reason for the two to differ. */
 const ONBOARDING_REFRESH_MS = 3_000;
 
+/** Bounded wait for a "New search" to show up in profile.list. Same shape and same reason as the
+ * bootstrap poll in use-profiles.ts — `runQueue` resolves on ACCEPTANCE, never on completion, and
+ * there is no push channel back to the browser, so the only way to learn a worker write landed is
+ * to re-read. The budget is deliberately the queue's own `timeoutMs` (30s in jarvis.module.json):
+ * past that the job is dead and polling on would just be a spinner that never stops. */
+const NEW_SEARCH_POLL_MS = 2_000;
+const NEW_SEARCH_MAX_ATTEMPTS = 15;
+
 export interface HostActions {
   actorScopeKey: string;
   openAssistant(input: { starterPrompt: string }): void;
@@ -69,14 +77,14 @@ function BootstrapPanel(props: {
   if (props.phase === "waiting") {
     return (
       <div className="jds-card jds-card--sunken jsm-state" role="status">
-          <p>Setting up your job search profile…</p>
+        <p>Setting up your job search profile…</p>
       </div>
     );
   }
   if (props.phase === "expired") {
     return (
       <div className="jds-card jds-card--sunken jsm-state" role="status">
-          <p>Still setting up?</p>
+        <p>Still setting up?</p>
         <button type="button" className="jds-btn jds-btn--primary" onClick={props.onRetry}>
           Try again
         </button>
@@ -95,24 +103,28 @@ function BootstrapPanel(props: {
 
 type ActiveView = "board" | "settings";
 
-// Rendered once a profile has criteria (state === "active" | "paused"). Two independent
-// switchers stack here: the profile switcher (Task 18, picks which profile's data loads) and
-// the Board/Settings view switcher (Task 20, picks which screen renders that data) — kept as
-// separate pieces of state so switching one never resets the other.
-function ActiveProfilePanel(props: {
+/** The row of searches, plus the only way to start another one.
+ *
+ * This lives in Root rather than inside ActiveProfilePanel, where it started, for two reasons that
+ * only became true once a SECOND search could exist. First, ActiveProfilePanel renders only for a
+ * profile that already has criteria — a brand-new search is `in_conversation`, so Root takes the
+ * onboarding branch instead and a switcher owned by the panel would vanish the moment you created
+ * the thing it exists to switch between, stranding the user in an interview with no way back to the
+ * search they already had. Second, it was gated on `profiles.length > 1`, which was defensible when
+ * a second profile was unreachable and is a dead end now: the control that CREATES the second
+ * profile cannot itself be hidden until a second profile exists.
+ *
+ * So it renders whenever any profile exists. At one profile the tablist is a single tab, which is
+ * honest — it names the search you are looking at and puts "New search" next to it. */
+function ProfileBar(props: {
   profiles: Profile[];
   selectedId: string;
   onSelectProfile(id: string): void;
-  selected: Profile;
-  // Task 20/#1304: threaded through to BoardScreen for Discuss, same optionality as everywhere
-  // else this handle travels — a v1.1 bundle on an older host still renders the board, just
-  // without Discuss offered (discuss.tsx's own no-op-when-absent stance).
-  assistantSurface?: AssistantSurfaceHandleV1;
+  onNewSearch(): void;
+  creating: boolean;
 }): ReactNodeLike {
-  const [view, setView] = useState<ActiveView>("board");
-
-  const profileSwitcher =
-    props.profiles.length > 1 ? (
+  return (
+    <div className="jsm-profilebar">
       <div className="jsm-switcher" role="tablist" aria-label="Job search profile">
         {props.profiles.map((profile) => (
           <button
@@ -131,7 +143,30 @@ function ActiveProfilePanel(props: {
           </button>
         ))}
       </div>
-    ) : null;
+      <button
+        type="button"
+        className="jds-btn jds-btn--quiet jds-btn--sm"
+        onClick={props.onNewSearch}
+        disabled={props.creating}
+      >
+        {props.creating ? "Starting…" : "New search"}
+      </button>
+    </div>
+  );
+}
+
+// Rendered once a profile has criteria (state === "active" | "paused"). The Board/Settings view
+// switcher (Task 20, picks which screen renders the selected profile's data) is the panel's own
+// state, deliberately separate from the profile selection above it so switching search never
+// resets which view you were on, and vice versa.
+function ActiveProfilePanel(props: {
+  selected: Profile;
+  // Task 20/#1304: threaded through to BoardScreen for Discuss, same optionality as everywhere
+  // else this handle travels — a v1.1 bundle on an older host still renders the board, just
+  // without Discuss offered (discuss.tsx's own no-op-when-absent stance).
+  assistantSurface?: AssistantSurfaceHandleV1;
+}): ReactNodeLike {
+  const [view, setView] = useState<ActiveView>("board");
 
   // `jds-tabs`, not two identical secondary buttons: these are two views of one thing, and the
   // design system already draws that — an underline on the selected tab against a shared rule.
@@ -172,7 +207,7 @@ function ActiveProfilePanel(props: {
   // call/construct signature, which our loosely-typed `Fragment: unknown`
   // (jsx.d.ts's "correctness via tests, not the type system" stance) doesn't
   // satisfy. A direct call sidesteps that JSX-syntax-only check.
-  return h(Fragment, null, profileSwitcher, viewSwitcher, screen);
+  return h(Fragment, null, viewSwitcher, screen);
 }
 
 function QueueNotice(props: { outcome: RunOutcome }): ReactNodeLike {
@@ -322,6 +357,65 @@ export function Root(props: RootProps): ReactNodeLike {
     handleStart();
   }
 
+  // "Start another search" — the same queue-not-tool path as handleStart above, for the same
+  // un-bypassable reason (the browser cannot invoke a write tool), but a DIFFERENT queue.
+  // `profile.bootstrap` is idempotent on purpose: it hands back the actor's existing profile, which
+  // is correct for a first-run button clicked twice and useless for a button whose entire meaning is
+  // "another one". `job-search.profile-new` always creates.
+  //
+  // Selecting the result takes a poll rather than a return value: runQueue resolves when the job is
+  // ACCEPTED, never when it finishes, and the worker has no channel back to this component — so the
+  // new profile's id is not knowable from the call. The ids present at click time are recorded and
+  // the first id that isn't one of them is the row the worker just wrote.
+  const [creating, setCreating] = useState(false);
+  const knownIdsRef = useRef<string[]>([]);
+  const selectRef = useRef(profiles.select);
+  selectRef.current = profiles.select;
+  const readyProfiles = profiles.status === "ready" ? profiles.profiles : null;
+
+  useEffect(() => {
+    if (!creating || readyProfiles === null) return;
+    const created = readyProfiles.find((p) => !knownIdsRef.current.includes(p.profileId));
+    if (!created) return;
+    setCreating(false);
+    // Jumps straight into the new search's interview, which is the whole point of the click —
+    // landing back on the old board with a second tab quietly added would read as nothing happening.
+    selectRef.current(created.profileId);
+  }, [creating, readyProfiles]);
+
+  useEffect(() => {
+    if (!creating) return;
+    let attempts = 0;
+    const timer = setInterval(() => {
+      attempts += 1;
+      if (attempts > NEW_SEARCH_MAX_ATTEMPTS) {
+        clearInterval(timer);
+        setCreating(false);
+        setQueueNotice({ kind: "error", message: "the worker didn't respond in time" });
+        return;
+      }
+      refetchRef.current();
+    }, NEW_SEARCH_POLL_MS);
+    return () => clearInterval(timer);
+  }, [creating]);
+
+  function handleNewSearch(): void {
+    if (profiles.status !== "ready") return;
+    knownIdsRef.current = profiles.profiles.map((p) => p.profileId);
+    setCreating(true);
+    runQueue("job-search.profile-new", "profile.new")
+      .then((outcome) => {
+        if (outcome.kind === "disabled" || outcome.kind === "error") {
+          setCreating(false);
+          setQueueNotice(outcome);
+        }
+      })
+      .catch(() => {
+        setCreating(false);
+        setQueueNotice({ kind: "error", message: "Network error" });
+      });
+  }
+
   let body: ReactNodeLike;
   if (profiles.status === "loading") {
     body = <LoadingPanel />;
@@ -331,18 +425,25 @@ export function Root(props: RootProps): ReactNodeLike {
     // Non-null here: profiles.status === "ready" (the only remaining branch) is exactly the
     // condition selectedProfile above was derived under.
     const selected = selectedProfile as Profile;
-    body =
+    body = h(
+      Fragment,
+      null,
+      // Outside the branch below, deliberately: a search created from here starts in_conversation,
+      // so the onboarding branch renders immediately and a switcher living inside the board branch
+      // would disappear exactly when the user most needs a way back to their other search.
+      <ProfileBar
+        profiles={profiles.profiles}
+        selectedId={profiles.selectedId}
+        onSelectProfile={profiles.select}
+        onNewSearch={handleNewSearch}
+        creating={creating}
+      />,
       selected.state === "in_conversation" ? (
         <OnboardingScreen profile={selected} assistantSurface={props.assistantSurface} />
       ) : (
-        <ActiveProfilePanel
-          profiles={profiles.profiles}
-          selectedId={profiles.selectedId}
-          onSelectProfile={profiles.select}
-          selected={selected}
-          assistantSurface={props.assistantSurface}
-        />
-      );
+        <ActiveProfilePanel selected={selected} assistantSurface={props.assistantSurface} />
+      )
+    );
   }
 
   // Plain h(Fragment, ...) call — see BoardPlaceholder's comment on why the

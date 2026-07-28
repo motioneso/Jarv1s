@@ -425,7 +425,8 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   // only the user can do — so it has to be said, and said with the action in it. Keyed on
   // `every`, not on a profile flag: a résumé added mid-board leaves some rows scored and some
   // not, and the notice must retire itself the moment the first real Fit lands.
-  const fitNeedsResume = scoredCount > 0 && sorted.filter(isScored).every((item) => item.fit === null);
+  const fitNeedsResume =
+    scoredCount > 0 && sorted.filter(isScored).every((item) => item.fit === null);
   const selectedMatch = sorted.find((item) => item.id === selectedMatchId) ?? null;
 
   // Guarded by matchId, not just detailState.status: effects run after render, so there is one
@@ -511,11 +512,19 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
           {restoreMessage}
         </p>
       ) : null}
+      {/* A bounded surface, not a bare paragraph. This is the one persistent advisory on the
+          screen — every Fit column on the board is empty until it is acted on — and as loose text
+          directly above the table it read as a caption the eye skips on the way to the rows. The
+          eyebrow gives it a name so it is identifiable as a thing to deal with rather than a
+          sentence of chrome. */}
       {fitNeedsResume ? (
-        <p className="jsm-queue-notice" role="status">
-          Fit is empty because there's no résumé on file — it's the only thing Fit is judged
-          against. Paste yours into the chat and these roles get read again with it.
-        </p>
+        <div className="jds-card jds-card--sunken jds-card--pad-sm jsm-notice" role="status">
+          <span className="jds-eyebrow">No résumé on file</span>
+          <p className="jsm-notice__body">
+            Fit is empty because there's no résumé on file — it's the only thing Fit is judged
+            against. Paste yours into the chat and these roles get read again with it.
+          </p>
+        </div>
       ) : null}
       {/* The list and the open match are one two-column region, not a table with a panel dropped
           under it — see `.jsm-board-body` for why. The modifier is what turns the second column on,
@@ -564,7 +573,15 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
                 <tr
                   key={item.id}
                   aria-selected={item.id === selectedMatchId}
-                  className={item.outsideFrame ? "jsm-board-row--outside" : ""}
+                  // The whole row opens the match, not just the title text. The host already fills
+                  // a row on hover (`.jds-table tbody tr:hover td`), so the row was advertising
+                  // itself as clickable and then only responding on a ~200px strip of it — a click
+                  // an inch to the right of the title did nothing at all. The title stays a real
+                  // <button> because this handler is a pointer affordance only: it gives no
+                  // keyboard or screen-reader path, and moving the row to `role="button"` would
+                  // cost the table its row semantics.
+                  onClick={() => setSelectedMatchId(item.id)}
+                  className={`jsm-board-row${item.outsideFrame ? " jsm-board-row--outside" : ""}`}
                 >
                   <td>
                     <button
@@ -600,10 +617,19 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
                     {isScored(item) ? <Score value={item.want} /> : "—"}
                   </td>
                   <td className="jds-table__actions">
+                    {/* stopPropagation because the row itself now opens the match: without it,
+                        dismissing a row would also open the panel for the row that just went
+                        away. */}
                     <button
                       type="button"
                       className="jds-btn jds-btn--quiet jds-btn--sm"
-                      onClick={() => handleDismiss(item.id)}
+                      onClick={(event?: { stopPropagation?(): void }) => {
+                        // Optional throughout: a real DOM click always carries an event, but the
+                        // unit tests drive these handlers by calling `props.onClick()` directly,
+                        // and a hard dereference here would turn a dismissal test into a crash.
+                        event?.stopPropagation?.();
+                        handleDismiss(item.id);
+                      }}
                     >
                       Dismiss
                     </button>

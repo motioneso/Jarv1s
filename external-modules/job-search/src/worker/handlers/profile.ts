@@ -171,6 +171,33 @@ export function createProfileBootstrapHandler(store: JobSearchStore) {
   };
 }
 
+/** Starts a SECOND (or third, or tenth) job search, reached only from the
+ * `job-search.profile-new` queue.
+ *
+ * `profile.bootstrap` above cannot serve this: it is deliberately idempotent and hands back the
+ * actor's existing first profile, which is exactly right for a first-run button clicked twice and
+ * exactly wrong for a button whose whole meaning is "another one". Two queues rather than one
+ * queue with a flag, because the manifest's params vocabulary (module-params.ts) has no boolean
+ * and no free text — the intent has to be carried by which queue was called.
+ *
+ * The name is generated rather than asked for, for the same reason the bootstrap name is fixed:
+ * there is no free-text param type to carry one, and a profile is renameable afterwards. Numbered
+ * off the current count, so the second search is "Job search 2" and reads as a sibling of the
+ * first rather than as a duplicate of it. The count can collide after a delete ("Job search 2"
+ * twice) — nothing keys on the name and the switcher shows both, so a duplicate label is a
+ * cosmetic annoyance the user can rename away, not a broken state worth a uniqueness loop over. */
+export function createProfileNewHandler(store: JobSearchStore) {
+  return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
+    // Queue-only, same envelope-not-tool-input reasoning as the bootstrap handler above.
+    requireNoUnknownKeys(parseJobEnvelope(ctx.input).params, NO_FIELDS);
+
+    const existing = await store.listProfiles();
+    const profile = await store.createProfile(`Job search ${existing.length + 1}`);
+
+    return { profileId: profile.id, name: profile.name, state: profile.state };
+  };
+}
+
 export function createProfileListHandler(store: JobSearchStore) {
   return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
     const input = stripEnvelope(ctx.input);

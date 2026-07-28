@@ -31,6 +31,7 @@ import {
   createProfileBootstrapHandler,
   createProfileCreateHandler,
   createProfileListHandler,
+  createProfileNewHandler,
   createSetBriefingDetailHandler,
   createSetContextHandler
 } from "./handlers/profile.js";
@@ -58,6 +59,9 @@ export const HANDLERS: Readonly<Record<string, CtxHandler>> = {
   // Queue-only (job-search.profile-bootstrap); no assistantTools entry names it, deliberately —
   // see the handler's header for why the empty state cannot use profile.create.
   "profile.bootstrap": (ctx) => createProfileBootstrapHandler(storeFrom(ctx))(ctx),
+  // Queue-only too (job-search.profile-new), and for the same reason as the bootstrap above: the
+  // browser cannot invoke a write tool, so "start another search" needs a sanctioned worker path.
+  "profile.new": (ctx) => createProfileNewHandler(storeFrom(ctx))(ctx),
   "profile.list": (ctx) => createProfileListHandler(storeFrom(ctx))(ctx),
   "criteria.set": (ctx) => createCriteriaSetHandler(storeFrom(ctx))(ctx),
   "profile.set-context": (ctx) => createSetContextHandler(storeFrom(ctx))(ctx),
