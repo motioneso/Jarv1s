@@ -16,6 +16,7 @@ import {
   JOB_SEARCH_STATIC_FETCH_HOSTS,
   JOB_SEARCH_TABLES
 } from "../../external-modules/job-search/src/db/tables.js";
+import { MATCHES_LIST_MAX_LIMIT } from "../../external-modules/job-search/src/domain/records.js";
 import { HANDLERS } from "../../external-modules/job-search/src/worker/registry.js";
 
 const manifestPath = fileURLToPath(
@@ -170,6 +171,28 @@ describe("job-search manifest: worker queues, schedule, and risk levels (#1299)"
     expect(toolsByName.get("job-search.matches.list")?.risk).toBe("read");
     expect(toolsByName.get("job-search.match.dismiss")?.risk).toBe("write");
   });
+
+  it(
+    "keeps job-search.matches.list's inputSchema limit.maximum in sync with " +
+      "MATCHES_LIST_MAX_LIMIT (N43)",
+    () => {
+      // N43 debt: MATCHES_LIST_MAX_LIMIT was hoisted into domain/records.ts so matches.ts's
+      // requireLimit and board.tsx share one TS constant, but this manifest's JSON schema is a
+      // THIRD site that cannot import it (same JSON-can't-import-TS reasoning as
+      // JOB_SEARCH_TABLES/JOB_SEARCH_STATIC_FETCH_HOSTS above) — the value here was moved by
+      // hand in the same commit that hoisted the constant. This is the coupling N43 called out
+      // as mattering most: the manifest schema rejects an over-limit request before
+      // requireLimit ever runs, so drift here surfaces one layer earlier and reads as a
+      // different bug (a rejected board load, not an InputError) than the one N43 was written
+      // to prevent.
+      const manifest = loadValidatedManifest();
+      const toolsByName = new Map((manifest.assistantTools ?? []).map((t) => [t.name, t]));
+      const inputSchema = toolsByName.get("job-search.matches.list")?.inputSchema as
+        | { properties?: { limit?: { maximum?: number } } }
+        | undefined;
+      expect(inputSchema?.properties?.limit?.maximum).toBe(MATCHES_LIST_MAX_LIMIT);
+    }
+  );
 
   it("every schedule names a declared queue", () => {
     const manifest = loadValidatedManifest();
