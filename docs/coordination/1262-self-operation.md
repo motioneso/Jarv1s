@@ -4383,3 +4383,26 @@ of its evidence. Resolve any path before putting it in a handoff. Related: the r
 was resolvable at all is that the #1264 lane **committed** its live-UAT test; had it stayed a
 terminal-only run, the proof would simply be gone. Live-path evidence that was never committed is not
 evidence.
+
+## 2026-07-27 — PR #1276 CI GREEN on `f369e61d`; Fable verdict outstanding
+
+All required checks passed on the force-pushed head: `Detect change scope` ✔, **`Verify foundation
+and app` ✔**, `Prod compose deployment smoke` ✔, `Compose deployment smoke` ✔, `Verify docs` skipped.
+Only `Build and publish images` still running, which is the post-merge publish job, not a gate.
+
+**Tooling note:** `gh pr checks 1276` kept reporting `Verify foundation and app` as `pending` well
+after the job had completed successfully. `gh run view <run-id> --json jobs` showed the truth. Trust
+the run's job list over `pr checks` when the two disagree — a stale `pending` from `pr checks` reads
+exactly like a hung job and would have had us waiting indefinitely on nothing.
+
+**#1276 is therefore merge-ready on the mechanical evidence** — gate rc=0 locally, CI green, PR body
+complete with the cross-lane declaration, live UAT evidence, and gate block. It still does **not**
+merge, for two independent reasons: the merge order puts **#1311 first**, and the security-tier
+sign-off is outstanding.
+
+**Fable status: no verdict.** `fable-sec-1311` reported idle/available without posting anything to
+the PR. The only comment on #1276 is an older QA pass **grounded on `28bf044f`** — a stale head that
+predates both the rebase and the #1310 chat/SSE change, so it does not carry. Re-sent the brief and
+required it to state plainly whether it never started, has an unposted verdict, or is blocked, and
+to re-ground on `f369e61d` rather than reconstruct from the earlier look. An unposted or hedged
+verdict blocks the merge outright, since Ben delegated sign-off to it.
