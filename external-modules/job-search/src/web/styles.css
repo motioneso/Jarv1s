@@ -43,43 +43,104 @@
   font-weight: 600;
 }
 
-.jsm-board {
+/* Width, rules, padding and alignment all come from the host's `jds-table` primitive now. This
+   file used to redeclare them, and badly — `text-align: left` on every cell fought the numeric
+   columns, and the padding shorthand left no space on the right of a cell at all. Nothing
+   module-specific remains, so the hook stays only as a test/selector anchor. */
+
+/* Role takes whatever is left; the three trailing columns are sized to their content. Without
+   this the browser shared the width evenly and left roughly 450px of empty gutter between a role
+   and its own scores — far enough apart that reading across a row took real effort. */
+.jsm-board th:first-child,
+.jsm-board td:first-child {
   width: 100%;
-  border-collapse: collapse;
 }
 
-.jsm-board th,
-.jsm-board td {
-  text-align: left;
-  vertical-align: top;
-  padding: 0.25rem 0.75rem 0.25rem 0;
+.jsm-board th:not(:first-child),
+.jsm-board td:not(:first-child) {
+  width: 1%;
+  white-space: nowrap;
 }
 
+/* The two score columns want the same width whichever number is in them, so the eye can run down
+   either one. 6rem holds "Not read yet" without wrapping. */
+.jsm-board th:nth-child(2),
+.jsm-board td:nth-child(2),
+.jsm-board th:nth-child(3),
+.jsm-board td:nth-child(3) {
+  min-width: 6rem;
+}
+
+/* The count and the search action share one row: count left, action right, and on a narrow
+   viewport the action wraps under rather than squeezing the count. */
+.jsm-board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.jsm-board-head__count {
+  margin: 0;
+}
+
+/* Centred, not left-aligned: `.jsm-root` is 72rem, and pinning the card left left the right half
+   of the viewport empty and the page reading lopsided.
+   The width was 62ch — a prose reading measure — which is the wrong measure for this card. What
+   fills it is a chat transcript with a composer under it, not an article; at 1440 that left about
+   570px of dead ground either side and made the one screen the whole product depends on look like
+   an unfinished column. 52rem keeps the card clearly inset inside the 72rem root while giving the
+   composer and the assistant's replies a width they can use. The reading measure moves down to the
+   two lines of prose that actually want one. Layout only — no colour or type here (see header). */
+/* `width: 100%` is load-bearing, not belt-and-braces. `.jsm-root` is a column flex container, and
+   an `auto` margin on a flex item's cross axis cancels `align-items: stretch` — the card stopped
+   filling its 52rem and shrink-wrapped to its longest line of prose (~476px at 1440), which is
+   narrower than the 62ch it was meant to replace. An explicit width gives it a definite size for
+   `max-width` to cap and for the auto margins to centre. */
 .jsm-onb {
-  max-width: 62ch;
+  width: 100%;
+  max-width: 52rem;
+  margin-inline: auto;
 }
 
 .jsm-onb__head,
 .jsm-onb__sub {
   margin: 0;
+  max-width: 46ch;
 }
 
+/* The count leads the chip row it summarises, and sits tight against it rather than taking the
+   card's default gap — at arm's length it read as an unrelated floating line. */
+.jsm-onb__count {
+  margin: 0.25rem 0 -0.25rem;
+}
+
+/* An <ol> because the five steps are asked in order; the list chrome is not wanted, only the
+   sequence semantics. */
 .jsm-onb__prog {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 /* #1331: the conversation itself, full width within the onboarding column. `.jsm-state`'s
    `align-items: flex-start` shrink-wraps flex children to their content width by default —
    `align-self: stretch` overrides that for just this child so the host's Surface (composer
    input included) gets the whole card's width rather than collapsing to its own content. */
+/* No min-height. There used to be 20rem here, reserving a transcript's worth of room before there
+   was a transcript: on the very first screen the card stood 500px tall with the composer near the
+   top and roughly 300px of empty ground under it, which is the single thing that made this screen
+   look unfinished. The conversation grows the card as it fills, which is what a chat does; an
+   empty one should be short. */
 .jsm-onb__chat {
   display: flex;
   flex-direction: column;
   align-self: stretch;
   width: 100%;
-  min-height: 20rem;
 }
 
 .jsm-onb__unavailable {
@@ -118,38 +179,144 @@
   opacity: 0.85;
 }
 
+/* The table and the open match sit side by side once there is room for both. Appended under the
+   table, the panel opened roughly 1400px below the row that was clicked — far enough that the click
+   looked like it had done nothing. Beside it, the row and its reasons are readable together, and
+   the panel stays put while the list scrolls. Below 60rem the two stack and inspector.tsx scrolls
+   itself into view instead. */
+.jsm-board-body {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (min-width: 60rem) {
+  .jsm-board-body--open {
+    grid-template-columns: minmax(0, 1fr) 26rem;
+  }
+
+  .jsm-board-body--open .jsm-inspector {
+    position: sticky;
+    top: 1rem;
+  }
+}
+
 .jsm-inspector {
   display: flex;
   flex-direction: column;
+  /* Not `stretch`. A column flex container stretches its children to full width by default, which
+     turned every control in here into a panel-wide block — three stacked full-width buttons reading
+     as three equally-weighted decisions. Children that want the full width ask for it below. */
+  align-items: flex-start;
   gap: 0.75rem;
   padding: 1.25rem;
+  /* Only matters on a narrow viewport, where this panel stacks under the table and scrolls itself
+     into view; the app header is sticky and would otherwise cover its title. */
+  scroll-margin-top: 5rem;
 }
 
+/* Title bar: who the role is with on the left, Close on the right. */
 .jsm-inspector__head {
   display: flex;
-  flex-direction: column;
   align-items: flex-start;
+  justify-content: space-between;
+  align-self: stretch;
+  gap: 1rem;
+}
+
+.jsm-inspector__ident {
+  display: flex;
+  flex-direction: column;
   gap: 0.25rem;
+  min-width: 0;
 }
 
 .jsm-inspector__title {
   margin: 0;
 }
 
+/* One row of content-sized controls; wraps rather than squeezing in the 26rem side panel. */
+.jsm-inspector__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.jsm-inspector__dismissed {
+  margin: 0;
+}
+
 .jsm-inspector__axes {
+  display: flex;
+  flex-wrap: wrap;
+  align-self: stretch;
+  gap: 1.5rem;
+}
+
+/* `flex: 1 1 18rem` so the two axes share a wide panel evenly and stack in a narrow one, rather
+   than sizing themselves to whichever reason happens to be the longer paragraph. */
+.jsm-inspector__axis {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.jsm-inspector__value {
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+/* The conversation about one match. Full width under the board rather than in the 26rem detail
+   column: this is a transcript with a composer, and a chat squeezed into a side rail is unusable.
+   These hooks had no rules at all until now — the head's eyebrow and Close button sat jammed
+   against each other on one line because nothing had ever laid them out. */
+.jsm-discuss-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  /* Clears the app's sticky header when this panel scrolls itself into view — without it the
+     scroll lands the panel's own title bar underneath the header and the transcript opens with no
+     visible indication of which role is being discussed. */
+  scroll-margin-top: 5rem;
+}
+
+.jsm-discuss-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.jsm-discuss-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+}
+
+.jsm-discuss-card__title {
+  margin: 0;
+}
+
+.jsm-discuss-card__axes {
   display: flex;
   flex-wrap: wrap;
   gap: 1.5rem;
 }
 
-.jsm-inspector__axis {
+.jsm-discuss-card__axis {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  min-width: 12rem;
+  flex: 1 1 18rem;
+  min-width: 0;
 }
 
-.jsm-inspector__value {
+.jsm-discuss-card__value {
   font-variant-numeric: tabular-nums;
   margin: 0;
 }

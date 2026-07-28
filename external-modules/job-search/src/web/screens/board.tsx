@@ -6,7 +6,7 @@
 // api.ts). runQueue resolves to "queued", not "done" — a dismiss is therefore optimistic: hide
 // the row immediately, then reconcile against the next matches.list read, restoring the row
 // with a plain message if it comes back still not-dismissed (the write never actually landed).
-import { h, useCallback, useEffect, useState, type ReactNodeLike } from "../runtime";
+import { h, useCallback, useEffect, useRef, useState, type ReactNodeLike } from "../runtime";
 import { invokeTool, runQueue, type RunOutcome } from "../api";
 import { MATCHES_LIST_MAX_LIMIT, type FailureCause } from "../../domain/records.js";
 import type { AssistantSurfaceHandleV1 } from "../../domain/seed-prompt.js";
@@ -55,9 +55,18 @@ export interface BoardScreenProps {
 // compare only by the active key's own numeric value. Never blends fit and want into one
 // comparator — sorting by one must never reorder by the other (L9's fit/want non-blending,
 // extended to sort behavior, not just display).
+/** How the board reads before the user has touched a column header.
+ *
+ * Not "whatever order the store returned". A board's whole claim is "here are the roles worth your
+ * time", and unsorted it opened on an AI Model Engineer scoring 8 while five 88s sat below the
+ * fold — which reads as a broken matcher rather than an unsorted table. Fit first because fit is
+ * the axis the résumé evidence supports; want is the user's own preference and is never blended
+ * into it (L9). Unscored rows sort last either way: they have no number to rank by, and burying
+ * them keeps the top of the board answerable. */
+const DEFAULT_SORT: SortState = { key: "fit", dir: "desc" };
+
 function sortMatches(items: BoardMatch[], sort: SortState | null): BoardMatch[] {
-  if (sort === null) return items;
-  const { key, dir } = sort;
+  const { key, dir } = sort ?? DEFAULT_SORT;
   const scored = items.filter(isScored);
   const unscored = items.filter((item) => !isScored(item));
   scored.sort((a, b) => {
@@ -68,9 +77,12 @@ function sortMatches(items: BoardMatch[], sort: SortState | null): BoardMatch[] 
   return [...scored, ...unscored];
 }
 
+/** Shows the effective sort, including the default one nobody has clicked — a table that is
+ *  sorted but shows no indicator invites the reader to distrust the order. */
 function sortIndicator(sort: SortState | null, key: SortKey): string {
-  if (sort === null || sort.key !== key) return "";
-  return sort.dir === "asc" ? " ▲" : " ▼";
+  const effective = sort ?? DEFAULT_SORT;
+  if (effective.key !== key) return "";
+  return effective.dir === "asc" ? " ▲" : " ▼";
 }
 
 // lastOkAt is an ISO timestamp or null (never crawled to a success yet); this is deliberately a
@@ -171,9 +183,12 @@ function SearchNowControl(props: { profileId: string; onEnqueued(): void }): Rea
 
   return (
     <div className="jsm-search-now">
+      {/* Secondary, not primary. The board itself is what the user came for; searching again is a
+          refresh. A filled accent button here made the one repeatable maintenance action the
+          loudest thing on a page of twenty results. */}
       <button
         type="button"
-        className="jds-btn jds-btn--primary"
+        className="jds-btn jds-btn--secondary"
         onClick={handleClick}
         disabled={pending}
       >
@@ -194,6 +209,16 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [detailState, setDetailState] = useState<DetailState>({ status: "idle" });
   const { discussing, discuss, close: closeDiscuss } = useDiscuss(props.assistantSurface);
+
+  // The conversation renders full width under the board, which is the right measure for a
+  // transcript — but on a twenty-row board that put it about a thousand pixels below the Discuss
+  // button, so clicking Discuss appeared to do nothing at all. Same treatment as the inspector's
+  // own panel; optional-chained because the unit renderer hands back no real node.
+  const discussRef = useRef<{ scrollIntoView?: (opts: unknown) => void } | null>(null);
+  useEffect(() => {
+    if (discussing === null) return;
+    discussRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [discussing]);
 
   // Any id still optimistically hidden that comes back from a fresh read still not dismissed
   // means the write never landed — un-hide it and say so plainly rather than leaving it
@@ -313,9 +338,13 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   );
 
   function toggleSort(key: SortKey): void {
+    // `prev ?? DEFAULT_SORT`, because the board arrives already sorted by fit descending. Treating
+    // an untouched board as "no sort" meant the first click on Fit re-applied the order that was
+    // on screen already, and the header did nothing.
     setSort((prev) => {
-      if (prev === null || prev.key !== key) return { key, dir: "desc" };
-      return { key, dir: prev.dir === "desc" ? "asc" : "desc" };
+      const current = prev ?? DEFAULT_SORT;
+      if (current.key !== key) return { key, dir: "desc" };
+      return { key, dir: current.dir === "desc" ? "asc" : "desc" };
     });
   }
 
@@ -348,6 +377,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
     (item) => item.state !== "dismissed" && !hiddenIds.has(item.id)
   );
   const sorted = sortMatches(visibleItems, sort);
+  const scoredCount = sorted.filter(isScored).length;
   const selectedMatch = sorted.find((item) => item.id === selectedMatchId) ?? null;
 
   // Guarded by matchId, not just detailState.status: effects run after render, so there is one
@@ -378,10 +408,16 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   const Surface = props.assistantSurface?.Surface;
   const discussPanel =
     discussing !== null && detail !== null && discussing === detail.id && Surface ? (
-      <div className="jds-card jds-card--sunken jsm-discuss-panel">
+      <div ref={discussRef} className="jds-card jds-card--sunken jsm-discuss-panel">
+        {/* A title bar, not two controls jammed together: the eyebrow said "Discussing" and stopped,
+            so the only thing naming the role under discussion was the record card further down. */}
         <div className="jsm-discuss-panel__head">
-          <span className="jds-eyebrow">Discussing</span>
-          <button type="button" className="jds-btn jds-btn--secondary" onClick={closeDiscuss}>
+          <span className="jds-eyebrow">Discussing {detail.title}</span>
+          <button
+            type="button"
+            className="jds-btn jds-btn--quiet jds-btn--sm"
+            onClick={closeDiscuss}
+          >
             Close
           </button>
         </div>
@@ -406,84 +442,123 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   return (
     <div className="jsm-board-screen">
       <PortalBanner portals={portals} />
-      <SearchNowControl profileId={profileId} onEnqueued={() => void fetchMatches()} />
+      {/* The board's own header row. "Search now" used to sit alone under the view tabs as a third
+          stacked row of buttons, with nothing anywhere saying what was on the board or how much of
+          it had been read — and "read" matters here, because scoring is budgeted and a run can
+          leave most of a crawl unscored. The count says that plainly; the action sits beside it
+          rather than above it. */}
+      <div className="jsm-board-head">
+        <p className="jsm-board-head__count">
+          {/* One interpolated string, not a fragment: this module's loosely-typed JSX runtime has
+              no `Fragment` in scope, so the <>…</> shorthand does not compile here (see root.tsx's
+              h(Fragment, ...) calls for the same constraint). */}
+          {scoredCount < sorted.length
+            ? `${sorted.length} ${sorted.length === 1 ? "role" : "roles"} · ${scoredCount} scored so far`
+            : `${sorted.length} ${sorted.length === 1 ? "role" : "roles"}`}
+        </p>
+        <SearchNowControl profileId={profileId} onEnqueued={() => void fetchMatches()} />
+      </div>
       {restoreMessage ? (
         <p className="jsm-queue-notice" role="status">
           {restoreMessage}
         </p>
       ) : null}
-      {sorted.length === 0 ? (
-        <div className="jds-card jds-card--sunken jsm-state" role="status">
-          <span className="jds-eyebrow">Job search</span>
-          <p>No matches yet — check back once your next search run finishes.</p>
-        </div>
-      ) : (
-        <table className="jds-table jsm-board">
-          <thead>
-            <tr>
-              <th>Role</th>
-              <th>
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--tertiary"
-                  onClick={() => toggleSort("fit")}
-                >
-                  Fit{sortIndicator(sort, "fit")}
-                </button>
-              </th>
-              <th>
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--tertiary"
-                  onClick={() => toggleSort("want")}
-                >
-                  Want{sortIndicator(sort, "want")}
-                </button>
-              </th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((item) => (
-              <tr key={item.id} className={item.outsideFrame ? "jsm-board-row--outside" : ""}>
-                <td>
+      {/* The list and the open match are one two-column region, not a table with a panel dropped
+          under it — see `.jsm-board-body` for why. The modifier is what turns the second column on,
+          so a closed board still gets the full width for the table. */}
+      <div className={`jsm-board-body${selectedMatch ? " jsm-board-body--open" : ""}`}>
+        {sorted.length === 0 ? (
+          <div className="jds-card jds-card--sunken jsm-state" role="status">
+            <span className="jds-eyebrow">Job search</span>
+            <p>No matches yet — check back once your next search run finishes.</p>
+          </div>
+        ) : (
+          <table className="jds-table jsm-board">
+            <thead>
+              <tr>
+                <th>Role</th>
+                <th className="jds-table__num">
                   <button
                     type="button"
-                    className="jds-btn jds-btn--tertiary"
-                    onClick={() => setSelectedMatchId(item.id)}
+                    className="jds-table__sort"
+                    onClick={() => toggleSort("fit")}
                   >
-                    {item.title}
+                    Fit{sortIndicator(sort, "fit")}
                   </button>
-                  <div>{item.company}</div>
-                  {item.outsideFrame ? (
-                    <span className="jds-badge">Outside your stated frame</span>
-                  ) : null}
-                </td>
-                <td>{isScored(item) ? item.fit : "—"}</td>
-                <td>{isScored(item) ? item.want : "—"}</td>
-                <td>
-                  {!isScored(item) ? <span className="jds-badge">Not read yet</span> : null}
+                </th>
+                <th className="jds-table__num">
                   <button
                     type="button"
-                    className="jds-btn jds-btn--secondary"
-                    onClick={() => handleDismiss(item.id)}
+                    className="jds-table__sort"
+                    onClick={() => toggleSort("want")}
                   >
-                    Dismiss
+                    Want{sortIndicator(sort, "want")}
                   </button>
-                </td>
+                </th>
+                {/* Named for screen readers, blank on screen: a column of Dismiss buttons needs no
+                  visible heading, but an unlabelled header cell is a hole in the table. */}
+                <th className="jds-table__actions">
+                  <span className="jds-sr-only">Actions</span>
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      <Inspector
-        match={selectedMatch}
-        detail={detail}
-        detailError={detailError}
-        onClose={() => setSelectedMatchId(null)}
-        onDismiss={(matchId) => handleDismiss(matchId)}
-        onDiscuss={onDiscuss}
-      />
+            </thead>
+            <tbody>
+              {sorted.map((item) => (
+                // The open row is marked, so the panel beside it is visibly the detail *of that row*
+                // rather than a card that happens to be on screen. `aria-selected` is what the styling
+                // hangs off — the state is real, not a class name asserting it.
+                <tr
+                  key={item.id}
+                  aria-selected={item.id === selectedMatchId}
+                  className={item.outsideFrame ? "jsm-board-row--outside" : ""}
+                >
+                  <td>
+                    <button
+                      type="button"
+                      className="jds-table__rowlink"
+                      onClick={() => setSelectedMatchId(item.id)}
+                    >
+                      {item.title}
+                    </button>
+                    <div className="jds-table__sub">{item.company}</div>
+                    {item.outsideFrame ? (
+                      <span className="jds-badge">Outside your stated frame</span>
+                    ) : null}
+                  </td>
+                  {/* An unscored row says so once, in the score columns where the number would have
+                    been — not as a badge over by the Dismiss button, which pushed the actions
+                    column out of line with every scored row above it. */}
+                  <td className="jds-table__num">
+                    {isScored(item) ? (
+                      item.fit
+                    ) : (
+                      <span className="jds-table__sub">Not read yet</span>
+                    )}
+                  </td>
+                  <td className="jds-table__num">{isScored(item) ? item.want : "—"}</td>
+                  <td className="jds-table__actions">
+                    <button
+                      type="button"
+                      className="jds-btn jds-btn--quiet jds-btn--sm"
+                      onClick={() => handleDismiss(item.id)}
+                    >
+                      Dismiss
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <Inspector
+          match={selectedMatch}
+          detail={detail}
+          detailError={detailError}
+          onClose={() => setSelectedMatchId(null)}
+          onDismiss={(matchId) => handleDismiss(matchId)}
+          onDiscuss={onDiscuss}
+        />
+      </div>
       {discussPanel}
     </div>
   );

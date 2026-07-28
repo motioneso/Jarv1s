@@ -248,17 +248,32 @@ describe("job-search web BoardScreen", () => {
     const renderer = await renderBoard();
     await flush(renderer);
 
+    // The board opens sorted by Fit descending — an unsorted board leads with whatever the store
+    // returned, which reads as a broken matcher rather than an unsorted table.
+    expect(rowTitles(renderer)).toEqual(["Role A", "Role C", "Role B"]);
+
+    // So the first click on Fit flips it, rather than re-applying the order already on screen and
+    // appearing to do nothing.
     const fitHeader = findButton(renderer, /^Fit/);
     await act(async () => {
       fitHeader!.props.onClick();
     });
-    expect(rowTitles(renderer)).toEqual(["Role A", "Role C", "Role B"]);
+    expect(rowTitles(renderer)).toEqual(["Role B", "Role C", "Role A"]);
 
+    // Want sorts on its own axis and does not inherit Fit's direction (L9: the two are never
+    // blended). A fresh column starts descending, highest want first.
     const wantHeader = findButton(renderer, /^Want/);
     await act(async () => {
       wantHeader!.props.onClick();
     });
     expect(rowTitles(renderer)).toEqual(["Role B", "Role C", "Role A"]);
+
+    // And back to Fit descending, proving the two axes are independent rather than one ordering
+    // shared between two labels.
+    await act(async () => {
+      fitHeader!.props.onClick();
+    });
+    expect(rowTitles(renderer)).toEqual(["Role A", "Role C", "Role B"]);
   });
 
   it("renders dashes and a 'Not read yet' flag for an unscored row, and the inspector says queued not dropped", async () => {

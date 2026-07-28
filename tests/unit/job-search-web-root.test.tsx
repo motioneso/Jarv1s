@@ -38,7 +38,10 @@ vi.mock("../../external-modules/job-search/src/web/styles.css", () => ({ default
 
 import { Root, type HostActions } from "../../external-modules/job-search/src/web/root";
 import * as api from "../../external-modules/job-search/src/web/api";
-import type { AssistantSurfaceHandleV1 } from "../../external-modules/job-search/src/domain/seed-prompt";
+import {
+  seedIdempotencyKey,
+  type AssistantSurfaceHandleV1
+} from "../../external-modules/job-search/src/domain/seed-prompt";
 import type {
   Profile,
   ProfilesState
@@ -203,8 +206,13 @@ describe("job-search web Root", () => {
     expect(renderer.root.findAllByType("table")).toHaveLength(0);
   });
 
-  it("bootstrap only ever opens the assistant composer, never invokes a tool directly", async () => {
+  // The bootstrap writes its own first record through the module's queue. It must not invoke a
+  // write tool directly (the browser REST path 403s those), and it must not depend on the model
+  // choosing to call one — on a live instance that dead-ended the module's very first click:
+  // the assistant opened an interview, no row was ever written, and this panel polled forever.
+  it("bootstrap enqueues profile.bootstrap and never invokes a tool directly", async () => {
     mockUseProfiles.mockReturnValue(empty());
+    vi.mocked(api.runQueue).mockResolvedValue({ kind: "queued" });
     const actions = hostActions();
     const renderer = await renderRoot(actions);
 
@@ -214,16 +222,50 @@ describe("job-search web Root", () => {
       start!.props.onClick();
     });
 
-    expect(actions.openAssistant).toHaveBeenCalledTimes(1);
-    const call = (actions.openAssistant as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(call.starterPrompt).toMatch(/job search profile/i);
+    expect(api.runQueue).toHaveBeenCalledTimes(1);
+    expect(api.runQueue).toHaveBeenCalledWith("job-search.profile-bootstrap", "profile.bootstrap");
     expect(api.invokeTool).not.toHaveBeenCalled();
+    // The user is never made to say anything to bootstrap the module.
+    expect(actions.openAssistant).not.toHaveBeenCalled();
 
     // Root re-renders with pollArmed flipped true — Root's own arming signal,
     // not the hook's (mocked) internal timing.
     const lastCallProps = mockUseProfiles.mock.calls.at(-1)![0];
     expect(lastCallProps.pollArmed).toBe(true);
     expect(text(renderer)).toMatch(/Setting up your job search profile/);
+  });
+
+  // A queue turned off for the account can never produce a profile, so waiting is the wrong
+  // answer: say so and offer the retry rather than spinning on "Setting up…" indefinitely.
+  it("stops waiting and surfaces the notice when the bootstrap queue is disabled", async () => {
+    mockUseProfiles.mockReturnValue(empty());
+    vi.mocked(api.runQueue).mockResolvedValue({ kind: "disabled" });
+    const renderer = await renderRoot();
+
+    await act(async () => {
+      findButton(renderer, /Start your job search/i)!.props.onClick();
+    });
+
+    expect(mockUseProfiles.mock.calls.at(-1)![0].pollArmed).toBe(false);
+    expect(text(renderer)).toMatch(/turned off for this account/);
+    expect(findButton(renderer, /Try again/i)).toBeTruthy();
+  });
+
+  // "Try again" is the panel's only escape from a failed bootstrap. Re-arming the poll without
+  // re-running the queue would just wait harder against the same empty table.
+  it("re-runs the bootstrap queue on retry", async () => {
+    mockUseProfiles.mockReturnValue(empty());
+    vi.mocked(api.runQueue).mockResolvedValue({ kind: "error", message: "boom" });
+    const renderer = await renderRoot();
+
+    await act(async () => {
+      findButton(renderer, /Start your job search/i)!.props.onClick();
+    });
+    await act(async () => {
+      findButton(renderer, /Try again/i)!.props.onClick();
+    });
+
+    expect(api.runQueue).toHaveBeenCalledTimes(2);
   });
 
   it("renders the real onboarding screen for a profile with no criteria yet", async () => {
@@ -336,7 +378,9 @@ describe("job-search web Root", () => {
     await flush(renderer);
 
     const status = findParagraphsByRole(renderer, "status");
-    expect(status.some((p) => flatten(p.props.children).match(/search run has been queued/))).toBe(
+    // The copy says what the user is waiting for and where it will appear, rather than naming the
+    // internal event ("a search run has been queued") — a queue is our word, not theirs.
+    expect(status.some((p) => flatten(p.props.children).match(/Searching for new roles/))).toBe(
       true
     );
     expect(findParagraphsByRole(renderer, "alert")).toHaveLength(0);
@@ -366,7 +410,10 @@ describe("job-search web Root", () => {
     expect(surface.setSurfaceKey).toHaveBeenCalledWith("surf-p1");
     expect(surface.seedContext).toHaveBeenCalledTimes(1);
     const [seedText, idempotencyKey] = vi.mocked(surface.seedContext).mock.calls[0];
-    expect(idempotencyKey).toBe("job-search:p1:v1");
+    // Derived, not literal: the key carries a version suffix that is bumped every time the
+    // seed text changes, and a hardcoded "v1" here silently rotted this suite red for three
+    // bumps before anyone ran it. What matters is that the key is the one the module mints.
+    expect(idempotencyKey).toBe(seedIdempotencyKey("p1"));
     expect(seedText).toContain("job-search.criteria.set");
 
     // Ordering, not just presence: seeding before binding frames the drawer instead of this
@@ -423,8 +470,8 @@ describe("job-search web Root", () => {
     expect(surface.seedContext).toHaveBeenCalledTimes(2);
     const [, firstIdempotencyKey] = vi.mocked(surface.seedContext).mock.calls[0];
     const [, secondIdempotencyKey] = vi.mocked(surface.seedContext).mock.calls[1];
-    expect(firstIdempotencyKey).toBe("job-search:p1:v1");
-    expect(secondIdempotencyKey).toBe("job-search:p1:v1");
+    expect(firstIdempotencyKey).toBe(seedIdempotencyKey("p1"));
+    expect(secondIdempotencyKey).toBe(seedIdempotencyKey("p1"));
   });
 
   it("renders fine when the host gives it no assistant surface", async () => {

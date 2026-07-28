@@ -8,9 +8,20 @@
 // too rather than criteria touching this file directly).
 //
 // No chat button lives here (variant-flow.tsx:145's drawer button is prototype-only and must not
-// be ported) — the only way into the assistant from this surface is hostActions.openAssistant,
-// which drops an editable, unsent draft into the host composer (the consent boundary, ledger H5).
-import { Fragment, h, useCallback, useEffect, useState, type ReactNodeLike } from "./runtime";
+// be ported). The assistant reaches this surface one way only: the onboarding screen renders the
+// host's own Surface, bound and framed by useProfileThread. `hostActions.openAssistant` stays on
+// the props contract (the host always passes it, and ledger H5's editable-unsent-draft consent
+// boundary still governs anything that uses it) but nothing in this module calls it any more —
+// the empty state now writes its own first record through the module's queue, see handleStart.
+import {
+  Fragment,
+  h,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNodeLike
+} from "./runtime";
 import { runQueue, type RunOutcome } from "./api";
 import { isLatched, setLatched } from "./latch";
 import { useProfiles, type Profile } from "./use-profiles";
@@ -19,6 +30,11 @@ import { OnboardingScreen } from "./screens/onboarding";
 import { BoardScreen } from "./screens/board";
 import { SettingsScreen } from "./screens/settings";
 import styles from "./styles.css";
+
+/** How often the profile record is re-read while the interview is still going. Matched to
+ * `POLL_INTERVAL_MS` in use-profiles.ts — this is the same kind of wait (a worker write the
+ * browser cannot be notified about) and there is no reason for the two to differ. */
+const ONBOARDING_REFRESH_MS = 3_000;
 
 export interface HostActions {
   actorScopeKey: string;
@@ -35,13 +51,9 @@ export interface RootProps {
   assistantSurface?: AssistantSurfaceHandleV1;
 }
 
-const BOOTSTRAP_PROMPT =
-  "Let's set up my job search profile — I'll tell you what kind of roles I'm looking for.";
-
 function LoadingPanel(): ReactNodeLike {
   return (
     <div className="jds-card jds-card--sunken jsm-state" role="status">
-      <span className="jds-eyebrow">Job search</span>
       <p>Loading your job search…</p>
     </div>
   );
@@ -57,16 +69,14 @@ function BootstrapPanel(props: {
   if (props.phase === "waiting") {
     return (
       <div className="jds-card jds-card--sunken jsm-state" role="status">
-        <span className="jds-eyebrow">Job search</span>
-        <p>Setting up your job search profile…</p>
+          <p>Setting up your job search profile…</p>
       </div>
     );
   }
   if (props.phase === "expired") {
     return (
       <div className="jds-card jds-card--sunken jsm-state" role="status">
-        <span className="jds-eyebrow">Job search</span>
-        <p>Still setting up?</p>
+          <p>Still setting up?</p>
         <button type="button" className="jds-btn jds-btn--primary" onClick={props.onRetry}>
           Try again
         </button>
@@ -75,7 +85,6 @@ function BootstrapPanel(props: {
   }
   return (
     <div className="jds-card jds-card--sunken jsm-state">
-      <span className="jds-eyebrow">Job search</span>
       <p>Find roles that match what you're looking for.</p>
       <button type="button" className="jds-btn jds-btn--primary" onClick={props.onStart}>
         Start your job search
@@ -124,17 +133,17 @@ function ActiveProfilePanel(props: {
       </div>
     ) : null;
 
+  // `jds-tabs`, not two identical secondary buttons: these are two views of one thing, and the
+  // design system already draws that — an underline on the selected tab against a shared rule.
+  // As buttons they were visually identical apart from a font-weight bump, so nothing on screen
+  // said which view you were looking at.
   const viewSwitcher = (
-    <div className="jsm-switcher" role="tablist" aria-label="Job search view">
+    <div className="jds-tabs" role="tablist" aria-label="Job search view">
       <button
         type="button"
         role="tab"
         aria-selected={view === "board"}
-        className={
-          view === "board"
-            ? "jds-btn jds-btn--secondary jsm-switcher-btn is-selected"
-            : "jds-btn jds-btn--secondary jsm-switcher-btn"
-        }
+        className="jds-tab"
         onClick={() => setView("board")}
       >
         Board
@@ -143,11 +152,7 @@ function ActiveProfilePanel(props: {
         type="button"
         role="tab"
         aria-selected={view === "settings"}
-        className={
-          view === "settings"
-            ? "jds-btn jds-btn--secondary jsm-switcher-btn is-selected"
-            : "jds-btn jds-btn--secondary jsm-switcher-btn"
-        }
+        className="jds-tab"
         onClick={() => setView("settings")}
       >
         Settings
@@ -175,7 +180,7 @@ function QueueNotice(props: { outcome: RunOutcome }): ReactNodeLike {
   if (outcome.kind === "queued" || outcome.kind === "already-queued") {
     return (
       <p className="jsm-queue-notice" role="status">
-        A search run has been queued.
+        Searching for new roles — they'll appear below as they're scored.
       </p>
     );
   }
@@ -199,6 +204,17 @@ export function Root(props: RootProps): ReactNodeLike {
   const [pollArmed, setPollArmed] = useState(false);
   const [queueNotice, setQueueNotice] = useState<RunOutcome | null>(null);
 
+  // A queued run is news for about as long as it takes to read, then it is a stale line sitting at
+  // the top of a board that has already filled in. It used to stay there for the whole session —
+  // the board showed twenty scored matches under a banner still announcing the search. Failures
+  // are not cleared: an error the user never acknowledged should not disappear on a timer.
+  useEffect(() => {
+    if (queueNotice === null) return;
+    if (queueNotice.kind !== "queued" && queueNotice.kind !== "already-queued") return;
+    const timer = setTimeout(() => setQueueNotice(null), 12_000);
+    return () => clearTimeout(timer);
+  }, [queueNotice]);
+
   // Root owns the latch (bound split: the hook has no actorScopeKey) and the
   // armed/expired UI; the hook owns only fetch + timing (bounds 1-4).
   const onPollExpired = useCallback(() => {
@@ -220,6 +236,34 @@ export function Root(props: RootProps): ReactNodeLike {
   // profile yet to bind.
   useProfileThread(props.assistantSurface, selectedProfile);
 
+  // Keep the profile record fresh while the interview is still running.
+  //
+  // `useProfiles`' bounded poll only runs while the list is EMPTY — its whole job is waiting for
+  // the bootstrap row to appear, and it stops the moment one does. Everything the interview then
+  // writes (the criteria, the enabled board, and the state flip to "active") happens in the worker,
+  // behind tool calls this component never sees, so without a second refresh the browser holds the
+  // profile it fetched on mount for the rest of the conversation. On a live run that had two
+  // visible consequences: the progress chips stayed unlit no matter how many questions the user
+  // answered, and the profile reached "active" in the database while the effect below — which is
+  // what enqueues the first crawl — was still looking at a stale "in_conversation". The user
+  // answered everything and nothing ever happened.
+  //
+  // Deliberately narrow: it only runs while the selected profile is mid-interview, and stops on
+  // its own the moment that profile is active or paused, so a user sitting on the board is not
+  // polling. The refetch is a single profile.list read.
+  const refetchRef = useRef(profiles.refetch);
+  refetchRef.current = profiles.refetch;
+  const interviewing = selectedProfile?.state === "in_conversation";
+  useEffect(() => {
+    if (!interviewing) return;
+    const timer = setInterval(() => {
+      refetchRef.current();
+    }, ONBOARDING_REFRESH_MS);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [interviewing]);
+
   // Enqueue exactly one crawl.run per profile that arrives "active" and isn't
   // already latched for this actor+profile. in_conversation and paused never
   // enqueue (bound: paused is a deliberate user pause, not a stall).
@@ -237,15 +281,45 @@ export function Root(props: RootProps): ReactNodeLike {
     }
   }, [profiles, hostActions.actorScopeKey]);
 
+  // The empty state's one job: get a profile row to exist. It goes through the module's own
+  // declared queue rather than through the assistant, because the assistant is not a reliable
+  // writer and the browser is not an allowed one:
+  //   - packages/ai/src/routes.ts 403s every risk:"write" assistant tool invoked over REST
+  //     ("confirmation_required"), deliberately and un-bypassably, so this component cannot call
+  //     job-search.profile.create itself;
+  //   - handing the model a starter prompt asking it to create the record is a coin flip. On a
+  //     live instance it opened an interview and never called the tool, so this panel sat on
+  //     "Setting up your job search profile…" forever, polling profile.list against an empty
+  //     table. That was the module's first click, and it dead-ended.
+  // `job-search.profile-bootstrap` (manifest worker.queues) runs handlers/profile.ts's idempotent
+  // bootstrap under the module's own runtime role, which CAN write. The conversation then starts
+  // on the onboarding screen's real Surface, framed by buildSeedPrompt — so no turn in this module
+  // reaches the model unframed any more, and the user is never made to say a sentence about tools.
   function handleStart(): void {
-    hostActions.openAssistant({ starterPrompt: BOOTSTRAP_PROMPT });
     setPollArmed(true);
     setPhase("waiting");
+    runQueue("job-search.profile-bootstrap", "profile.bootstrap")
+      .then((outcome) => {
+        // "disabled" is the one outcome the user must be told about: the queue is off for this
+        // account, so no amount of waiting will produce a profile.
+        if (outcome.kind === "disabled" || outcome.kind === "error") {
+          setPollArmed(false);
+          setQueueNotice(outcome);
+          setPhase("expired");
+        }
+      })
+      .catch(() => {
+        setPollArmed(false);
+        setQueueNotice({ kind: "error", message: "Network error" });
+        setPhase("expired");
+      });
   }
 
+  // Retry re-runs the bootstrap rather than only re-arming the poll: if the profile still does not
+  // exist, waiting harder was never going to produce one. Safe to repeat — the handler returns the
+  // existing profile instead of creating a second (handlers/profile.ts).
   function handleRetry(): void {
-    setPollArmed(true);
-    setPhase("waiting");
+    handleStart();
   }
 
   let body: ReactNodeLike;
@@ -278,9 +352,6 @@ export function Root(props: RootProps): ReactNodeLike {
     null,
     <style>{styles}</style>,
     <div className="jsm-root">
-      <div className="jsm-header">
-        <span className="jds-eyebrow">Job search</span>
-      </div>
       {queueNotice ? <QueueNotice outcome={queueNotice} /> : null}
       {body}
     </div>
