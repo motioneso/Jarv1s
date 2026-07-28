@@ -94,10 +94,40 @@ contributes nothing. Tests 6, 9 and 11 have still never asserted anything. This 
 ever DB-backed execution** — it had been written and committed for hours. "Written and committed" was
 true the whole time and told us nothing, which is why **#60 stayed open** and stays open now.
 
-`score` now holds the Postgres slot and owns this, reassigned from `scaffold` (silent through two
-messages over ~25 minutes while every other agent answered within minutes). The owner must report
-**harness gap vs product defect before writing a fix** — those have very different consequences for the PR, and the verdict should
-exist before a commit exists to argue for one.
+**RESOLVED at `8e798035` — harness gap, not a product defect.** `scaffold` returned (after a ~25
+minute silence that had cost them the task; the reassignment to `score` is withdrawn) with the
+verdict named **before** any fix was written, which is the only reason it can be trusted. Two
+independent never-run-before defects, both in the test:
+
+1. `beforeAll` used `resetFoundationDatabase()`, whose `seedProbeData()` INSERTs three users by raw
+   SQL with none flagged `is_bootstrap_owner`. So `bootstrapOwnerExists()` (`packages/auth/src/index.ts:492`)
+   reports false forever, the real sign-up believes it is minting the first-ever user and tries to
+   self-promote to instance admin, and `app.users_guard_admin_flag()` (migration `0053`, #97)
+   **correctly** rejects it — its exemption fires only at `count_all_users() = 1`, and by then it is
+   four. Every other suite doing a real self-service sign-up (`api-rate-limit`,
+   `chat-multiplexer-admin`, `me-sessions`, `news-personalization-repository`) uses
+   `resetEmptyFoundationDatabase()`. Fix: match them.
+2. Exposed only once the first was fixed: test 11's three expected literals omitted `moduleId`.
+   Verified independently — it is a documented field on `BriefingContribution`
+   (`packages/briefings/src/external-contributions.ts:29`), set by `parseContribution` at `:90` off
+   `manifest.id` at `:120`, and the test's `realModuleId` is a hardcoded `"job-search"` literal at
+   line 56, so the assertion is not tautological. Stale fixture; the app is right.
+
+Single-file run: exit 0, **5 executed and passed**, previously 5 skipped. Commit verified by
+`git show --stat`: one file, 14 insertions / 3 deletions, nothing swept in, diagnostic `logger: true`
+genuinely reverted. **#60 does not close on that number** — it closes on the full-suite run, because
+the failure mode here is precisely a file that behaves differently inside the 166-file run.
+
+**Three plausible leads this killed, recorded so nobody re-derives them.** pg-boss's 10s
+`connectionTimeoutMillis` (#1124): the error is not a timeout and reproduces on a single-file run.
+`registration.requires_approval`: that path yields `status: "pending"`, not a 500. And my own
+sharper-sounding hypothesis — that `createApiServer`'s default pg-boss resolves its database from the
+**environment** rather than from the passed `appDb` (`apps/api/src/server.ts:202`), so a test can
+straddle two databases — which is a real hazard worth fixing on sight but was **not** this. The tell
+is load-dependence: that defect predicts a file passing alone and failing in a full suite; this one
+failed every time. `logger: false` was right about the *mechanism* (it ate the trace) and wrong about
+the *payload*. An empty-bodied 500 tells you the trace is suppressed, not what is in it — so flip the
+logger before theorising, and never commit the flip.
 
 **The earlier `notes-write-tools.test.ts` flake is confirmed and closed.** It passed in this run and
 `tuple concurrently updated` appears nowhere in the log — it cleared exactly when the other
@@ -174,14 +204,19 @@ means mid-work, **not** stalled — check mtimes before concluding otherwise or 
 
 | Agent          | Work                                                | Lock                           |
 | -------------- | --------------------------------------------------- | ------------------------------ |
-| `score`        | **#60** — the blocker, reassigned from `scaffold`    | **holds the Postgres slot**    |
+| `scaffold`     | **#60** — fix committed `8e798035`; owes the full-suite number | **holds the Postgres slot** |
 | `chat-surface` | **#76** — `.tsx` mock-drift audit, all 8 files      | the 8 `.tsx` test files        |
 | `records`      | **#52** — 12 UAT phases under **N45**; spec still untracked | `tests/uat/*`          |
+| `score`        | #73 closed and verified at `fa1fc7b0`; stood down from #60 | none                    |
 | `dedupe`       | #63 and #50 both closed and verified; handing off   | none                           |
 | `criteria`     | idle — tool/queue audit closed clean                | none                           |
-| `scaffold`     | **UNRESPONSIVE** — silent through two messages      | none; slot taken back          |
 
-**The Postgres slot is serialised by me, not by inference.** It is held by `score` (with #60). Every
+**#60 changed hands twice and is back with `scaffold`.** I reassigned it to `score` during the
+silence, then withdrew that when `scaffold` returned holding the answer. The churn is mine, not
+theirs. Rule that survives: reassign on silence rather than idle-wait, but the moment the original
+owner produces the goods, one owner — never two agents converging on the same file.
+
+**The Postgres slot is serialised by me, not by inference.** It is held by `scaffold` (with #60). Every
 holder gets it by name and hands it back by name; nobody infers clearance from silence, from `ps`
 showing no vitest, or from another agent finishing. N26 still applies to every DB-backed run: DROP and
 CREATE a fresh exported gate DB first, and never pipe the command — a filter's exit code masks red.
