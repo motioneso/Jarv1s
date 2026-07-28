@@ -28,7 +28,7 @@
 //     skipping a slow dependency, not fabricating the thing under test), and Phases 5-12 run
 //     unconditionally against it, on every run.
 import { execFileSync } from "node:child_process";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { buildUatComposeArgs, restartUatStack } from "../provisioner.js";
 import { UAT_ADMIN_EMAIL, UAT_ADMIN_ID, UAT_ADMIN_PASSWORD } from "../seed/admin.js";
 import { deterministicFixtureScore } from "../fixtures/job-search-fixture-server.js";
@@ -205,13 +205,12 @@ async function pollWithReload<T>(
 // count() with the auto-waiting that count() itself lacks: give the first match a bounded chance to
 // attach before counting. A timeout here is a legitimate "not yet, poll again", not a failure —
 // hence the swallowed rejection — so the outer poll's deadline stays the only thing that can fail.
-async function countWhenReady(page: Page, selector: string): Promise<number> {
-  await page
-    .locator(selector)
+async function countWhenReady(rows: Locator): Promise<number> {
+  await rows
     .first()
     .waitFor({ state: "attached", timeout: POLL_SETTLE_MS })
     .catch(() => undefined);
-  return page.locator(selector).count();
+  return rows.count();
 }
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixtures arg
@@ -490,18 +489,24 @@ test("job search: install, bootstrap, onboarding, crawl, board, inspector, chat 
 
   // --- Phase 7: wait for matches, then verify Fit/Want sort against deterministicFixtureScore ---
   await test.step("Phase 7: matches appear and Fit/Want sort matches the fixture's deterministic scores", async () => {
-    await pollWithReload(
-      page,
-      async () => countWhenReady(page, "table.jsm-board tbody tr"),
-      (count) => count > 0,
-      "at least one match row on the board"
-    );
-
     // #1329: unscored rows render "—"/"—" and sort last, never interleaved — restrict the
     // sort-order assertion to scored rows, which is what sortMatches itself guarantees.
     const scoredRows = page.locator("table.jsm-board tbody tr").filter({
       hasNot: page.getByText("Not read yet")
     });
+
+    // Wait for a SCORED row, not merely any row. The crawl stage writes every kept posting as an
+    // unscored match before the score stage reads a single one, so "at least one row" goes true
+    // while the whole board still says "Not read yet" — and the sort assertion below then has
+    // nothing to sort. Waiting on the scored row is waiting for the crawl->score handoff, which is
+    // what this phase is actually about.
+    await pollWithReload(
+      page,
+      async () => countWhenReady(scoredRows),
+      (count) => count > 0,
+      "at least one SCORED match row on the board"
+    );
+
     const scoredCount = await scoredRows.count();
     expect(
       scoredCount,
