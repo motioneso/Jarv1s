@@ -4459,3 +4459,36 @@ Also flagged to #1311: the failing `resolveGrantSelfOperationForModule routes a 
 the generic grant` test must be re-run cleanly rather than written off as stale log output — a **6ms**
 failure is a synchronous assertion, not a timeout, and usually means genuinely wrong routing. If real,
 fix the routing; do not adjust the assertion.
+
+## 2026-07-27 — phantom collision on #1311, and the #1264 relay-25 handoff
+
+**The "two agents on one worktree" alarm on #1311 was false.** Resolved fresh from
+`herdr pane list`: exactly one agent lives in `.claude/worktrees/1311-install-grant` —
+pane `w1:p14G`, session `a3a659aa-d5da-4cc7-9dcc-5fdee1b72d37`. There is no `w1:p14F`; I
+reaped that pane earlier after confirming its successor, and **herdr pane ids reflow after a
+reap**, so the relay-8 handoff carried a stale pane number forward. The lane then read that
+stale number as evidence of a second agent and reported a collision against itself —
+"grant1311b" and "install-grant-1311-r7" were one session. Commits `939947c5`, `c6ade938`,
+`86d68fb1` are all its own. Pane confirmed the identity and resumed driving.
+
+Generalization (same family as the invented-filename errors earlier in this run): **a pane
+number in a written document is never authority.** Only the Claude session id is immutable.
+Resolve pane numbers fresh at read time, and when an agent reports a collision, re-resolve the
+fleet before believing the premise — do not adjudicate "which pane drives" until both panes are
+proven to exist.
+
+**#1264 / PR #1276 relay-25 → relay-26.** Predecessor session `5d1ebabf` flushed
+`docs/superpowers/handoffs/2026-07-27-1264-settings-self-operation-relay-25.md` (`85d59ec1`,
+committed by explicit path only) and spawned successor **relay26-1264, session
+`861c82c1-0186-415b-ade3-5ad153cf831f`, pane `w1:p14H`, Sonnet 5** — confirmed driving.
+Predecessor pane reaped. Rebase onto `origin/main` (`45b8a424`) is **done and clean, zero
+conflicts**: `f369e61d` → `0e8a5d26`, branch head now `85d59ec1`. Remaining on that lane: full
+gate on a fresh exported gate DB, `test:e2e`, force-push-with-lease, CI confirmation via
+`gh run view <id> --json jobs`, report the new head. `DO NOT MERGE` relayed forward as
+coordinator-only.
+
+Also checked and cleared: an earlier gate log showed `check:file-size` red on
+`packages/module-sdk/src/index.ts` at 1006 lines, which short-circuits the whole gate (zero
+tests run). That file is **760 lines on the current branch head** — the violation is already
+resolved and the log was stale. No action needed, but it is a reminder that an early gate link
+going red means the suite never ran, not that the suite passed.
