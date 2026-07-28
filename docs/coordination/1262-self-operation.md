@@ -4818,3 +4818,24 @@ map was wrong. Live-path UAT proof on the PR remains a hard merge gate for #1273
 
 **Continuation note (mid-doing):** waiting on lane1273's gate exit code, then its rebase + push.
 Fleet is now w1:p11T Coordinator (`43e5f5e2`) + w1:p14Q lane1273 (`af6a2394`, Sonnet 5).
+
+## 2026-07-28 — #1312 vocabulary ruling (Ben) — parking lot cleared
+
+The long-standing *bundled* vs *downloaded* question is answered: **neither**. Ben's ruling,
+posted to issue #1312 as comment 5110071100:
+
+> **User-facing there is no distinction — they are all just "modules."** Internally, the ones that
+> ship with the app are **core modules**; everything else is just a **module**, no qualifier.
+
+This retires **"external module"** as a term outright. The distinction the two candidate words were
+reaching for turned out to be an internal one, so it takes an internal name (`core`) and the
+non-core case needs no adjective at all. No UI copy, user-facing doc, or assistant-facing string may
+carry any of the three retired terms.
+
+Implied scope (tracked on #1312, still needs its own task issue before code): rename
+`external`-prefixed identifiers/directories/types that mean "not shipped with the app" — e.g.
+`packages/module-registry/src/external/` — dropping the word, or inverting to `core` where that is
+the real sense; sweep user-visible strings. Per the no-stale-concepts rule the dead vocabulary comes
+out in the **same** pass, including comments, doc headings and test names.
+
+**Awaiting-Ben parking lot is now empty.**
