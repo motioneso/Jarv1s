@@ -4,7 +4,10 @@ Pointer document. Everything here is a location, not a copy. Read the linked sou
 for detail.
 
 - **Branch** `feat/job-search`, worktree `~/Jarv1s/.claude/worktrees/job-search`.
-- **Rulings** — `rulings-ledger.md` in this directory is the authority, through **N45**.
+- **Rulings** — `rulings-ledger.md` in this directory is the authority, through **N45**. N44 and N45
+  were written into it late (line 1742 onward); until then both documents claimed an authority the
+  ledger did not carry, while `records` was already building UAT under N45. If a ruling is cited
+  anywhere, confirm it exists in the ledger before relying on the citation.
 - **Task list** — GitHub epic #1280 and its children.
 
 ## A false alarm I raised, recorded so nobody re-investigates it
@@ -57,8 +60,12 @@ Failure handling needs no new code: a throw propagates through `api.ts`'s `invok
 `board.tsx:227`'s existing `MatchesState` error arm and `inspector.tsx:88`'s `detailError`, so a
 malformed response becomes a real error state rather than an empty board reading as "no jobs matched".
 
-`sanitizeAssistantToolResult` has **no dedicated test file** anywhere in the repo — adopting it makes
-job-search its first real user, so its own tests land in the same change.
+`sanitizeAssistantToolResult` had **no dedicated test file** anywhere in the repo. It has one now:
+`tests/unit/ai-output-validation.test.ts` at `c5b7d2c0`, 8 cases, verified by reading the file rather
+than the report. It pins the throw, the strip, the no-op-on-absent-schema path, both branches of a
+declared-nullable field, per-item recursion into arrays of objects, and `columnOrder` filtering. The
+last two were beyond the brief and are the two worth having. So `score`'s `outputSchema` in **#73**
+lands on tested ground, not on a function nobody had ever exercised directly.
 
 ## Gate
 
@@ -142,8 +149,8 @@ means mid-work, **not** stalled — check mtimes before concluding otherwise or 
 | `score`        | #72 per-table RLS coverage audit (read-only)        | manifest edit cleared but HELD |
 | `records`      | #1306 UAT, 12 phases under **N45**                  | `tests/uat/*`                  |
 | `criteria`     | idle — tool/queue audit closed clean                | none                           |
-| `chat-surface` | #71 — #1336 validation-placement design, no code    | none                           |
-| `scaffold`     | #1305 Tier B **5/5 written, committed `8e5847b9`**  | awaits explicit slot clearance |
+| `chat-surface` | **#75 web half** — audit, read-only                 | none                           |
+| `scaffold`     | **#75 worker/test half** — audit, read-only         | awaits explicit slot clearance |
 
 **The Postgres slot is serialised by me, not by inference.** scaffold has been told twice not to read
 a finished log or a quiet lane as clearance — concurrent integration runs have crashed the shared

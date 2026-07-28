@@ -3,7 +3,7 @@
 Pointer document. Read the linked sources; nothing is copied here.
 
 - **Branch** `feat/job-search`, worktree `~/Jarv1s/.claude/worktrees/job-search`. Never pushed.
-- **Rulings** — `rulings-ledger.md` in this directory, authority through **N43**.
+- **Rulings** — `rulings-ledger.md` in this directory, authority through **N45**.
 - **State** — `COORDINATOR-STATE.md` in this directory (gate, file locks, agent table).
 - **Parked for Ben** — `~/Jarv1s/docs/coordination/AWAITING-BEN.md`.
 

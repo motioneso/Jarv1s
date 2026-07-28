@@ -705,7 +705,7 @@ catches it, because those call the handler directly and never cross the route.
 **Required, in Task 15:** lower `limit`'s maximum from 100, cap each free-text reason field in the
 handler's projection, and add a test that builds a worst-case maximum-size result, renders it the way
 the route does, and asserts the structured `data` survives — i.e. the result has no `text` key. Pick
-the two constants so that test passes with real headroom, and comment them with *why* they are what
+the two constants so that test passes with real headroom, and comment them with _why_ they are what
 they are, or the next person will raise the limit back. Task 20 must not paginate around this by
 issuing several calls without the per-call bound; the bound is what makes each call safe.
 
@@ -715,7 +715,7 @@ exists only as a worker-internal store method (Task 13). Task 20 then requires t
 list every portal with its state and render `cause.summary`/`cause.nextAction` verbatim, and asserts
 it. As written the screen has no source for what it renders. **Add a ninth tool,
 `job-search.portal.list` (`risk: "read"`, per-profile), to Task 16**, and note it in Task 20's
-depends-on. Task 16's test 11 compares declared handlers against registration keys as a *set*, so it
+depends-on. Task 16's test 11 compares declared handlers against registration keys as a _set_, so it
 keeps working — but the prose saying "eight tools" must move in the same pass, per N2.
 
 **N7 — `surfacesResultToUi` does not exist in this tree; do not go looking for it.** Commit
@@ -743,14 +743,14 @@ Two failure modes this prevents, in both directions:
 
 **Rule: locate by symbol name, not by line number.** A citation is confirmed when the named symbol
 is found and its described behaviour matches; a drifted line number is not a finding and must not be
-reported as one. Only a changed *claim* is a finding. This applies to every remaining task — do not
+reported as one. Only a changed _claim_ is a finding. This applies to every remaining task — do not
 raise it again per-task.
 
 **N9 — A nav icon with no `iconMap` entry falls back; it does not render nothing. Task 3's stated
 failure mode is wrong.** `08-task03-scaffold.md` warns that `icon: "compass"` must be added to the
 app-shell icon map "or the nav renders nothing." Verified against HEAD: `app-shell.tsx` resolves
 `iconMap[props.entry.icon] ?? Layers3`, with a second `Layers3` for the no-icon case. A name the map
-does not know renders a generic layers glyph — visibly wrong, never invisible. `Compass` *is* a real
+does not know renders a generic layers glyph — visibly wrong, never invisible. `Compass` _is_ a real
 `lucide-react` export, so nothing is blocked.
 
 **Ruling: the scaffold correctly ships `compass` without touching `app-shell.tsx`.** That file is
@@ -759,7 +759,7 @@ outside Task 3's declared scope, and the shipped finance module sets the identic
 `Compass` to the icon map**, and its own test asserts the mapping rather than leaving it to review.
 
 Do not re-report the plan's "renders nothing" line as a defect — it is recorded here as known-wrong.
-The general lesson is N8's: a plan's *claim* about behaviour is checkable, and this one failed the
+The general lesson is N8's: a plan's _claim_ about behaviour is checkable, and this one failed the
 check while the instruction built on it (ship `compass`) was still right. Verify the claim, keep the
 instruction that survives it.
 
@@ -779,13 +779,13 @@ The general point for the rest of the build: a domain string that reaches a scre
 implementation detail. When a plan leaves one open, say so at hand-off rather than letting it ship as
 though it were specified.
 
-## N11 — The ledger outranks a task part file: dedupe strips only a *proven* location
+## N11 — The ledger outranks a task part file: dedupe strips only a _proven_ location
 
 **Raised by the Task 7 implementer, who declined to pick a side and escalated instead — correct.**
 
 Two plan artifacts disagree about title normalisation in dedupe:
 
-- The **ledger** (r1 #15, #17, restated in `parts/01-constraints.md`) rules that stripping *all*
+- The **ledger** (r1 #15, #17, restated in `parts/01-constraints.md`) rules that stripping _all_
   parentheticals collapses "Staff Engineer (Security)" and "Staff Engineer (ML)" into one identity,
   and requires stripping **only a parenthetical proven to be a location**.
 - The **part file** (`parts/12-task07-dedupe.md`) contracts a blanket `\([^)]*\)` strip, and its
@@ -797,7 +797,7 @@ case:
 
 **Rule: the rulings ledger outranks a task part file wherever they conflict.** Part files are
 derived from the ledger and were written earlier in one pass; the ledger is where a decision is
-*revised*. A part file that contradicts a ruling is a drafting error in the part file, not a
+_revised_. A part file that contradicts a ruling is a drafting error in the part file, not a
 newer decision. When they disagree, follow the ledger and record the divergence here — never
 silently follow the more convenient one.
 
@@ -808,7 +808,7 @@ that posting's own account. Beyond that, strip a parenthetical that is a remote/
 keyword or is digit-dominant (a req number). **Otherwise keep it in the identity.**
 
 The default direction is deliberate. Task 7's own header comment already states the asymmetry
-correctly: *a wrong merge is worse than a missed one* — two distinct roles collapsed into one row is
+correctly: _a wrong merge is worse than a missed one_ — two distinct roles collapsed into one row is
 a job the user never sees, with no error and nothing to notice. A missed merge only shows the user
 the same job twice, which is visible and harmless. When we cannot prove a parenthetical is a
 location, keeping it costs a duplicate; dropping it costs a job.
@@ -820,7 +820,7 @@ with a location-bearing title and an empty `location` field is not a case we owe
 ## N12 — Control characters in source are written as escapes, never as literal bytes
 
 **Found by verifying `cfeb4712`'s bytes rather than its tests.** Task 10's control-character guard
-was written with the *actual* bytes 0x00, 0x1F and 0x7F inside the regex character class, and its
+was written with the _actual_ bytes 0x00, 0x1F and 0x7F inside the regex character class, and its
 test fixture carried a real NUL byte in a string literal. Every test passed — the regex matches the
 same set either way — but `git show --stat` reported both files as `Bin 0 -> N bytes` and `file`
 called them "data".
@@ -831,7 +831,7 @@ greps, formatters and codegen are all entitled to mangle a NUL in a source file.
 
 **Rule: any control character in source is written as an escape sequence** — `/[\x00-\x1f\x7f]/`,
 `"has a\x00nul in it"` — never as the byte itself. This bites specifically where the code is
-*about* control characters, which is exactly where a sanitizer or an input guard lives, so expect it
+_about_ control characters, which is exactly where a sanitizer or an input guard lives, so expect it
 again in any task that validates user- or model-supplied text. Comment the escaping at the site: the
 behaviour is identical, so the next reader has no other clue why it matters.
 
@@ -851,7 +851,7 @@ tests and `check:external-modules` and reported a real exit 0. None had run `for
 
 That is not a tidiness problem. A `format:check` failure **short-circuits the gate**, so
 `test:unit` and `test:integration` never execute behind it. The resulting red run reads as a style
-nit while actually meaning *no tests ran at all* — the single most misleading state a gate in this
+nit while actually meaning _no tests ran at all_ — the single most misleading state a gate in this
 repo can be in, and the reason [[format-check-hides-unrun-tests]] exists.
 
 **Rule: every task's gate list includes `pnpm format:check` with a real exit code**, alongside the
@@ -884,7 +884,7 @@ and never uses stored credentials against a job board.
 ## N15 — A `Bin` marker on one commit is not proof the new blob is still binary
 
 Follow-up to N12. Git flags a diff binary if **either** side of the pair contains a control byte, so
-the commit that *fixes* literal control bytes still renders as `Bin old -> new bytes` — the tainted
+the commit that _fixes_ literal control bytes still renders as `Bin old -> new bytes` — the tainted
 parent blob is what forces it. That is expected and is not a residual defect.
 
 **Rule: check the blob, not the diff.** `git cat-file -p <sha>:<path>` piped through a byte scan (or
@@ -909,7 +909,7 @@ What `disabled` actually costs: a disabled portal is never crawled again (part 1
 the user turns it back on. Nothing nudges them to. So disabling on a layout change means that after
 we ship the parser fix, the user's search stays permanently narrower than they asked for, through no
 action of theirs and with nothing to notice — the exact silent-loss class this whole design fights.
-`login_required` earns `disabled: true` because a retry can *never* succeed regardless of what we
+`login_required` earns `disabled: true` because a retry can _never_ succeed regardless of what we
 ship: it is terminal by policy. A parse failure is terminal only until our next release, and then it
 self-heals on the next scheduled crawl.
 
@@ -943,11 +943,11 @@ runtime host.
 **Rule: the grant lives in a platform-owned, module-agnostic table** keyed by `(module_id,
 owner_user_id, host)`, written by the module through a declared SDK port on the worker context, and
 read by `fetch.request` for the invoking `(moduleId, actorUserId)` before it calls
-`createHostPinnedFetch`. The module's own table keeps the *source definition* — label, url, which
+`createHostPinnedFetch`. The module's own table keeps the _source definition_ — label, url, which
 profile named it — and never the capability.
 
 This is not the "new security machinery" Ben's ruling excluded. The grant has to be stored
-somewhere regardless; this is the version that doesn't cross a module boundary, and it is *less*
+somewhere regardless; this is the version that doesn't cross a module boundary, and it is _less_
 platform code than a per-module hook because every module inherits it. `assertValidFetchHosts` and
 `createHostPinnedFetch` remain the only enforcement, unchanged, applied to the merged list.
 
@@ -980,7 +980,7 @@ N17 stands: platform-owned, module-agnostic, keyed by the invoking `(moduleId, a
 the module's own table keeps only the source definition, never the capability.
 
 **`fetch.request` must open its own short DataContext and close it before the network call.** The
-branch sits at `worker-rpc-host.ts:211`, *outside* the `withDataContext` block that starts at 258,
+branch sits at `worker-rpc-host.ts:211`, _outside_ the `withDataContext` block that starts at 258,
 so it has no `scopedDb`. Do not move the branch inside that block to get one: that would hold a
 database transaction open for the entire duration of an outbound HTTP request, against an
 adversarial remote host, with the connection pool capped. Read the granted hosts in a
@@ -1051,7 +1051,7 @@ exactly this shape and is the file to copy (see also `external-module-finance.te
   caller then issues `set_config('app.current_module_id', …, true)` itself — that is precisely what
   `worker-rpc-host.ts:258-263` does, and a test that mirrors it is testing the real path.
 - **The actor GUC is `app.actor_user_id`, not `app.current_actor_user_id`.** The latter is the SQL
-  *function* the RLS policies call; it reads the former. Setting the function's name as a GUC fails
+  _function_ the RLS policies call; it reads the former. Setting the function's name as a GUC fails
   silently — the policy simply sees no actor and the row vanishes, which reads as an RLS bug rather
   than a typo.
 
@@ -1077,7 +1077,7 @@ belongs fails as a missing row rather than an error:
   journals `app.module_installs`).
 
 **This is not only a test concern.** The same requirement holds in production: the worker-rpc-host's
-RPC-parent DataContext must set both GUCs before any `ctx.kv` *or* `ctx.db` call, not just the actor
+RPC-parent DataContext must set both GUCs before any `ctx.kv` _or_ `ctx.db` call, not just the actor
 one. A future change that sets only the actor GUC will not raise — the RLS policy will simply match
 nothing, and a module's stored cursor will silently read as absent. Treat "the row vanished" as the
 signature of a missing `app.current_module_id`, not as data loss.
@@ -1171,7 +1171,7 @@ Three independent ways this fails silently:
    the variable is dropped and the run lands back on the live database with no signal.
 2. **DROP and CREATE fresh every run.** A reused gate DB carries prior migration state and greens
    for the wrong reason.
-3. **Never pipe a gate command.** `| tail`, `| grep` — a pipeline returns the *filter's* exit
+3. **Never pipe a gate command.** `| tail`, `| grep` — a pipeline returns the _filter's_ exit
    code, so a red gate reads as green. A blocking hook now rejects piped gate commands. Read the
    log file. Never trust `echo $?` after a backgrounded command either.
 
@@ -1192,7 +1192,7 @@ Resolve which specs with `.claude/skills/coordinate/resolve-uat-triggers.sh`. **
 deliberately incomplete — empty output never means no proof is needed.**
 
 Absent that proof the honest status is **"code-complete, unverified"**, never "done". This mostly
-lands on Task 22 (#1306), but it changes what Task 21 Tier B is *for*: Tier B is no longer the
+lands on Task 22 (#1306), but it changes what Task 21 Tier B is _for_: Tier B is no longer the
 last line of defence, so it should stay on what only an integration test can prove — the
 metadata-only payload whitelist, the manifest-hash trust gate, the schedule-to-queue binding, and
 the `actorUserId` envelope — rather than growing to cover what the live UAT covers better.
@@ -1324,7 +1324,7 @@ chunk on the always-on ladder"). Its actual content: at the `admin+data` level j
 Playwright path was unreachable precisely because job-search seeding was reachable
 (`tests/uat/seed/levels.ts:94` now carries the fix and its comment).
 
-That makes a registered-but-empty chunk *actively harmful* rather than merely useless:
+That makes a registered-but-empty chunk _actively harmful_ rather than merely useless:
 
 1. It creates the vocabulary that invites a future agent to add job-search to `ADMIN_DATA_CHUNKS`
    and silently re-break the absent-module path. Nothing goes red when that happens.
@@ -1332,7 +1332,7 @@ That makes a registered-but-empty chunk *actively harmful* rather than merely us
    broken", which costs someone a debugging session.
 3. It cannot earn its keep. Task 22 Phase 1 installs the module **live** via docker-cp and the admin
    UI (the finance precedent), so by the time a chunk would run there is no install left to do — and
-   seeding a profile or criteria row would *skip* the onboarding flow the UAT exists to exercise.
+   seeding a profile or criteria row would _skip_ the onboarding flow the UAT exists to exercise.
 
 **Instead:** document the deliberate absence — a note in the part file and a comment where a reader
 would go looking — stating that job-search is installed live in Phase 1 and is intentionally absent
@@ -1345,7 +1345,7 @@ project's no-stale-concepts rule, dead vocabulary gets removed in the same pass,
 
 ## N34 — supersedes N30's addendum: diagnostics never enter `FailureCause`
 
-**N30's addendum was wrong** and is withdrawn. It asked the structured cause to record *where*
+**N30's addendum was wrong** and is withdrawn. It asked the structured cause to record _where_
 extraction failed (item index, offending field). Building it would have been a mistake, correctly
 refused by the agent asked to do it.
 
@@ -1405,7 +1405,7 @@ a gate stays red across a whole epic.
 
 N35 says split rather than exempt. **Split means the cases keep running from a new path, not that
 they stop existing.** Deleting test cases to get a file under the cap is strictly worse than the
-exemption we refused: `check:file-size` goes green, `test:integration` is the *last* link in
+exemption we refused: `check:file-size` goes green, `test:integration` is the _last_ link in
 `verify:foundation` so the loss surfaces nowhere, and nothing in the toolchain counts cases across
 a split.
 
@@ -1443,7 +1443,7 @@ re-checking — `job-search-manifest.test.ts:102`, `job-search-profile-handler.t
 `job-search-surface.test.ts:100`.
 
 **Test 10 (partial-crawl persistence) is deferred to the UAT in #1306, not deleted.** Faking one
-portal succeeding while another rate-limits, through a *live* worker, requires the
+portal succeeding while another rate-limits, through a _live_ worker, requires the
 `JARVIS_RUNTIME_MODE=e2e` + `JARVIS_E2E_MODULE_FETCH_BASE` fixture-server machinery that Task 22
 is building concurrently. The substitution point is host-side `createFetch` on the **queue-job
 path only** — `createExternalModuleTools` has no equivalent, so the tool-invoke path cannot fake
@@ -1465,7 +1465,7 @@ it is `createVerifiedExternalModuleInvoker` in `apps/worker/src/external-module-
 real content anchor; the `manifestHash` in a job payload is a different value.
 
 **Generalisation.** Two of the three scope cuts here were argued from "it's already covered
-elsewhere" — and that claim is only load-bearing if you *run the grep*. One was true at five
+elsewhere" — and that claim is only load-bearing if you _run the grep_. One was true at five
 sites; the other was a transfer that needed an explicit tripwire so the coverage cannot vanish
 between two agents each assuming the other holds it. Never accept "covered elsewhere" as
 scope-reduction without naming the file and line that covers it.
@@ -1473,8 +1473,8 @@ scope-reduction without naming the file and line that covers it.
 ## N38 — a render cap is paid for in row count, never in the explanation text
 
 Caught while verifying `88daf351`, which lowered `REASON_MAX_CHARS` from 400 to 60 in
-`worker/handlers/matches.ts` and described itself as *"Not user-visible — test and internal
-render-safety coverage only."* It is user-visible, and the way it was found is the reusable part:
+`worker/handlers/matches.ts` and described itself as _"Not user-visible — test and internal
+render-safety coverage only."_ It is user-visible, and the way it was found is the reusable part:
 the claim was checked against the consumer rather than against the diff.
 
 `screens/inspector.tsx:3` states plainly that it never calls `invokeTool`/`runQueue` — it renders
@@ -1501,7 +1501,7 @@ Two mechanical traps recorded with it:
 - `board.tsx:18`'s `MATCHES_LIMIT` and `MATCHES_LIST_MAX_LIMIT` are two copies of one number. They
   move together or the board starts throwing `InputError` on every read.
 
-**Generalisation.** "Not user-visible" is a claim about the *consumer*, not about the diff. A change
+**Generalisation.** "Not user-visible" is a claim about the _consumer_, not about the diff. A change
 to a constant inside a handler looks internal by construction; whether it is depends on who reads
 the field and whether any other path can still reach the untruncated value. Trace to the surface
 before accepting the label — and when a cap must be enforced, ask which axis the product can afford
@@ -1522,7 +1522,7 @@ paying `2 × REASON_MAX_CHARS` on every row for a field no row displays, and tha
 pushed `MATCHES_LIST_MAX_LIMIT` from 40 down to 15 once `url` (N38, #1330) had to be added.
 
 This is strictly better on both axes at once, which is why it is a ruling and not a preference:
-the board gets its row count back, *and* the inspector gets the **full untruncated** reasoning
+the board gets its row count back, _and_ the inspector gets the **full untruncated** reasoning
 instead of 150 characters — which is what spec §7 asks for ("an inspector showing the two axes and
 the model's reasoning for each"). Truncating a field down to fit a budget it never needed to be in
 is a loss with no corresponding gain.
@@ -1581,9 +1581,9 @@ a reason to invent one.
 ## N41 — N37's tripwire resolves: test 10 stays out of Tier B, and the gap it leaves is one assertion in an existing unit test
 
 N37 deferred Tier B test 10 (partial-crawl persistence) to #1306's UAT and attached an explicit
-tripwire: *"If #1306's UAT does not exercise the crawl-then-degrade path, test 10 returns to Tier
+tripwire: _"If #1306's UAT does not exercise the crawl-then-degrade path, test 10 returns to Tier
 B — this is a transfer of coverage, not a write-off, and the transfer must be checked before #1305
-closes."* Checked now, because #1305 cannot close while it hangs and `tests/uat/specs/job-search-*`
+closes."_ Checked now, because #1305 cannot close while it hangs and `tests/uat/specs/job-search-*`
 still does not exist on disk.
 
 **The transfer was never needed. Test 10's two named risks are already covered — at better levels
@@ -1591,7 +1591,7 @@ than a UAT could reach.** Named, per N37's own standard:
 
 - **"the postings landed"** — `tests/unit/job-search-crawl-stage.test.ts:225` (test 2). A healthy
   freehire and a `rate_limited` LinkedIn in one pass; asserts **both** postings persisted, including
-  `li-2`, the *partial* haul from the portal that failed.
+  `li-2`, the _partial_ haul from the portal that failed.
 - **"`lastOkAt` intact"** — `tests/integration/job-search-store.test.ts:380` (case 6), asserting at
   `:416` that a failure write passing `lastOkAt: null` does not erase the prior value. Real
   Postgres, against the actual `COALESCE` at `worker/store-sql.ts:361`.
@@ -1604,7 +1604,7 @@ DB-column-preservation assertion through a browser would have traded a direct as
 indirect proxy that did not yet exist.
 
 **One real gap, and it is not Tier B shaped.** Nothing asserts that a **`rate_limited`** portal's
-structured cause reaches the portal *row*. Test 2 asserts `result.degraded` — the stage's **return
+structured cause reaches the portal _row_. Test 2 asserts `result.degraded` — the stage's **return
 value** — not the store write. Test 3 asserts a store write, but for a different kind on the
 disabling path. So an implementation that returned the cause and forgot to persist it would pass
 all three, and the board's degraded strip reads from the row: the user would see a silently healthy
@@ -1618,12 +1618,12 @@ Fix: append to crawl-stage test 2 that the store holds LinkedIn's portal row wit
 **#1305 is not blocked on it and must not grow an integration test for it.**
 
 **`lastOkAt` is defended twice** — the stage carries `priorState.lastOkAt` forward at `crawl.ts:178`
-*and* the SQL `COALESCE`s at `store-sql.ts:361`. Correct, but it means a stage-level regression is
+_and_ the SQL `COALESCE`s at `store-sql.ts:361`. Correct, but it means a stage-level regression is
 masked by the SQL layer and would never surface as a failing test. That is the argument for keeping
 the assertion at the stage.
 
 **Generalisation.** N37 demanded a file and line before accepting "covered elsewhere"; running that
-check found the coverage *and* found what it missed. The reusable shape: when you verify a claimed
+check found the coverage _and_ found what it missed. The reusable shape: when you verify a claimed
 transfer, assert against the **write** site, not the return value. A stage that returns the right
 object and never persists it passes every test written against its output — the same
 reads-look-alive failure as `state: "unscored"` in #1329, one level up.
@@ -1643,8 +1643,8 @@ about resolution order.
 **The gate is rejected as scoped.** No UAT runner in CI carries a real Anthropic token, so gating
 the whole file on one means all twelve phases skip in every automated run, permanently. Install and
 enable, the degraded-portal path, drawer scoping, notifications — none of which touch AI — would
-provide zero coverage. records' own framing from an hour earlier is the right standard: *"a real
-regression net rather than a fiction that always passes."* A file that always **skips** fails that
+provide zero coverage. records' own framing from an hour earlier is the right standard: _"a real
+regression net rather than a fiction that always passes."_ A file that always **skips** fails that
 standard more completely than one that fails, because a skip is silent.
 
 **Ruling, in two parts.**
@@ -1657,7 +1657,7 @@ standard more completely than one that fails, because a skip is silent.
    `generate-structured.ts` accepts that kind, so the real crawl→score→store→board pipeline runs
    end to end with no token, no cost, and no rate limit.
 
-**Why a fake model is the *more* correct test double here, not a compromise.** This spec already
+**Why a fake model is the _more_ correct test double here, not a compromise.** This spec already
 fakes the job board over HTTP via the Task 22 fixture server. Faking the model over HTTP is the
 identical move at the identical seam. The UAT's job is to prove the pipeline — crawl, score,
 persist, render, notify — not to prove that Anthropic scores well. And a real model makes phases 5-7
@@ -1722,7 +1722,7 @@ This generalises past constants. Prefer, in order:
 2. **Make it fail at compile time** — a shared type that both sides must satisfy.
 3. **Make it fail in CI** — a test asserting the two sources agree.
 4. **Write it down and hope** — the option that just failed. Only acceptable when 1-3 are genuinely
-   unavailable, and then it is a comment *plus* a test, never a comment alone.
+   unavailable, and then it is a comment _plus_ a test, never a comment alone.
 
 When an agent reports "I forgot to change the other one," the finding is not that the agent was
 careless. It is that the codebase permitted the halves to be changed separately.
@@ -1738,3 +1738,66 @@ careless. It is that the codebase permitted the halves to be changed separately.
   the hoist lands, that grep is the only thing standing between the two halves.
 
 See also **N38** and **N39** for why the limit has a measured ceiling at all.
+
+## N44 — Discuss belongs to a match, not to the module; it hides when there is nothing to discuss
+
+Discuss is not a third top-level screen alongside the board and settings. It is a surface **on a
+match**, and it lives in the Inspector, where the match it is discussing is already on screen.
+
+### Rationale
+
+A module-level chat entry point has to answer "discuss what?" before it can do anything useful, and
+the only honest answers are a match the user has already opened, or a prompt asking them to pick one.
+The second is a screen whose entire job is to send you to another screen.
+
+This also protects the guarantee that makes the feature safe to ship: Discuss renders **from the
+loaded `MatchDetail` record**, never from model prose. If the surface can be reached without a
+record, that guarantee has a hole in it that is unreachable today and fillable tomorrow.
+
+Two preconditions, both required, both checked at render:
+
+1. An **assistant surface** is available. Without one there is no conversation to have.
+2. A **`MatchDetail` is loaded**. Not requested, not an id in hand — loaded.
+
+### Application
+
+- When either precondition is missing, Discuss **renders nothing**. It is null-hidden, not disabled.
+- A disabled control is a promise the module cannot keep: it advertises a feature, invites a click,
+  and answers with a tooltip. Absence is the honest state — nothing is claimed, so nothing is denied.
+- The module is therefore never responsible for explaining _why_ Discuss is missing. If a user needs
+  to know why they have no assistant, that is the host's message on the host's surface, not a module
+  tooltip inventing an explanation for someone else's configuration.
+
+See also **N39** for why reasons live only on `MatchDetail`, and the render-from-records invariant.
+
+## N45 — a UAT phase may seed its preconditions, but never the behaviour it asserts
+
+A phase may seed whatever the subject under test _depends on_. It may never seed the thing it is
+about to check.
+
+### Rationale
+
+The failure this prevents is a suite that goes green while the feature is broken, because the phase
+quietly seeded the very row whose creation it claims to verify. That is worse than no coverage — it
+reads as proof.
+
+The line is drawn at the subject, not at the dependency graph. A scoring phase may seed profiles,
+portals and postings; it may not seed a `matches` row. A board phase may seed matches; it may not
+seed the scoring that produced them.
+
+### Application
+
+- **Seeded state must be visibly distinct from produced state.** If a seeded profile is identical to
+  one the onboarding flow would create, no downstream assertion can tell you which path ran. Make the
+  seeded one recognisable on sight — in the fixture and in the diff.
+- **Gate on the subject, not on the dependency graph.** A phase skips when the thing it tests cannot
+  run, not when something upstream is merely absent. Over-broad gating is how a suite skips wholesale
+  and still reports success (**N42**).
+- **Every gated phase must log that it skipped, and why.** A silent skip is indistinguishable from a
+  pass in every summary anyone actually reads. The reason must name the missing precondition, so the
+  log answers "what would make this run?" without a code read.
+- Both requirements are reviewable in the diff. If a reviewer cannot see from the patch alone which
+  rows were seeded and which were produced, the phase is not yet compliant.
+
+See also **N42** for the per-phase gating rule this refines, and **N33** for the deliberate absence
+of a job-search seed chunk.
