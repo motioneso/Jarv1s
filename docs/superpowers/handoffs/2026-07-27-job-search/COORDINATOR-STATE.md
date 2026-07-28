@@ -224,38 +224,43 @@ concurrent load before — suspect it first if a run dies without a test failure
 Known pre-existing red, **not ours**: `tests/uat/run-uat.test.ts` fails identically on `main`
 (an extra `withoutNewsJsonBinding` field) — settled in a scratch worktree at `9df9ba3e`.
 
-## LIVE STATE — read this first (2026-07-28, context checkpoint)
+## LIVE STATE — read this first (2026-07-28, gate running)
 
-**#1305's blockers are down to one file.** `tests/integration/job-search-worker-surface.test.ts` is
-**uncommitted** and carries **two agents' work at once**: `score`'s test 12 (no blended score, N48
-numeric narrowing at `:688`, N49 file-header deviation comment at `:9-17`) and `scaffold`'s test 9
-(all 15 manifest tools, `:275`) plus the test 6 manifest-hash de-tautologisation. Both verified
-intact and non-conflicting. `pnpm typecheck` exit 0 on the combined content.
+**#1305 is CLOSED.** Task 21's integration tests are done, committed, and verified against the
+plan's twelve named cases rather than against any agent's report.
 
-**A full `pnpm test:integration` was launched by the coordinator against that content** (run with
-`env -u JARVIS_PGDATABASE` so it self-isolates; healthy, own DB `jarvis_test_3144504_*`). If that run
-did not finish, **re-run it** — do not commit on an unverified file, and do not accept the earlier
-`score` run, which was contaminated when `scaffold` edited the file 90 seconds into it.
+- `1643b55b` — test 9 (all 15 manifest tools) and test 12 (no blended score) in one commit; they
+  shared a file and could not be split by path, so both #81 and #82 are credited there.
+- `010ae241` — `scaffold`'s hash anchor: `row.manifest_hash`/`row.package_hash` now checked against
+  `hashCanonicalManifest(realManifest)` and `hashExternalPackage(installedDir)`. `installedDir` is
+  right: `node.ts:137` hashes the scanned discovery dir, so `sourceDir` would have hashed a
+  different tree.
+- `fa0deffa` — ruling **N51**.
 
-**Then, in this order:** commit test 9 + test 12 together (one commit, both #81 and #82 — they share
-a file and cannot be split by path) → ping `scaffold` to apply its approved hash-anchor follow-up
-(add `hashExternalPackage`, compute `expectedPackageHash` from **`installedDir`** not `sourceDir` to
-match `node.ts:137`, assert `row.manifest_hash`/`row.package_hash` against the recomputed values,
-rewrite the stale comment at `:125-127`) → full gate → PR.
+**Evidence, all read from exit files, never through a pipe.** Full integration suite at `1643b55b`:
+EXIT=0, 166 files, 1770 passed, 2 skipped, 765s. The file re-run alone after the anchor: EXIT=0,
+6/6 by name. The file's mtime was older than each run's start, so no mid-run edit voided either.
 
-**#83 is closed** at `917713b9`, verified: `discoverModuleDirs` exported at
-`scripts/publish-module-registry.ts:35`, CLI calls it at `:164`, test imports and calls the same
-function. Took three rounds — v1 asserted a directory listing, v2 drove the packer but copied the
-walk, v3 binds to the real thing.
+**Case 10 is a recorded deviation, not a gap** (N41, re-confirmed under N49). Its two substitutes
+were verified present, not merely cited: `tests/unit/job-search-crawl-stage.test.ts` "one portal
+failing does not lose the others' results", and `tests/integration/job-search-store.test.ts` case 6,
+which exercises the real `COALESCE` at `worker/store-sql.ts:361`.
 
-**#1340 was corrected and retitled.** Its mechanism is real (the API path builds its RPC handler with
-no `createFetch`) but the reachability I filed was wrong: `crawl.run-now` is a `write` tool and
-`packages/ai/src/routes.ts:645` 403s every non-read tool before `execute`. No test can egress through
-that route. See ruling **N50**. The remaining bug is narrower — an *approved* chat crawl in e2e mode
-egresses live, a test-isolation gap, not a security hole.
+**A full `pnpm verify:foundation` is running now** on gate DB `js_gate_1785208736`, exported per N26.
+Log and exit code in this session's scratchpad (`gate.log` / `gate.exit`). No competing gate was
+running when it started. **If that run did not finish, re-run it** — the PR must not go up on an
+unverified gate.
+
+**Then: open the PR.** Body draft is finalized at `scratchpad/pr-body-draft-1307.md`, already
+verified free of stale #1340 references.
+
+**Still open and deliberately outside this PR:** #1333, #1335, #1336, #1337, #1340. **#1332/#61** is
+parked for Ben in `docs/coordination/AWAITING-BEN.md` — mechanism fully traced, only the product call
+outstanding.
 
 **Housekeeping, still not done:** stale `jarvis_test_*` / `*_gate_*` databases on the dev Postgres
-container (`jarv1s-postgres`, port 55433 — `jarv1s-prod-postgres-1` is PROD, never touch it).
+container (`jarv1s-postgres`, port 55433 — `jarv1s-prod-postgres-1` is PROD, never touch it), plus
+`js_gate_1785208736` once the gate finishes.
 
 ## Agent assignments and the file locks between them
 
