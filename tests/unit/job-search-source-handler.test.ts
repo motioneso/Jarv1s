@@ -87,6 +87,7 @@ function createFakeStore(seedProfiles: Profile[] = []) {
     listMatches: notImplemented("listMatches"),
     upsertMatch: notImplemented("upsertMatch"),
     setMatchState: notImplemented("setMatchState"),
+    getMatch: notImplemented("getMatch"),
     getLatestResume: notImplemented("getLatestResume"),
     getResumeVersion: notImplemented("getResumeVersion"),
     setResume: notImplemented("setResume"),

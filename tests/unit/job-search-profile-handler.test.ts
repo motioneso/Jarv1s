@@ -125,6 +125,7 @@ function createFakeStore(seedProfiles: Profile[] = []) {
     listMatches: notImplemented("listMatches"),
     upsertMatch: notImplemented("upsertMatch"),
     setMatchState: notImplemented("setMatchState"),
+    getMatch: notImplemented("getMatch"),
     getLatestResume: async (profileId) => {
       const list = resumes.get(profileId) ?? [];
       return list[list.length - 1];

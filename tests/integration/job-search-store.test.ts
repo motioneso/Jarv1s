@@ -465,4 +465,126 @@ describe("job-search store (#1297)", () => {
 
     expect(await store.getSweepCursor()).toBe(0);
   });
+
+  it("listMatches synthesizes state: unscored for a posting the scorer hasn't reached, without dropping a scored one (case 9, #1329)", async () => {
+    // Real pipeline, not a fixture-built Match: both postings go through upsertPostings, and
+    // the only match row comes from upsertMatch — exactly the path the crawl/score passes take
+    // in production. #1329's bug was that a posting past the AI-call budget (or otherwise never
+    // scored) had no row here at all; this proves listMatches now returns it anyway.
+    await install();
+    await seedUser(ownerA);
+    const store = storeFor(ownerA);
+    const profile = await store.createProfile("Staff Engineer search");
+
+    const [scoredPosting] = await store.upsertPostings(profile.id, [
+      posting({ sourceId: "linkedin", externalId: "ext-scored" })
+    ]);
+    const [unscoredPosting] = await store.upsertPostings(profile.id, [
+      posting({ sourceId: "linkedin", externalId: "ext-unscored" })
+    ]);
+    await store.upsertMatch(profile.id, {
+      profileId: profile.id,
+      postingId: scoredPosting!.id,
+      fit: 80,
+      want: 60,
+      fitReason: "Good fit.",
+      wantReason: "Wants it.",
+      outsideFrame: false,
+      state: "new",
+      scoredAt: null
+    });
+
+    const matches = await store.listMatches(profile.id, 10);
+    expect(matches).toHaveLength(2);
+
+    const scored = matches.find((match) => match.postingId === scoredPosting!.id);
+    const unscored = matches.find((match) => match.postingId === unscoredPosting!.id);
+
+    expect(scored).toBeDefined();
+    expect(scored!.fit).toBe(80);
+    expect(scored!.want).toBe(60);
+    expect(scored!.state).toBe("new");
+
+    // Both axes null, never coerced to 0 — and the synthetic id is the posting's own id, not a
+    // real job_search_matches id.
+    expect(unscored).toBeDefined();
+    expect(unscored!.id).toBe(unscoredPosting!.id);
+    expect(unscored!.fit).toBeNull();
+    expect(unscored!.want).toBeNull();
+    expect(unscored!.state).toBe("unscored");
+
+    // The trap this fix deliberately avoids: a placeholder row written for the unscored posting
+    // would permanently exclude it from listUnscoredPostingsWithEmbeddings's own NOT EXISTS
+    // candidate pool. Only the one real, scored row may ever exist.
+    const rawMatchRows = await asRuntime(ownerA, (client) =>
+      client.query("SELECT id FROM app.job_search_matches WHERE profile_id = $1", [profile.id])
+    );
+    expect(rawMatchRows.rows).toHaveLength(1);
+  });
+
+  it("prioritizes a scored match over an unscored posting when limit truncates the list (case 10, #1329)", async () => {
+    // The N5 render-cap clamp must not silently drop a real, scored match in favor of an
+    // unscored one just because the unscored posting happens to be newer — ORDER BY
+    // scored_at DESC NULLS LAST is what listMatches relies on for that.
+    await install();
+    await seedUser(ownerA);
+    const store = storeFor(ownerA);
+    const profile = await store.createProfile("Staff Engineer search");
+
+    const [scoredPosting] = await store.upsertPostings(profile.id, [
+      posting({ sourceId: "linkedin", externalId: "ext-scored" })
+    ]);
+    const [unscoredPosting] = await store.upsertPostings(profile.id, [
+      posting({ sourceId: "linkedin", externalId: "ext-unscored" })
+    ]);
+    expect(unscoredPosting).toBeDefined();
+    await store.upsertMatch(profile.id, {
+      profileId: profile.id,
+      postingId: scoredPosting!.id,
+      fit: 50,
+      want: 50,
+      fitReason: "ok",
+      wantReason: "ok",
+      outsideFrame: false,
+      state: "new",
+      scoredAt: null
+    });
+
+    const matches = await store.listMatches(profile.id, 1);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]!.postingId).toBe(scoredPosting!.id);
+    expect(matches[0]!.state).toBe("new");
+  });
+
+  it("getMatch returns the untruncated row by real id, and null for a synthetic or unknown id (case 11, #1330)", async () => {
+    await install();
+    await seedUser(ownerA);
+    const store = storeFor(ownerA);
+    const profile = await store.createProfile("Staff Engineer search");
+    const [scoredPosting] = await store.upsertPostings(profile.id, [
+      posting({ sourceId: "linkedin", externalId: "ext-scored" })
+    ]);
+    await store.upsertMatch(profile.id, {
+      profileId: profile.id,
+      postingId: scoredPosting!.id,
+      fit: 90,
+      want: 40,
+      fitReason: "Excellent fit for this role and level.",
+      wantReason: "Strong alignment with stated preferences.",
+      outsideFrame: true,
+      state: "new",
+      scoredAt: null
+    });
+
+    const [realMatch] = await store.listMatches(profile.id, 10);
+    expect(await store.getMatch(realMatch!.id)).toEqual(realMatch);
+
+    // A synthetic id (the bare posting id an unscored row is keyed by) has no job_search_matches
+    // row to find — correctly resolves to null, same as any other id with no match behind it.
+    const [otherPosting] = await store.upsertPostings(profile.id, [
+      posting({ sourceId: "linkedin", externalId: "ext-unscored" })
+    ]);
+    expect(await store.getMatch(otherPosting!.id)).toBeNull();
+    expect(await store.getMatch(randomUUID())).toBeNull();
+  });
 });

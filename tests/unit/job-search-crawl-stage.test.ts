@@ -115,6 +115,7 @@ function createFakeStore(
     listMatches: vi.fn(notUsed("listMatches")),
     upsertMatch: vi.fn(notUsed("upsertMatch")),
     setMatchState: vi.fn(notUsed("setMatchState")),
+    getMatch: vi.fn(notUsed("getMatch")),
     getLatestResume: vi.fn(notUsed("getLatestResume")),
     getResumeVersion: vi.fn(notUsed("getResumeVersion")),
     setResume: vi.fn(notUsed("setResume")),

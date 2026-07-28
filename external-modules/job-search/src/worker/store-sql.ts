@@ -159,6 +159,57 @@ function mapMatch(row: MatchRow, profileId: string): Match {
   };
 }
 
+// #1329: listMatches's row, anchored on postings (LEFT JOIN) rather than matches (INNER JOIN),
+// so `match_id` and every match-only column are nullable — a posting the scorer hasn't reached
+// yet (deferred by triage, unreached against budget/deadline, or a failed parse — score.ts
+// leaves all three with no match row on purpose, so the next pass retries them) still produces
+// a row here.
+interface MatchesReadRow {
+  posting_id: string;
+  match_id: string | null;
+  fit: number | null;
+  want: number | null;
+  fit_reason: string | null;
+  want_reason: string | null;
+  outside_frame: boolean | null;
+  state: string | null;
+  scored_at: string | null;
+}
+
+// A synthetic row (no match_id) is never written to `job_search_matches` — see listMatches's own
+// comment for why a placeholder INSERT would be a trap. Its `id` is the posting's id: stable, and
+// never collides with a real match's id, because the two are mutually exclusive per posting — the
+// moment a real match row exists, this same query returns that row (non-null match_id) instead,
+// so a posting is never represented by both an id at once.
+function mapMatchesReadRow(row: MatchesReadRow, profileId: string): Match {
+  if (row.match_id === null) {
+    return {
+      id: row.posting_id,
+      profileId,
+      postingId: row.posting_id,
+      fit: null,
+      want: null,
+      fitReason: "",
+      wantReason: "",
+      outsideFrame: false,
+      state: "unscored",
+      scoredAt: null
+    };
+  }
+  return {
+    id: row.match_id,
+    profileId,
+    postingId: row.posting_id,
+    fit: row.fit,
+    want: row.want,
+    fitReason: row.fit_reason ?? "",
+    wantReason: row.want_reason ?? "",
+    outsideFrame: row.outside_frame ?? false,
+    state: row.state as Match["state"],
+    scoredAt: row.scored_at
+  };
+}
+
 interface PortalRow {
   source_id: string;
   enabled: boolean;
@@ -402,17 +453,29 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
       // The board read. Both axes stay separate columns all the way through — no expression
       // here may combine fit and want (L9); that invariant is enforced structurally, not by
       // convention.
-      const result = await db.query<MatchRow>(
-        `SELECT m.id, m.posting_id, m.fit, m.want, m.fit_reason, m.want_reason, m.outside_frame,
-                m.state, m.scored_at
-           FROM app.job_search_matches m
-           JOIN app.job_search_postings p ON p.id = m.posting_id
-          WHERE m.profile_id = $1
-          ORDER BY m.scored_at DESC NULLS LAST, m.id ASC
+      //
+      // #1329: anchored on POSTINGS with a LEFT JOIN, not on matches with an INNER JOIN. A
+      // posting the scorer has not (yet) produced a match row for used to be structurally
+      // unreturnable — this crawled-but-not-scored posting is exactly the "unscored" state
+      // `records.ts` declares and the board already knows how to render (dashes in both axes),
+      // it just never had a producer. The join condition repeats the composite
+      // (owner_user_id, profile_id, posting_id) rather than posting_id alone — belt-and-braces
+      // against RLS ever widening this read across owners or profiles, even though RLS on both
+      // tables already confines every row to the actor's own.
+      const result = await db.query<MatchesReadRow>(
+        `SELECT p.id AS posting_id, m.id AS match_id, m.fit, m.want, m.fit_reason, m.want_reason,
+                m.outside_frame, m.state, m.scored_at
+           FROM app.job_search_postings p
+           LEFT JOIN app.job_search_matches m
+             ON m.owner_user_id = p.owner_user_id
+            AND m.profile_id = p.profile_id
+            AND m.posting_id = p.id
+          WHERE p.profile_id = $1
+          ORDER BY m.scored_at DESC NULLS LAST, p.first_seen_at DESC, p.id ASC
           LIMIT $2`,
         [profileId, limit]
       );
-      return result.rows.map((row) => mapMatch(row, profileId));
+      return result.rows.map((row) => mapMatchesReadRow(row, profileId));
     },
 
     async upsertMatch(profileId: string, match: Omit<Match, "id">): Promise<void> {
@@ -444,6 +507,23 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
         matchId,
         state
       ]);
+    },
+
+    async getMatch(matchId: string): Promise<Match | null> {
+      // #1330: the untruncated detail read behind job-search.match.get. By id only, same as
+      // setMatchState — RLS confines the row to the actor's own, so a wrong-owner id and a
+      // missing id are indistinguishable here, which is correct (neither is this caller's to
+      // see). `profile_id` has to be selected explicitly: listMatches's callers already know
+      // their own profileId from the call's own argument, but a lookup by bare id doesn't.
+      const result = await db.query<MatchRow & { profile_id: string }>(
+        `SELECT m.id, m.profile_id, m.posting_id, m.fit, m.want, m.fit_reason, m.want_reason,
+                m.outside_frame, m.state, m.scored_at
+           FROM app.job_search_matches m
+          WHERE m.id = $1`,
+        [matchId]
+      );
+      const row = result.rows[0];
+      return row ? mapMatch(row, row.profile_id) : null;
     },
 
     async getLatestResume(profileId: string): Promise<Resume | undefined> {

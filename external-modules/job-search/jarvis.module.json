@@ -211,11 +211,24 @@
         "additionalProperties": false,
         "properties": {
           "profileId": { "type": "string" },
-          "limit": { "type": "integer", "minimum": 1, "maximum": 40 }
+          "limit": { "type": "integer", "minimum": 1, "maximum": 15 }
         },
         "required": ["profileId", "limit"]
       },
       "handler": "matches.list"
+    },
+    {
+      "name": "job-search.match.get",
+      "permissionId": "job-search.match.get",
+      "description": "Read one match's full, untruncated Fit/Want detail by id.",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "matchId": { "type": "string" } },
+        "required": ["matchId"]
+      },
+      "handler": "match.get"
     },
     {
       "name": "job-search.match.dismiss",

@@ -104,6 +104,7 @@ function createFakeStore(input: {
       matches.push({ ...match, id: `match-${matches.length}` });
     }),
     setMatchState: vi.fn(notUsed("setMatchState")),
+    getMatch: vi.fn(notUsed("getMatch")),
     getLatestResume: vi.fn(async () => resume),
     getResumeVersion: vi.fn(notUsed("getResumeVersion")),
     setResume: vi.fn(notUsed("setResume")),

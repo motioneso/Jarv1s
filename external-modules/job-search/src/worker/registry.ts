@@ -15,7 +15,11 @@
 import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
 
 import { createBriefingContributeHandler } from "./handlers/briefing.js";
-import { createMatchesListHandler, createMatchSetStateHandler } from "./handlers/matches.js";
+import {
+  createMatchesListHandler,
+  createMatchGetHandler,
+  createMatchSetStateHandler
+} from "./handlers/matches.js";
 import {
   createCrawlRunHandler,
   createCrawlRunNowHandler,
@@ -64,6 +68,7 @@ export const HANDLERS: Readonly<Record<string, CtxHandler>> = {
   "crawl.run-now": (ctx) => createCrawlRunNowHandler(storeFrom(ctx))(ctx),
   "crawl.sweep": (ctx) => createCrawlSweepHandler(storeFrom(ctx))(ctx),
   "matches.list": (ctx) => createMatchesListHandler(storeFrom(ctx))(ctx),
+  "match.get": (ctx) => createMatchGetHandler(storeFrom(ctx))(ctx),
   "match.set-state": (ctx) => createMatchSetStateHandler(storeFrom(ctx))(ctx),
   "briefing.contribute": (ctx) => createBriefingContributeHandler(storeFrom(ctx))(ctx)
 };

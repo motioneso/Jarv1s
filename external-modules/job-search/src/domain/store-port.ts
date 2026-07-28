@@ -103,6 +103,16 @@ export interface JobSearchStore {
   listMatches(profileId: string, limit: number): Promise<Match[]>;
   upsertMatch(profileId: string, match: Omit<Match, "id">): Promise<void>;
   setMatchState(matchId: string, state: Match["state"]): Promise<void>;
+  /** #1330: the detail read behind `job-search.match.get`. `listMatches`'s row is a capped
+   * summary (render-cap arithmetic, N38); this is the one place the AI's full, untruncated
+   * Fit/Want reasons are readable. `null` on a missing id or an id that resolves to nothing
+   * under RLS (not this actor's row) — never a thrown error, matching `getLatestResume`'s own
+   * not-found idiom, since "no such match, or not yours" is one caller-facing outcome either
+   * way. A **synthetic** unscored id (#1329 — a bare posting id, never a row in
+   * `job_search_matches`) also resolves to `null` here: there is nothing to look up, which is
+   * correct — an unscored match has no fuller reason to reveal than the board row already
+   * shows ("queued, not dropped"). */
+  getMatch(matchId: string): Promise<Match | null>;
   /** The résumé is versioned and first-class (Task 4). `getLatestResume` is what the scoring
    * prompt uses; `getResumeVersion` is what a match pinned to an older version needs, so the
    * board can say which résumé produced a score. */
