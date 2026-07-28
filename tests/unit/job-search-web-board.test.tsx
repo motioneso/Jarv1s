@@ -216,14 +216,18 @@ function findByRole(renderer: ReactTestRenderer, role: string) {
   return renderer.root.findAll((item) => (item.props as { role?: string }).role === role);
 }
 
-// The title button is always the first button rendered inside a data row (dismiss is the
-// second) — scoping to each <tr>'s own buttons keeps this from picking up Inspector or banner
-// buttons that also happen to be on the page.
+// The title button is always the first button rendered inside a card (dismiss is the second) —
+// scoping to each card's own buttons keeps this from picking up Inspector, sort or banner buttons
+// that also happen to be on the page. Matched on the `jsm-card` hook rather than on <article>,
+// because the element type is a rendering detail and the hook is the contract the CSS also uses.
 function rowTitles(renderer: ReactTestRenderer): string[] {
   return renderer.root
-    .findAllByType("tr")
-    .filter((tr) => tr.findAllByType("td").length > 0)
-    .map((tr) => flatten(tr.findAllByType("button")[0]?.props.children).trim());
+    .findAll((item) =>
+      String((item.props as { className?: string }).className ?? "")
+        .split(" ")
+        .includes("jsm-card")
+    )
+    .map((card) => flatten(card.findAllByType("button")[0]?.props.children).trim());
 }
 
 describe("job-search web BoardScreen", () => {
@@ -322,8 +326,12 @@ describe("job-search web BoardScreen", () => {
     await flush(renderer);
 
     expect(text(renderer)).toMatch(/Not read yet/);
-    const cells = renderer.root.findAllByType("td").map((c) => flatten(c.props.children).trim());
-    expect(cells.some((c) => c === "—")).toBe(true);
+    // Both axes read as an em dash, never a 0: an unscored posting has no number on either axis,
+    // and a zero would be drawn in the same bar as a real score.
+    const values = renderer.root
+      .findAll((item) => (item.props as { className?: string }).className === "jsm-card__value")
+      .map((item) => flatten(item.props.children).trim());
+    expect(values).toEqual(["—", "—"]);
 
     const titleButton = findButton(renderer, /Unscored Role/);
     await act(async () => {

@@ -142,46 +142,126 @@
   font-weight: 600;
 }
 
-/* Width, rules, padding and alignment all come from the host's `jds-table` primitive now. This
-   file used to redeclare them, and badly — `text-align: left` on every cell fought the numeric
-   columns, and the padding shorthand left no space on the right of a cell at all. Nothing
-   module-specific remains, so the hook stays only as a test/selector anchor. */
-
-/* Role takes whatever is left; the three trailing columns are sized to their content. Without
-   this the browser shared the width evenly and left roughly 450px of empty gutter between a role
-   and its own scores — far enough apart that reading across a row took real effort. */
-.jsm-board th:first-child,
-.jsm-board td:first-child {
-  width: 100%;
-}
-
-.jsm-board th:not(:first-child),
-.jsm-board td:not(:first-child) {
-  width: 1%;
-  white-space: nowrap;
-}
-
-/* The two score columns want the same width whichever number is in them, so the eye can run down
-   either one. 6rem holds "Not read yet" without wrapping. */
-.jsm-board th:nth-child(2),
-.jsm-board td:nth-child(2),
-.jsm-board th:nth-child(3),
-.jsm-board td:nth-child(3) {
-  min-width: 6rem;
-}
-
-/* The count and the search action share one row: count left, action right, and on a narrow
-   viewport the action wraps under rather than squeezing the count. */
-.jsm-board-head {
+/* The board is a list of cards, not a table (see board.tsx's own note). A posting is something you
+   consider — a title, who it's with, and two judgements that each have their own reasoning — and
+   four columns of equal weight flattened all of that into a spreadsheet export. Everything below is
+   layout only; every colour, rule and typeface comes from the host `jds-*` primitives the markup
+   composes. */
+.jsm-list {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 0.75rem;
 }
 
-.jsm-board-head__count {
+/* Sorting lost its home when the column headers went away. A labelled control strip is where it
+   lives now — and it reads better than clickable headings did, which are a convention you have to
+   already know. `baseline` so the "Sort" eyebrow sits on the same line as the chip text rather than
+   floating against the taller chips. */
+.jsm-sort {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.jsm-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Company left, out-of-frame badge hard right — the badge is an exception being flagged, so it
+   belongs at the edge where exceptions are scanned for, not trailing the company name where it
+   reads as part of it. */
+.jsm-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* The two axes side by side and equal, which is the layout expression of L9: Fit and Want are never
+   blended, so neither may be given more room or a higher position than the other. They collapse to
+   a single column below 30rem rather than squeezing both bars into unreadable stubs. */
+.jsm-card__axes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1.5rem;
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 30rem) {
+  .jsm-card__axes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.jsm-card__axis {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.jsm-card__value {
   margin: 0;
+}
+
+/* Pending state left, dismissal right. The empty <span> the markup renders when a card *is* scored
+   is what keeps Dismiss pinned right in both states — `space-between` with one child would pull the
+   button back to the left edge and the button would appear to move between cards. */
+.jsm-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.jsm-card__pending {
+  min-width: 0;
+}
+
+/* The lede and the search action share one row: lede left, action hard right and top-aligned so it
+   sits level with the eyebrow rather than floating against the middle of a display-scale figure. On
+   a narrow viewport the action wraps under the whole lede instead of squeezing it. */
+.jsm-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.jsm-hero__lede {
+  display: flex;
+  flex-direction: column;
+  /* Tight, and deliberately tighter than the module's usual rhythm: these five elements are one
+     utterance — label, figure, rule, caveat — and at the default gap they read as four unrelated
+     lines stacked in the same corner. */
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/* The figure and its unit on one baseline, so "14 roles" reads as a phrase rather than as a number
+   with a caption under it. */
+.jsm-hero__figure {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.jsm-hero__prose {
+  margin: 0;
+  max-width: 46ch;
+}
+
+/* The rule that closes the lede and opens the list — the mockup's heavy ink rule, which is what
+   separates "what this board is" from "what is on it". Margin only; the weight is the host's. */
+.jsm-hero__rule {
+  margin: 0.25rem 0 0;
 }
 
 /* The onboarding card, centred in the 72rem root. It has been three widths: 62ch (a prose reading
@@ -287,13 +367,10 @@
   flex-wrap: wrap;
 }
 
-/* The host already fills a row on hover; this makes the pointer agree with it, now that the whole
-   row opens the match rather than only the title (see board.tsx's row onClick). */
-.jsm-board-row {
-  cursor: pointer;
-}
-
-.jsm-board-row--outside td {
+/* A posting outside the stated frame is still worth seeing — it is shown deliberately, not
+   filtered out — but it should not compete with the ones that are inside it. The badge in the card
+   header carries the actual claim; this just lets the eye skip past it on the way down the list. */
+.jsm-card--outside {
   opacity: 0.85;
 }
 

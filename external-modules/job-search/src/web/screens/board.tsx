@@ -477,17 +477,31 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
           it had been read — and "read" matters here, because scoring is budgeted and a run can
           leave most of a crawl unscored. The count says that plainly; the action sits beside it
           rather than above it. */}
-      <div className="jsm-board-head">
-        <p className="jsm-board-head__count">
-          {/* One interpolated string, not a fragment: this module's loosely-typed JSX runtime has
-              no `Fragment` in scope, so the <>…</> shorthand does not compile here (see root.tsx's
-              h(Fragment, ...) calls for the same constraint). */}
-          {scoredCount < sorted.length
-            ? `${sorted.length} ${sorted.length === 1 ? "role" : "roles"} · ${scoredCount} scored so far`
-            : `${sorted.length} ${sorted.length === 1 ? "role" : "roles"}`}
-        </p>
+      <header className="jsm-hero">
+        <div className="jsm-hero__lede">
+          <span className="jds-eyebrow">On your board</span>
+          {/* The count at display scale, because it is the answer to the only question anyone
+              opens this screen with. As a line of prose ("14 roles · 9 scored so far") it had to
+              be read before it could be understood, and it sat at body weight beside a button,
+              which made the button the loudest thing on a page about opportunities. */}
+          <p className="jsm-hero__figure">
+            <span className="jds-hero-figure">{sorted.length}</span>
+            <span className="jds-eyebrow">{sorted.length === 1 ? "role" : "roles"}</span>
+          </p>
+          <span className="jds-strap" aria-hidden="true" />
+          {/* The scoring state as a sentence rather than a second number: how much of the board has
+              been read matters, but it is a caveat on the figure above, not a rival to it. No date
+              anywhere — the module has no ambient-clock allowance (check:no-ambient-dates), which
+              is why the mockup's "Wednesday · July 15" dateline is not reproduced. */}
+          <p className="jsm-hero__prose">
+            {scoredCount < sorted.length
+              ? `${scoredCount} read and scored so far — the rest are queued.`
+              : "Every posting here has been read and scored."}
+          </p>
+        </div>
         <SearchNowControl profileId={profileId} onEnqueued={() => void fetchMatches()} />
-      </div>
+      </header>
+      <hr className="jds-divider jds-divider--strong jsm-hero__rule" />
       {restoreMessage ? (
         <p className="jsm-queue-notice" role="status">
           {restoreMessage}
@@ -517,108 +531,113 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
             <p>No matches yet — check back once your next search run finishes.</p>
           </div>
         ) : (
-          <table className="jds-table jsm-board">
-            <thead>
-              <tr>
-                <th>Role</th>
-                <th className="jds-table__num">
-                  <button
-                    type="button"
-                    className="jds-table__sort"
-                    onClick={() => toggleSort("fit")}
-                  >
-                    Fit{sortIndicator(sort, "fit", visibleItems)}
-                  </button>
-                </th>
-                <th className="jds-table__num">
-                  <button
-                    type="button"
-                    className="jds-table__sort"
-                    onClick={() => toggleSort("want")}
-                  >
-                    Want{sortIndicator(sort, "want", visibleItems)}
-                  </button>
-                </th>
-                {/* Named for screen readers, blank on screen: a column of Dismiss buttons needs no
-                  visible heading, but an unlabelled header cell is a hole in the table. */}
-                <th className="jds-table__actions">
-                  <span className="jds-sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((item) => (
-                // The open row is marked, so the panel beside it is visibly the detail *of that row*
-                // rather than a card that happens to be on screen. `aria-selected` is what the styling
-                // hangs off — the state is real, not a class name asserting it.
-                <tr
-                  key={item.id}
-                  aria-selected={item.id === selectedMatchId}
-                  // The whole row opens the match, not just the title text. The host already fills
-                  // a row on hover (`.jds-table tbody tr:hover td`), so the row was advertising
-                  // itself as clickable and then only responding on a ~200px strip of it — a click
-                  // an inch to the right of the title did nothing at all. The title stays a real
-                  // <button> because this handler is a pointer affordance only: it gives no
-                  // keyboard or screen-reader path, and moving the row to `role="button"` would
-                  // cost the table its row semantics.
+          <div className="jsm-list">
+            {/* Sorting used to live in the table's own column headers, which is where a spreadsheet
+                puts it. A list of cards has no header row to hang it off, so the two axes become an
+                explicit control strip — and saying "Sort" out loud is an improvement regardless:
+                clickable column headings are a convention people have to already know. */}
+            <div className="jsm-sort">
+              <span className="jds-eyebrow">Sort</span>
+              <button
+                type="button"
+                className="jds-chip jds-chip--toggle"
+                aria-pressed={sort?.key === "fit"}
+                onClick={() => toggleSort("fit")}
+              >
+                Fit{sortIndicator(sort, "fit", visibleItems)}
+              </button>
+              <button
+                type="button"
+                className="jds-chip jds-chip--toggle"
+                aria-pressed={sort?.key === "want"}
+                onClick={() => toggleSort("want")}
+              >
+                Want{sortIndicator(sort, "want", visibleItems)}
+              </button>
+            </div>
+
+            {sorted.map((item) => (
+              // One card per posting, not one row. A posting is a thing you consider — a title, who
+              // it's with, and two judgements with their own reasons — and a table flattened all of
+              // that into four columns of equal weight, which is what made a board of real
+              // opportunities read like a spreadsheet export. `aria-selected` still marks the open
+              // one so the panel beside it is visibly the detail *of that card*.
+              <article
+                key={item.id}
+                aria-selected={item.id === selectedMatchId}
+                // The whole card opens the match. `--interactive` is the host's own hover
+                // treatment, so the card advertises itself as clickable and then actually is,
+                // everywhere — the old table filled a row on hover but only responded on the
+                // ~200px strip under the title. The title stays a real <button> because this
+                // handler is a pointer affordance only and gives no keyboard path.
+                onClick={() => setSelectedMatchId(item.id)}
+                className={`jds-card jds-card--interactive jsm-card${item.outsideFrame ? " jsm-card--outside" : ""}`}
+              >
+                <div className="jsm-card__head">
+                  <span className="jds-eyebrow">{item.company}</span>
+                  {item.outsideFrame ? (
+                    <span className="jds-badge">Outside your stated frame</span>
+                  ) : null}
+                </div>
+
+                <button
+                  type="button"
+                  className="jds-card-title jsm-card__title"
                   onClick={() => setSelectedMatchId(item.id)}
-                  className={`jsm-board-row${item.outsideFrame ? " jsm-board-row--outside" : ""}`}
                 >
-                  <td>
-                    <button
-                      type="button"
-                      className="jds-table__rowlink"
-                      onClick={() => setSelectedMatchId(item.id)}
-                    >
-                      {item.title}
-                    </button>
-                    <div className="jds-table__sub">{item.company}</div>
-                    {item.outsideFrame ? (
-                      <span className="jds-badge">Outside your stated frame</span>
-                    ) : null}
-                  </td>
-                  {/* An unscored row says so once, in the score columns where the number would have
-                    been — not as a badge over by the Dismiss button, which pushed the actions
-                    column out of line with every scored row above it. */}
-                  <td className="jds-table__num">
-                    {!isScored(item) ? (
-                      <span className="jds-table__sub">Not read yet</span>
-                    ) : item.fit === null ? (
-                      // Read, but with nothing to judge Fit against — the same em dash the Want
-                      // column uses for a row that has no number, because it is the same claim.
-                      // Never a 0: a zero is a score, drawn in the same bar as every other score,
-                      // and it sits next to a Want the model genuinely reasoned about. The line
-                      // above the table is what explains the blanks; the cell just doesn't lie.
-                      "—"
+                  {item.title}
+                </button>
+
+                <div className="jsm-card__axes">
+                  <div className="jsm-card__axis">
+                    <span className="jds-eyebrow">Fit</span>
+                    {/* Three distinct states, and they are not the same claim. An unscored posting
+                        has not been read at all; a scored one with a null Fit was read but had
+                        nothing to judge Fit against (no résumé on file — the notice above the list
+                        is what explains it). Never a 0 for either: a zero is a score, drawn in the
+                        same bar as every real one, sitting next to a Want the model genuinely
+                        reasoned about. */}
+                    {!isScored(item) || item.fit === null ? (
+                      <p className="jsm-card__value">—</p>
                     ) : (
                       <Score value={item.fit} />
                     )}
-                  </td>
-                  <td className="jds-table__num">
-                    {isScored(item) ? <Score value={item.want} /> : "—"}
-                  </td>
-                  <td className="jds-table__actions">
-                    {/* stopPropagation because the row itself now opens the match: without it,
-                        dismissing a row would also open the panel for the row that just went
-                        away. */}
-                    <button
-                      type="button"
-                      className="jds-btn jds-btn--quiet jds-btn--sm"
-                      onClick={(event?: { stopPropagation?(): void }) => {
-                        // Optional throughout: a real DOM click always carries an event, but the
-                        // unit tests drive these handlers by calling `props.onClick()` directly,
-                        // and a hard dereference here would turn a dismissal test into a crash.
-                        event?.stopPropagation?.();
-                        handleDismiss(item.id);
-                      }}
-                    >
-                      Dismiss
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                  <div className="jsm-card__axis">
+                    <span className="jds-eyebrow">Want</span>
+                    {isScored(item) ? (
+                      <Score value={item.want} />
+                    ) : (
+                      <p className="jsm-card__value">—</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="jsm-card__foot">
+                  {!isScored(item) ? (
+                    <span className="jds-eyebrow jsm-card__pending">Not read yet</span>
+                  ) : (
+                    <span />
+                  )}
+                  {/* stopPropagation because the card itself opens the match: without it,
+                      dismissing would also open the panel for the card that just went away. */}
+                  <button
+                    type="button"
+                    className="jds-btn jds-btn--quiet jds-btn--sm"
+                    onClick={(event?: { stopPropagation?(): void }) => {
+                      // Optional throughout: a real DOM click always carries an event, but the
+                      // unit tests drive these handlers by calling `props.onClick()` directly,
+                      // and a hard dereference here would turn a dismissal test into a crash.
+                      event?.stopPropagation?.();
+                      handleDismiss(item.id);
+                    }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
         )}
         <Inspector
           match={selectedMatch}

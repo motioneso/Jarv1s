@@ -507,6 +507,60 @@
   line-height: var(--leading-tight);
   color: var(--text);
 }
+/* Park Press's two lede devices, from the design project's own `Strap`/display-numeral pair.
+
+   A screen that opens on a sentence opens on nothing — the reader has to parse a line of prose
+   before learning whether there is anything here for them. A figure at display scale answers that
+   before it is read, which is the whole reason the printed page has a masthead number.
+
+   `.jds-strap` is the short rule that sits under it: a brand device, not a divider, so it is a
+   fixed 30px and never spans its container the way `.jds-divider` does. Decorative by definition —
+   always mark it `aria-hidden`. */
+.jds-hero-figure {
+  display: block;
+  font-family: var(--font-display);
+  /* clamp, not a fixed size: at the mockup's 72px this wraps under its own unit label on a phone,
+     and a hero that wraps stops being a hero. */
+  font-size: clamp(var(--text-4xl), 9vw, 4.5rem);
+  font-weight: var(--weight-bold);
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.jds-strap {
+  display: block;
+  width: 30px;
+  height: 3px;
+  background: var(--accent);
+}
+
+/* The headline of a card — one item in a list of things being considered, rather than a section of
+   the page. Display type at the same size as a section title, but it resets button chrome, because
+   in a list of cards the title is nearly always the thing you click to open the item, and every
+   surface that needed one so far (briefings, tasks, now the job board) hand-rolled the same reset.
+   `text-align: left` and `display: block` because a <button> centres and shrink-wraps by default,
+   which silently centres a two-line role title. */
+.jds-card-title {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  color: var(--text);
+  text-wrap: balance;
+  cursor: pointer;
+}
+.jds-card-title:hover {
+  color: var(--accent);
+}
+
 /* The line of explanation that so often follows one. */
 .jds-section-sub {
   margin: 0;
