@@ -142,6 +142,9 @@ From the spec's locked rulings and the design interview:
 9. **Chat lives in the core header control.** The module must **not** add its own chat button — the
    control already exists in the core header. One chat implementation, two renderings, N threads.
    A job-search thread must never appear in the main drawer transcript, and vice versa.
+   **Refined 2026-07-28 by ruling N52 (#1332):** "never in the main drawer" is about **leakage** —
+   a module's transcript must not survive your leaving the module. While you are inside a profile,
+   the header control opens that profile's thread, which is what spec §7 always asked for.
 10. **Dynamic per-user fetch-host grants are DEFERRED.** v1 ships the three declared sources
     (Indeed, LinkedIn guest, freehire.me — the last covers ~50 ATS boards under one host).
     User-nominated portals move to a later milestone. This was Ben's call and it is settled.

@@ -263,18 +263,29 @@ side:
 - `docs/coordination/AWAITING-BEN.md` — unioned; main's two 2026-07-27 entries are resolved, ours
   stays.
 
-**A post-merge `pnpm verify:foundation` is running now** on gate DB `js_gate_d001af14_m`, exported
-per N26 (`gate2.log` / `gate2.exit` in this session's scratchpad). No competing gate when it started.
-**The pre-merge green does not cover those 34 commits — do not push or merge on it.** When green:
-push (updates #1341), then refresh the PR's Verification table with the post-merge counts.
+**The gate is green at `700ef868`, which is HEAD.** Read from `gate4.exit`, not from a notification
+— gate 2's notification said "exit code 0" while its exit file held 1, and the failure it hid was
+real. Counts: 14 steps, unit 488 files / 3796 passed / 2 skipped, uat-seed 11 files / 23 passed,
+integration 174 files / 1822 passed / 2 skipped. A mtime scan of every tracked file against the run's
+start returned empty and `git status` was clean, so those counts describe exactly this commit. This
+run also covers the doc commit `4e42fb3e`, which had landed after gate 3's `format:check` step.
+
+**#1332 is no longer parked.** Ben ruled on 2026-07-28 that the drawer shows the chat you are
+actually in; built as `700ef868` and recorded as ruling **N52**. `AWAITING-BEN.md` is now empty. The
+one-line fix is `records={recordsForSurface(activeSurface)}` in `app-shell.tsx`; the two plan
+documents that stated the older absolute reading (`HANDOFF.md` §9, `parts/05-task02c-chatsurface.md`)
+carry superseded notes rather than rewrites, because the plan is a historical record.
 
 **Still open and deliberately outside this PR:** #1333, #1335, #1336, #1337, #1340, plus #1306 (UAT
-written but not *run*) and #1307 (closes on merge). **#1332/#61** is parked for Ben in
-`docs/coordination/AWAITING-BEN.md` — mechanism fully traced, only the product call outstanding.
+written but not *run*) and #1307 (closes on merge).
+
+**The merge blocker is the live-path gate, and only that.** #1306 wants the board UAT actually run
+against a live dev instance. Until that happens the honest status of #1341 is _code-complete,
+unverified_ — do not merge on CI-green plus review.
 
 **Housekeeping done:** 24 orphaned `jarvis_test_*` databases dropped after confirming each had zero
 connections and a dead PID; every named `*_gate_*` left alone because they belong to other sessions.
-`js_gate_d1b569f39a` dropped. **Still to drop:** `js_gate_d001af14_m` when the gate above finishes.
+`js_gate_d1b569f39a`, `js_gate_d001af14_m` and `js_gate_700ef868` all dropped.
 
 **A board query lies if you cap it.** Project 2 has 665 items; `gh project item-list … --limit 200`
 truncates silently and made #1305 look absent. Always `--limit 1000`.
@@ -394,13 +405,13 @@ All three hold:
 
 - **#1331** onboarding renders no assistant Surface — spec §7 wants a full-width chat interface.
 - **#1332** core drawer renders empty while a module surface is active. `apps/web`, not a module.
-  Parked for Ben in `docs/coordination/AWAITING-BEN.md`, but the **mechanism is now traced** and
-  recorded there (`372c5ed5`): chat history is fetched over REST keyed on surface —
-  `use-chat-stream.ts:122-141` does `listChatThreads(surface)` → `threads[0]` →
-  `listChatThreadMessages(thread.id, surface)` — and reads are authorised at the thread level
-  (`routes.ts:441`). So the recommended reading's one-line fix is sufficient, and releasing the
-  claim provably returns the drawer to the default thread. What is left for Ben is intent, not
-  feasibility. This is also why N46 restores a capability: the surface key **is** the lookup key.
+  **FIXED at `700ef868` under ruling N52** — Ben's 2026-07-28 call is that the drawer shows the chat
+  you are actually in. The mechanism traced while it was parked is why the fix is one line: chat
+  history is fetched over REST keyed on surface — `use-chat-stream.ts:122-141` does
+  `listChatThreads(surface)` → `threads[0]` → `listChatThreadMessages(thread.id, surface)` — and
+  reads are authorised at the thread level (`routes.ts:441`). So releasing the claim provably
+  returns the drawer to the default thread, which is what #1284's leakage rule actually asks for.
+  This is also why N46 restores a capability: the surface key **is** the lookup key.
 - **#1333** board paging, split out of #1330 so a real product consequence gets a real issue.
 - **#1334** the one notify-port budget-isolation case that catches a misplaced counter.
 

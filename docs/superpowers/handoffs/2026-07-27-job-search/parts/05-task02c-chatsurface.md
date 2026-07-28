@@ -67,6 +67,12 @@ to the existing `ChatSessionManager.seedContext(actorUserId, userName, seed, ide
   The surface is opaque on the wire; the human-readable scope pill comes from the module's label.
 - **`recordsForSurface(surface)` returns `records` only when `surface === activeSurface`, `[]`
   otherwise.** Ben's ruling: a job-search thread must never appear in the main drawer.
+  **Superseded in part on 2026-07-28 — see ruling N52 (#1332).** `recordsForSurface` itself is
+  unchanged and still answers `[]` for any non-active surface. What changed is the argument the
+  drawer passes: it asks for the **live** surface rather than a fixed `DEFAULT_CHAT_SURFACE`
+  literal, so the header control opens the thread you are actually in. "Never in the main drawer"
+  turns out to mean a module's transcript must not survive your **leaving** the module, which the
+  surface key enforces by construction — it is also the history lookup key all the way down.
 - **Reset to `DEFAULT_CHAT_SURFACE` on `null` and on unmount.**
 - **Why a seed seam, and why this one.** A module-owned thread that opens with no framing is a
   generic assistant that happens to render inside Job Search. The three existing mechanisms are each
