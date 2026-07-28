@@ -328,11 +328,27 @@ export class ExternalModuleWorkerRuntime {
                 state,
                 `${JSON.stringify({ jsonrpc: "2.0", id: message.id, result })}\n`
               ),
-            () =>
+            (error: unknown) => {
+              // #1306: the module is told only "rpc_failed" — deliberately, so a host-side
+              // failure can never become a detail channel back into module code. The host,
+              // though, has to be able to see WHICH of its own RPCs broke: without this line a
+              // failed embed/db/fetch call is invisible, and the only surviving evidence is a
+              // module-side `handler_failed` whose stack points at the module's stdin reader.
+              // Message text only, never the params — the arguments are the part that could
+              // carry private content.
+              this.options.logger?.warn(
+                {
+                  moduleId,
+                  method: message.method,
+                  reason: error instanceof Error ? error.message : String(error)
+                },
+                "external module rpc failed"
+              );
               this.writeToChild(
                 state,
                 `${JSON.stringify({ jsonrpc: "2.0", id: message.id, error: { code: -32001, message: "rpc_failed" } })}\n`
-              )
+              );
+            }
           )
           .finally(() => {
             invocation.inFlightRpcs -= 1;

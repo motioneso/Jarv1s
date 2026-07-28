@@ -552,7 +552,15 @@ function record(value: unknown): Record<string, unknown> {
 function stringParam(value: Record<string, unknown>, key: string): string {
   const found = value[key];
   if (typeof found !== "string" || found.length === 0) {
-    throw new ExternalModuleRpcError("invalid_rpc");
+    // #1306: name the offending param. `detail` is host-log-only and never crosses the worker
+    // boundary (see ExternalModuleRpcError), so this costs the module nothing — it still sees
+    // only `invalid_rpc`. Without it, ten call sites share one indistinguishable failure and a
+    // module author debugging from host logs cannot tell which argument was rejected, or that
+    // "" is rejected at all rather than merely a wrong type.
+    throw new ExternalModuleRpcError(
+      "invalid_rpc",
+      `${key} must be a non-empty string (received ${typeof found === "string" ? "an empty string" : typeof found})`
+    );
   }
   return found;
 }

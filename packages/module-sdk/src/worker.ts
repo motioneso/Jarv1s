@@ -262,7 +262,18 @@ export function defineModuleWorker(input: {
           notify
         });
         send({ jsonrpc: "2.0", id: message.id, result });
-      } catch {
+      } catch (error) {
+        // #1306: the wire protocol deliberately carries no error detail to the host — a module's
+        // internal failure must not become a channel for leaking whatever the exception happened to
+        // close over. But discarding it entirely made a failed handler undiagnosable: the host
+        // records `handler_failed` with a stack that only ever points at its own stdout reader, and
+        // the real cause is gone. stderr is the right home for it — it is NOT the JSON-RPC channel
+        // (stdout is), and the runtime already captures it, redacts every known secret from it, and
+        // logs it host-side as "external module worker output".
+        console.error(
+          `module handler "${params.handler as string}" failed:`,
+          error instanceof Error ? (error.stack ?? error.message) : String(error)
+        );
         send({
           jsonrpc: "2.0",
           id: message.id,
