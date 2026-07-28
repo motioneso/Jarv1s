@@ -77,9 +77,15 @@ function requireProjectName(): string {
 // auth_runtime all NOBYPASSRLS), so this bypasses the FORCE RLS policies the same way a real
 // migration/bootstrap connection does — there is no app-role path that could run these INSERTs.
 // `-t -A` gives unaligned, headerless output so a `RETURNING` clause parses with a plain `.trim()`
-// / `.split("|")`.
+// / `.split("|")` — but ONLY after the command tag is stripped. psql prints its tag ("INSERT 0 1",
+// "UPDATE 1") on the line *after* the RETURNING row even under -t -A, so a raw return glues the tag
+// onto the last column: a seeded uuid came back as "<uuid>\nINSERT 0 1" and Postgres rejected it as
+// invalid uuid syntax on the next statement. Stripped here rather than at each call site, because
+// every caller that adds a RETURNING clause would otherwise have to rediscover it.
+const PSQL_COMMAND_TAG = /^(?:INSERT \d+ \d+|UPDATE \d+|DELETE \d+|SELECT \d+|MERGE \d+)$/;
+
 function execUatSql(projectName: string, sql: string): string {
-  return execFileSync(
+  const raw = execFileSync(
     "docker",
     buildUatComposeArgs(projectName, [
       "exec",
@@ -102,6 +108,11 @@ function execUatSql(projectName: string, sql: string): string {
     ]),
     { encoding: "utf8" }
   );
+
+  return raw
+    .split("\n")
+    .filter((line) => !PSQL_COMMAND_TAG.test(line.trim()))
+    .join("\n");
 }
 
 // Local mirror of apps/web/src/shell/chat-surface-key.ts's moduleChatSurface — KEEP IN SYNC. No
@@ -603,10 +614,8 @@ test("job search: install, bootstrap, onboarding, crawl, board, inspector, chat 
       matchRow.trim().length,
       "a scored match must exist to flag outside_frame on"
     ).toBeGreaterThan(0);
-    // psql prints its command tag ("UPDATE 1") on the line after the RETURNING row even under
-    // -t -A, so take the first line before splitting columns — otherwise the title carries the tag
-    // along with it and matches nothing on the board.
-    const seededTitle = matchRow.split("\n")[0]?.split("|")[1]?.trim() ?? "";
+    // execUatSql has already stripped psql's command tag, so the RETURNING row is the whole output.
+    const seededTitle = matchRow.split("|")[1]?.trim() ?? "";
     expect(seededTitle, "the seeded match must have a posting title").toBeTruthy();
 
     await page.reload();
