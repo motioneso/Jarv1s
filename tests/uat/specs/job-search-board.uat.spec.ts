@@ -593,7 +593,9 @@ test("job search: install, bootstrap, onboarding, crawl, board, inspector, chat 
       projectName,
       // Postgres UPDATE takes no ORDER BY / LIMIT of its own — the pick has to happen in a
       // subquery, or the statement is a syntax error rather than an unlucky choice of row.
-      `update app.job_search_matches set outside_frame = true where id = (select id from app.job_search_matches where profile_id = '${seededProfileId}' and fit is not null order by created_at limit 1) returning id, (select title from app.job_search_postings p where p.id = job_search_matches.posting_id);`
+      // Ordered by scored_at (job_search_matches has no created_at; `fit is not null` guarantees
+      // scored_at is set), then id, so the row chosen is the same one on every run.
+      `update app.job_search_matches set outside_frame = true where id = (select id from app.job_search_matches where profile_id = '${seededProfileId}' and fit is not null order by scored_at, id limit 1) returning id, (select title from app.job_search_postings p where p.id = job_search_matches.posting_id);`
     );
     expect(
       matchRow.trim().length,
