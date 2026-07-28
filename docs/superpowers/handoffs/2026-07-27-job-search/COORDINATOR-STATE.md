@@ -302,6 +302,26 @@ is not evidence.
 Routed as tasks **#80/#81** (`score`, who found them) and **#82** (`scaffold`). `score` holds the
 Postgres slot; `scaffold` writes but does not run until it comes back.
 
+## Spec §10's three core changes — verified wired, not just declared
+
+Reported shipped in the PR draft; I checked each against committed code for a real production
+caller, because declared-and-validated is not the same as reachable ([[wired-not-just-defined]]).
+All three hold:
+
+- **§10.1 fetch-host grants** — `fetchHostGrantsNamespace` on the manifest type
+  (`packages/module-sdk/src/external-manifest.ts:267`), positively validated including the
+  must-be-a-declared-`user`-scope-namespace rule (`validate.ts:412-431`), and actually consumed at
+  `packages/module-registry/src/external/worker-rpc-host.ts:220` where the grants merge into the
+  fetch policy. The module's own namespace constant is `handlers/source.ts:41`.
+- **§10.2 `ctx.embed`** — `ModuleEmbedPort` on the worker contract
+  (`packages/module-sdk/src/worker.ts:22-26,126`), constructed at `:181`, answered host-side by the
+  `embed.dimensions` and `embed.embedQuery` RPC methods (`worker-rpc-host.ts:264-269`) behind a
+  **required** `embeddingProvider` resolver (`:128` — required rather than optional on purpose, so a
+  module that never embeds can't silently get a missing one).
+- **§10.3 briefing seam** — manifest `briefing` block validated at `validate.ts:731-746`, invoker
+  built at `apps/worker/src/worker.ts:243`, manifests passed at `:277`, consumed by the composer at
+  `packages/briefings/src/compose.ts:437`.
+
 ## Open issues filed this session
 
 - **#1331** onboarding renders no assistant Surface — spec §7 wants a full-width chat interface.
