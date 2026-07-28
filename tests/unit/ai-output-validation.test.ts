@@ -22,7 +22,9 @@ describe("sanitizeAssistantToolResult", () => {
     // This is the exact case that would have caught the stale job-search-web-root.test.tsx mock
     // (#1335's follow-up audit): a fixture/response missing a now-required field must fail loudly,
     // not pass through as if the field were merely absent-but-optional.
-    expect(() => sanitizeAssistantToolResult(schema, result)).toThrow(/missing required output field "url"/);
+    expect(() => sanitizeAssistantToolResult(schema, result)).toThrow(
+      /missing required output field "url"/
+    );
   });
 
   it("strips an undeclared key rather than merely ignoring it", () => {
@@ -118,7 +120,9 @@ describe("sanitizeAssistantToolResult", () => {
       data: { items: [{ id: "m1", url: "https://example.com/1" }, { id: "m2" }] }
     };
 
-    expect(() => sanitizeAssistantToolResult(schema, result)).toThrow(/missing required output field "url"/);
+    expect(() => sanitizeAssistantToolResult(schema, result)).toThrow(
+      /missing required output field "url"/
+    );
   });
 
   it("filters columnOrder down to only the schema-declared keys", () => {

@@ -68,11 +68,7 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
       </a>
 
       {props.onDiscuss ? (
-        <button
-          type="button"
-          className="jds-btn jds-btn--secondary"
-          onClick={props.onDiscuss}
-        >
+        <button type="button" className="jds-btn jds-btn--secondary" onClick={props.onDiscuss}>
           Discuss
         </button>
       ) : null}

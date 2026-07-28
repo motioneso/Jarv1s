@@ -102,7 +102,10 @@ describe("job-search module through the real API + worker RPC surface (#1305, te
     cpSync(join(sourceDir, "dist"), join(installedDir, "dist"), { recursive: true });
 
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    heavyWorkerDb = createDatabase({ connectionString: connectionStrings.worker, maxConnections: 4 });
+    heavyWorkerDb = createDatabase({
+      connectionString: connectionStrings.worker,
+      maxConnections: 4
+    });
     server = createApiServer({
       appDb,
       logger: false,
@@ -706,7 +709,9 @@ function collectBlendedScoreViolations(value: unknown, path = "$"): string[] {
       const isNumericLike =
         typeof child === "number" || (typeof child === "string" && BLENDED_SCORE_VALUE.test(child));
       if (BLENDED_SCORE_KEY.test(key) && isNumericLike) {
-        violations.push(`${path}.${key} is a forbidden key name holding a numeric/percent value: ${JSON.stringify(child)}`);
+        violations.push(
+          `${path}.${key} is a forbidden key name holding a numeric/percent value: ${JSON.stringify(child)}`
+        );
       }
       violations.push(...collectBlendedScoreViolations(child, `${path}.${key}`));
     }

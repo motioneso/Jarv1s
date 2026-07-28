@@ -28,9 +28,7 @@ export function MatchRecordCard(props: { detail: MatchDetail }): ReactNodeLike {
     <div className="jds-card jds-card--sunken jsm-discuss-card">
       <span className="jds-eyebrow">{detail.company}</span>
       <h4 className="jsm-discuss-card__title">{detail.title}</h4>
-      {detail.outsideFrame ? (
-        <span className="jds-badge">Outside your stated frame</span>
-      ) : null}
+      {detail.outsideFrame ? <span className="jds-badge">Outside your stated frame</span> : null}
       <div className="jsm-discuss-card__axes">
         <div className="jsm-discuss-card__axis">
           <span className="jds-eyebrow">Fit</span>
@@ -60,7 +58,9 @@ export interface UseDiscussResult {
  * the Discuss control entirely in that case (spec's "an action that silently does nothing is
  * worse than an action that is not there" — the no-op here is a defensive floor, not the UX).
  */
-export function useDiscuss(assistantSurface: AssistantSurfaceHandleV1 | undefined): UseDiscussResult {
+export function useDiscuss(
+  assistantSurface: AssistantSurfaceHandleV1 | undefined
+): UseDiscussResult {
   const [discussing, setDiscussing] = useState<string | null>(null);
 
   const discuss = useCallback(
