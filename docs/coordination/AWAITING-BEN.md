@@ -46,6 +46,28 @@ strictly a core-only surface — but it means the module's chat is reachable **o
 embedded surface, and spec §7's "the module does not add its own chat button" would need revisiting
 at the same time, or there is no way in at all.
 
+**Traced since this was parked (2026-07-27).** The mechanism is now known, which narrows the
+question to intent alone — the recommended reading is mechanically sound, not a hope.
+
+History is fetched over REST, separately from the SSE stream, and it is keyed by **surface** the
+whole way down: `apps/web/src/chat/use-chat-stream.ts:122-141` calls `listChatThreads(surface)`,
+takes `threads[0]` (most-recently-active, chosen client-side), then
+`listChatThreadMessages(thread.id, surface)`. Server-side, `packages/chat/src/repository.ts:37-44`
+filters threads by `surface` and `incognito = false`; the read is authorised at the **thread** level
+(`surface` match plus `thread.owner_user_id === access.actorUserId`, `packages/chat/src/routes.ts:441`).
+
+Two consequences for this decision:
+
+- Binding the drawer to the module's surface key genuinely surfaces that module's own thread —
+  history included, not just live stream. The recommended reading's one-line change at
+  `app-shell.tsx:426` is sufficient; nothing else is missing.
+- Releasing the claim (`setSurfaceKey(null)`) sends the very same query back to the default surface,
+  so no module content can survive the exit. #1284's leakage concern is enforced by the surface
+  filter itself, not by convention.
+
+This is why ruling N46 (bind by `profile.surfaceKey`, never `profileId`) restores a capability rather
+than tidying naming: the surface key **is** the history lookup key.
+
 **What we need:** which reading is right. If the recommended one, #1332 proceeds as a bug fix. If the
 alternative, spec §7 needs an amendment and the job-search UAT's drawer phase changes shape.
 
