@@ -224,43 +224,60 @@ concurrent load before — suspect it first if a run dies without a test failure
 Known pre-existing red, **not ours**: `tests/uat/run-uat.test.ts` fails identically on `main`
 (an extra `withoutNewsJsonBinding` field) — settled in a scratch worktree at `9df9ba3e`.
 
-## LIVE STATE — read this first (2026-07-28, gate running)
+## LIVE STATE — read this first (2026-07-28, PR #1341 open, post-merge gate running)
 
-**#1305 is CLOSED.** Task 21's integration tests are done, committed, and verified against the
-plan's twelve named cases rather than against any agent's report.
+**The build is done. Everything below is ship mechanics.**
 
-- `1643b55b` — test 9 (all 15 manifest tools) and test 12 (no blended score) in one commit; they
-  shared a file and could not be split by path, so both #81 and #82 are credited there.
-- `010ae241` — `scaffold`'s hash anchor: `row.manifest_hash`/`row.package_hash` now checked against
-  `hashCanonicalManifest(realManifest)` and `hashExternalPackage(installedDir)`. `installedDir` is
-  right: `node.ts:137` hashes the scanned discovery dir, so `sourceDir` would have hashed a
-  different tree.
-- `fa0deffa` — ruling **N51**.
+**PR #1341** — https://github.com/motioneso/Jarv1s/pull/1341 — closes the thirty task issues and is
+`Part of #1280`. Body was fact-checked against the branch (commits per issue), not against the task
+list; that is what moved #1334 into "closes" and kept #1306/#1307/#1335/#1340 out.
 
-**Evidence, all read from exit files, never through a pipe.** Full integration suite at `1643b55b`:
-EXIT=0, 166 files, 1770 passed, 2 skipped, 765s. The file re-run alone after the anchor: EXIT=0,
-6/6 by name. The file's mtime was older than each run's start, so no mid-run edit voided either.
+**#1305 is CLOSED** and on the board as Done. Task 21's integration tests were verified against the
+plan's twelve named cases rather than against any agent's report: `1643b55b` (tests 9 and 12 — one
+file, so #81 and #82 share the commit), `010ae241` (`scaffold`'s hash anchor against
+`hashCanonicalManifest`/`hashExternalPackage`), `fa0deffa` (ruling **N51**). Case 10 is a recorded
+deviation, not a gap (N41, re-confirmed under N49) — both substitute tests verified present.
 
-**Case 10 is a recorded deviation, not a gap** (N41, re-confirmed under N49). Its two substitutes
-were verified present, not merely cited: `tests/unit/job-search-crawl-stage.test.ts` "one portal
-failing does not lose the others' results", and `tests/integration/job-search-store.test.ts` case 6,
-which exercises the real `COALESCE` at `worker/store-sql.ts:361`.
+**Pre-merge gate at `2d99cb84`: EXIT=0**, read from the exit file. `test:unit` 484 files / 3766
+passed / 2 skipped; `test:uat-seed` 11 / 23; `test:integration` 166 files / 1770 passed / 2 skipped.
+All fourteen steps ran, and no tracked file's mtime fell inside the run, so those counts describe
+exactly that commit.
 
-**A full `pnpm verify:foundation` is running now** on gate DB `js_gate_1785208736`, exported per N26.
-Log and exit code in this session's scratchpad (`gate.log` / `gate.exit`). No competing gate was
-running when it started. **If that run did not finish, re-run it** — the PR must not go up on an
-unverified gate.
+**That green was nearly a false start.** The first attempt reported "exit code 0" in its task
+notification while `gate.exit` held **1** — the notification reports the wrapper shell, never the
+gate. `format:check` had failed on four committed-but-unformatted files, so **zero tests ran**;
+`2d99cb84` fixed them. Read the exit file, and treat a ~1 KB log as a short-circuit rather than a
+test failure.
 
-**Then: open the PR.** Body draft is finalized at `scratchpad/pr-body-draft-1307.md`, already
-verified free of stale #1340 references.
+**`d001af14` merges 34 commits of `origin/main`** (including #1276 self-operation tools and #1338
+chat/tasks trust self-heal). Three real conflicts, all resolved as unions rather than by taking a
+side:
 
-**Still open and deliberately outside this PR:** #1333, #1335, #1336, #1337, #1340. **#1332/#61** is
-parked for Ben in `docs/coordination/AWAITING-BEN.md` — mechanism fully traced, only the product call
-outstanding.
+- `packages/module-sdk/` — **both branches split the same oversized `index.ts` and picked different
+  filenames** (`external-module.ts` on main, `external-manifest.ts` here). Resolved to main's
+  filename carrying this branch's superset; `external-manifest.ts` is deleted and must not come
+  back. `index.ts` re-exports the three added symbols by name.
+- `packages/notifications/sql/0175_…` → **`0178_notification_event_keys.sql`** — main landed
+  0175/0176/0177 first. Never applied anywhere under the old number, so renumbering does not touch
+  an applied migration. `foundation-schema-catalog.test.ts` and `notifications.test.ts:157` follow.
+- `docs/coordination/AWAITING-BEN.md` — unioned; main's two 2026-07-27 entries are resolved, ours
+  stays.
 
-**Housekeeping, still not done:** stale `jarvis_test_*` / `*_gate_*` databases on the dev Postgres
-container (`jarv1s-postgres`, port 55433 — `jarv1s-prod-postgres-1` is PROD, never touch it), plus
-`js_gate_1785208736` once the gate finishes.
+**A post-merge `pnpm verify:foundation` is running now** on gate DB `js_gate_d001af14_m`, exported
+per N26 (`gate2.log` / `gate2.exit` in this session's scratchpad). No competing gate when it started.
+**The pre-merge green does not cover those 34 commits — do not push or merge on it.** When green:
+push (updates #1341), then refresh the PR's Verification table with the post-merge counts.
+
+**Still open and deliberately outside this PR:** #1333, #1335, #1336, #1337, #1340, plus #1306 (UAT
+written but not *run*) and #1307 (closes on merge). **#1332/#61** is parked for Ben in
+`docs/coordination/AWAITING-BEN.md` — mechanism fully traced, only the product call outstanding.
+
+**Housekeeping done:** 24 orphaned `jarvis_test_*` databases dropped after confirming each had zero
+connections and a dead PID; every named `*_gate_*` left alone because they belong to other sessions.
+`js_gate_d1b569f39a` dropped. **Still to drop:** `js_gate_d001af14_m` when the gate above finishes.
+
+**A board query lies if you cap it.** Project 2 has 665 items; `gh project item-list … --limit 200`
+truncates silently and made #1305 look absent. Always `--limit 1000`.
 
 ## Agent assignments and the file locks between them
 
