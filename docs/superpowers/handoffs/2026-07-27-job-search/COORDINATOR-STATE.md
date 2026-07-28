@@ -223,9 +223,28 @@ is `"custom"` (`tests/uat/seed/chunks/ai.ts:25`). Model resolution succeeds firs
 check fails, so `runScore()` retries once and halts with `provider_error`, `scored: 0`, in every run.
 Fix is an `openai-compatible` provider pointed at the fixture server — not a reshaped phase.
 
-**N37's tripwire is still unanswered.** #1305's test 10 was scoped out on the basis that it transfers
-to #1306's UAT. Nobody has named the file and line where its assertion now lives. scaffold correctly
-refuses to guess; it needs confirming against records' spec before #1305 closes.
+**N37's tripwire is ANSWERED — closed by N41, and this paragraph used to say otherwise.** It was
+written before N41 landed and never cleaned up, while line 201 of this same file already recorded the
+resolution. Left standing, it cost real time: I relayed "still unanswered" to `scaffold` as a live
+work item and had to withdraw it. A doc that contradicts itself is worse than a doc that is silent,
+because both halves read as authoritative and the reader picks one at random.
+
+The resolution, per N41 (ledger line 1581): test 10 **stays out** of Tier B and no transfer to #1306's
+UAT was ever needed, because its two named risks are already covered at better levels than a UAT could
+reach — named to N37's own file-and-line standard:
+
+- "the postings landed" → `tests/unit/job-search-crawl-stage.test.ts:225` (test 2), a healthy freehire
+  plus a `rate_limited` LinkedIn in one pass, asserting **both** postings persisted including `li-2`,
+  the partial haul from the portal that failed.
+- "`lastOkAt` intact" → `tests/integration/job-search-store.test.ts:380` (case 6), asserting at `:416`
+  that a failure write passing `lastOkAt: null` does not erase the prior value. Real Postgres, against
+  the actual `COALESCE` at `worker/store-sql.ts:361`.
+- the failure path writes a portal row at all → `job-search-crawl-stage.test.ts:263` (test 3), for
+  `login_required` + `enabled: false`.
+
+Independently re-verified against the current tree on 2026-07-27: test 2 is now at line 226 and
+carries the N41-mandated assertions (`cause.kind === "rate_limited"`, `enabled === true` on the
+persisted row). Cited **and** present. #1305 does not wait on this.
 
 ## Standing method
 
