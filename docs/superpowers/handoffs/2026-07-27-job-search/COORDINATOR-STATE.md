@@ -279,6 +279,19 @@ exists in the **committed** manifest. Tool names are unvalidated prose — a ren
 and passes unit tests against a mock keyed on whatever string the test passed. Report only; the
 manifest is `score`'s lane.
 
+## CORRECTION (N49): test 10 was never missing — #1305's blockers are two, not three
+
+The section below is kept as written because the reasoning in it is still good, but its **test 10**
+finding is withdrawn. `score` refused the assignment and was right: **N41** (ledger line 1581,
+unreopened) deliberately put test 10's coverage at unit and store level and states outright that
+#1305 "must not grow an integration test for it". The gap N41 itself named is closed at `4df9f3c1`.
+
+The audit was accurate about the code and wrong about the authority — it compared against the plan,
+and the plan's Task 21 text predates N41. **Ruling N49** (`fb0ae978`) cancels task #80 and requires
+only an inline comment recording the deviation where an auditor will hit it.
+
+Test 9 and test 12 stand exactly as found below.
+
 ## #1305 does NOT close — score's Task 21 audit, adopted
 
 `score` audited plan Task 21 case by case against the two real files. 9 of 12 cases present and
