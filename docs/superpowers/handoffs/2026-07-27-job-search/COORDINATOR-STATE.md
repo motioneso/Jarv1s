@@ -75,9 +75,37 @@ Eight non-DB links verified exit 0: `lint`, `format:check`, `check:file-size`,
 `test:unit` at 3729/3732. The one failure is in-flight shape drift, not a HEAD regression — score's
 uncommitted `url` key against the exact-keys assertion at `tests/unit/job-search-match-handler.test.ts:176`.
 
-**`test:integration` at `14593694`, after dedupe's three fixes: 164/165 files, 1760/1763 tests, exit
-1.** Down from 3 files / 4 tests. All four original failures are fixed, including the two that put
-`job_search_custom_sources` under cross-owner and admin isolation checking for the first time.
+**`test:integration` latest run (18:15, log `scratchpad/test-integration-3.log`): `STEP_EXIT=1`,
+`Test Files 1 failed | 165 passed (166)`, `Tests 1764 passed | 7 skipped (1771)`.**
+
+**Read that summary before you believe it.** Zero tests failed. The passing count went *up*, 1760 →
+1764. `165 passed` sits next to `1 failed`. Skimmed, it reads as progress. What actually happened is
+that `tests/integration/job-search-worker-surface.test.ts` — scaffold's Tier B for #1305 — failed at
+the **suite** level and all 5 of its tests **skipped**:
+
+```
+Error: sign-up for owner@job-search-tierb.test failed (500):
+  ❯ signUp tests/integration/job-search-worker-surface.test.ts:440:11
+  ❯ tests/integration/job-search-worker-surface.test.ts:93:19
+```
+
+`beforeAll` at line 93 calls `signUp`, gets a **500 with an empty body**, throws, and the file
+contributes nothing. Tests 6, 9 and 11 have still never asserted anything. This was Tier B's **first
+ever DB-backed execution** — it had been written and committed for hours. "Written and committed" was
+true the whole time and told us nothing, which is why **#60 stayed open** and stays open now.
+
+scaffold holds the Postgres slot to root-cause it, and must report **harness gap vs product defect
+before writing a fix** — those have very different consequences for the PR, and the verdict should
+exist before a commit exists to argue for one.
+
+**The earlier `notes-write-tools.test.ts` flake is confirmed and closed.** It passed in this run and
+`tuple concurrently updated` appears nowhere in the log — it cleared exactly when the other
+worktree's suite finished, which is what the shared-foundation-state diagnosis predicted. Do not
+spend more time on it; the `main` reproduction stays stood down.
+
+Prior run at `14593694`: 164/165 files, 1760/1763 tests, exit 1 — down from 3 files / 4 tests. All
+four of dedupe's original failures are fixed, including the two that put `job_search_custom_sources`
+under cross-owner and admin isolation checking for the first time.
 
 The single remaining failure — `notes-write-tools.test.ts > rejects empty oldText regardless of file
 length` — is **a diagnosed flake, not a regression.** The error is `tuple concurrently updated` raised
