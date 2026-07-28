@@ -1541,3 +1541,39 @@ same door the inspector uses.
 that only a detail view reads is a detail field, however natural it looks on the list type. When a
 cap forces a trade, first check whether anything in the row is not actually rendered — reclaiming
 dead weight beats choosing which live thing to shrink.
+
+### N40 — seed a state that has a producer; never seed one that doesn't
+
+**Ruling.** In UAT, a row may be seeded directly only when a real production path writes that same
+shape and the seed is skipping it for determinism. If no production path writes the shape, seeding
+it is forbidden — the scenario must be produced by the pipeline.
+
+Applied to Task 22 (#1306):
+
+- **Phase 9, `state: "unscored"` — seeding is FORBIDDEN.** After #1329, "unscored" is the
+  **absence** of a match row; `listUnscored`'s own comment already says so — _"'Unscored' means 'no
+  match row yet' — a NOT EXISTS, not a state column."_ `upsertMatch` hardcodes `state: 'new'` on
+  both INSERT and ON CONFLICT UPDATE and is the only `INSERT INTO app.job_search_matches` in the
+  codebase, so a seeded row carrying `state:'unscored'` is a shape the pipeline never produces. The
+  phase would pass against a fabrication while the real join stayed broken. Producing it naturally
+  costs a fixture edit: `AI_CALL_BUDGET` is 8 and the freehire fixture has 3 postings, so raising
+  the fixture above the budget leaves postings with no match row — a genuinely pipeline-produced
+  unscored board row.
+- **Phase 10, `outsideFrame` — seeding is ALLOWED, with a comment.** `triage()` really does write
+  this field, so the seed skips a producer rather than inventing an unreachable state, and the
+  threshold math is unit-tested at Task 8 (#1292). Calibrating fixture text against real
+  nomic-embed cosine similarities to straddle two thresholds is legitimately fragile. The spec must
+  name the unit test covering the math it skips.
+
+**Why.** #1329 survived **three** green unit tests, every one of which hand-built the row as
+`match({state: "unscored"})`. `listMatches` was an inner join anchored on matches, so a posting
+with no match row was structurally unreturnable, and each of those tests re-tested the renderer and
+missed the join again. A seeded UAT row would be the same miss a fourth time, at the layer that
+exists to catch it. Worse, the proposed refinement — `embedding = NULL` so the row "can't collide
+with the pipeline" — is a precise statement that the row is unreachable by production code, which
+is the disqualifying property, not a safety feature.
+
+**Generalisation.** Before fabricating test data, ask which line in production writes this exact
+shape. If the answer is "none", the test is asserting against a thing that cannot happen, and its
+green tells you nothing about the thing that can. Determinism is a reason to skip a producer, never
+a reason to invent one.
