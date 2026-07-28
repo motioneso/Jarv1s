@@ -85,23 +85,36 @@
   margin: 0;
 }
 
-/* Centred, not left-aligned: `.jsm-root` is 72rem, and pinning the card left left the right half
-   of the viewport empty and the page reading lopsided.
-   The width was 62ch — a prose reading measure — which is the wrong measure for this card. What
-   fills it is a chat transcript with a composer under it, not an article; at 1440 that left about
-   570px of dead ground either side and made the one screen the whole product depends on look like
-   an unfinished column. 52rem keeps the card clearly inset inside the 72rem root while giving the
-   composer and the assistant's replies a width they can use. The reading measure moves down to the
-   two lines of prose that actually want one. Layout only — no colour or type here (see header). */
-/* `width: 100%` is load-bearing, not belt-and-braces. `.jsm-root` is a column flex container, and
+/* The onboarding card, centred in the 72rem root. It has been three widths: 62ch (a prose reading
+   measure, wrong for a card holding a chat transcript), then 52rem (830px holding a paragraph
+   capped at 46ch — the prose ran out halfway across and left the right half empty, which reads as a
+   layout that didn't finish rather than as deliberate space), and now 38rem, which sits near the
+   card's own measure so the heading, the paragraph and the composer share one edge.
+
+   `width: 100%` is load-bearing, not belt-and-braces. `.jsm-root` is a column flex container, and
    an `auto` margin on a flex item's cross axis cancels `align-items: stretch` — the card stopped
-   filling its 52rem and shrink-wrapped to its longest line of prose (~476px at 1440), which is
-   narrower than the 62ch it was meant to replace. An explicit width gives it a definite size for
-   `max-width` to cap and for the auto margins to centre. */
+   filling its max-width and shrink-wrapped to its longest line of prose. An explicit width gives
+   it a definite size for `max-width` to cap and for the auto margins to centre.
+
+   `margin-block: auto` centres a short card inside the min-height reserved below, instead of
+   pinning it to the top of 500px of empty ground; once the conversation grows past that height the
+   auto margins collapse and it top-anchors on its own. Layout only — no colour or type here (see
+   the file header). */
 .jsm-onb {
   width: 100%;
-  max-width: 52rem;
+  max-width: 38rem;
   margin-inline: auto;
+  margin-block: auto;
+}
+
+/* Only the onboarding state reserves height — the board fills the screen on its own, and giving
+   it a min-height would push its footer below the fold for no reason. Selected with `:has()`
+   rather than a modifier class because which screen is showing is already expressed by what root
+   renders; a second class saying the same thing is a state to keep in sync. 60vh rather than
+   100vh so the card settles a little above centre, where a first screen is read. */
+.jsm-root:has(> .jsm-onb) {
+  min-height: 60vh;
+  justify-content: center;
 }
 
 .jsm-onb__head,
