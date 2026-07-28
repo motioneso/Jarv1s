@@ -4740,3 +4740,27 @@ reaped, in case Fable finds something) · w1:p14P fable-sec-1338 (`cfb3d388`) ·
 **Continuation note (mid-doing):** waiting on two gates for #1338 and on lane1273's rebase report.
 On Fable GREEN + CI green → merge #1338, close #1311, reap w1:p14N, then hand lane1273 the
 post-#1311 rebase + delta re-QA + live UAT.
+
+### Fable security verdict on PR #1338 — **GREEN** (Ben-approval equivalent)
+
+`fable-sec-1338` (`cfb3d388-7ec1-4327-b62d-217fbd807751`) posted comment
+**5099270159** — https://github.com/motioneso/Jarv1s/pull/1338#issuecomment-5099270159
+
+- **VERDICT: GREEN**, 0 blocking / 5 non-blocking.
+- Grounded on `43082cbc7f656e0ea46e6dc6865ffbeb5d01489a`, `pnpm audit:preflight` exit 0,
+  0 behind / 25 ahead of `origin/main` @ `7c820342`. Verified independently by the coordinator
+  against the comment body — not taken on the agent's self-report.
+- Key judgement (the thing the review was commissioned for): the **#1121 `test.fixme` substitution
+  is acceptable**. Coverage proves the seeded-grant reader through real dispatch, and the self-heal
+  writer against a real DB, but **no single test crosses the composed `callTool → heal` seam**. The
+  fail direction there is *closed*, so the residual risk is functional inertness (the heal silently
+  not firing), **not** trust escalation. That is a correctness gap, not a security hole.
+
+Per Ben's standing delegation — *"that's what the fable review was for, just have him check the
+security pr when finished, fable green = Ben approve"* — this satisfies the security-tier merge
+sign-off. **The remaining gate is CI only.**
+
+CI at the time of writing: `Detect change scope` SUCCESS, `Compose deployment smoke` SUCCESS,
+`Prod compose deployment smoke` SUCCESS, `Verify docs` SKIPPED, **`Verify foundation and app`
+still `in_progress`** (run 30322817920). PR reads MERGEABLE/UNSTABLE purely because of that
+pending check. No merge until it reports `success`.
