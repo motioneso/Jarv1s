@@ -44,7 +44,7 @@
 import type { FailureKind, Posting, SearchCriteria } from "../domain/records.js";
 import { describeFailure } from "../domain/records.js";
 import type { CrawlResult, FetchLike, Portal } from "./types.js";
-import { PAGE_CAP, statusToKind } from "./types.js";
+import { pagesPerQuery, queriesFor, statusToKind } from "./types.js";
 
 const SOURCE_ID = "linkedin";
 const SOURCE_LABEL = "LinkedIn";
@@ -70,10 +70,12 @@ function isAuthWall(body: string): boolean {
   return AUTH_WALL_MARKERS.some((marker) => marker.test(body));
 }
 
-function buildUrl(criteria: SearchCriteria, start: number): string {
+/** One title per call — see `queriesFor` for why the titles are never joined into one
+ * `keywords`. LinkedIn's guest search is the same token-fuzzy shape freehire's is. */
+function buildUrl(criteria: SearchCriteria, query: string, start: number): string {
   const params = new URLSearchParams();
-  if (criteria.titles.length > 0) {
-    params.set("keywords", criteria.titles.join(" "));
+  if (query.length > 0) {
+    params.set("keywords", query);
   }
   if (criteria.locations.length > 0) {
     params.set("location", criteria.locations.join(" "));
@@ -248,55 +250,73 @@ async function crawl(args: {
   // No `total` is ever reported by this source (see header) — `expected` stays null throughout,
   // matching freehire's ParsedPage contract but with nothing to ever assign to it here.
   const expected: number | null = null;
+  // Overlapping titles return overlapping cards, and LinkedIn's job-posting urn is stable, so a
+  // job seen under one title is not emitted again under the next.
+  const seen = new Set<string>();
 
-  for (let page = 0; page < PAGE_CAP; page += 1) {
-    if (clock() >= args.deadlineAt) {
-      return {
-        postings,
-        failure: buildFailure("deadline", postings.length, expected, args.lastOkAt)
-      };
-    }
+  const queries = queriesFor(args.criteria.titles);
+  const pageBudget = pagesPerQuery(queries.length);
 
-    let response;
-    try {
-      response = await args.fetch(buildUrl(args.criteria, postings.length), {
-        headers: { "User-Agent": USER_AGENT }
-      });
-    } catch {
-      return {
-        postings,
-        failure: buildFailure("network", postings.length, expected, args.lastOkAt)
-      };
-    }
+  for (const query of queries) {
+    // `start` is an offset into *this* query's result set. It used to be `postings.length`, which
+    // was the same number only because one crawl ran exactly one query; carried over unchanged it
+    // would have started every title after the first partway into its own results.
+    let offset = 0;
 
-    if (!response.ok) {
-      const kind = statusToKind(response.status);
-      return { postings, failure: buildFailure(kind, postings.length, expected, args.lastOkAt) };
-    }
-
-    let parsed: ParsedPage;
-    try {
-      const bodyText = await response.text();
-      parsed = parsePage(bodyText);
-    } catch (error) {
-      if (error instanceof AuthWallDetected) {
-        // The one case where a 200 status is still a login wall: LinkedIn answers with a
-        // sign-in interstitial instead of a 401/403. Classified identically to statusToKind's
-        // 401/403 case for the same reason — a retry can never succeed no matter what this
-        // module ships, so it is terminal by policy, unlike parse_failed (N16).
+    for (let page = 0; page < pageBudget; page += 1) {
+      if (clock() >= args.deadlineAt) {
         return {
           postings,
-          failure: buildFailure("login_required", postings.length, expected, args.lastOkAt)
+          failure: buildFailure("deadline", postings.length, expected, args.lastOkAt)
         };
       }
-      return {
-        postings,
-        failure: buildFailure("parse_failed", postings.length, expected, args.lastOkAt)
-      };
-    }
 
-    postings.push(...parsed.postings);
-    if (!parsed.hasMore) break;
+      let response;
+      try {
+        response = await args.fetch(buildUrl(args.criteria, query, offset), {
+          headers: { "User-Agent": USER_AGENT }
+        });
+      } catch {
+        return {
+          postings,
+          failure: buildFailure("network", postings.length, expected, args.lastOkAt)
+        };
+      }
+
+      if (!response.ok) {
+        const kind = statusToKind(response.status);
+        return { postings, failure: buildFailure(kind, postings.length, expected, args.lastOkAt) };
+      }
+
+      let parsed: ParsedPage;
+      try {
+        const bodyText = await response.text();
+        parsed = parsePage(bodyText);
+      } catch (error) {
+        if (error instanceof AuthWallDetected) {
+          // The one case where a 200 status is still a login wall: LinkedIn answers with a
+          // sign-in interstitial instead of a 401/403. Classified identically to statusToKind's
+          // 401/403 case for the same reason — a retry can never succeed no matter what this
+          // module ships, so it is terminal by policy, unlike parse_failed (N16).
+          return {
+            postings,
+            failure: buildFailure("login_required", postings.length, expected, args.lastOkAt)
+          };
+        }
+        return {
+          postings,
+          failure: buildFailure("parse_failed", postings.length, expected, args.lastOkAt)
+        };
+      }
+
+      offset += parsed.postings.length;
+      for (const posting of parsed.postings) {
+        if (seen.has(posting.externalId)) continue;
+        seen.add(posting.externalId);
+        postings.push(posting);
+      }
+      if (!parsed.hasMore) break;
+    }
   }
 
   return { postings, failure: null };

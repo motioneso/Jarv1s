@@ -91,3 +91,36 @@ export function statusToKind(status: number): FailureKind {
  * unusually chatty pagination can't quietly turn one crawl into hundreds of requests.
  */
 export const PAGE_CAP = 10;
+
+/**
+ * The free-text queries a crawl should run for one profile — **one per title, never all the
+ * titles mashed into a single query string**.
+ *
+ * Every board's free-text search is token-fuzzy: it scores a document by how many of the query's
+ * words it contains, in any order, anywhere. Joining ["Senior Product Designer", "Staff Product
+ * Designer"] into one query therefore does not ask for either role — it asks for documents
+ * containing any of {senior, staff, product, designer}, and the top of that ranking is full of
+ * postings that matched on the two seniority words alone. Probed live against freehire on
+ * 2026-07-28: the joined query's first page led with "Senior / Staff AI Platform Engineer",
+ * "Senior/Staff G&A Recruiter" and "Senior / Staff Front End Engineer"; the same crawl run one
+ * title at a time returned twenty consecutive "Senior Product Designer" postings. This is not a
+ * ranking preference we can shrug off under L14's over-fetch-and-narrow rule — L14 says do not
+ * *trust* the source's ranking, not that we may hand it a query that describes nobody.
+ *
+ * An empty string is returned when the profile has no usable titles, so the caller still makes
+ * one unfiltered request rather than skipping the source entirely.
+ */
+export function queriesFor(titles: string[]): string[] {
+  const cleaned = titles.map((title) => title.trim()).filter((title) => title.length > 0);
+  return cleaned.length > 0 ? cleaned : [""];
+}
+
+/**
+ * Splits PAGE_CAP's request budget evenly across the queries, so searching three titles costs
+ * about what searching one used to rather than three times as much. Floors at one page each: a
+ * title that gets no request at all is a silently narrower search, which is the failure mode
+ * this whole change exists to remove.
+ */
+export function pagesPerQuery(queryCount: number): number {
+  return Math.max(1, Math.floor(PAGE_CAP / Math.max(1, queryCount)));
+}

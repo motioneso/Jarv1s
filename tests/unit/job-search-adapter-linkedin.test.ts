@@ -181,6 +181,52 @@ describe("linkedin adapter (#1296)", () => {
     expect(new URL(calledUrl).searchParams.has("location")).toBe(false);
   });
 
+  it("case 2c: searches each title on its own, with start reset per title", async () => {
+    // Same defect freehire had: joined keywords ask for any of the words, so the seniority word
+    // shared by every title dominates the ranking. And `start` is an offset into one query's
+    // results — carried across queries it would open every title after the first partway in.
+    const fetch: FetchLike = vi.fn().mockResolvedValue(emptyPageResponse());
+
+    await linkedinPortal.crawl({
+      fetch,
+      criteria: criteria({ titles: ["Senior Product Designer", "Staff Product Designer"] }),
+      lastOkAt: null,
+      now: "2026-07-27T12:00:00.000Z",
+      deadlineAt: FAR_FUTURE
+    });
+
+    const sent = (fetch as ReturnType<typeof vi.fn>).mock.calls.map((call) => {
+      const url = new URL((call as [string])[0]);
+      return [url.searchParams.get("keywords"), url.searchParams.get("start")];
+    });
+    expect(sent).toEqual([
+      ["Senior Product Designer", "0"],
+      ["Staff Product Designer", "0"]
+    ]);
+  });
+
+  it("case 2d: the same posting under two titles is returned once", async () => {
+    const one = [
+      card({ id: "1", title: "A", company: "Acme", location: "Remote", date: "2026-07-01" })
+    ];
+    const fetch: FetchLike = vi
+      .fn()
+      .mockResolvedValueOnce(pageResponse(one))
+      .mockResolvedValueOnce(emptyPageResponse())
+      .mockResolvedValueOnce(pageResponse(one))
+      .mockResolvedValue(emptyPageResponse());
+
+    const result = await linkedinPortal.crawl({
+      fetch,
+      criteria: criteria({ titles: ["Senior Product Designer", "Staff Product Designer"] }),
+      lastOkAt: null,
+      now: "2026-07-27T12:00:00.000Z",
+      deadlineAt: FAR_FUTURE
+    });
+
+    expect(result.postings).toHaveLength(1);
+  });
+
   it("case 3: 429 -> structured rate_limited, partial results kept", async () => {
     const fetch: FetchLike = vi
       .fn()

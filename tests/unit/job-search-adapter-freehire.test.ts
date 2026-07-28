@@ -172,6 +172,62 @@ describe("freehire adapter (#1295)", () => {
     expect(url.searchParams.get("regions")).toBe("global");
   });
 
+  it("case 2b: searches each title on its own, never all titles joined into one q", async () => {
+    // The defect this pins: joining the titles asked for documents containing any of
+    // {senior, staff, product, designer}, and the live board answered with "Senior/Staff G&A
+    // Recruiter" and "Senior / Staff AI Platform Engineer" — postings that matched on the two
+    // seniority words and nothing else. A title is a phrase, and it has to be searched as one.
+    const fetch: FetchLike = vi.fn().mockResolvedValue(pageResponse([job()], false));
+
+    await freehirePortal.crawl({
+      fetch,
+      criteria: criteria({ titles: ["Senior Product Designer", "Staff Product Designer"] }),
+      lastOkAt: null,
+      now: "2026-07-27T12:00:00.000Z",
+      deadlineAt: FAR_FUTURE
+    });
+
+    const queries = (fetch as ReturnType<typeof vi.fn>).mock.calls.map((call) =>
+      new URL((call as [string])[0]).searchParams.get("q")
+    );
+    expect(queries).toEqual(["Senior Product Designer", "Staff Product Designer"]);
+  });
+
+  it("case 2c: the same posting under two titles is returned once", async () => {
+    // Overlapping titles legitimately return overlapping results; emitting the duplicate would
+    // put the same role on the board twice and inflate the count a failure summary reports.
+    const fetch: FetchLike = vi.fn().mockResolvedValue(pageResponse([job()], false));
+
+    const result = await freehirePortal.crawl({
+      fetch,
+      criteria: criteria({ titles: ["Senior Product Designer", "Staff Product Designer"] }),
+      lastOkAt: null,
+      now: "2026-07-27T12:00:00.000Z",
+      deadlineAt: FAR_FUTURE
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(result.postings).toHaveLength(1);
+  });
+
+  it("case 2d: two titles cost the same request budget one title used to", async () => {
+    // Splitting PAGE_CAP rather than spending it per title: searching more titles must not
+    // multiply the crawl's cost against the source.
+    const fetch: FetchLike = vi
+      .fn()
+      .mockImplementation(async () => pageResponse([job({ external_id: "x" })], true));
+
+    await freehirePortal.crawl({
+      fetch,
+      criteria: criteria({ titles: ["a", "b"] }),
+      lastOkAt: null,
+      now: "2026-07-27T12:00:00.000Z",
+      deadlineAt: FAR_FUTURE
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(PAGE_CAP);
+  });
+
   it("case 3: 429 -> structured rate_limited, partial results kept", async () => {
     // Page one reports hasMore: true (matching freehire's real behaviour on a large result
     // set) so the loop actually attempts a second page, which is where the 429 lands.

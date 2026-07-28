@@ -58,7 +58,7 @@
 import type { FailureKind, Posting, SearchCriteria } from "../domain/records.js";
 import { describeFailure } from "../domain/records.js";
 import type { CrawlResult, FetchLike, Portal } from "./types.js";
-import { PAGE_CAP, statusToKind } from "./types.js";
+import { pagesPerQuery, queriesFor, statusToKind } from "./types.js";
 
 const SOURCE_ID = "freehire";
 const SOURCE_LABEL = "freehire.me";
@@ -68,10 +68,11 @@ const USER_AGENT = "Jarvis-JobSearch/0.1 (personal use)";
  * see header) `offset` step between pages. */
 const PAGE_SIZE = 20;
 
-function buildUrl(criteria: SearchCriteria, page: number): string {
+/** One title per call — see `queriesFor` for why the titles are never joined into one `q`. */
+function buildUrl(criteria: SearchCriteria, query: string, page: number): string {
   const params = new URLSearchParams();
-  if (criteria.titles.length > 0) {
-    params.set("q", criteria.titles.join(" "));
+  if (query.length > 0) {
+    params.set("q", query);
   }
   // Only "required" narrows by mode. "preferred" / "no-preference" / "onsite-ok" all leave
   // work_mode unset so remote+hybrid+onsite postings are over-fetched together (L14) and
@@ -265,47 +266,63 @@ async function crawl(args: {
 }): Promise<CrawlResult> {
   const clock = args.clock ?? Date.now;
   const postings: Posting[] = [];
+  // Two titles that overlap ("Senior Product Designer" / "Staff Product Designer") return many of
+  // the same postings, and freehire's own ids are stable, so the same job is dropped here rather
+  // than passed on twice. Task 7 dedupes across sources too — this only keeps one source's own
+  // result set honest, so `retrieved` in a failure summary counts distinct jobs.
+  const seen = new Set<string>();
   let expected: number | null = null;
 
-  for (let page = 0; page < PAGE_CAP; page += 1) {
-    if (clock() >= args.deadlineAt) {
-      return {
-        postings,
-        failure: buildFailure("deadline", postings.length, expected, args.lastOkAt)
-      };
-    }
+  const queries = queriesFor(args.criteria.titles);
+  const pageBudget = pagesPerQuery(queries.length);
 
-    let response;
-    try {
-      response = await args.fetch(buildUrl(args.criteria, page), {
-        headers: { "User-Agent": USER_AGENT }
-      });
-    } catch {
-      return {
-        postings,
-        failure: buildFailure("network", postings.length, expected, args.lastOkAt)
-      };
-    }
+  for (const query of queries) {
+    for (let page = 0; page < pageBudget; page += 1) {
+      if (clock() >= args.deadlineAt) {
+        return {
+          postings,
+          failure: buildFailure("deadline", postings.length, expected, args.lastOkAt)
+        };
+      }
 
-    if (!response.ok) {
-      const kind = statusToKind(response.status);
-      return { postings, failure: buildFailure(kind, postings.length, expected, args.lastOkAt) };
-    }
+      let response;
+      try {
+        response = await args.fetch(buildUrl(args.criteria, query, page), {
+          headers: { "User-Agent": USER_AGENT }
+        });
+      } catch {
+        return {
+          postings,
+          failure: buildFailure("network", postings.length, expected, args.lastOkAt)
+        };
+      }
 
-    let parsed: ParsedPage;
-    try {
-      const bodyText = await response.text();
-      parsed = parseEnvelope(bodyText);
-    } catch {
-      return {
-        postings,
-        failure: buildFailure("parse_failed", postings.length, expected, args.lastOkAt)
-      };
-    }
+      if (!response.ok) {
+        const kind = statusToKind(response.status);
+        return { postings, failure: buildFailure(kind, postings.length, expected, args.lastOkAt) };
+      }
 
-    postings.push(...parsed.postings);
-    if (parsed.total !== null) expected = parsed.total;
-    if (!parsed.hasMore) break;
+      let parsed: ParsedPage;
+      try {
+        const bodyText = await response.text();
+        parsed = parseEnvelope(bodyText);
+      } catch {
+        return {
+          postings,
+          failure: buildFailure("parse_failed", postings.length, expected, args.lastOkAt)
+        };
+      }
+
+      for (const posting of parsed.postings) {
+        if (seen.has(posting.externalId)) continue;
+        seen.add(posting.externalId);
+        postings.push(posting);
+      }
+      // `total` is per-query, so the last query's figure wins. It only ever enriches a failure
+      // summary's "of about N" and is never treated as a count this crawl was expected to reach.
+      if (parsed.total !== null) expected = parsed.total;
+      if (!parsed.hasMore) break;
+    }
   }
 
   return { postings, failure: null };
