@@ -7,9 +7,7 @@ import type { AiRepository } from "../../packages/ai/src/repository.js";
 import type { DataContextDb } from "@jarv1s/db";
 import type { ModuleAssistantToolManifest } from "@jarv1s/module-sdk";
 
-function tool(
-  overrides: Partial<ModuleAssistantToolManifest> = {}
-): ModuleAssistantToolManifest {
+function tool(overrides: Partial<ModuleAssistantToolManifest> = {}): ModuleAssistantToolManifest {
   return {
     name: "mock.tool",
     description: "Mock tool",

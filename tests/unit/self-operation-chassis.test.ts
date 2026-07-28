@@ -393,9 +393,7 @@ describe("self-operation chassis", () => {
       selfOperationGrant: "granted_at_install"
     };
     expect(() =>
-      assertBuiltInSelfOperationManifests([
-        manifest("memory", [tool], [trustedAutoDefaultFamily])
-      ])
+      assertBuiltInSelfOperationManifests([manifest("memory", [tool], [trustedAutoDefaultFamily])])
     ).toThrow(
       'module "memory" tool "memory.autoOperate" declares granted_at_install for action family ' +
         '"memory.trustedAutoDefaultFamily" whose defaultTier is "trusted_auto": self-heal\'s ' +
@@ -427,9 +425,7 @@ describe("self-operation chassis", () => {
       selfOperationGrant: "user_promotable"
     };
     expect(() =>
-      assertBuiltInSelfOperationManifests([
-        manifest("memory", [tool], [trustedAutoDefaultFamily])
-      ])
+      assertBuiltInSelfOperationManifests([manifest("memory", [tool], [trustedAutoDefaultFamily])])
     ).toThrow(
       'module "memory" tool "memory.promotableOperate" declares user_promotable for action ' +
         'family "memory.promotableTrustedAutoDefault" whose defaultTier is "trusted_auto": with ' +

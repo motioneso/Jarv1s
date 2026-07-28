@@ -40,8 +40,8 @@
   tool can never declare `executionPolicy: "auto"` — `packages/ai/src/gateway/self-operation.ts`
   `assertBuiltInSelfOperationManifests`, ~280-433.
 - `resolvePolicy`: `packages/ai/src/gateway/policy.ts` (read in full, 90 lines) — `tier =
-  getFamilyTier() ?? manifest.defaultTier`; `run` only if `tier === "trusted_auto" &&
-  executionPolicy === "auto" && allowedTiers.includes("trusted_auto")`.
+getFamilyTier() ?? manifest.defaultTier`; `run` only if `tier === "trusted_auto" &&
+executionPolicy === "auto" && allowedTiers.includes("trusted_auto")`.
 - `packages/chat/package.json` already depends on `@jarv1s/ai` (workspace) — no new package
   dependency needed.
 - No existing tests reference any of the above self-heal targets (confirmed by grep, prior
@@ -70,7 +70,7 @@ export async function selfHealGrantedAtInstallTier(
   repository: Pick<AiRepository, "listActionPolicies" | "insertActionPolicyIfAbsent">,
   manifest: SelfOperationManifestInput,
   familyId: string
-): Promise<JarvisActionPermissionTier | null>
+): Promise<JarvisActionPermissionTier | null>;
 ```
 
 Decision (behavior, not code): returns `null` immediately if no tool in
@@ -109,6 +109,7 @@ primitive doesn't know about (exit criterion #2 justification, goes in the PR de
 Files: `packages/ai/src/gateway/self-operation.ts` (add + export), new
 `tests/unit/self-heal-granted-at-install.test.ts` (mock repository, no DB).
 Tests (behavior + why a broken impl fails them):
+
 1. Family declared `granted_at_install` in the manifest, no stored policy → returns
    `"trusted_auto"` and `insertActionPolicyIfAbsent` was called once. Fails against a no-op stub.
 2. Family declared `confirm_always` or `user_promotable` → returns `null`,
@@ -122,6 +123,7 @@ Files: `packages/chat/src/routes.ts`, extend `tests/integration/action-policy-in
 or new `tests/integration/chat-action-policy-self-heal.test.ts` (real DB, via
 `buildChatGatewayDependencies` — the exported real-construction entry point).
 Tests:
+
 1. `granted_at_install` family, no prior row, real DB → `getFamilyTier` returns `"trusted_auto"`
    without any explicit enable action having run. Fails on current code (returns `null` today —
    this is the #1311 symptom itself).
@@ -137,6 +139,7 @@ Tests:
 Files: `packages/tasks/src/action-policy.ts`, new
 `tests/integration/tasks-action-policy-self-heal.test.ts` (real DB, DataContextRunner).
 Tests:
+
 1. Neither canonical nor legacy key set → `getResolvedTaskChangesPolicy` returns
    `"trusted_auto"`, and the canonical key is now present in `app.preferences`. Fails on current
    code (returns `"ask_each_time"` — the tasks-side #1311 symptom the coordinator's handoff

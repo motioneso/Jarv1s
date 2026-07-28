@@ -344,10 +344,7 @@ export function assertBuiltInSelfOperationManifests(
         // motivated checks, not a named invariant. Pin it explicitly (cast mirrors how a malformed
         // or dynamically-built manifest could still carry this value at runtime) so fail-closed can
         // never silently become fail-open if either of those other checks is ever weakened.
-        if (
-          resolvedFamily &&
-          (resolvedFamily.defaultTier as string) === "trusted_auto"
-        ) {
+        if (resolvedFamily && (resolvedFamily.defaultTier as string) === "trusted_auto") {
           throw new Error(
             `module "${manifest.id}" tool "${tool.name}" declares granted_at_install for action ` +
               `family "${tool.actionFamilyId}" whose defaultTier is "trusted_auto": self-heal's ` +
@@ -388,10 +385,7 @@ export function assertBuiltInSelfOperationManifests(
         // auto-execute before the user ever promotes it — the exact thing "user_promotable" (ask
         // by default, user may promote) forbids. Same defense-in-depth cast as the
         // granted_at_install check above; the type union already excludes this literal.
-        if (
-          resolvedFamily &&
-          (resolvedFamily.defaultTier as string) === "trusted_auto"
-        ) {
+        if (resolvedFamily && (resolvedFamily.defaultTier as string) === "trusted_auto") {
           throw new Error(
             `module "${manifest.id}" tool "${tool.name}" declares user_promotable for action ` +
               `family "${tool.actionFamilyId}" whose defaultTier is "trusted_auto": with no ` +
@@ -531,8 +525,6 @@ export async function selfHealGrantedAtInstallTier(
   }
 
   const policies = await repository.listActionPolicies(scopedDb);
-  const policy = policies.find(
-    (p) => p.moduleId === manifest.id && p.actionFamilyId === familyId
-  );
+  const policy = policies.find((p) => p.moduleId === manifest.id && p.actionFamilyId === familyId);
   return policy?.tier ?? null;
 }

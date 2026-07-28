@@ -80,7 +80,10 @@ describe("chat action policy self-heal (getFamilyTier, real DB via buildChatGate
 
   function actionPolicyFor(
     actorUserId: string,
-    overrides: { agencyPreferences?: PreferencesRepository; resolveModule?: JarvisModuleManifest } = {}
+    overrides: {
+      agencyPreferences?: PreferencesRepository;
+      resolveModule?: JarvisModuleManifest;
+    } = {}
   ) {
     const deps = buildChatGatewayDependencies({
       resolveActiveModules: async () => [overrides.resolveModule ?? testModule],
