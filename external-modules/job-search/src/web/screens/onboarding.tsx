@@ -11,17 +11,28 @@
 // moment Task 10's step list changes.
 //
 // Markup ported from the prototype's `.jp-onb` block (apps/web/src/job-search-prototype/
-// variant-flow.tsx), minus its fake conversation thread and composer — those simulate the
-// assistant inline, which this surface never does (root.tsx's header: the only way into the
-// assistant here is hostActions.openAssistant). Card chrome and chip color come from the
-// host's jds-* primitives (jds-card, jds-eyebrow, jds-badge), matching Root's other panels —
-// styles.css stays layout-only.
+// variant-flow.tsx). #1331 restores the one piece Task 19 dropped: the block's fake conversation
+// thread and composer simulated the assistant inline, and were rightly cut (root.tsx's header:
+// the only way into the assistant here is hostActions.openAssistant) — but spec §7 calls for a
+// REAL chat, full width, not zero chat. That real chat is the host's own `Surface`
+// (`assistantSurface.Surface` below), already bound to this profile's thread by Task 17's
+// `useProfileThread`; this screen never builds a second chat implementation. Card chrome and
+// chip color come from the host's jds-* primitives (jds-card, jds-eyebrow, jds-badge), matching
+// Root's other panels — styles.css stays layout-only.
+import type { AssistantSurfaceHandleV1 } from "../../domain/seed-prompt.js";
 import { ONBOARDING_STEPS } from "../../domain/criteria.js";
 import { h, type ReactNodeLike } from "../runtime";
 import type { Profile } from "../use-profiles";
 
-export function OnboardingScreen(props: { profile: Profile }): ReactNodeLike {
+export function OnboardingScreen(props: {
+  profile: Profile;
+  // Optional per loader.ts/ledger I1 — absent (or a host predating Surface), the screen still
+  // renders its chips and copy and says the conversation is unavailable rather than throwing
+  // (plan case 5).
+  assistantSurface?: AssistantSurfaceHandleV1;
+}): ReactNodeLike {
   const done = new Set(props.profile.completedSteps);
+  const Surface = props.assistantSurface?.Surface;
   return (
     <div className="jds-card jds-card--sunken jsm-state jsm-onb">
       <span className="jds-eyebrow">Job search</span>
@@ -43,6 +54,17 @@ export function OnboardingScreen(props: { profile: Profile }): ReactNodeLike {
             {step}
           </span>
         ))}
+      </div>
+      <div className="jsm-onb__chat">
+        {Surface ? (
+          // `composer: {}` turns the composer on with the host's default placeholder — see the
+          // `Surface` doc comment on seed-prompt.ts's `AssistantSurfaceHandleV1`: an absent
+          // `composer` renders no input box at all, which would leave the user nothing to type
+          // into during the one screen where the conversation is the whole product.
+          h(Surface, { composer: {} })
+        ) : (
+          <p className="jsm-onb__unavailable">The conversation isn&rsquo;t available right now.</p>
+        )}
       </div>
     </div>
   );

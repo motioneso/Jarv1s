@@ -15,11 +15,13 @@ import type { Profile } from "../web/use-profiles.js";
 
 /**
  * A narrow, LOCAL mirror of the host's real `AssistantSurfaceHandleV1`
- * (apps/web/src/chat/assistant-surface/contracts.ts), holding only the two methods this module
- * calls. Module isolation (CLAUDE.md's hard invariant) means this module never imports host
- * source paths — the host's real handle object satisfies this interface structurally, which is
- * all TypeScript needs, and a test fixture only has to fake two methods instead of the full
- * chat-surface API (Surface, seedComposer, submitTurn, uploadAttachment, subscribeRecords).
+ * (apps/web/src/chat/assistant-surface/contracts.ts), holding only the three members this module
+ * uses: the two thread-binding methods below, plus the `Surface` view component onboarding.tsx
+ * (Task 19/#1303, widened for #1331) renders. Module isolation (CLAUDE.md's hard invariant) means
+ * this module never imports host source paths — the host's real handle object satisfies this
+ * interface structurally, which is all TypeScript needs, and a test fixture only has to fake
+ * three members instead of the full chat-surface API (seedComposer, submitTurn, uploadAttachment,
+ * subscribeRecords are still omitted — nothing here calls them).
  */
 export interface AssistantSurfaceHandleV1 {
   /** #1284 semantics apply unmodified here: `null` releases the claim. Call this BEFORE
@@ -29,6 +31,18 @@ export interface AssistantSurfaceHandleV1 {
   /** Trust boundary: the seed text this module hands the host enters the model's context with
    * exactly the authority of a user turn — never a system prompt. */
   seedContext(seed: string, idempotencyKey: string): Promise<void>;
+  /**
+   * The host's real chat-surface view component
+   * (`apps/web/src/chat/assistant-surface/surface.tsx`), already curried by the host with
+   * whatever surface `setSurfaceKey` last bound (handle.ts:59-62) — this module never passes a
+   * `surface` key of its own. Typed `unknown`, like every other component reference this module
+   * touches (runtime.ts's `HostReact.createElement`), because the module carries no React types
+   * at all; render it with `h(Surface, props)` and let the structural check at that `h()` call
+   * stand in for a real `ComponentType`. `props` is a plain object shaped like the host's
+   * `AssistantSurfaceViewProps` (contracts.ts) — pass at least `{ composer: {} }`, since
+   * `AssistantSurface` renders no input box whatsoever when `composer` is absent.
+   */
+  readonly Surface: unknown;
 }
 
 const SEED_PROMPT_VERSION = "v1";

@@ -88,12 +88,16 @@ async function renderRoot(
   return renderer;
 }
 
-// Only the two methods Root's useProfileThread actually calls — the narrow local mirror of the
-// host's real AssistantSurfaceHandleV1 (module isolation: no import of host chat internals).
+// setSurfaceKey/seedContext are the two methods Root's useProfileThread actually calls; every
+// test in this file uses an "active" profile (the board branch), so Surface itself is never
+// rendered here (that's job-search-web-onboarding.test.tsx's job) — a no-op placeholder is
+// enough to satisfy AssistantSurfaceHandleV1's now-three-member shape (#1331) without this file
+// needing to know anything about the host's real component.
 function assistantSurface(): AssistantSurfaceHandleV1 {
   return {
     setSurfaceKey: vi.fn(),
-    seedContext: vi.fn().mockResolvedValue(undefined)
+    seedContext: vi.fn().mockResolvedValue(undefined),
+    Surface: vi.fn()
   };
 }
 
@@ -215,6 +219,27 @@ describe("job-search web Root", () => {
 
     expect(text(renderer)).toMatch(/work out what this search is for/);
     expect(renderer.root.findAllByType("table")).toHaveLength(0);
+  });
+
+  // #1331: OnboardingScreen's own test file (job-search-web-onboarding.test.tsx) proves the
+  // screen renders Surface when handed one directly — that alone doesn't prove Root ever hands
+  // it one for real. This asserts through root.tsx's prop threading itself, not just the prop.
+  it("threads the host's assistantSurface through to the real onboarding screen", async () => {
+    function SurfaceSpy() {
+      return createElement("div", { "data-testid": "job-search-onboarding-surface" });
+    }
+    mockUseProfiles.mockReturnValue(
+      ready([profile({ profileId: "p1", state: "in_conversation" })])
+    );
+    const surface: AssistantSurfaceHandleV1 = {
+      setSurfaceKey: vi.fn(),
+      seedContext: vi.fn().mockResolvedValue(undefined),
+      Surface: SurfaceSpy
+    };
+
+    const renderer = await renderRoot(hostActions(), surface);
+
+    expect(renderer.root.findAllByType(SurfaceSpy)).toHaveLength(1);
   });
 
   it("renders the real board screen for a profile with criteria", async () => {

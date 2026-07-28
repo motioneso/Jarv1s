@@ -255,7 +255,7 @@ export function Root(props: RootProps): ReactNodeLike {
     const selected = selectedProfile as Profile;
     body =
       selected.state === "in_conversation" ? (
-        <OnboardingScreen profile={selected} />
+        <OnboardingScreen profile={selected} assistantSurface={props.assistantSurface} />
       ) : (
         <ActiveProfilePanel
           profiles={profiles.profiles}

@@ -70,6 +70,22 @@
   gap: 0.5rem;
 }
 
+/* #1331: the conversation itself, full width within the onboarding column. `.jsm-state`'s
+   `align-items: flex-start` shrink-wraps flex children to their content width by default —
+   `align-self: stretch` overrides that for just this child so the host's Surface (composer
+   input included) gets the whole card's width rather than collapsing to its own content. */
+.jsm-onb__chat {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  width: 100%;
+  min-height: 20rem;
+}
+
+.jsm-onb__unavailable {
+  margin: 0;
+}
+
 .jsm-board-screen {
   display: flex;
   flex-direction: column;

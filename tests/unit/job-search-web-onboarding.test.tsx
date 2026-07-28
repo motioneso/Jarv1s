@@ -6,9 +6,10 @@
 import "./helpers/install-module-runtime";
 import { createElement } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ONBOARDING_STEPS } from "../../external-modules/job-search/src/domain/criteria";
+import type { AssistantSurfaceHandleV1 } from "../../external-modules/job-search/src/domain/seed-prompt";
 import { OnboardingScreen } from "../../external-modules/job-search/src/web/screens/onboarding";
 import type { Profile } from "../../external-modules/job-search/src/web/use-profiles";
 
@@ -28,10 +29,13 @@ function profile(overrides: Partial<Profile> = {}): Profile {
 // component render is scheduled rather than flushed synchronously and toJSON() reads back null.
 // Async act (job-search-web-root.test.tsx's renderRoot precedent) avoids the "testing
 // environment not configured to support act" warning a sync act callback triggers here.
-async function renderScreen(profileValue: Profile): Promise<ReactTestRenderer> {
+async function renderScreen(
+  profileValue: Profile,
+  assistantSurface?: AssistantSurfaceHandleV1
+): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
-    renderer = create(createElement(OnboardingScreen, { profile: profileValue }));
+    renderer = create(createElement(OnboardingScreen, { profile: profileValue, assistantSurface }));
   });
   return renderer;
 }
@@ -96,5 +100,40 @@ describe("OnboardingScreen", () => {
       .findAll((node) => typeof node.props.className === "string")
       .map((node) => node.props.className as string);
     expect(classNames.some((c) => /rail|strip|board/.test(c))).toBe(false);
+  });
+
+  it("renders the conversation as the host's own Surface, with the composer turned on", async () => {
+    // A plain function, not a mock of the real AssistantSurface — this test only needs to prove
+    // OnboardingScreen hands the host's Surface to h() and turns its composer on, not that the
+    // host's own chat UI works (that's surface.tsx's suite).
+    function SurfaceSpy(_props: { composer?: unknown }) {
+      return createElement("div", { "data-testid": "job-search-onboarding-surface" });
+    }
+    const surface: AssistantSurfaceHandleV1 = {
+      setSurfaceKey: vi.fn(),
+      seedContext: vi.fn().mockResolvedValue(undefined),
+      Surface: SurfaceSpy
+    };
+
+    const renderer = await renderScreen(profile(), surface);
+
+    const rendered = renderer.root.findAllByType(SurfaceSpy);
+    expect(rendered).toHaveLength(1);
+    // AssistantSurface (surface.tsx) renders no input box at all when `composer` is absent, so a
+    // truthy `composer` prop is what makes this an actual chat rather than a read-only transcript.
+    expect(rendered[0].props.composer).toBeTruthy();
+  });
+
+  it("with no assistantSurface, still renders chips and copy, and says the conversation is unavailable rather than throwing", async () => {
+    const completed = [ONBOARDING_STEPS[0]];
+
+    const renderer = await renderScreen(profile({ completedSteps: completed }));
+
+    const rendered = chips(renderer);
+    expect(rendered.map((c) => c.text)).toEqual([...ONBOARDING_STEPS]);
+    expect(text(renderer)).toMatch(
+      /nothing gets crawled until we both know what we.re looking for/i
+    );
+    expect(text(renderer)).toMatch(/conversation isn.t available/i);
   });
 });
