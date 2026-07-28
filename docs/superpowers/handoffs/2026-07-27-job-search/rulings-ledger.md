@@ -1672,3 +1672,69 @@ is that the non-AI phases run without a token.
 wholesale skip converts a known-red signal into no signal, and no signal reads as green on every
 dashboard anyone will look at. See [[verify-foundation-excludes-e2e]] for the same shape one level
 up: a green local gate sitting on a CI job nobody ran.
+
+---
+
+## N43 — a constant that must match in two files belongs in one file; the compiler enforces couplings, discipline does not
+
+**Raised by:** the coordinator, after `a999a081` shipped a live break.
+**Status:** binding. Owner `score`, alongside the N43 fix commit.
+
+### What happened
+
+`a999a081` moved `MATCHES_LIST_MAX_LIMIT` to `15` in
+`external-modules/job-search/src/worker/handlers/matches.ts` and did not touch
+`external-modules/job-search/src/web/screens/board.tsx`, which still sent `MATCHES_LIMIT = 40`.
+`requireLimit` (`matches.ts:125-136`) throws `InputError` for any value above the maximum, so
+**every board load threw** — not a large-result edge case, every load, always.
+
+The constraint had been stated in writing, the file was released and available, and the commit still
+went out half-paired.
+
+### The ruling
+
+**Two literals that must be equal are not a convention to be remembered. They are one constant in
+the wrong shape.** Discipline was the mitigation here and discipline failed, from an agent that had
+the rule in front of it — which is the expected outcome, not an unlucky one. A rule enforced by
+memory has a failure rate; a rule enforced by the compiler has none.
+
+So: **when a value must agree across a module boundary, hoist it to a single exported constant that
+both sides import.** Do not copy it, do not comment "keep in sync with X", and do not rely on review
+to catch drift.
+
+Here the seam already exists. `board.tsx:11` imports from `../../domain/records.js` and the worker
+handlers import from `../../domain/` as well, so `domain/` is reachable from both the web screen and
+the worker. The limit belongs there, imported by each side. After that the break is not merely
+unlikely, it is **unrepresentable** — there is no second literal left to drift.
+
+### Where a shared constant is genuinely impossible
+
+If a boundary truly cannot share a module — a value duplicated into a manifest, a SQL default, or a
+fixture — then the coupling gets a **test**, not a comment. One assertion that reads both sources and
+compares them. A comment saying "keep in sync" documents the hazard without removing it; the whole
+point is to move the check somewhere that runs.
+
+### The general form
+
+This generalises past constants. Prefer, in order:
+
+1. **Make the bad state unrepresentable** — one constant, one definition, imported.
+2. **Make it fail at compile time** — a shared type that both sides must satisfy.
+3. **Make it fail in CI** — a test asserting the two sources agree.
+4. **Write it down and hope** — the option that just failed. Only acceptable when 1-3 are genuinely
+   unavailable, and then it is a comment *plus* a test, never a comment alone.
+
+When an agent reports "I forgot to change the other one," the finding is not that the agent was
+careless. It is that the codebase permitted the halves to be changed separately.
+
+### Application
+
+- `score` folds the hoist into the fix commit: one constant in `domain/`, imported by both
+  `board.tsx` and `matches.ts`. The fix commit must show **two files minimum** and the constant
+  defined **once**.
+- The value is **25**, the measured ceiling from `tests/unit/job-search-match-handler.test.ts:276`,
+  not the `15` placeholder that existed only while `board.tsx` was locked.
+- Reviewers: for any commit touching a shared constant, `grep -rn` the twin before approving. Until
+  the hoist lands, that grep is the only thing standing between the two halves.
+
+See also **N38** and **N39** for why the limit has a measured ceiling at all.
