@@ -108,10 +108,19 @@ export async function runCrawl(deps: {
   const stateBySourceId = new Map(existingStates.map((state) => [state.sourceId, state]));
 
   // List enabled portals BEFORE walking: a portal already disabled from a previous crawl is
-  // filtered out here, not left to refuse itself. A portal with no prior state at all (its
-  // first-ever crawl) defaults to enabled.
+  // filtered out here, not left to refuse itself.
+  //
+  // A board with no row at all is NOT crawled. It used to be — the test was `!== false`, so an
+  // absent row read as enabled — and that put this stage at odds with the rest of the module:
+  // `countEnabledPortals` (the readiness gate behind the onboarding "sources" step) counts only
+  // rows that exist and are enabled, and `portal.list` reports a board as off until one does.
+  // Both of those treat a board as opt-in; only this line treated it as opt-out. On a live run
+  // the user asked for freehire.me and nothing else, and 70 of the 89 postings came back from
+  // LinkedIn, which had never been mentioned, had no row, and did not appear in settings until
+  // after it had already been crawled. Opt-in is the semantics the user is shown, so it is the
+  // one that runs.
   const enabledPortals = portals.filter(
-    (portal) => stateBySourceId.get(portal.id)?.enabled !== false
+    (portal) => stateBySourceId.get(portal.id)?.enabled === true
   );
 
   const rawPostings: Posting[] = [];

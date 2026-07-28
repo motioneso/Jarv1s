@@ -16,6 +16,7 @@ import {
   JOB_SEARCH_STATIC_FETCH_HOSTS,
   JOB_SEARCH_TABLES
 } from "../../external-modules/job-search/src/db/tables.js";
+import { CRITERIA_SCHEMA } from "../../external-modules/job-search/src/domain/criteria.js";
 import { MATCHES_LIST_MAX_LIMIT } from "../../external-modules/job-search/src/domain/records.js";
 import { HANDLERS } from "../../external-modules/job-search/src/worker/registry.js";
 
@@ -269,5 +270,60 @@ describe("registry.ts's HANDLERS map vs. the manifest's declared handler names (
     // wrong reason.
     expect(declaredHandlerNames().size).toBeGreaterThanOrEqual(15);
     expect(Object.keys(HANDLERS).length).toBeGreaterThanOrEqual(15);
+  });
+
+  it("spells out criteria.set's field vocabulary, matching what parseCriteria admits", () => {
+    // The schema in the manifest is the ONLY description of this shape the model ever sees, and
+    // `parseCriteria` throws `unexpected field` on anything outside its vocabulary. When the
+    // manifest declared a bare `{"type":"object"}`, a live run guessed `locationPreference`, the
+    // handler threw, and the approval card still reported success — the user approved a write
+    // that saved nothing. The two lists must not drift apart again.
+    const result = validateExternalModuleManifest(loadManifest(), "job-search", "0.1.0");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const tool = result.manifest.assistantTools?.find((t) => t.name === "job-search.criteria.set");
+    const properties = (
+      (tool?.inputSchema as { properties?: { criteria?: { properties?: Record<string, unknown> } } })
+        .properties?.criteria ?? {}
+    ).properties;
+
+    expect(Object.keys(properties ?? {}).sort()).toEqual(
+      Object.keys(CRITERIA_SCHEMA.properties).sort()
+    );
+  });
+
+  it("names every built-in host in source.add, which rejects them", () => {
+    // `source.add` throws `<host> already has a built-in source` for anything in
+    // JOB_SEARCH_STATIC_FETCH_HOSTS, and the schema is the model's only warning that the rule
+    // exists. A live run asked to "use freehire.me as the source" called source.add twice, was
+    // rejected twice, and the user saw "Resolved." both times — the profile never got a portal
+    // and so never reached readyToCrawl. If a built-in host is ever added, this list must be
+    // updated with it.
+    const result = validateExternalModuleManifest(loadManifest(), "job-search", "0.1.0");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const tool = result.manifest.assistantTools?.find((t) => t.name === "job-search.source.add");
+    const schemaText = JSON.stringify(tool?.inputSchema ?? {});
+    for (const host of JOB_SEARCH_STATIC_FETCH_HOSTS) {
+      expect(schemaText).toContain(host);
+    }
+  });
+
+  it("names the built-in portal ids in portal.set-enabled", () => {
+    // The other half of the same trap: knowing freehire.me is built in is useless unless the
+    // model also knows the id to switch it on with is "freehire", not the hostname. These two
+    // ids are the module's own adapters (adapters/freehire.ts, adapters/linkedin.ts).
+    const result = validateExternalModuleManifest(loadManifest(), "job-search", "0.1.0");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const tool = result.manifest.assistantTools?.find(
+      (t) => t.name === "job-search.portal.set-enabled"
+    );
+    const schemaText = JSON.stringify(tool?.inputSchema ?? {});
+    expect(schemaText).toContain('\\"freehire\\"');
+    expect(schemaText).toContain('\\"linkedin\\"');
   });
 });

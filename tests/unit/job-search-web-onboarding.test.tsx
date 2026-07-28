@@ -55,12 +55,15 @@ function text(renderer: ReactTestRenderer): string {
   return flatten(renderer.toJSON()).replace(/\s+/g, " ").trim();
 }
 
+/** Chips are matched on the jds-badge class alone, not on the element name. They have been a
+ * `span` and are now an `li` (the five steps are asked in order, so the row is an ordered list),
+ * and which element carries them is presentation — pinning it here made this suite fail for a
+ * reason that had nothing to do with what it is checking. */
 function chips(renderer: ReactTestRenderer): { text: string; done: boolean }[] {
   return renderer.root
     .findAll(
       (node) =>
         typeof node.type === "string" &&
-        node.type === "span" &&
         typeof node.props.className === "string" &&
         node.props.className.includes("jds-badge")
     )
@@ -70,15 +73,31 @@ function chips(renderer: ReactTestRenderer): { text: string; done: boolean }[] {
     }));
 }
 
+/** What the five steps are called on screen, spelled out here rather than imported from the
+ * screen. The chips used to render `ONBOARDING_STEPS` verbatim, so the live product showed a row
+ * reading "role want where comp sources" — internal field names leaked into the UI. A test that
+ * imported the same label map the screen uses could not have caught that; naming them
+ * independently is the point. Keyed off ONBOARDING_STEPS so a new step still fails here until it
+ * has been given a name a person would recognize. */
+const EXPECTED_LABELS: Record<(typeof ONBOARDING_STEPS)[number], string> = {
+  role: "Role",
+  want: "What you want",
+  where: "Where",
+  comp: "Pay",
+  sources: "Job boards"
+};
+
 describe("OnboardingScreen", () => {
   it("renders one chip per ONBOARDING_STEPS entry, with the done ones marked from completedSteps", async () => {
     const completed = [ONBOARDING_STEPS[0], ONBOARDING_STEPS[2]];
     const renderer = await renderScreen(profile({ completedSteps: completed }));
 
     const rendered = chips(renderer);
-    expect(rendered.map((c) => c.text)).toEqual([...ONBOARDING_STEPS]);
+    expect(rendered.map((c) => c.text)).toEqual(
+      ONBOARDING_STEPS.map((step) => EXPECTED_LABELS[step])
+    );
     for (const step of ONBOARDING_STEPS) {
-      const chip = rendered.find((c) => c.text === step);
+      const chip = rendered.find((c) => c.text === EXPECTED_LABELS[step]);
       expect(chip?.done).toBe(completed.includes(step));
     }
   });
@@ -132,7 +151,9 @@ describe("OnboardingScreen", () => {
     const renderer = await renderScreen(profile({ completedSteps: completed }));
 
     const rendered = chips(renderer);
-    expect(rendered.map((c) => c.text)).toEqual([...ONBOARDING_STEPS]);
+    expect(rendered.map((c) => c.text)).toEqual(
+      ONBOARDING_STEPS.map((step) => EXPECTED_LABELS[step])
+    );
     expect(text(renderer)).toMatch(
       /nothing gets crawled until we both know what we.re looking for/i
     );

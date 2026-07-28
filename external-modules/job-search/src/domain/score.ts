@@ -77,7 +77,22 @@ export function buildScorePrompt(input: {
     posting.body,
     "",
     "--- RÉSUMÉ ---",
-    resume,
+    // An empty résumé is an ordinary state, not a broken one — nothing gates the crawl on
+    // having uploaded one. It has to be *said*, though. The generic blank-line drop below used
+    // to delete the résumé line silently, leaving the model a heading with nothing under it and
+    // the next heading straight after; it filled the gap by guessing. A live board came back
+    // with four Fit reasons all reading "the résumé is entirely blank" beside the scores 5, 40,
+    // 72 and 78 — the same non-evidence producing wildly different numbers, presented to the
+    // user exactly like scores that were actually reasoned about. Naming the absence and fixing
+    // the response makes the number mean one thing: nothing is known yet.
+    resume.trim().length > 0
+      ? resume
+      : "(none on file — this person has not added a résumé yet)",
+    resume.trim().length > 0
+      ? ""
+      : "With no résumé, Fit is not knowable. Return fit: 0 and a fitReason that says the " +
+        "résumé is missing and Fit will mean something once one is added — do not infer Fit " +
+        "from the title, the location, or the Want answer. Score Want normally.",
     "",
     "--- WHAT THEY SAID THEY WANT ---",
     criteria.wantNarrative,

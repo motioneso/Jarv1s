@@ -138,6 +138,16 @@ function createFakeStore(
   };
 }
 
+/** An "on" row for a board.
+ *
+ * `runCrawl` crawls only boards the user has explicitly switched on — a board with no stored row
+ * is not crawled. These tests used to rely on the opposite (absent read as enabled), which is
+ * what let a live run crawl LinkedIn against a user who had asked for freehire.me and nothing
+ * else. Every test below that expects a board to be walked now says so. */
+function enabledRow(sourceId: string): PortalState {
+  return { sourceId, enabled: true, lastOkAt: null, cause: null };
+}
+
 function makePortal(
   id: string,
   crawl: Portal["crawl"] = vi.fn(
@@ -177,7 +187,7 @@ const noopFetch: FetchLike = vi.fn(async () => {
 describe("runCrawl", () => {
   it("test 1: a clean crawl stores deduped postings and records lastOkAt for each portal", async () => {
     const profile = makeProfile();
-    const store = createFakeStore(profile) as ReturnType<typeof createFakeStore> & {
+    const store = createFakeStore(profile, [enabledRow("freehire"), enabledRow("linkedin")]) as ReturnType<typeof createFakeStore> & {
       __postings: Map<string, Posting>;
       __portalStates: Map<string, PortalState>;
     };
@@ -225,7 +235,7 @@ describe("runCrawl", () => {
 
   it("test 2: one portal failing does not lose the others' results", async () => {
     const profile = makeProfile();
-    const store = createFakeStore(profile) as ReturnType<typeof createFakeStore> & {
+    const store = createFakeStore(profile, [enabledRow("freehire"), enabledRow("linkedin")]) as ReturnType<typeof createFakeStore> & {
       __postings: Map<string, Posting>;
       __portalStates: Map<string, PortalState>;
     };
@@ -272,7 +282,7 @@ describe("runCrawl", () => {
 
   it("test 3: a login_required portal is written back with enabled: false", async () => {
     const profile = makeProfile();
-    const store = createFakeStore(profile) as ReturnType<typeof createFakeStore> & {
+    const store = createFakeStore(profile, [enabledRow("linkedin")]) as ReturnType<typeof createFakeStore> & {
       __portalStates: Map<string, PortalState>;
     };
     const loginRequired = describeFailure({
@@ -317,7 +327,7 @@ describe("runCrawl", () => {
         retryAt: null
       })
     };
-    const store = createFakeStore(profile, [priorState]);
+    const store = createFakeStore(profile, [priorState, enabledRow("freehire")]);
     const disabledCrawl = healthyCrawl([]);
     const portals = [
       makePortal("linkedin", disabledCrawl),
@@ -341,7 +351,7 @@ describe("runCrawl", () => {
 
   it("test 5: postings are embedded in batches of <=128, and embedQuery is never called", async () => {
     const profile = makeProfile();
-    const store = createFakeStore(profile);
+    const store = createFakeStore(profile, [enabledRow("freehire")]);
     const postings = Array.from({ length: 150 }, (_, index) =>
       makePosting({
         id: `fh-${index}`,
@@ -377,7 +387,7 @@ describe("runCrawl", () => {
 
   it("test 6: the stage never writes a fit or want value", async () => {
     const profile = makeProfile();
-    const store = createFakeStore(profile);
+    const store = createFakeStore(profile, [enabledRow("freehire")]);
     const portals = [
       makePortal("freehire", healthyCrawl([makePosting({ id: "fh-6", sourceId: "freehire" })]))
     ];
@@ -401,7 +411,7 @@ describe("runCrawl", () => {
 
   it("test 7: stops starting portals past the deadline and reports that it did", async () => {
     const profile = makeProfile();
-    const store = createFakeStore(profile) as ReturnType<typeof createFakeStore> & {
+    const store = createFakeStore(profile, [enabledRow("freehire"), enabledRow("linkedin")]) as ReturnType<typeof createFakeStore> & {
       __postings: Map<string, Posting>;
     };
     const deadlineAt = 1_000;
@@ -434,7 +444,7 @@ describe("runCrawl", () => {
 
   it("test 8: a portal that throws does not prevent later portals from running", async () => {
     const profile = makeProfile();
-    const store = createFakeStore(profile) as ReturnType<typeof createFakeStore> & {
+    const store = createFakeStore(profile, [enabledRow("freehire"), enabledRow("linkedin")]) as ReturnType<typeof createFakeStore> & {
       __postings: Map<string, Posting>;
       __portalStates: Map<string, PortalState>;
     };
@@ -464,6 +474,41 @@ describe("runCrawl", () => {
     expect(freehireState?.lastOkAt).toBeNull();
   });
 
+  it("test 8b: a board the user never switched on is not crawled at all", async () => {
+    // The live regression this exists to hold shut: the user asked for freehire.me and nothing
+    // else, and LinkedIn — never mentioned, no row, absent from the settings screen — supplied
+    // 70 of the 89 postings that came back. Asserting on the crawl function itself rather than
+    // on the posting count, because "no postings" is also what a board that ran and found
+    // nothing looks like; the point is that it never ran.
+    const profile = makeProfile();
+    const store = createFakeStore(profile, [enabledRow("freehire")]) as ReturnType<
+      typeof createFakeStore
+    > & { __postings: Map<string, Posting>; __portalStates: Map<string, PortalState> };
+    const linkedinCrawl = healthyCrawl([makePosting({ id: "li-8b", sourceId: "linkedin" })]);
+    const portals = [
+      makePortal("freehire", healthyCrawl([makePosting({ id: "fh-8b", sourceId: "freehire" })])),
+      makePortal("linkedin", linkedinCrawl)
+    ];
+
+    await runCrawl({
+      store,
+      portals,
+      fetch: noopFetch,
+      embed: createFakeEmbed(),
+      profileId: PROFILE_ID,
+      now: NOW,
+      deadlineAt: Date.now() + 60_000,
+      clock: () => Date.now()
+    });
+
+    expect(linkedinCrawl).not.toHaveBeenCalled();
+    expect(store.__postings.has("fh-8b")).toBe(true);
+    expect(store.__postings.has("li-8b")).toBe(false);
+    // Nor does a skipped board get a row written as a side effect — it stays invisible until
+    // the user turns it on, which is what the settings screen shows them.
+    expect(store.__portalStates.has("linkedin")).toBe(false);
+  });
+
   it("test 9: found counts every raw posting, kept counts only what survives dedupe and hard-excludes", async () => {
     // `found === kept` on every test above leaves the distinction unfalsifiable — if dedupe
     // ever moved upstream into the portal walk, `found` would silently become the deduped
@@ -472,7 +517,7 @@ describe("runCrawl", () => {
     // one. Only two survive: the duplicate collapses into freehire's copy (higher source
     // priority), and the excluded-company posting is dropped outright.
     const profile = makeProfile({ criteria: makeCriteria({ excludeCompanies: ["Cegience"] }) });
-    const store = createFakeStore(profile) as ReturnType<typeof createFakeStore> & {
+    const store = createFakeStore(profile, [enabledRow("freehire"), enabledRow("linkedin")]) as ReturnType<typeof createFakeStore> & {
       __postings: Map<string, Posting>;
     };
     const freehireUnique = makePosting({

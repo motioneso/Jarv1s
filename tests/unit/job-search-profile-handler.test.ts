@@ -29,6 +29,7 @@ import type {
 } from "../../external-modules/job-search/src/domain/store-port.js";
 import {
   createCriteriaSetHandler,
+  createProfileBootstrapHandler,
   createProfileCreateHandler,
   createProfileListHandler,
   createSetBriefingDetailHandler,
@@ -204,6 +205,33 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
     expect((await store.getProfile("p1"))?.state).toBe("active");
   });
 
+  // profile.bootstrap is the queue-only handler behind the module's empty state (the browser
+  // cannot invoke a write tool over REST, and the model calling profile.create was a coin flip
+  // that dead-ended the first click on a live instance). It must be safe to run twice: the
+  // queue's 5s manual singleton does not cover the panel's "Try again" or a pg-boss retry, and a
+  // second empty profile would put a switcher on screen that the user never asked for.
+  it("1b. profile.bootstrap creates the first profile and returns the existing one on a rerun", async () => {
+    const { store } = createFakeStore([]);
+    const handler = createProfileBootstrapHandler(store);
+    // A queue envelope, not a flat tool input — this handler is only ever reached from the
+    // `job-search.profile-bootstrap` queue, and the live path failed exactly here once: reading it
+    // with `stripEnvelope` left the host's own `jobKind` in place and the unknown-key check
+    // rejected it, so every bootstrap job errored and the empty state waited forever.
+    const envelope = (n: number) => ({
+      actorUserId: "u1",
+      jobKind: "profile.bootstrap",
+      idempotencyKey: `k${n}`,
+      params: {}
+    });
+
+    const first = await handler(ctx(envelope(1)));
+    expect(first).toMatchObject({ name: "My job search", state: "in_conversation", created: true });
+
+    const second = await handler(ctx(envelope(2)));
+    expect(second).toMatchObject({ profileId: first.profileId, created: false });
+    expect(await store.listProfiles()).toHaveLength(1);
+  });
+
   it("2. an incomplete profile stays in_conversation and reports which steps are missing", async () => {
     const { store } = createFakeStore([makeProfile({ id: "p1" })]);
     const handler = createCriteriaSetHandler(store);
@@ -218,6 +246,33 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       completedSteps: ["role"],
       readyToCrawl: false
     });
+  });
+
+  it("2b. a second criteria.set keeps what the first one recorded", async () => {
+    // The live failure: the seed prompt tells the model to save each answer the moment it hears
+    // it, and criteria.set replaced the whole record — so saving the role wiped the want narrative
+    // and put the "want" chip back to not-done, with the transcript still showing both as saved.
+    // Asserting through the handler's own completedSteps rather than by reading the store, because
+    // completedSteps is what the onboarding screen renders and the user's evidence of the loss.
+    const { store } = createFakeStore([makeProfile({ id: "p1" })]);
+    const handler = createCriteriaSetHandler(store);
+
+    await handler(ctx({ profileId: "p1", criteria: { wantNarrative: "Small team, real ownership" } }));
+    const second = await handler(ctx({ profileId: "p1", criteria: { titles: ["Staff Engineer"] } }));
+
+    expect(second).toMatchObject({ completedSteps: ["role", "want"] });
+    const stored = await store.getProfile("p1");
+    expect(stored?.criteria.wantNarrative).toBe("Small team, real ownership");
+    expect(stored?.criteria.titles).toEqual(["Staff Engineer"]);
+  });
+
+  it("2c. a criteria.set that sets nothing fails instead of reporting success", async () => {
+    const { store } = createFakeStore([makeProfile({ id: "p1" })]);
+    const handler = createCriteriaSetHandler(store);
+
+    await expect(handler(ctx({ profileId: "p1", criteria: {} }))).rejects.toThrow(
+      /at least one field/
+    );
   });
 
   it("3. profile.list reports completedSteps and readyToCrawl per profile", async () => {
@@ -299,7 +354,10 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       {
         name: "criteria.set",
         build: createCriteriaSetHandler,
-        valid: { profileId: "p1", criteria: {} }
+        // Non-empty on purpose: `criteria: {}` is no longer a valid call — a patch that sets
+        // nothing is rejected rather than saved as a no-op — so an empty one here would fail this
+        // envelope test for a reason that has nothing to do with envelopes.
+        valid: { profileId: "p1", criteria: { titles: ["Eng"] } }
       },
       {
         name: "profile.set-context",

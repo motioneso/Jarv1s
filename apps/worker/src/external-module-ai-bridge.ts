@@ -11,6 +11,7 @@ import type { FastifyBaseLogger } from "fastify";
 
 import { createAiSecretCipher, generateStructured, type AiRepository } from "@jarv1s/ai";
 import type { DataContextDb } from "@jarv1s/db";
+import { createCliStructuredAdapterFactory } from "@jarv1s/module-registry";
 import type { ExternalModuleAiRequest, ExternalModuleAiResult } from "@jarv1s/module-registry/node";
 
 export function createModuleWorkerAiBridge(input: {
@@ -25,12 +26,27 @@ export function createModuleWorkerAiBridge(input: {
   // serves every invocation. (The ModuleCredentialCipher in worker.ts is a
   // different key domain — AI provider secrets use JARVIS_AI_SECRET_KEY.)
   const cipher = createAiSecretCipher();
+  // Without this, every module worker AI call fails `needs_config` the moment the user's AI
+  // provider is CLI-authenticated. `generateStructured` branches on `provider.auth_method`: a
+  // "cli" provider holds a sealed marker rather than an API key, so there is nothing to decrypt
+  // and the only way to reach the model is this adapter — and the function returns needs_config
+  // outright when the factory is absent. apps/api's bridge has always supplied one; this one did
+  // not, so structured work was silently API-only. A live Job Search run crawled 89 real postings
+  // and scored none of them, reporting "No model is configured" against an account with three
+  // active models, because both of its providers authenticate through the CLI.
+  //
+  // No engine is threaded in here, unlike apps/api which passes its configured `chatEngineFactory`
+  // for test substitution: the worker has no such option and no @jarv1s/chat dependency, and the
+  // factory's own default (`selectEngineFactory()`) performs exactly the same transport selection
+  // the API would arrive at. Imported from @jarv1s/module-registry, which re-exports it, so this
+  // stays inside the worker's existing package graph.
+  const createCliStructuredAdapter = createCliStructuredAdapterFactory();
   return async (scopedDb, moduleId, request) => {
     try {
       const result = await generateStructured(
         scopedDb,
         { service: `module.${moduleId}`, ...request },
-        { repository: input.aiRepository, cipher, logger: input.logger }
+        { repository: input.aiRepository, cipher, logger: input.logger, createCliStructuredAdapter }
       );
       return result.ok
         ? // Drop usage: module workers never see token counts, model or provider ids.

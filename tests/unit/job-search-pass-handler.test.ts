@@ -28,6 +28,7 @@ import type {
 } from "../../external-modules/job-search/src/worker/stages/score.js";
 import type { EmbedPort } from "../../external-modules/job-search/src/worker/stages/crawl.js";
 import type {
+  PortalState,
   Posting,
   SearchCriteria
 } from "../../external-modules/job-search/src/domain/records.js";
@@ -91,12 +92,30 @@ function makePosting(id: string): PostingWithEmbedding {
  * same store and see rotation. Every method not needed by `pass.ts`'s call graph
  * (`createCrawlRunHandler`/`createCrawlSweepHandler` -> `runCrawl` -> `runScore`) throws if
  * called, matching Task 14's fake-store convention. */
+/** A board the user has switched on. Only these are crawled — a board with no stored row is
+ * left alone — so any test that needs the crawl loop to run has to hand one of these in. */
+function enabledRow(sourceId: string): PortalState {
+  return { sourceId, enabled: true, lastOkAt: null, cause: null };
+}
+
 function createFakeStore(input: {
   profiles: Profile[];
   unscoredByProfile?: ReadonlyMap<string, PostingWithEmbedding[]>;
   getProfileDelayMs?: ReadonlyMap<string, number>;
+  /** Which boards this profile has switched on, per profile id. Defaults to none.
+   *
+   * `runCrawl` walks only boards with a stored, enabled row — a board with no row is not
+   * crawled — so a test that needs the crawl loop to actually run has to say which boards are
+   * on. It used to be able to stay silent, because an absent row read as enabled, which is the
+   * defect that let a live run crawl a board the user had never mentioned. */
+  portalsByProfile?: ReadonlyMap<string, PortalState[]>;
 }): JobSearchStore & { __getProfileCallOrder: string[]; __setSweepCursorCalls: number[] } {
-  const { profiles, unscoredByProfile = new Map(), getProfileDelayMs = new Map() } = input;
+  const {
+    profiles,
+    unscoredByProfile = new Map(),
+    getProfileDelayMs = new Map(),
+    portalsByProfile = new Map()
+  } = input;
   const byId = new Map(profiles.map((profile) => [profile.id, profile]));
   let cursor = 0;
   const getProfileCallOrder: string[] = [];
@@ -121,7 +140,7 @@ function createFakeStore(input: {
     setProfileState: vi.fn(notUsed("setProfileState")),
     setProfileContext: vi.fn(notUsed("setProfileContext")),
     setBriefingDetail: vi.fn(notUsed("setBriefingDetail")),
-    listPortals: vi.fn(async () => []),
+    listPortals: vi.fn(async (profileId: string) => portalsByProfile.get(profileId) ?? []),
     setPortalState: vi.fn(async () => undefined),
     upsertPostings: vi.fn(async (_profileId: string, postings: Posting[]) => postings),
     setEmbedding: vi.fn(notUsed("setEmbedding")),
@@ -242,7 +261,10 @@ describe("createCrawlRunHandler", () => {
     let calls = 0;
     const store = createFakeStore({
       profiles: [profile],
-      unscoredByProfile: new Map([["p-2", [posting]]])
+      unscoredByProfile: new Map([["p-2", [posting]]]),
+      // Both boards on: this test is about the crawl stage running out of time part-way through
+      // the portal walk, and the walk only visits boards the user has switched on.
+      portalsByProfile: new Map([["p-2", [enabledRow("freehire"), enabledRow("linkedin")]]])
     });
     const realGetProfile = store.getProfile;
     store.getProfile = vi.fn(async (id: string) => {

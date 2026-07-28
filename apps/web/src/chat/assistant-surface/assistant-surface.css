@@ -56,6 +56,14 @@
   border-top: var(--border-w) solid var(--border);
 }
 
+/* An empty thread has nothing above the composer to divide it from, so the rule (and the space it
+   is padding away from) come off. See surface.tsx's `threadIsEmpty`. */
+.assistant-surface--empty .assistant-surface__composer {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
 .assistant-surface__composer textarea {
   flex: 1;
   min-width: 0;

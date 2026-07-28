@@ -60,7 +60,19 @@ export interface AssistantSurfaceHandleV1 {
   }): Promise<void>;
 }
 
-const SEED_PROMPT_VERSION = "v1";
+// v2: names the wantNarrative field and the fact that role+want+sources gate the crawl. A live run
+// answered every question, had all five chips lit except "want", and sat stopped forever — the model
+// had put the person's own words into mustHave, which is a filter, not the Want sentence.
+// v3: asks for the résumé outright instead of waiting to be handed one. A live run finished the
+// whole interview, crawled, and scored with zero résumé rows on file — every Fit reason on the
+// board read "the résumé is entirely blank", and the numbers beside them ranged 5 to 78 on
+// identical evidence. Fit has nothing to judge without it, so the interview has to ask.
+// v4: record what has already been said BEFORE asking anything. v3 said "ask each in turn", and a
+// live run took that literally — the user opened with every answer in one message and an explicit
+// "don't ask me anything else first", and the model called criteria.set with an empty object,
+// showed "Resolved.", then began "Step 1 of 5 — Role" and asked for the job titles it had just
+// been given. Nothing was saved.
+const SEED_PROMPT_VERSION = "v4";
 
 /** `job-search:${profileId}:v1` — bump the version suffix whenever the prompt text below
  * changes. The host dedupes seedContext calls on this key (chat-session-manager.ts:384), so an
@@ -81,16 +93,19 @@ export function seedIdempotencyKey(profileId: string): string {
 export function buildSeedPrompt(profile: Profile): string {
   return (
     `You're continuing the job search interview for the profile "${profile.name}". This thread ` +
-    `is scoped to that profile alone; nothing you learn here reaches any other conversation. ` +
-    `The interview has five steps: role, want, where, comp, and sources. Ask about each in turn, ` +
-    `and as soon as the user answers one, record it immediately with job-search.criteria.set ` +
-    `instead of repeating it back to them; treat every answer as something to write, not ` +
-    `something to remember for later. If the user shares a resume, save its text with ` +
-    `job-search.resume.set; job-search.resume.get returns whatever version is currently on ` +
-    `file. This is a full session: job-search.profile.set-context, ` +
+    `is scoped to that profile alone. ` +
+    `Five things are needed: role, want, where, comp, sources. The search stays stopped until ` +
+    `role, want and sources are recorded, and "want" means the criteria field wantNarrative in ` +
+    `their own words — filling mustHave instead leaves it undone. Before asking anything, write ` +
+    `down everything they have already told you with job-search.criteria.set; send only the ` +
+    `fields you are setting, never an empty object. Then ask only for what is still missing, one ` +
+    `at a time, saving each answer the moment it arrives rather than repeating it back. Ask them ` +
+    `to paste their resume too and save it with job-search.resume.set — Fit has nothing to judge ` +
+    `against without one. ` +
+    `This is a full session: job-search.resume.get, job-search.profile.set-context, ` +
     `job-search.profile.set-briefing-detail, job-search.portal.set-enabled, ` +
     `job-search.portal.list, and job-search.profile.create are all available whenever they're ` +
-    `useful, none of them held back for later.`
+    `useful.`
   );
 }
 

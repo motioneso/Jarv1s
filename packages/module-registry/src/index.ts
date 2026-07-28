@@ -326,6 +326,11 @@ export { aggregateFocusSignals } from "@jarv1s/module-sdk";
 // Re-exported for the two external-module rpc construction sites (#1281): they
 // need the same embedder seam built-in modules use, without naming a provider.
 export { createRuntimeEmbeddingProvider } from "./built-in-module-helpers.js";
+// Re-exported for apps/worker's module AI bridge, which must supply the same CLI structured
+// adapter apps/api does or every module worker AI call fails `needs_config` against a
+// CLI-authenticated provider. The worker reaches chat internals through this package rather than
+// taking a direct @jarv1s/chat dependency, exactly as it does for the embedder above.
+export { createCliStructuredAdapterFactory } from "@jarv1s/chat";
 
 export * from "./external/validate.js";
 export * from "./external/types.js";

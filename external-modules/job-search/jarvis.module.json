@@ -29,7 +29,7 @@
     {
       "name": "job-search.profile.create",
       "permissionId": "job-search.profile.create",
-      "description": "Create a new job search profile (one per role being pursued).",
+      "description": "Start a new job search — one for each kind of role being pursued.",
       "risk": "write",
       "inputSchema": {
         "type": "object",
@@ -50,7 +50,7 @@
     {
       "name": "job-search.criteria.set",
       "permissionId": "job-search.criteria.set",
-      "description": "Set or update a profile's search criteria (titles, locations, comp, and more).",
+      "description": "Save what this job search is looking for — roles, places, pay, and what you actually want.",
       "risk": "write",
       "inputSchema": {
         "type": "object",
@@ -58,7 +58,60 @@
         "required": ["profileId", "criteria"],
         "properties": {
           "profileId": { "type": "string" },
-          "criteria": { "type": "object" }
+          "criteria": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "titles": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Job titles to search for, e.g. [\"Senior Product Designer\"]."
+              },
+              "seniority": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Seniority levels in scope, e.g. [\"senior\", \"staff\"]."
+              },
+              "locations": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Named places, e.g. [\"Boston\", \"United States\"]. Remoteness goes in `remote`, not here."
+              },
+              "remote": {
+                "type": "string",
+                "enum": ["required", "preferred", "no-preference", "onsite-ok"],
+                "description": "How much remote work is needed."
+              },
+              "compFloorCents": {
+                "type": ["integer", "null"],
+                "description": "Lowest acceptable base salary, in CENTS — $180,000 is 18000000. Null if not stated."
+              },
+              "excludeCompanies": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Companies to never surface."
+              },
+              "mustHave": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Things a posting must have to be worth showing."
+              },
+              "niceToHave": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Things that make a posting more appealing but are not required."
+              },
+              "dealbreakers": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Things that rule a posting out."
+              },
+              "wantNarrative": {
+                "type": "string",
+                "description": "The \"want\" step of onboarding, in the person's own words — the kind of company and work they're after, and what they're moving away from. Write it whenever they've said anything about it, INCLUDING when parts of it also went into mustHave or niceToHave: those are filters, this is the sentence the Want score is built from. The search cannot start while this is empty, so if they haven't said, ask."
+              }
+            }
+          }
         }
       },
       "handler": "criteria.set"
@@ -66,7 +119,7 @@
     {
       "name": "job-search.profile.set-context",
       "permissionId": "job-search.profile.set-context",
-      "description": "Set a profile's broader-context summary distilled from conversation.",
+      "description": "Save background about this search that isn't a hard filter — the why behind it.",
       "risk": "write",
       "inputSchema": {
         "type": "object",
@@ -82,7 +135,7 @@
     {
       "name": "job-search.profile.set-briefing-detail",
       "permissionId": "job-search.profile.set-briefing-detail",
-      "description": "Set how much a profile contributes to the daily briefing.",
+      "description": "Change how much this search shows up in your daily briefing.",
       "risk": "write",
       "inputSchema": {
         "type": "object",
@@ -98,7 +151,7 @@
     {
       "name": "job-search.resume.set",
       "permissionId": "job-search.resume.set",
-      "description": "Upload a new résumé version for a profile.",
+      "description": "Save a new version of your résumé to this search.",
       "risk": "write",
       "inputSchema": {
         "type": "object",
@@ -127,7 +180,7 @@
     {
       "name": "job-search.portal.set-enabled",
       "permissionId": "job-search.portal.set-enabled",
-      "description": "Enable or disable a job board source for a profile.",
+      "description": "Turn a job board on or off for this search.",
       "risk": "write",
       "inputSchema": {
         "type": "object",
@@ -135,7 +188,10 @@
         "required": ["profileId", "sourceId", "enabled"],
         "properties": {
           "profileId": { "type": "string" },
-          "sourceId": { "type": "string" },
+          "sourceId": {
+            "type": "string",
+            "description": "Which board. The built-in ones are \"freehire\" (freehire.me) and \"linkedin\" (LinkedIn) — use this tool, not source.add, to switch either of them on. A board the user added themselves has an id you can read from job-search.portal.list."
+          },
           "enabled": { "type": "boolean" }
         }
       },
@@ -157,7 +213,7 @@
     {
       "name": "job-search.source.add",
       "permissionId": "job-search.source.add",
-      "description": "Register a user-named job board URL as a source for a profile.",
+      "description": "Add a job board you named as a source for this search.",
       "risk": "write",
       "inputSchema": {
         "type": "object",
@@ -165,8 +221,11 @@
         "required": ["profileId", "url"],
         "properties": {
           "profileId": { "type": "string" },
-          "url": { "type": "string" },
-          "label": { "type": "string" }
+          "url": {
+            "type": "string",
+            "description": "The board's URL. Only for boards that are NOT already built in — freehire.me and www.linkedin.com are built in and are rejected here; switch those on with job-search.portal.set-enabled instead."
+          },
+          "label": { "type": "string", "description": "What to call this board on screen." }
         }
       },
       "handler": "source.add"
@@ -174,7 +233,7 @@
     {
       "name": "job-search.source.remove",
       "permissionId": "job-search.source.remove",
-      "description": "Remove a previously registered custom job board source from a profile.",
+      "description": "Remove a job board you added from this search.",
       "risk": "write",
       "inputSchema": {
         "type": "object",
@@ -190,7 +249,7 @@
     {
       "name": "job-search.crawl.run-now",
       "permissionId": "job-search.crawl.run-now",
-      "description": "Crawl this search profile's enabled job boards now.",
+      "description": "Check this search's job boards for new postings now.",
       "risk": "write",
       "inputSchema": {
         "type": "object",
@@ -255,7 +314,7 @@
     {
       "name": "job-search.match.dismiss",
       "permissionId": "job-search.match.dismiss",
-      "description": "Dismiss a match so it leaves the board.",
+      "description": "Dismiss a job so it leaves your board.",
       "risk": "write",
       "inputSchema": {
         "type": "object",
@@ -326,6 +385,14 @@
             "detail": { "type": "enum", "values": ["count", "top", "full"] }
           }
         }
+      },
+      {
+        "name": "job-search.profile-bootstrap",
+        "handler": "profile.bootstrap",
+        "retryLimit": 1,
+        "allowManualRun": true,
+        "timeoutMs": 30000,
+        "paramsSchema": { "type": "object", "fields": {} }
       }
     ],
     "schedules": [

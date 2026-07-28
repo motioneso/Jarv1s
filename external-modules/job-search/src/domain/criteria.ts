@@ -118,6 +118,75 @@ export function parseCriteria(raw: unknown): SearchCriteria {
   };
 }
 
+/**
+ * Fill in whatever a stored record is missing, so every consumer can rely on the full shape.
+ *
+ * Total by construction — it never throws, because it runs on the read path. `criteria.set` now
+ * writes a *merge* of the fields the model sent rather than a whole defaulted object, so a profile
+ * part-way through an interview holds only the keys that have actually been answered. Everything
+ * downstream (`freehire.ts`'s `criteria.titles.length`, `score.ts`'s `criteria.seniority.join`,
+ * `excludes.ts`'s `criteria.excludeCompanies.map`) dereferences those arrays directly, and would
+ * throw on the first crawl of a half-answered profile. The store hydrates through this, so the
+ * partial shape never leaves the database row.
+ *
+ * Deliberately not `parseCriteria`: validation belongs on the write path, where a bad value can be
+ * rejected and reported. Throwing on the read path would make the profile itself unloadable — the
+ * screen would go blank rather than show the user what they had already said.
+ */
+export function withCriteriaDefaults(stored: Partial<SearchCriteria> | null | undefined): SearchCriteria {
+  const c = stored ?? {};
+  const list = (value: unknown): string[] =>
+    Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
+  return {
+    titles: list(c.titles),
+    seniority: list(c.seniority),
+    locations: list(c.locations),
+    remote: isRemoteValue(c.remote) ? c.remote : "no-preference",
+    compFloorCents: typeof c.compFloorCents === "number" ? c.compFloorCents : null,
+    excludeCompanies: list(c.excludeCompanies),
+    mustHave: list(c.mustHave),
+    niceToHave: list(c.niceToHave),
+    dealbreakers: list(c.dealbreakers),
+    wantNarrative: typeof c.wantNarrative === "string" ? c.wantNarrative : ""
+  };
+}
+
+/**
+ * The same validation as `parseCriteria`, but returning ONLY the fields the caller actually
+ * sent — the handler merges the result over what is already stored instead of replacing it.
+ *
+ * `parseCriteria` defaults every absent field to its neutral value, which is right when a whole
+ * record is being built from one extraction and catastrophic when it is used to service a partial
+ * update: the seed prompt tells the model to record each answer the moment it hears it, so a
+ * save of `{titles}` after a save of `{wantNarrative}` replaced the narrative with `""` and put
+ * the "want" step back to not-done. On a live run the user answered everything in one message,
+ * the model called this tool with an empty object to acknowledge it, and the whole record was
+ * overwritten with defaults — while the tool card said "Resolved." Present-keys-win makes an
+ * incremental interview safe, and `{ titles: [] }` still clears titles, because the key is there.
+ *
+ * Throws on an empty patch rather than writing nothing and reporting success. "I saved that"
+ * over an unchanged record is the one outcome the user cannot detect and cannot recover from.
+ */
+export function parseCriteriaPatch(raw: unknown): Partial<SearchCriteria> {
+  const input = record(raw);
+  // Validate the whole thing first — unknown keys, bad enums, bad types all throw here exactly
+  // as they would for a full parse. Only the projection below differs.
+  const full = parseCriteria(input);
+
+  const present = Object.keys(input);
+  if (present.length === 0) {
+    throw new Error("criteria must set at least one field");
+  }
+
+  const patch: Partial<SearchCriteria> = {};
+  for (const key of present) {
+    // Safe: `parseCriteria` has already rejected any key outside KNOWN_CRITERIA_FIELDS, so every
+    // remaining key indexes both records.
+    (patch as Record<string, unknown>)[key] = (full as unknown as Record<string, unknown>)[key];
+  }
+  return patch;
+}
+
 /** Drives the onboarding progress readout. Every step is derived from the stored record,
  * never from what the model claimed to have extracted — if the field is empty, the step is
  * not done, whatever the transcript said. */

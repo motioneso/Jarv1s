@@ -21,9 +21,10 @@ import {
   completedSteps,
   isReadyToCrawl,
   parseContextSummary,
-  parseCriteria
+  parseCriteriaPatch
 } from "../../domain/criteria.js";
-import type { BriefingDetail, JobSearchStore } from "../../domain/store-port.js";
+import type { SearchCriteria } from "../../domain/records.js";
+import type { BriefingDetail, JobSearchStore, ProfileState } from "../../domain/store-port.js";
 import { looksLikeJobEnvelope, parseJobEnvelope } from "../job-input.js";
 import { InputError, stripEnvelope } from "../validate.js";
 
@@ -82,6 +83,37 @@ async function countEnabledPortals(store: JobSearchStore, profileId: string): Pr
   return portals.filter((portal) => portal.enabled).length;
 }
 
+/** Re-decides whether a profile has everything it needs to start crawling, and flips it to
+ * `active` if so.
+ *
+ * `isReadyToCrawl` reads two independent records — the criteria object and the profile's enabled
+ * portals — which are written by two different tools. When only `criteria.set` ran this check, the
+ * profile activated ONLY if the boards were already on when the criteria landed. A live run saved
+ * complete criteria first and enabled freehire second, and the profile sat in `in_conversation`
+ * with every onboarding step visibly complete and no board ever appearing. Readiness is a property
+ * of the profile, not of whichever tool happened to write last, so both writers call this.
+ *
+ * Only an `in_conversation` profile is auto-activated — a paused profile is a deliberate user
+ * pause, and neither a criteria edit nor a board toggle should silently undo it. */
+export async function activateIfReady(
+  store: JobSearchStore,
+  profile: { id: string; state: ProfileState },
+  criteria: Partial<SearchCriteria>
+): Promise<{ state: ProfileState; steps: ReturnType<typeof completedSteps>; ready: boolean }> {
+  const enabledPortals = await countEnabledPortals(store, profile.id);
+  const steps = completedSteps(criteria, enabledPortals);
+  const ready = isReadyToCrawl(criteria, enabledPortals);
+
+  // A handler calls the store; it does not enqueue (test 1). The first crawl starts when the
+  // browser calls the crawl-run queue's run endpoint after this tool returns.
+  const activates = ready && profile.state === "in_conversation";
+  if (activates) {
+    await store.setProfileState(profile.id, "active");
+  }
+
+  return { state: activates ? "active" : profile.state, steps, ready };
+}
+
 export function createProfileCreateHandler(store: JobSearchStore) {
   return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
     const input = stripEnvelope(ctx.input);
@@ -94,6 +126,47 @@ export function createProfileCreateHandler(store: JobSearchStore) {
       profileId: profile.id,
       name: profile.name,
       state: profile.state
+    };
+  };
+}
+
+/** The first-run bootstrap, reached ONLY from the `job-search.profile-bootstrap` queue — never
+ * from an assistant tool. It exists because the module's empty state had no way to produce its
+ * own first record: the browser cannot invoke a write tool (packages/ai/src/routes.ts 403s every
+ * risk:"write" tool on the REST path, deliberately and un-bypassably), so the only other writer
+ * was the model, and asking it in prose to call `profile.create` is a coin flip — on a live
+ * instance it opened an interview instead, and the module polled `profile.list` forever against a
+ * table that stayed empty. A declared worker queue is the module's own sanctioned write path
+ * (`allowManualRun`, actor-scoped, consented at install), so the button now writes the row
+ * deterministically and the conversation starts framed by `buildSeedPrompt` rather than having to
+ * bootstrap itself.
+ *
+ * Idempotent on purpose: it returns the actor's existing first profile rather than creating a
+ * second one. The queue's 5s manual singleton (apps/api/src/external-module-jobs.ts) covers a
+ * double-click but not the panel's "Try again", nor a pg-boss retry, and a duplicate empty
+ * profile would leave the user staring at a switcher they never asked for. Takes no params: the
+ * empty state has no name field, and the manifest's params vocabulary has no free-text type
+ * (module-params.ts — `identifier` forbids spaces), so the name is fixed here and renameable
+ * later in settings. */
+const BOOTSTRAP_PROFILE_NAME = "My job search";
+
+export function createProfileBootstrapHandler(store: JobSearchStore) {
+  return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
+    // Queue-only, so the input is always a job envelope ({actorUserId, jobKind, idempotencyKey,
+    // params}), never a flat tool input — `stripEnvelope` would let `jobKind` through and the
+    // unknown-key check would then reject the host's own protocol field. No `looksLikeJobEnvelope`
+    // branch here for the same reason: unlike portal.set-enabled, nothing in `assistantTools`
+    // names this handler, so there is no second shape to tell apart.
+    requireNoUnknownKeys(parseJobEnvelope(ctx.input).params, NO_FIELDS);
+
+    const existing = await store.listProfiles();
+    const profile = existing[0] ?? (await store.createProfile(BOOTSTRAP_PROFILE_NAME));
+
+    return {
+      profileId: profile.id,
+      name: profile.name,
+      state: profile.state,
+      created: existing.length === 0
     };
   };
 }
@@ -131,33 +204,28 @@ export function createCriteriaSetHandler(store: JobSearchStore) {
     const input = stripEnvelope(ctx.input);
     requireNoUnknownKeys(input, CRITERIA_SET_FIELDS);
     const profileId = requireProfileId(input);
-    const criteria = parseCriteria(input.criteria);
+    // Validate before the profile lookup so a malformed patch fails on its own terms rather than
+    // as "profileId not found".
+    const patch = parseCriteriaPatch(input.criteria);
 
     const profile = await store.getProfile(profileId);
     if (!profile) {
       throw new InputError("profileId not found");
     }
 
+    // Merge, don't replace. See `parseCriteriaPatch` for why: the interview records one answer at
+    // a time, and a replacing write meant each answer erased the last.
+    const criteria: SearchCriteria = { ...profile.criteria, ...patch };
+
     await store.updateCriteria(profileId, criteria);
 
-    const enabledPortals = await countEnabledPortals(store, profileId);
-    const steps = completedSteps(criteria, enabledPortals);
-    const readyToCrawl = isReadyToCrawl(criteria, enabledPortals);
-
-    // A handler calls the store; it does not enqueue (test 1). The first crawl starts when the
-    // browser calls the crawl-run queue's run endpoint after this tool returns. Only an
-    // in_conversation profile is auto-activated — a paused profile is a deliberate user pause,
-    // not something a criteria edit should silently undo.
-    const activates = readyToCrawl && profile.state === "in_conversation";
-    if (activates) {
-      await store.setProfileState(profileId, "active");
-    }
+    const outcome = await activateIfReady(store, profile, criteria);
 
     return {
       profileId,
-      state: activates ? "active" : profile.state,
-      completedSteps: steps,
-      readyToCrawl
+      state: outcome.state,
+      completedSteps: outcome.steps,
+      readyToCrawl: outcome.ready
     };
   };
 }

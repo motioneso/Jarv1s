@@ -27,6 +27,7 @@ import type {
   PortalState,
   SearchCriteria
 } from "../domain/records.js";
+import { withCriteriaDefaults } from "../domain/criteria.js";
 
 interface SqlDb {
   query<T = Record<string, unknown>>(
@@ -79,7 +80,9 @@ function mapProfile(row: ProfileRow): Profile {
     state: row.state as ProfileState,
     // The column defaults to '{}'::jsonb for a profile still `in_conversation` — a partial or
     // empty object here is expected, not a mapping bug; nothing in this file validates shape.
-    criteria: row.criteria as SearchCriteria,
+    // Hydrated, not cast: `criteria.set` writes a merge of only the fields answered so far, so a
+    // profile mid-interview holds a partial object. See `withCriteriaDefaults`.
+    criteria: withCriteriaDefaults(row.criteria as Partial<SearchCriteria>),
     contextSummary: row.context_summary,
     schedule: row.schedule,
     briefingDetail: row.briefing_detail as BriefingDetail,

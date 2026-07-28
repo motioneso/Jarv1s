@@ -13,7 +13,7 @@ import type { PortalState } from "../../domain/records.js";
 import type { JobSearchStore } from "../../domain/store-port.js";
 import { looksLikeJobEnvelope, parseJobEnvelope } from "../job-input.js";
 import { InputError, stripEnvelope, validateProfileInput } from "../validate.js";
-import { requireNoUnknownKeys, requireProfileId } from "./profile.js";
+import { activateIfReady, requireNoUnknownKeys, requireProfileId } from "./profile.js";
 
 const PORTAL_SET_ENABLED_FIELDS = new Set(["profileId", "sourceId", "enabled"]);
 
@@ -81,13 +81,21 @@ export function createPortalSetEnabledHandler(store: JobSearchStore) {
 
     await store.setPortalState(profileId, next);
 
+    // Enabling a board is the other half of onboarding's readiness test (the criteria object is
+    // the first). Whichever of the two lands second is the one that completes the profile, so
+    // this writer re-decides activation exactly as criteria.set does — see `activateIfReady`.
+    const outcome = await activateIfReady(store, profile, profile.criteria);
+
     return {
       profileId,
       sourceId: next.sourceId,
       label: labelFor(next.sourceId),
       enabled: next.enabled,
       lastOkAt: next.lastOkAt,
-      cause: next.cause
+      cause: next.cause,
+      state: outcome.state,
+      completedSteps: outcome.steps,
+      readyToCrawl: outcome.ready
     };
   };
 }
