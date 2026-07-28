@@ -1838,3 +1838,42 @@ The risky part is not the binding — it is the fixtures. Adding a field to the 
 every `profile()` factory in the `.tsx` tests, and per **#1335** no `.tsx` file is typechecked, so a
 missed fixture does not fail. It passes, drifts silently, and reads as coverage. Name every file
 touched. See also **N45** (seeded vs produced state) and the same "reads as coverage" family.
+
+---
+
+## N47 — a guarantee about one module does not belong inside shared tooling; it belongs in a test
+
+**Decision.** Generic release tooling stays generic. When a check is really "our module must still be
+picked up," it goes in that tool's existing unit test, asserting the property for **every** module the
+tool serves — never as a hardcoded id inside the tool itself.
+
+### The instance
+
+Task 23 asked for a `job-search` entry in `scripts/publish-module-registry.ts`. The task was wrong:
+the publisher discovers modules with `readdirSync` over `external-modules/` (`:152-154`), so there is
+no per-module list. `scaffold` found this correctly and verified it by running the publisher to a
+scratch output dir before and after — `job-search-0.1.0.tgz` and its `index.json` entry are produced
+either way. That part is exactly right, and the coordinator's framing of the task was the error.
+
+The proposed fix was a runtime `throw` in the CLI entrypoint if `job-search` is ever absent from the
+discovered set. Rejected on three grounds, in increasing weight:
+
+1. **No precedent.** `finance` — the only other external module, and the structural template this one
+   follows — is named nowhere in that file.
+2. **The guard is worse than the hazard.** If `external-modules/job-search/` is legitimately removed
+   or renamed, the throw means **nothing publishes**. A quiet single-module drop becomes a total
+   release outage that takes the unrelated modules down with it.
+3. **A home already exists.** `tests/unit/publish-module-registry.test.ts` covers this script. A
+   discovery assertion is a test assertion: it should fail in CI where someone can act on it, not at
+   release time in an entrypoint.
+
+### Application
+
+Write the assertion over the whole discovered set (`finance` **and** `job-search`), not just ours. A
+test that only knows about our own module reproduces the same asymmetry one layer down — it will pass
+happily on the day the *other* module stops being found.
+
+Generalises past this file: the pull toward "assert my thing is wired" is sound, and the answer is
+almost always a test over the general property rather than a special case in the general mechanism.
+Relates to **N43** (a coupling belongs where the compiler enforces it) and to **N45** (assert the
+behaviour, in the place that can actually observe it).
