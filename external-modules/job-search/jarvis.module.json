@@ -9,7 +9,6 @@
   "description": "Finds job postings on public boards and reads each one against what you can do and what you actually want.",
   "auth": [],
   "storage": [
-    { "namespace": "job-search.settings", "scopes": ["user"] },
     { "namespace": "job-search.meta", "scopes": ["user"] },
     { "namespace": "job-search.fetch-host-grants", "scopes": ["user"] }
   ],
@@ -214,6 +213,29 @@
           "limit": { "type": "integer", "minimum": 1, "maximum": 25 }
         },
         "required": ["profileId", "limit"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["items"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "title", "company", "state", "url", "fit", "want", "outsideFrame"],
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "company": { "type": "string" },
+                "state": { "type": "string" },
+                "url": { "type": "string" },
+                "fit": { "anyOf": [{ "type": "number" }, { "type": "null" }] },
+                "want": { "anyOf": [{ "type": "number" }, { "type": "null" }] },
+                "outsideFrame": { "type": "boolean" }
+              }
+            }
+          }
+        }
       },
       "handler": "matches.list"
     },
