@@ -1981,3 +1981,33 @@ ledger, N50 read the callee instead of the caller.
 contract the code deliberately forbids. `scaffold` caught this independently and asserted the blocked
 envelope rather than narrowing scope silently, which was the right call and is now the standing
 pattern for tool-dispatch tests.
+
+### N51 — test 9's envelope coverage is complete even though 10 of 15 tools stop at the 403
+
+Follow-on check to N50, recorded because it is the obvious objection at PR review and the answer is
+not visible from the test file alone.
+
+Task 21's test 9 exists to prove "a tool call survives the host's `actorUserId` envelope" — the host
+spreads `actorUserId` onto every external tool input **last** (`apps/api/src/external-module-tools.ts:108`),
+so a strict `additionalProperties: false` validator that does not strip it rejects every call the
+module will ever receive. Under N50 the ten write tools assert the *blocked* envelope and never reach
+the module, so on its face only five tools actually exercise the mechanism.
+
+**Verified: there is no residual gap, because the mechanism is one shared function.**
+`stripEnvelope` (`external-modules/job-search/src/worker/validate.ts:30`) destructures `actorUserId`
+away before any unknown-key check. Every strict validator in the module routes through it —
+`validate.ts`'s own validators, `handlers/profile.ts` (:87, :103, :131, :167, :195), and
+`handlers/matches.ts` (:155, :204, :264). The one strict check that does **not** call it,
+`worker/job-input.ts:50`, is the pg-boss job-payload path rather than a tool call, and says so at
+:5-8. Grepping `unknown key` across the module finds no other site.
+
+So the five read tools exercise the same code path the ten write tools would. A regression that broke
+the envelope would break it for all fifteen and go red in test 9. The write tools' *own* key sets are
+covered by the unit suites (`job-search-validate`, `job-search-profile-handler`,
+`job-search-match-handler`, `job-search-source-handler`), which call the handlers with `actorUserId`
+present in the input.
+
+**How to keep this true.** The claim rests on centralisation, not on the tests. If someone adds a
+tool whose validator does its own key check without `stripEnvelope`, test 9 stays green and that tool
+is broken for every real caller. The cheap guard is the grep above: `unknown key` outside
+`validate.ts` must always sit in a function that stripped first.
