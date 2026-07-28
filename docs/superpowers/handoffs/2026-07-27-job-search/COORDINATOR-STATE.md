@@ -4,7 +4,7 @@ Pointer document. Everything here is a location, not a copy. Read the linked sou
 for detail.
 
 - **Branch** `feat/job-search`, worktree `~/Jarv1s/.claude/worktrees/job-search`.
-- **Rulings** — `rulings-ledger.md` in this directory is the authority, through **N40**.
+- **Rulings** — `rulings-ledger.md` in this directory is the authority, through **N42**.
 - **Task list** — GitHub epic #1280 and its children.
 
 ## Gate
@@ -15,9 +15,23 @@ Eight non-DB links verified exit 0: `lint`, `format:check`, `check:file-size`,
 `test:unit` at 3729/3732. The one failure is in-flight shape drift, not a HEAD regression — score's
 uncommitted `url` key against the exact-keys assertion at `tests/unit/job-search-match-handler.test.ts:176`.
 
-**The DB tail has never run on this branch.** `db:migrate`, `test:uat-seed`, `test:integration` are
-all outstanding. dedupe holds the exclusive Postgres slot; everyone else is told to hold. Fresh
-exported gate DB, DROP+CREATE, per N26.
+`typecheck` re-verified exit 0 with zero errors at `bacfdc66`, after a transient red where six
+job-search fixture files lacked the `getMatch` mock that score's new `store-port.ts:115` requires.
+Self-resolved; noted because it will recur while that interface is mid-edit.
+
+**DB tail — two of three now confirmed on this branch**, on a fresh DROP+CREATE'd
+`jarvis_gate_dedupe_1328` per N26, each exit code read back from its log file:
+
+- `db:migrate` — exit 0.
+- `test:uat-seed` — exit 0, 11 files / 23 tests.
+- `test:integration` — **still outstanding**, running against `dc635e1c`.
+
+An earlier integration attempt reported exit 143: that was the Bash tool's own 10-minute timeout
+SIGTERMing the wrapper shell, **not** a suite result. Never record a 143 as a gate outcome.
+
+A second `test:integration` from another session's worktree (`1311-install-grant`) runs concurrently
+on its own database. No DB collision, but the Postgres *server* is shared and has crashed under
+concurrent load before — suspect it first if a run dies without a test failure.
 
 Known pre-existing red, **not ours**: `tests/uat/run-uat.test.ts` fails identically on `main`
 (an extra `withoutNewsJsonBinding` field) — settled in a scratch worktree at `9df9ba3e`.
