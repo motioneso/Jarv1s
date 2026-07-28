@@ -553,32 +553,25 @@ test("job search: install, bootstrap, onboarding, crawl, board, inspector, chat 
 
   // --- Phase 11: core drawer scoping — spec §7 says opening the header chat control inside a
   // profile gives that profile's thread; #1284's isolation rule says it must not appear anywhere
-  // else. #1332 (apps/web bug, confirmed by reading app-shell.tsx, not the module) found that
-  // app-shell.tsx:426 hands the drawer `recordsForSurface(DEFAULT_CHAT_SURFACE)` — a fixed literal
-  // — instead of `recordsForSurface(activeSurface)`, so today the drawer renders EMPTY inside a
-  // profile too, not just outside one. This phase is written against spec §7's actual contract
-  // (present inside, absent outside), not today's code, per #1332's own instruction not to soften
-  // the assertion to match the bug. It is EXPECTED RED until #1332 is fixed in the host — do not
-  // rewrite this to pass against current behaviour, and no test.fixme: report red honestly.
-  // Deliberately NOT test.fixme, unlike Phase 12 below: the behaviour and data model both already
-  // exist (chat surfaces, threads, messages all work today); this is a one-line routing bug gated
-  // on a pending product call, not a field/behaviour that doesn't exist yet. See
-  // docs/coordination/AWAITING-BEN.md #1, which cites this exact test.step by name and states the
-  // live assertion is deliberate: "whichever way it goes the assertion is one edit, not a rewrite."
+  // else. Ben ruled on 2026-07-28 that these are one rule, not two: the drawer shows the chat you
+  // are actually in, and #1284's "never in the main drawer" governs LEAKAGE — a module's thread
+  // must not survive your leaving the module. #1332 was therefore a real bug: app-shell.tsx handed
+  // the drawer a fixed DEFAULT_CHAT_SURFACE literal instead of the live surface, so the drawer was
+  // empty inside a profile too. Fixed; this phase asserts the shipped contract (present inside,
+  // absent outside) and is expected GREEN. It was written live rather than test.fixme'd precisely
+  // so that the fix would need one edit here, not a rewrite — and it did not need even that.
   await test.step("Phase 11: core chat drawer scopes the job-search thread to this profile (#1284/#1332)", async () => {
     // Visible in the test report itself, not just in source comments (N45: a reviewer shouldn't
-    // need to read code to know why this step is red): this asserts spec §7's contract, and it is
-    // EXPECTED TO FAIL on every run today because app-shell.tsx:426 hands the drawer a fixed
-    // DEFAULT_CHAT_SURFACE literal instead of the active surface (#1332). Parked for Ben in
-    // docs/coordination/AWAITING-BEN.md #1: if the recommended reading wins, #1332 is a one-line
-    // fix and this step goes green unchanged; if the alternative reading wins instead, this
-    // assertion INVERTS (drawer must stay empty inside the module too) rather than being deleted.
+    // need to read code to know what this step is defending): this is the live-path proof for
+    // #1332, whose fix is a one-line change in app-shell.tsx. The two halves matter equally — a
+    // regression that showed the module thread everywhere would pass the "visible inside" half
+    // and fail the "absent on /tasks" half.
     test.info().annotations.push({
-      type: "known-issue",
+      type: "contract",
       description:
-        "Expected red until #1332 is decided (docs/coordination/AWAITING-BEN.md #1) — " +
-        "asserts spec §7's contract (marker visible inside the profile, absent on /tasks); " +
-        "inverts rather than deletes if the alternative reading wins."
+        "Spec §7 + #1284 as reconciled by Ben's 2026-07-28 ruling: the drawer shows the thread " +
+        "of the surface you are in (marker visible inside the profile) and nothing from a " +
+        "module you have left (marker absent on /tasks)."
     });
 
     // Seed a thread + one message directly on this profile's surface (N40: a real user turn sent

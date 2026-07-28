@@ -177,10 +177,15 @@ export function AppShell(props: AppShellProps) {
   const seedAssistantComposer = useCallback((draft: string) => {
     embeddedComposerRef.current?.(draft);
   }, []);
-  // #1284 — Ben's ruling: a module's thread must never appear in the main drawer. `records` is
-  // whichever surface's stream is currently live (see the useChatStream call above); this only
-  // hands it back for the ONE surface that's actually active right now, so `recordsForSurface`
-  // for any other surface (including "drawer" while a module has claimed the stream) is `[]`.
+  // #1284/#1332 — Ben's ruling, refined 2026-07-28: the drawer shows the chat you are actually
+  // in, and nothing else. `records` is whichever surface's stream is currently live (see the
+  // useChatStream call above); this hands it back for the ONE surface that's active right now, so
+  // any other surface gets `[]`.
+  //
+  // #1284's "a module's thread must never appear in the main drawer" is a LEAKAGE rule, not a
+  // blanket one: it means a module's transcript must not survive your leaving the module. That is
+  // enforced here by construction — `setSurfaceKey(null)` on unmount flips `activeSurface` back to
+  // DEFAULT_CHAT_SURFACE, and the module's records stop matching on the very next render.
   const recordsForSurface = useCallback(
     (surface: string) => (surface === activeSurface ? records : []),
     [records, activeSurface]
@@ -423,10 +428,12 @@ export function AppShell(props: AppShellProps) {
           // #916: starters are one-shot — a later manual open starts from a blank composer.
           setModuleDraft(undefined);
         }}
-        // #1284 — the drawer always renders the DRAWER surface specifically, never whichever
-        // surface happens to be live: while a module has claimed the stream, this is `[]`
-        // (drawer-isolation), not the module's transcript.
-        records={recordsForSurface(DEFAULT_CHAT_SURFACE)}
+        // #1332 — the drawer renders whichever surface is LIVE, which is what makes opening the
+        // header control inside a profile give you that profile's thread (job-search spec §7)
+        // instead of an empty panel. Outside a module `activeSurface` is DEFAULT_CHAT_SURFACE, so
+        // this is the ordinary drawer thread; no module content can survive the exit, because the
+        // surface key is also the history lookup key all the way down to the repository.
+        records={recordsForSurface(activeSurface)}
         clearRecords={clearRecords}
         streamErrorCount={streamErrorCount}
         isFounder={props.me.user.isBootstrapOwner}

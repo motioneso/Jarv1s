@@ -2011,3 +2011,34 @@ present in the input.
 tool whose validator does its own key check without `stripEnvelope`, test 9 stays green and that tool
 is broken for every real caller. The cheap guard is the grep above: `unknown key` outside
 `validate.ts` must always sit in a function that stripped first.
+
+---
+
+## N52 — the core drawer shows the chat you are actually in (#1332 / #1284, Ben, 2026-07-28)
+
+**The question that was parked.** `app-shell.tsx` carried a #1284 comment saying "a module's thread
+must never appear in the main drawer"; the job-search design spec §7 said opening the header control
+inside a profile gives that profile's thread. Two approved sources, opposite instructions. The code
+did neither: it handed the drawer a fixed `DEFAULT_CHAT_SURFACE` literal, so once a module claimed
+the stream the drawer rendered **empty** — an unintended third state.
+
+**Ben's ruling.** The drawer should show the last chat by default, unless that chat is not the active
+one. In mechanism terms: `records={recordsForSurface(activeSurface)}`.
+
+**Why the two sources were never actually in conflict.** #1284's "never" is a **leakage** rule, not a
+blanket one — it means a module's transcript must not survive your leaving the module. That is now
+enforced by construction rather than by a filter: `setSurfaceKey(null)` on unmount flips
+`activeSurface` back to the drawer, and the surface key is also the history lookup key all the way
+down (`use-chat-stream.ts` → `listChatThreads(surface)` → `repository.ts` filters by surface), so
+there is no path by which module content reaches a drawer you have walked out of.
+
+**What changed.** One line in `apps/web/src/shell/app-shell.tsx`, plus the comments that asserted the
+old absolute reading. `tests/unit/app-shell-chat-surface.test.tsx`'s isolation case inverted to
+assert the module transcript IS handed to the drawer while the module is live, and a companion case
+covers the release. The UAT's Phase 11 needed no assertion change at all — it had been written
+against the spec's contract rather than against the bug, which was the whole point of writing it
+live instead of `test.fixme`.
+
+**Standing consequence.** `recordsForSurface` itself is unchanged and still answers `[]` for any
+non-active surface; embedded module surfaces (`host-context.ts`) depend on that. Only the drawer's
+argument moved.

@@ -164,16 +164,30 @@ describe("AppShell chat surface wiring (#1284)", () => {
     expect(first).not.toBe(second);
   });
 
-  it("keeps module records out of the drawer transcript", () => {
-    // #1284 — Ben's ruling: a job-search thread must never appear in the main drawer. With a
-    // module surface active, the drawer must still be handed [] for the DEFAULT_CHAT_SURFACE,
-    // never the module's records, even though `records` (the live stream) is non-empty.
+  it("shows the live module thread in the drawer while you are inside that module", () => {
+    // #1284/#1332 — Ben's ruling, refined 2026-07-28: the drawer shows the chat you are actually
+    // in. With a module surface active, opening the header control gives that module's transcript
+    // (job-search spec §7), not the empty panel the old DEFAULT_CHAT_SURFACE literal produced.
     useChatStreamMock.mockImplementationOnce(() => ({
       records: [{ kind: "reply", text: "module transcript line" }],
       clearRecords: vi.fn(),
       streamErrorCount: 0
     }));
     renderWithModuleMount("job-search", "profile-1");
+    expect(chatDrawerRecordsCalls.at(-1)).toEqual([
+      { kind: "reply", text: "module transcript line" }
+    ]);
+  });
+
+  it("hands the drawer nothing once the module releases the surface", () => {
+    // The leakage half of the ruling — the half #1284 actually cares about. Release, then render
+    // with the stream mock back at its default empty result, which is what useChatStream(drawer)
+    // really returns for a user who has no drawer thread: the module's transcript is gone because
+    // the surface key is also the history lookup key, not because anything filters it out.
+    renderWithModuleMount("job-search", "profile-1");
+    createAssistantSurfaceHandle(() => () => undefined, "job-search").setSurfaceKey(null);
+    renderWithModuleMount(undefined, null);
+    expect(lastSurfaceArg()).toBeUndefined();
     expect(chatDrawerRecordsCalls.at(-1)).toEqual([]);
   });
 
