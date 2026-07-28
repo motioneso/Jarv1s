@@ -43,44 +43,60 @@ still fails.** If it's a leftover log artifact, just re-run `pnpm test:integrati
 confirm exit 0 except the known `tests/integration/people/db-types.test.ts` "tuple concurrently
 updated" flake (verify it's still unrelated to this change before dismissing it).
 
-## Open tension on Task 4 (live-path UAT) — flagged to Coordinator, awaiting reply
+## Task 4 (live-path UAT) — RESOLVED by Coordinator, act on this directly
 
-Coordinator's last message called `tests/e2e/app-shell.spec.ts` line ~412 (`"granted-tier settings
-tool executes with no Approve/Reject card (#1264)"`, branch `1264-settings-self-operation`) "a real
-chat turn." I read that file (via `git show 1264-settings-self-operation:tests/e2e/app-shell.spec.ts`,
-without switching branches — copy at `/tmp/app-shell-1264.ts` if still present, else re-fetch the
-same way) and it uses `mockApi()` / `page.route()` to mock `/api/chat/stream` and
-`/api/chat/action-requests/*/resolve` — not a real dev-instance call. The file's own header comment
-(lines ~403-411) explicitly states this test does NOT by itself satisfy a "real dev instance"
-criterion. I flagged this discrepancy to the Coordinator in the relay heads-up message but have
-**not yet received a reply** — check for one before proceeding.
+Coordinator confirmed (after this relay's heads-up) that its earlier "app-shell.spec.ts line ~412
+is a real chat turn" claim was **wrong** — that file is the MOCKED suite (`page.route()` SSE
+stubs, `tests/e2e/mock-*.ts`) and does not satisfy the no-mocks live-path criterion; the file says
+so itself.
 
-Also read `tests/uat/specs/1264-settings-self-operation.uat.spec.ts` (copy at
-`/tmp/1264-uat-spec.ts`) — the actual real-dev-instance harness. Pattern: `requireBaseURL()` reads
-`JARVIS_UAT_BASE_URL`; `signIn(page)` does real login via `getByLabel("Email"/"Password")` +
-`form.auth-form`'s Sign in button + onboarding skip-if-shown. **Known hard limitation: this harness
-has NO chat-capable AI provider at any seed level** (confirmed by that file's own header and
-sibling specs) — it cannot script a real chat turn to a model reply/tool call (tracked gap: #1121).
-Its one real test does a cookie-authed `fetch()` against a live API endpoint via
-`page.evaluate()`, no chat turn involved.
+**Corrected instruction, verbatim from the Coordinator:**
 
-**Working hypothesis for Task 4** (not yet confirmed with Coordinator): write a NEW spec file
-(not appended to `app-shell.spec.ts` — that file is being extended by #1276, which rebases behind
-#1311 in merge order #1311→#1276→#1273, so two branches touching one file buys a pointless
-conflict). Reuse the *login* pattern from `1264-uat-spec.ts`'s `signIn()`/`requireBaseURL()`
-(real dev instance, real login, no mocks) — NOT the mocked SSE pattern from `app-shell.spec.ts`.
-Since the harness can't drive a real chat turn, prove the #1311-specific claim at the API layer
-instead: a module that's already default-enabled (tasks) — for a user who has never had a
-`task_changes` preference row — gets `{enabled: true}` (self-heal fired) on a real, cookie-authed
-`fetch("/api/tasks/agency-auto-execute")` against the live dev instance, mirroring the pattern in
-`1264-uat-spec.ts`'s one real test. If a real UI assertion of "no confirmation card" is also
-required, that needs either the harness's chat gap closed (out of scope, #1121) or a tool call
-driven directly via API + a UI check that no `.action-request-card` renders — needs Coordinator
-confirmation before choosing.
+> The real-instance harness is a SEPARATE suite: `tests/uat/specs/*.uat.spec.ts` — real dev
+> instance, `requireBaseURL()`, `signIn()`, no mocks. Your template is
+> `tests/uat/specs/1264-settings-self-operation.uat.spec.ts` (present on branch
+> `1264-settings-self-operation`; read it with
+> `git show 1264-settings-self-operation:tests/uat/specs/1264-settings-self-operation.uat.spec.ts`).
+> Siblings worth skimming for the pattern: `real-chat-onboarding.uat.spec.ts`,
+> `runtime-context.uat.spec.ts`.
+>
+> So Task 4 = a new `tests/uat/specs/1311-*.uat.spec.ts` modelled on that file. Reuse the
+> sign-in/base-URL PLUMBING, assert against the live instance. A new file in `tests/uat/specs/`
+> collides with nothing (settles the earlier "separate file" instruction too).
+>
+> What it must prove, precisely: a module that was ALREADY default-enabled BEFORE the install
+> grant existed gets the grant applied on a real read (self-heal fires), and its granted tool then
+> executes with no Approve/Reject card. A freshly-installed module does not prove #1311. 1533 is
+> PROD — never target it.
 
-**Do not guess further on this — get the Coordinator's answer first** (my heads-up message is
-already sent; check for a reply, and if none, ping again with the two concrete options above and
-ask it to pick).
+This confirms the working hypothesis already recorded here: reuse `1264-uat-spec.ts`'s
+`signIn()`/`requireBaseURL()` plumbing (copy at `/tmp/1264-uat-spec.ts` if still present, else
+re-fetch via the `git show` command above — do not switch branches). The harness has **no
+chat-capable AI provider at any seed level** (tracked gap #1121), so prove the #1311 claim the same
+way `1264-uat-spec.ts`'s one real test does: a real, cookie-authed `fetch()` via `page.evaluate()`
+against a live endpoint. Concretely: for a user who has never had a `task_changes` preference row,
+`fetch("/api/tasks/agency-auto-execute")` against the live dev instance must return
+`{enabled: true}` (self-heal fired on the real read, tasks was already default-enabled before
+#1311 added the grant). Pair with a real UI check that no `.action-request-card` ever renders when
+the granted tool executes, if the harness/seed level supports driving that tool call without a
+chat turn — otherwise document that "no confirmation card" is proven at the integration-test layer
+(`tests/integration/mcp-gateway-self-operation.test.ts`, cited in `1264-uat-spec.ts`'s own header
+as the pattern for this) and the UAT spec proves the self-heal-on-read half only. Do not block Task
+4 on #1121.
+
+Write the new file at `tests/uat/specs/1311-install-grant-self-heal.uat.spec.ts` (or similar,
+following the `<issue>-<slug>.uat.spec.ts` naming already in that dir). Commit it — a proof that
+only lived in a terminal is not evidence.
+
+## Failing test — DO NOT dismiss as stale log output
+
+Coordinator was explicit: a 6ms failure in
+`"resolveGrantSelfOperationForModule routes a non-tasks manifest to the generic grant, not the
+compat helper"` (`module-enablement.test.ts`) is a **synchronous assertion failure, not a
+timeout** — it usually means genuinely wrong routing. Re-run that ONE test file cleanly against a
+fresh exported `JARVIS_PGDATABASE`, read the real error, and if it's real, **fix the routing** —
+do not adjust the assertion to match. Only after confirming it's a real regression (or confirming
+it's clean on a fresh isolated run) move on.
 
 ## Order for the successor
 
