@@ -4694,3 +4694,49 @@ new pane, verified on Sonnet 5 and confirmed reading the relay-11 handoff.
 
 **Rule added:** when an agent reports `git rebase --skip`, verify both sides of the conflict
 survived before trusting the rebase — `--skip` discards the replayed commit and looks like success.
+
+## 2026-07-27 — #1338 gates in flight; #1273 lane restarted in parallel
+
+**#1311 / PR #1338** — head `43082cbc7f656e0ea46e6dc6865ffbeb5d01489a`, MERGEABLE/UNSTABLE.
+Two gates outstanding, both live:
+- CI (`Verify foundation and app`) `in_progress`; background watcher polling until COMPLETED.
+- Fable security review — security tier, and per Ben's delegation **"fable green = Ben approve."**
+  Agent `fable-sec-1338`, session `cfb3d388-7ec1-4327-b62d-217fbd807751`, pane w1:p14P, detached
+  worktree `.claude/worktrees/fable-sec-1338` at the exact PR head. Brief delivered and confirmed
+  submitted. It must post `VERDICT: GREEN|RED` via `gh pr comment 1338` — an unposted verdict does
+  not count.
+
+Nothing merges until CI is green AND Fable posts GREEN.
+
+**#1265 / PR #1273 — lane restarted.** `#1276` merged as `7c820342`, which left PR #1273
+CONFLICTING/DIRTY, and its previous agent was already gone (it had written
+`docs/superpowers/handoffs/2026-07-27-1265-relay-17.md` uncommitted but never spawned a successor).
+
+Collision surface computed against the merged #1276 commit — six code files (docs excluded):
+
+    packages/ai/src/gateway/index.ts
+    packages/module-registry/src/index.ts
+    packages/news/src/manifest.ts
+    packages/sports/src/manifest.ts
+    tests/integration/mcp-gateway-self-operation.test.ts
+    tests/unit/self-operation-manifests.test.ts
+
+**Parallelisation ruling.** #1273 touches **no `packages/chat` files**, and #1311 is confined to
+`packages/chat` + `packages/tasks`. So the #1276 rebase carries essentially the whole conflict cost
+and the later rebase onto post-#1311 main should be clean. Running that rebase now, concurrently
+with #1338's gates, rather than serialising it behind the merge — merge *order* is still
+#1311 → #1273; only the conflict work is parallel.
+
+Successor spawned: `lane1273`, session `af6a2394-efb6-46f6-859b-ea5995dfbd6d`, pane w1:p14Q
+(tab w1:t3S), **Sonnet 5 confirmed** in the status bar. Briefed to integrate both sides (neither
+side's manifest permission declarations may be dropped), never to widen a tier/grant/`allowedTiers`
+or loosen `policy.ts` to make a test pass, and **never to use `git rebase --skip`** (it drops the
+replayed commit) — if `--continue` refuses it must escalate instead of routing around it.
+
+**Fleet:** w1:p11T Coordinator (`43e5f5e2`) · w1:p14N #1311 lane (`4f6d23bc`, done — held, not
+reaped, in case Fable finds something) · w1:p14P fable-sec-1338 (`cfb3d388`) · w1:p14Q lane1273
+(`af6a2394`).
+
+**Continuation note (mid-doing):** waiting on two gates for #1338 and on lane1273's rebase report.
+On Fable GREEN + CI green → merge #1338, close #1311, reap w1:p14N, then hand lane1273 the
+post-#1311 rebase + delta re-QA + live UAT.
