@@ -1907,3 +1907,38 @@ assertion to the property that makes the thing wrong — here, being a number �
 disappears without softening anything. Same family as N46 and the manifest-hash tautology: an
 assertion that has drifted from what it protects reads as coverage either way, whether it fires
 wrongly or cannot fire at all.
+
+## N49 — N41 stands: test 10 does not return, and the audit that "found" it missing was reading the plan, not the ledger
+
+**My error, named.** `score`'s Task 21 audit reported test 10 absent from `tests/integration/`. That
+is literally true, and I routed it as task **#80** without checking whether a prior ruling had put it
+there deliberately. One had. `score` read the ledger before building and refused the assignment.
+That refusal was correct and is the behaviour I want — an agent that checks the ledger against its
+own instructions catches exactly the class of error a coordinator cannot catch alone.
+
+**N41 (ledger line 1581) is unreopened** — N42 through N48 do not touch it. Its verdict is explicit:
+test 10's two named risks are covered at better levels than an integration test could reach
+(`job-search-crawl-stage.test.ts:225` for the postings-landed half, `job-search-store.test.ts:380`
+case 6 against real Postgres and the actual `COALESCE` for the `lastOkAt` half), the one real gap it
+found was three lines in a landed unit test, and it closes with: *"#1305 is not blocked on it and
+must not grow an integration test for it."* That gap is closed — `4df9f3c1`, task #59.
+
+**Ruling: #80 is cancelled. Test 10 is a recorded deviation, not a hole.** The plan's Task 21 text
+predates N41 and was never amended; the audit compared code against the plan, and the plan is stale
+on this one item. Nothing is built.
+
+**What is still owed, and it is small.** The deviation has to be visible where someone will trip over
+it. An inline comment in `tests/integration/job-search-worker-surface.test.ts` naming N41, the two
+covering files and lines, and why the coverage sits at unit and store level — same pattern as the
+file-split and `asRuntime()` deviations already commented in that file. Without it the next audit
+re-derives this exact finding and we spend the round trip again.
+
+**#1305's blockers narrow to two:** test 12 (#81) and test 9 (#82).
+
+**The generalisation, which is the part worth keeping.** An audit that measures code against a plan
+finds every place they differ, including the places where a later ruling deliberately made them
+differ. A plan is not the current state of the decision; the ledger is. Any audit whose finding is
+"the plan says X and the code does not do X" must check the ledger for X **before** it becomes a
+task — and if the ledger is silent, that silence is itself worth reporting, because it means the
+deviation was never ruled on at all. Sibling to N46: there, uniform agreement across layers hid a
+deviation; here, a deviation was recorded and the audit read the wrong authority.
