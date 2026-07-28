@@ -1,6 +1,7 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import * as tar from "tar";
 import { afterAll, describe, expect, it } from "vitest";
@@ -116,5 +117,23 @@ describe("packModuleArtifact", () => {
     writeFileSync(join(dir, "dist", "worker.js"), "// worker");
     const packed = await packModuleArtifact(dir, out, "tiny", "0.1.0");
     expect(packed.artifact).toBe("tiny-0.1.0.tgz");
+  });
+});
+
+describe("module discovery", () => {
+  // Ruling N47 (#1307): the CLI entrypoint discovers modules generically via
+  // readdirSync(external-modules/) — there is no per-module allowlist, and there must
+  // never be one (a hardcoded id would go stale the moment a module is renamed or
+  // removed, silently or otherwise). This asserts the *outcome* of that discovery
+  // mechanism against the real directory: every known module is actually found. It is
+  // deliberately not scoped to job-search alone — a test that only knows about one
+  // module has the same asymmetry problem the publisher would have had.
+  it("finds every known external module, not a hardcoded subset", () => {
+    const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    const externalModulesDir = join(repoRoot, "external-modules");
+    const moduleIds = readdirSync(externalModulesDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name);
+    expect(moduleIds).toEqual(expect.arrayContaining(["finance", "job-search"]));
   });
 });

@@ -152,12 +152,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const moduleDirs = readdirSync(externalModulesDir, { withFileTypes: true })
     .filter((e) => e.isDirectory())
     .map((e) => join(externalModulesDir, e.name));
-  // Task 23 (#1307): job-search publishes through this same generic discovery — no
-  // per-module registration exists to add it to. Assert it's actually found rather than
-  // silently dropping out of a release if external-modules/job-search/ ever went missing.
-  if (!moduleDirs.some((dir) => basename(dir) === "job-search")) {
-    throw new Error("expected external-modules/job-search to be discovered for publishing");
-  }
   let previousIndex: ModuleRegistryIndex | null = null;
   if (previousIndexPath && existsSync(previousIndexPath)) {
     const parsed = validateRegistryIndex(JSON.parse(readFileSync(previousIndexPath, "utf8")));
