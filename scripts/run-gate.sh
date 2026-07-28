@@ -56,14 +56,20 @@
 # EXIT CODES (shared by status and wait — check these, not the text)
 #   0  DONE, gate passed (rc=0)
 #   1  DONE, gate failed (its rc is printed)
-#   2  DEAD — no sentinel and the log has been idle past the staleness bound
+#   2  DEAD — no sentinel and the run is gone (its recorded pid is no longer
+#           the leader of its own session running this log). For a foreign log
+#           with no recorded pid, falls back to the idle-time bound below.
 #   3  RUNNING — no verdict yet
 #   4  usage or environment problem
 #
 # ENVIRONMENT OVERRIDES
 #   JARVIS_PG_CONTAINER     dev Postgres container   (default jarv1s-postgres)
 #   JARVIS_GATE_DIR         log + lock directory     (default /tmp/jarv1s-gate)
-#   JARVIS_GATE_STALE_SECS  idle seconds => DEAD     (default 300)
+#   JARVIS_GATE_STALE_SECS  idle seconds => DEAD, but ONLY for a log with no
+#                           recorded pid (default 900). A real run is judged by
+#                           its pid, not its idle time: `test:integration` goes
+#                           quiet for many minutes and a 300s bound reported a
+#                           live gate DEAD.
 #
 # NOTES
 #   - JARVIS_PGDATABASE is *exported*, never assigned inline: an inline
@@ -78,7 +84,7 @@ set -euo pipefail
 
 CONTAINER="${JARVIS_PG_CONTAINER:-jarv1s-postgres}"
 STATE_DIR="${JARVIS_GATE_DIR:-/tmp/jarv1s-gate}"
-STALE_SECS="${JARVIS_GATE_STALE_SECS:-300}"
+STALE_SECS="${JARVIS_GATE_STALE_SECS:-900}"
 SENTINEL_PREFIX='### FINAL rc='
 
 die() {
@@ -271,9 +277,50 @@ verdict() {
   mtime="$(stat -c %Y "$log")"
   age=$((now - mtime))
 
+  # No sentinel. Corroborate with the PID the runner recorded for itself.
+  #
+  # This is NOT the `pgrep -f` mistake. That failed because it matched a
+  # *pattern* against every command line on the box, and Claude wraps each Bash
+  # call in a shell whose command line contains the worktree path and the
+  # command text — so it matched wrapper shells, and the wait loop itself,
+  # forever. Here we check one exact PID that this script wrote down, and we
+  # additionally require that it still be the leader of its own setsid session
+  # AND still be running our `__run` for THIS log. A recycled PID cannot satisfy
+  # all three, and no wrapper shell can satisfy any of them.
+  local pid alive=unknown
+  pid="$(awk '/^### PID/ {print $3; exit}' "$log" 2>/dev/null || true)"
+  if [ -n "$pid" ]; then
+    alive=no
+    if [ "$(ps -o sid= -p "$pid" 2>/dev/null | tr -d ' ')" = "$pid" ] &&
+      ps -o args= -p "$pid" 2>/dev/null | grep -qF -- "__run $log"; then
+      alive=yes
+    fi
+  fi
+
+  if [ "$alive" = "yes" ]; then
+    # Quiet ≠ dead. `test:integration` routinely runs many minutes without
+    # writing a line, which is why mtime alone gave a false DEAD here once.
+    [ "$quiet" = "1" ] || {
+      echo "RUNNING  pid $pid alive, last write ${age}s ago  ($log)"
+      echo "at: $(grep -v '^[[:space:]]*$' "$log" | tail -1 | cut -c1-160)"
+    }
+    return 3
+  fi
+
+  if [ "$alive" = "no" ]; then
+    # Process gone and no sentinel: killed hard enough to skip the trap
+    # (SIGKILL, OOM, host reboot). Terminal, regardless of mtime.
+    [ "$quiet" = "1" ] || {
+      echo "DEAD  pid $pid gone with no sentinel (log idle ${age}s)  ($log)"
+      echo "last: $(grep -v '^[[:space:]]*$' "$log" | tail -1 | cut -c1-160)"
+    }
+    return 2
+  fi
+
+  # No recorded PID — a hand-rolled or foreign log. Fall back to mtime alone.
   if [ "$age" -gt "$STALE_SECS" ]; then
     [ "$quiet" = "1" ] || {
-      echo "DEAD  no sentinel, log idle ${age}s (bound ${STALE_SECS}s)  ($log)"
+      echo "DEAD  no sentinel, no recorded pid, log idle ${age}s (bound ${STALE_SECS}s)  ($log)"
       echo "last: $(grep -v '^[[:space:]]*$' "$log" | tail -1 | cut -c1-160)"
     }
     return 2
