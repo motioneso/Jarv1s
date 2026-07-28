@@ -302,6 +302,9 @@ export type SeedHook = (ctx: {
   readonly level: UatSeedLevel;
   readonly excludeChunks?: readonly string[];
   readonly withoutNewsJsonBinding?: boolean;
+  /** N42/#57: the job-search fixture's docker-reachable base URL — see provisionForUat's
+   *  jobSearchFixtureBaseUrl computation. Absent unless withJobSearchFixture is set. */
+  readonly jobSearchAiProviderBaseUrl?: string;
 }) => Promise<void>;
 
 // #1024/#1000: Phase 1 ships zero seed data by design (spec §8.1 acceptance = bare level only).
@@ -321,7 +324,8 @@ export const composeSeedHook: SeedHook = async ({
   projectName,
   level,
   excludeChunks,
-  withoutNewsJsonBinding
+  withoutNewsJsonBinding,
+  jobSearchAiProviderBaseUrl
 }) => {
   await runCommand(
     "docker",
@@ -336,6 +340,11 @@ export const composeSeedHook: SeedHook = async ({
       `JARVIS_UAT_SEED_EXCLUDE_CHUNKS=${(excludeChunks ?? []).join(",")}`,
       "-e",
       `JARVIS_UAT_WITHOUT_NEWS_JSON_BINDING=${withoutNewsJsonBinding === true ? "1" : "0"}`,
+      "-e",
+      // N42/#57: empty string reads as absent in cli.ts (`|| undefined`) — same "always pass,
+      // empty means off" shape as the other -e values here, rather than omitting the flag
+      // entirely.
+      `JARVIS_UAT_JOB_SEARCH_AI_BASE_URL=${jobSearchAiProviderBaseUrl ?? ""}`,
       "-e",
       "JARVIS_UAT_SEED_CONFIRM=1",
       "seed"
@@ -532,27 +541,36 @@ export interface UatProvisionOptions {
   readonly excludeChunks?: readonly string[];
   readonly withoutNewsJsonBinding?: boolean;
   // #1306 Task 22: opt-in, absent by default — mirrors REAL_CHAT_TOKEN_TRIGGER_ENV's "no-op
-  // unless asked" shape. No caller sets this yet (Task 22's own UAT spec, tests/uat/run-uat.ts's
-  // per-spec option threading, is out of scope for this delta — see #46); this only makes the
-  // plumbing exist and be independently testable.
+  // unless asked" shape. tests/uat/run-uat.ts threads this from job-search-board.uat.spec.ts's
+  // exported `uatLevel` object. One flag turns on the whole fixture-backed pipeline: the crawl
+  // fetch bypass (jobSearchFixtureBaseUrl -> writeUatEnvFile) AND, per N42/#57, the fake
+  // `openai-compatible` AI provider seeded for scoring (same base URL, threaded into
+  // composeSeedHook below) — both point at the one fixture origin this starts.
   readonly withJobSearchFixture?: boolean;
 }
 
 export function buildSeedHookInput(
   projectName: string,
   level: UatSeedLevel,
-  opts?: UatProvisionOptions
+  opts?: UatProvisionOptions,
+  // N42/#57: NOT part of UatProvisionOptions — provisionForUat computes this itself (the fixture
+  // server's docker-reachable base URL) and passes it through explicitly, the same way it already
+  // threads jobSearchFixtureBaseUrl into writeUatEnvFile below, rather than asking every caller of
+  // UatProvisionOptions to compute a Docker bridge gateway address by hand.
+  jobSearchAiProviderBaseUrl?: string
 ): {
   projectName: string;
   level: UatSeedLevel;
   excludeChunks?: readonly string[];
   withoutNewsJsonBinding?: boolean;
+  jobSearchAiProviderBaseUrl?: string;
 } {
   return {
     projectName,
     level,
     excludeChunks: opts?.excludeChunks,
-    withoutNewsJsonBinding: opts?.withoutNewsJsonBinding
+    withoutNewsJsonBinding: opts?.withoutNewsJsonBinding,
+    jobSearchAiProviderBaseUrl
   };
 }
 
@@ -646,7 +664,7 @@ export async function provisionForUat(
         console.log(`[uat] ${step.description}`);
         await runCommand(step.command, step.args);
       }
-      await composeSeedHook(buildSeedHookInput(projectName, level, opts));
+      await composeSeedHook(buildSeedHookInput(projectName, level, opts, jobSearchFixtureBaseUrl));
       const baseURL = `http://127.0.0.1:${webPort}`;
       await waitForReady(`${baseURL}/health/ready`);
       console.log(`[uat] reachable at ${baseURL} after ${Date.now() - overallStart}ms`);
