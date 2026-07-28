@@ -1,10 +1,20 @@
 import { randomUUID } from "node:crypto";
 
 import { describe, expect, it, vi } from "vitest";
+import {
+  DummyDriver,
+  Kysely,
+  PostgresAdapter,
+  PostgresIntrospector,
+  PostgresQueryCompiler
+} from "kysely";
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
 import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
-import { createExternalModuleRpcHandler } from "@jarv1s/module-registry/node";
+import {
+  createExternalModuleRpcHandler,
+  type ExternalModuleAiResult
+} from "@jarv1s/module-registry/node";
 import type { CreateNotificationInput } from "@jarv1s/notifications";
 
 describe("external worker ctx.notify port (Task 2b, #1283)", () => {
@@ -141,5 +151,71 @@ describe("external worker ctx.notify port (Task 2b, #1283)", () => {
     ).rejects.toMatchObject({ code: "forbidden_notify_mutation" });
 
     expect(postNotification).not.toHaveBeenCalled();
+  });
+
+  // #1334: aiCalls and notifyCalls are two separate `let` counters in the same
+  // createExternalModuleRpcHandler closure (worker-rpc-host.ts) — nothing at the type level
+  // stops a future edit from reading or incrementing the wrong one (e.g. a copy-paste of the
+  // AI cap check landing inside the notify branch). That bug would pass every existing test
+  // here, because each budget is only ever exercised in isolation. This drives both RPCs on
+  // ONE handler instance — the shape a real invocation like runScore's actually uses (many AI
+  // calls, then one notify.post) — so a misplaced counter shows up as a wrongly-timed
+  // rate_limited/usage_limited rather than as silently-passing coverage.
+  it("keeps the AI-call budget and the notify-call budget as two independent counters", async () => {
+    const postNotification = vi.fn().mockResolvedValue(undefined);
+    let aiCallCount = 0;
+    const ai = async (): Promise<ExternalModuleAiResult> => {
+      aiCallCount += 1;
+      return { ok: true, object: {} };
+    };
+    const scopedDb = new Kysely<JarvisDatabase>({
+      dialect: {
+        createAdapter: () => new PostgresAdapter(),
+        createDriver: () => new DummyDriver(),
+        createIntrospector: (kyselyDb) => new PostgresIntrospector(kyselyDb),
+        createQueryCompiler: () => new PostgresQueryCompiler()
+      }
+    });
+    const rpc = createExternalModuleRpcHandler({
+      module,
+      toolRisk: "write",
+      actorUserId: randomUUID(),
+      requestId: randomUUID(),
+      workerDataContext: {
+        withDataContext: async (_access: unknown, fn: (db: DataContextDb) => unknown) =>
+          fn({ db: scopedDb } as unknown as DataContextDb)
+      } as unknown as DataContextRunner,
+      cipher: null as never,
+      isActorAdmin: async () => false,
+      embeddingProvider: null as never,
+      postNotification,
+      ai
+    });
+
+    // Spend the entire AI budget (8, AI_CALLS_PER_INVOCATION_CAP) on this one handler.
+    for (let i = 0; i < 8; i++) {
+      await expect(
+        rpc("ai.generateStructured", { schema: {}, prompt: "x" }, () => undefined)
+      ).resolves.toEqual({ ok: true, object: {} });
+    }
+    await expect(
+      rpc("ai.generateStructured", { schema: {}, prompt: "x" }, () => undefined)
+    ).resolves.toEqual({ ok: false, error: "usage_limited" });
+    expect(aiCallCount).toBe(8);
+
+    // If notifyCalls were the counter actually touched above, the notify budget (cap 5)
+    // would already read as spent — the very first post below would throw rate_limited
+    // instead of succeeding.
+    for (let i = 0; i < 5; i++) {
+      await expect(
+        rpc("notify.post", { key: `k${i}`, title: "t", body: "b" }, () => undefined)
+      ).resolves.toBeUndefined();
+    }
+    expect(postNotification).toHaveBeenCalledTimes(5);
+    // And the notify cap still fires on its own 6th call — proving notifyCalls was
+    // incrementing for real over those five, not merely never reached.
+    await expect(
+      rpc("notify.post", { key: "k5", title: "t", body: "b" }, () => undefined)
+    ).rejects.toMatchObject({ code: "rate_limited" });
   });
 });
