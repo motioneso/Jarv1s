@@ -827,21 +827,27 @@ describe("tasks legacy agency_auto_execute opt-out survives install grant (#1263
 
     await dataContext.withDataContext(
       // userNeitherKey has no canonical or legacy task_changes row (unlike ids.userA/userB/
-      // adminUser, each of which picks one up elsewhere in this block before this test runs),
-      // so a mis-route to the compat helper's grantInstallTimeTrustIfUnset would flip the
-      // resolved policy to trusted_auto (its "neither key exists" branch, proven above) instead
-      // of leaving it at ask_each_time.
+      // adminUser, each of which picks one up elsewhere in this block before this test runs), so
+      // a mis-route to the compat helper's grantInstallTimeTrustIfUnset would write a trusted_auto
+      // row where the generic path would have written nothing for this key.
       { actorUserId: userNeitherKey, requestId: "req:routing-other" },
       async (scopedDb) => {
-        // Precondition must read storage directly, not via getResolvedTaskChangesPolicy -- that
-        // call itself self-heals the neither-row case (#1311 Task 3) and would mutate the very
-        // state this test is trying to observe before the routing logic under test even runs.
+        // Both the precondition AND postcondition must read storage directly, never via
+        // getResolvedTaskChangesPolicy. That getter unconditionally self-heals the neither-row
+        // case (#1311 Task 3, action-policy.ts healInstallGrantAndReread) on ANY call, regardless
+        // of what routing preceded it -- so using it as the postcondition here is an invalid probe:
+        // it always returns "trusted_auto" after healing and can never observe "no row was
+        // written", making a mis-route to the compat helper indistinguishable from correct
+        // routing. Re-adding it re-breaks this test. Asserting the row is still absent after
+        // resolved() runs is strictly stronger than checking the resolved tier: it distinguishes a
+        // real mis-route from a row that merely happens to read back as ask_each_time.
         expect(await prefs.getWithMetadata(scopedDb, TASK_CHANGES_POLICY_KEY)).toBeNull();
         expect(await prefs.getWithMetadata(scopedDb, LEGACY_AGENCY_AUTO_EXECUTE_KEY)).toBeNull();
 
         await resolved(scopedDb, otherManifest);
 
-        expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("ask_each_time");
+        expect(await prefs.getWithMetadata(scopedDb, TASK_CHANGES_POLICY_KEY)).toBeNull();
+        expect(await prefs.getWithMetadata(scopedDb, LEGACY_AGENCY_AUTO_EXECUTE_KEY)).toBeNull();
       }
     );
 
