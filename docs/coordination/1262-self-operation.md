@@ -4596,3 +4596,22 @@ from other worktrees** — it lives on the unmerged `1264-settings-self-operatio
   standing relay is suspended under Ben's "keep going here" override).
 - Still open from Spec 2: issue **#1265** (module content self-operation — news retrofit + sports
   follow/unfollow).
+
+### Relay-11 — #1311 lane, pre-rebase gate + fixme conditions satisfied
+
+- `grant1311d` (`d4c56b64`) reported **pre-rebase `verify:foundation` rc=0** on
+  `jarvis_gate_1311installgrant` (fresh DROP/CREATE, `JARVIS_PGDATABASE` exported): unit 443 files /
+  3387 passed, uat-seed 11 / 23, integration 160 files / 1731 passed (2 skipped, pre-existing).
+  **This run does NOT count as the merge gate** — #1276 landed after it started, so only the
+  post-rebase run counts.
+- **Both Task 4 `test.fixme` conditions are satisfied.** Each fixme now cites #1121 plus the
+  specific file proving the deferred behaviour, and the tasks self-heal-on-read half **actually ran
+  live against a real dev instance** (1 passed / 1 fixme-skipped) with real Playwright output
+  captured for the PR body. The live-path gate is therefore met by a genuine run, not by a
+  fully-`fixme`d spec.
+- Collision handed to the lane in writing: PR #1276 (`7c820342`) touched
+  `packages/chat/src/routes.ts`, `gateway-notifier.ts`, and `live/types.ts`; the lane's extraction
+  `a8696992` touched `routes.ts`. Resolution keeps **both** sides — #1276's `affectsQueryKeys`
+  plumbing and the lane's `route-serializers.ts` extraction — and the 1000-line cap must be
+  re-checked *after* the rebase because #1276's additions land on top.
+- Lane relayed at its own 70% trigger; successor inbound, to be identified by session id.
