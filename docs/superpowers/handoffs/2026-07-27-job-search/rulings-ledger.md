@@ -1577,3 +1577,53 @@ is the disqualifying property, not a safety feature.
 shape. If the answer is "none", the test is asserting against a thing that cannot happen, and its
 green tells you nothing about the thing that can. Determinism is a reason to skip a producer, never
 a reason to invent one.
+
+## N41 — N37's tripwire resolves: test 10 stays out of Tier B, and the gap it leaves is one assertion in an existing unit test
+
+N37 deferred Tier B test 10 (partial-crawl persistence) to #1306's UAT and attached an explicit
+tripwire: *"If #1306's UAT does not exercise the crawl-then-degrade path, test 10 returns to Tier
+B — this is a transfer of coverage, not a write-off, and the transfer must be checked before #1305
+closes."* Checked now, because #1305 cannot close while it hangs and `tests/uat/specs/job-search-*`
+still does not exist on disk.
+
+**The transfer was never needed. Test 10's two named risks are already covered — at better levels
+than a UAT could reach.** Named, per N37's own standard:
+
+- **"the postings landed"** — `tests/unit/job-search-crawl-stage.test.ts:225` (test 2). A healthy
+  freehire and a `rate_limited` LinkedIn in one pass; asserts **both** postings persisted, including
+  `li-2`, the *partial* haul from the portal that failed.
+- **"`lastOkAt` intact"** — `tests/integration/job-search-store.test.ts:380` (case 6), asserting at
+  `:416` that a failure write passing `lastOkAt: null` does not erase the prior value. Real
+  Postgres, against the actual `COALESCE` at `worker/store-sql.ts:361`.
+- **the failure path writes a portal row at all** — `job-search-crawl-stage.test.ts:263` (test 3),
+  for `login_required` + `enabled: false`.
+
+A UAT could not have covered the `lastOkAt` half in any case. It observes rendered UI, and portal
+"last worked" is not currently rendered at all (chat-surface's #1304 finding). Routing a
+DB-column-preservation assertion through a browser would have traded a direct assertion for an
+indirect proxy that did not yet exist.
+
+**One real gap, and it is not Tier B shaped.** Nothing asserts that a **`rate_limited`** portal's
+structured cause reaches the portal *row*. Test 2 asserts `result.degraded` — the stage's **return
+value** — not the store write. Test 3 asserts a store write, but for a different kind on the
+disabling path. So an implementation that returned the cause and forgot to persist it would pass
+all three, and the board's degraded strip reads from the row: the user would see a silently healthy
+board.
+
+Verified before ruling, and it is a **test gap, not a product bug** — `worker/stages/crawl.ts:181`
+does perform the write, with `lastOkAt: priorState?.lastOkAt ?? null` and the cause attached.
+
+Fix: append to crawl-stage test 2 that the store holds LinkedIn's portal row with
+`cause.kind === "rate_limited"` and `enabled: true`. Roughly three lines in a landed unit test.
+**#1305 is not blocked on it and must not grow an integration test for it.**
+
+**`lastOkAt` is defended twice** — the stage carries `priorState.lastOkAt` forward at `crawl.ts:178`
+*and* the SQL `COALESCE`s at `store-sql.ts:361`. Correct, but it means a stage-level regression is
+masked by the SQL layer and would never surface as a failing test. That is the argument for keeping
+the assertion at the stage.
+
+**Generalisation.** N37 demanded a file and line before accepting "covered elsewhere"; running that
+check found the coverage *and* found what it missed. The reusable shape: when you verify a claimed
+transfer, assert against the **write** site, not the return value. A stage that returns the right
+object and never persists it passes every test written against its output — the same
+reads-look-alive failure as `state: "unscored"` in #1329, one level up.
