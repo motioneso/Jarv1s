@@ -4668,3 +4668,29 @@ new pane, verified on Sonnet 5 and confirmed reading the relay-11 handoff.
   post-rebase gate on a freshly DROP/CREATEd isolated DB** (the pre-rebase rc=0 does not count),
   Task 5 PR, wrap-up. The Task 4 fixme conditions are already satisfied in `177c8754` and must not
   be redone; the real Playwright output from the live half carries into the PR body.
+
+### #1311 rebase complete — verified, driver is now `4f6d23bc` (2026-07-27)
+
+- **Rebase onto post-#1276 `origin/main` is FINISHED.** HEAD reattached to `1311-install-grant`, no
+  rebase state left. `routes.ts` conflict resolved in `8886bacf`; prettier fixup `8cdae978`.
+- The lane used **`git rebase --skip`** to get past a `--continue` that falsely refused after a
+  verified-clean resolution. `--skip` **drops the commit being replayed**, so the Coordinator
+  independently verified nothing was lost before reaping:
+  - #1276 side intact — `affectsQueryKeys` at `packages/chat/src/live/types.ts:25` and
+    `packages/chat/src/gateway-notifier.ts:53`.
+  - Lane side intact — `packages/chat/src/route-serializers.ts` present; `routes.ts` **667 lines**,
+    under the 1000-line cap (file-size gate rc=0).
+  - **25 commits ahead of `origin/main` = 23 pre-rebase + `8886bacf` + `8cdae978`.** Consistent; no
+    commit silently dropped.
+- Pre-push trio (format/lint/typecheck) all rc=0.
+- **Sole driver is now session `4f6d23bc-297f-4f72-afc5-9efaaf1efcb4`** (pane verified working,
+  Sonnet 5, distinct session id). Predecessor `545dc18b` reaped after the verification above.
+- **Outstanding:** the post-rebase `verify:foundation` on `jarvis_gate_1311installgrant` is running
+  in the background — **that run is the merge gate**; the literal exit code must be reported. Then
+  Task 5 PR (draft embedded in the relay-11 handoff), then wrap-up.
+- Task 4 fixme conditions already satisfied in `177c8754`; the live UAT half already ran for real
+  (1 passed / 1 fixme-skipped) and its Playwright output must appear **on the PR** to satisfy the
+  live-path gate.
+
+**Rule added:** when an agent reports `git rebase --skip`, verify both sides of the conflict
+survived before trusting the rebase — `--skip` discards the replayed commit and looks like success.
