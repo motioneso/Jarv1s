@@ -1,4 +1,5 @@
 import type {
+  JarvisActionPermissionTier,
   ModuleAssistantActionFamilyManifest,
   ModuleAssistantToolManifest
 } from "@jarv1s/module-sdk";
@@ -334,6 +335,23 @@ export function assertBuiltInSelfOperationManifests(
               `granted_at_install family must not default to always_confirm`
           );
         }
+        // #1311 coordinator security review: selfHealGrantedAtInstallTier fails closed (returns
+        // null) if the install-time grant insert throws, and policy.ts's
+        // `lookup.getFamilyTier(...) ?? manifest.defaultTier` fallback then reads defaultTier
+        // straight off this family. The type union above already excludes "trusted_auto" and the
+        // always_confirm check above already excludes that value too, so this is unreachable via
+        // well-typed manifests today -- that safety is an emergent property of two separately
+        // motivated checks, not a named invariant. Pin it explicitly (cast mirrors how a malformed
+        // or dynamically-built manifest could still carry this value at runtime) so fail-closed can
+        // never silently become fail-open if either of those other checks is ever weakened.
+        if (resolvedFamily && (resolvedFamily.defaultTier as string) === "trusted_auto") {
+          throw new Error(
+            `module "${manifest.id}" tool "${tool.name}" declares granted_at_install for action ` +
+              `family "${tool.actionFamilyId}" whose defaultTier is "trusted_auto": self-heal's ` +
+              `fail-closed fallback (a failed install-time grant insert) would silently resolve ` +
+              `to full trust instead of asking`
+          );
+        }
         if (tool.actionFamilyId) {
           grantedAtInstallFamilyIds.add(tool.actionFamilyId);
         }
@@ -357,6 +375,22 @@ export function assertBuiltInSelfOperationManifests(
         ) {
           throw new Error(
             `module "${manifest.id}" tool "${tool.name}" declares user_promotable without a resolvable action family allowing both trusted_auto and always_confirm`
+          );
+        }
+        // #1311 coordinator residual review: a family with no stored policy row is NOT healed by
+        // `selfHealGrantedAtInstallTier` for a user_promotable tool (that path only fires for
+        // granted_at_install families) — `getFamilyTier` returns null instead, and policy.ts's
+        // `lookup.getFamilyTier(...) ?? manifest.defaultTier` fallback then reads defaultTier
+        // straight off this family. If that default were "trusted_auto", the tool would
+        // auto-execute before the user ever promotes it — the exact thing "user_promotable" (ask
+        // by default, user may promote) forbids. Same defense-in-depth cast as the
+        // granted_at_install check above; the type union already excludes this literal.
+        if (resolvedFamily && (resolvedFamily.defaultTier as string) === "trusted_auto") {
+          throw new Error(
+            `module "${manifest.id}" tool "${tool.name}" declares user_promotable for action ` +
+              `family "${tool.actionFamilyId}" whose defaultTier is "trusted_auto": with no ` +
+              `stored policy row, getFamilyTier's null fallback would resolve to this default ` +
+              `and auto-execute before the user ever promotes it`
           );
         }
         if (tool.actionFamilyId) {
@@ -456,4 +490,41 @@ export async function grantSelfOperationForModule(
   for (const familyId of familyIds) {
     await repository.insertActionPolicyIfAbsent(scopedDb, manifest.id, familyId, "trusted_auto");
   }
+}
+
+/**
+ * Lazy self-heal for the runtime dispatch choke point (`getFamilyTier`). Modules that are
+ * `defaultEnabled`/`required` never traverse an enable PATCH, so `grantSelfOperationForModule`
+ * never runs for them and their `granted_at_install` families are stuck asking forever (#1311).
+ * Called only when no stored policy row exists for `familyId` — an absent row is the sole signal
+ * this is safe to heal (`insertActionPolicyIfAbsent` never overwrites a user's explicit choice).
+ *
+ * Returns `null` (never heals) if `familyId` is not declared `granted_at_install` by this
+ * manifest — `user_promotable` must stay ask-by-default until the user promotes it, and
+ * `confirm_always` must never auto-run. Fails closed: if the grant insert throws, returns `null`
+ * rather than assuming it succeeded. Re-reads storage after granting rather than asserting the
+ * outcome, so the answer always reflects what is actually stored.
+ */
+export async function selfHealGrantedAtInstallTier(
+  scopedDb: DataContextDb,
+  repository: Pick<AiRepository, "listActionPolicies" | "insertActionPolicyIfAbsent">,
+  manifest: SelfOperationManifestInput,
+  familyId: string
+): Promise<JarvisActionPermissionTier | null> {
+  const isGrantedAtInstall = (manifest.assistantTools ?? []).some(
+    (tool) => tool.actionFamilyId === familyId && tool.selfOperationGrant === "granted_at_install"
+  );
+  if (!isGrantedAtInstall) {
+    return null;
+  }
+
+  try {
+    await grantSelfOperationForModule(scopedDb, repository, manifest);
+  } catch {
+    return null;
+  }
+
+  const policies = await repository.listActionPolicies(scopedDb);
+  const policy = policies.find((p) => p.moduleId === manifest.id && p.actionFamilyId === familyId);
+  return policy?.tier ?? null;
 }

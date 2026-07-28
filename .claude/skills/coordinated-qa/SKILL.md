@@ -18,9 +18,9 @@ spend your budget on what CI can't do: judgment review, invariant checking, and 
 tier — an adversarial stronger-model hunt for what's NOT tested.
 
 Your output to the coordinator is the compact verdict in step 5, **and** (always) a `gh pr comment`
-posting it durably to the PR. Do not paste raw logs. **Communicate in caveman mode** (terse — drop
-articles/filler/pleasantries, keep full technical accuracy; invoke the `caveman` skill if
-registered) for the verdict and any narration, to save tokens.
+posting it durably to the PR. Do not paste raw logs. Write the verdict **terse and result-first**
+in normal English — caveman/telegraph style was removed from this family on 2026-07-27 because it
+mangled precisely the findings that need precision.
 
 ## Inputs (from your handoff / bootstrap)
 
@@ -30,9 +30,18 @@ registered) for the verdict and any narration, to save tokens.
 
 ## Procedure
 
-**1. Get on the branch.** Check out the PR branch into a **fresh worktree/checkout** of your own
-(never an author's tree). `[ -d node_modules ] || pnpm install` (shared pnpm store — skip if
-present). Confirm you're on the right HEAD (`git log --oneline -3`).
+**1. Get on the branch, then ground yourself.** Check out the PR branch into a **fresh
+worktree/checkout** of your own (never an author's tree). `[ -d node_modules ] || pnpm install`
+(shared pnpm store — skip if present). Then:
+```bash
+pnpm audit:preflight        # MUST exit 0 — a stale tree invalidates the whole review
+git rev-parse HEAD          # record this SHA in your verdict
+```
+CLAUDE.md's Grounding Discipline requires this before any audit, review, or bug hunt: a review of
+a tree that isn't what you think it is is worse than no review, because it reads as evidence. If
+preflight is non-zero, fix the tree (or report RED with "ungrounded") before reviewing anything.
+The `audit-grounding` skill covers grounding on a read-only worktree without disturbing another
+session.
 
 **2. Trust CI for the mechanical gate — don't re-run it.**
 ```bash
@@ -41,9 +50,23 @@ gh pr checks <PR>          # required checks pass/fail
 - If **all required checks are green**, record their result and move to review. Do **NOT** run
   `pnpm verify:foundation` / `audit:release-hardening` — CI already did; re-running duplicates cost
   2–4× and adds nothing.
-- **Only if CI is red** do you reproduce locally to diagnose (real exit codes, never pipe a gate to
-  `tail`/`grep` as the final stage — capture `$?` + the summary line). A known flake (e.g. pg-boss
-  worker-timeout) gets one re-run before you call it red; don't wave it off either.
+- **Green ≠ the gate ran.** Since #1277, docs-only PRs *skip* the full gate — the checks go green
+  without executing it. If the PR is docs-only that's correct and fine; if it is docs-plus-code and
+  CI skipped the gate, the skip condition is itself the finding. Say which case you're in.
+- **Only if CI is red** do you reproduce locally to diagnose. Use an isolated gate DB — with
+  `JARVIS_PGDATABASE` unset the gate writes to Ben's live dev database `jarv1s` and has taken his
+  instance down:
+  ```bash
+  GATEDB=jarvis_qa_<pr>          # jarv1s-postgres = DEV (:55433). NEVER jarv1s-prod-postgres-1.
+  docker exec jarv1s-postgres psql -U postgres -c "DROP DATABASE IF EXISTS $GATEDB;"
+  docker exec jarv1s-postgres psql -U postgres -c "CREATE DATABASE $GATEDB;"
+  export JARVIS_PGDATABASE=$GATEDB          # inline `VAR=x pnpm …` does NOT survive backgrounding
+  ( pnpm verify:foundation > /tmp/qa-vf.log 2>&1; echo "### FINAL rc=$?" >> /tmp/qa-vf.log ) &
+  grep '### FINAL' /tmp/qa-vf.log           # never a pipe as the final stage; never a wrapper echo
+  ```
+  Don't start a gate while a build lane is running one — concurrent `test:integration` has crashed
+  the shared dev Postgres into recovery. A known flake (e.g. pg-boss worker-timeout) gets one
+  re-run before you call it red; don't wave it off either.
 - A red check is **stop-the-line** unless waivable per the coordinator's CI-waiver protocol (proven
   red on `main` @ same SHA + recorded + Ben-approved) — that's the coordinator's call, not yours.
   Report it red.
@@ -59,31 +82,51 @@ git fetch origin main && git diff --stat origin/main...HEAD
   payloads, provider-agnostic AI, module isolation, migrations (never edited; module SQL in module
   `sql/`; no assumed migration numbers).
 
-**4. Tier-specific depth.**
-- `routine`: steps 1–3 are enough.
+**3b. ⛔ Live-path gate — EVERY tier, independent of the trigger map.**
+
+First ask a question the map cannot answer: **does this PR add or change a user-facing feature,
+module, or UI surface?** If yes, CI-green plus `/code-review` is not merge-ready. The PR must
+carry a `gh pr comment` with a live end-to-end proof — the feature exercised **through the real UI
+on a live dev instance**, with the UAT run and screenshots.
+
+```bash
+gh pr view <PR> --comments        # is the live-path proof actually there?
+```
+No proof comment on a user-facing PR = **MERGE-READY: NO**, at `routine` tier too. `routine` is
+exactly where this has been skipped. Report it as *code-complete, unverified* — do not soften it to
+green-with-a-note. Out of scope: docs-only, refactors with no user-visible surface, internal
+tooling. Full rule: `docs/DEVELOPMENT_STANDARDS.md` → Live-Path Gate.
+
+Then run the changed-path e2e-UAT lookup — **also every tier**, since a spec that exists and fails
+is a real failure regardless of how the diff was classified:
+
+1. Resolve the PR's paths through the data-driven lookup (new UAT coverage adds a row to the map,
+   not another conditional here):
+   ```bash
+   gh pr diff <PR> --name-only | .claude/skills/coordinate/resolve-uat-triggers.sh
+   ```
+   Each unique output row is `<blocking|advisory><TAB><spec>`. **No output does NOT mean "no live
+   proof needed"** — the map is deliberately incomplete and can only name specs that exist. Record
+   `not-triggered`, and fall back on the live-path question above, which is the real gate.
+2. Run every resolved spec exactly through the live Phase-3 harness and capture its real exit:
+   ```bash
+   if pnpm test:uat -- "$spec"; then
+     uat_exit=0
+   else
+     uat_exit=$?
+   fi
+   ```
+   This is intentionally separate from the mechanical CI gate: #1027/#1000 exists because CI's
+   mocked/isolated checks did not exercise the live install path that failed in #999.
+3. Apply Ben's locked #1027 policy from the lookup mode. `blocking` is a runtime-path gate:
+   failure makes this verdict RED and is **never waived** — fix it, then UAT again. `advisory`
+   failure is a non-blocking finding surfaced to the coordinator. Record mode, spec, and exit
+   code in the verdict either way.
+
+**4. Tier-specific depth** (on top of steps 1–3b, which every tier gets).
+- `routine`: steps 1–3b are enough.
 - `sensitive`: add an explicit invariant walk-through (DataContextDb/VaultContext, metadata-only
-  payloads, module isolation) naming each as ok/at-risk. Then run the changed-path e2e-UAT gate:
-  1. Resolve the PR's paths through the data-driven lookup (future UAT coverage adds a row to the
-     map, not another conditional):
-     ```bash
-     gh pr diff <PR> --name-only | .claude/skills/coordinate/resolve-uat-triggers.sh
-     ```
-     Each unique output row is `<blocking|advisory><TAB><spec>`. No output means no UAT spec
-     currently covers this diff, so record `not-triggered` and continue.
-  2. Run every resolved spec exactly through the live Phase-3 harness and capture its real exit:
-     ```bash
-     if pnpm test:uat -- "$spec"; then
-       uat_exit=0
-     else
-       uat_exit=$?
-     fi
-     ```
-     This is intentionally separate from the mechanical CI gate: #1027/#1000 exists because CI's
-     mocked/isolated checks did not exercise the live install path that failed in #999.
-  3. Apply Ben's locked #1027 policy from the lookup mode. `blocking` is a runtime-path gate:
-     failure makes this verdict RED and is **never waived** — fix it, then UAT again. `advisory`
-     failure is a non-blocking finding surfaced to the coordinator. Record mode, spec, and exit
-     code in the verdict either way.
+  payloads, module isolation) naming each as ok/at-risk.
 - `security`: run **`/security-review`** AND an **adversarial "what's NOT tested" pass** — you are
   spawned on a stronger model (Opus) precisely because same-lens review missed CRITICALs. Don't ask "does
   the gate pass"; ask **"which trust boundary is unproven, what attack path has no test, what does
@@ -106,7 +149,9 @@ gh pr comment <PR> --body "QA verdict (<tier>): <paste the block below>"
 
 ```
 QA <slug> (<tier>) — VERDICT: GREEN | RED
-gate: CI <green|red> (gh pr checks)[ — reproduced locally: VF_EXIT=<n> AUDIT_EXIT=<n> only if CI red]
+grounded: HEAD <sha>, audit:preflight EXIT=0
+gate: CI <green|red> (gh pr checks)[ — gate SKIPPED (docs-only rule) | reproduced locally: VF_EXIT=<n> AUDIT_EXIT=<n> only if CI red]
+live-path: <n/a, no user-facing surface | proof comment present <link> | MISSING — code-complete, unverified>
 e2e-uat: <not-triggered | mode spec EXIT=n[, ...]>
 review: <N blocking, M non-blocking>
   - BLOCKING: <file:line — one line each, or "none">
@@ -114,7 +159,7 @@ review: <N blocking, M non-blocking>
 invariants: <ok | which one is at risk>
 exit-criteria: <met | what's missing>
 not-tested (security tier): <unproven trust boundaries / missing tests, or "n/a">
-MERGE-READY: YES | NO  (NO if any blocking finding, red gate, or unmet criteria)
+MERGE-READY: YES | NO  (NO if any blocking finding, red gate, unmet criteria, or missing live-path proof)
 ```
 
 **6. You will be reaped.** The coordinator kills your session after consuming the verdict. Don't
@@ -124,8 +169,13 @@ start new work, don't merge, don't touch the board — verdict only.
 
 - **Re-running `pnpm verify:foundation` when CI is already green** — that's the wasted-budget
   anti-pattern. Trust `gh pr checks`; reproduce locally only when CI is red.
-- Skipping a sensitive-tier spec emitted by the UAT lookup, or treating a `blocking` #1027 runtime
-  failure as waivable.
+- Skipping a spec emitted by the UAT lookup, or treating a `blocking` #1027 runtime failure as
+  waivable.
+- **Returning GREEN on a user-facing PR with no live-path proof comment**, at any tier — including
+  `routine`, which is where it actually gets skipped.
+- **Reading "no UAT rows resolved" as "no live proof needed"** — the map is incomplete by design.
+- Reviewing without `pnpm audit:preflight` exiting 0, or omitting the grounded SHA.
+- Running a local gate without an isolated `JARVIS_PGDATABASE` — that writes to Ben's live instance.
 - Returning "green" from a piped exit code, or (when you did reproduce) from a partial run.
 - **Skipping the `gh pr comment`** — the PR verdict is mandatory (durable evidence; hard gate for
   security tier). Post it before you message the coordinator.
@@ -139,7 +189,9 @@ start new work, don't merge, don't touch the board — verdict only.
 
 | Need | Command / skill |
 | ---- | --------------- |
-| Gate (trust CI) | `gh pr checks <PR>` — reproduce locally ONLY if red |
+| Ground the tree (first) | `pnpm audit:preflight` (must exit 0) · `git rev-parse HEAD` |
+| Gate (trust CI) | `gh pr checks <PR>` — reproduce locally ONLY if red, on a fresh `JARVIS_PGDATABASE` |
+| Live-path gate (all tiers) | `gh pr view <PR> --comments` — user-facing PR with no live-UI proof = MERGE-READY: NO |
 | Diff vs main | `git fetch origin main && git diff --stat origin/main...HEAD` |
 | Reviews | `/code-review` (all tiers) · `/security-review` + "what's NOT tested" (security tier) |
 | Post verdict to PR | `gh pr comment <PR> --body "<compact block>"` (always; mandatory for security) |

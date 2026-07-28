@@ -74,7 +74,7 @@ import {
   type OnboardingProbes
 } from "./onboarding-routes.js";
 import { registerPersonaRoutes } from "./persona-routes.js";
-import type { ProfilePreferencesPort, PersonaPreviewInput } from "./preferences-port.js";
+import type { NotificationPreferencesPort, PersonaPreviewInput } from "./preferences-port.js";
 import { registerPriorityRoutes } from "./priority-routes.js";
 import {
   registerProactiveMonitoringSettingsRoutes,
@@ -199,7 +199,7 @@ export interface SettingsRoutesDependencies {
    * hardcoded `userScopedCountQueries` list.
    */
   readonly moduleDeletionTables: readonly { table: string; countPredicate: string }[];
-  readonly preferencesRepository?: ProfilePreferencesPort;
+  readonly preferencesRepository?: NotificationPreferencesPort;
   readonly personaPreview?: (input: PersonaPreviewInput) => Promise<string>;
   readonly repository?: SettingsRepository;
   /** #917 external-module discovery snapshot; routes added in Task 9 consume it. */
@@ -282,10 +282,14 @@ export function registerSettingsRoutes(
   dependencies: SettingsRoutesDependencies
 ): void {
   const repository = dependencies.repository ?? new SettingsRepository();
-  const preferencesRepository: ProfilePreferencesPort = dependencies.preferencesRepository ?? {
+  const preferencesRepository: NotificationPreferencesPort = dependencies.preferencesRepository ?? {
     get: async () => null,
     getWithMetadata: async () => null,
-    upsert: async () => undefined
+    upsert: async () => undefined,
+    getWithRevision: async () => null,
+    upsertWithRevision: async (_scopedDb, _key, _value, expectedRevision) => ({
+      revision: (expectedRevision ?? 0) + 1
+    })
   };
   const bootstrapHelper = new BootstrapHelper(dependencies.rootDb);
   registerLocaleRoutes(server, { ...dependencies, preferencesRepository });

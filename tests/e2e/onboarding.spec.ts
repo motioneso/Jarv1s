@@ -40,7 +40,9 @@ test("bootstrap owner with incomplete onboarding sees the wizard, then the app s
   await expect(
     page.getByLabel("Onboarding step").getByText("Google", { exact: true })
   ).toBeVisible();
-  await page.getByRole("button", { name: "Open today’s brief" }).click();
+  // b4d70e21 ("remove unreliable finish choices") collapsed the three finish buttons into one that
+  // always lands on /today, so the old "Open today’s brief" label is gone.
+  await page.getByRole("button", { name: "Finish setup" }).click();
 
   // After finish the status mock returns state:"completed"; the app.tsx branch falls through.
   await expect(
@@ -48,30 +50,11 @@ test("bootstrap owner with incomplete onboarding sees the wizard, then the app s
   ).not.toBeVisible();
 });
 
-test("onboarding finish settings destination reaches Settings", async ({ page }) => {
-  await mockApi(page, {
-    authenticated: true,
-    isInstanceAdmin: true,
-    chatThreads: [],
-    connectorAccounts: [],
-    connectorProviders: createMockConnectorProviders(),
-    notifications: [],
-    tasks: [],
-    onboardingStatus: defaultOnboardingStatus()
-  });
-
-  await page.goto("/");
-  await page.getByRole("button", { name: /Start setup/ }).click();
-  const continueButton = page.getByRole("button", { name: /Continue/ });
-  while (await continueButton.isVisible()) {
-    await continueButton.click();
-  }
-
-  await page.getByRole("button", { name: "Go to settings" }).click();
-
-  await expect(page).toHaveURL(/\/settings(?:\?|$)/);
-  await expect(page.getByRole("navigation", { name: "Settings categories" })).toBeVisible();
-});
+// REMOVED: "onboarding finish settings destination reaches Settings". b4d70e21 ("remove unreliable
+// finish choices") deleted the finish step's per-destination buttons — it is now a single "Finish
+// setup" that always lands on /today, because the old choice navigated via
+// window.location.replace and was flaky. Ben approved dropping the Settings exit on 2026-07-27;
+// users reach Settings from the shell afterwards. The remaining finish coverage is the test above.
 
 test("Skip setup on the first step reaches the app shell", async ({ page }) => {
   await mockApi(page, {

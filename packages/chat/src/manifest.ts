@@ -11,6 +11,11 @@ import {
 import { chatListTodaysTurnsExecute } from "./tools.js";
 import { chatGetCurrentViewExecute, chatGetCurrentViewOutputSchema } from "./current-view-tool.js";
 import { chatReadAttachmentExecute } from "./attachment-tool.js";
+import {
+  chatSetResponseStyleExecute,
+  chatSetResponseStyleInputSchema,
+  chatSetResponseStyleOutputSchema
+} from "./response-style-tool.js";
 
 const CHAT_MODULE_ID = "chat";
 export const chatModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
@@ -175,6 +180,15 @@ export const chatModuleManifest = {
     { method: "DELETE", path: "/api/chat/skills/:id", permissionId: "chat.message" },
     { method: "POST", path: "/api/chat/skills/import", permissionId: "chat.message" }
   ],
+  assistantActionFamilies: [
+    {
+      id: "chat.preference-write",
+      label: "Chat preference changes",
+      description: "Update personal chat preferences such as response style.",
+      defaultTier: "ask_each_time",
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
+    }
+  ],
   assistantTools: [
     {
       name: "chat.listTodaysTurns",
@@ -209,6 +223,18 @@ export const chatModuleManifest = {
         properties: { attachmentId: { type: "string" } }
       },
       execute: chatReadAttachmentExecute
+    },
+    {
+      name: "chat.setResponseStyle",
+      description: "Set the assistant's default response style (concise, balanced, or detailed).",
+      permissionId: "chat.message",
+      risk: "write",
+      selfOperationGrant: "granted_at_install",
+      actionFamilyId: "chat.preference-write",
+      executionPolicy: "auto",
+      inputSchema: chatSetResponseStyleInputSchema,
+      outputSchema: chatSetResponseStyleOutputSchema,
+      execute: chatSetResponseStyleExecute
     }
   ]
 } satisfies JarvisModuleManifest;

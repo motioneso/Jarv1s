@@ -34,10 +34,16 @@ export {
   type NativeToolPermissionResponse
 } from "./gateway.js";
 export {
+  AutoRunRateLimiter,
+  GATEWAY_AUTO_RUN_RATE_LIMIT_DEFAULTS,
+  type AutoRunRateLimiterOptions
+} from "./auto-run-rate-limit.js";
+export {
   assertBuiltInSelfOperationManifests,
   BUILT_IN_SELF_OPERATION_SCOPE_NOTE,
   grantSelfOperationForModule,
   isSelfOperationExcluded,
+  selfHealGrantedAtInstallTier,
   SELF_OPERATION_EXCLUSIONS,
   type SelfOperationExclusionCategory,
   type SelfOperationManifestInput

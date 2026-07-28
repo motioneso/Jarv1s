@@ -429,6 +429,7 @@ const onboardingLoginRouteSchema = {
     400: errorResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema,
+    503: errorResponseSchema,
     500: errorResponseSchema
   }
 } as const;
@@ -440,6 +441,7 @@ const onboardingLoginPollRouteSchema = {
     400: errorResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema,
+    503: errorResponseSchema,
     500: errorResponseSchema
   }
 } as const;
@@ -451,6 +453,7 @@ const onboardingLoginSubmitTokenRouteSchema = {
     400: errorResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema,
+    503: errorResponseSchema,
     500: errorResponseSchema
   }
 } as const;
@@ -462,6 +465,7 @@ const onboardingLoginCancelRouteSchema = {
     400: errorResponseSchema,
     401: errorResponseSchema,
     403: errorResponseSchema,
+    503: errorResponseSchema,
     500: errorResponseSchema
   }
 } as const;

@@ -21,7 +21,10 @@ import {
 } from "@jarv1s/notifications";
 import type { PgBoss } from "@jarv1s/jobs";
 
-import type { ProfilePreferencesPort } from "./preferences-port.js";
+import { PreferenceRevisionConflictError } from "@jarv1s/structured-state";
+
+import { setNotificationPreferenceEnabled } from "./notification-preference-application.js";
+import type { NotificationPreferencesPort } from "./preferences-port.js";
 import type { SettingsRepository } from "./repository.js";
 import { handleSettingsRouteError } from "./route-error.js";
 import { toMyModuleDto } from "./routes-serializers.js";
@@ -36,7 +39,7 @@ interface NotificationPreferencesRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly listModuleManifests: () => readonly JarvisModuleManifest[];
-  readonly preferencesRepository: ProfilePreferencesPort;
+  readonly preferencesRepository: NotificationPreferencesPort;
   readonly repository: SettingsRepository;
   readonly notificationUnreadPort?: NotificationUnreadPort;
   readonly boss?: Pick<PgBoss, "schedule" | "unschedule">;
@@ -72,35 +75,21 @@ export function registerNotificationPreferencesRoutes(
         const body = request.body as PutNotificationPreferenceRequest;
         const result = await dependencies.dataContext.withDataContext(
           accessContext,
-          async (scopedDb) => {
-            const manifest = dependencies
-              .listModuleManifests()
-              .find((m) => m.id === request.params.moduleId);
-            if (!manifest) throw new HttpError(404, "Module not found");
-            if (manifest.notifications?.supported !== true) {
-              throw new HttpError(422, "Module does not support notifications");
-            }
-            const current = await toPreferenceDto(
+          async (scopedDb) =>
+            setNotificationPreferenceEnabled(
               scopedDb,
               dependencies,
-              manifest,
-              accessContext.actorUserId
-            );
-            if (!current) throw new HttpError(422, "Module is not active for this user");
-
-            const preference = { ...current, enabled: body.enabled };
-            await dependencies.preferencesRepository.upsert(scopedDb, KEY(manifest.id), {
-              enabled: body.enabled
-            });
-            const unreadCount =
-              !body.enabled && body.clearUnread === true && dependencies.notificationUnreadPort
-                ? await dependencies.notificationUnreadPort.markModuleRead(scopedDb, manifest.id)
-                : null;
-            return { preference, unreadCount };
-          }
+              accessContext.actorUserId,
+              request.params.moduleId,
+              body.enabled,
+              body.clearUnread === true
+            )
         );
         return result;
       } catch (error) {
+        if (error instanceof PreferenceRevisionConflictError) {
+          return reply.code(409).send({ error: error.message });
+        }
         return handleSettingsRouteError(error, reply);
       }
     }

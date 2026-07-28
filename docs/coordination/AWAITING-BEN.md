@@ -1,9 +1,15 @@
 # Awaiting Ben
 
-Decisions parked because they are product calls, not implementation calls. Each entry names both
-sides and a recommended reading, so confirming one line is enough to unblock.
+Decisions that need Ben and only Ben. Each entry says what is blocked and what the options are.
+Remove an entry once he rules and the ruling is recorded where the work lives.
+
+The two 2026-07-27 entries that lived here before (the live-path gate, and the voice/STT spec
+approval) are both resolved and were removed on main — the live-path gate was adopted and is now a
+hard invariant in `CLAUDE.md`, and the voice/STT spec turned out to be already approved and built
+(#874), only its status line was stale.
 
 ---
+
 
 ## 1. Does the core chat drawer show a module's thread while you are inside that module?
 
@@ -86,3 +92,4 @@ alternative, spec §7 needs an amendment and the job-search UAT's drawer phase c
 
 **Not guessed in the meantime.** The UAT phase is being written against the spec's contract with the
 conflict cited inline, so whichever way it goes the assertion is one edit, not a rewrite.
+

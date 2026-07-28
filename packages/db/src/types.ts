@@ -693,6 +693,7 @@ export interface PreferencesTable {
   owner_user_id: string;
   key: string;
   value_json: JsonColumn;
+  revision: ColumnType<number, number | undefined, number>;
   updated_at: TimestampColumn;
 }
 

@@ -77,6 +77,10 @@ describe("writeUatEnvFile", () => {
       // #1024/#1000: bare level has no users/data to embed, so the stub provider avoids an
       // unnecessary model download on every ephemeral run (spec §3.3 model-cache-volume note).
       expect(contents).toContain("JARVIS_EMBED_PROVIDER=stub");
+      // #1313: NODE_ENV=production here means createEmbeddingProvider's test/dev gate would
+      // otherwise refuse "stub" and silently fall back to "local" — this escape hatch is what
+      // actually keeps the stub provider (not a real model download) in effect for this instance.
+      expect(contents).toContain("JARVIS_ALLOW_STUB_EMBEDDINGS=1");
       expect(contents).toContain("JARVIS_MIGRATION_DATABASE_URL=");
       // #1024/#1000: NODE_ENV=production means resolveKeyring enforces this (>=32 bytes) since
       // #918 Slice 2 — a real boot crash Task 7's live run caught (JARVIS_MODULE_CREDENTIAL_SECRET_KEY

@@ -12,10 +12,91 @@ permissions:
   contents: read
 
 jobs:
+  # Classifies a PR as docs-only so the heavy jobs can be skipped. Measured 2026-07-27:
+  # a docs-only PR paid ~35 min of CI (verify 21m + the sequential publish build 13.5m)
+  # to validate nothing but prettier formatting. Push/tag events always classify as
+  # code so main and releases keep the full gate unconditionally.
+  changes:
+    name: Detect change scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      docs_only: ${{ steps.scope.outputs.docs_only }}
+
+    steps:
+      - name: Classify changed paths
+        id: scope
+        env:
+          # Passed as env, never interpolated into the script body — PR metadata is
+          # attacker-controllable on fork PRs.
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            echo "Not a pull request — running the full gate."
+            exit 0
+          fi
+          # The API file list avoids fetch-depth games and merge-base guesswork.
+          gh api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate --jq '.[].filename' > files.txt
+          echo "Changed files:"; cat files.txt
+          # docs-only == every changed path is under docs/ or is a markdown file.
+          # Anything else (source, sql, css, package.json, .github/**) forces the full gate.
+          # Counted rather than exit-code-tested: `grep -v … >/dev/null` is easy to get
+          # subtly wrong, and the safe direction of a mistake here is "run the full gate".
+          non_docs=$(grep -vcE '(^docs/|\.md$)' files.txt || true)
+          if [ ! -s files.txt ] || [ "${non_docs:-1}" -gt 0 ]; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            echo "$non_docs non-doc file(s) changed — running the full gate."
+          else
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+            echo "Docs-only change — running formatting and file-size checks only."
+          fi
+
+  # Docs-only PRs still have to pass the two gates that actually cover markdown:
+  # prettier (format:check runs over `.`) and check:file-size (its extension list
+  # includes .md). Skipping these would let unformatted docs reach main and break
+  # the NEXT PR's format:check — the failure mode this filter must not introduce.
+  docs-gate:
+    name: Verify docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'true'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.6.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Check file size
+        run: pnpm check:file-size
+
   verify:
     name: Verify foundation and app
     runs-on: ubuntu-latest
     timeout-minutes: 35 # stopgap: branch VF runs ~+75% vs main, no hang confirmed (see #1127)
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
 
     steps:
       - name: Check out repository
@@ -64,6 +145,8 @@ jobs:
     name: Compose deployment smoke
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     env:
       JARVIS_API_PORT: "3099"
       JARVIS_WEB_PORT: "5180"
@@ -97,6 +180,8 @@ jobs:
     name: Prod compose deployment smoke
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -131,6 +216,11 @@ jobs:
           JARVIS_MODULE_CREDENTIAL_SECRET_KEY=22222222222222222222222222222222
           JARVIS_CLI_RUNNER_RPC_SECRET=ci-smoke-only-not-real
           JARVIS_EMBED_PROVIDER=stub
+          # #1313: this smoke instance runs NODE_ENV=production (not the vitest NODE_ENV=test
+          # signal), so without this explicit escape hatch createEmbeddingProvider would now
+          # refuse "stub" and silently fall back to "local" -- reintroducing exactly the
+          # real-model network download this smoke instance is built to avoid.
+          JARVIS_ALLOW_STUB_EMBEDDINGS=1
           EOF
       - name: Run prod compose smoke (builds images + in-image migrate)
         env:

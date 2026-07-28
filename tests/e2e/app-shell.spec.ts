@@ -70,7 +70,10 @@ test("hides admin-only settings sections for a non-admin user", async ({ page })
   await page.goto("/settings");
 
   await expect(page.getByRole("heading", { name: "Account & preferences" })).toBeVisible();
-  await expect(page.getByText("Member of this instance.")).toBeVisible();
+  // The recovered 2026-07-19 profile polish dropped the redundant "Role" row (its blurb read
+  // "Member of this instance.") because the header badge already states the role. Assert the badge
+  // instead, so this still proves a non-admin gets their own identity surface.
+  await expect(page.locator(".prof__badges").getByText("Member", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Admin / Setup" })).toHaveCount(0);
   await expect(page.getByText("People & access")).toHaveCount(0);
 });
@@ -398,5 +401,144 @@ test.describe("Chat drawer — Approve/Reject card", () => {
     // Assert the rejection decision and the path's action-request id actually went over the wire.
     expect(resolveBody).toEqual({ status: "rejected" });
     expect(resolveUrl).toContain("/api/chat/action-requests/ar_test_2/resolve");
+  });
+
+  // #1264: mutation-tight frontend counterpart to
+  // tests/integration/mcp-gateway-self-operation.test.ts's "first use after install grant runs
+  // without an action card" — that test proves the real gateway emits ONLY an `action_result`
+  // record (never `action_request`) for a granted-tier tool. This test feeds the live SSE stream
+  // that exact event shape and proves the drawer can structurally never render an Approve/Reject
+  // card for it, and never calls the resolve endpoint at all (a network-level proof, not just a
+  // DOM-selector absence). The real chat turn that would produce this event end-to-end needs a
+  // real chat model, which the UAT harness doesn't have — see
+  // tests/uat/specs/1264-settings-self-operation.uat.spec.ts's file header.
+  test("granted-tier settings tool executes with no Approve/Reject card (#1264)", async ({
+    page
+  }) => {
+    await mockApi(page, {
+      authenticated: true,
+      connectorAccounts: [],
+      connectorProviders: createMockConnectorProviders(),
+      notifications: [],
+      tasks: []
+    });
+
+    const actionResultEvent = JSON.stringify({
+      kind: "action_result",
+      text: "Switched to dark mode.",
+      toolName: "settings.themeMode.set",
+      outcome: "executed"
+    });
+    let streamServed = false;
+    await page.route("**/api/chat/stream", async (route) => {
+      if (streamServed) {
+        return;
+      }
+      streamServed = true;
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        headers: { "cache-control": "no-cache" },
+        body: `data: ${actionResultEvent}\n\n`
+      });
+    });
+
+    let resolveCallCount = 0;
+    await page.route("**/api/chat/action-requests/*/resolve", (route) => {
+      resolveCallCount += 1;
+      return route.fulfill({ status: 204, body: "" });
+    });
+
+    await page.goto("/");
+    await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+
+    // action_result records collapse into the "Behind the scenes" activity peek
+    // (apps/web/src/chat/message-row.tsx groupRecords/ActivityPeek), never the Approve/Reject
+    // card — the card only renders for a `kind === "action_request"` record.
+    const peekSummary = page.getByText("Behind the scenes");
+    await expect(peekSummary).toBeVisible({ timeout: 3000 });
+    await peekSummary.click();
+    await expect(page.getByText("Executed")).toBeVisible();
+
+    await expect(page.locator(".action-request-card")).toHaveCount(0);
+    expect(resolveCallCount).toBe(0);
+  });
+
+  // #1310: proves the generic, declaration-driven invalidation wiring end-to-end at the
+  // frontend seam — a chat-driven action_result carrying affectsQueryKeys triggers a
+  // real query refetch and the DOM updates with no page.reload(). This mocks the SSE
+  // stream and the themes route, so it does NOT by itself satisfy #1310's "real dev
+  // instance" exit criterion (a live chat turn against a real model) — see the UAT spec
+  // referenced in the previous test's comment for that proof.
+  test("chat-driven settings write auto-refreshes theme UI with no reload (#1310)", async ({
+    page
+  }) => {
+    await mockApi(page, {
+      authenticated: true,
+      connectorAccounts: [],
+      connectorProviders: createMockConnectorProviders(),
+      notifications: [],
+      tasks: []
+    });
+
+    let themeFetchCount = 0;
+    await page.route("**/api/me/themes", (route) => {
+      themeFetchCount += 1;
+      const mode = themeFetchCount === 1 ? "light" : "dark";
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          builtIn: [
+            { id: "light", name: "Light", builtIn: true },
+            { id: "dark", name: "Dark", builtIn: true }
+          ],
+          custom: [],
+          activeId: mode,
+          mode
+        })
+      });
+    });
+
+    const actionResultEvent = JSON.stringify({
+      kind: "action_result",
+      text: "Switched to dark mode.",
+      toolName: "settings.themeMode.set",
+      outcome: "executed",
+      actionRequestId: "ar_theme_1",
+      affectsQueryKeys: ["settings.themes"]
+    });
+    let streamServed = false;
+    await page.route("**/api/chat/stream", async (route) => {
+      if (streamServed) {
+        return;
+      }
+      streamServed = true;
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        headers: { "cache-control": "no-cache" },
+        body: `data: ${actionResultEvent}\n\n`
+      });
+    });
+
+    await page.goto("/");
+
+    // Initial load fetches light mode before the chat-driven write ever happens.
+    await expect(page.locator("html")).toHaveAttribute("data-color-mode", "light");
+
+    await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+
+    const peekSummary = page.getByText("Behind the scenes");
+    await expect(peekSummary).toBeVisible({ timeout: 3000 });
+    await peekSummary.click();
+    await expect(page.getByText("Executed")).toBeVisible();
+
+    // No page.reload() anywhere above — the attribute flips purely from the generic
+    // invalidation effect resolving "settings.themes" and refetching.
+    await expect(page.locator("html")).toHaveAttribute("data-color-mode", "dark", {
+      timeout: 3000
+    });
+    expect(themeFetchCount).toBeGreaterThanOrEqual(2);
   });
 });

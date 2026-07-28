@@ -12,6 +12,8 @@ export { CORE_VERSION, compareJarvisVersions, satisfiesCoreVersion } from "./cor
 export { createModuleLogger } from "./logger.js";
 export * from "./module-params.js";
 
+import type { ModuleExternalSourceManifest } from "./external-module.js";
+
 export type ModuleLifecycle = "required" | "optional" | "user-toggleable" | "workspace-toggleable";
 export type ModuleScope = "user" | "admin" | "system";
 export type ModulePermissionAction = "view" | "create" | "update" | "delete" | "manage" | "execute";
@@ -557,6 +559,14 @@ export interface ModuleAssistantToolManifest {
    * reaching the model. Internal tools whose output Jarvis controls must leave this unset.
    */
   readonly externalContent?: boolean;
+  /**
+   * Dot-path tokens into the frontend's `queryKeys` object (e.g. "settings.themes") that this
+   * tool's successful write makes stale. The gateway copies this onto the `action_result` live
+   * stream record only when the call executed; the frontend resolves each token generically and
+   * invalidates the matching React Query cache entry. Declaration only — no frontend code needed
+   * per tool. Omit for read-only tools and for writes with no cached frontend read to refresh.
+   */
+  readonly affectsQueryKeys?: readonly string[];
 }
 
 export interface JarvisModuleManifest {
@@ -593,13 +603,39 @@ export interface ModuleAssistantOnboardingManifest {
   readonly guidance: string;
 }
 
-// #1328: the external (downloadable) module ABI — auth/storage/web/worker declarations,
-// the queue/schedule/reconcile-job shapes, JsonJarvisModuleManifest, and the dataset-connector
-// adapter surface — moved to ./external-manifest.ts to bring this barrel back under the
-// file-size cap. Re-exported here so existing barrel consumers are unaffected; imported as a
-// type below because JarvisModuleManifest (above) references ModuleExternalSourceManifest.
-export * from "./external-manifest.js";
-import type { ModuleExternalSourceManifest } from "./external-manifest.js";
+// Split out of index.ts (file-size gate) — external/downloadable module ABI (#917/#918/#964/
+// #1019 dataset connector SDK, plus the #1281/#1282/#1285/#1286/#1309 additions from epic
+// #1280). Re-exported verbatim so no consumer import path changes. The list is explicit rather
+// than `export *`: adding a symbol to external-module.ts is a deliberate widening of the SDK's
+// public surface, so it has to be named here too.
+export {
+  EMBED_BATCH_MAX,
+  MAX_INVOCATION_MS,
+  MODULE_WORKER_CONTRACT_VERSION,
+  type ExternalJarvisModulePackage,
+  type ExternalModuleAssistantToolDeclaration,
+  type ExternalModuleBriefingDeclaration,
+  type ExternalModuleDatabaseDeclaration,
+  type ExternalModuleNavigationEntry,
+  type ExternalModuleQueueDeclaration,
+  type ExternalModuleReconcileJobDeclaration,
+  type ExternalModuleScheduleDeclaration,
+  type ExternalModuleWorkerDeclaration,
+  type ExternalSourceAdapter,
+  type ExternalSourceAdapterContext,
+  type JsonJarvisModuleManifest,
+  type ModuleAuthDeclaration,
+  type ModuleDatasetManifest,
+  type ModuleExternalSourceCredential,
+  type ModuleExternalSourceManifest,
+  type ModuleFetchRequest,
+  type ModuleFetchResponse,
+  type ModuleParamScalarSchema,
+  type ModuleParamsSchema,
+  type ModuleStorageDeclaration,
+  type ModuleWebDeclaration,
+  type ModuleWorkerDeclaration
+} from "./external-module.js";
 
 /** Context passed to a module's data-lifecycle hooks (export collect, etc.). */
 export interface ModuleLifecycleContext {

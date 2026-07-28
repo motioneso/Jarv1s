@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { createSanitizedTmuxIo } from "../../packages/cli-runner/src/runner-io.js";
 import { buildSanitizedCliEnv } from "../../packages/cli-runner/src/sanitized-env.js";
+import { buildCliRunnerChildEnv } from "../../packages/cli-runner/src/main.js";
 
 describe("buildSanitizedCliEnv (§7.2)", () => {
   const source: NodeJS.ProcessEnv = {
@@ -65,6 +66,33 @@ describe("buildSanitizedCliEnv (§7.2)", () => {
     expect(env.SOME_RANDOM_VAR).toBeUndefined();
     // JARVIS_MULTIPLEXER is server spawn config, NOT for the CLI child (§7.2).
     expect(env.JARVIS_MULTIPLEXER).toBeUndefined();
+  });
+});
+
+describe("buildCliRunnerChildEnv", () => {
+  it("uses the configured auth volume as HOME even when the runner inherited the host HOME", async () => {
+    const authHome = "/tmp/jarv1s-test-cli-auth";
+    const source: NodeJS.ProcessEnv = {
+      PATH: process.env.PATH,
+      HOME: "/home/ben",
+      JARVIS_CLI_HOME: authHome,
+      JARVIS_CLI_HOME_BASE: authHome,
+      JARVIS_CLI_RUNNER_RPC_SECRET: "must-not-leak"
+    };
+
+    const env = buildCliRunnerChildEnv({ homeBase: authHome }, source);
+    expect(env.HOME).toBe(authHome);
+    expect(env.JARVIS_CLI_HOME).toBe(authHome);
+    expect(env.JARVIS_CLI_HOME_BASE).toBe(authHome);
+    expect(env.JARVIS_CLI_RUNNER_RPC_SECRET).toBeUndefined();
+
+    const io = createSanitizedTmuxIo(env);
+    const result = await io.run(process.execPath, [
+      "-e",
+      "process.stdout.write(JSON.stringify({home: process.env.HOME, cliHome: process.env.JARVIS_CLI_HOME}))"
+    ]);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ home: authHome, cliHome: authHome });
   });
 });
 

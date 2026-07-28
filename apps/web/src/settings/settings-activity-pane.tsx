@@ -49,7 +49,9 @@ function outcomeLabel(outcome: ActionAuditLogEntryDto["outcome"]): string {
     success: "Done",
     failed: "Failed",
     denied: "Declined",
-    cancelled: "Cancelled"
+    cancelled: "Cancelled",
+    invalid: "Invalid",
+    conflict: "Conflict"
   };
   return labels[outcome];
 }
@@ -65,7 +67,9 @@ function relativeTime(iso: string): string {
 }
 
 function isDistinct(outcome: ActionAuditLogEntryDto["outcome"]): boolean {
-  return outcome === "failed" || outcome === "denied";
+  return (
+    outcome === "failed" || outcome === "denied" || outcome === "invalid" || outcome === "conflict"
+  );
 }
 
 export function ActivityPane(_props: PaneProps) {

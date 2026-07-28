@@ -15,15 +15,36 @@ export class TasksCompatibilityHelper {
     );
     const legacy = await this.prefs.getWithMetadata<boolean>(db, LEGACY_AGENCY_AUTO_EXECUTE_KEY);
 
-    if (!canonical && !legacy) return "ask_each_time";
+    if (!canonical && !legacy) return this.healInstallGrantAndReread(db);
     if (canonical && !legacy) return canonical.value;
     if (!canonical && legacy) return legacy.value ? "trusted_auto" : "ask_each_time";
 
-    // Both exist, use the most recently updated
-    if (canonical!.updatedAt >= legacy!.updatedAt) {
-      return canonical!.value;
-    }
-    return legacy!.value ? "trusted_auto" : "ask_each_time";
+    // Both exist: canonical is unconditionally authoritative. setTaskChangesPolicy always writes
+    // canonical then legacy, so legacy's timestamp is essentially always >= canonical's — a
+    // timestamp tie-break would silently prefer legacy's boolean, which cannot represent
+    // "always_confirm" and would drop that tier back to "ask_each_time" on every read. Legacy is
+    // never written independently of canonical (grepped: only setTaskChangesPolicy writes it), so
+    // there is no real scenario where legacy being newer should win.
+    return canonical!.value;
+  }
+
+  /**
+   * #1311 tasks-side fix: the neither-row branch above must never assert "trusted_auto" — a
+   * concurrent write (an explicit setTaskChangesPolicy, or another request's own install grant)
+   * can land between the neither-check and this call. grantInstallTimeTrustIfUnset is a single
+   * atomic NOT-EXISTS insert, so it's a no-op if a row already landed; re-reading storage after
+   * it runs is what makes the return value always match what's actually stored, mirroring
+   * selfHealGrantedAtInstallTier's re-read discipline
+   * (packages/ai/src/gateway/self-operation.ts:495-519). Exposed (not private) so tests can
+   * exercise the both-absent code path directly against a pre-seeded row.
+   */
+  async healInstallGrantAndReread(db: DataContextDb): Promise<JarvisActionPermissionTier> {
+    await this.grantInstallTimeTrustIfUnset(db);
+    const reread = await this.prefs.getWithMetadata<JarvisActionPermissionTier>(
+      db,
+      TASK_CHANGES_POLICY_KEY
+    );
+    return reread?.value ?? "ask_each_time";
   }
 
   async setTaskChangesPolicy(db: DataContextDb, tier: JarvisActionPermissionTier): Promise<void> {

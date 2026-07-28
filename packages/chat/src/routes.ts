@@ -1,17 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { extractTimezone } from "./locale-utils.js";
-import { sql, type Kysely } from "kysely";
+import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
-import type {
-  AccessContext,
-  ChatMessage,
-  ChatThread,
-  DataContextDb,
-  DataContextRunner,
-  JarvisDatabase,
-  PreferencesPort
-} from "@jarv1s/db";
+import type { AccessContext, DataContextRunner, JarvisDatabase, PreferencesPort } from "@jarv1s/db";
 import {
   AI_MODEL_CAPABILITIES,
   CHAT_SETTINGS_PREFERENCE_KEY,
@@ -23,14 +14,7 @@ import {
   putChatSettingsRouteSchema,
   type AiModelCapability,
   type AnswerSourceSupportCard,
-  type ChatActivityEventDto,
-  type ChatMessageDto,
-  type ChatSelectedToolMetadataDto,
-  type ChatThreadDto,
-  type FreshnessKind,
-  type PutChatSettingsRequest,
-  type SourceFreshnessEntry,
-  type SourceFreshnessV1
+  type PutChatSettingsRequest
 } from "@jarv1s/shared";
 import {
   AiRepository,
@@ -38,15 +22,12 @@ import {
   ConfirmationRegistry,
   SessionTokenRegistry,
   type ActiveModulesResolver,
-  type AssistantToolGatewayDependencies,
   type GatewaySessionRecord,
   type ProviderKind,
   type SessionNotifier
 } from "@jarv1s/ai";
-import { CalendarRepository, sendCalendarCacheEvictJob } from "@jarv1s/calendar";
-import { EmailRepository } from "@jarv1s/email";
 import { PreferencesRepository } from "@jarv1s/structured-state";
-import { getConnectorSyncAt, type ConnectorSecretCipher } from "@jarv1s/connectors";
+import { getConnectorSyncAt } from "@jarv1s/connectors";
 import type {
   ConnectorsRepository,
   FeatureGrantService,
@@ -54,31 +35,19 @@ import type {
   GoogleConnectionService,
   SourceContextService
 } from "@jarv1s/connectors";
-import { sendJob } from "@jarv1s/jobs";
 import {
   ChatMemoryFactsRepository,
   ChatMemorySuppressionsRepository,
   createMemoryFactSignature
 } from "@jarv1s/memory";
-import { handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
 import {
-  NOTES_SYNC_QUEUE,
-  type NotesSyncJobPayload,
-  type NotesSyncToolService
-} from "@jarv1s/notes";
-import { TasksCompatibilityHelper } from "@jarv1s/tasks";
-
-const YOLO_INSTANCE_SETTING_KEY = "yolo.instance_enabled";
-const YOLO_ALLOWED_PREF_KEY = "yolo.allowed";
-const YOLO_ENABLED_PREF_KEY = "yolo.enabled";
-
-import { buildCalendarWriteService } from "./calendar-write-impl.js";
-import { buildEmailWriteService } from "./email-write-impl.js";
+  handleRouteError as handleModuleRouteError,
+  type JarvisModuleManifest
+} from "@jarv1s/module-sdk";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
 import { readRouteSurface } from "./live/chat-surface.js";
 import { registerChatLiveRoutes, type EveningInterviewSeed } from "./live-routes.js";
 import { CliChatUnavailableError } from "./live/errors.js";
-import { NATIVE_CONFIRM_TIMEOUT_MS } from "./live/claude-permission-hook.js";
 import { createCurrentViewReadService, type CurrentViewReadService } from "./live/current-view.js";
 import { PageContextStore } from "./live/page-context-store.js";
 import type { PassiveMemoryGraphRecallPort } from "./live/passive-retrieval.js";
@@ -94,19 +63,26 @@ import {
   parseSettingsPatch,
   serializeCorrection,
   serializeFact,
-  serializeSettings,
-  toIsoString
+  serializeSettings
 } from "./memory-serializers.js";
 import { readStoredProvenance, provenanceCards } from "./live/answer-provenance.js";
 import { registerMcpTransportRoute, registerNativePermissionRoute } from "./mcp-transport.js";
 import { VaultContextRunner, getVaultBaseDir } from "@jarv1s/vault";
 
-import { readAttachments, registerChatAttachmentRoutes } from "./attachments-routes.js";
+import { registerChatAttachmentRoutes } from "./attachments-routes.js";
 import { ChatAttachmentsService } from "./attachments-service.js";
 import { ChatRepository } from "./repository.js";
+import { asRecord, serializeMessage, serializeThread } from "./route-serializers.js";
 import { registerChatSkillsRoutes } from "./skills/routes.js";
 import { ChatSkillsRepository } from "./skills/repository.js";
-import type { AppMapReadService } from "@jarv1s/settings";
+import { type AppMapReadService } from "@jarv1s/settings";
+import { buildChatGatewayDependencies } from "./gateway-services.js";
+
+export {
+  buildChatGatewayDependencies,
+  buildChatToolServices,
+  resolveYoloMode
+} from "./gateway-services.js";
 
 const STALE_ACTION_GRACE_MS = 5 * 60_000;
 
@@ -141,6 +117,8 @@ export interface ChatRoutesDependencies {
   readonly sourceContextService?: SourceContextService;
   /** Injected by the composition root; app-map read tool (#1110). Never bucket under collaborators. */
   readonly appMapService?: AppMapReadService;
+  /** Injected by the composition root; settings.notificationPreference.setEnabled tool service. */
+  readonly listModuleManifests?: () => readonly JarvisModuleManifest[];
   /**
    * #342 (§3.5 boot-time fork) — when no explicit {@link chatEngineFactory} is supplied, hand this to
    * {@link createChatSessionRuntime} so the runtime selects the engine factory itself: the RPC client
@@ -257,7 +235,8 @@ export function registerChatRoutes(
                 sourceContextService: dependencies.sourceContextService,
                 currentViewService,
                 // #1133 — lets the engine pull attachment bytes via chat.readAttachment.
-                attachmentsService
+                attachmentsService,
+                listModuleManifests: dependencies.listModuleManifests
               },
               appMapService: dependencies.appMapService,
               agencyPreferences: dependencies.agencyPreferences,
@@ -677,312 +656,6 @@ export function registerChatRoutes(
       }
     }
   );
-}
-
-/**
- * Builds the gateway toolServices map from optional collaborators. Missing service collaborators
- * simply omit that service, so the gateway fail-closed filter hides unsatisfiable tools.
- */
-export function buildChatToolServices(deps: {
-  googleConnectionService?: GoogleConnectionService;
-  googleApiClient?: GoogleApiClient;
-  connectorsRepository?: ConnectorsRepository;
-  cipher?: ConnectorSecretCipher;
-  boss?: PgBoss;
-  featureGrantService?: FeatureGrantService;
-}): Record<string, unknown> {
-  const services: Record<string, unknown> = {};
-  if (deps.googleConnectionService && deps.googleApiClient && deps.connectorsRepository) {
-    services.calendarWrite = buildCalendarWriteService({
-      googleService: deps.googleConnectionService,
-      googleApiClient: deps.googleApiClient,
-      connectorsRepository: deps.connectorsRepository,
-      calendarRepository: new CalendarRepository(),
-      enqueueCacheEvict: deps.boss
-        ? (eventId, actorUserId) =>
-            sendCalendarCacheEvictJob(deps.boss!, { targetItemId: eventId, actorUserId })
-        : undefined
-    });
-    services.emailWrite = buildEmailWriteService({
-      emailRepository: new EmailRepository(),
-      connectorsRepository: deps.connectorsRepository,
-      googleService: deps.googleConnectionService,
-      googleApiClient: deps.googleApiClient,
-      cipher: deps.cipher!,
-      preferencesRepository: new PreferencesRepository()
-    });
-  }
-  if (deps.boss) {
-    const boss = deps.boss;
-    services.notesSync = {
-      enqueue: (actorUserId, sourcePath) =>
-        sendJob(boss, NOTES_SYNC_QUEUE, { actorUserId, sourcePath } satisfies NotesSyncJobPayload, {
-          singletonKey: `notes-sync:${actorUserId}`
-        })
-    } satisfies NotesSyncToolService;
-  }
-  if (deps.featureGrantService) {
-    services.featureGrants = deps.featureGrantService;
-  }
-  return services;
-}
-
-/**
- * Assembles the AssistantToolGatewayDependencies registerChatRoutes uses, INCLUDING toolServices from
- * buildChatToolServices. Exported so a test can assert the real construction path carries toolServices
- * (i.e. that registerChatRoutes does not forget to pass it) — closing the "factory exists but isn't
- * wired" gap. registerChatRoutes calls THIS, then `new AssistantToolGateway(deps)`.
- */
-export function buildChatGatewayDependencies(args: {
-  resolveActiveModules: ActiveModulesResolver;
-  repository: AiRepository;
-  runner: DataContextRunner;
-  tokens: SessionTokenRegistry;
-  confirmations: ConfirmationRegistry;
-  notifier: SessionNotifier;
-  agencyPreferences?: PreferencesPort;
-  localePreferences?: PreferencesPort;
-  appMapService?: AppMapReadService;
-  collaborators: {
-    googleConnectionService?: GoogleConnectionService;
-    googleApiClient?: GoogleApiClient;
-    connectorsRepository?: ConnectorsRepository;
-    boss?: PgBoss;
-    featureGrantService?: FeatureGrantService;
-    sourceContextService?: SourceContextService;
-    currentViewService?: CurrentViewReadService;
-    /** #1133 — read-only vault-backed attachment reads for chat.readAttachment. */
-    attachmentsService?: ChatAttachmentsService;
-  };
-}): AssistantToolGatewayDependencies {
-  return {
-    resolveActiveModules: args.resolveActiveModules,
-    repository: args.repository,
-    runner: args.runner,
-    tokens: args.tokens,
-    confirmations: args.confirmations,
-    notifier: args.notifier,
-    // #1158: MUST stay below the permission hook's internal deadline — see the deadline
-    // ordering comment in live/claude-permission-hook.ts (unit-tested invariant).
-    confirmTimeoutMs: NATIVE_CONFIRM_TIMEOUT_MS,
-    agencyPrefs: buildAgencyPrefs({
-      runner: args.runner,
-      preferences: args.agencyPreferences
-    }),
-    actionPolicy: buildActionPolicy({
-      runner: args.runner,
-      repository: args.repository,
-      preferences: args.agencyPreferences,
-      resolveActiveModules: args.resolveActiveModules
-    }),
-    yoloMode: (ctx) =>
-      args.runner.withDataContext(
-        { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
-        resolveYoloMode
-      ),
-    toolServices: buildChatToolServices(args.collaborators),
-    readToolServices:
-      args.collaborators.featureGrantService ||
-      args.collaborators.sourceContextService ||
-      args.collaborators.currentViewService ||
-      args.collaborators.attachmentsService ||
-      args.appMapService
-        ? {
-            ...(args.collaborators.featureGrantService
-              ? { featureGrants: args.collaborators.featureGrantService }
-              : {}),
-            ...(args.collaborators.sourceContextService
-              ? { sourceContext: args.collaborators.sourceContextService }
-              : {}),
-            ...(args.collaborators.currentViewService
-              ? { currentView: args.collaborators.currentViewService }
-              : {}),
-            // #1133 — readContent only; belongs in the read registry so the write→confirm
-            // floor stays structurally intact (read tools never see toolServices).
-            ...(args.collaborators.attachmentsService
-              ? { chatAttachments: args.collaborators.attachmentsService }
-              : {}),
-            ...(args.appMapService ? { appMap: args.appMapService } : {})
-          }
-        : undefined,
-    resolveLocalTimezone: args.localePreferences
-      ? (actorUserId) =>
-          args.runner.withDataContext(
-            { actorUserId, requestId: "gateway:resolve-locale-tz" },
-            async (scopedDb) => {
-              const raw = await args.localePreferences!.get(scopedDb, "locale");
-              return extractTimezone(raw);
-            }
-          )
-      : undefined
-  };
-}
-
-export async function resolveYoloMode(scopedDb: DataContextDb): Promise<boolean> {
-  const master = await scopedDb.db
-    .selectFrom("app.instance_settings")
-    .select("value")
-    .where("key", "=", YOLO_INSTANCE_SETTING_KEY)
-    .executeTakeFirst();
-  if ((master?.value as { enabled?: boolean } | undefined)?.enabled !== true) return false;
-
-  const prefs = await scopedDb.db
-    .selectFrom("app.preferences")
-    .select(["key", "value_json"])
-    .where("owner_user_id", "=", sql<string>`app.current_actor_user_id()`)
-    .where("key", "in", [YOLO_ALLOWED_PREF_KEY, YOLO_ENABLED_PREF_KEY])
-    .execute();
-  const values = new Map(prefs.map((row) => [row.key, (row.value_json as unknown) === true]));
-  return values.get(YOLO_ALLOWED_PREF_KEY) === true && values.get(YOLO_ENABLED_PREF_KEY) === true;
-}
-
-function buildActionPolicy(args: {
-  runner: DataContextRunner;
-  repository: AiRepository;
-  preferences?: PreferencesPort;
-  resolveActiveModules: ActiveModulesResolver;
-}): AssistantToolGatewayDependencies["actionPolicy"] {
-  return (ctx) => ({
-    getFamilyTier: async (moduleId: string, familyId: string) => {
-      return args.runner.withDataContext(
-        { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
-        async (scopedDb) => {
-          if (moduleId === "tasks" && familyId === "task_changes" && args.preferences) {
-            const compat = new TasksCompatibilityHelper(args.preferences);
-            return compat.getResolvedTaskChangesPolicy(scopedDb);
-          }
-          const policies = await args.repository.listActionPolicies(scopedDb);
-          const policy = policies.find(
-            (p) => p.moduleId === moduleId && p.actionFamilyId === familyId
-          );
-          return policy?.tier ?? null;
-        }
-      );
-    },
-    getFamilyManifest: async (moduleId: string, familyId: string) => {
-      const activeModules = await args.resolveActiveModules(ctx.actorUserId);
-      const manifest = activeModules.find((m) => m.id === moduleId);
-      if (!manifest || !manifest.assistantActionFamilies) return null;
-      return manifest.assistantActionFamilies.find((f) => f.id === familyId) ?? null;
-    }
-  });
-}
-
-function buildAgencyPrefs(args: {
-  runner: DataContextRunner;
-  preferences?: PreferencesPort;
-}): AssistantToolGatewayDependencies["agencyPrefs"] {
-  if (!args.preferences) return undefined;
-  return (ctx) => ({
-    get: (key: string) =>
-      args.runner.withDataContext(
-        { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
-        (scopedDb) => args.preferences!.get(scopedDb, key)
-      ),
-    upsert: (key: string, value: unknown) =>
-      args.runner.withDataContext(
-        { actorUserId: ctx.actorUserId, requestId: ctx.requestId },
-        (scopedDb) => args.preferences!.upsert(scopedDb, key, value)
-      )
-  });
-}
-
-function serializeThread(thread: ChatThread): ChatThreadDto {
-  return {
-    id: thread.id,
-    ownerUserId: thread.owner_user_id,
-    title: thread.title,
-    incognito: thread.incognito,
-    createdAt: toIsoString(thread.created_at),
-    updatedAt: toIsoString(thread.updated_at)
-  };
-}
-
-function serializeMessage(message: ChatMessage): ChatMessageDto {
-  const toolMetadata = asRecord(message.tool_metadata);
-  const storedProvenance = readStoredProvenance(toolMetadata);
-  const answerProvenance =
-    storedProvenance != null && storedProvenance.supportItems.length > 0
-      ? provenanceCards(storedProvenance)
-      : undefined;
-  const answerProvenanceCitedIds =
-    storedProvenance != null && storedProvenance.citedSupportIds.length > 0
-      ? [...storedProvenance.citedSupportIds]
-      : undefined;
-  return {
-    id: message.id,
-    threadId: message.thread_id,
-    ownerUserId: message.owner_user_id,
-    role: message.role,
-    status: message.status,
-    body: message.body,
-    modelRoute: null,
-    tools: readTools(toolMetadata.selectedTools),
-    activity: readActivity(toolMetadata.activity),
-    attachments: readAttachments(toolMetadata.attachments),
-    sourceFreshness: readSourceFreshness(toolMetadata.sourceFreshness),
-    createdAt: toIsoString(message.created_at),
-    updatedAt: toIsoString(message.updated_at),
-    answerProvenance,
-    answerProvenanceCitedIds
-  };
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function readActivity(value: unknown): ChatActivityEventDto[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    const record = asRecord(item);
-    return typeof record.kind === "string" && typeof record.text === "string"
-      ? [{ kind: record.kind, text: record.text }]
-      : [];
-  });
-}
-
-function readTools(value: unknown): ChatSelectedToolMetadataDto[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    const record = asRecord(item);
-    const risk = record.risk;
-    if (
-      typeof record.moduleId !== "string" ||
-      typeof record.moduleName !== "string" ||
-      typeof record.name !== "string" ||
-      typeof record.permissionId !== "string" ||
-      (risk !== "read" && risk !== "write" && risk !== "destructive")
-    ) {
-      return [];
-    }
-    return [
-      {
-        moduleId: record.moduleId,
-        moduleName: record.moduleName,
-        name: record.name,
-        permissionId: record.permissionId,
-        risk
-      }
-    ];
-  });
-}
-
-export function readSourceFreshness(value: unknown): SourceFreshnessV1 | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const rec = value as Record<string, unknown>;
-  if (rec.version !== 1) return null;
-  if (typeof rec.capturedAt !== "string") return null;
-  const rawSources = Array.isArray(rec.sources) ? rec.sources : [];
-  const sources: SourceFreshnessEntry[] = rawSources.flatMap((item) => {
-    const r = asRecord(item);
-    if (typeof r.source !== "string" || typeof r.freshnessKind !== "string") return [];
-    const asOf = r.asOf === null ? null : typeof r.asOf === "string" ? r.asOf : null;
-    return [{ source: r.source, freshnessKind: r.freshnessKind as FreshnessKind, asOf }];
-  });
-  return { version: 1, capturedAt: rec.capturedAt as string, sources };
 }
 
 function handleRouteError(error: unknown, reply: FastifyReply) {

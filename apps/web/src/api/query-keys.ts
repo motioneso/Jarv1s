@@ -61,7 +61,9 @@ export const queryKeys = {
     terminalStatus: (providerId: string) => ["ai", "terminal-status", providerId] as const,
     assistantTools: ["ai", "assistant-tools"] as const,
     webSearchKey: ["ai", "web-search-key"] as const,
-    runtimeConfig: (key: string) => ["ai", "runtime-config", key] as const,
+    // #1313: the `runtimeConfig` query key + its only caller, `runtime-config-client.ts`, were
+    // dead — the settings-UI control that used them was already removed (PR #1205 → batch PR
+    // #1224). Deleted rather than left orphaned.
     actionAuditLog: (params?: { since?: string; family?: string; limit?: number }) =>
       ["ai", "action-audit-log", params] as const
   },
@@ -134,3 +136,36 @@ export const queryKeys = {
     matchCandidates: ["people", "match-candidates"] as const
   }
 };
+
+const FORBIDDEN_QUERY_KEY_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
+
+function isPlainQueryKeyContainer(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Resolves a server-declared dot-path token (e.g. "settings.themes") against the
+ * client `queryKeys` object. Fail-closed by construction: an unknown token, a
+ * dunder/prototype segment, a factory-function leaf, or any non-plain-object
+ * intermediate all resolve to `undefined` rather than throwing or falling back to a
+ * broad invalidation. Only an actual `as const` array leaf resolves.
+ */
+export function resolveQueryKeyToken(token: string): readonly unknown[] | undefined {
+  const segments = token.split(".");
+  let current: unknown = queryKeys;
+
+  for (const segment of segments) {
+    if (FORBIDDEN_QUERY_KEY_SEGMENTS.has(segment)) {
+      return undefined;
+    }
+    if (
+      !isPlainQueryKeyContainer(current) ||
+      !Object.prototype.hasOwnProperty.call(current, segment)
+    ) {
+      return undefined;
+    }
+    current = current[segment];
+  }
+
+  return Array.isArray(current) ? current : undefined;
+}

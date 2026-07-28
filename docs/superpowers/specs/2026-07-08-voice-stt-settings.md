@@ -1,7 +1,11 @@
 # Voice (STT) settings — dedicated admin section
 
 - **Issue:** #874 (Part of epic #869)
-- **Status:** DRAFT v2 — Fable 5 adversarial review folded in (2026-07-08). Awaiting owner approval before implementation (build-needs-a-task-issue rule).
+- **Status:** Approved and **shipped**. Fable 5 adversarial review folded in (2026-07-08); built and
+  landed under #874, which closed as completed on 2026-07-09. The status line said "awaiting owner
+  approval" until 2026-07-27 purely because nobody updated it after the build. Evidence it shipped:
+  `apps/web/src/settings/settings-voice-config-group.tsx` (cites #874 and the review's CRIT-1 fix)
+  and `packages/ai/src/voice-endpoint-routes.ts`.
 - **Depends on:** Slice 1 (#870) landing first; this supersedes its Voice service row.
 
 ## Goal

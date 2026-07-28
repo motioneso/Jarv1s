@@ -154,7 +154,7 @@ describe("Notifications module M5", () => {
         },
         {
           version: "0175",
-          name: "0175_notification_event_keys.sql"
+          name: "0178_notification_event_keys.sql"
         }
       ]);
       expect(tables.rows).toEqual([

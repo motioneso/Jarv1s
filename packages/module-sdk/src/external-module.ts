@@ -1,12 +1,20 @@
-// packages/module-sdk/src/external-manifest.ts
+// packages/module-sdk/src/external-module.ts
 //
-// The external (downloadable) module ABI, lifted verbatim out of index.ts (#1328) to bring
-// index.ts back under the file-size cap — same extraction pattern as
+// The external (downloadable) module ABI — auth/storage/web/worker declarations, the queue/
+// schedule/reconcile-job shapes, JsonJarvisModuleManifest, and the dataset-connector adapter
+// surface (#917/#918/#964/#1019). Lifted verbatim out of index.ts to bring that barrel back
+// under the file-size cap — same extraction pattern as
 // apps/worker/src/external-module-job-handler.ts. Pure type/const surface, no logic or
-// signature changes. index.ts re-exports everything below via `export *`, so no import site
-// anywhere in the repo changes: every existing `import { X } from "@jarv1s/module-sdk"` still
-// resolves, because @jarv1s/module-sdk IS index.ts (package root / tsconfig path / vitest
-// alias all point at it), and index.ts still re-exports X from here.
+// signature changes.
+//
+// index.ts re-exports everything below, so no import site anywhere in the repo changes: every
+// existing `import { X } from "@jarv1s/module-sdk"` still resolves, because @jarv1s/module-sdk
+// IS index.ts (package root / tsconfig path / vitest alias all point at it).
+//
+// Merge note (epic #1280 → main): main and the job-search branch performed this same split
+// independently and picked different filenames (`external-module.ts` vs `external-manifest.ts`).
+// This file is the union — main's name, with the job-search additions folded in. There is no
+// `external-manifest.ts`; do not reintroduce one.
 import type {
   ModuleAssistantOnboardingManifest,
   ModuleAssistantToolRisk,

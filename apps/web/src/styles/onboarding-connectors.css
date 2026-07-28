@@ -645,35 +645,6 @@
   margin-top: 1.875rem;
 }
 
-/* #368: "Ask Jarvis" finish affordance — only rendered when chat is available. */
-.onb-finish__askhint {
-  margin-top: 0.875rem;
-  color: var(--text-subtle);
-  font-size: 0.85rem;
-  line-height: 1.5;
-}
-
-.onb-finish__settingslink {
-  display: inline;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--text);
-  font: inherit;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-}
-
-.onb-finish__settingslink:hover:not(:disabled) {
-  color: var(--accent-fg);
-}
-
-.onb-finish__settingslink:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
 .onb-signoff {
   margin-top: 1.625rem;
   color: var(--text-subtle);

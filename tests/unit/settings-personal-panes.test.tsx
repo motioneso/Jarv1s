@@ -26,7 +26,19 @@ describe("ProfilePane merged Account & preferences", () => {
     const html = await renderProfilePane();
     expect(html).toContain("Account &amp; preferences");
     expect(html).toContain("Quiet hours");
+    expect(html).toContain("Location");
+    expect(html).toContain(">Member<");
+    expect(html).not.toContain(">Active<");
+    expect(html).not.toContain(">Role<");
     expect(html).not.toContain("Auth provider configuration");
+  });
+
+  it("renders every supported time zone and disables unsupported language controls", async () => {
+    const html = await renderProfilePane();
+    expect(
+      Intl.supportedValuesOf("timeZone").every((timeZone) => html.includes(`value="${timeZone}"`))
+    ).toBe(true);
+    expect(html).toMatch(/aria-label="Language &amp; region"[^>]*disabled/);
   });
 
   it("renders Data export before Danger zone and does not claim export is unavailable", async () => {
@@ -42,6 +54,13 @@ describe("ProfilePane merged Account & preferences", () => {
 
 async function renderProfilePane(): Promise<string> {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const { queryKeys } = await import("../../apps/web/src/api/query-keys.js");
+  client.setQueryData(queryKeys.settings.locale, {
+    locale: { timezone: "America/Los_Angeles", region: "en-US", dateFormat: "24" }
+  });
+  client.setQueryData(queryKeys.settings.quietHours, {
+    quietHours: { enabled: false, start: "22:00", end: "07:00", timezone: null }
+  });
   const { FeedbackProvider } = await import("../../apps/web/src/settings/settings-feedback.js");
   const { ProfilePane } = await import("../../apps/web/src/settings/settings-personal-panes.js");
   return renderToString(

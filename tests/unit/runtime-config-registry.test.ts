@@ -19,7 +19,10 @@ describe("runtime config registry", () => {
       type: "enum",
       defaultValue: "local",
       envVar: "JARVIS_EMBED_PROVIDER",
-      enumValues: ["local", "stub"],
+      // #1313: "stub" (test-only fake embeddings) is deliberately excluded from the settable
+      // enum — a real instance must never be PATCHed onto it. See
+      // packages/settings/src/runtime-config-keys.ts for the full rationale.
+      enumValues: ["local"],
       moduleOwner: "memory"
     });
     expect(getRuntimeConfigEntry(EMBED_MODEL_CONFIG_KEY)).toMatchObject({

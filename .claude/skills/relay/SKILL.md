@@ -61,11 +61,15 @@ verification without approval prompts.
   <slug>; `[ -d node_modules ] || pnpm install`; read your short `docs/.../<slug>-relay.md` and
   resume via `coordinated-build`. Read the spec/plan by SECTION for the current task only — never
   in full (full-reads bloated prior relays to ~71% on boot and forced them to relay again without
-  building). You have a FRESH full budget: BUILD, commit per task, relay only after real work past
-  ~80% — reading is not progress."
+  building). You have a FRESH full budget: BUILD and commit per task — reading is not progress.
+  Your relay trigger is the meter's 70% warning, same as everyone's; do not invent a higher
+  personal threshold. If the warning fires before you have committed anything, you over-read:
+  commit whatever is green, relay anyway, and say so in the continuation doc. Never end your turn
+  between steps."
 - **Coordinator:** new pane; bootstrap = "you are the new coordinator for run <run-id>; read
   `docs/coordination/<run-id>.md` — the LATEST continuation note + current fleet/merge-order state
-  (skim; the manifest is long — do NOT deep-read its full history or you bloat on boot), invoke
+  (skim; the manifest is long — do NOT deep-read its full history or you bloat on boot), read
+  `docs/coordination/AWAITING-BEN.md` (anything open there leads your next report to Ben), invoke
   `coordinate`, re-confirm the **session-id
   authority line** (your own pane's `agent_session.value` from `herdr pane list` — session id is
   authority; label is routing; the `…-N` pane number is ephemeral and reflows), re-adopt the live

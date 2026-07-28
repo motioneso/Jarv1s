@@ -32,6 +32,10 @@ These are decisions, not code descriptions. Violating any of these is a blocker.
   capabilities; the router selects the user's configured model.
 - **Spec before build.** No new feature or module without an approved design spec in
   `docs/superpowers/specs/`. This is a hard process gate, not a suggestion.
+- **Live-path gate.** A user-facing feature, module, or UI surface is not done on CI-green plus code
+  review. It needs a live end-to-end proof recorded on the PR — installed and exercised through the
+  real UI on a live dev instance. No proof means do not merge and do not mark Done; the honest status
+  is _code-complete, unverified_. Full rule: `docs/DEVELOPMENT_STANDARDS.md` → Live-Path Gate.
 - **Module isolation.** Modules collaborate only through declared public APIs/events. No module
   imports another module's internals or queries its tables directly.
 - **pgvector image.** Docker Compose must use a pgvector-enabled Postgres image. Do not replace it

@@ -34,7 +34,7 @@ import { listNotifications, listThemes, sendChatTurn, signOut } from "../api/cli
 import { getWeatherToday } from "../api/weather-client";
 import { buildShellNavigation, resolvePageHeading } from "../app-route-metadata";
 import { useUserLocale } from "../locale/locale-format";
-import { queryKeys } from "../api/query-keys";
+import { queryKeys, resolveQueryKeyToken } from "../api/query-keys";
 import { ChatDrawer } from "../chat/chat-drawer";
 import {
   AssistantSurfaceHostProvider,
@@ -47,7 +47,6 @@ import { useChatStream } from "../chat/use-chat-stream";
 import { usePageContextSync } from "../chat/use-page-context-sync";
 import { BrandMark } from "./brand-mark";
 import { ChatControlsProvider } from "./chat-controls-context";
-import { ASK_JARVIS_STARTER, consumeAskJarvis } from "../onboarding/ask-jarvis-handoff";
 import { HeaderWeather } from "../today/header-weather";
 import { applyThemeTokens } from "../theme/theme-runtime";
 import { CommandPalette } from "./command-palette";
@@ -97,24 +96,12 @@ export function AppShell(props: AppShellProps) {
   const navigate = useNavigate();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
-  // #368: the onboarding "Ask Jarvis" finish action drops a one-shot sessionStorage flag and
-  // navigates here (the wizard lives outside the shell, so this is a fresh mount). On mount we
-  // read-and-clear it: if set, open the drawer pre-filled with the setup-check starter (never
-  // auto-sent). A refresh does not re-trigger it (the flag was consumed).
-  const [askJarvisStarter, setAskJarvisStarter] = useState<string | undefined>(undefined);
-  // #916 — a module-authored starter draft handed up via ChatControls.openAssistantWithDraft. One-
-  // shot, mirrors #368's askJarvisStarter: seeds the composer on drawer open, cleared on close.
+  // #916 — a module-authored starter draft handed up via ChatControls.openAssistantWithDraft.
   const [moduleDraft, setModuleDraft] = useState<string | undefined>(undefined);
   const [focusActionRequestId, setFocusActionRequestId] = useState<string | null>(null);
   const embeddedComposerRef = useRef<((draft: string) => void) | null>(null);
   const [theme] = useState<ShellTheme>(() => loadShellTheme());
   const [colorMode] = useState(() => loadShellColorMode());
-  useEffect(() => {
-    if (consumeAskJarvis()) {
-      setAskJarvisStarter(ASK_JARVIS_STARTER);
-      setChatOpen(true);
-    }
-  }, []);
   const openChatWith = useCallback((prompt: string) => {
     setChatOpen(true);
     void sendChatTurn(prompt);
@@ -178,7 +165,6 @@ export function AppShell(props: AppShellProps) {
     (acceptDraft) => {
       embeddedComposerRef.current = acceptDraft;
       setChatOpen(false);
-      setAskJarvisStarter(undefined);
       setModuleDraft(undefined);
       setFocusActionRequestId(null);
       return () => {
@@ -233,6 +219,26 @@ export function AppShell(props: AppShellProps) {
         ) ?? null
     );
   }, [records]);
+  // #1310: generic, declaration-driven cache invalidation. A tool's manifest entry
+  // declares which frontend query-key tokens its write affects; this effect resolves
+  // each token via resolveQueryKeyToken (fail-closed) and invalidates only that key —
+  // never a blanket invalidation, and never anything theme-specific hardcoded here.
+  const invalidatedActionRequestIds = useRef(new Set<string>());
+  useEffect(() => {
+    for (const record of records) {
+      if (record.kind !== "action_result" || record.outcome !== "executed") continue;
+      if (!record.affectsQueryKeys || record.affectsQueryKeys.length === 0) continue;
+      const actionRequestId = record.actionRequestId;
+      if (!actionRequestId || invalidatedActionRequestIds.current.has(actionRequestId)) continue;
+      invalidatedActionRequestIds.current.add(actionRequestId);
+      for (const token of record.affectsQueryKeys) {
+        const queryKey = resolveQueryKeyToken(token);
+        if (queryKey) {
+          void queryClient.invalidateQueries({ queryKey: [...queryKey] });
+        }
+      }
+    }
+  }, [records, queryClient]);
   const openActionRequest = useCallback((actionRequestId: string) => {
     setFocusActionRequestId(actionRequestId);
     setChatOpen(true);
@@ -414,10 +420,7 @@ export function AppShell(props: AppShellProps) {
         onClose={() => {
           setChatOpen(false);
           setFocusActionRequestId(null);
-          // #368: the starter is a one-shot — once the drawer closes, a later manual open starts
-          // from a blank composer, not the setup-check chip.
-          setAskJarvisStarter(undefined);
-          // #368 + #916: starters are one-shot — a later manual open starts from a blank composer.
+          // #916: starters are one-shot — a later manual open starts from a blank composer.
           setModuleDraft(undefined);
         }}
         // #1284 — the drawer always renders the DRAWER surface specifically, never whichever
@@ -427,7 +430,7 @@ export function AppShell(props: AppShellProps) {
         clearRecords={clearRecords}
         streamErrorCount={streamErrorCount}
         isFounder={props.me.user.isBootstrapOwner}
-        initialText={moduleDraft ?? askJarvisStarter}
+        initialText={moduleDraft}
         focusActionRequestId={focusActionRequestId}
         onActionRequestFocused={() => setFocusActionRequestId(null)}
       />
