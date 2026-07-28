@@ -217,7 +217,13 @@ describe("runScore", () => {
     // similarity to every posting embedding [1,0,0] is 1 for both axes, which never triggers
     // outsideFrame. Use a custom embed port returning different vectors for criteria vs context.
     const posting = makePosting("p-outside");
-    const store = createFakeStore({ profile: makeProfile(), candidates: [posting] });
+    // The recall case NEEDS a context summary: it means "outside your stated criteria but
+    // matching who you are", and the "who" is exactly this field. `makeProfile()`'s default is
+    // null, which is why this must be set explicitly — see test 2b for what null now does.
+    const store = createFakeStore({
+      profile: makeProfile({ contextSummary: "Ten years in platform infrastructure." }),
+      candidates: [posting]
+    });
     const ai = scriptedAi([{ ok: true, object: okResult }]);
     let call = 0;
     const embed: EmbedPort = {
@@ -237,6 +243,43 @@ describe("runScore", () => {
 
     expect(store.__matches).toHaveLength(1);
     expect(store.__matches[0]?.outsideFrame).toBe(true);
+  });
+
+  it("test 2b: a profile with no context summary is embedded once and yields no recall-bucket match (#1306)", async () => {
+    // The live-path regression. `context_summary` is written only by the `profile.set-context`
+    // tool during the onboarding conversation, but `isReadyToCrawl` never asks for it — so any
+    // user who sets criteria and leaves has a crawlable profile with a null summary. Passing
+    // that through as "" made the host reject the RPC (`invalid_rpc`, empty string), which took
+    // down the entire crawl invocation as an opaque `handler_failed`.
+    //
+    // The stub embed port is why no existing test caught it: it answers "" as happily as any
+    // other string. So this test pins the CALL COUNT, not the vectors — the contract is that
+    // an absent context is never embedded at all.
+    const posting = makePosting("p-nocontext");
+    const store = createFakeStore({
+      profile: makeProfile({ contextSummary: null }),
+      candidates: [posting]
+    });
+    const ai = scriptedAi([{ ok: true, object: okResult }]);
+    const embed: EmbedPort = {
+      embedDocuments: vi.fn(async () => {
+        throw new Error("not used");
+      }),
+      // Orthogonal to the posting's embedding. If the context vector were still being computed
+      // from this port it would be identical to the criteria vector, so the posting would score
+      // low on BOTH axes — the assertion below would pass for the wrong reason. Instead the
+      // call-count assertion is what carries the contract.
+      embedQuery: vi.fn(async () => [0, 1, 0]),
+      dimensions: vi.fn(async () => 3)
+    };
+
+    await runScore(runDeps({ store, ai, budget: 1, embed }));
+
+    expect(embed.embedQuery).toHaveBeenCalledTimes(1);
+    expect(store.__matches).toHaveLength(1);
+    // Profile similarity is 0 for every candidate, so nothing can clear the recall bucket's
+    // OUTSIDE_FRAME_PROFILE_MIN floor. Triage ranks on criteria alone — the honest degradation.
+    expect(store.__matches[0]?.outsideFrame).toBe(false);
   });
 
   it("test 3: an {ok: true} envelope whose object fails parseScoreResult leaves the posting unscored and increments failed", async () => {

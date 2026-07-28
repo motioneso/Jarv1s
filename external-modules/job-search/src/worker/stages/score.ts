@@ -152,14 +152,37 @@ export async function runScore(deps: {
   const resumeText = resume?.content ?? "";
   const contextText = profile.contextSummary ?? "";
 
-  const criteriaVector = await embed.embedQuery(criteriaEmbeddingText(profile.criteria));
-  const contextVector = await embed.embedQuery(contextText);
+  const criteriaText = criteriaEmbeddingText(profile.criteria);
+  if (criteriaText.length === 0) {
+    // Unreachable through the product — `isReadyToCrawl` will not activate a profile whose
+    // criteria are empty, so nothing can have been crawled for one either. Loud rather than
+    // silent all the same: a scored pass built on no criteria at all is meaningless, and the
+    // alternative (embedding "") is a host `invalid_rpc` that surfaces as an opaque
+    // `handler_failed` for the entire sweep.
+    throw new Error(`runScore: profile ${profileId} has no criteria text to embed`);
+  }
+  const criteriaVector = await embed.embedQuery(criteriaText);
+  // A profile is crawlable without ever having narrated its situation: `isReadyToCrawl` asks
+  // only for criteria plus an enabled portal, and `context_summary` is written exclusively by
+  // the `profile.set-context` tool during the onboarding conversation. So null here is an
+  // ordinary state, not a broken one — and embedding "" is NOT the neutral way to express it
+  // (the host rejects an empty string with `invalid_rpc`, which took the whole crawl down).
+  //
+  // Absent context means absent profile signal. Every candidate scores 0, which leaves the
+  // recall bucket empty by construction (it needs profile >= OUTSIDE_FRAME_PROFILE_MIN) and
+  // lets triage rank on criteria alone. That is the honest degradation: the recall case exists
+  // to surface roles outside your stated criteria that match who you are, and without a
+  // "who" there is nothing for it to match against.
+  const contextVector = contextText.length > 0 ? await embed.embedQuery(contextText) : null;
 
   const criteriaSimilarity = new Map(
     candidates.map((posting) => [posting.id, cosineSimilarity(criteriaVector, posting.embedding)])
   );
   const profileSimilarity = new Map(
-    candidates.map((posting) => [posting.id, cosineSimilarity(contextVector, posting.embedding)])
+    candidates.map((posting) => [
+      posting.id,
+      contextVector === null ? 0 : cosineSimilarity(contextVector, posting.embedding)
+    ])
   );
 
   const { selected, deferred: triageDeferred } = triage({
