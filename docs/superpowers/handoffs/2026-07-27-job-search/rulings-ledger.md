@@ -1627,3 +1627,48 @@ check found the coverage *and* found what it missed. The reusable shape: when yo
 transfer, assert against the **write** site, not the return value. A stage that returns the right
 object and never persists it passes every test written against its output — the same
 reads-look-alive failure as `state: "unscored"` in #1329, one level up.
+
+## N42 — a UAT that skips wholesale is worse than one that fails; gate per-phase, and fake the model at the same seam we already fake the job board
+
+records proposed closing #57 by logging in a **real Anthropic** provider inside the spec and
+clicking the real "Set as default" button, then gating the **entire twelve-phase file** on
+`REAL_CHAT_CONFIGURED` the way `tests/uat/specs/real-chat-onboarding.uat.spec.ts` does.
+
+The grounding underneath it is correct and is kept: the UAT's fake provider only wins because it is
+the sole active assistant-purpose provider (`packages/ai/src/repository.ts` count===1 implicit
+default), and a **flagged** instance default set through `setInstanceDefaultProvider`
+(`settings-ai-admin-pane.tsx:196-209`) beats that rule outright. That is a real, useful finding
+about resolution order.
+
+**The gate is rejected as scoped.** No UAT runner in CI carries a real Anthropic token, so gating
+the whole file on one means all twelve phases skip in every automated run, permanently. Install and
+enable, the degraded-portal path, drawer scoping, notifications — none of which touch AI — would
+provide zero coverage. records' own framing from an hour earlier is the right standard: *"a real
+regression net rather than a fiction that always passes."* A file that always **skips** fails that
+standard more completely than one that fails, because a skip is silent.
+
+**Ruling, in two parts.**
+
+1. **Gate per-phase, never per-file.** Only the phases that genuinely need a real model — the
+   chat-driven onboarding turns — may sit behind `REAL_CHAT_CONFIGURED`. Install/enable, the
+   degraded portal (crawl-only), drawer scoping and notification/badge must run unconditionally.
+2. **The scoring phases get a deterministic fake model, not a real one.** Seed the provider as
+   `openai-compatible` pointed at a fixture endpoint rather than `custom`.
+   `generate-structured.ts` accepts that kind, so the real crawl→score→store→board pipeline runs
+   end to end with no token, no cost, and no rate limit.
+
+**Why a fake model is the *more* correct test double here, not a compromise.** This spec already
+fakes the job board over HTTP via the Task 22 fixture server. Faking the model over HTTP is the
+identical move at the identical seam. The UAT's job is to prove the pipeline — crawl, score,
+persist, render, notify — not to prove that Anthropic scores well. And a real model makes phases 5-7
+**nondeterministic by construction**: assertions on Fit/Want values would have to be loosened to
+"some row exists", which is exactly the coverage those phases exist to provide.
+
+**Mechanism is records' call; the invariant is not.** If `openai-compatible` against the fixture
+turns out not to work, report it rather than falling back to the whole-file gate — the requirement
+is that the non-AI phases run without a token.
+
+**Generalisation.** When a dependency blocks part of a test file, gate the part, not the file. A
+wholesale skip converts a known-red signal into no signal, and no signal reads as green on every
+dashboard anyone will look at. See [[verify-foundation-excludes-e2e]] for the same shape one level
+up: a green local gate sitting on a CI job nobody ran.
