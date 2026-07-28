@@ -43,7 +43,11 @@ const BUILT_IN_PORTAL_LABELS: Record<string, string> = {
   linkedin: "LinkedIn"
 };
 
-function labelFor(sourceId: string): string {
+// Exported because the board row now carries a source label too (a "where did this come from"
+// meta pill on each card). Shared rather than re-declared next to that handler on purpose: N43
+// is the record of what a hand-synced second copy of a constant costs — LinkedIn spelled two
+// ways in two screens is a smaller failure than that one was, but it has the same shape.
+export function labelFor(sourceId: string): string {
   return BUILT_IN_PORTAL_LABELS[sourceId] ?? sourceId;
 }
 

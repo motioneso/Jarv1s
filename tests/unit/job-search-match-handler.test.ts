@@ -16,7 +16,9 @@ import {
   createMatchSetStateHandler,
   SETTABLE_STATES,
   TITLE_MAX_CHARS,
-  URL_MAX_CHARS
+  URL_MAX_CHARS,
+  LOCATION_MAX_CHARS,
+  SOURCE_LABEL_MAX_CHARS
 } from "../../external-modules/job-search/src/worker/handlers/matches.js";
 // N43: MATCHES_LIST_MAX_LIMIT lives in domain/records.ts now — one definition, imported by the
 // worker handler, board.tsx, and this test, none of them a second literal.
@@ -205,9 +207,24 @@ describe("createMatchesListHandler", () => {
     expect(result.items).toHaveLength(1);
     const item = result.items[0]!;
     // N39: no fitReason/wantReason on the row — board.tsx never renders them. If this still
-    // passes with a reason key present, N39 hasn't actually landed.
+    // passes with a reason key present, N39 hasn't actually landed. `location`/`source`/`postedAt`
+    // are here because the card DOES render each of them, which is the same rule pointing the
+    // other way; they were added against the render-cap budget, not on top of it (see the
+    // worst-case render-survival test below, which is what actually holds the line).
     expect(Object.keys(item).sort()).toEqual(
-      ["company", "fit", "id", "outsideFrame", "state", "title", "url", "want"].sort()
+      [
+        "company",
+        "fit",
+        "id",
+        "location",
+        "outsideFrame",
+        "postedAt",
+        "source",
+        "state",
+        "title",
+        "url",
+        "want"
+      ].sort()
     );
     expect(item).toEqual({
       id: "match-1",
@@ -217,7 +234,12 @@ describe("createMatchesListHandler", () => {
       want: 70,
       outsideFrame: false,
       state: "new",
-      url: "https://example.com/post-1"
+      url: "https://example.com/post-1",
+      location: "Remote",
+      // The source LABEL, not the raw `sourceId` the posting carries — the row is what the card
+      // renders, and "freehire" is a key, not a name a reader should be shown.
+      source: "freehire.me",
+      postedAt: null
     });
     // Never the blended field the product invariant forbids anywhere, including tool results.
     expect(item).not.toHaveProperty("overall");
@@ -256,6 +278,10 @@ describe("createMatchesListHandler", () => {
     const longTitle = "t".repeat(TITLE_MAX_CHARS + 200);
     const longCompany = "c".repeat(COMPANY_MAX_CHARS + 200);
     const longUrl = `https://example.com/${"u".repeat(URL_MAX_CHARS + 200)}`;
+    // The card's meta line is driven here too — a budget test that maxes only the fields that
+    // existed when it was written stops being a budget test the moment a field is added.
+    const longLocation = "l".repeat(LOCATION_MAX_CHARS + 200);
+    const longSourceId = "s".repeat(SOURCE_LABEL_MAX_CHARS + 200);
     const matches = Array.from({ length: MATCHES_LIST_MAX_LIMIT }, (_, i) =>
       makeMatch({
         id: `match-${i}`,
@@ -265,7 +291,14 @@ describe("createMatchesListHandler", () => {
       })
     );
     const postings = Array.from({ length: MATCHES_LIST_MAX_LIMIT }, (_, i) =>
-      makePosting(`post-${i}`, { title: longTitle, company: longCompany, url: longUrl })
+      makePosting(`post-${i}`, {
+        title: longTitle,
+        company: longCompany,
+        url: longUrl,
+        location: longLocation,
+        sourceId: longSourceId,
+        postedAt: "2026-07-15T09:00:00.000Z"
+      })
     );
     const store = createFakeStore({ matches, postings });
     const handler = createMatchesListHandler(store);

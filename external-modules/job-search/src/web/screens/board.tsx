@@ -111,6 +111,36 @@ function lastWorkedText(lastOkAt: string | null): string {
   return lastOkAt ? `Last worked ${lastOkAt.slice(0, 10)}.` : "Has never completed a search.";
 }
 
+const MONTH_LABELS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec"
+];
+
+// "Jul 15" off the stored instant, by string arithmetic only. Deliberately not
+// `toLocaleDateString` and deliberately not a relative "3 days ago": the first resolves against
+// the *ambient* locale and timezone and is banned in web display layers by check:no-ambient-dates,
+// the second needs a clock read this module has no allowance for. Returns null rather than a
+// placeholder when the field is absent or malformed, so the caller can omit the pill entirely —
+// see the card's meta row for why an absent pill beats a dash.
+function formatPostedOn(postedAt: string | null): string | null {
+  if (postedAt === null || postedAt.length < 10) return null;
+  const month = Number(postedAt.slice(5, 7));
+  const day = Number(postedAt.slice(8, 10));
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  if (!Number.isInteger(day) || day < 1 || day > 31) return null;
+  return `${MONTH_LABELS[month - 1]} ${day}`;
+}
+
 // Renders a degraded or disabled portal's authored cause verbatim — never composed here.
 // describeFailure (domain/records.ts) is the single authored voice for every failure sentence
 // (Task 5's rule); N6 is why the board fetches this at all (nothing else can reach
@@ -588,36 +618,49 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
                   {item.title}
                 </button>
 
-                <div className="jsm-card__axes">
-                  <div className="jsm-card__axis">
-                    <span className="jds-eyebrow">Fit</span>
-                    {/* Three distinct states, and they are not the same claim. An unscored posting
-                        has not been read at all; a scored one with a null Fit was read but had
-                        nothing to judge Fit against (no résumé on file — the notice above the list
-                        is what explains it). Never a 0 for either: a zero is a score, drawn in the
-                        same bar as every real one, sitting next to a Want the model genuinely
-                        reasoned about. */}
-                    {!isScored(item) || item.fit === null ? (
-                      <p className="jsm-card__value">—</p>
-                    ) : (
-                      <Score value={item.fit} />
-                    )}
-                  </div>
-                  <div className="jsm-card__axis">
-                    <span className="jds-eyebrow">Want</span>
-                    {isScored(item) ? (
-                      <Score value={item.want} />
-                    ) : (
-                      <p className="jsm-card__value">—</p>
-                    )}
-                  </div>
+                {/* The card's factual line: where the posting came from, where the job is, when it
+                    was posted. Each pill is omitted when its field is empty rather than rendered
+                    as a dash — a row of placeholders reads as broken, an absent pill reads as
+                    "this board doesn't know", which is the truth. */}
+                <div className="jsm-meta">
+                  <span className="jds-eyebrow jsm-meta__pill">{item.source}</span>
+                  {item.location.length > 0 ? (
+                    <span className="jds-eyebrow jsm-meta__pill">{item.location}</span>
+                  ) : null}
+                  {formatPostedOn(item.postedAt) !== null ? (
+                    <span className="jds-eyebrow jsm-meta__pill">
+                      Posted {formatPostedOn(item.postedAt)}
+                    </span>
+                  ) : null}
                 </div>
 
                 <div className="jsm-card__foot">
-                  {!isScored(item) ? (
-                    <span className="jds-eyebrow jsm-card__pending">Not read yet</span>
+                  {/* Scores sit on the foot line beside Dismiss rather than in a block of their
+                      own above it. As a two-column grid they left the card two-thirds empty and
+                      pushed the Want number to the far right edge, a full card-width from its own
+                      label — the numbers are short, so they should be laid out at their own width,
+                      not given half the card each. */}
+                  {isScored(item) ? (
+                    <div className="jsm-card__axes">
+                      <div className="jsm-card__axis">
+                        <span className="jds-eyebrow">Fit</span>
+                        {/* Fit and Want are separate claims and never blended. A scored match can
+                            still carry a null Fit — read, but with no résumé on file to judge it
+                            against (the notice above the list is what explains that). Never a 0:
+                            a zero is a score, drawn in the same bar as every real one. */}
+                        {item.fit === null ? (
+                          <p className="jsm-card__value">—</p>
+                        ) : (
+                          <Score value={item.fit} />
+                        )}
+                      </div>
+                      <div className="jsm-card__axis">
+                        <span className="jds-eyebrow">Want</span>
+                        <Score value={item.want} />
+                      </div>
+                    </div>
                   ) : (
-                    <span />
+                    <span className="jds-eyebrow jsm-card__pending">Not read yet</span>
                   )}
                   {/* stopPropagation because the card itself opens the match: without it,
                       dismissing would also open the panel for the card that just went away. */}

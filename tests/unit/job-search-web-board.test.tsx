@@ -55,6 +55,9 @@ function match(overrides: Partial<BoardMatch> = {}): BoardMatch {
     outsideFrame: false,
     state: "new",
     url: "https://example.com/jobs/senior-engineer",
+    location: "Remote — US",
+    source: "LinkedIn",
+    postedAt: "2026-07-15T09:00:00.000Z",
     ...overrides
   };
 }
@@ -326,12 +329,17 @@ describe("job-search web BoardScreen", () => {
     await flush(renderer);
 
     expect(text(renderer)).toMatch(/Not read yet/);
-    // Both axes read as an em dash, never a 0: an unscored posting has no number on either axis,
-    // and a zero would be drawn in the same bar as a real score.
-    const values = renderer.root
-      .findAll((item) => (item.props as { className?: string }).className === "jsm-card__value")
-      .map((item) => flatten(item.props.children).trim());
-    expect(values).toEqual(["—", "—"]);
+    // An unscored row carries no number on either axis, and never a 0 — a zero is a score, drawn
+    // in the same bar as a real one. The row now says "Not read yet" in place of the whole axes
+    // block rather than drawing two em-dashes inside it (two blank instruments read as a
+    // measurement that came back empty; the sentence says why there is no measurement yet). The
+    // invariant under test is unchanged: nothing numeric renders for this row.
+    const scoreBars = renderer.root.findAll((item) =>
+      String((item.props as { className?: string }).className ?? "")
+        .split(" ")
+        .includes("jsm-card__value")
+    );
+    expect(scoreBars).toEqual([]);
 
     const titleButton = findButton(renderer, /Unscored Role/);
     await act(async () => {

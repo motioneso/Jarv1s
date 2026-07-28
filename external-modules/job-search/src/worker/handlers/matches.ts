@@ -9,6 +9,7 @@ import { MATCHES_LIST_MAX_LIMIT } from "../../domain/records.js";
 import type { Match } from "../../domain/records.js";
 import type { JobSearchStore } from "../../domain/store-port.js";
 import { looksLikeJobEnvelope, parseJobEnvelope } from "../job-input.js";
+import { labelFor } from "./portal.js";
 import { InputError, stripEnvelope } from "../validate.js";
 
 // Ruling N5: the board's REST route ends at `boundedAssistantToolResultData`
@@ -60,6 +61,21 @@ export const COMPANY_MAX_CHARS = 60;
 // the render cap), not a claim that a cut-off link is still useful.
 export const URL_MAX_CHARS = 200;
 
+// Added after the board became a card list and read as empty — a card has room a table cell did
+// not, and these three were already on `Posting`, just never crossing the wire. They are bounded
+// by the same render-cap arithmetic as everything above, so they were costed before being added
+// rather than after: the row was spending ~406 chars of a ~512 budget (25 rows against 80% of the
+// 16 000-char cap), and location+source+postedAt at these caps add ~70, landing near 476. That
+// is deliberately the whole remaining budget — it is why a `wantReason` snippet is NOT here
+// alongside them (N39 stands; ~110 more chars a row does not fit, and over the cap the board
+// renders zero rows rather than short ones).
+//
+// `postedAt` is an ISO instant off the record, not a computed "3 days ago" — the module has no
+// ambient-clock allowance (check:no-ambient-dates), and formatting it relatively here would be
+// exactly that. The card renders the date itself.
+export const LOCATION_MAX_CHARS = 40;
+export const SOURCE_LABEL_MAX_CHARS = 24;
+
 /** Enforced in the handler because the queue's params DSL has no enum for `state` and the
  * manifest's own `paramsSchema` fix (an `enum` type) still leaves the manual-run body path,
  * which the platform never re-validates against `jarvis.module.json` at request time. Does not
@@ -80,6 +96,9 @@ export interface BoardMatch {
   outsideFrame: boolean;
   state: Match["state"];
   url: string;
+  location: string;
+  source: string;
+  postedAt: string | null;
 }
 
 // #1330: the untruncated detail behind job-search.match.get, opened when the inspector needs
@@ -180,7 +199,10 @@ export function createMatchesListHandler(store: JobSearchStore) {
         want: match.want,
         outsideFrame: match.outsideFrame,
         state: match.state,
-        url: truncateText(posting.url, URL_MAX_CHARS)
+        url: truncateText(posting.url, URL_MAX_CHARS),
+        location: truncateText(posting.location, LOCATION_MAX_CHARS),
+        source: truncateText(labelFor(posting.sourceId), SOURCE_LABEL_MAX_CHARS),
+        postedAt: posting.postedAt
       });
     }
 

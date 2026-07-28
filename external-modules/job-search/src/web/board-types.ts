@@ -25,6 +25,12 @@ export interface BoardMatch {
   outsideFrame: boolean;
   state: MatchState;
   url: string;
+  // The card's meta line. These are not "extra detail" in the sense N39 rejected — they are short
+  // structured facts the card renders directly, which is the test N39 actually sets. `postedAt` is
+  // the raw instant; the module has no ambient clock, so no relative "3 days ago" is computed.
+  location: string;
+  source: string;
+  postedAt: string | null;
 }
 
 // #1330: mirrors worker/handlers/matches.ts's MatchDetail — the untruncated record behind
