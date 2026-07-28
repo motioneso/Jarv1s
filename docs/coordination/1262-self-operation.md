@@ -4492,3 +4492,35 @@ Also checked and cleared: an earlier gate log showed `check:file-size` red on
 tests run). That file is **760 lines on the current branch head** — the violation is already
 resolved and the log was stale. No action needed, but it is a reminder that an early gate link
 going red means the suite never ran, not that the suite passed.
+
+### Ruling — the module-enablement routing test used a mutating probe (#1311)
+
+The `resolveGrantSelfOperationForModule routes a non-tasks manifest to the generic grant` test in
+`tests/integration/module-enablement.test.ts` was failing at 6ms — a synchronous assertion, not a
+timeout. The lane escalated rather than editing it, because my standing instruction was **never
+adjust the assertion**. **The lane was right and that instruction is overruled for this one line.**
+
+I verified it myself rather than accepting the report. Line 844 asserted
+`getResolvedTaskChangesPolicy(scopedDb)` is `"ask_each_time"`. After Task 3, the neither-row branch
+of that function calls `healInstallGrantAndReread` (`packages/tasks/src/action-policy.ts:18`,
+`:41-48`), which runs `grantInstallTimeTrustIfUnset` and re-reads — so the call **writes the
+install grant and returns `trusted_auto`**. The assertion is structurally unreachable regardless of
+how routing behaves. The test's own comment at `:836-838` already knew the probe mutates — that is
+exactly why the *precondition* reads storage directly — and then used the same mutating call as the
+assertion. **The instrument was invalid, not the expectation.**
+
+Fix ordered: keep the expectation's intent, replace the probe. Assert directly against storage
+after `resolved(...)` — `prefs.getWithMetadata(TASK_CHANGES_POLICY_KEY)` and
+`LEGACY_AGENCY_AUTO_EXECUTE_KEY` both `toBeNull()` — and keep both `genericGrant` assertions. This
+is **strictly stronger** than what it replaced: "no row was ever written" separates a real mis-route
+from a row that merely happens to read back as `ask_each_time`, which the old assertion could not.
+`action-policy.ts`, the self-heal, tiers, grants and `allowedTiers` stay untouched.
+
+This is the third time this run that [[coordinator-ruling-loses-to-the-type]] has held: when a build
+agent refuses a coordinator instruction by citing a structural impossibility, read the type and the
+implementation before defending the instruction. The generalizable trap: **a self-healing read is
+not a valid observation instrument for the state it heals.** Any test that probes a value through a
+function with a write side-effect measures the heal, not the behaviour under test.
+
+Relay ordered before Task 4 — the lane was at 65% with ~11% to auto-compact, and the real-instance
+UAT spec plus gate plus PR is the heaviest stretch remaining.
