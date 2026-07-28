@@ -50,13 +50,23 @@ const protectedTables = [
 const protectedTablesWithWorkerDelete = new Set<string>([
   // Google sync worker reconciles stale/cancelled cached events. Owner-scoped DELETE policy still
   // applies; app runtime stays unable to DELETE calendar events.
-  "calendar_events"
+  "calendar_events",
+  // Migration 0175 (Task 2b, #1283): ctx.notify's keyed-upsert "return to unread" clears the read
+  // row on a re-fire from the worker/queue lane. notification_reads_delete_worker is owner-scoped
+  // AND re-checks the parent notification's visibility via an EXISTS subquery against
+  // app.notifications (itself FORCE RLS, no BYPASSRLS role) -- a worker can only delete a read row
+  // it could also see.
+  "notification_reads"
 ]);
 
 const protectedTablesWithAppDelete = new Set<string>([
   // #982/#869 D6: CLI model reconciliation hard-deletes concrete rows only. Migration 0163 keeps
   // FORCE RLS, requires an admin actor, and protects the `default` sentinel in policy + code.
-  "ai_configured_models"
+  "ai_configured_models",
+  // Migration 0175 (Task 2b, #1283): same keyed-upsert return-to-unread capability, app-runtime
+  // side. notification_reads_delete mirrors the worker policy above verbatim -- owner-scoped plus
+  // the visible-parent EXISTS guard.
+  "notification_reads"
 ]);
 
 // Transient tables: owner-only RLS required, but runtime DELETE is intentional

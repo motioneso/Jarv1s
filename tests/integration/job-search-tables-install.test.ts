@@ -168,9 +168,10 @@ async function insertMatch(
 }
 
 describe("job-search module table install (#1288)", () => {
-  it("installs all seven migrations, FORCE RLS on every table, and re-runs idempotently", async () => {
+  it("installs all eight migrations, FORCE RLS on every table, and re-runs idempotently", async () => {
     const result = await install();
-    expect(result.installed).toHaveLength(7);
+    // Migration 0008 (Task 24, #1309) added job_search_custom_sources; bumped 7 -> 8 here to match.
+    expect(result.installed).toHaveLength(8);
 
     const client = new Client({ connectionString: urls.bootstrap });
     await client.connect();
@@ -195,7 +196,7 @@ describe("job-search module table install (#1288)", () => {
       "SELECT version FROM app.module_schema_migrations WHERE module_id = $1",
       [moduleId]
     );
-    expect(ledger.rows).toHaveLength(7);
+    expect(ledger.rows).toHaveLength(8);
 
     await client.end();
 

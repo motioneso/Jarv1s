@@ -7,19 +7,30 @@
 // Every case asserts on the COMPOSED OUTPUT of collectExternalBriefingContributions — the
 // actual function compose.ts/compose-evening.ts call — never on a thrown error (J3): a
 // module that fails a trust check must silently contribute nothing, not fail the briefing.
+import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
+import type { PgBoss } from "pg-boss";
 
 import { collectExternalBriefingContributions } from "@jarv1s/briefings";
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
 import { StubEmbeddingProvider } from "@jarv1s/memory";
+import {
+  validateExternalModuleManifest,
+  type ExternalModuleDiscovery
+} from "@jarv1s/module-registry";
+import { ExternalModuleJobReconciler } from "@jarv1s/module-registry/node";
 import type { JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
 import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
 import type { Kysely } from "kysely";
 
-import { createExternalBriefingInvoker } from "../../apps/worker/src/external-module-invoke.js";
+import {
+  createExternalBriefingInvoker,
+  createVerifiedExternalModuleInvoker
+} from "../../apps/worker/src/external-module-invoke.js";
 import { installModule } from "../../scripts/module-install.js";
 import {
   moduleInstallRoleName,
@@ -156,6 +167,137 @@ describe("external module briefing contribution — real trust gate (#1282)", ()
   });
 });
 
+// Task 21 (#1305) hash gate: createVerifiedExternalModuleInvoker's trust gate must decline on
+// EITHER hash mismatching independently (F10 requires both are checked, not manifest_hash
+// alone) — reuses the synthetic fixtures above rather than standing up a second module row,
+// since the gate itself is generic and doesn't care which manifest it's guarding. The
+// runtime.invoke stub throws if ever reached: a passing assertion here must mean the gate
+// short-circuited BEFORE touching the module process, not that the process happened to also
+// return the right shape.
+describe("createVerifiedExternalModuleInvoker hash gate (#1305)", () => {
+  function buildRawInvoker() {
+    return createVerifiedExternalModuleInvoker({
+      workerDb,
+      discoveryById: new Map([[moduleId, discovery]]),
+      dataContext: new DataContextRunner(workerDb),
+      cipher: createModuleCredentialSecretCipher(),
+      runtime: {
+        invoke: async () => {
+          throw new Error("gate must not reach runtime.invoke on a hash mismatch");
+        }
+      },
+      listActiveUserIds: async () => [ids.userA]
+    });
+  }
+
+  const baseArgs = {
+    moduleId,
+    handler: "briefing.contribute",
+    actorUserId: ids.userA,
+    requestId: "req-hash-gate",
+    jobKind: "test",
+    idempotencyKey: "test-hash-gate",
+    params: {},
+    lane: "briefing" as const,
+    toolRisk: "read" as const
+  };
+
+  it("declines on a manifest_hash mismatch alone", async () => {
+    await seedModuleRow({ status: "enabled", manifestHash: OTHER_HASH });
+    const result = await buildRawInvoker()(baseArgs);
+    expect(result).toEqual({ ok: false, reason: "hash-mismatch" });
+  });
+
+  it("declines on a package_hash mismatch alone", async () => {
+    await seedModuleRow({ status: "enabled", packageHash: OTHER_HASH });
+    const result = await buildRawInvoker()(baseArgs);
+    expect(result).toEqual({ ok: false, reason: "hash-mismatch" });
+  });
+});
+
+// Task 21 (#1305) test 8: schedule->queue binding survives reconciliation, against the REAL
+// ExternalModuleJobReconciler and the REAL on-disk manifest (never retyped) — a typo in either
+// the schedule's `queue` field or a queue's `name` would silently orphan the schedule, and only
+// asserting against the parsed manifest catches that.
+describe("job-search reconciler binds crawl-sweep's schedule to its own queue (#1305, test 8)", () => {
+  function loadJobSearchModule(): ExternalModuleDiscovery {
+    const manifestPath = fileURLToPath(
+      new URL("../../external-modules/job-search/jarvis.module.json", import.meta.url)
+    );
+    const raw: unknown = JSON.parse(readFileSync(manifestPath, "utf8"));
+    const validation = validateExternalModuleManifest(raw, "job-search", "0.1.0");
+    if (!validation.ok) {
+      throw new Error(`job-search manifest failed validation: ${validation.errors.join(", ")}`);
+    }
+    return {
+      id: "job-search",
+      dir: fileURLToPath(new URL("../../external-modules/job-search", import.meta.url)),
+      manifest: validation.manifest,
+      manifestHash: HASH,
+      packageHash: HASH
+    };
+  }
+
+  it("creates every declared queue and schedules crawl-sweep against the crawl-sweep queue", async () => {
+    const module = loadJobSearchModule();
+    const calls: string[] = [];
+    const schedules: Array<{
+      name: string;
+      cron: string;
+      payload: unknown;
+      options: unknown;
+    }> = [];
+    const boss = {
+      getQueue: async () => null,
+      createQueue: async (name: string) => {
+        calls.push(`create:${name}`);
+      },
+      updateQueue: async (name: string, options: unknown) => {
+        calls.push(`update:${name}:${JSON.stringify(options)}`);
+      },
+      getSchedules: async () => [],
+      schedule: async (name: string, cron: string, payload: unknown, options: unknown) => {
+        schedules.push({ name, cron, payload, options });
+      }
+    } as unknown as PgBoss;
+
+    const reconciler = new ExternalModuleJobReconciler({
+      boss,
+      discoveries: () => [module],
+      isModuleEnabled: async () => true,
+      listActiveUserIds: async () => [ids.userA]
+    });
+    await reconciler.reconcileAll();
+
+    expect(calls).toEqual([
+      "create:job-search.crawl-run",
+      `update:job-search.crawl-run:${JSON.stringify({ retryLimit: 2 })}`,
+      "create:job-search.crawl-sweep",
+      `update:job-search.crawl-sweep:${JSON.stringify({ retryLimit: 1 })}`,
+      "create:job-search.match-state",
+      `update:job-search.match-state:${JSON.stringify({ retryLimit: 2 })}`,
+      "create:job-search.portal-set-enabled",
+      `update:job-search.portal-set-enabled:${JSON.stringify({ retryLimit: 2 })}`,
+      "create:job-search.profile-set-briefing-detail",
+      `update:job-search.profile-set-briefing-detail:${JSON.stringify({ retryLimit: 2 })}`
+    ]);
+
+    expect(schedules).toEqual([
+      {
+        name: "job-search.crawl-sweep",
+        cron: "17 */6 * * *",
+        payload: {
+          actorUserId: ids.userA,
+          moduleId: "job-search",
+          jobKind: "job-search.crawl-sweep",
+          manifestHash: module.manifestHash
+        },
+        options: { tz: "UTC", key: `job-search/job-search.crawl-sweep/${ids.userA}` }
+      }
+    ]);
+  });
+});
+
 // Task 21 (#1305): the REAL job-search module's tables under real RLS. Distinct from the
 // synthetic "job-search-briefing" fixture above, which only exercises the generic trust gate
 // with a minimal fake manifest — this uses the real module id, the real DDL
@@ -169,17 +311,16 @@ describe("external module briefing contribution — real trust gate (#1282)", ()
 // tests/integration/job-search-tables-install.test.ts).
 //
 // Tier B (queue payload whitelist, manual-run route, schedule->queue binding, real-gateway tool
-// calls, partial-crawl persistence, briefing round-trip, no-blended-score sweep) is NOT in this
-// file yet. As of this commit: external-modules/job-search/src/worker/index.ts still has an
-// empty handler map ("Tasks 15 and 16 add the actual tools"), jarvis.module.json's
-// worker.{queues,schedules,reconcileJobs} are all still empty arrays with no allowManualRun
-// field, and there is no worker/handlers/briefing.ts despite the manifest already declaring a
-// briefing.contribute handler. Tier A "must never depend on the worker being up" per the task
-// spec, and by the same logic it doesn't need the heavier build-package/discovery-dir/enable
-// ceremony that exists only to get a worker live — so this suite skips straight to a direct
-// installModule() call, the same pattern Task 4's job-search-tables-install.test.ts and Task
-// 13's job-search-store.test.ts already use. Add tier B, with the full finance-style harness
-// (buildExternalModule + a live worker child process), once Tasks 15/16 land.
+// calls, hash gate, briefing round-trip) lives elsewhere: the hash-gate and schedule->queue
+// describes above are in this same file (synthetic fixtures suffice for both — the gate is
+// generic and the reconciler test only checks binding, not a live process), and the three tests
+// that need a real spawned worker (manual-run, matches.list invoke, briefing contribution) are in
+// the sibling file tests/integration/job-search-worker-surface.test.ts, split out purely to stay
+// under the file-size gate's 1000-line cap. Tier A "must never depend on the worker being up" per
+// the task spec, and by the same logic it doesn't need the heavier build-package/discovery-dir/
+// enable ceremony that exists only to get a worker live — so this suite skips straight to a
+// direct installModule() call, the same pattern Task 4's job-search-tables-install.test.ts and
+// Task 13's job-search-store.test.ts already use.
 describe("job-search module RLS (#1305, tier A — no worker process)", () => {
   const realModuleId = "job-search";
   const runtimeRole = moduleRuntimeRoleName(realModuleId);
@@ -334,6 +475,19 @@ describe("job-search module RLS (#1305, tier A — no worker process)", () => {
           `INSERT INTO app.job_search_matches (owner_user_id, profile_id, posting_id, state)
            VALUES ($1, $2, $3, 'unscored')`,
           [ownerUserId, profileId, postingId]
+        )
+      );
+      return;
+    }
+    if (table === "job_search_custom_sources") {
+      // Migration 0008 (Task 24, #1309): host/label/url define a user-named board. The
+      // composite FK to job_search_profiles(owner_user_id, id) is why this branch, like
+      // portals/resumes above, seeds off the same profileId rather than a bare insert.
+      await asRuntime(ownerUserId, (client) =>
+        client.query(
+          `INSERT INTO app.job_search_custom_sources (owner_user_id, profile_id, host, label, url)
+           VALUES ($1, $2, 'boards.example.com', 'Example Boards', 'https://boards.example.com/jobs')`,
+          [ownerUserId, profileId]
         )
       );
       return;
