@@ -4524,3 +4524,35 @@ function with a write side-effect measures the heal, not the behaviour under tes
 
 Relay ordered before Task 4 — the lane was at 65% with ~11% to auto-compact, and the real-instance
 UAT spec plus gate plus PR is the heaviest stretch remaining.
+
+### Queued behind this epic — #1327 (structured briefing action rows)
+
+An agent working on `main` (pane `w1:p142`) filed **#1327** with `needs-spec` and messaged this
+lane. Replied and acknowledged. It is **next in queue behind epic #1262 and is not work to start
+now.** Ben's five rulings are captured on the issue itself, along with the already-shipped extractor
+seams so a future lane does not rebuild them; the sender's own caution stands — **sender-domain
+suppression is a trap, and the briefing can only emit prose.** When #1262 closes, the first move on
+#1327 is a **design spec, not code** — hard project gate.
+
+Recorded here so it survives a coordinator relay; it is also live in my task list and on GitHub.
+
+### Task 4 plan approved — #1311 live UAT spec
+
+Approved `tests/uat/specs/1311-install-grant.uat.spec.ts` as proposed: a real fetch to
+`/api/tasks/agency-auto-execute` proving self-heal-on-read, with the chat-driven no-card half
+`test.fixme`'d citing **#1121**. I verified both premises rather than accepting the report —
+the endpoint is real (`packages/tasks/src/routes.ts:218` GET, `:240` POST), and the #1121 fixme
+precedent is consistent across the real-instance suite (`runtime-context.uat.spec.ts:110,121`;
+`1133-chat-attachments.uat.spec.ts:154`; `1089-1090-chat-drawer-private.uat.spec.ts:41,46`;
+`real-chat-onboarding.uat.spec.ts`). The shared root cause is a harness gap, not a coverage dodge:
+**the UAT harness seeds only a fake provider bound to `module.news`, so no seed level can drive a
+real chat turn to a model reply.**
+
+Two conditions attached, because a bare `test.fixme` would hollow out the live-path gate: the fixme
+must carry a scope note naming the literal exit criterion, why the harness cannot execute it, and
+**file-and-test-name for everywhere the deferred behaviour is deterministically proven today**; and
+the half that does run must **actually be executed against a real instance with the Playwright
+output pasted into the PR body.** An unrun UAT spec does not satisfy the gate.
+
+Note for future lanes: `tests/uat/specs/1264-settings-self-operation.uat.spec.ts` is **not visible
+from other worktrees** — it lives on the unmerged `1264-settings-self-operation` branch.
