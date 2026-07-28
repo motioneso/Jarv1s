@@ -755,7 +755,12 @@ describe("tasks legacy agency_auto_execute opt-out survives install grant (#1263
     await dataContext.withDataContext(
       { actorUserId: ids.userB, requestId: "req:legacy-fresh" },
       async (scopedDb) => {
-        expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("ask_each_time");
+        // getResolvedTaskChangesPolicy itself self-heals the neither-row case (#1311 Task 3) --
+        // tasks is a required module that never traverses an explicit enable PATCH, so the read
+        // path is the only place self-heal can happen. This first call already grants and returns
+        // trusted_auto; the explicit grantInstallTimeTrustIfUnset below is a no-op idempotency
+        // check, not the thing that flips the value.
+        expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("trusted_auto");
 
         await tasksCompat.grantInstallTimeTrustIfUnset(scopedDb);
 
@@ -828,7 +833,11 @@ describe("tasks legacy agency_auto_execute opt-out survives install grant (#1263
       // of leaving it at ask_each_time.
       { actorUserId: userNeitherKey, requestId: "req:routing-other" },
       async (scopedDb) => {
-        expect(await tasksCompat.getResolvedTaskChangesPolicy(scopedDb)).toBe("ask_each_time");
+        // Precondition must read storage directly, not via getResolvedTaskChangesPolicy -- that
+        // call itself self-heals the neither-row case (#1311 Task 3) and would mutate the very
+        // state this test is trying to observe before the routing logic under test even runs.
+        expect(await prefs.getWithMetadata(scopedDb, TASK_CHANGES_POLICY_KEY)).toBeNull();
+        expect(await prefs.getWithMetadata(scopedDb, LEGACY_AGENCY_AUTO_EXECUTE_KEY)).toBeNull();
 
         await resolved(scopedDb, otherManifest);
 

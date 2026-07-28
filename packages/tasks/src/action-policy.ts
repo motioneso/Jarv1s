@@ -19,11 +19,13 @@ export class TasksCompatibilityHelper {
     if (canonical && !legacy) return canonical.value;
     if (!canonical && legacy) return legacy.value ? "trusted_auto" : "ask_each_time";
 
-    // Both exist, use the most recently updated
-    if (canonical!.updatedAt >= legacy!.updatedAt) {
-      return canonical!.value;
-    }
-    return legacy!.value ? "trusted_auto" : "ask_each_time";
+    // Both exist: canonical is unconditionally authoritative. setTaskChangesPolicy always writes
+    // canonical then legacy, so legacy's timestamp is essentially always >= canonical's — a
+    // timestamp tie-break would silently prefer legacy's boolean, which cannot represent
+    // "always_confirm" and would drop that tier back to "ask_each_time" on every read. Legacy is
+    // never written independently of canonical (grepped: only setTaskChangesPolicy writes it), so
+    // there is no real scenario where legacy being newer should win.
+    return canonical!.value;
   }
 
   /**

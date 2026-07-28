@@ -13,7 +13,8 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 
 const { Client } = pg;
 
-const legacyOnlyUserId = "00000000-0000-4000-8000-000000000004";
+const legacyOnlyUserId = "00000000-0000-4000-8000-000000000005";
+const tieBreakUserId = "00000000-0000-4000-8000-000000000006";
 
 describe("tasks action policy self-heal (getResolvedTaskChangesPolicy, #1311 tasks-side fix)", () => {
   let appDb: Kysely<JarvisDatabase>;
@@ -29,6 +30,10 @@ describe("tasks action policy self-heal (getResolvedTaskChangesPolicy, #1311 tas
       await client.query(
         `INSERT INTO app.users (id, email, is_instance_admin) VALUES ($1, 'tasks-legacy@example.test', false)`,
         [legacyOnlyUserId]
+      );
+      await client.query(
+        `INSERT INTO app.users (id, email, is_instance_admin) VALUES ($1, 'tasks-tiebreak@example.test', false)`,
+        [tieBreakUserId]
       );
     } finally {
       await client.end();
@@ -84,6 +89,28 @@ describe("tasks action policy self-heal (getResolvedTaskChangesPolicy, #1311 tas
     const tier = await runner.withDataContext(
       { actorUserId, requestId: "req-race-heal" },
       (scopedDb) => helper.healInstallGrantAndReread(scopedDb)
+    );
+    expect(tier).toBe("always_confirm");
+  });
+
+  it("both keys exist: canonical always_confirm wins even when legacy is written more recently", async () => {
+    // Regression test for the tie-break bug found by the "revocation survives" test above:
+    // setTaskChangesPolicy always writes canonical then legacy, so legacy's updated_at is
+    // essentially always >= canonical's. A timestamp-based tie-break would pick legacy's boolean
+    // here -- which can only encode trusted_auto/ask_each_time -- and silently drop
+    // always_confirm back to ask_each_time. Seed canonical first, legacy second (so legacy is
+    // unambiguously newer), and confirm the resolver returns canonical's value regardless.
+    const actorUserId = tieBreakUserId;
+    await runner.withDataContext({ actorUserId, requestId: "req-tiebreak-canonical" }, (scopedDb) =>
+      prefs.upsert(scopedDb, TASK_CHANGES_POLICY_KEY, "always_confirm")
+    );
+    await runner.withDataContext({ actorUserId, requestId: "req-tiebreak-legacy" }, (scopedDb) =>
+      prefs.upsert(scopedDb, LEGACY_AGENCY_AUTO_EXECUTE_KEY, false)
+    );
+
+    const tier = await runner.withDataContext(
+      { actorUserId, requestId: "req-tiebreak-check" },
+      (scopedDb) => helper.getResolvedTaskChangesPolicy(scopedDb)
     );
     expect(tier).toBe("always_confirm");
   });
