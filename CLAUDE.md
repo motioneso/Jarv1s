@@ -90,8 +90,7 @@ separate worktree.
 Verify before you rank. Read the files each option touches — give the one you lean _against_ equal
 depth — and grep for existing machinery before calling anything net-new; around here "big change" is
 usually already half-built. Steelman the option you'd reject. On milestone-level forks an adversarial
-second opinion is valuable but never a gate: `/codex-review` or `/grill-me-codex`, else an
-independent critic subagent.
+second opinion is valuable but never a gate: `/grill-me-codex`, else an independent critic subagent.
 
 ## Memory
 
