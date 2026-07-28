@@ -8,14 +8,18 @@
 // with a plain message if it comes back still not-dismissed (the write never actually landed).
 import { h, useCallback, useEffect, useState, type ReactNodeLike } from "../runtime";
 import { invokeTool, runQueue, type RunOutcome } from "../api";
-import type { FailureCause } from "../../domain/records.js";
+import { MATCHES_LIST_MAX_LIMIT, type FailureCause } from "../../domain/records.js";
 import { Inspector } from "./inspector";
 import { isScored, type BoardMatch, type PortalListItem } from "../board-types";
 
-// worker/handlers/matches.ts's MATCHES_LIST_MAX_LIMIT: the tool has no default, so an omitted
-// limit throws rather than silently defaulting to an unbounded read. Passing the max shows the
-// whole board in one page — Task 20 was never asked to build pagination.
-const MATCHES_LIMIT = 40;
+// N43: `MATCHES_LIST_MAX_LIMIT` is defined once in domain/records.ts and imported by both this
+// screen and worker/handlers/matches.ts's requireLimit — there is no local literal here to drift
+// out of sync (a999a081 shipped the handler at a lower value while this file still asked for 40,
+// and every board load threw InputError; see the ruling for why the fix is a shared constant, not
+// a synced pair). The tool has no default, so an omitted limit throws rather than silently
+// defaulting to an unbounded read; passing the max shows the whole board in one page — Task 20 was
+// never asked to build pagination (#1333 tracks paging as a separate, out-of-scope product
+// question).
 
 type MatchesState =
   | { status: "loading" }
@@ -197,7 +201,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
     try {
       const result = (await invokeTool("job-search.matches.list", {
         profileId,
-        limit: MATCHES_LIMIT
+        limit: MATCHES_LIST_MAX_LIMIT
       })) as { items?: BoardMatch[] } | null;
       const items = Array.isArray(result?.items) ? (result!.items as BoardMatch[]) : [];
       reconcileHidden(items);

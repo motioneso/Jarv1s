@@ -86,6 +86,16 @@ export interface Match {
   scoredAt: string | null;
 }
 
+// N43: this is the ONE definition of the matches.list page size. worker/handlers/matches.ts's
+// requireLimit rejects any request above it, and web/screens/board.tsx is the only caller — both
+// import this constant rather than each carrying their own literal, so the two can never drift
+// out of sync again (a999a081 shipped 15 in the handler while board.tsx still sent 40, and every
+// board load threw InputError). The value, 25, is the measured <=80% render-cap ceiling for the
+// reason-free N39 row minus the same headroom margin the project used elsewhere (see
+// worker/handlers/matches.ts's comment and tests/unit/job-search-match-handler.test.ts for the
+// arithmetic) — not a number to change here without re-running that measurement.
+export const MATCHES_LIST_MAX_LIMIT = 25;
+
 export interface PortalState {
   sourceId: string;
   enabled: boolean;

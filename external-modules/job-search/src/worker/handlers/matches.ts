@@ -5,6 +5,7 @@
 // only `{hostActions, assistantSurface?}` and it has no database access of any kind.
 import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
 
+import { MATCHES_LIST_MAX_LIMIT } from "../../domain/records.js";
 import type { Match } from "../../domain/records.js";
 import type { JobSearchStore } from "../../domain/store-port.js";
 import { looksLikeJobEnvelope, parseJobEnvelope } from "../job-input.js";
@@ -36,22 +37,14 @@ import { InputError, stripEnvelope } from "../validate.js";
 // (#1330, below). Reasons are therefore gone from `BoardMatch` entirely, not merely re-truncated;
 // `REASON_MAX_CHARS` no longer exists here because there is nothing left in this row to bound.
 //
-// Removing reasons frees enough of the render budget that `MATCHES_LIST_MAX_LIMIT` could legally
-// move well past its #1330-era value of 15 — re-run against the real `renderToolResult` with the
-// N39 row shape `{id, title, company, fit, want, outsideFrame, state, url}` (title/company/url
-// still at their caps, worst-case state literal), the true <=80% ceiling is 30 rows (79.7% at 30,
-// 82.3% at 31). The constant stays at its pre-N39 value of 15 for now regardless — strictly safe
-// under the new, smaller row (a fixed row count with fewer fields only ever renders shorter, never
-// longer) but not yet the real number. It is deliberately NOT bumped in this commit: `board.tsx`'s
-// own `MATCHES_LIMIT` must move to the identical value in the SAME commit or the board throws
-// `InputError` on every read, and `board.tsx` is held by another lane until it clears. The number
-// to land alongside that sync is 25 (66.5% of the render cap — comparable headroom below the true
-// 30-row ceiling to the margin the original 15-vs-17 pair left below ITS ceiling), not the bare
-// maximum: board row count is a product question (#1333, paging, is explicitly out of scope here),
-// and headroom below a hard boundary is what keeps one future field addition from being the commit
-// that silently blows the cap. See tests/unit/job-search-match-handler.test.ts's worst-case
-// render-survival test for the arithmetic.
-export const MATCHES_LIST_MAX_LIMIT = 15;
+// N43: `MATCHES_LIST_MAX_LIMIT` used to be declared here as its own literal, with `board.tsx`
+// carrying a second literal that had to be kept equal by hand — a999a081 proved that discipline
+// alone doesn't hold under a concurrent multi-agent tree (the handler shipped 25, board.tsx still
+// asked for 40, and `requireLimit` below threw `InputError` on every board read). It is now a
+// single exported constant in `../../domain/records.js`, imported here and by `board.tsx` — see
+// that file for the render-cap arithmetic behind the value 25 (measured true ceiling: 30 rows,
+// <=80% of the 16 000-char render cap; see tests/unit/job-search-match-handler.test.ts's worst-case
+// render-survival test).
 export const TITLE_MAX_CHARS = 80;
 export const COMPANY_MAX_CHARS = 60;
 // N39 also asked whether `URL_MAX_CHARS` truncation is still earning its keep now that the reason

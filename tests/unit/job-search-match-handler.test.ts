@@ -14,12 +14,17 @@ import {
   createMatchesListHandler,
   createMatchGetHandler,
   createMatchSetStateHandler,
-  MATCHES_LIST_MAX_LIMIT,
   SETTABLE_STATES,
   TITLE_MAX_CHARS,
   URL_MAX_CHARS
 } from "../../external-modules/job-search/src/worker/handlers/matches.js";
-import type { Match, Posting } from "../../external-modules/job-search/src/domain/records.js";
+// N43: MATCHES_LIST_MAX_LIMIT lives in domain/records.ts now — one definition, imported by the
+// worker handler, board.tsx, and this test, none of them a second literal.
+import {
+  MATCHES_LIST_MAX_LIMIT,
+  type Match,
+  type Posting
+} from "../../external-modules/job-search/src/domain/records.js";
 import type { JobSearchStore } from "../../external-modules/job-search/src/domain/store-port.js";
 
 // N39 removed `REASON_MAX_CHARS` from matches.ts entirely — there is no longer a row-level

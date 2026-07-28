@@ -185,7 +185,7 @@ describe("job-search web BoardScreen", () => {
 
     expect(api.invokeTool).toHaveBeenCalledWith("job-search.matches.list", {
       profileId: "p1",
-      limit: 40
+      limit: 25
     });
     void renderer;
   });
