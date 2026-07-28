@@ -126,7 +126,7 @@ test("Finance budget derives rollover and applies assignments end-to-end", async
   await expect(page.getByRole("heading", { name: "Instance modules" })).toBeVisible();
   const enableSwitch = page.getByRole("checkbox", { name: "Enable Finance", exact: true });
   await expect(enableSwitch).not.toBeChecked();
-  // The switch input itself is visually hidden (components-core.css) — the wrapping
+  // The switch input itself is visually hidden (components-forms.css) — the wrapping
   // <label.jds-switch> is the clickable surface (same idiom as tests/e2e/settings-modules.spec.ts).
   await page.locator("label.jds-switch", { has: enableSwitch }).click();
   await expect(enableSwitch).toBeChecked();

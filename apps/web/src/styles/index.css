@@ -8,6 +8,7 @@
  */
 @import "./tokens.css";
 @import "./components-core.css";
+@import "./components-forms.css";
 @import "./components-jarvis.css";
 @import "./command-palette.css";
 @import "../styles.css";
