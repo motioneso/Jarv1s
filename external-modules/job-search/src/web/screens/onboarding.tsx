@@ -10,8 +10,12 @@
 // the domain layer rather than redeclared here so this screen's chip list can't drift the
 // moment Task 10's step list changes.
 //
-// Markup ported from the prototype's `.jp-onb` block (apps/web/src/job-search-prototype/
-// variant-flow.tsx). #1331 restores the one piece Task 19 dropped: the block's fake conversation
+// Markup ported from the prototype's `.jp-onb` block (variant-flow.tsx). The prototype directory
+// was deleted from this branch (Task 23, #1307); its full source, including variant-flow.tsx and
+// the README verdict that picked this layout, is preserved on branch `prototype/job-search-ui`
+// at 137ae214003607cc9d5a38d0a43a3ea5b08f9636.
+//
+// #1331 restores the one piece Task 19 dropped: the block's fake conversation
 // thread and composer simulated the assistant inline, and were rightly cut (root.tsx's header:
 // the only way into the assistant here is hostActions.openAssistant) — but spec §7 calls for a
 // REAL chat, full width, not zero chat. That real chat is the host's own `Surface`
