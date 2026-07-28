@@ -15,7 +15,7 @@ export class TasksCompatibilityHelper {
     );
     const legacy = await this.prefs.getWithMetadata<boolean>(db, LEGACY_AGENCY_AUTO_EXECUTE_KEY);
 
-    if (!canonical && !legacy) return "ask_each_time";
+    if (!canonical && !legacy) return this.healInstallGrantAndReread(db);
     if (canonical && !legacy) return canonical.value;
     if (!canonical && legacy) return legacy.value ? "trusted_auto" : "ask_each_time";
 
@@ -24,6 +24,25 @@ export class TasksCompatibilityHelper {
       return canonical!.value;
     }
     return legacy!.value ? "trusted_auto" : "ask_each_time";
+  }
+
+  /**
+   * #1311 tasks-side fix: the neither-row branch above must never assert "trusted_auto" — a
+   * concurrent write (an explicit setTaskChangesPolicy, or another request's own install grant)
+   * can land between the neither-check and this call. grantInstallTimeTrustIfUnset is a single
+   * atomic NOT-EXISTS insert, so it's a no-op if a row already landed; re-reading storage after
+   * it runs is what makes the return value always match what's actually stored, mirroring
+   * selfHealGrantedAtInstallTier's re-read discipline
+   * (packages/ai/src/gateway/self-operation.ts:495-519). Exposed (not private) so tests can
+   * exercise the both-absent code path directly against a pre-seeded row.
+   */
+  async healInstallGrantAndReread(db: DataContextDb): Promise<JarvisActionPermissionTier> {
+    await this.grantInstallTimeTrustIfUnset(db);
+    const reread = await this.prefs.getWithMetadata<JarvisActionPermissionTier>(
+      db,
+      TASK_CHANGES_POLICY_KEY
+    );
+    return reread?.value ?? "ask_each_time";
   }
 
   async setTaskChangesPolicy(db: DataContextDb, tier: JarvisActionPermissionTier): Promise<void> {
