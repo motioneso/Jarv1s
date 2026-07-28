@@ -182,3 +182,32 @@ async function seedProbeData(): Promise<void> {
     await client.end();
   }
 }
+
+/**
+ * Drop a module's per-module Postgres roles during teardown, tolerating the one failure that is
+ * not ours to fix.
+ *
+ * Roles are CLUSTER-global, so `DROP ROLE` reaches past `JARVIS_PGDATABASE` into every database in
+ * the instance. When the same module is also installed somewhere else — a developer's own `jarv1s`
+ * database, or another agent's gate DB — the role still owns objects there and Postgres refuses the
+ * drop with `dependent_objects_still_exist` (SQLSTATE 2BP01). That refusal is correct: the role
+ * belongs to that other database, and dropping it would break it. It is also not a leak here, on
+ * two counts: every REVOKE a suite runs before this point is per-database, so OUR database is
+ * already clean; and `ensureModuleRoles` Phase A unconditionally resets a pre-existing role to
+ * NOLOGIN PASSWORD NULL on every invocation, so a surviving role cannot carry login capability into
+ * the next run. Any other error still throws. See issue #1345.
+ */
+export async function dropModuleRolesAtTeardown(
+  client: pg.Client,
+  roles: readonly string[]
+): Promise<void> {
+  for (const role of roles) {
+    try {
+      await client.query(`DROP ROLE IF EXISTS ${role}`);
+    } catch (error) {
+      if ((error as { code?: string }).code !== "2BP01") {
+        throw error;
+      }
+    }
+  }
+}

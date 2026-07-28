@@ -9,7 +9,7 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { installModule } from "../../scripts/module-install.js";
 import { getJarvisDatabaseUrls } from "../../packages/db/src/urls.js";
-import { resetEmptyFoundationDatabase } from "./test-database.js";
+import { dropModuleRolesAtTeardown, resetEmptyFoundationDatabase } from "./test-database.js";
 
 const urls = getJarvisDatabaseUrls();
 const moduleId = "finance";
@@ -40,8 +40,10 @@ afterEach(async () => {
   await client.query(
     "REVOKE EXECUTE ON FUNCTION app.current_actor_user_id() FROM jarvis_mod_finance_install CASCADE"
   );
-  await client.query("DROP ROLE IF EXISTS jarvis_mod_finance_install");
-  await client.query("DROP ROLE IF EXISTS jarvis_mod_finance_runtime");
+  await dropModuleRolesAtTeardown(client, [
+    "jarvis_mod_finance_install",
+    "jarvis_mod_finance_runtime"
+  ]);
   await client.query("DELETE FROM app.module_installs WHERE module_id = $1", [moduleId]);
   await client.query("DELETE FROM app.module_schema_migrations WHERE module_id = $1", [moduleId]);
   await client.end();

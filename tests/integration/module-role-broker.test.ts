@@ -9,7 +9,7 @@ import {
   moduleRuntimeRoleName
 } from "../../packages/db/src/module-role-broker.js";
 import { getJarvisDatabaseUrls } from "../../packages/db/src/urls.js";
-import { resetEmptyFoundationDatabase } from "./test-database.js";
+import { dropModuleRolesAtTeardown, resetEmptyFoundationDatabase } from "./test-database.js";
 
 const urls = getJarvisDatabaseUrls();
 const moduleId = "role-broker-fixture";
@@ -31,8 +31,10 @@ afterAll(async () => {
   await client.query(
     `REVOKE EXECUTE ON FUNCTION app.current_actor_user_id() FROM ${moduleInstallRoleName(moduleId)}`
   );
-  await client.query(`DROP ROLE IF EXISTS ${moduleInstallRoleName(moduleId)}`);
-  await client.query(`DROP ROLE IF EXISTS ${moduleRuntimeRoleName(moduleId)}`);
+  await dropModuleRolesAtTeardown(client, [
+    moduleInstallRoleName(moduleId),
+    moduleRuntimeRoleName(moduleId)
+  ]);
   await client.end();
 });
 
