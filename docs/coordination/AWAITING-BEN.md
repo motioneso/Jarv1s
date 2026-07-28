@@ -68,6 +68,19 @@ Two consequences for this decision:
 This is why ruling N46 (bind by `profile.surfaceKey`, never `profileId`) restores a capability rather
 than tidying naming: the surface key **is** the history lookup key.
 
+**Sharper still: the module's transcript is already in the browser's memory.** `app-shell.tsx:155`
+calls `useChatStream(activeSurface)` — the *active* surface, so once a module claims the stream the
+shell has already fetched and is already holding that module's thread. Line 426 then hands
+`recordsForSurface(DEFAULT_CHAT_SURFACE)` to the drawer, and `recordsForSurface` (`:198-200`) returns
+`[]` for any surface that isn't the active one. Nothing is missing or unfetched; one render-time
+filter discards data the shell already has. That is the whole of the change either way.
+
+**One live consequence.** The UAT's Phase 11 (`tests/uat/specs/job-search-board.uat.spec.ts:563`)
+asserts the **recommended** reading — a marker seeded on the profile's surface is visible in the
+drawer inside the profile, and absent on `/tasks`. It therefore fails today, by design, and is the
+one phase whose outcome this decision flips. If the alternative reading wins, that phase inverts
+rather than being deleted: the assertion becomes "empty inside the module too".
+
 **What we need:** which reading is right. If the recommended one, #1332 proceeds as a bug fix. If the
 alternative, spec §7 needs an amendment and the job-search UAT's drawer phase changes shape.
 
