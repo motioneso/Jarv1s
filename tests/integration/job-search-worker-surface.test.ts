@@ -32,7 +32,11 @@ import {
   validateExternalModuleManifest,
   type ExternalModuleDiscovery
 } from "@jarv1s/module-registry";
-import { ExternalModuleWorkerRuntime, hashCanonicalManifest } from "@jarv1s/module-registry/node";
+import {
+  ExternalModuleWorkerRuntime,
+  hashCanonicalManifest,
+  hashExternalPackage
+} from "@jarv1s/module-registry/node";
 import type { JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
 import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
 import type { Kysely } from "kysely";
@@ -124,7 +128,12 @@ describe("job-search module through the real API + worker RPC surface (#1305, te
 
     // Real hashes, not synthetic ones: createVerifiedExternalModuleInvoker's gate (test 11
     // runs through it via createExternalBriefingInvoker) checks both against this row, so a
-    // hand-picked hash here would make the gate the thing under test instead of the handler.
+    // *hand-picked* hash here would make the gate the thing under test instead of the handler.
+    // That instinct doesn't extend to a value derived independently from the same source the
+    // enable route hashed — see the anchor assertions right after expectedManifestHash/
+    // expectedPackageHash below, which is exactly that: the row is read back for realDiscovery's
+    // consumers (test 11), and separately verified against a from-source recomputation so this
+    // isn't just re-reading what was written without checking it.
     const row = await appDb
       .selectFrom("app.external_modules")
       .select(["manifest_hash", "package_hash"])
@@ -150,6 +159,16 @@ describe("job-search module through the real API + worker RPC surface (#1305, te
     // hash.ts) with no filesystem dependency, so recomputing it from the validated manifest here
     // is a genuine, independent check against what the enable route actually persisted.
     expectedManifestHash = hashCanonicalManifest(realManifest);
+    // hashExternalPackage walks installedDir (not sourceDir) — that's the exact directory
+    // node.ts:137 hashes at enable time, so this reproduces the real derivation rather than
+    // comparing against a different tree that happens to look similar.
+    const expectedPackageHash = hashExternalPackage(installedDir);
+    // The independent anchor: row.manifest_hash/package_hash are what realDiscovery hands to
+    // test 11's invoker gate below. Without this, every downstream comparison against
+    // realDiscovery traces back to the same enable-time write with nothing to catch it if that
+    // write were wrong — this line is what makes the rest of the chain load-bearing.
+    expect(row.manifest_hash).toBe(expectedManifestHash);
+    expect(row.package_hash).toBe(expectedPackageHash);
     workerRuntime = new ExternalModuleWorkerRuntime();
   }, 120_000);
 
