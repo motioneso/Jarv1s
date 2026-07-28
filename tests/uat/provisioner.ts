@@ -7,10 +7,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { deriveTrustedOrigins } from "../../scripts/setup-prod-origins.js";
-import {
-  startJobSearchFixtureServer,
-  type JobSearchFixtureServer
-} from "./fixtures/job-search-fixture-server.js";
+import { JOB_SEARCH_FIXTURE_CONTAINER_PORT } from "./fixtures/job-search-fixture-server.js";
 import { parseUatSeedLevel } from "./seed/level-validation.js";
 
 export interface UatRunId {
@@ -37,25 +34,88 @@ export const UAT_DOCKER_SUBNET = process.env.UAT_DOCKER_SUBNET ?? "10.254.0.0/24
 
 /**
  * #1306 Task 22: the `jarv1s` worker container can't reach a fixture server bound on the HOST's
- * 127.0.0.1 — inside the container that address means the container itself. It CAN reach the
- * Docker bridge network's gateway, which is the host. infra/docker-compose.prod.yml's `jarv1s`
- * network block sets only `ipam.config.subnet` (no explicit `gateway:`), so Docker's default IPAM
- * allocator assigns the gateway to the first usable address of the block — `x.x.x.1` for a /24.
- * This is a convention, not a contract: if UAT_DOCKER_SUBNET's prefix ever changes, or
- * docker-compose.prod.yml's network block ever gains an explicit `gateway:`, this must be revisited
- * (a more robust but heavier alternative, deferred as unneeded for Phase 1: `docker network inspect
- * <project>_jarv1s --format '{{(index .IPAM.Config 0).Gateway}}'` after the network exists).
+ * 127.0.0.1 — inside the container that address means the container itself.
+ *
+ * The obvious next move, reaching the host through the Docker bridge network's gateway address,
+ * was tried and does not work: the first live run of the board UAT timed out on every crawl fetch
+ * because ufw (active on this project's dev box, and the Ubuntu default) drops container traffic
+ * arriving at the host's gateway address. Fixing that would mean asking every developer and CI
+ * image to add a firewall rule before the suite could pass.
+ *
+ * So the fixture origin runs as its OWN container on the stack's Compose network, reachable by
+ * container name over Docker's embedded DNS. Container-to-container traffic on a user-defined
+ * network crosses no host firewall, and the name is derived from the project name — known before
+ * the container exists, which is what lets the base URL be written into the stack's env file up
+ * front. It is `docker run`, not a Compose service, because the ruling that neither
+ * JARVIS_RUNTIME_MODE nor JARVIS_E2E_MODULE_FETCH_BASE may appear in a checked-in compose file
+ * applies just as much to the origin they point at.
  */
-export function deriveDockerBridgeGateway(subnetCidr: string): string {
-  const [network, prefix] = subnetCidr.split("/");
-  const octets = network?.split(".") ?? [];
-  if (prefix !== "24" || octets.length !== 4) {
-    throw new Error(
-      `deriveDockerBridgeGateway only supports the /24 convention this project's UAT/dev/smoke ` +
-        `subnets all use; got ${subnetCidr}`
-    );
+export function jobSearchFixtureContainerName(projectName: string): string {
+  return `${projectName}-jsfixture`;
+}
+
+/** The URL the `jarv1s` and `seed` containers use to reach the fixture origin (see above). */
+export function jobSearchFixtureBaseUrlFor(projectName: string): string {
+  return `http://${jobSearchFixtureContainerName(projectName)}:${JOB_SEARCH_FIXTURE_CONTAINER_PORT}`;
+}
+
+/** The line fixture-server-cli.ts prints once its listen() has resolved. */
+const FIXTURE_READY_LOG = "[job-search-fixture] listening on";
+const FIXTURE_READY_TIMEOUT_MS = 30_000;
+
+/**
+ * #1306 Task 22: starts the fixture origin as a detached container on the stack's Compose network
+ * and waits until it is genuinely accepting connections.
+ *
+ * Runs the same image the stack runs, which already carries `tests/uat/fixtures/**` and
+ * `node_modules/.bin/tsx` (see .dockerignore's carve-outs) — exactly how the `seed` and
+ * `module-install` ops services run repo TypeScript in-network. Nothing is published to the host.
+ *
+ * The wait polls `docker logs` for the CLI's readiness line rather than sleeping. A fixture that
+ * dies at startup surfaces here, as a timeout naming the container, instead of silently much
+ * later as "the board has no matches" — which is precisely how the ufw failure this replaced
+ * presented, and it cost a 2.7-minute Phase 7 timeout to diagnose.
+ */
+export async function startJobSearchFixtureContainer(projectName: string): Promise<void> {
+  const name = jobSearchFixtureContainerName(projectName);
+  await runCommand("docker", [
+    "run",
+    "--detach",
+    "--name",
+    name,
+    "--network",
+    `${projectName}_jarv1s`,
+    `ghcr.io/motioneso/jarv1s:${process.env.JARVIS_IMAGE_TAG ?? "uat-smoke"}`,
+    "node_modules/.bin/tsx",
+    "tests/uat/fixtures/fixture-server-cli.ts"
+  ]);
+
+  const deadline = Date.now() + FIXTURE_READY_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    // 2>&1 is not available here (runCapture inherits stderr), and the CLI prints readiness on
+    // stdout, so plain `docker logs` is enough.
+    const logs = await runCapture("docker", ["logs", name]).catch(() => "");
+    if (logs.includes(FIXTURE_READY_LOG)) {
+      return;
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 250));
   }
-  return [...octets.slice(0, 3), "1"].join(".");
+  throw new Error(
+    `job-search fixture container ${name} never reported ready; ` +
+      `check \`docker logs ${name}\` before it is removed`
+  );
+}
+
+/**
+ * Removes the fixture container. MUST run before `docker compose down -v`: an outside container
+ * still attached to the Compose network blocks the network's removal, which would then trip
+ * assertNoLeakedResources on a run that was otherwise clean. Idempotent and never throws — a
+ * teardown helper that can fail is a teardown helper that leaks.
+ */
+export async function removeJobSearchFixtureContainer(projectName: string): Promise<void> {
+  await runCommand("docker", ["rm", "--force", jobSearchFixtureContainerName(projectName)]).catch(
+    () => {}
+  );
 }
 
 // #1024/#1000: prod's fixed host port is 1533 (JARVIS_WEB_PORT default). Rather than editing the
@@ -620,21 +680,18 @@ export async function provisionForUat(
   // teardown; terminal failures clean up below.
   const realChatEnvFile = await writeUatRealChatEnvFile();
 
-  // #1306 Task 22: opt-in (see UatProvisionOptions.withJobSearchFixture), started once before the
-  // retry loop like realChatEnvFile above — the fixture server depends on neither webPort nor
-  // projectName, so a port-bind retry reuses the same running instance rather than restarting it.
-  // Held for the whole function; every exit path below (success teardown, a terminal throw inside
-  // the loop, and the pool-exhausted throw after it) stops it exactly once.
-  const jobSearchFixture: JobSearchFixtureServer | undefined = opts?.withJobSearchFixture
-    ? await startJobSearchFixtureServer()
-    : undefined;
-  const jobSearchFixtureBaseUrl = jobSearchFixture
-    ? `http://${deriveDockerBridgeGateway(UAT_DOCKER_SUBNET)}:${jobSearchFixture.port}`
-    : undefined;
-
   while (remainingCandidates.length > 0) {
     const { projectName } = generateUatRunId();
     const webPort = await findAvailablePort(remainingCandidates);
+    // #1306 Task 22: opt-in (see UatProvisionOptions.withJobSearchFixture). Unlike
+    // realChatEnvFile above this is per-attempt, not once before the loop: the fixture is a
+    // container on THIS attempt's Compose network, so a port-bind retry gets a fresh one under
+    // the new project name. The URL is knowable now — it is just the container's name — which is
+    // what lets it be written into the env file the stack starts with, several steps before the
+    // container itself exists.
+    const jobSearchFixtureBaseUrl = opts?.withJobSearchFixture
+      ? jobSearchFixtureBaseUrlFor(projectName)
+      : undefined;
     const envFile = writeUatEnvFile({ webPort, jobSearchFixtureBaseUrl });
     process.env.JARVIS_ENV_FILE = envFile.path;
     process.env.JARVIS_IMAGE_TAG ??= "uat-smoke";
@@ -643,10 +700,17 @@ export async function provisionForUat(
     // interpolate the stale (or default/prod) port. See uatComposeInterpolationEnv's doc comment.
     Object.assign(process.env, uatComposeInterpolationEnv({ webPort }));
 
-    const teardownCompose = () =>
-      runCommand("docker", buildUatComposeArgs(projectName, ["down", "-v"])).catch((error) => {
-        console.error(`teardown failed for ${projectName}:`, error);
-      });
+    // #1306: the fixture container is removed FIRST — an outside container still attached to the
+    // Compose network blocks `down -v` from removing that network, and the leak assertion that
+    // follows would then fail on an otherwise clean run.
+    const teardownCompose = async () => {
+      await removeJobSearchFixtureContainer(projectName);
+      await runCommand("docker", buildUatComposeArgs(projectName, ["down", "-v"])).catch(
+        (error) => {
+          console.error(`teardown failed for ${projectName}:`, error);
+        }
+      );
+    };
 
     try {
       console.log(`[uat] provisioning ${projectName} on port ${webPort}`);
@@ -669,6 +733,13 @@ export async function provisionForUat(
         console.log(`[uat] ${step.description}`);
         await runCommand(step.command, step.args);
       }
+      // #1306: after the plan loop, because the Compose network it attaches to does not exist
+      // until the first `up`; before the seed hook, so the fixture origin is already answering by
+      // the time anything can reach for it.
+      if (jobSearchFixtureBaseUrl !== undefined) {
+        console.log(`[uat] starting job-search fixture origin at ${jobSearchFixtureBaseUrl}`);
+        await startJobSearchFixtureContainer(projectName);
+      }
       await composeSeedHook(buildSeedHookInput(projectName, level, opts, jobSearchFixtureBaseUrl));
       const baseURL = `http://127.0.0.1:${webPort}`;
       await waitForReady(`${baseURL}/health/ready`);
@@ -685,7 +756,6 @@ export async function provisionForUat(
           await assertNoLeakedResources(projectName);
           envFile.cleanup();
           realChatEnvFile?.cleanup();
-          await jobSearchFixture?.stop();
         }
       };
     } catch (error) {
@@ -695,8 +765,8 @@ export async function provisionForUat(
       if (error instanceof PortBindConflictError) {
         // #1024/#1000: Coordinator condition 1 — findAvailablePort (Task 2) only proved this port
         // free at probe time; docker just told us another process won the bind race. Retry with
-        // the next untried candidate instead of flaking the whole gate. jobSearchFixture (if any)
-        // stays running across this retry — see its own comment above.
+        // the next untried candidate instead of flaking the whole gate. The fixture container (if
+        // any) went down with teardownCompose above and is recreated under the next project name.
         console.warn(
           `[uat] port ${webPort} lost the bind race after probing free; retrying with next candidate (#1024)`
         );
@@ -705,14 +775,11 @@ export async function provisionForUat(
       }
       // #1121: terminal (non-retry) failure — realChatEnvFile is created once before the loop, so
       // clean it here rather than in the retry path above (which reuses the exported env var).
-      // #1306: jobSearchFixture is the same "created once before the loop" shape.
       realChatEnvFile?.cleanup();
-      await jobSearchFixture?.stop();
       throw error;
     }
   }
   realChatEnvFile?.cleanup();
-  await jobSearchFixture?.stop();
   throw new Error(
     `exhausted all ${UAT_PORT_RANGE_SIZE} reserved UAT ports (${UAT_PORT_RANGE_START}-${
       UAT_PORT_RANGE_START + UAT_PORT_RANGE_SIZE - 1

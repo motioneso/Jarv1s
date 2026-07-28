@@ -2042,3 +2042,47 @@ live instead of `test.fixme`.
 **Standing consequence.** `recordsForSurface` itself is unchanged and still answers `[]` for any
 non-active surface; embedded module surfaces (`host-context.ts`) depend on that. Only the drawer's
 argument moved.
+
+---
+
+## N53 — the UAT fixture origin runs in-network, not on the host (#1306, 2026-07-27)
+
+**What went wrong.** The board UAT's deterministic origin (`tests/uat/fixtures/`) was designed to run
+as a plain host process, reached from the `jarv1s` worker via the Docker bridge gateway address. The
+first live run of the spec got all the way to Phase 7 and failed with `Timed out waiting for: at
+least one match row on the board`. That reads like a board bug. It was not: the `job-search.crawl-run`
+job had **completed**, with `found: 0, kept: 0` and two `kind: "network"` degradations. Nothing could
+reach the fixture, so the crawl honestly found nothing.
+
+**The cause, proven rather than guessed.** ufw is active on this host, as it is by default on Ubuntu,
+and it drops traffic arriving at the bridge gateway address. An isolated probe on a throwaway
+`10.249.0.0/24` network — host `python3 -m http.server` on `0.0.0.0`, one container fetching the
+gateway address — returned `UND_ERR_CONNECT_TIMEOUT`. A drop, not a refusal. The original design can
+never work on a ufw host, which is most of them.
+
+**The ruling.** Anything a UAT stack has to fetch runs as a container on that stack's own Compose
+network, addressed by container name over Docker's embedded DNS
+(`<project>-jsfixture:8080`). Container-to-container traffic on a user-defined network crosses no
+host firewall at all, so the same arrangement works unchanged in CI. The alternative — adding a ufw
+rule — was rejected: it needs sudo, and it would make the suite depend on the host's firewall state
+for every developer and every CI image.
+
+**Why this cost nothing in module surface.** Only the origin's *location* moved. The module's shipped
+bytes and the host-side `createFetch` bypass in `apps/worker/src/external-module-job-handler.ts` are
+untouched; the provisioner simply writes a different base URL into
+`JARVIS_E2E_MODULE_FETCH_BASE`. The prod image already runs repo TypeScript in-network — the `seed`
+and `module-install` ops services do exactly this — so the fixture container is `docker run --network
+<project>_jarv1s <image> node_modules/.bin/tsx tests/uat/fixtures/fixture-server-cli.ts`, no new
+build target and nothing added to the checked-in Compose file (the no-e2e-vars-in-Compose ruling
+applies to the origin too).
+
+**Two traps this leaves behind.** `.dockerignore` excludes `tests/fixtures`, so the saved captures
+need a `!tests/fixtures/job-search` negation placed **after** the exclusion line — Docker honours the
+last matching pattern, so ordering is load-bearing. And the fixture container must be removed before
+`compose down -v`: an outside container still attached to the network blocks its removal and would
+trip `assertNoLeakedResources` on an otherwise clean run.
+
+**Standing consequence.** The provisioner polls `docker logs` for the fixture's own readiness line
+and throws a named error on timeout. That is deliberate: the failure mode this ruling exists to
+prevent is a silently unreachable origin, which presents as "the feature found nothing" two and a
+half minutes later in a completely different phase.

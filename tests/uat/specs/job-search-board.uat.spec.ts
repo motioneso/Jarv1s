@@ -69,7 +69,7 @@ function requireProjectName(): string {
 }
 
 // Shared direct-SQL-seed helper for the Setup/Phase 10/Phase 11 steps below (N40/N45): connects as
-// the raw `jarv1s` bootstrap superuser, not one of the four named app roles
+// the container's bootstrap superuser, not one of the four named app roles
 // (infra/postgres/bootstrap/0000_roles.sql marks jarvis_migration_owner/app_runtime/worker_runtime/
 // auth_runtime all NOBYPASSRLS), so this bypasses the FORCE RLS policies the same way a real
 // migration/bootstrap connection does — there is no app-role path that could run these INSERTs.
@@ -83,8 +83,13 @@ function execUatSql(projectName: string, sql: string): string {
       "-T",
       "postgres",
       "psql",
+      // The superuser, not a role named after the database. `infra/docker-compose.prod.yml` sets
+      // POSTGRES_USER: postgres and POSTGRES_DB: jarv1s, so there is no `jarv1s` ROLE at all —
+      // an earlier version of this helper assumed symmetry with the database name and every call
+      // died with `FATAL: role "jarv1s" does not exist`. Only a live run could catch that; both
+      // the compile and the whole unit/integration gate are blind to it.
       "-U",
-      "jarv1s",
+      "postgres",
       "-d",
       "jarv1s",
       "-t",
@@ -208,11 +213,14 @@ test.afterEach(async ({}, testInfo) => {
         "postgres",
         "psql",
         "-U",
-        "jarv1s",
+        "postgres",
         "-d",
         "jarv1s",
         "-c",
-        "select id, name, state, output from pgboss.job where name like 'job-search%' or name = 'platform.module-control' order by createdon desc limit 50;"
+        // `created_on`, not `createdon` — this block's own catch swallowed the resulting syntax
+        // error, so the diagnostic printed "could not query" on a healthy stack. Column names per
+        // finance-feed.uat.spec.ts, which is the working precedent for this query.
+        "select id, name, state, output from pgboss.job where name like 'job-search%' or name = 'platform.module-control' order by created_on desc limit 50;"
       ]),
       { encoding: "utf8" }
     );

@@ -13,13 +13,18 @@
 // base URL (tests/uat/seed/chunks/job-search-ai.ts) rather than gating the whole spec behind a
 // real Anthropic token — scoring is exercised for real, token-free.
 //
-// Binds on all interfaces (default host "0.0.0.0"), not just loopback: the crawl (and, per N42,
-// the scoring HTTP call) run inside the UAT stack's `jarv1s` worker container, where `127.0.0.1`
-// means the container itself, not this process. The provisioner (provisioner.ts) is responsible
-// for computing a base URL the container can actually resolve — typically the Docker bridge
-// gateway address of UAT_DOCKER_SUBNET — and publishing it as JARVIS_E2E_MODULE_FETCH_BASE
-// (crawl) and JARVIS_UAT_JOB_SEARCH_AI_BASE_URL (scoring). This module has no opinion about that;
-// it only binds wide enough to be reachable once the provisioner points at it.
+// Binds on all interfaces (default host "0.0.0.0"), not just loopback: in a UAT run this server
+// is a container on the stack's own Compose network (see fixture-server-cli.ts), and the crawl
+// (plus, per N42, the scoring HTTP call) reaches it by container name from the `jarv1s` worker.
+// The provisioner (provisioner.ts) owns the reachable base URL it publishes as
+// JARVIS_E2E_MODULE_FETCH_BASE (crawl) and JARVIS_UAT_JOB_SEARCH_AI_BASE_URL (scoring). This
+// module has no opinion about that; it only binds wide enough to be reachable once pointed at.
+//
+// It deliberately does NOT run on the host any more. The first live run of the board UAT proved
+// why: a host process is reachable from a container only via the Docker bridge gateway address,
+// and on any host running ufw (this project's dev box included) the gateway address is an INPUT
+// drop — every crawl fetch timed out and the board sat empty with `kind: "network"` degradations.
+// Same-network container-to-container traffic crosses no host firewall at all.
 import { readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { dirname, join } from "node:path";
@@ -163,28 +168,41 @@ export function buildChatCompletionsResponse(requestBodyText: string): {
   };
 }
 
+/**
+ * The port fixture-server-cli.ts listens on inside its container, and therefore the port the
+ * provisioner writes into the stack's base URLs. Private to the Compose network — nothing
+ * publishes it to the host — so it only has to avoid colliding with the fixture container's own
+ * ports, of which there are none.
+ */
+export const JOB_SEARCH_FIXTURE_CONTAINER_PORT = 8080;
+
 export interface JobSearchFixtureServer {
   readonly port: number;
-  /** Base URL as seen from THIS host/process — callers that need the container's route in
-   *  (a Docker bridge gateway address, say) must build that URL themselves from `port`. */
+  /** Base URL as seen from THIS host/process. A caller whose consumer lives somewhere else (a
+   *  container on a Compose network, say) must build that URL itself from the routable name. */
   readonly baseUrl: string;
   readonly stop: () => Promise<void>;
 }
 
 /**
- * Starts the fixture origin and resolves once it is actually listening. Binds an OS-assigned
- * ephemeral port (`listen(0, host)`) rather than reusing provisioner.ts's bind-probed
- * UAT_PORT_RANGE — nothing else needs to guess this port ahead of time, it only has to be known
- * once, right here, before it is written into the stack's env (Task 22 step 4).
+ * Starts the fixture origin and resolves once it is actually listening. Defaults to an
+ * OS-assigned ephemeral port (`listen(0, host)`), which is what the in-process unit test wants —
+ * nothing else has to guess the port ahead of time.
+ *
+ * `options.port` pins it instead. The UAT harness runs this inside a container on the stack's own
+ * Compose network (fixture-server-cli.ts), where the port is private to that network and a fixed,
+ * predictable number lets the provisioner write the base URL into the stack's env BEFORE the
+ * fixture container is started.
  *
  * Any request outside the two known paths gets a 404 with a body naming the path, not a silent
  * empty 200 — a typo'd adapter path should fail loudly here, not read back as "zero postings
  * found."
  */
 export async function startJobSearchFixtureServer(
-  options: { readonly host?: string } = {}
+  options: { readonly host?: string; readonly port?: number } = {}
 ): Promise<JobSearchFixtureServer> {
   const host = options.host ?? "0.0.0.0";
+  const requestedPort = options.port ?? 0;
   const routes = buildRoutes();
 
   const server: Server = createServer((req, res) => {
@@ -218,7 +236,7 @@ export async function startJobSearchFixtureServer(
 
   await new Promise<void>((resolvePromise, reject) => {
     server.once("error", reject);
-    server.listen(0, host, () => resolvePromise());
+    server.listen(requestedPort, host, () => resolvePromise());
   });
 
   const address = server.address();
