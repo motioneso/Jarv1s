@@ -2,12 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
-import type {
-  AccessContext,
-  DataContextRunner,
-  JarvisDatabase,
-  PreferencesPort
-} from "@jarv1s/db";
+import type { AccessContext, DataContextRunner, JarvisDatabase, PreferencesPort } from "@jarv1s/db";
 import {
   AI_MODEL_CAPABILITIES,
   CHAT_SETTINGS_PREFERENCE_KEY,
