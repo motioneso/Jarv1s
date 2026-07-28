@@ -115,8 +115,25 @@ independent never-run-before defects, both in the test:
 
 Single-file run: exit 0, **5 executed and passed**, previously 5 skipped. Commit verified by
 `git show --stat`: one file, 14 insertions / 3 deletions, nothing swept in, diagnostic `logger: true`
-genuinely reverted. **#60 does not close on that number** — it closes on the full-suite run, because
+genuinely reverted. **#60 did not close on that number** — it closed on the full-suite run, because
 the failure mode here is precisely a file that behaves differently inside the 166-file run.
+
+**#60 CLOSED 2026-07-27 19:03 on the full-suite run.** `Test Files 166 passed (166)`,
+`Tests 1769 passed | 2 skipped (1771)`, duration 822s, on isolated DB
+`jarvis_test_2700704_f371ba1c`. **`EXIT=0` read back from
+`scratchpad/test-integration-full-diag.exit`** — not piped, not tailed.
+
+The decisive number is the **skip count, not the failure count**: 5 skipped tests cannot hide inside
+a 2-skip total, so those 5 genuinely executed. That is the positive proof, and it is the right proof
+because the original defect was a `beforeAll` throw, which yields zero failing tests and a *rising*
+pass count. A green summary was never going to settle this on its own; only the skip arithmetic does.
+Baseline for the branch is now **166 files / 1769 passed / 2 skipped**; a later run showing skipped
+≥ 5 means the suite-level throw is back.
+
+Note on provenance, since it nearly cost us the evidence: `score` reported having stopped this run
+("no lingering background processes on my end"). The process was alive — PID 2700828, 13 minutes in,
+fork workers turning over at 69–142% CPU. The claim was checked against `ps` rather than accepted,
+which is the only reason the run survived to produce this result.
 
 **Three plausible leads this killed, recorded so nobody re-derives them.** pg-boss's 10s
 `connectionTimeoutMillis` (#1124): the error is not a timeout and reproduces on a single-file run.
@@ -204,7 +221,7 @@ means mid-work, **not** stalled — check mtimes before concluding otherwise or 
 
 | Agent          | Work                                                | Lock                           |
 | -------------- | --------------------------------------------------- | ------------------------------ |
-| `scaffold`     | **#60** — fix committed `8e798035`; owes the full-suite number | **holds the Postgres slot** |
+| `scaffold`     | **#60 CLOSED** — fix `8e798035`, full suite green at exit 0 | idle, awaiting assignment |
 | `chat-surface` | **#78** — N46 surfaceKey binding; #76 closed 8/8 clean | the 8 `.tsx` test files, `seed-prompt.ts`, `use-profiles.ts`, `handlers/profile.ts` |
 | `records`      | **#52** — 12 UAT phases under **N45**; spec still untracked | `tests/uat/*`          |
 | `score`        | #73 closed and verified at `fa1fc7b0`; stood down from #60 | none                    |
@@ -216,10 +233,18 @@ silence, then withdrew that when `scaffold` returned holding the answer. The chu
 theirs. Rule that survives: reassign on silence rather than idle-wait, but the moment the original
 owner produces the goods, one owner — never two agents converging on the same file.
 
-**The Postgres slot is serialised by me, not by inference.** It is held by `scaffold` (with #60). Every
-holder gets it by name and hands it back by name; nobody infers clearance from silence, from `ps`
-showing no vitest, or from another agent finishing. N26 still applies to every DB-backed run: DROP and
-CREATE a fresh exported gate DB first, and never pipe the command — a filter's exit code masks red.
+**The Postgres slot is serialised by me, not by inference.** It is **unassigned** since #60 closed.
+Every holder gets it by name and hands it back by name; nobody infers clearance from silence, from
+`ps` showing no vitest, or from another agent finishing. N26 still applies to every DB-backed run:
+DROP and CREATE a fresh exported gate DB first, and never pipe the command — a filter's exit code
+masks red.
+
+**The slot does not cover the whole machine.** Postgres is shared with other worktrees, and at 19:04
+`~/Jarv1s/.claude/worktrees/1311-install-grant` was running its own `tests/integration` against the
+same server — outside this epic and outside my control. Holding the slot means no *other job-search
+agent* is running a DB-backed job; it does not mean the server is quiet. Check
+`ps -eo pid,args | grep "[v]itest.*tests/integration"` across all worktrees before a gate, or accept
+the contention risk knowingly.
 
 **`score`'s manifest edit is cleared on the merits and held on timing.** Removing the vestigial
 `job-search.settings` storage namespace has zero blast radius — verified: no test asserts the storage
