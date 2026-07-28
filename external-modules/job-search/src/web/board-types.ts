@@ -56,6 +56,9 @@ export interface PortalListItem {
   cause: FailureCause | null;
 }
 
-export function isScored(item: BoardMatch): boolean {
+// A type predicate rather than a plain boolean so callers that render or compare the numbers get
+// them as `number` instead of re-asserting non-null at every use — the guard already proves it,
+// and a `!` at the use site would be an unchecked claim sitting next to a checked one.
+export function isScored(item: BoardMatch): item is BoardMatch & { fit: number; want: number } {
   return item.state !== "unscored" && item.fit !== null && item.want !== null;
 }

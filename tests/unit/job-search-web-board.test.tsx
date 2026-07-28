@@ -276,6 +276,38 @@ describe("job-search web BoardScreen", () => {
     expect(rowTitles(renderer)).toEqual(["Role A", "Role C", "Role B"]);
   });
 
+  it("draws each score as a bar whose length is the score, and keeps the number", async () => {
+    // Twenty rows of bare digits all weigh the same, so 90 and 10 are equally loud and the strong
+    // matches can only be found by reading every row. The bar is the thing that makes the column
+    // scannable; the number stays because a bar alone can't be compared precisely or read aloud.
+    matchesItems = [match({ id: "m1", title: "Role A", fit: 90, want: 10 })];
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    const fills = renderer.root
+      .findAll((item) => (item.props as { className?: string }).className === "jds-score__fill")
+      .map((item) => (item.props as { style?: Record<string, unknown> }).style?.["--jds-score"]);
+    // Fit first, then Want — the two axes are never blended (L9), so they carry their own values.
+    expect(fills).toEqual(["0.9", "0.1"]);
+
+    expect(text(renderer)).toMatch(/90/);
+    expect(text(renderer)).toMatch(/10/);
+  });
+
+  it("clamps an out-of-range score to the track instead of overflowing it", async () => {
+    // Scores originate in a model-authored record, so a render path must treat 0-100 as an
+    // assumption it enforces rather than one it trusts: a bad value draws a wrong-looking bar,
+    // never a bar that spills past its track.
+    matchesItems = [match({ id: "m1", title: "Role A", fit: 140, want: -20 })];
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    const fills = renderer.root
+      .findAll((item) => (item.props as { className?: string }).className === "jds-score__fill")
+      .map((item) => (item.props as { style?: Record<string, unknown> }).style?.["--jds-score"]);
+    expect(fills).toEqual(["1", "0"]);
+  });
+
   it("renders dashes and a 'Not read yet' flag for an unscored row, and the inspector says queued not dropped", async () => {
     matchesItems = [
       match({

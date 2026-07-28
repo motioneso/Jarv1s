@@ -85,6 +85,26 @@ function sortIndicator(sort: SortState | null, key: SortKey): string {
   return effective.dir === "asc" ? " ▲" : " ▼";
 }
 
+// A 0-100 score rendered as the number plus the host's `jds-score` bar. Twenty rows of bare digits
+// all weigh the same on the page, so an 88 and an 8 are equally loud and finding the strong matches
+// means reading every row instead of seeing them — the bar is what makes the column scannable.
+// All the styling lives in the host primitive (module CSS is layout-only by contract); the only
+// thing passed from here is the value itself, as a 0-1 fraction on a custom property, which is the
+// one case where an inline style is right because the number *is* the data.
+// Clamped because a score is authored by the model via a record and this is a render path — a
+// value outside 0-100 must draw a wrong-looking bar, never a bar that overflows its track.
+function Score(props: { value: number }): ReactNodeLike {
+  const fraction = Math.min(1, Math.max(0, props.value / 100));
+  return (
+    <span className="jds-score">
+      {props.value}
+      <span className="jds-score__track" aria-hidden="true">
+        <span className="jds-score__fill" style={{ "--jds-score": String(fraction) }} />
+      </span>
+    </span>
+  );
+}
+
 // lastOkAt is an ISO timestamp or null (never crawled to a success yet); this is deliberately a
 // plain date, not a relative "3 days ago" phrase — the module has no ambient-clock allowance
 // (check:no-ambient-dates) and a raw ISO slice needs none, unlike a relative-time computation.
@@ -530,12 +550,14 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
                     column out of line with every scored row above it. */}
                   <td className="jds-table__num">
                     {isScored(item) ? (
-                      item.fit
+                      <Score value={item.fit} />
                     ) : (
                       <span className="jds-table__sub">Not read yet</span>
                     )}
                   </td>
-                  <td className="jds-table__num">{isScored(item) ? item.want : "—"}</td>
+                  <td className="jds-table__num">
+                    {isScored(item) ? <Score value={item.want} /> : "—"}
+                  </td>
                   <td className="jds-table__actions">
                     <button
                       type="button"

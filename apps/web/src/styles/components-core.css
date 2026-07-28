@@ -936,6 +936,46 @@
   white-space: nowrap;
 }
 
+/* A 0-100 score in a numeric cell: the number, with a short bar under it carrying the same value
+   as length. Twenty rows of bare digits all weigh the same on the page — an 88 and an 8 are
+   equally loud, so finding the strong rows means reading every number instead of seeing them. The
+   bar is what makes the column scannable; the number stays because a bar alone cannot be compared
+   precisely or read aloud.
+
+   One accent, no red/amber/green: a score is a position on a continuous scale, not a status, and
+   colouring the low end as a warning would assert a judgement the number does not make. Length is
+   the encoding; the hue only says "this is a score".
+
+   `--jds-score` is set inline by the caller as a 0-1 fraction — the one place an inline style is
+   right, because the value is data. Falls back to 0 so a missing variable draws an empty track
+   rather than a full one. */
+.jds-score {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+/* The track is drawn, not implied. Without it a low score is a nearly invisible stub and the
+   reader has no reference for how short "short" is — the empty remainder is what says "out of
+   100". `--border` rather than `--surface-2` because the dark theme's surface-2 sits a hair off
+   the page ground and disappears. */
+.jds-score__track {
+  width: 3.5rem;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.jds-score__fill {
+  display: block;
+  height: 100%;
+  width: calc(var(--jds-score, 0) * 100%);
+  border-radius: inherit;
+  background: var(--accent);
+}
+
 /* The record's own title, which opens it. Reads as the row's heading rather than as a control —
    button chrome off, weight and colour of a heading, and only the pointer and a hover underline
    say it is clickable. A title rendered as a filled pill turns a board into a wall of buttons. */
