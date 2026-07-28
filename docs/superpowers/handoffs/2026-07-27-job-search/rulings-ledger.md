@@ -1877,3 +1877,33 @@ Generalises past this file: the pull toward "assert my thing is wired" is sound,
 almost always a test over the general property rather than a special case in the general mechanism.
 Relates to **N43** (a coupling belongs where the compiler enforces it) and to **N45** (assert the
 behaviour, in the place that can actually observe it).
+
+## N48 — a name-only guard flags the wrong things; bind the no-blend check to the value, not the key
+
+**Raised by:** `score`, mid-#81, who found it and routed it up instead of resolving it. That was the
+right call — the resolution it invited was renaming a shipped wire field to satisfy a test.
+
+**The conflict.** Task 21's test 12 flags any response key matching `/^(score|overall|match|rank)$/i`.
+Task 21's test 9 (#82) invokes all 15 manifest tools through the real gateway. One of those,
+`job-search.match.get`, returns `{ matchId, match: MatchDetail | null }`
+(`external-modules/job-search/src/worker/handlers/matches.ts:214,220,235`). The key `match` is a
+route-level envelope wrapper. It is a literal hit for test 12's regex and has nothing to do with
+scoring. Both tests are required; as written they cannot both pass.
+
+**Ruling: narrow test 12's key check to keys whose VALUE is numeric (or a percent-shaped string).**
+The thing being forbidden is a *blended number*. `match` holding an object or `null` is not a blend
+and never could be. `score: 87`, `overall: 0.9`, `rank: 3` still fail exactly as before, and so would
+`match: 87` if anyone ever wrote it — the guard loses no strength against what it exists to catch.
+
+**Rejected: rename `match` to `detail`.** It is shipped, unit-tested, and on the wire. A test regex
+is not a reason to change a public response shape; that inverts which one is the authority.
+
+**Rejected: exempt `match.get` from test 12's walk.** Its response is the one that actually carries
+`fit` and `want` side by side — the single most likely place for a blend to appear. Exempting it
+removes coverage precisely where the risk is.
+
+**The general form.** A guard keyed on a *name* fires on things that merely share a word. Bind the
+assertion to the property that makes the thing wrong — here, being a number — and the false positive
+disappears without softening anything. Same family as N46 and the manifest-hash tautology: an
+assertion that has drifted from what it protects reads as coverage either way, whether it fires
+wrongly or cannot fire at all.
