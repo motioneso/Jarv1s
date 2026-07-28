@@ -42,6 +42,12 @@ export type GatewaySessionRecord =
       readonly outcome: "executed" | "denied" | "error" | "allowed";
       /** Structured, sanitized result for a module-owned inline artifact. Live only. */
       readonly result?: Record<string, unknown>;
+      /**
+       * Dot-path tokens into the frontend's `queryKeys` object, copied verbatim from the tool's
+       * `affectsQueryKeys` manifest declaration when the call executed successfully. Lets the
+       * shell invalidate the right cached read generically, without a per-tool switch.
+       */
+      readonly affectsQueryKeys?: readonly string[];
     };
 
 export interface SessionNotifier {

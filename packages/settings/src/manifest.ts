@@ -6,6 +6,38 @@ import {
   appGetMapSliceInputSchema,
   appGetMapSliceOutputSchema
 } from "./app-map-tool.js";
+import {
+  localeOutputSchema,
+  localeSetRegionAndDateFormatExecute,
+  localeSetRegionAndDateFormatInputSchema,
+  localeSetTimezoneExecute,
+  localeSetTimezoneInputSchema
+} from "./locale-tools.js";
+import {
+  notificationPreferenceSetEnabledExecute,
+  notificationPreferenceSetEnabledInputSchema,
+  notificationPreferenceSetEnabledOutputSchema
+} from "./notification-preference-tool.js";
+import {
+  quietHoursOutputSchema,
+  quietHoursSetExecute,
+  quietHoursSetInputSchema
+} from "./quiet-hours-tool.js";
+import {
+  themeModeSetExecute,
+  themeModeSetInputSchema,
+  themeModeSetOutputSchema
+} from "./theme-mode-tool.js";
+import {
+  settingsUndoLastExecute,
+  settingsUndoLastInputSchema,
+  settingsUndoLastOutputSchema
+} from "./undo-apply-tool.js";
+import {
+  weatherLocationOutputSchema,
+  weatherLocationSetExecute,
+  weatherLocationSetInputSchema
+} from "./weather-location-tool.js";
 
 export const settingsModuleSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
@@ -405,6 +437,15 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       permissionId: "settings.manage"
     }
   ],
+  assistantActionFamilies: [
+    {
+      id: "settings.preference-write",
+      label: "Settings preference changes",
+      description: "Update personal app preferences such as color mode.",
+      defaultTier: "ask_each_time",
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
+    }
+  ],
   assistantTools: [
     {
       name: "app.getMapSlice",
@@ -415,6 +456,94 @@ export const settingsModuleManifest: JarvisModuleManifest = {
       inputSchema: appGetMapSliceInputSchema,
       outputSchema: appGetMapSliceOutputSchema,
       execute: appGetMapSliceExecute
+    },
+    {
+      name: "settings.themeMode.set",
+      description: "Set the app's color mode (light or dark) for this user.",
+      permissionId: "settings.write",
+      risk: "write",
+      selfOperationGrant: "granted_at_install",
+      actionFamilyId: "settings.preference-write",
+      executionPolicy: "auto",
+      inputSchema: themeModeSetInputSchema,
+      outputSchema: themeModeSetOutputSchema,
+      execute: themeModeSetExecute,
+      affectsQueryKeys: ["settings.themes"]
+    },
+    {
+      name: "settings.locale.setTimezone",
+      description: "Set the user's IANA time zone.",
+      permissionId: "settings.write",
+      risk: "write",
+      selfOperationGrant: "granted_at_install",
+      actionFamilyId: "settings.preference-write",
+      executionPolicy: "auto",
+      inputSchema: localeSetTimezoneInputSchema,
+      outputSchema: localeOutputSchema,
+      execute: localeSetTimezoneExecute
+    },
+    {
+      name: "settings.locale.setRegionAndDateFormat",
+      description: "Set the user's language/region and date format (12h or 24h).",
+      permissionId: "settings.write",
+      risk: "write",
+      selfOperationGrant: "granted_at_install",
+      actionFamilyId: "settings.preference-write",
+      executionPolicy: "auto",
+      inputSchema: localeSetRegionAndDateFormatInputSchema,
+      outputSchema: localeOutputSchema,
+      execute: localeSetRegionAndDateFormatExecute
+    },
+    {
+      name: "settings.quietHours.set",
+      description: "Set the user's quiet hours (enabled, start/end time, and time zone).",
+      permissionId: "settings.write",
+      risk: "write",
+      selfOperationGrant: "granted_at_install",
+      actionFamilyId: "settings.preference-write",
+      executionPolicy: "auto",
+      inputSchema: quietHoursSetInputSchema,
+      outputSchema: quietHoursOutputSchema,
+      execute: quietHoursSetExecute
+    },
+    {
+      name: "settings.weatherLocation.set",
+      description: "Set the user's saved weather location (latitude, longitude, and label).",
+      permissionId: "settings.write",
+      risk: "write",
+      selfOperationGrant: "granted_at_install",
+      actionFamilyId: "settings.preference-write",
+      executionPolicy: "auto",
+      inputSchema: weatherLocationSetInputSchema,
+      outputSchema: weatherLocationOutputSchema,
+      execute: weatherLocationSetExecute
+    },
+    {
+      name: "settings.notificationPreference.setEnabled",
+      description:
+        "Turn a module's notifications on or off for this user, optionally clearing its unread count.",
+      permissionId: "settings.write",
+      risk: "write",
+      selfOperationGrant: "granted_at_install",
+      actionFamilyId: "settings.preference-write",
+      executionPolicy: "auto",
+      requiresServices: ["notificationPreferenceWrite"],
+      inputSchema: notificationPreferenceSetEnabledInputSchema,
+      outputSchema: notificationPreferenceSetEnabledOutputSchema,
+      execute: notificationPreferenceSetEnabledExecute
+    },
+    {
+      name: "settings.undoLast",
+      description:
+        'Undo the user\'s most recent settings preference change in this conversation (e.g. "change that back"). No-op if nothing tracked, or if the setting changed again since. Only remembers changes made earlier in this same chat session since the app last restarted — it does not track changes made in the settings UI, in a different conversation, or before a restart.',
+      permissionId: "settings.write",
+      risk: "write",
+      selfOperationGrant: "granted_at_install",
+      actionFamilyId: "settings.preference-write",
+      executionPolicy: "auto",
+      inputSchema: settingsUndoLastInputSchema,
+      outputSchema: settingsUndoLastOutputSchema,
+      execute: settingsUndoLastExecute
     }
   ]
 };

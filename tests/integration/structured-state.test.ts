@@ -17,6 +17,7 @@ import { VaultContextRunner, readVaultFile, vaultFileExists, writeVaultFile } fr
 import {
   CommitmentsRepository,
   EntitiesRepository,
+  PreferenceRevisionConflictError,
   PreferencesRepository,
   VaultWriteBackService,
   structuredStateModuleManifest
@@ -380,6 +381,61 @@ describe("PreferencesRepository", () => {
     await dataContext.withDataContext(ctx(otherUserId), async (scopedDb) => {
       const value = await repo.get(scopedDb, "persona.directness");
       expect(value).toBeNull();
+    });
+  });
+
+  it("upsertWithRevision creates a row at revision 1 when expectedRevision is null", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const result = await repo.upsertWithRevision(scopedDb, "cas.create", { a: 1 }, null);
+      expect(result).toEqual({ revision: 1 });
+    });
+  });
+
+  it("upsertWithRevision increments revision on a matching CAS write", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      await repo.upsertWithRevision(scopedDb, "cas.increment", { a: 1 }, null);
+      const result = await repo.upsertWithRevision(scopedDb, "cas.increment", { a: 2 }, 1);
+      expect(result).toEqual({ revision: 2 });
+      const stored = await repo.getWithRevision(scopedDb, "cas.increment");
+      expect(stored).toEqual({ value: { a: 2 }, revision: 2 });
+    });
+  });
+
+  it("upsertWithRevision throws PreferenceRevisionConflictError on mismatched revision", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      await repo.upsertWithRevision(scopedDb, "cas.conflict", { a: 1 }, null);
+      await repo.upsertWithRevision(scopedDb, "cas.conflict", { a: 2 }, 1);
+      await expect(repo.upsertWithRevision(scopedDb, "cas.conflict", { a: 3 }, 1)).rejects.toThrow(
+        PreferenceRevisionConflictError
+      );
+    });
+  });
+
+  it("upsertWithRevision throws PreferenceRevisionConflictError when expectedRevision is set but no row exists", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      await expect(repo.upsertWithRevision(scopedDb, "cas.missing", { a: 1 }, 1)).rejects.toThrow(
+        PreferenceRevisionConflictError
+      );
+    });
+  });
+
+  it("getWithRevision returns null for an absent key", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      const result = await repo.getWithRevision(scopedDb, "cas.absent");
+      expect(result).toBeNull();
+    });
+  });
+
+  it("a plain upsert() between a read and a CAS write bumps revision, so the stale CAS write conflicts instead of clobbering", async () => {
+    await dataContext.withDataContext(ctx(userId), async (scopedDb) => {
+      await repo.upsertWithRevision(scopedDb, "cas.raced", { a: 1 }, null);
+      const held = await repo.getWithRevision(scopedDb, "cas.raced");
+      await repo.upsert(scopedDb, "cas.raced", { a: 2 }); // e.g. a REST route writing the same key
+      await expect(
+        repo.upsertWithRevision(scopedDb, "cas.raced", { a: 3 }, held?.revision ?? null)
+      ).rejects.toThrow(PreferenceRevisionConflictError);
+      const stored = await repo.getWithRevision(scopedDb, "cas.raced");
+      expect(stored).toEqual({ value: { a: 2 }, revision: 2 });
     });
   });
 });

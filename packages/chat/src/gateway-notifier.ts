@@ -49,7 +49,8 @@ function toTranscriptRecord(record: GatewaySessionRecord): TranscriptRecord | nu
       actionRequestId: record.actionRequestId,
       toolName: record.toolName,
       outcome: record.outcome,
-      ...(record.result ? { result: record.result } : {})
+      ...(record.result ? { result: record.result } : {}),
+      ...(record.affectsQueryKeys ? { affectsQueryKeys: record.affectsQueryKeys } : {})
     };
   }
   return null;

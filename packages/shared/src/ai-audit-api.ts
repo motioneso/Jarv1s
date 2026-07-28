@@ -41,7 +41,7 @@ const actionAuditLogEntrySchema = {
     },
     outcome: {
       type: "string",
-      enum: ["success", "failed", "denied", "cancelled"]
+      enum: ["success", "failed", "denied", "cancelled", "invalid", "conflict"]
     },
     errorClass: { type: ["string", "null"] },
     requestId: { type: ["string", "null"] },
@@ -87,7 +87,7 @@ export type ActionAuditLogEntryDto = {
   readonly actionFamilyId: string | null;
   readonly actionKind: "write" | "destructive";
   readonly approvalMode: "auto" | "yolo" | "confirmed" | "rejected" | "cancelled" | "timeout";
-  readonly outcome: "success" | "failed" | "denied" | "cancelled";
+  readonly outcome: "success" | "failed" | "denied" | "cancelled" | "invalid" | "conflict";
   readonly errorClass: string | null;
   readonly requestId: string | null;
   readonly chatSessionId: string | null;

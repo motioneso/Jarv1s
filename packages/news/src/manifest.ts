@@ -454,7 +454,7 @@ export const newsModuleManifest = {
     {
       id: "newsfeeds",
       displayName: "News feeds",
-      credential: "none",
+      credential: "none" as const,
       fetchHosts: NEWS_FETCH_HOSTS,
       imageHosts: NEWS_IMAGE_HOSTS,
       datasets: [

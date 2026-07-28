@@ -164,7 +164,7 @@ export const sportsModuleManifest = {
     {
       id: "espn",
       displayName: "ESPN",
-      credential: "none",
+      credential: "none" as const,
       fetchHosts: ESPN_FETCH_HOSTS,
       imageHosts: ESPN_IMAGE_HOSTS,
       datasets: [

@@ -21,6 +21,8 @@ export interface TranscriptRecord {
   readonly outcome?: "executed" | "denied" | "error" | "allowed";
   /** Live-only structured result for a module-owned inline artifact. */
   readonly result?: Record<string, unknown>;
+  /** #1310: dot-path tokens into the frontend `queryKeys` object, for `action_result` records whose tool executed. */
+  readonly affectsQueryKeys?: readonly string[];
   readonly sourceFreshness?: SourceFreshnessV1 | null;
   /**
    * Optional rich, server-derived Approve/Deny card preview (email reply recipient/subject/body).

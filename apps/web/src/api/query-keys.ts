@@ -136,3 +136,36 @@ export const queryKeys = {
     matchCandidates: ["people", "match-candidates"] as const
   }
 };
+
+const FORBIDDEN_QUERY_KEY_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
+
+function isPlainQueryKeyContainer(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Resolves a server-declared dot-path token (e.g. "settings.themes") against the
+ * client `queryKeys` object. Fail-closed by construction: an unknown token, a
+ * dunder/prototype segment, a factory-function leaf, or any non-plain-object
+ * intermediate all resolve to `undefined` rather than throwing or falling back to a
+ * broad invalidation. Only an actual `as const` array leaf resolves.
+ */
+export function resolveQueryKeyToken(token: string): readonly unknown[] | undefined {
+  const segments = token.split(".");
+  let current: unknown = queryKeys;
+
+  for (const segment of segments) {
+    if (FORBIDDEN_QUERY_KEY_SEGMENTS.has(segment)) {
+      return undefined;
+    }
+    if (
+      !isPlainQueryKeyContainer(current) ||
+      !Object.prototype.hasOwnProperty.call(current, segment)
+    ) {
+      return undefined;
+    }
+    current = current[segment];
+  }
+
+  return Array.isArray(current) ? current : undefined;
+}
