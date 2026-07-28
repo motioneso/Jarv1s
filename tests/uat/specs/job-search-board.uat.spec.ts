@@ -566,6 +566,21 @@ test("job search: install, bootstrap, onboarding, crawl, board, inspector, chat 
   // docs/coordination/AWAITING-BEN.md #1, which cites this exact test.step by name and states the
   // live assertion is deliberate: "whichever way it goes the assertion is one edit, not a rewrite."
   await test.step("Phase 11: core chat drawer scopes the job-search thread to this profile (#1284/#1332)", async () => {
+    // Visible in the test report itself, not just in source comments (N45: a reviewer shouldn't
+    // need to read code to know why this step is red): this asserts spec §7's contract, and it is
+    // EXPECTED TO FAIL on every run today because app-shell.tsx:426 hands the drawer a fixed
+    // DEFAULT_CHAT_SURFACE literal instead of the active surface (#1332). Parked for Ben in
+    // docs/coordination/AWAITING-BEN.md #1: if the recommended reading wins, #1332 is a one-line
+    // fix and this step goes green unchanged; if the alternative reading wins instead, this
+    // assertion INVERTS (drawer must stay empty inside the module too) rather than being deleted.
+    test.info().annotations.push({
+      type: "known-issue",
+      description:
+        "Expected red until #1332 is decided (docs/coordination/AWAITING-BEN.md #1) — " +
+        "asserts spec §7's contract (marker visible inside the profile, absent on /tasks); " +
+        "inverts rather than deletes if the alternative reading wins."
+    });
+
     // Seed a thread + one message directly on this profile's surface (N40: a real user turn sent
     // from inside the profile — via useProfileThread's seedContext or a normal reply — writes
     // exactly this chat_threads/chat_messages shape; packages/chat/src/routes.ts's
