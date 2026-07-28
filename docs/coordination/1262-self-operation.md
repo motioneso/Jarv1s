@@ -4283,3 +4283,33 @@ lane — origin-vs-local trees differ by newer-main content and look like diverg
 
 The lane stopping to ask rather than guessing was the right call; acting on its theory would have
 been expensive. **Still not merged** — merge remains coordinator-only.
+
+## 2026-07-27 — PR #1276 pushed and complete; Fable security re-review dispatched
+
+Force-push with lease **succeeded, lease held, nothing clobbered**: origin `0648d0f1` → **`f369e61d`**.
+Verified independently (`gh pr view 1276`): OPEN, head `f369e61d`, 69 commits. CI re-running on the new
+head (run `30316275869`); `Prod compose deployment smoke` already green, `Verify foundation and app` +
+`Compose deployment smoke` pending. A background waiter reports when the checks settle.
+
+PR body now carries all three required elements: the `packages/chat` cross-lane declaration
+(`gateway-notifier.ts` + `live/types.ts`, additive-only, flagged for #1273's rebase), the live UAT
+evidence, and the gate block. It also picked up the #1311 cross-reference and a rebase heads-up for
+#1265/#1273 on the as-const credential widening (`1146a76e`).
+
+**Worth crediting:** the lane scoped its own live-UAT claim honestly — it proved the theme-mode
+scenario, not all six, and said so rather than letting item 9 read as closing the whole exit
+criterion. That is the behaviour we want; an overclaimed exit criterion is worse than a narrow one.
+
+**Fable security re-review dispatched on the finished head `f369e61d`.** The earlier `3bf2b293` pass
+was mid-build and does not count. Brief: grant/tier integrity in the settings manifest; whether the
+boot assert in `apps/api/src/server.ts` really covers every family reachable on this branch (the
+`policy.ts:47` null → `defaultTier` path fails OPEN for anything it misses); free-form preference-key
+injection in input schemas; and what else may ride the new `affectsQueryKeys` field across the
+chat/SSE boundary. Read-only, verdict posted to the PR as a comment for durability.
+
+Per Ben's standing delegation, **Fable green = Ben approve** for this merge.
+
+**Merge order unchanged: #1311 → #1276 → #1273.** #1276 does not merge before #1311 regardless of
+how fast its CI and review come back. Lane #1311 is mid-Task-3 (tasks-path fix + integration suite
+running); its pane reads `idle` while a Monitor waits on that suite — the usual false signal, not a
+stall.
