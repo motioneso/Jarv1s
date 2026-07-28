@@ -4313,3 +4313,37 @@ Per Ben's standing delegation, **Fable green = Ben approve** for this merge.
 how fast its CI and review come back. Lane #1311 is mid-Task-3 (tasks-path fix + integration suite
 running); its pane reads `idle` while a Monitor waits on that suite — the usual false signal, not a
 stall.
+
+## 2026-07-27 — #1311 relay 7; the tie-break fail-open is IN SCOPE (coordinator ruling)
+
+Lane #1311 relayed at 69%, cleanly this time: committed `b121d2e3` (Task 3 self-heal fix) and
+`339b57a2` (relay doc) **before** claiming anything, spawned its successor in the same worktree
+(`install-grant-1311-r7`, pane `w1:p14F`, session `54495f26`, confirmed Sonnet and driving), and
+reported honestly that 4 tests were still failing rather than rounding to done. Predecessor
+(`7239b33d`, pane `w1:p14E`) reaped after I confirmed the successor.
+
+Full suite at relay: **4 fail / 1721 pass / 7 skip.**
+
+**The finding that matters.** r6 found a real pre-existing bug in the both-keys-exist tie-break in
+`packages/tasks/src/action-policy.ts`: `setTaskChangesPolicy` always writes canonical then legacy, so
+legacy's timestamp is essentially always `>=` canonical's — a timestamp tie-break therefore prefers
+legacy's **boolean**, which cannot represent `always_confirm` and silently drops that tier back to
+`ask_each_time` **on every read**. r6 recommended preferring canonical unconditionally but did not
+apply it, on the grounds that it sits outside Task 3's diff lines.
+
+**Ruling: it is in scope; apply it here, do not defer it.** The scoping instinct was reasonable and
+usually right — but this is a **fail-open in the exact policy-resolution path this security lane
+owns**. A user who explicitly asked to be confirmed every time silently stops being confirmed. That
+is the precise failure class epic #1262 exists to close, and merging a security PR that edits this
+very file while knowingly leaving it in place is not defensible. The fix (canonical unconditionally
+authoritative) was already in the working tree; ordered committed with explicit paths.
+
+Also ordered: **a dedicated regression test** — both keys present, canonical `always_confirm`, legacy
+`false`, expect `always_confirm`. Without it the fix is one refactor from silently reverting.
+
+**Guard on the other 3 failures.** They are attributed to "pre-existing tests need updating" because
+self-heal-on-read now mutates state on first read. That attribution is the risky one: it is the same
+shape as loosening a test to get green. Each rewrite must carry a written justification — what the
+test asserted, why the new behaviour is correct and intended, what it now asserts — and must assert
+the new correct behaviour rather than relax or delete an assertion. If any of the three can't be
+justified that way, the change is wrong, not the test, and the lane stops.
