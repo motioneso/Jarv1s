@@ -94,8 +94,9 @@ contributes nothing. Tests 6, 9 and 11 have still never asserted anything. This 
 ever DB-backed execution** — it had been written and committed for hours. "Written and committed" was
 true the whole time and told us nothing, which is why **#60 stayed open** and stays open now.
 
-scaffold holds the Postgres slot to root-cause it, and must report **harness gap vs product defect
-before writing a fix** — those have very different consequences for the PR, and the verdict should
+`score` now holds the Postgres slot and owns this, reassigned from `scaffold` (silent through two
+messages over ~25 minutes while every other agent answered within minutes). The owner must report
+**harness gap vs product defect before writing a fix** — those have very different consequences for the PR, and the verdict should
 exist before a commit exists to argue for one.
 
 **The earlier `notes-write-tools.test.ts` flake is confirmed and closed.** It passed in this run and
@@ -173,16 +174,17 @@ means mid-work, **not** stalled — check mtimes before concluding otherwise or 
 
 | Agent          | Work                                                | Lock                           |
 | -------------- | --------------------------------------------------- | ------------------------------ |
-| `dedupe`       | **#63** — fixes landed; owes the `main` notes repro | **holds the Postgres slot**    |
-| `score`        | #72 per-table RLS coverage audit (read-only)        | manifest edit cleared but HELD |
-| `records`      | #1306 UAT, 12 phases under **N45**                  | `tests/uat/*`                  |
+| `score`        | **#60** — the blocker, reassigned from `scaffold`    | **holds the Postgres slot**    |
+| `chat-surface` | **#76** — `.tsx` mock-drift audit, all 8 files      | the 8 `.tsx` test files        |
+| `records`      | **#52** — 12 UAT phases under **N45**; spec still untracked | `tests/uat/*`          |
+| `dedupe`       | #63 and #50 both closed and verified; handing off   | none                           |
 | `criteria`     | idle — tool/queue audit closed clean                | none                           |
-| `chat-surface` | **#75 web half** — audit, read-only                 | none                           |
-| `scaffold`     | **#75 worker/test half** — audit, read-only         | awaits explicit slot clearance |
+| `scaffold`     | **UNRESPONSIVE** — silent through two messages      | none; slot taken back          |
 
-**The Postgres slot is serialised by me, not by inference.** scaffold has been told twice not to read
-a finished log or a quiet lane as clearance — concurrent integration runs have crashed the shared
-server before, and that takes both results with it.
+**The Postgres slot is serialised by me, not by inference.** It is held by `score` (with #60). Every
+holder gets it by name and hands it back by name; nobody infers clearance from silence, from `ps`
+showing no vitest, or from another agent finishing. N26 still applies to every DB-backed run: DROP and
+CREATE a fresh exported gate DB first, and never pipe the command — a filter's exit code masks red.
 
 **`score`'s manifest edit is cleared on the merits and held on timing.** Removing the vestigial
 `job-search.settings` storage namespace has zero blast radius — verified: no test asserts the storage
