@@ -22,8 +22,43 @@ identical whether it was abandoned on purpose or destroyed.
 
 What survives from the scare is worth keeping: a new test file should be committed once it
 typechecks, not once it passes, and the per-table RLS coverage question (task **#72**) is worth
-answering on its own merits — whether each of the eight `JOB_SEARCH_TABLES` has proven cross-owner
-and admin denial coverage, or whether generic `installModule` RLS has been assumed table by table.
+answering on its own merits — and it now has an answer, below.
+
+## RLS coverage is real, and it is 6 tables, not 8
+
+**`JOB_SEARCH_TABLES` (`src/db/tables.ts:11-18`) holds 6:** profiles, portals, postings, matches,
+resumes, custom_sources. Earlier versions of this document said 8 — that was the *migration file*
+count (0001-0008, two of them index-only). Don't audit against 8.
+
+All 6 have genuine per-table coverage in `tests/integration/job-search.test.ts`, verified at
+`a4ca8676`: a cross-owner loop over `JOB_SEARCH_TABLES` asserting both directions (line 514), the
+same loop under an admin actor asserting 0 rows — the direct no-admin-bypass proof (line 531), and a
+`pg_policies` check (line 543) guarding the fail-open case where a table joins `ownedTables` but
+`installModule` never generates a policy for it. Narrower complementary coverage in
+`job-search-tables-install.test.ts` tests the owner-bound composite FK, which RLS alone does not catch.
+
+`job_search_custom_sources` joined that coverage only at `a4ca8676`. Before it, `seedOwnedRow` had no
+branch for the table and **threw** — the loop crashed rather than silently skipping, which is the only
+reason it surfaced. A crash is a good failure mode; a skip would still be hidden.
+
+## #1336: the validation boundary already exists and is dormant
+
+Every manifest tool declaration already accepts an optional `outputSchema`
+(`module-sdk/src/external-manifest.ts:168`), and `routes.ts:711` already calls
+`sanitizeAssistantToolResult(manifestTool.outputSchema, toolResult)` on every read-tool REST invoke —
+the exact path `board.tsx` hits. The LLM gateway path calls it too (`gateway.ts:360,433,437`).
+
+**No module in this repo declares `outputSchema` for any tool.** The function no-ops on a missing
+schema, which is why `board.tsx:219-223`'s cast has nothing behind it and why a stale test mock could
+describe a shape that isn't real. This is a field to populate, **not a validator to build, and not a
+platform issue** — though defaulting or enforcing it repo-wide would be, and that is a separate call.
+
+Failure handling needs no new code: a throw propagates through `api.ts`'s `invokeTool()` into
+`board.tsx:227`'s existing `MatchesState` error arm and `inspector.tsx:88`'s `detailError`, so a
+malformed response becomes a real error state rather than an empty board reading as "no jobs matched".
+
+`sanitizeAssistantToolResult` has **no dedicated test file** anywhere in the repo — adopting it makes
+job-search its first real user, so its own tests land in the same change.
 
 ## Gate
 
