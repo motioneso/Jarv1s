@@ -89,7 +89,7 @@ describe("Notifications module M5", () => {
         `
           SELECT version, name
           FROM app.schema_migrations
-          WHERE version IN ('0008', '0071', '0101', '0102', '0105', '0142', '0175')
+          WHERE version IN ('0008', '0071', '0101', '0102', '0105', '0142', '0178')
           ORDER BY version
         `
       );
@@ -123,11 +123,13 @@ describe("Notifications module M5", () => {
 
       // 0071 (real-briefings) added a worker-role SELECT/INSERT grant + policies on
       // app.notifications ONLY (so the briefings worker can deliver the "morning briefing
-      // ready" notification); before 0175 the worker could never UPDATE/DELETE notifications.
+      // ready" notification); before 0178 the worker could never UPDATE/DELETE notifications.
       // 0101 adds the metadata size CHECK; 0102 adds the defense-in-depth SQL comments on the
       // notifications / notification_reads tables. 0166 (export gap) adds a worker-role
       // SELECT-only grant + policy on notification_reads so export.build can read a user's
-      // notification read-state. 0175 (Task 2b, #1283) adds the ctx.notify keyed-upsert
+      // notification read-state. 0178 (Task 2b, #1283 — authored as 0175 on the job-search
+      // branch, renumbered on merge because #1264 landed 0175-0177 on main first) adds the
+      // ctx.notify keyed-upsert
       // columns/index and — for BOTH jarvis_app_runtime and jarvis_worker_runtime — the
       // UPDATE-on-notifications and DELETE-on-notification_reads grant/policy pairs the
       // keyed upsert's "update in place + clear read state on re-fire" needs. The real
@@ -153,7 +155,7 @@ describe("Notifications module M5", () => {
           name: "0142_notifications_module_id.sql"
         },
         {
-          version: "0175",
+          version: "0178",
           name: "0178_notification_event_keys.sql"
         }
       ]);
@@ -166,7 +168,7 @@ describe("Notifications module M5", () => {
           worker_can_select: true,
           worker_can_insert: false,
           worker_can_update: false,
-          // 0175: the keyed upsert's return-to-unread clear runs as a DELETE in the
+          // 0178: the keyed upsert's return-to-unread clear runs as a DELETE in the
           // SAME statement as the worker-role INSERT it already had.
           worker_can_delete: true
         },
@@ -177,7 +179,7 @@ describe("Notifications module M5", () => {
           owner: "jarvis_migration_owner",
           worker_can_select: true,
           worker_can_insert: true,
-          // 0175: the keyed upsert's ON CONFLICT DO UPDATE needs UPDATE on the worker role
+          // 0178: the keyed upsert's ON CONFLICT DO UPDATE needs UPDATE on the worker role
           // too — the real crawl only ever posts keyed notifications from the queue lane.
           worker_can_update: true,
           worker_can_delete: false
