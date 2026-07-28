@@ -15,13 +15,14 @@ import type { Profile } from "../web/use-profiles.js";
 
 /**
  * A narrow, LOCAL mirror of the host's real `AssistantSurfaceHandleV1`
- * (apps/web/src/chat/assistant-surface/contracts.ts), holding only the three members this module
- * uses: the two thread-binding methods below, plus the `Surface` view component onboarding.tsx
- * (Task 19/#1303, widened for #1331) renders. Module isolation (CLAUDE.md's hard invariant) means
- * this module never imports host source paths — the host's real handle object satisfies this
- * interface structurally, which is all TypeScript needs, and a test fixture only has to fake
- * three members instead of the full chat-surface API (seedComposer, submitTurn, uploadAttachment,
- * subscribeRecords are still omitted — nothing here calls them).
+ * (apps/web/src/chat/assistant-surface/contracts.ts), holding only the four members this module
+ * uses: the two thread-binding methods below, the `Surface` view component onboarding.tsx
+ * (Task 19/#1303, widened for #1331) renders, and `submitTurn` (widened for Task 20/#1304's
+ * Discuss action). Module isolation (CLAUDE.md's hard invariant) means this module never imports
+ * host source paths — the host's real handle object satisfies this interface structurally, which
+ * is all TypeScript needs, and a test fixture only has to fake four members instead of the full
+ * chat-surface API (seedComposer, uploadAttachment, subscribeRecords are still omitted — nothing
+ * here calls them).
  */
 export interface AssistantSurfaceHandleV1 {
   /** #1284 semantics apply unmodified here: `null` releases the claim. Call this BEFORE
@@ -43,6 +44,20 @@ export interface AssistantSurfaceHandleV1 {
    * `AssistantSurface` renders no input box whatsoever when `composer` is absent.
    */
   readonly Surface: unknown;
+  /**
+   * Task 20/#1304: Discuss's write to the model. `controlContext` accepts exactly three top-level
+   * keys — `step`, `action`, `values` (`packages/chat/src/live/prompt-safety.ts`'s
+   * `MODULE_CONTROL_KEYS`) — anything else is silently dropped, never rejected, so a typo here
+   * fails quietly rather than loudly. The whole filtered object is capped at 8192 bytes; over that,
+   * core rejects the entire turn, not just the oversized key. Untyped beyond `Record<string,
+   * unknown>` for the same reason `Surface` is `unknown`: this module carries no host types, and
+   * `discuss.tsx`'s own header documents exactly what this module puts in `values`.
+   */
+  submitTurn(input: {
+    readonly text: string;
+    readonly controlContext?: Record<string, unknown>;
+    readonly attachmentIds?: readonly string[];
+  }): Promise<void>;
 }
 
 const SEED_PROMPT_VERSION = "v1";

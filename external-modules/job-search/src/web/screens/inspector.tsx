@@ -23,6 +23,10 @@ export interface InspectorProps {
   detailError: string | null;
   onClose(): void;
   onDismiss(matchId: string): void;
+  // Task 20/#1304: null hides the control entirely rather than rendering it disabled — board.tsx
+  // is null here whenever assistantSurface is absent OR detail hasn't loaded yet (Discuss needs
+  // the full MatchDetail the card and controlContext both read from, same as the reasons below).
+  onDiscuss: (() => void) | null;
 }
 
 export function Inspector(props: InspectorProps): ReactNodeLike {
@@ -62,6 +66,16 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
       >
         Open posting ↗
       </a>
+
+      {props.onDiscuss ? (
+        <button
+          type="button"
+          className="jds-btn jds-btn--secondary"
+          onClick={props.onDiscuss}
+        >
+          Discuss
+        </button>
+      ) : null}
 
       {scored ? (
         <div className="jsm-inspector__axes">

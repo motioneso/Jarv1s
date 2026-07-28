@@ -95,6 +95,10 @@ function ActiveProfilePanel(props: {
   selectedId: string;
   onSelectProfile(id: string): void;
   selected: Profile;
+  // Task 20/#1304: threaded through to BoardScreen for Discuss, same optionality as everywhere
+  // else this handle travels — a v1.1 bundle on an older host still renders the board, just
+  // without Discuss offered (discuss.tsx's own no-op-when-absent stance).
+  assistantSurface?: AssistantSurfaceHandleV1;
 }): ReactNodeLike {
   const [view, setView] = useState<ActiveView>("board");
 
@@ -153,7 +157,7 @@ function ActiveProfilePanel(props: {
 
   const screen =
     view === "board" ? (
-      <BoardScreen profileId={props.selected.profileId} />
+      <BoardScreen profileId={props.selected.profileId} assistantSurface={props.assistantSurface} />
     ) : (
       <SettingsScreen profile={props.selected} />
     );
@@ -262,6 +266,7 @@ export function Root(props: RootProps): ReactNodeLike {
           selectedId={profiles.selectedId}
           onSelectProfile={profiles.select}
           selected={selected}
+          assistantSurface={props.assistantSurface}
         />
       );
   }

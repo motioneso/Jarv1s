@@ -9,7 +9,9 @@
 import { h, useCallback, useEffect, useState, type ReactNodeLike } from "../runtime";
 import { invokeTool, runQueue, type RunOutcome } from "../api";
 import { MATCHES_LIST_MAX_LIMIT, type FailureCause } from "../../domain/records.js";
+import type { AssistantSurfaceHandleV1 } from "../../domain/seed-prompt.js";
 import { Inspector } from "./inspector";
+import { MatchRecordCard, useDiscuss } from "./discuss";
 import { isScored, type BoardMatch, type MatchDetail, type PortalListItem } from "../board-types";
 
 // N43: `MATCHES_LIST_MAX_LIMIT` is defined once in domain/records.ts and imported by both this
@@ -44,6 +46,9 @@ type DetailState =
 
 export interface BoardScreenProps {
   profileId: string;
+  // Task 20/#1304: absent on a v1.1 host or before root.tsx has one to hand down — Discuss simply
+  // isn't offered in that case (useDiscuss's own no-op stance), same optionality as onboarding.tsx.
+  assistantSurface?: AssistantSurfaceHandleV1;
 }
 
 // Unscored rows sort last regardless of direction (the part file's explicit rule); scored rows
@@ -188,6 +193,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [detailState, setDetailState] = useState<DetailState>({ status: "idle" });
+  const { discussing, discuss, close: closeDiscuss } = useDiscuss(props.assistantSurface);
 
   // Any id still optimistically hidden that comes back from a fresh read still not dismissed
   // means the write never landed — un-hide it and say so plainly rather than leaving it
@@ -357,6 +363,46 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
       ? detailState.message
       : null;
 
+  // Discuss needs the full MatchDetail (fitReason/wantReason, per L9) the card and controlContext
+  // both depend on, not just the row's BoardMatch — so, like Open posting and Dismiss, it's only
+  // offered from the inspector, once a row's detail has loaded, never a bare-row action. Absent
+  // assistantSurface, this stays null and Inspector renders no Discuss control at all (discuss.tsx
+  // header: "an action that silently does nothing is worse than an action that is not there").
+  const onDiscuss = props.assistantSurface && detail ? () => discuss(detail) : null;
+
+  // Surface is the host's real chat view (see onboarding.tsx's identical h(Surface, ...) call) —
+  // this module never builds a second chat implementation. Guarded on `discussing === detail.id`,
+  // not just `discussing !== null`: selecting a different row nulls `detail` for a render or more
+  // before its own fetch resolves, and the guard here (paralleling the detail/detailError guards
+  // above) stops that gap from flashing the previous match's card under the new row.
+  const Surface = props.assistantSurface?.Surface;
+  const discussPanel =
+    discussing !== null && detail !== null && discussing === detail.id && Surface ? (
+      <div className="jds-card jds-card--sunken jsm-discuss-panel">
+        <div className="jsm-discuss-panel__head">
+          <span className="jds-eyebrow">Discussing</span>
+          <button type="button" className="jds-btn jds-btn--secondary" onClick={closeDiscuss}>
+            Close
+          </button>
+        </div>
+        {
+          // localRows are client-only (never enter the transcript, per LocalRow's own contract) —
+          // the model's copy of this same record travels separately, in discuss()'s submitTurn
+          // controlContext, not through this prop.
+          h(Surface, {
+            localRows: [
+              {
+                id: `discuss-${detail.id}`,
+                role: "assistant",
+                content: <MatchRecordCard detail={detail} />
+              }
+            ],
+            composer: {}
+          })
+        }
+      </div>
+    ) : null;
+
   return (
     <div className="jsm-board-screen">
       <PortalBanner portals={portals} />
@@ -436,7 +482,9 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
         detailError={detailError}
         onClose={() => setSelectedMatchId(null)}
         onDismiss={(matchId) => handleDismiss(matchId)}
+        onDiscuss={onDiscuss}
       />
+      {discussPanel}
     </div>
   );
 }

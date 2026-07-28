@@ -22,6 +22,7 @@ import type {
   PortalListItem
 } from "../../external-modules/job-search/src/web/board-types";
 import type { FailureCause } from "../../external-modules/job-search/src/domain/records";
+import type { AssistantSurfaceHandleV1 } from "../../external-modules/job-search/src/domain/seed-prompt";
 
 // A minimal, in-memory window stand-in — installed file-wide so latch.ts's real
 // window.localStorage calls (test 10) don't throw under plain node, and so board.tsx's
@@ -152,12 +153,27 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-async function renderBoard(profileId = "p1"): Promise<ReactTestRenderer> {
+async function renderBoard(
+  profileId = "p1",
+  assistantSurface?: AssistantSurfaceHandleV1
+): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
-    renderer = create(createElement(BoardScreen, { profileId }));
+    renderer = create(createElement(BoardScreen, { profileId, assistantSurface }));
   });
   return renderer;
+}
+
+// Task 20/#1304: a fake satisfying AssistantSurfaceHandleV1 structurally (module isolation means
+// board.tsx never imports the host's real handle, only this local mirror) — submitTurn is a spy
+// so Discuss's own wiring can be asserted on without a real chat-surface test double.
+function fakeAssistantSurface(): AssistantSurfaceHandleV1 {
+  return {
+    setSurfaceKey: vi.fn(),
+    seedContext: vi.fn(async () => undefined),
+    submitTurn: vi.fn(async () => undefined),
+    Surface: () => null
+  };
 }
 
 // Flushes the microtask queue a few times over — enough for a mocked invokeTool/runQueue's
@@ -628,5 +644,93 @@ describe("job-search web BoardScreen", () => {
     await flush(renderer);
 
     expect(text(renderer)).not.toContain("Stale reason for Role A.");
+  });
+
+  // Task 20/#1304: the plan's three-actions requirement — Discuss, Open posting, and Dismiss must
+  // all be reachable from one opened row, not just individually wired. Discuss needs the full
+  // MatchDetail (fitReason/wantReason) the same way the fit/want reasons do, so this only asserts
+  // once matchGetResult has resolved, matching how the other two already behave once a row opens.
+  it("renders Discuss, Open posting, and Dismiss together once a row's detail has loaded", async () => {
+    matchesItems = [match({ id: "m1", title: "Role A", url: "https://jobs.example.com/role-a" })];
+    matchGetResult = { match: matchDetail({ id: "m1" }) };
+    const renderer = await renderBoard("p1", fakeAssistantSurface());
+    await flush(renderer);
+
+    await act(async () => {
+      findButton(renderer, /Role A/)!.props.onClick();
+    });
+    await flush(renderer);
+
+    const discussButton = renderer.root.findAllByType("button").find((item) => {
+      const children = Array.isArray(item.props.children)
+        ? item.props.children
+        : [item.props.children];
+      return children.some((child: unknown) => child === "Discuss");
+    });
+    const dismissButton = renderer.root.findAllByType("button").find((item) => {
+      const children = Array.isArray(item.props.children)
+        ? item.props.children
+        : [item.props.children];
+      return children.some((child: unknown) => child === "Dismiss");
+    });
+    const openPostingLink = renderer.root.findAllByType("a").find((item) => item.props.href);
+
+    expect(discussButton).toBeTruthy();
+    expect(dismissButton).toBeTruthy();
+    expect(openPostingLink).toBeTruthy();
+  });
+
+  // Without assistantSurface, Discuss must not render at all (a hidden control, not a disabled
+  // one — discuss.tsx's own "an action that silently does nothing is worse than an action that is
+  // not there") while Open posting and Dismiss are unaffected, since neither depends on it.
+  it("hides Discuss (but not Open posting or Dismiss) when no assistantSurface is provided", async () => {
+    matchesItems = [match({ id: "m1", title: "Role A", url: "https://jobs.example.com/role-a" })];
+    matchGetResult = { match: matchDetail({ id: "m1" }) };
+    const renderer = await renderBoard("p1");
+    await flush(renderer);
+
+    await act(async () => {
+      findButton(renderer, /Role A/)!.props.onClick();
+    });
+    await flush(renderer);
+
+    const discussButton = renderer.root.findAllByType("button").find((item) => {
+      const children = Array.isArray(item.props.children)
+        ? item.props.children
+        : [item.props.children];
+      return children.some((child: unknown) => child === "Discuss");
+    });
+    const dismissButton = renderer.root.findAllByType("button").find((item) => {
+      const children = Array.isArray(item.props.children)
+        ? item.props.children
+        : [item.props.children];
+      return children.some((child: unknown) => child === "Dismiss");
+    });
+    const openPostingLink = renderer.root.findAllByType("a").find((item) => item.props.href);
+
+    expect(discussButton).toBeFalsy();
+    expect(dismissButton).toBeTruthy();
+    expect(openPostingLink).toBeTruthy();
+  });
+
+  // #1330 built the link; Task 20/#1304's own board-screen gap named this assertion explicitly —
+  // a real external `<a>`, not an onClick-driven button, so the browser's own noopener/noreferrer
+  // guarantees apply rather than anything this module would have to reimplement.
+  it("'Open posting' is a real link with rel=\"noopener noreferrer\", not an onClick button", async () => {
+    matchesItems = [match({ id: "m1", title: "Role A", url: "https://jobs.example.com/role-a" })];
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    await act(async () => {
+      findButton(renderer, /Role A/)!.props.onClick();
+    });
+    await flush(renderer);
+
+    const link = renderer.root.findAllByType("a").find((item) => item.props.href);
+    expect(link).toBeTruthy();
+    expect(link!.props.href).toBe("https://jobs.example.com/role-a");
+    expect(link!.props.target).toBe("_blank");
+    expect(link!.props.rel).toBe("noopener noreferrer");
+    expect(link!.props.onClick).toBeUndefined();
   });
 });
