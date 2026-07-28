@@ -4773,3 +4773,48 @@ lives now, with a concrete test recipe — do **not** let PR #1338 merging close
 
 `fable-sec-1338` reaped: pane w1:p14P closed, detached worktree
 `.claude/worktrees/fable-sec-1338` removed.
+
+## 2026-07-28 — **PR #1338 (#1311) MERGED** → `2d7dbd99`
+
+Merged squash at 02:40:42Z. Issue **#1311 auto-closed**. Branch `1311-install-grant` deleted
+(remote + local), pane w1:p14N closed, worktree removed.
+
+**Five gates checked before the merge — all independently verified, none taken on self-report:**
+
+1. **Session-id authority** — my pane's `agent_session.value` re-read fresh and matched the
+   manifest lock anchor `43e5f5e2-0deb-4ab5-9237-436e8795b611`.
+2. **CI** — `Verify foundation and app` = SUCCESS, plus `Detect change scope`,
+   `Compose deployment smoke`, `Prod compose deployment smoke` all SUCCESS; `Verify docs` SKIPPED.
+   PR read `UNSTABLE` only because `Build and publish images` had not reported. **`main` has no
+   branch protection** (`/branches/main/protection` → 404 "Branch not protected"), so there is no
+   required-check set that job could be blocking — UNSTABLE was not a red.
+3. **Security sign-off** — Fable `VERDICT: GREEN`, 0 blocking / 5 non-blocking, comment 5099270159,
+   grounded on the exact head. Per Ben's standing delegation *"fable green = Ben approve"* this
+   **is** the security-tier sign-off.
+4. **Live-path gate** — real Playwright UAT against a live dev instance posted on the PR: seed
+   `solo-admin`, cookie-authed login, real `fetch("/api/tasks/agency-auto-execute")` against a
+   seeded owner with no prior `task_changes` row. 1 passed / 1 `test.fixme` (#1121).
+5. **Gate** — `pnpm verify:foundation` `### FINAL rc=0` on a fresh isolated DB
+   (`jarvis_gate_1311installgrant`) post-rebase.
+
+**Relay trigger fired and was overridden.** A security-tier merge is an unconditional relay trigger
+in the `coordinate` skill. Ben's standing instruction — *"No don't worry about successor's, keep
+going here"* — cancels the mandatory relay, so this session continues. Recording the override
+rather than silently skipping the gate.
+
+### Epic #1262 — remaining work
+
+**#1265 (PR #1273) is the last build lane.** Everything else open under the epic is a follow-up,
+not a blocker: #1266 (deliberately not spawned), #1267, #1272, #1275, #1279, #1312, #1319, #1339.
+Closed children: #1263, #1264, #1308, #1310, #1311, #1313.
+
+lane1273 instructed: finish the running gate and report its real exit code → fetch + rebase onto
+new main (`2d7dbd99`) → force-push → CI is the gate for the rebased result (no second full local
+gate). **Expected clean:** #1311's delta is `packages/chat` + `packages/tasks` only and #1273
+touches neither — told to STOP and escalate if it is not clean, since that would mean the collision
+map was wrong. Live-path UAT proof on the PR remains a hard merge gate for #1273, and it must be a
+`tests/uat/specs/*.uat.spec.ts` run (`requireBaseURL()` + `signIn()`) against a real instance —
+`tests/e2e/` is mocked and does not satisfy it.
+
+**Continuation note (mid-doing):** waiting on lane1273's gate exit code, then its rebase + push.
+Fleet is now w1:p11T Coordinator (`43e5f5e2`) + w1:p14Q lane1273 (`af6a2394`, Sonnet 5).
