@@ -233,8 +233,8 @@ means mid-work, **not** stalled — check mtimes before concluding otherwise or 
 
 | Agent          | Work                                                | Lock                           |
 | -------------- | --------------------------------------------------- | ------------------------------ |
-| `scaffold`     | **#60 CLOSED** — fix `8e798035`, full suite green at exit 0 | idle, awaiting assignment |
-| `chat-surface` | **#78** — N46 surfaceKey binding; #76 closed 8/8 clean | the 8 `.tsx` test files, `seed-prompt.ts`, `use-profiles.ts`, `handlers/profile.ts` |
+| `scaffold`     | **#79** — prototype capture verified; registry entry + PR body left | `scripts/publish-module-registry.ts`, `apps/web/src/main.tsx` |
+| `chat-surface` | **#78 CLOSED** — `996aba31` verified line-by-line, unit suite exit 0 | released |
 | `records`      | **#52** — 12 UAT phases under **N45**; spec still untracked | `tests/uat/*`          |
 | `score`        | #73 closed and verified at `fa1fc7b0`; stood down from #60 | none                    |
 | `dedupe`       | #63 and #50 both closed and verified; handing off   | none                           |
@@ -283,6 +283,13 @@ manifest is `score`'s lane.
 
 - **#1331** onboarding renders no assistant Surface — spec §7 wants a full-width chat interface.
 - **#1332** core drawer renders empty while a module surface is active. `apps/web`, not a module.
+  Parked for Ben in `docs/coordination/AWAITING-BEN.md`, but the **mechanism is now traced** and
+  recorded there (`372c5ed5`): chat history is fetched over REST keyed on surface —
+  `use-chat-stream.ts:122-141` does `listChatThreads(surface)` → `threads[0]` →
+  `listChatThreadMessages(thread.id, surface)` — and reads are authorised at the thread level
+  (`routes.ts:441`). So the recommended reading's one-line fix is sufficient, and releasing the
+  claim provably returns the drawer to the default thread. What is left for Ben is intent, not
+  feasibility. This is also why N46 restores a capability: the surface key **is** the lookup key.
 - **#1333** board paging, split out of #1330 so a real product consequence gets a real issue.
 - **#1334** the one notify-port budget-isolation case that catches a misplaced counter.
 
