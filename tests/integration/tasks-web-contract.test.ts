@@ -73,13 +73,18 @@ describe("task_preferences vertical slice (Plan 3 Task 3)", () => {
   });
 
   it("GET/PATCH /api/tasks/agency-auto-execute stores the task trust toggle per user", async () => {
+    // #1311 Task 3: the GET route resolves via getResolvedTaskChangesPolicy, which self-heals a
+    // fresh user's neither-key state to trusted_auto on the very first read (tasks is a required
+    // module that never traverses an explicit enable PATCH, so the read path is the only place
+    // self-heal can happen). A bare GET for a brand-new user therefore now correctly returns
+    // {enabled: true}, not the pre-#1311 {enabled: false}.
     const initial = await server.inject({
       method: "GET",
       url: "/api/tasks/agency-auto-execute",
       headers: { authorization: `Bearer ${ids.sessionA}` }
     });
     expect(initial.statusCode).toBe(200);
-    expect(JSON.parse(initial.body)).toEqual({ enabled: false });
+    expect(JSON.parse(initial.body)).toEqual({ enabled: true });
 
     const updated = await server.inject({
       method: "PATCH",
@@ -97,12 +102,32 @@ describe("task_preferences vertical slice (Plan 3 Task 3)", () => {
     });
     expect(JSON.parse(reread.body)).toEqual({ enabled: true });
 
+    // sessionB has never had a row either, so its own first GET independently self-heals to
+    // trusted_auto too -- this proves per-user isolation by construction (each actor gets their
+    // own preferences row under their own AccessContext), not by the two values differing. Drive
+    // an explicit PATCH to ask_each_time afterward to prove userA's earlier PATCH did not leak
+    // into userB's storage.
     const otherUser = await server.inject({
       method: "GET",
       url: "/api/tasks/agency-auto-execute",
       headers: { authorization: `Bearer ${ids.sessionB}` }
     });
-    expect(JSON.parse(otherUser.body)).toEqual({ enabled: false });
+    expect(JSON.parse(otherUser.body)).toEqual({ enabled: true });
+
+    const otherUserRevoked = await server.inject({
+      method: "PATCH",
+      url: "/api/tasks/agency-auto-execute",
+      headers: { authorization: `Bearer ${ids.sessionB}` },
+      payload: { enabled: false }
+    });
+    expect(JSON.parse(otherUserRevoked.body)).toEqual({ enabled: false });
+
+    const userAUnaffected = await server.inject({
+      method: "GET",
+      url: "/api/tasks/agency-auto-execute",
+      headers: { authorization: `Bearer ${ids.sessionA}` }
+    });
+    expect(JSON.parse(userAUnaffected.body)).toEqual({ enabled: true });
   });
 });
 

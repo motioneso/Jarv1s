@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readSourceFreshness } from "../../packages/chat/src/routes.js";
+import { readSourceFreshness } from "../../packages/chat/src/route-serializers.js";
 import type { SourceFreshnessV1 } from "@jarv1s/shared";
 
 describe("readSourceFreshness", () => {

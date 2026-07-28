@@ -365,6 +365,75 @@ describe("self-operation chassis", () => {
     );
   });
 
+  it("rejects a granted_at_install tool whose family defaults to trusted_auto", () => {
+    // #1311 coordinator security review: selfHealGrantedAtInstallTier (self-operation.ts) fails
+    // closed -- returns null -- if the install-time grant insert throws, and policy.ts's
+    // `lookup.getFamilyTier(...) ?? manifest.defaultTier` fallback then reads the family's
+    // defaultTier straight off the manifest. The module-sdk type already restricts defaultTier to
+    // "ask_each_time" | "always_confirm" and the always_confirm check above already excludes that
+    // value for granted_at_install families, so this is unreachable today via well-typed manifests
+    // -- but that safety is an emergent property of two separately-motivated checks, not a named
+    // invariant. Pin it explicitly (with a cast, mirroring how a malformed/dynamically-built
+    // manifest could still carry this value at runtime) so fail-closed can never silently become
+    // fail-open even if one of the other two checks is ever weakened or removed.
+    const trustedAutoDefaultFamily: ModuleAssistantActionFamilyManifest = {
+      id: "memory.trustedAutoDefaultFamily",
+      label: "memory.trustedAutoDefaultFamily",
+      description: "memory.trustedAutoDefaultFamily",
+      defaultTier: "trusted_auto" as ModuleAssistantActionFamilyManifest["defaultTier"],
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
+    };
+    const tool: ModuleAssistantToolManifest = {
+      name: "memory.autoOperate",
+      description: "Auto-operate.",
+      permissionId: "memory.manage",
+      risk: "write",
+      executionPolicy: "auto",
+      actionFamilyId: "memory.trustedAutoDefaultFamily",
+      selfOperationGrant: "granted_at_install"
+    };
+    expect(() =>
+      assertBuiltInSelfOperationManifests([manifest("memory", [tool], [trustedAutoDefaultFamily])])
+    ).toThrow(
+      'module "memory" tool "memory.autoOperate" declares granted_at_install for action family ' +
+        '"memory.trustedAutoDefaultFamily" whose defaultTier is "trusted_auto": self-heal\'s ' +
+        "fail-closed fallback (a failed install-time grant insert) would silently resolve to full " +
+        "trust instead of asking"
+    );
+  });
+
+  it("rejects a user_promotable tool whose family defaults to trusted_auto", () => {
+    // #1311 coordinator residual review on finding #2: getFamilyTier's null fallback (no stored
+    // policy row) only self-heals granted_at_install families -- for user_promotable it stays
+    // null, and policy.ts's `?? manifest.defaultTier` fallback then reads defaultTier straight off
+    // the family. If that default were "trusted_auto", the tool would auto-execute before the
+    // user ever promotes it, defeating "user_promotable" (ask by default, user may promote).
+    const trustedAutoDefaultFamily: ModuleAssistantActionFamilyManifest = {
+      id: "memory.promotableTrustedAutoDefault",
+      label: "memory.promotableTrustedAutoDefault",
+      description: "memory.promotableTrustedAutoDefault",
+      defaultTier: "trusted_auto" as ModuleAssistantActionFamilyManifest["defaultTier"],
+      allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
+    };
+    const tool: ModuleAssistantToolManifest = {
+      name: "memory.promotableOperate",
+      description: "Promotable operate.",
+      permissionId: "memory.manage",
+      risk: "write",
+      executionPolicy: "auto",
+      actionFamilyId: "memory.promotableTrustedAutoDefault",
+      selfOperationGrant: "user_promotable"
+    };
+    expect(() =>
+      assertBuiltInSelfOperationManifests([manifest("memory", [tool], [trustedAutoDefaultFamily])])
+    ).toThrow(
+      'module "memory" tool "memory.promotableOperate" declares user_promotable for action ' +
+        'family "memory.promotableTrustedAutoDefault" whose defaultTier is "trusted_auto": with ' +
+        "no stored policy row, getFamilyTier's null fallback would resolve to this default and " +
+        "auto-execute before the user ever promotes it"
+    );
+  });
+
   it("rejects the tasks module declaring a second granted_at_install family beyond task_changes", () => {
     // #1263 Task E NB-1: self-operation.ts:409 was shipped with zero negative tests, and per
     // Coordinator this is the sole guard on a full-bypass path -- packages/module-registry's tasks

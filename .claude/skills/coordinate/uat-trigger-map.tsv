@@ -40,3 +40,9 @@ blocking	external-modules/finance/**	tests/uat/specs/finance-budget.uat.spec.ts
 blocking	external-modules/finance/**	tests/uat/specs/finance-feed.uat.spec.ts
 blocking	external-modules/finance/**	tests/uat/specs/finance-reports.uat.spec.ts
 blocking	external-modules/finance/**	tests/uat/specs/finance-shared.uat.spec.ts
+# #1311 install-time grant self-heal (granted_at_install families never getting their trust grant
+# without an explicit enable action). Only the tasks self-heal-on-read half runs live here — the
+# chat-dispatch half is test.fixme'd pending #1121's scriptable UAT chat engine.
+blocking	packages/chat/src/routes.ts	tests/uat/specs/1311-install-grant.uat.spec.ts
+blocking	packages/ai/src/gateway/self-operation.ts	tests/uat/specs/1311-install-grant.uat.spec.ts
+blocking	packages/tasks/src/action-policy.ts	tests/uat/specs/1311-install-grant.uat.spec.ts
