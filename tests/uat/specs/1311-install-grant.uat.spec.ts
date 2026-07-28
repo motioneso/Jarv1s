@@ -84,8 +84,11 @@ test("tasks agency-auto-execute self-heals to enabled on first read, no prior en
 
 // #1121: needs a real, instruction-following chat model to actually dispatch a granted_at_install
 // tasks tool (e.g. reprioritizing a task) via a chat turn and observe no Approve/Reject card. The
-// mechanism (granted install-time trust -> action_result only, never action_request) is proven for
-// real without a model at the integration layer — see the file header's
-// mcp-gateway-self-operation.test.ts citation. Deferred until #1121's scriptable UAT chat engine
-// exists.
+// UAT harness has no chat-capable AI provider at any seed level (see file header), so no seed
+// level can drive this turn. The mechanism this test would exercise (granted install-time trust ->
+// action_result only, never action_request) is proven for real without a model at the integration
+// layer by tests/integration/mcp-gateway-self-operation.test.ts ("first use after install grant
+// runs without an action card"), which drives the real AssistantToolGateway.callTool dispatch path
+// through the same resolvePolicy choke point (packages/ai/src/gateway/policy.ts) this tool would
+// hit. Deferred until #1121's scriptable UAT chat engine exists.
 test.fixme("chat dispatches a task_changes tool with no confirmation card (#1121)", async () => {});
