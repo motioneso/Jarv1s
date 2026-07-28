@@ -35,12 +35,21 @@ import {
   moduleRuntimeRoleName
 } from "../../packages/db/src/module-role-broker.js";
 import { JOB_SEARCH_TABLES } from "../../external-modules/job-search/src/db/tables.js";
-import { connectionStrings, resetFoundationDatabase } from "./test-database.js";
+import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
 
+// resetFoundationDatabase() (seeded via seedProbeData) inserts 3 users directly via raw SQL,
+// none with is_bootstrap_owner set — bypassing packages/auth's bootstrap path entirely. That
+// makes bootstrapOwnerExists() report false forever, so the real sign-up below tries to
+// self-promote to admin and app.users_guard_admin_flag() (migration 0053, #97) correctly
+// rejects it: its exemption only fires at count_all_users() = 1, not "no flagged owner yet".
+// This file mints its own admin from the sign-up response and never touches seedProbeData's
+// rows, so resetEmptyFoundationDatabase() is both correct and matches every other integration
+// suite that performs a real self-service sign-up (api-rate-limit, chat-multiplexer-admin,
+// me-sessions, news-personalization-repository) — none of them use the seeded reset either.
 beforeAll(async () => {
-  await resetFoundationDatabase();
+  await resetEmptyFoundationDatabase();
 });
 
 describe("job-search module through the real API + worker RPC surface (#1305, tests 6/9/11)", () => {
@@ -354,7 +363,7 @@ describe("job-search module through the real API + worker RPC surface (#1305, te
       invoke
     });
     expect(result).toEqual([
-      { headline: "4 new job matches in Staff Engineer search.", items: [] }
+      { moduleId: realModuleId, headline: "4 new job matches in Staff Engineer search.", items: [] }
     ]);
   });
 
@@ -378,6 +387,7 @@ describe("job-search module through the real API + worker RPC surface (#1305, te
     });
     expect(result).toEqual([
       {
+        moduleId: realModuleId,
         headline: "4 new job matches in Staff Engineer search.",
         items: [90, 70, 50].map((want) => ({
           id: expect.any(String),
@@ -411,6 +421,7 @@ describe("job-search module through the real API + worker RPC surface (#1305, te
     });
     expect(result).toEqual([
       {
+        moduleId: realModuleId,
         headline: "4 new job matches in Staff Engineer search.",
         items: [90, 70, 50, 30].map((want) => ({
           id: expect.any(String),
