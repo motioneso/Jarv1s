@@ -34,9 +34,15 @@ export const PORTAL_LIST_TOOL = "job-search.portal.list";
 // Wire shape of job-search.portal.list's result (worker/handlers/portal.ts
 // createPortalListHandler) — defined fresh here rather than imported from the domain layer,
 // the same wire-shape-not-domain-shape split use-profiles.ts's header documents for
-// job-search.profile.list. cause is FailureCause.summary/nextAction/disabled verbatim; this
+// job-search.profile.list. cause is read as FailureCause.summary/nextAction/disabled; this
 // screen never composes its own sentence for why a portal is off (constraint: a self-disabled
 // portal reads as disabled-with-a-reason, not as an error or a user choice).
+//
+// PortalCause below is deliberately narrower than what's actually on the wire: the handler
+// forwards the full 9-field domain FailureCause unmodified (portal.ts's `cause: portal.cause`),
+// but this screen only ever reads these 3 fields, so only these 3 are declared — same
+// wire-type-not-domain-type reasoning as above, applied a second time to say "this is all we
+// use" rather than "this is all there is."
 interface PortalCause {
   summary: string;
   nextAction: string;

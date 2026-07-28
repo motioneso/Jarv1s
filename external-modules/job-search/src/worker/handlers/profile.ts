@@ -113,7 +113,11 @@ export function createProfileListHandler(store: JobSearchStore) {
           state: profile.state,
           briefingDetail: profile.briefingDetail,
           completedSteps: completedSteps(profile.criteria, enabledPortals),
-          readyToCrawl: isReadyToCrawl(profile.criteria, enabledPortals)
+          readyToCrawl: isReadyToCrawl(profile.criteria, enabledPortals),
+          // Task 17 (#1301) deviation fix: the chat surface binds by surfaceKey, not the row id
+          // (rulings ledger), so this is the only field the wire type gained solely to make that
+          // binding possible from the browser.
+          surfaceKey: profile.surfaceKey
         };
       })
     );

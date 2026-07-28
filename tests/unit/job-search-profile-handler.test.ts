@@ -226,9 +226,13 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
         id: "p1",
         name: "Ready",
         state: "active",
-        criteria: { ...EMPTY_CRITERIA, titles: ["Eng"], wantNarrative: "x" }
+        criteria: { ...EMPTY_CRITERIA, titles: ["Eng"], wantNarrative: "x" },
+        // Distinct from "p1" and from the other profile's surfaceKey, so this test also catches
+        // a regression to emitting the row id (or a shared constant) instead of the real column
+        // (Task 17/#1301's binding deviation fix).
+        surfaceKey: "surface-p1"
       }),
-      makeProfile({ id: "p2", name: "Fresh" })
+      makeProfile({ id: "p2", name: "Fresh", surfaceKey: "surface-p2" })
     ]);
     portals.set("p1", [{ sourceId: "freehire", enabled: true, lastOkAt: null, cause: null }]);
     const handler = createProfileListHandler(store);
@@ -243,7 +247,8 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
           state: "active",
           briefingDetail: "count",
           completedSteps: ["role", "want", "sources"],
-          readyToCrawl: true
+          readyToCrawl: true,
+          surfaceKey: "surface-p1"
         },
         {
           profileId: "p2",
@@ -251,7 +256,8 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
           state: "in_conversation",
           briefingDetail: "count",
           completedSteps: [],
-          readyToCrawl: false
+          readyToCrawl: false,
+          surfaceKey: "surface-p2"
         }
       ]
     });

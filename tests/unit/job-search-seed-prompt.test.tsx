@@ -43,6 +43,7 @@ function profile(overrides: Partial<Profile> = {}): Profile {
     briefingDetail: null,
     completedSteps: ["role", "want", "where", "comp", "sources"],
     readyToCrawl: true,
+    surfaceKey: "surf-1",
     ...overrides
   };
 }

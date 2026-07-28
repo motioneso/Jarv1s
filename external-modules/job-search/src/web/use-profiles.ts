@@ -6,8 +6,14 @@
 // The wire shape below is `job-search.profile.list`'s ACTUAL result
 // (worker/handlers/profile.ts createProfileListHandler), which does NOT match the domain
 // Profile in ../domain/store-port.ts (that interface has id/criteria/contextSummary/schedule/
-// surfaceKey/createdAt — none of which the tool returns). Defining a fresh type here matching
-// the wire, rather than importing the domain type, avoids a shape that would compile but lie.
+// createdAt — none of which the tool returns). Defining a fresh type here matching the wire,
+// rather than importing the domain type, avoids a shape that would compile but lie.
+//
+// `surfaceKey` IS one of these fields, unlike the rest of the domain row — Task 17 (#1301)'s
+// chat-surface binding needs it in the browser, so createProfileListHandler puts it on the wire
+// deliberately (a previous version of this module bound the surface by profileId instead, which
+// compiled, passed every unit test, and quietly removed the ability to rotate a thread's
+// identity independently of the record — exactly what Task 17's own spec warned against).
 import { useEffect, useRef, useState } from "./runtime";
 import { invokeTool } from "./api";
 
@@ -29,6 +35,7 @@ export interface Profile {
   briefingDetail: string | null;
   completedSteps: OnboardingStep[];
   readyToCrawl: boolean;
+  surfaceKey: string;
 }
 
 export type ProfilesState =

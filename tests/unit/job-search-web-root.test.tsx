@@ -52,6 +52,10 @@ function profile(overrides: Partial<Profile> = {}): Profile {
     briefingDetail: null,
     completedSteps: ["role", "want", "where", "comp", "sources"],
     readyToCrawl: true,
+    // Deliberately distinct from profileId — Task 17/#1301's thread binding uses this field,
+    // not profileId, and a fixture where the two values happened to match would let a
+    // regression back to profileId-based binding pass silently.
+    surfaceKey: "surf-1",
     ...overrides
   };
 }
@@ -347,13 +351,19 @@ describe("job-search web Root", () => {
 
   // Test 11 (Task 17, #1301): assistant-surface binding.
   it("binds the surface before framing it, and frames it only once across a re-render", async () => {
-    mockUseProfiles.mockReturnValue(ready([profile({ profileId: "p1", state: "active" })]));
+    // surfaceKey deliberately differs from profileId here (Task 17/#1301's own constraint): the
+    // thread binding below must key off surfaceKey, and the idempotency key must still key off
+    // profileId — a fixture where the two matched couldn't catch a regression back to
+    // profileId-based binding.
+    mockUseProfiles.mockReturnValue(
+      ready([profile({ profileId: "p1", surfaceKey: "surf-p1", state: "active" })])
+    );
     const surface = assistantSurface();
     const actions = hostActions();
     const renderer = await renderRoot(actions, surface);
     await flush(renderer);
 
-    expect(surface.setSurfaceKey).toHaveBeenCalledWith("p1");
+    expect(surface.setSurfaceKey).toHaveBeenCalledWith("surf-p1");
     expect(surface.seedContext).toHaveBeenCalledTimes(1);
     const [seedText, idempotencyKey] = vi.mocked(surface.seedContext).mock.calls[0];
     expect(idempotencyKey).toBe("job-search:p1:v1");

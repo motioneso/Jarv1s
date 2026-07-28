@@ -112,23 +112,32 @@ export function useProfileThread(
   assistantSurface: AssistantSurfaceHandleV1 | undefined,
   profile: Profile | null
 ): void {
+  // Bind by surfaceKey, not profileId (Task 17/#1301's own constraint): the row id and the
+  // thread identity are deliberately independent, so a profile's thread can be rotated without
+  // touching the record. Binding by profileId instead would compile, pass every unit test, and
+  // quietly remove that independence — the exact deviation this fixes.
   const profileId = profile?.profileId ?? null;
+  const surfaceKey = profile?.surfaceKey ?? null;
+  // idempotencyKey stays keyed on profileId, not surfaceKey — it identifies which profile's
+  // seed text this is, independent of which thread currently carries it.
+  const idempotencyKey = profileId ? seedIdempotencyKey(profileId) : null;
 
-  // Latest-profile ref: the effect below keys off profileId alone (a primitive), matching
-  // use-profiles.ts's onPollExpiredRef idiom, so a profile object that's re-created every render
-  // with the same id doesn't re-bind/re-seed on every keystroke elsewhere in the tree.
+  // Latest-profile ref: the effect below keys off surfaceKey/idempotencyKey alone (primitives),
+  // matching use-profiles.ts's onPollExpiredRef idiom, so a profile object that's re-created
+  // every render with the same id doesn't re-bind/re-seed on every keystroke elsewhere in the
+  // tree.
   const profileRef = useRef(profile);
   profileRef.current = profile;
 
   useEffect(() => {
-    if (!assistantSurface || !profileId) return;
-    assistantSurface.setSurfaceKey(profileId);
+    if (!assistantSurface || !surfaceKey || !idempotencyKey) return;
+    assistantSurface.setSurfaceKey(surfaceKey);
     const current = profileRef.current;
     if (current) {
-      void assistantSurface.seedContext(buildSeedPrompt(current), seedIdempotencyKey(profileId));
+      void assistantSurface.seedContext(buildSeedPrompt(current), idempotencyKey);
     }
     return () => {
       assistantSurface.setSurfaceKey(null);
     };
-  }, [assistantSurface, profileId]);
+  }, [assistantSurface, surfaceKey, idempotencyKey]);
 }
