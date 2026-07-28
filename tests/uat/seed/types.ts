@@ -46,4 +46,11 @@ export interface SeedOptions {
   readonly excludeChunks?: readonly UatSeedChunk[];
   /** #1110: leave module.news unbound to a JSON-capable model, to prove the prerequisite-error path. */
   readonly withoutNewsJsonBinding?: boolean;
+  /**
+   * N42/#57: absent by default (no-op — see seedJobSearchAiProviderChunk). When set, seeds a fake
+   * `openai-compatible` provider/model bound to `module.job-search` pointed at this base URL (the
+   * job-search fixture server's docker-reachable address). Deliberately NOT a UatSeedChunk/
+   * ADMIN_DATA_CHUNKS entry — see ./chunks/job-search-ai.ts's header and N33.
+   */
+  readonly jobSearchAiProviderBaseUrl?: string;
 }
