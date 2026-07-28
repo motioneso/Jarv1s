@@ -227,6 +227,7 @@ describe("runCrawl", () => {
     const profile = makeProfile();
     const store = createFakeStore(profile) as ReturnType<typeof createFakeStore> & {
       __postings: Map<string, Posting>;
+      __portalStates: Map<string, PortalState>;
     };
     const freehirePosting = makePosting({ id: "fh-2", sourceId: "freehire", company: "Acme" });
     const linkedinPartial = makePosting({ id: "li-2", sourceId: "linkedin", company: "Initech" });
@@ -259,6 +260,14 @@ describe("runCrawl", () => {
     expect(store.__postings.has("fh-2")).toBe(true);
     expect(store.__postings.has("li-2")).toBe(true);
     expect(result.degraded).toEqual([rateLimited]);
+
+    // N41: result.degraded above is the stage's RETURN value — it says nothing about what got
+    // written. This is the actual persisted row (crawl.ts:181's store.setPortalState write), so
+    // an implementation that reported the cause but dropped the write would fail here even
+    // though every assertion above it still passes.
+    const linkedinState = store.__portalStates.get("linkedin");
+    expect(linkedinState?.cause?.kind).toBe("rate_limited");
+    expect(linkedinState?.enabled).toBe(true);
   });
 
   it("test 3: a login_required portal is written back with enabled: false", async () => {
