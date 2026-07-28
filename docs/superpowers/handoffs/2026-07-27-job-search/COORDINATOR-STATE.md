@@ -7,19 +7,23 @@ for detail.
 - **Rulings** — `rulings-ledger.md` in this directory is the authority, through **N45**.
 - **Task list** — GitHub epic #1280 and its children.
 
-## Untracked work has been lost twice today — commit before you run
+## A false alarm I raised, recorded so nobody re-investigates it
 
-`tests/integration/job-search-rls.test.ts`, 291 lines, untracked, is **gone**: not on disk, no git
-history, no stash entry, no dangling blob, no copy under the scratchpad. Unrecoverable, and nobody
-has yet claimed authorship. A UAT spec file was lost the same way earlier the same day.
+I reported `tests/integration/job-search-rls.test.ts` (291 lines, untracked) as unrecoverably lost,
+put it in this document, and messaged three agents about it. **Nothing was lost.** `dedupe` had begun
+extracting the RLS describe block into that file, found that `scaffold`'s split into
+`job-search-worker-surface.test.ts` had already brought `job-search.test.ts` under the size cap, and
+deleted their own extraction so the RLS block wouldn't exist in two places. Deliberate, correct, and
+theirs to delete.
 
-The open question it leaves behind is real and is now task **#72**: whether the other seven
-`JOB_SEARCH_TABLES` have any per-table cross-owner/admin denial coverage, or whether generic
-`installModule` RLS has been assumed without a test that proves it table by table.
+The lesson is mine: I read a disappearance out of a `git status` diff and escalated before asking
+whose file it was. **Ask the lane owner before declaring a loss** — an untracked file vanishing looks
+identical whether it was abandoned on purpose or destroyed.
 
-**Rule: a new test file gets committed the moment it typechecks, before any run.** `git commit <path>
--m "…"` with the path on the commit itself. Waiting for a green run to commit is how both losses
-happened.
+What survives from the scare is worth keeping: a new test file should be committed once it
+typechecks, not once it passes, and the per-table RLS coverage question (task **#72**) is worth
+answering on its own merits — whether each of the eight `JOB_SEARCH_TABLES` has proven cross-owner
+and admin denial coverage, or whether generic `installModule` RLS has been assumed table by table.
 
 ## Gate
 
@@ -33,11 +37,17 @@ uncommitted `url` key against the exact-keys assertion at `tests/unit/job-search
 1.** Down from 3 files / 4 tests. All four original failures are fixed, including the two that put
 `job_search_custom_sources` under cross-owner and admin isolation checking for the first time.
 
-The single remaining failure is `tests/integration/notes-write-tools.test.ts > rejects empty oldText
-regardless of file length`. Nothing on this branch touches the notes module — but **"not mine" is not
-"pre-existing"**. It must be reproduced on `main`, in a **separate worktree** (never `git checkout
-main` here; four agents hold uncommitted work), on its own fresh gate DB, with the exit code read
-back from a log file. Unproven until then.
+The single remaining failure — `notes-write-tools.test.ts > rejects empty oldText regardless of file
+length` — is **a diagnosed flake, not a regression.** The error is `tuple concurrently updated` raised
+inside `resetEmptyFoundationDatabase`/`runSqlFiles`, and the file reran alone against the same DB at
+17/17. Cause: two integration suites from different worktrees racing to reset **shared foundation
+state**, which a private gate DB does not isolate you from.
+
+Record it as *"flake — shared foundation DB reset raced under concurrent suites"*, never as
+*"unrelated to job-search"*; the second phrasing invites the next person to skip it. **Check
+`ps -eo pid,etime,args | grep "[v]itest.*tests/integration"` before starting any gate run** — if
+another worktree is mid-suite, wait. This is also why a `main` reproduction was stood down: error
+text plus mechanism plus clean isolated rerun already settles it.
 
 `typecheck` re-verified exit 0 with zero errors at `bacfdc66`, after a transient red where six
 job-search fixture files lacked the `getMatch` mock that score's new `store-port.ts:115` requires.
