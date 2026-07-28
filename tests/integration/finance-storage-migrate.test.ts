@@ -49,7 +49,12 @@ import {
 import type { WorkerPorts } from "../../external-modules/finance/src/worker/ports.js";
 import { MIGRATED_MARKER_KEY } from "../../external-modules/finance/src/worker/store.js";
 import { storageMigrateHandler } from "../../external-modules/finance/src/worker/handlers/migrate.js";
-import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
+import {
+  connectionStrings,
+  dropModuleRolesAtTeardown,
+  ids,
+  resetFoundationDatabase
+} from "./test-database.js";
 
 const urls = getJarvisDatabaseUrls();
 const moduleId = "finance";
@@ -459,8 +464,10 @@ afterAll(async () => {
     await client.query(
       "REVOKE EXECUTE ON FUNCTION app.current_actor_user_id() FROM jarvis_mod_finance_install CASCADE"
     );
-    await client.query("DROP ROLE IF EXISTS jarvis_mod_finance_install");
-    await client.query("DROP ROLE IF EXISTS jarvis_mod_finance_runtime");
+    await dropModuleRolesAtTeardown(client, [
+      "jarvis_mod_finance_install",
+      "jarvis_mod_finance_runtime"
+    ]);
     await client.query("DELETE FROM app.module_installs WHERE module_id = $1", [moduleId]);
     await client.query("DELETE FROM app.module_schema_migrations WHERE module_id = $1", [moduleId]);
     await client.query("DELETE FROM app.external_modules WHERE id = $1", [moduleId]);
