@@ -4,8 +4,22 @@ Pointer document. Everything here is a location, not a copy. Read the linked sou
 for detail.
 
 - **Branch** `feat/job-search`, worktree `~/Jarv1s/.claude/worktrees/job-search`.
-- **Rulings** — `rulings-ledger.md` in this directory is the authority, through **N43**.
+- **Rulings** — `rulings-ledger.md` in this directory is the authority, through **N45**.
 - **Task list** — GitHub epic #1280 and its children.
+
+## Untracked work has been lost twice today — commit before you run
+
+`tests/integration/job-search-rls.test.ts`, 291 lines, untracked, is **gone**: not on disk, no git
+history, no stash entry, no dangling blob, no copy under the scratchpad. Unrecoverable, and nobody
+has yet claimed authorship. A UAT spec file was lost the same way earlier the same day.
+
+The open question it leaves behind is real and is now task **#72**: whether the other seven
+`JOB_SEARCH_TABLES` have any per-table cross-owner/admin denial coverage, or whether generic
+`installModule` RLS has been assumed without a test that proves it table by table.
+
+**Rule: a new test file gets committed the moment it typechecks, before any run.** `git commit <path>
+-m "…"` with the path on the commit itself. Waiting for a green run to commit is how both losses
+happened.
 
 ## Gate
 
@@ -14,6 +28,16 @@ Eight non-DB links verified exit 0: `lint`, `format:check`, `check:file-size`,
 
 `test:unit` at 3729/3732. The one failure is in-flight shape drift, not a HEAD regression — score's
 uncommitted `url` key against the exact-keys assertion at `tests/unit/job-search-match-handler.test.ts:176`.
+
+**`test:integration` at `14593694`, after dedupe's three fixes: 164/165 files, 1760/1763 tests, exit
+1.** Down from 3 files / 4 tests. All four original failures are fixed, including the two that put
+`job_search_custom_sources` under cross-owner and admin isolation checking for the first time.
+
+The single remaining failure is `tests/integration/notes-write-tools.test.ts > rejects empty oldText
+regardless of file length`. Nothing on this branch touches the notes module — but **"not mine" is not
+"pre-existing"**. It must be reproduced on `main`, in a **separate worktree** (never `git checkout
+main` here; four agents hold uncommitted work), on its own fresh gate DB, with the exit code read
+back from a log file. Unproven until then.
 
 `typecheck` re-verified exit 0 with zero errors at `bacfdc66`, after a transient red where six
 job-search fixture files lacked the `getMatch` mock that score's new `store-port.ts:115` requires.
@@ -24,8 +48,8 @@ its log file:
 
 - `db:migrate` — exit 0.
 - `test:uat-seed` — exit 0, 11 files / 23 tests.
-- `test:integration` — **was red at `dc635e1c`, now fully diagnosed; fix in flight.** 3 files / 4
-  tests. `dedupe` owns all three fixes plus the rerun against current HEAD.
+- `test:integration` — was red at `dc635e1c` (3 files / 4 tests); all four now fixed. Current
+  standing recorded under **Gate** above.
 
 **No hard-invariant breach.** Confirmed by live query, not a code read: `job_search_custom_sources`
 has `relrowsecurity` and `relforcerowsecurity` both true, four policies matching
@@ -67,20 +91,32 @@ Six build agents. The locks matter more than the assignments — three of them w
 All six agents confirmed alive and active (transcript mtimes, within the minute). Silence from a lane
 means mid-work, **not** stalled — check mtimes before concluding otherwise or reassigning.
 
-| Agent          | Work                                              | Lock                                    |
-| -------------- | ------------------------------------------------- | --------------------------------------- |
-| `dedupe`       | **#63** — 3 integration fixes + full tail rerun    | holds the Postgres slot                 |
-| `score`        | #62 phase 2: `match.get` fetch-on-open, Inspector  | `board-types.ts`, `inspector.tsx`       |
-| `records`      | #1306 UAT, 12 phases; **#57 done**                 | `tests/uat/*`                           |
-| `criteria`     | tool-name audit (pure read, no writes)             | none                                    |
-| `chat-surface` | #1304 `discuss.tsx` + 8 cases, board gap 15 → 17   | asked for an ETA or a handback           |
-| `scaffold`     | #1305 Tier B: tests 6, 8, 9, hash gate, 11         | no count returned across three asks      |
+| Agent          | Work                                                | Lock                           |
+| -------------- | --------------------------------------------------- | ------------------------------ |
+| `dedupe`       | **#63** — fixes landed; owes the `main` notes repro | **holds the Postgres slot**    |
+| `score`        | #72 per-table RLS coverage audit (read-only)        | manifest edit cleared but HELD |
+| `records`      | #1306 UAT, 12 phases under **N45**                  | `tests/uat/*`                  |
+| `criteria`     | idle — tool/queue audit closed clean                | none                           |
+| `chat-surface` | #71 — #1336 validation-placement design, no code    | none                           |
+| `scaffold`     | #1305 Tier B **5/5 written, committed `8e5847b9`**  | awaits explicit slot clearance |
 
-**`score` still owes task #64** — N43 is only two-thirds paid. The hoist landed (`cdbd795c`: one
-constant in `domain/records.ts` at 25, both TS literals gone), but `jarvis.module.json`'s `maximum`
-is a third site that cannot import it and was moved by hand with a commit-message note. N43 requires
-a **test** there, not prose: parse the manifest, assert `matches.list`'s `limit.maximum` equals
-`MATCHES_LIST_MAX_LIMIT`.
+**The Postgres slot is serialised by me, not by inference.** scaffold has been told twice not to read
+a finished log or a quiet lane as clearance — concurrent integration runs have crashed the shared
+server before, and that takes both results with it.
+
+**`score`'s manifest edit is cleared on the merits and held on timing.** Removing the vestigial
+`job-search.settings` storage namespace has zero blast radius — verified: no test asserts the storage
+array's contents, length or membership, and `fetchHostGrantsNamespace` already points at
+`job-search.fetch-host-grants`. The `toEqual([...])` pattern that would break does exist in this
+repo (the finance module's manifest test) but was never applied here. It lands once the gate is
+green; a manifest edit shifts the package hash under a run in flight.
+
+**N43 is fully paid.** The hoist landed at `cdbd795c` (one constant in `domain/records.ts` at 25,
+both TS literals gone) and the third-site test at `b0371a13`: it loads the **validated** manifest and
+asserts `matches.list`'s `limit.maximum` equals the imported `MATCHES_LIST_MAX_LIMIT`. Non-vacuous
+because a wrong path yields `undefined` and fails loudly, and because `validate.ts:809-810` was
+confirmed to pass `inputSchema` through verbatim rather than reconstructing it — so the test reads
+the real shipped manifest, not raw JSON.
 
 **Test 10 is excluded from Tier B by N41.** Do not write it; its coverage was confirmed to exist.
 
