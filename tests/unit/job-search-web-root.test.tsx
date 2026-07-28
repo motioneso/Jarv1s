@@ -383,6 +383,50 @@ describe("job-search web Root", () => {
     expect(surface.seedContext).toHaveBeenCalledTimes(1);
   });
 
+  // Ruling N46: the surface key is what the drawer's own backfill path (packages/chat's
+  // repository lookup) uses to pick the persisted thread — rotating surfaceKey while the
+  // profile row stays put is exactly what lets a profile start a fresh conversation without
+  // deleting the profile. A test that only checked "some key was set" would pass identically
+  // whether the binding used surfaceKey or profileId, since this file's other fixtures give both
+  // fields a value; this one is written specifically to fail if the binding ever goes back to
+  // profileId; profileId itself never moves.
+  it("rebinds to a new surface when surfaceKey changes while profileId stays the same", async () => {
+    mockUseProfiles.mockReturnValue(
+      ready([profile({ profileId: "p1", surfaceKey: "surf-a", state: "active" })])
+    );
+    const surface = assistantSurface();
+    const actions = hostActions();
+    const renderer = await renderRoot(actions, surface);
+    await flush(renderer);
+
+    expect(surface.setSurfaceKey).toHaveBeenLastCalledWith("surf-a");
+
+    // Same profileId, rotated surfaceKey — simulates the profile's thread identity being reset
+    // independently of the row, the capability the plan required and the deviation removed.
+    mockUseProfiles.mockReturnValue(
+      ready([profile({ profileId: "p1", surfaceKey: "surf-b", state: "active" })])
+    );
+    await act(async () => {
+      renderer.update(createElement(Root, { hostActions: actions, assistantSurface: surface }));
+    });
+    await flush(renderer);
+
+    // Binding followed surfaceKey to a genuinely different value. If this ever rebinds by
+    // profileId instead, profileId is unchanged across the two renders and this call simply
+    // never happens.
+    expect(surface.setSurfaceKey).toHaveBeenLastCalledWith("surf-b");
+    expect(surface.setSurfaceKey).toHaveBeenCalledWith("surf-a");
+
+    // The seed re-fires (surfaceKey is a real effect dependency), but its idempotencyKey stays
+    // pinned to profileId in both calls — the two axes documented in seed-prompt.ts stay
+    // independent even as the surface rotates.
+    expect(surface.seedContext).toHaveBeenCalledTimes(2);
+    const [, firstIdempotencyKey] = vi.mocked(surface.seedContext).mock.calls[0];
+    const [, secondIdempotencyKey] = vi.mocked(surface.seedContext).mock.calls[1];
+    expect(firstIdempotencyKey).toBe("job-search:p1:v1");
+    expect(secondIdempotencyKey).toBe("job-search:p1:v1");
+  });
+
   it("renders fine when the host gives it no assistant surface", async () => {
     mockUseProfiles.mockReturnValue(ready([profile({ profileId: "p1", state: "active" })]));
     const renderer = await renderRoot(hostActions());
