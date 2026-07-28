@@ -233,10 +233,10 @@ means mid-work, **not** stalled — check mtimes before concluding otherwise or 
 
 | Agent          | Work                                                | Lock                           |
 | -------------- | --------------------------------------------------- | ------------------------------ |
-| `scaffold`     | **#79** — prototype capture verified; registry entry + PR body left | `scripts/publish-module-registry.ts`, `apps/web/src/main.tsx` |
+| `scaffold`     | **#83** N47 revert, then **#82** test 9 across all 15 tools | `scripts/publish-module-registry.ts`, `tests/unit/publish-module-registry.test.ts`, `tests/integration/job-search-worker-surface.test.ts` |
 | `chat-surface` | **#78 CLOSED** — `996aba31` verified line-by-line, unit suite exit 0 | released |
-| `records`      | **#52** — 12 UAT phases under **N45**; spec still untracked | `tests/uat/*`          |
-| `score`        | #73 closed and verified at `fa1fc7b0`; stood down from #60 | none                    |
+| `records`      | **#52 CLOSED** — `1dc4182a`, 12 phases, no hidden skips     | released               |
+| `score`        | **#80/#81** — the two Task 21 tests their audit found missing | `tests/integration/job-search*.ts` — **holds the Postgres slot** |
 | `dedupe`       | #63 and #50 both closed and verified; handing off   | none                           |
 | `criteria`     | idle — tool/queue audit closed clean                | none                           |
 
@@ -278,6 +278,29 @@ the real shipped manifest, not raw JSON.
 exists in the **committed** manifest. Tool names are unvalidated prose — a rename typechecks, lints,
 and passes unit tests against a mock keyed on whatever string the test passed. Report only; the
 manifest is `score`'s lane.
+
+## #1305 does NOT close — score's Task 21 audit, adopted
+
+`score` audited plan Task 21 case by case against the two real files. 9 of 12 cases present and
+matching, 1 weaker, **2 missing**. I verified the three falsifiable claims myself rather than
+adopting the table:
+
+- **Test 12 missing** — grepping `tests/integration/` for blend/fitWant/combined-score returns
+  nothing. The no-blended-score guard does not exist at the integration boundary.
+- **Test 10 missing** — the only hits are `job-search-store.test.ts:380-417`, a **direct store call**
+  in Task 13's file. Its existence is what made the gap invisible: something adjacent passes, so the
+  missing thing never announces itself.
+- **Test 9 weaker** — parsed `jarvis.module.json`: **15** `assistantTools`, of which the real gateway
+  invoke test exercises **one** (`job-search.matches.list`). The plan says each.
+
+**The best finding is the tautology.** `tests/integration/job-search-worker-surface.test.ts:77-78`
+reads the installed row's own `manifestHash` into `realDiscovery`, and later assertions compare
+against that same value — it cannot fail. The plan called step 5 "the step that gets left out", and
+it was left out in the one form that still reads as done. Same family as **N46**: uniform agreement
+is not evidence.
+
+Routed as tasks **#80/#81** (`score`, who found them) and **#82** (`scaffold`). `score` holds the
+Postgres slot; `scaffold` writes but does not run until it comes back.
 
 ## Open issues filed this session
 
