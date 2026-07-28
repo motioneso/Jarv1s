@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,7 @@ import type {
   ModuleRegistryEntry
 } from "../../packages/module-registry/src/node.js";
 import {
+  buildRegistryArtifacts,
   mergePreviousVersions,
   packModuleArtifact,
   REGISTRY_RETAINED_VERSIONS
@@ -124,16 +125,44 @@ describe("module discovery", () => {
   // Ruling N47 (#1307): the CLI entrypoint discovers modules generically via
   // readdirSync(external-modules/) — there is no per-module allowlist, and there must
   // never be one (a hardcoded id would go stale the moment a module is renamed or
-  // removed, silently or otherwise). This asserts the *outcome* of that discovery
-  // mechanism against the real directory: every known module is actually found. It is
-  // deliberately not scoped to job-search alone — a test that only knows about one
-  // module has the same asymmetry problem the publisher would have had.
-  it("finds every known external module, not a hardcoded subset", () => {
+  // removed, silently or otherwise). Asserting only the directory listing (as an earlier
+  // version of this test did) proves the modules exist on disk, not that the publisher
+  // finds and packs them — the same gap team-lead flagged in the manifest-hash tautology
+  // below. This drives the real buildRegistryArtifacts (the exact function the CLI calls)
+  // against every module readdirSync finds, into a scratch out-dir, and asserts on what
+  // actually got published: entries in the returned index, and a real tarball on disk
+  // for each. Deliberately not scoped to job-search alone — a test that only knows about
+  // one module has the same asymmetry problem the publisher would have had. Measured
+  // ~50ms end to end for both real modules (bundling included) — cheap enough not to fake.
+  const scratchOutDirs: string[] = [];
+  afterAll(() => {
+    for (const dir of scratchOutDirs) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("publishes every known external module, not a hardcoded subset", async () => {
     const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
     const externalModulesDir = join(repoRoot, "external-modules");
-    const moduleIds = readdirSync(externalModulesDir, { withFileTypes: true })
+    const moduleDirs = readdirSync(externalModulesDir, { withFileTypes: true })
       .filter((e) => e.isDirectory())
-      .map((e) => e.name);
-    expect(moduleIds).toEqual(expect.arrayContaining(["finance", "job-search"]));
+      .map((e) => join(externalModulesDir, e.name));
+
+    const outDir = mkdtempSync(join(tmpdir(), "registry-discovery-"));
+    scratchOutDirs.push(outDir);
+
+    const index = await buildRegistryArtifacts({
+      moduleDirs,
+      outDir,
+      previousIndex: null,
+      generatedAt: new Date().toISOString()
+    });
+
+    expect(index.modules.map((m) => m.id)).toEqual(
+      expect.arrayContaining(["finance", "job-search"])
+    );
+    // Each index entry claims a packed artifact; confirm the tarball actually landed on
+    // disk rather than trusting the returned object alone.
+    for (const module of index.modules) {
+      expect(existsSync(join(outDir, module.artifact))).toBe(true);
+    }
   });
 });
