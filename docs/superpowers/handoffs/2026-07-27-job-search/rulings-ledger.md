@@ -1942,3 +1942,42 @@ differ. A plan is not the current state of the decision; the ledger is. Any audi
 task — and if the ledger is silent, that silence is itself worth reporting, because it means the
 deviation was never ruled on at all. Sibling to N46: there, uniform agreement across layers hid a
 deviation; here, a deviation was recorded and the audit read the wrong authority.
+
+## N50 — a dangerous property on a path is not a finding until a caller reaches that path
+
+**Context.** I filed #1340 claiming the assistant-tools REST route (`POST
+/api/ai/assistant-tools/:name/invoke`) reaches `job-search.crawl.run-now` and scrapes LinkedIn and
+freehire.me for real, writing live postings into the test DB. I then scoped task #82 around it,
+telling `scaffold` to invoke every tool *except* the crawl tools and assert wiring only for those.
+
+**The mechanism was real.** `apps/api/src/external-module-tools.ts:52` builds the RPC handler with
+no `createFetch`, so `worker-rpc-host.ts:239` falls back to the real `createHostPinnedFetch`. The
+`JARVIS_E2E_MODULE_FETCH_BASE` fixture seam is threaded only through
+`apps/worker/src/external-module-invoke.ts`. All of that still holds.
+
+**The reachability was not.** `crawl.run-now` is declared `write` in the manifest, and
+`packages/ai/src/routes.ts:645` returns 403 `confirmation_required` for any tool with
+`risk !== "read"` *before* calling `manifestTool.execute`. Resolving the action afterward changes
+nothing: `confirmAndRun` (`packages/ai/src/gateway/gateway.ts:457`) blocks the **original** call on
+an in-memory `confirmations.awaitResolution()` that the REST route never registers. Only the chat
+gateway, after an explicit user Approve, reaches `execute` for a write tool.
+
+**Ruling.** The carve-out in #82 is withdrawn — test 9 invokes all 15 tools, asserting real results
+for the 5 read tools and the well-formed *blocked* envelope for the 10 write tools. #1340 stays open,
+retitled and rescoped to what is actually true: in e2e mode an **approved** chat crawl egresses live
+because the fixture seam is absent on the API path. That is a test-isolation gap, not a security
+hole — in production this path fetching job boards is the intended behaviour.
+
+**The generalisation, which is the part worth keeping.** I verified a construction-site fact ("this
+handler is built without a fetch seam") and reasoned *forward* to a consequence ("therefore invoking
+this tool egresses") without ever tracing that a caller arrives there. A property of a path is only
+a finding once some reachable caller traverses it; until then it is a property of dead code. Before
+a "path P has dangerous property Q" observation becomes an issue or shapes a task, walk the call
+chain from a real entry point to P and confirm nothing between them refuses. Sibling to N49: both
+are locally-true facts checked against the wrong authority — N49 read the plan instead of the
+ledger, N50 read the callee instead of the caller.
+
+**Corollary for tests.** Asserting that a write tool "succeeded" over the REST route encodes a
+contract the code deliberately forbids. `scaffold` caught this independently and asserted the blocked
+envelope rather than narrowing scope silently, which was the right call and is now the standing
+pattern for tool-dispatch tests.
