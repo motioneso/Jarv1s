@@ -90,14 +90,18 @@ async function renderRoot(
 
 // setSurfaceKey/seedContext are the two methods Root's useProfileThread actually calls; every
 // test in this file uses an "active" profile (the board branch), so Surface itself is never
-// rendered here (that's job-search-web-onboarding.test.tsx's job) — a no-op placeholder is
-// enough to satisfy AssistantSurfaceHandleV1's now-three-member shape (#1331) without this file
-// needing to know anything about the host's real component.
+// rendered here (that's job-search-web-onboarding.test.tsx's job) and submitTurn is never
+// invoked (no test here opens a row's detail panel or clicks Discuss — that's
+// job-search-web-board.test.tsx's job) — but AssistantSurfaceHandleV1 is now a four-member
+// interface (Surface added for #1331, submitTurn added for #1304), and a fixture typed against
+// it must satisfy all four or it's silently wrong the moment a .tsx test (never typechecked,
+// #1335) is trusted to catch a shape mismatch.
 function assistantSurface(): AssistantSurfaceHandleV1 {
   return {
     setSurfaceKey: vi.fn(),
     seedContext: vi.fn().mockResolvedValue(undefined),
-    Surface: vi.fn()
+    Surface: vi.fn(),
+    submitTurn: vi.fn().mockResolvedValue(undefined)
   };
 }
 
@@ -151,6 +155,12 @@ describe("job-search web Root", () => {
     // "active" (Task 20 replaced BoardPlaceholder) — a non-empty matches.list result is what
     // makes the two pre-existing "renders ... table" assertions below still true; individual
     // tests don't otherwise care what the board or settings screens render.
+    //
+    // Shape matches the real BoardMatch (board-types.ts / worker/handlers/matches.ts) as of N39:
+    // no fitReason/wantReason on the list row (those moved to MatchDetail, fetched separately by
+    // job-search.match.get), and url is required — found missing here by #1335's follow-up audit,
+    // since board.tsx:219-223 casts this response with no runtime validation, so a stale fixture
+    // shape here would have kept passing silently.
     vi.mocked(api.invokeTool).mockImplementation(async (name: string) => {
       if (name === "job-search.matches.list") {
         return {
@@ -161,10 +171,9 @@ describe("job-search web Root", () => {
               company: "Acme",
               fit: 80,
               want: 70,
-              fitReason: "Matches your stated skills.",
-              wantReason: "Aligns with your stated priorities.",
               outsideFrame: false,
-              state: "new"
+              state: "new",
+              url: "https://example.com/jobs/m1"
             }
           ]
         };

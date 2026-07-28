@@ -112,7 +112,8 @@ describe("OnboardingScreen", () => {
     const surface: AssistantSurfaceHandleV1 = {
       setSurfaceKey: vi.fn(),
       seedContext: vi.fn().mockResolvedValue(undefined),
-      Surface: SurfaceSpy
+      Surface: SurfaceSpy,
+      submitTurn: vi.fn().mockResolvedValue(undefined)
     };
 
     const renderer = await renderScreen(profile(), surface);
