@@ -4645,3 +4645,26 @@ Directed the lane to finish the rebase it owns (it alone holds the conflict cont
 1000-line cap afterwards, then relay for real via `herdr agent start --model sonnet` and report the
 successor's own session id. If context runs out mid-rebase it must `git rebase --abort` first — an
 aborted rebase is recoverable, an abandoned detached-HEAD one is not.
+
+### Resolved — #1311 single-driver ruling (2026-07-27)
+
+Following the phantom-successor incident the predecessor relayed **for real**: `git rebase --abort`
+(clean, branch ref reattached at `45a1c62d`), then `herdr agent start` — not the Agent tool — into a
+new pane, verified on Sonnet 5 and confirmed reading the relay-11 handoff.
+
+- **Sole driver of #1311 is now `grant1311f`, session `545dc18b-cc85-4f52-bf55-c88f73a2d9e6`.**
+  Session id is genuinely distinct from the predecessor's, satisfying the pre-reap rule above.
+- Predecessor `d4c56b64` stood down and reaped. Its worktree work is preserved in the branch ref.
+- **Two false alarms in the successor's own halt report, corrected for the record:** the "third
+  agent" (pid 2349892) was the *predecessor's own* claude process launched off the relay-10 prompt,
+  and the "silent abort" was the predecessor's own `git rebase --abort`. Only two sessions were ever
+  involved. The successor was right to halt on the evidence it had — with two live sessions on one
+  worktree, stopping was correct even though the third-party inference was wrong.
+- Tree state verified by the Coordinator at handover: detached HEAD, `rebase-merge` **in progress**,
+  `UU packages/chat/src/routes.ts`, `tests/integration/chat-action-policy-self-heal.test.ts` staged.
+  That rebase belongs to the successor and was left intact — it resolves rather than aborts.
+- Standing order re-issued: keep both sides on `routes.ts` (#1276 `affectsQueryKeys` + the lane's
+  `route-serializers.ts` extraction), re-check the 1000-line cap post-rebase, pre-push trio, **fresh
+  post-rebase gate on a freshly DROP/CREATEd isolated DB** (the pre-rebase rc=0 does not count),
+  Task 5 PR, wrap-up. The Task 4 fixme conditions are already satisfied in `177c8754` and must not
+  be redone; the real Playwright output from the live half carries into the PR body.
