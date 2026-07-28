@@ -34,39 +34,45 @@ provider rows; every request came back 400 "No active chat-capable model is conf
 uat-seed rows also survive between runs, so a reused gate DB fails the *next* run for no real
 reason. Both are fixed by a fresh, per-agent gate DB.
 
+**Use `scripts/run-gate.sh`. Do not hand-roll a background run and a wait loop** — that is how
+lane #1273 lost 19 hours (its `pgrep` wait-loop matched Claude's own bash wrappers forever, so a
+gate that had died at `db:migrate` looked alive all night). The runner does the fresh gate DB, the
+`flock`, the `export`, and a trap-guaranteed `### FINAL rc=N` sentinel for you.
+
 ```bash
-# 1. Fresh gate DB. jarv1s-postgres is the DEV container (:55433).
-#    NEVER target jarv1s-prod-postgres-1 — that is production.
-GATEDB=jarvis_gate_<your-slug>
-docker exec jarv1s-postgres psql -U postgres -c "DROP DATABASE IF EXISTS $GATEDB;"
-docker exec jarv1s-postgres psql -U postgres -c "CREATE DATABASE $GATEDB;"
+# 1. Start it. Returns immediately with a log path; the gate runs detached in its own session.
+scripts/run-gate.sh start                       # defaults to pnpm verify:foundation
 
-# 2. export it — an inline `VAR=x pnpm …` prefix does NOT survive a backgrounded call.
-export JARVIS_PGDATABASE=$GATEDB
+# 2. Poll to completion. Each call blocks up to 540s then exits 3 = "still running, call again".
+#    Give the Bash tool a 600000 ms timeout — its 120s default is shorter than the wait.
+scripts/run-gate.sh wait
 
-# 3. Run it in the BACKGROUND (the full gate exceeds the 10-minute foreground cap) and write a
-#    marker you can grep, so the exit code cannot be lost or faked by a wrapper.
-( pnpm verify:foundation > /tmp/cb-vf.log 2>&1; echo "### FINAL verify:foundation rc=$?" >> /tmp/cb-vf.log ) &
-( pnpm audit:release-hardening > /tmp/cb-audit.log 2>&1; echo "### FINAL audit rc=$?" >> /tmp/cb-audit.log ) &
-
-# 4. Read the real result from the log — not from any wrapper's echo.
-grep '### FINAL' /tmp/cb-vf.log /tmp/cb-audit.log
+# 3. Read the verdict. Exit 0 = green, 1 = the gate failed, 2 = the run DIED (no sentinel,
+#    log gone stale), 3 = still running.
+scripts/run-gate.sh status
 ```
+Useful flags: `--gate audit:release-hardening` to run a different pnpm script (each gate gets its
+own log), `--keep-db` to keep the gate DB for debugging, `--exclusive` to hold the DB lock for the
+whole run when a sibling lane is also gating. `scripts/run-gate.sh stop` terminates a run and still
+lands a sentinel. Full usage is in the script header.
+
+- **Liveness comes from the sentinel + log mtime, never from `ps`/`pgrep`.** Every Claude Bash call
+  is wrapped in a snapshot-sourcing shell whose command line contains your worktree path and your
+  command text, so `pgrep -f <anything>` matches wrapper shells — and the wait loop itself — long
+  after the real process is gone. A process count cannot tell "still working" from "died hours ago".
 - **Never pipe a gate to `tail`/`grep` as the final stage** — a pipeline returns the *filter's*
   exit code and masks the failure. This is measured: 44% of gate invocations in one sampled run
   were piped, and a blocking PreToolUse hook (`.claude/hooks/check-gate-pipe.sh`) now denies them.
   A denial is the hook working; fix the command, don't route around it.
-- **Never trust a wrapper `echo $?`** either — read `### FINAL` out of the log. That masked a real
-  rc=1 during the #1270 recovery.
-- **Don't run the gate while another agent is running theirs.** Concurrent `test:integration` has
-  crashed the shared dev Postgres into recovery. Separate gate DBs prevent data collisions, not
-  resource contention — if a sibling lane is mid-gate, wait or tell the coordinator.
+- **Never trust a wrapper `echo $?`** either — read the runner's exit code or the `### FINAL` line
+  out of the log. A wrapper echo masked a real rc=1 during the #1270 recovery.
+- **A gate that dies on `error: tuple concurrently updated` is contention, not your bug.** Another
+  worktree ran DDL at the same moment. Don't just re-run locally — you re-enter the same window;
+  push and let CI be the gate, and tell the coordinator.
 - **Run the FULL suite**, not just your module — a shared-table/contract change can break other
   suites. If red, fix it (`superpowers:systematic-debugging`) before reporting done.
 - This is *your* check so the PR isn't dead-on-arrival; the coordinator re-verifies independently
   via a QA agent (verify-never-trust). Don't treat your green as the final word.
-- Drop the gate DB when you're done (`DROP DATABASE IF EXISTS $GATEDB;`) — unreaped gate DBs and
-  UAT images have filled this box's disk before.
 
 ### 3. Pre-push fast checks + push + open the PR
 
@@ -132,8 +138,10 @@ or tell the coordinator so it's captured. Don't store secrets.
 
 - Claiming "green" from an exit code obtained through a pipe, or from a wrapper `echo $?` instead
   of the `### FINAL` line in the log.
-- **Running the gate without `export JARVIS_PGDATABASE=<fresh gate DB>`** — you are writing to
-  Ben's live dev instance.
+- **Waiting on `pgrep`/`ps` to decide a gate is still running.** It matches Claude's own bash
+  wrappers and never goes false — use `scripts/run-gate.sh wait`.
+- **Hand-rolling the gate DB or the background run** instead of `scripts/run-gate.sh` — without an
+  exported `JARVIS_PGDATABASE` you are writing to Ben's live dev instance.
 - Moving the board / closing an issue / **merging** — not yours; report instead.
 - Reporting "done" with a red or unrun full gate.
 - **Reporting a user-facing PR "done" with no live-path proof comment** — the honest status is
@@ -145,8 +153,8 @@ or tell the coordinator so it's captured. Don't store secrets.
 | Need | Command |
 | ---- | ------- |
 | Clean tree (your paths) | `git status --porcelain` · `pnpm format` |
-| Fresh gate DB | `docker exec jarv1s-postgres psql -U postgres -c "DROP DATABASE IF EXISTS $GATEDB;"` then `CREATE DATABASE` · `export JARVIS_PGDATABASE=$GATEDB` |
-| Gate (real exit) | background it, then `grep '### FINAL' /tmp/cb-vf.log` — never a pipe, never a wrapper `echo $?` |
+| Gate (fresh DB + real exit) | `scripts/run-gate.sh start` → `scripts/run-gate.sh wait` → `scripts/run-gate.sh status` — never a pipe, never a wrapper `echo $?`, never `pgrep` |
+| Second gate | `scripts/run-gate.sh start --gate audit:release-hardening` (its own log) |
 | Pre-push trio + rebase | `pnpm format:check && pnpm lint && pnpm typecheck` · `git fetch origin main && git rebase origin/main` |
 | Push + PR | `git push -u origin <b>` · `gh pr create --base main` |
 | Live-path proof (UI-facing) | `resolve-uat-triggers.sh` → `pnpm test:uat -- <spec>` → `gh pr comment` with run + screenshots |

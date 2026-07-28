@@ -69,13 +69,21 @@ Push the branch if it is meant to land. Never force-push a shared branch.
 ### 3. The gate is GREEN — verified, not assumed
 
 ```bash
-pnpm verify:foundation > /tmp/wrapup-vf.log 2>&1; echo "VF_EXIT=$?"
-pnpm audit:release-hardening > /tmp/wrapup-audit.log 2>&1; echo "AUDIT_EXIT=$?"
+scripts/run-gate.sh start                              # fresh isolated gate DB, detached
+scripts/run-gate.sh start --gate audit:release-hardening
+scripts/run-gate.sh wait                               # Bash tool timeout: 600000 ms
+scripts/run-gate.sh status                             # 0 green · 1 failed · 2 DIED · 3 running
 ```
 
+- **Use the runner; don't hand-roll a background run and a wait loop.** A full
+  `verify:foundation` runs 15–25 min and the Bash tool caps a call at 10 min, so the foreground
+  recipe is unrunnable — every hand-rolled wait improvises, and that is where it breaks.
+- **NEVER decide liveness from `pgrep`/`ps`.** Every Claude Bash call is wrapped in a shell whose
+  command line contains your worktree path and command text, so `pgrep -f` matches wrappers — and
+  the wait loop itself — forever. Lane #1273 lost 19 hours to exactly this. The runner decides
+  from a trap-guaranteed `### FINAL rc=N` sentinel plus log mtime.
 - **NEVER pipe a gate to `tail`/`head`/`grep` as the final stage** — the pipe returns the
-  _filter's_ exit code (0) and masks a real failure. Redirect to a file, capture `$?`, then
-  read both the exit code AND the summary line.
+  _filter's_ exit code (0) and masks a real failure.
 - **Per-suite green ≠ done.** A shared-table/contract change can break _other_ modules'
   suites (e.g. a new `NOT NULL` column breaking another suite's raw seeds). Run the FULL
   suite, not just the module you touched.
@@ -140,7 +148,7 @@ anything awaiting the user.
 | Who else is in the tree | `git worktree list` · `herdr pane list`                                                         |
 | Uncommitted?            | `git status --porcelain` · `pnpm format`                                                        |
 | Unpushed?               | `git status -sb` · `git log --oneline @{u}..HEAD`                                               |
-| Gate (real exit)        | `pnpm verify:foundation > /tmp/vf.log 2>&1; echo "EXIT=$?"` then `pnpm audit:release-hardening` |
+| Gate (real exit)        | `scripts/run-gate.sh start` → `wait` → `status` (never `pgrep`, never a pipe) |
 | Board / issues          | `gh project item-list 1 --owner motioneso --format json` · `gh issue …` · `gh pr …`             |
 | Coordinate / hand off   | `herdr-pane-message` · `tmux-pane-message` · `herdr-handoff`                                    |
 | Memory                  | `memory_save` (project: jarv1s) or file-based memory + MEMORY.md                                |
