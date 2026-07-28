@@ -224,6 +224,39 @@ concurrent load before — suspect it first if a run dies without a test failure
 Known pre-existing red, **not ours**: `tests/uat/run-uat.test.ts` fails identically on `main`
 (an extra `withoutNewsJsonBinding` field) — settled in a scratch worktree at `9df9ba3e`.
 
+## LIVE STATE — read this first (2026-07-28, context checkpoint)
+
+**#1305's blockers are down to one file.** `tests/integration/job-search-worker-surface.test.ts` is
+**uncommitted** and carries **two agents' work at once**: `score`'s test 12 (no blended score, N48
+numeric narrowing at `:688`, N49 file-header deviation comment at `:9-17`) and `scaffold`'s test 9
+(all 15 manifest tools, `:275`) plus the test 6 manifest-hash de-tautologisation. Both verified
+intact and non-conflicting. `pnpm typecheck` exit 0 on the combined content.
+
+**A full `pnpm test:integration` was launched by the coordinator against that content** (run with
+`env -u JARVIS_PGDATABASE` so it self-isolates; healthy, own DB `jarvis_test_3144504_*`). If that run
+did not finish, **re-run it** — do not commit on an unverified file, and do not accept the earlier
+`score` run, which was contaminated when `scaffold` edited the file 90 seconds into it.
+
+**Then, in this order:** commit test 9 + test 12 together (one commit, both #81 and #82 — they share
+a file and cannot be split by path) → ping `scaffold` to apply its approved hash-anchor follow-up
+(add `hashExternalPackage`, compute `expectedPackageHash` from **`installedDir`** not `sourceDir` to
+match `node.ts:137`, assert `row.manifest_hash`/`row.package_hash` against the recomputed values,
+rewrite the stale comment at `:125-127`) → full gate → PR.
+
+**#83 is closed** at `917713b9`, verified: `discoverModuleDirs` exported at
+`scripts/publish-module-registry.ts:35`, CLI calls it at `:164`, test imports and calls the same
+function. Took three rounds — v1 asserted a directory listing, v2 drove the packer but copied the
+walk, v3 binds to the real thing.
+
+**#1340 was corrected and retitled.** Its mechanism is real (the API path builds its RPC handler with
+no `createFetch`) but the reachability I filed was wrong: `crawl.run-now` is a `write` tool and
+`packages/ai/src/routes.ts:645` 403s every non-read tool before `execute`. No test can egress through
+that route. See ruling **N50**. The remaining bug is narrower — an *approved* chat crawl in e2e mode
+egresses live, a test-isolation gap, not a security hole.
+
+**Housekeeping, still not done:** stale `jarvis_test_*` / `*_gate_*` databases on the dev Postgres
+container (`jarv1s-postgres`, port 55433 — `jarv1s-prod-postgres-1` is PROD, never touch it).
+
 ## Agent assignments and the file locks between them
 
 Six build agents. The locks matter more than the assignments — three of them want the same two files.
