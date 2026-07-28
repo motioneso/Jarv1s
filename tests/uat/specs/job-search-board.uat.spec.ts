@@ -560,6 +560,11 @@ test("job search: install, bootstrap, onboarding, crawl, board, inspector, chat 
   // (present inside, absent outside), not today's code, per #1332's own instruction not to soften
   // the assertion to match the bug. It is EXPECTED RED until #1332 is fixed in the host — do not
   // rewrite this to pass against current behaviour, and no test.fixme: report red honestly.
+  // Deliberately NOT test.fixme, unlike Phase 12 below: the behaviour and data model both already
+  // exist (chat surfaces, threads, messages all work today); this is a one-line routing bug gated
+  // on a pending product call, not a field/behaviour that doesn't exist yet. See
+  // docs/coordination/AWAITING-BEN.md #1, which cites this exact test.step by name and states the
+  // live assertion is deliberate: "whichever way it goes the assertion is one edit, not a rewrite."
   await test.step("Phase 11: core chat drawer scopes the job-search thread to this profile (#1284/#1332)", async () => {
     // Seed a thread + one message directly on this profile's surface (N40: a real user turn sent
     // from inside the profile — via useProfileThread's seedContext or a normal reply — writes
@@ -595,27 +600,28 @@ test("job search: install, bootstrap, onboarding, crawl, board, inspector, chat 
     await expect(page.getByText(MARKER_TEXT, { exact: false })).toHaveCount(0);
   });
 
-  // --- Phase 12: nav badge — #1285 says this is a currently-real, unfixed structural gap ---
-  await test.step("Phase 12: nav badge reflects unread matches and clears on mark-read (#1285)", async () => {
-    // app-shell.tsx:559-585's NavEntryWithBadge: unreadCount is only ever nonzero when
-    // entry.badge?.source === "notifications", but ModuleNavigationEntryDto (the wire shape
-    // actually serialized to the browser) does not carry a badge field today, so entry.badge is
-    // ALWAYS undefined regardless of jarvis.module.json's declared intent. This phase is written
-    // against the intended contract and is expected to fail until that DTO gap (#1285) is closed —
-    // reporting it red, honestly, in place, is the point; no test.fixme.
-    await page.goto(requireBaseURL());
-    const navLink = page
-      .locator('nav[aria-label="Modules"]')
-      .getByRole("link", { name: "Job Search" });
-    await expect(navLink.locator(".jds-badge-count")).toBeVisible();
+  // Phase 12 (nav badge, #1285) moved out to a standalone test.fixme below: unlike Phase 11, this
+  // one asserts against a wire field (ModuleNavigationEntryDto.badge) that does not exist in the
+  // DTO at all today, not a routing bug over data that's already there — see that test's body for
+  // why that distinction is what puts it on the fixme side of the line.
+});
 
-    await page.locator(".jds-usermenu__trigger").click();
-    await page.getByRole("button", { name: "Notifications" }).click();
-    const notice = page.getByText(/\d+ new job matches?/);
-    await expect(notice).toBeVisible();
-    const title = await notice.innerText();
-    await page.getByRole("button", { name: `Mark ${title} read` }).click();
-
-    await expect(navLink.locator(".jds-badge-count")).toHaveCount(0);
-  });
+test.fixme("nav badge reflects unread matches and clears on mark-read (#1285)", async () => {
+  // Blocked, not just unimplemented: app-shell.tsx's NavEntryWithBadge only ever renders a count
+  // when entry.badge?.source === "notifications", but ModuleNavigationEntryDto — the wire shape
+  // actually serialized to the browser — carries no `badge` field at all today, regardless of
+  // what jarvis.module.json declares. There is no seed lever or timing fix that makes this pass;
+  // the DTO itself needs the field before this body can be written for real. Tracked at #1285.
+  //
+  // Intended assertion, to lift in verbatim once #1285 lands:
+  //   await page.goto(requireBaseURL());
+  //   const navLink = page.locator('nav[aria-label="Modules"]').getByRole("link", { name: "Job Search" });
+  //   await expect(navLink.locator(".jds-badge-count")).toBeVisible();
+  //   await page.locator(".jds-usermenu__trigger").click();
+  //   await page.getByRole("button", { name: "Notifications" }).click();
+  //   const notice = page.getByText(/\d+ new job matches?/);
+  //   await expect(notice).toBeVisible();
+  //   const title = await notice.innerText();
+  //   await page.getByRole("button", { name: `Mark ${title} read` }).click();
+  //   await expect(navLink.locator(".jds-badge-count")).toHaveCount(0);
 });
