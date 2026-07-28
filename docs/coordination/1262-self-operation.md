@@ -4764,3 +4764,12 @@ CI at the time of writing: `Detect change scope` SUCCESS, `Compose deployment sm
 `Prod compose deployment smoke` SUCCESS, `Verify docs` SKIPPED, **`Verify foundation and app`
 still `in_progress`** (run 30322817920). PR reads MERGEABLE/UNSTABLE purely because of that
 pending check. No merge until it reports `success`.
+
+**Follow-up filed:** issue **#1339** — *"Security-review follow-ups from PR #1338: 5 non-blocking
+findings + untested callTool→self-heal seam"* (labels `task`, `security`; no assignee, no
+milestone). Filed by the reviewer itself so the finding detail never had to pass through the
+coordinator's context. Verified OPEN before reaping. This is where the composed-seam coverage gap
+lives now, with a concrete test recipe — do **not** let PR #1338 merging close that gap silently.
+
+`fable-sec-1338` reaped: pane w1:p14P closed, detached worktree
+`.claude/worktrees/fable-sec-1338` removed.
