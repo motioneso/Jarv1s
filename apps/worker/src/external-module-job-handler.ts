@@ -20,6 +20,7 @@ import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
 import type {
   ExternalModuleAiRequest,
   ExternalModuleAiResult,
+  ExternalModuleAttachmentText,
   ExternalModuleWorkerRuntime
 } from "@jarv1s/module-registry/node";
 import type { ExternalModuleQueueDeclaration } from "@jarv1s/module-sdk";
@@ -146,6 +147,14 @@ export interface ExternalModuleJobHandlerDeps {
     access: AccessContext,
     input: CreateNotificationInput
   ) => Promise<void>;
+  // ctx.attachments.readText (#109 parity fix): threaded straight through to the shared
+  // trust gate below, same optional-pass-through shape as `postNotification` above — see
+  // external-module-invoke.ts's own comment on VerifiedExternalModuleInvokerDeps for why
+  // this was missing.
+  readonly readAttachmentText?: (
+    access: AccessContext,
+    attachmentId: string
+  ) => Promise<ExternalModuleAttachmentText | null>;
 }
 
 export function createExternalModuleJobHandler(
@@ -161,6 +170,7 @@ export function createExternalModuleJobHandler(
     listActiveUserIds: deps.listActiveUserIds,
     ai: deps.ai,
     postNotification: deps.postNotification,
+    readAttachmentText: deps.readAttachmentText,
     ...resolveE2eFetchOverride()
   });
   return async (job) => {

@@ -40,8 +40,10 @@ import {
   resolveModulesDir
 } from "@jarv1s/module-registry/node";
 import { AiRepository } from "@jarv1s/ai";
+import { ChatAttachmentsService } from "@jarv1s/chat";
 import { NotificationsRepository, type CreateNotificationInput } from "@jarv1s/notifications";
 import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
+import { getVaultBaseDir, VaultContextRunner } from "@jarv1s/vault";
 
 import { createModuleWorkerAiBridge } from "./external-module-ai-bridge.js";
 import { createExternalBriefingInvoker } from "./external-module-invoke.js";
@@ -222,6 +224,28 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
       moduleNotifications.create(scopedDb, notifyInput)
     );
   };
+  // ctx.attachments.readText (#109 parity fix): identical construction to
+  // apps/api/src/external-module-tools.ts's `attachments` + readAttachmentText closure.
+  // The two composition roots drifted because this dependency was wired into the
+  // synchronous tool-dispatch path when it was added (#932-era) without a matching pass
+  // through this file — worker-rpc-host.ts's `readAttachmentText` is optional and its
+  // `attachments.readText` RPC method returns null silently when absent, so a queued job
+  // (or a briefing) reading a job-search résumé attachment saw the identical "missing
+  // attachment" outcome as a genuinely-missing one, with no way to tell them apart.
+  const attachments = new ChatAttachmentsService(new VaultContextRunner(getVaultBaseDir()));
+  const readModuleAttachmentText = async (
+    access: AccessContext,
+    attachmentId: string
+  ) => {
+    const content = await attachments.readContent(access, attachmentId);
+    return content.kind === "text"
+      ? {
+          fileName: content.meta.fileName,
+          mimeType: content.meta.mimeType,
+          text: content.text
+        }
+      : null;
+  };
   const discoveryById = new Map(discoveries.map((module) => [module.id, module]));
   const listActiveUserIds = async (moduleId: string): Promise<readonly string[]> =>
     (
@@ -248,7 +272,8 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
     runtime,
     listActiveUserIds,
     ai: moduleAiBridge,
-    postNotification: postModuleNotification
+    postNotification: postModuleNotification,
+    readAttachmentText: readModuleAttachmentText
   });
 
   await registerBuiltInModuleWorkers(boss, {
@@ -314,7 +339,8 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
           discoveryById,
           listActiveUserIds,
           ai: moduleAiBridge,
-          postNotification: postModuleNotification
+          postNotification: postModuleNotification,
+          readAttachmentText: readModuleAttachmentText
         })
       );
     },

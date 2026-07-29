@@ -22,6 +22,7 @@ import { createExternalModuleRpcHandler } from "@jarv1s/module-registry/node";
 import type {
   ExternalModuleAiRequest,
   ExternalModuleAiResult,
+  ExternalModuleAttachmentText,
   ExternalModuleWorkerRuntime
 } from "@jarv1s/module-registry/node";
 import type { ModuleCredentialCipher } from "@jarv1s/settings";
@@ -82,6 +83,19 @@ export interface VerifiedExternalModuleInvokerDeps {
     access: AccessContext,
     input: CreateNotificationInput
   ) => Promise<void>;
+  // ctx.attachments.readText (#109 parity fix): mirrors apps/api/src/external-module-tools.ts's
+  // ChatAttachmentsService wiring — worker.ts builds the same service against the same vault
+  // root and passes a closure of this exact shape. The two composition roots drifted because
+  // this dependency was added to the API tool-dispatch path (#932-era) without a matching pass
+  // through the worker's queue/briefing path; worker-rpc-host.ts's own `attachments.readText`
+  // handler treats an absent readAttachmentText as "no attachment", identical to a genuinely
+  // missing one, so the gap was silent rather than a build or runtime failure. Optional here for
+  // the same reason `ai`/`postNotification` are: some future caller may still have no attachments
+  // service to wire.
+  readonly readAttachmentText?: (
+    access: AccessContext,
+    attachmentId: string
+  ) => Promise<ExternalModuleAttachmentText | null>;
   // #1306 Task 22: host-only, opt-in fetch override for UAT/e2e runs (see
   // external-module-job-handler.ts's resolveE2eFetchOverride/createE2eFixtureFetch,
   // the only caller that ever populates this today). Passed straight through to
@@ -149,6 +163,9 @@ export function createVerifiedExternalModuleInvoker(
       // signature already matches what createExternalModuleRpcHandler expects, so
       // no per-call moduleId-binding wrapper is needed.
       postNotification: deps.postNotification,
+      // ctx.attachments.readText (#109 parity fix): same as postNotification above — the
+      // signature already matches, no per-call moduleId binding needed.
+      readAttachmentText: deps.readAttachmentText,
       ...(deps.ai ? { ai: (scopedDb, request) => deps.ai!(scopedDb, args.moduleId, request) } : {}),
       // #1306 Task 22: spread only when present — a bare `createFetch: undefined`
       // key would still be "own key `in` the object" and defeat the seam's own
