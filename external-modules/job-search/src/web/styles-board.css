@@ -1,0 +1,11 @@
+/* Layout for the Matches board and the opportunity detail view.
+ *
+ * Split from styles.css, which carries the shell and was already close to the 1000-line file-size
+ * gate. All three module stylesheets are loaded the same way — imported as raw text by root.tsx and
+ * injected into one <style> tag (see css.d.ts for why the `.css` import types as a string), so the
+ * split is a file-size accommodation, not a cascade boundary.
+ *
+ * Same contract as its siblings: LAYOUT ONLY. No design tokens live here — `grep -c 'var(--'` on
+ * this file must stay 0. Colour and type reach the module through host `jds-*` classes, and an
+ * invented `jds-*` class renders as nothing, so check the host inventory before reaching for one.
+ */

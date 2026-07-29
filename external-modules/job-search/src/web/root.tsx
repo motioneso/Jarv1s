@@ -33,6 +33,11 @@ import { OverviewScreen } from "./screens/overview";
 import { ProfileScreen } from "./screens/profile";
 import { SettingsScreen } from "./screens/settings";
 import styles from "./styles.css";
+// Split into three files only because of the 1000-line file-size gate — they are one stylesheet as
+// far as the page is concerned, concatenated into the single <style> tag below. The split also
+// keeps the board and the other screens in separate files so two agents can work them in parallel.
+import boardStyles from "./styles-board.css";
+import screenStyles from "./styles-screens.css";
 
 /** How often the profile record is re-read while the interview is still going. Matched to
  * `POLL_INTERVAL_MS` in use-profiles.ts — this is the same kind of wait (a worker write the
@@ -87,7 +92,16 @@ function ModuleMasthead(props: { profile: Profile | null }): ReactNodeLike {
         <h1 className="jds-section-title">Job Search</h1>
       </div>
       {status ? (
-        <span className={`jds-indicator jds-indicator--${status.modifier}`}>
+        // `--live` adds the host's slow pulse behind the dot, and it is claimed only for "ready":
+        // that is the one state where the search really is watching between visits, so the motion
+        // reports something true rather than decorating every state equally. The other modifiers
+        // (paused, setup incomplete) are static on purpose — a pulsing dot next to "Paused" would
+        // be the status line contradicting itself.
+        <span
+          className={`jds-indicator jds-indicator--${status.modifier}${
+            status.modifier === "ready" ? " jds-indicator--live" : ""
+          }`}
+        >
           <span className="jds-indicator__dot" />
           <span className="jds-eyebrow">{status.text}</span>
         </span>
@@ -249,6 +263,11 @@ function ActiveProfilePanel(props: {
   // `jds-tab` with `aria-selected` is unchanged from Task 20's pair — the design system already
   // draws the underline off that attribute, so this is a rename and extension of the existing
   // chrome, not new chrome (plan K5: "not new chrome").
+  //
+  // `jds-tab--gold` is the mockup's marker: a 3px gold underline on the selected tab rather than
+  // the default 2px accent one. `JobsModule.jsx` — the module rendered inside the app shell, which
+  // outranks the standalone harness — is explicit about this, and it is a real difference in the
+  // design rather than a detail, so it gets the host's gold-marker variant.
   const TABS: Array<{ id: ActiveView; label: string }> = [
     { id: "matches", label: "Matches" },
     { id: "overview", label: "Overview" },
@@ -264,7 +283,7 @@ function ActiveProfilePanel(props: {
           type="button"
           role="tab"
           aria-selected={view === tab.id}
-          className="jds-tab"
+          className="jds-tab jds-tab--gold"
           onClick={() => setView(tab.id)}
         >
           {tab.label}
@@ -541,7 +560,7 @@ export function Root(props: RootProps): ReactNodeLike {
   return h(
     Fragment,
     null,
-    <style>{styles}</style>,
+    <style>{`${styles}\n${boardStyles}\n${screenStyles}`}</style>,
     <div className="jsm-root">
       {/* K8: above ProfileBar (and everything else), not below it. ProfileBar is a per-search
           switcher — it names which of possibly several searches you're looking at, which only

@@ -31,6 +31,10 @@ docs/releases/*-weekly/index.html
 
 # Frozen design handoff artifacts (keep byte-identical to the exported design project)
 docs/superpowers/design/
+# Same rule, second location: verbatim mockup screens pulled from the "Jarvis — Park Press Design
+# System" project in Claude Design. They are the target the code is measured against, so they have
+# to stay byte-identical to the source — a format pass rewrote all seven of them once already.
+docs/superpowers/specs/job-search-mockup/
 
 # #1326: unit-test fixtures mkdtemp() a ".tmp-*" directory directly in the repo root
 # (external-worker-runtime, external-module-invocation-budget, module-sdk-worker); a
