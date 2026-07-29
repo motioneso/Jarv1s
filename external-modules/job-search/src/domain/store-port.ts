@@ -132,9 +132,15 @@ export interface JobSearchStore {
    * improve it. Reading them as candidates instead means `upsertMatch` overwrites the row in place
    * and the board never loses a row at all.
    *
-   * Only rows whose fit is null are returned — a real score is never re-spent — and only rows the
-   * user has not acted on, because `upsertMatch` returns a row to `new` and that would drag a
-   * dismissed or applied role back onto the board. */
+   * Returns rows carrying no Fit computed against the résumé on file NOW: a null Fit, or a Fit
+   * scored before the current résumé version. A Fit judges a posting against a résumé, so
+   * replacing the résumé invalidates every score already on the board — a narrower "fit IS NULL"
+   * reading made this return nothing once a board was fully scored, and a replaced résumé then
+   * rescored nothing at all. A score is still never re-spent while the résumé it was computed
+   * against is the current one.
+   *
+   * Only rows the user has not acted on are returned, because `upsertMatch` returns a row to
+   * `new` and that would drag a dismissed or applied role back onto the board. */
   listUnfittedPostingsWithEmbeddings(
     profileId: string,
     limit: number

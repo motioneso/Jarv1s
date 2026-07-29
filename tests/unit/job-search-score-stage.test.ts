@@ -555,4 +555,75 @@ describe("runScore", () => {
     expect(notify.__posted[0]?.body).toContain("2");
     expect(notify.__posted[0]?.body).not.toMatch(/30/);
   });
+
+  it("test 18: a call that cannot finish before the deadline is never started — the loop winds down instead of overrunning", async () => {
+    // `deadlineAt` is the instant the host KILLS the invocation, not a soft budget: a call still in
+    // flight when it lands dies with the whole handler, taking the partial result with it. So the
+    // question this loop has to answer between postings is "is there time to FINISH a call", not
+    // "is there time left at all" — and the only honest estimate of a call's cost is how long the
+    // calls in THIS run have actually taken.
+    //
+    // The clock is driven by the model port itself: call 1 consumes half the window. A bare
+    // `clock() >= deadlineAt` check passes happily at that point and starts a second call that
+    // cannot possibly return in time — which is exactly the live failure this guards (a crawl
+    // killed at the 600s ceiling, reporting a failure instead of the 73 rows it had scored).
+    const start = 1_000_000;
+    let nowMs = start;
+    const windowMs = 200_000;
+
+    const store = createFakeStore({
+      profile: makeProfile(),
+      candidates: [makePosting("p-1"), makePosting("p-2"), makePosting("p-3")]
+    });
+    const ai: AiPort = {
+      generateStructured: vi.fn(async () => {
+        nowMs += windowMs / 2;
+        return { ok: true as const, object: okResult };
+      })
+    };
+
+    const result = await runScore(
+      runDeps({
+        store,
+        ai,
+        budget: 8,
+        deadlineAt: start + windowMs,
+        clock: () => nowMs
+      })
+    );
+
+    // One call, then a graceful stop with time still on the clock — not three calls and a kill.
+    expect(ai.generateStructured).toHaveBeenCalledTimes(1);
+    expect(result.scored).toBe(1);
+    expect(result.halted?.reason).toBe("deadline");
+    expect(nowMs).toBeLessThan(start + windowMs);
+    // The two it never reached are reported as deferred, so the caller can say "more next time".
+    expect(result.deferred).toBe(2);
+  });
+
+  it("test 19: the unmeasured reserve floor never swallows the whole window — a short invocation still scores", async () => {
+    // The floor is a guess about a call that has not happened yet, and a guess must never be big
+    // enough to consume the window it is protecting. Handed a window far shorter than the floor,
+    // a flat reserve would refuse to start anything and score nothing at all — a conservative
+    // guard turned into a total one. Capping only the UNMEASURED floor keeps that from happening
+    // while leaving a real measured duration free to reserve as much as it truly needs.
+    const start = 1_000_000;
+    let nowMs = start;
+
+    const store = createFakeStore({ profile: makeProfile(), candidates: [makePosting("p-1")] });
+    const ai: AiPort = {
+      generateStructured: vi.fn(async () => {
+        nowMs += 10;
+        return { ok: true as const, object: okResult };
+      })
+    };
+
+    const result = await runScore(
+      runDeps({ store, ai, budget: 8, deadlineAt: start + 300, clock: () => nowMs })
+    );
+
+    expect(ai.generateStructured).toHaveBeenCalledTimes(1);
+    expect(result.scored).toBe(1);
+    expect(result.halted).toBeNull();
+  });
 });

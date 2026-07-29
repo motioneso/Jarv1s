@@ -609,6 +609,29 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
       // back onto the board — so a row the user has acted on is not a candidate, no matter how
       // empty its Fit. `ORDER BY p.first_seen_at DESC` matches the unscored read, so a bounded
       // pass walks the backlog newest-first rather than in whatever order the planner reached.
+      //
+      // "Unfitted" means "carries no Fit computed against the résumé on file now" — which is
+      // broader than `fit IS NULL`, and deliberately so. A Fit is a judgment OF a posting AGAINST
+      // a résumé, so replacing the résumé invalidates every score already on the board. With the
+      // narrow `fit IS NULL` test this read returned nothing once a board was fully scored, and
+      // replacing a résumé silently rescored NOTHING: the repair pass found zero candidates and
+      // every row kept the Fit it earned against the previous résumé. Measured live — a board of
+      // 158 fully-scored rows, a résumé replaced end to end, and the save reported
+      // `scored: 0, aiCallsUsed: 0`.
+      //
+      // Staleness is read off timestamps that already exist (`m.scored_at` vs the newest résumé
+      // version's `updated_at`), so this needs no new column and no migration. It converges
+      // because `upsertMatch` stamps `scored_at = now()`, which is necessarily later than the
+      // résumé's `updated_at` — a rescored row leaves the candidate set and cannot be picked up
+      // again until the next résumé change.
+      //
+      // The no-résumé case is unchanged, and by construction rather than by a separate branch:
+      // with no résumé row the subquery is NULL, `m.scored_at < NULL` is NULL rather than true,
+      // and only genuinely Fit-empty rows qualify — exactly the old behaviour. (Callers guard on
+      // a résumé existing anyway; this just means the SQL doesn't depend on them doing so.)
+      //
+      // A NULL `scored_at` counts as stale. Every scoring write sets it, so a row with a Fit and
+      // no timestamp predates that guarantee and cannot be shown to be current.
       const result = await db.query<PostingRow & { embedding: string }>(
         `SELECT p.id, p.source_id, p.external_id, p.title, p.company, p.location, p.url, p.body,
                 p.posted_at, p.embedding::text AS embedding
@@ -618,8 +641,14 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
             AND EXISTS (
               SELECT 1 FROM app.job_search_matches m
                WHERE m.posting_id = p.id
-                 AND m.fit IS NULL
                  AND m.state IN ('unscored', 'new', 'seen')
+                 AND (
+                   m.fit IS NULL
+                   OR m.scored_at IS NULL
+                   OR m.scored_at < (SELECT max(r.updated_at)
+                                       FROM app.job_search_resumes r
+                                      WHERE r.profile_id = p.profile_id)
+                 )
             )
           ORDER BY p.first_seen_at DESC
           LIMIT $2`,

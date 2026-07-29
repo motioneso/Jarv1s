@@ -64,6 +64,33 @@ export const AI_CALL_BUDGET = 200;
  * recall slice of candidates to choose from. */
 const CANDIDATE_POOL_LIMIT = 500;
 
+/** The smallest slice of time this loop will refuse to start a new model call in.
+ *
+ * `deadlineAt` is not a soft budget: it is the exact instant the host kills the invocation
+ * (`ExternalModuleWorkerError: External module worker timeout`). A between-postings check of
+ * `clock() >= deadlineAt` therefore has ZERO headroom — it happily starts a call with a
+ * millisecond left, and that call dies with the whole handler, taking the partial result and
+ * every `halted` explanation with it. Measured live: a crawl against a board of 158 stale rows
+ * hit the 600s ceiling and pg-boss retried it, so the user saw a failed crawl rather than
+ * "scored 73 of 158, more next time".
+ *
+ * The reserve is the longest model call this run has actually taken, floored at this constant,
+ * rather than a fixed number — per-call latency on the reasoning tier has been observed between
+ * ~7s and ~240s depending on how the host routes it, so any single hardcoded value is either
+ * useless at the slow end or wastes minutes of scoring time at the fast end. Measuring is the
+ * only thing that stays right across both. */
+const MIN_CALL_RESERVE_MS = 45_000;
+
+/** The most of the scoring window the UNMEASURED floor above is allowed to claim.
+ *
+ * The floor is a guess about a call that has not happened yet, and a guess must never be large
+ * enough to consume the window it is protecting: handed a window shorter than 45s it would reserve
+ * the entire thing and score nothing at all, turning a conservative guard into a total one. A
+ * MEASURED call duration is deliberately not capped this way — it is a fact about this host, and
+ * reserving less time than a call actually takes is precisely the overrun this all exists to
+ * prevent. */
+const RESERVE_FLOOR_SHARE = 0.15;
+
 export interface RunScoreResult {
   scored: number;
   deferred: number;
@@ -222,6 +249,13 @@ export async function runScore(deps: {
   let unreached = 0;
   let halted: RunScoreResult["halted"] = null;
   let retriedProviderError = false;
+  // The longest model call this run has actually taken. Seeded at the floor so the FIRST call is
+  // guarded too — the very first posting is otherwise the one case with no measurement to reserve
+  // against, and on a slow host it is exactly the call that overruns the ceiling.
+  let callReserveMs = Math.min(
+    MIN_CALL_RESERVE_MS,
+    Math.max(0, Math.floor((deadlineAt - clock()) * RESERVE_FLOOR_SHARE))
+  );
 
   for (let index = 0; index < selected.length; index++) {
     const entry = selected[index];
@@ -235,7 +269,10 @@ export async function runScore(deps: {
       continue;
     }
 
-    if (clock() >= deadlineAt) {
+    // `+ callReserveMs`, not a bare `>=`: the check has to answer "is there time to FINISH a
+    // call", not "is there time left at all". Winding down here returns a partial result the
+    // caller can report; overrunning returns nothing at all.
+    if (clock() + callReserveMs >= deadlineAt) {
       halted = {
         reason: "deadline",
         detail: "The invocation ran out of time before scoring every selected posting."
@@ -262,11 +299,15 @@ export async function runScore(deps: {
     let attempt = 1;
     scoreThisPosting: while (attempt <= 2) {
       aiCallsUsed++;
+      const callStartedAt = clock();
       const result = await ai.generateStructured({
         schema: SCORE_SCHEMA,
         prompt,
         tierHint: "reasoning"
       });
+      // Measured on every call including failed ones — a call that errored still consumed the
+      // wall-clock time it took to error, and that is what the next reserve has to cover.
+      callReserveMs = Math.max(callReserveMs, clock() - callStartedAt);
 
       if (result.ok) {
         try {

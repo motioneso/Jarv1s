@@ -587,4 +587,50 @@ describe("job-search store (#1297)", () => {
     expect(await store.getMatch(otherPosting!.id)).toBeNull();
     expect(await store.getMatch(randomUUID())).toBeNull();
   });
+
+  // A Fit is a judgment of a posting AGAINST a résumé, so replacing the résumé invalidates every
+  // score already on the board. This query is the only thing that notices: while it tested
+  // `fit IS NULL` alone it returned nothing once a board was fully scored, so a replaced résumé
+  // rescored NOTHING and every row silently kept the Fit it earned against the previous résumé.
+  // Measured live before the fix — 158 fully-scored rows, résumé replaced end to end, and the
+  // save handler reported `scored: 0, aiCallsUsed: 0`.
+  it("re-offers a scored posting once the résumé it was scored against is replaced (case 12)", async () => {
+    await install();
+    await seedUser(ownerA);
+    const store = storeFor(ownerA);
+    const profile = await store.createProfile("Staff Engineer search");
+
+    const [scored] = await store.upsertPostings(profile.id, [
+      posting({ sourceId: "linkedin", externalId: "ext-scored" })
+    ]);
+    const [acted] = await store.upsertPostings(profile.id, [
+      posting({ sourceId: "linkedin", externalId: "ext-dismissed" })
+    ]);
+    const vector = Array.from({ length: 768 }, () => 0.001);
+    await store.setEmbedding(scored!.id, vector);
+    await store.setEmbedding(acted!.id, vector);
+
+    await store.setResume(profile.id, "first résumé");
+
+    // Both rows carry a real Fit scored AFTER that résumé landed, which is the state a healthy
+    // board sits in: nothing to repair.
+    await asRuntime(ownerA, (client) =>
+      client.query(
+        `INSERT INTO app.job_search_matches
+           (owner_user_id, profile_id, posting_id, fit, state, scored_at)
+         VALUES ($1, $2, $3, 70, 'new', now()), ($1, $2, $4, 65, 'dismissed', now())`,
+        [ownerA, profile.id, scored!.id, acted!.id]
+      )
+    );
+    expect(await store.listUnfittedPostingsWithEmbeddings(profile.id, 10)).toEqual([]);
+
+    // Replacing the résumé makes every score on the board stale by definition.
+    await store.setResume(profile.id, "second résumé, materially different");
+
+    const stale = await store.listUnfittedPostingsWithEmbeddings(profile.id, 10);
+    // Only the untouched row comes back. The dismissed one stays out no matter how stale its Fit
+    // is — `upsertMatch` returns a row to 'new', which would drag a role the user already
+    // dismissed back onto the board.
+    expect(stale.map((row) => row.id)).toEqual([scored!.id]);
+  });
 });

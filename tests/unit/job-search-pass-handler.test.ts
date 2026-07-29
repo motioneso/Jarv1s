@@ -290,6 +290,33 @@ describe("createCrawlRunHandler", () => {
     expect(Object.keys(withResume)).not.toContain("clearUnfittedMatches");
   });
 
+  it("test 1c: the repair count is reported, not swallowed — a pass whose only work was a refit does not report zero", async () => {
+    // The handler used to return `{crawl, score}` and drop `refit` on the floor. That was survivable
+    // while the repair pass only ever picked up Fit-empty rows, and became a lie the moment
+    // replacing a résumé started invalidating existing scores: on a fully-matched board there are no
+    // unscored postings, so `score.scored` is legitimately 0 and `refit.scored` is the entire
+    // user-visible outcome. Measured live before this fix — a crawl re-read 68 roles against a new
+    // résumé and reported `"scored": 0`, which reads as "nothing happened" to the user and as "the
+    // rescore is still broken" to anyone debugging it.
+    const store = createFakeStore({ profiles: [makeProfile("p-1")] });
+    store.getLatestResume = vi.fn(async () => ({
+      id: "r-1",
+      version: 2,
+      content: "Ten years shipping backend systems.",
+      updatedAt: new Date().toISOString()
+    }));
+    // No unscored candidates — the ordinary scoring stage has nothing to do, exactly as on a board
+    // where every posting already carries a score.
+    store.listUnfittedPostingsWithEmbeddings = vi.fn(async () => [makePosting("stale-1")]);
+
+    const result = (await createCrawlRunHandler(store)(
+      createFakeCtx({ input: queueEnvelope({ profileId: "p-1" }), deadlineAt: Date.now() + 60_000 })
+    )) as unknown as PassResult;
+
+    expect(result.score.scored).toBe(0);
+    expect(result.refit?.scored).toBe(1);
+  });
+
   it("test 2: the crawl deadline leaves room for scoring — crawl gets a share, score gets the full deadline", async () => {
     const profile = makeProfile("p-2");
     const posting = makePosting("post-2");

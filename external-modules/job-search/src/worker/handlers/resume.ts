@@ -55,23 +55,29 @@ function requireResumeContent(input: Record<string, unknown>): string {
  * structured cause on the result instead of a swallowed error — the caller can see scoring
  * failed, and why, without the save itself reading as failed.
  *
- * That catch is NOT enough on its own, and the two guards below are what a live run proved is
+ * That catch is NOT enough on its own, and the guards below are what a live run proved is
  * missing. `ctx.deadlineAt` is not a soft budget: it is the exact instant the runtime kills the
  * invocation (packages/module-registry/src/external/worker-runtime.ts throws
- * `ExternalModuleWorkerError: External module worker timeout`). A between-postings check of
- * `clock() >= deadlineAt` — which is what runScore does — therefore has ZERO headroom, and the
- * ~7s model call in flight when the deadline lands dies with the whole handler, catch included.
+ * `ExternalModuleWorkerError: External module worker timeout`), so a model call in flight when
+ * the deadline lands dies with the whole handler, catch included.
  *
- *  - RESCORE_HEADROOM_MS: hand runScore an EARLIER deadline than the real one so it winds down
- *    and returns a partial result while there is still time to return it. A 156-posting board at
- *    ~7s each is ~20 minutes of work against a 600s ceiling, so partial is the normal outcome
- *    here, not the exceptional one — the remaining postings are picked up by `crawl-sweep`.
- *  - The identical-content short-circuit: a timeout kill is not catchable, so the handler CAN be
- *    re-entered by a queue retry after the résumé row has already committed. Without this, each
- *    retry bumps the version again and writes a byte-identical row (observed live: an identical
- *    version 2). `resume-set` also carries `retryLimit: 0` for the same reason — re-running 10
- *    minutes of model calls buys nothing — but the check belongs here too, because it is equally
- *    right for a user who uploads the same file twice.
+ * The headroom that prevents that now lives in `runScore` itself (`MIN_CALL_RESERVE_MS`), which
+ * refuses to START a call it cannot finish and sizes the reserve from the longest call it has
+ * actually measured this run. This handler therefore hands over `ctx.deadlineAt` unmodified: it
+ * used to subtract a fixed 45s of its own, and once the loop reserves properly the two stack —
+ * a minute and a half of an invocation spent on nothing, and a rescore that winds down while it
+ * still had time to score. One layer of headroom, in the loop that knows how long a call takes.
+ *
+ * Partial is the normal outcome here either way, not the exceptional one — a 156-posting board is
+ * ~20 minutes of model calls against a 600s ceiling — and whatever this pass does not reach is
+ * picked up by the next crawl or sweep.
+ *
+ * The other guard is the identical-content short-circuit: a timeout kill is not catchable, so the
+ * handler CAN be re-entered by a queue retry after the résumé row has already committed. Without
+ * it, each retry bumps the version again and writes a byte-identical row (observed live: an
+ * identical version 2). `resume-set` also carries `retryLimit: 0` for the same reason — re-running
+ * 10 minutes of model calls buys nothing — but the check belongs here too, because it is equally
+ * right for a user who uploads the same file twice.
  *
  * The second guard is the repair pass, and what it must NOT be is a delete. Postings scored before
  * the profile had a résumé carry an empty Fit forever, because "unscored" means "no match row
@@ -82,7 +88,6 @@ function requireResumeContent(input: Record<string, unknown>): string {
  * scores those rows *in place* instead (`candidates: "unfitted"`), and `upsertMatch` overwrites
  * them — the board's row count never moves at all, whatever the invocation manages to get through.
  * Whatever it does not reach keeps its existing row and is picked up by the next crawl or sweep. */
-const RESCORE_HEADROOM_MS = 45_000;
 
 async function saveResumeContent(
   store: JobSearchStore,
@@ -100,7 +105,7 @@ async function saveResumeContent(
   const resume =
     previous != null && unchanged ? previous : await store.setResume(profileId, content);
 
-  const scoreDeadlineAt = ctx.deadlineAt - RESCORE_HEADROOM_MS;
+  const scoreDeadlineAt = ctx.deadlineAt;
 
   // Two passes, because they answer different questions and neither should starve the other: the
   // repair pass re-scores the Fit-empty backlog now that there is a résumé to judge against, and

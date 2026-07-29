@@ -221,7 +221,13 @@ async function runSingleProfilePass(
     clock
   });
 
-  return { crawl: result.crawl, score: result.score };
+  // `refit` is reported, not dropped. It used to be omitted here on the reasoning that the repair
+  // pass is background maintenance the user did not ask for — but once a replaced résumé makes
+  // every existing score stale, the repair pass IS the work, and the ordinary `score` stage
+  // legitimately reports 0 because a fully-matched board has no unscored postings left. Measured
+  // live: a crawl re-read 68 roles against a new résumé and reported `"scored": 0`, which reads as
+  // "nothing happened" to the user and as "the fix did not work" to anyone debugging it.
+  return { crawl: result.crawl, score: result.score, refit: result.refit };
 }
 
 /** The queue handler (`job-search.crawl-run`). Reads `params.profileId`, never `input.profileId`
