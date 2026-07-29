@@ -294,7 +294,19 @@
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["id", "title", "company", "state", "url", "fit", "want", "outsideFrame"],
+              "required": [
+                "id",
+                "title",
+                "company",
+                "state",
+                "url",
+                "fit",
+                "want",
+                "outsideFrame",
+                "location",
+                "source",
+                "postedAt"
+              ],
               "properties": {
                 "id": { "type": "string" },
                 "title": { "type": "string" },
@@ -303,7 +315,10 @@
                 "url": { "type": "string" },
                 "fit": { "anyOf": [{ "type": "number" }, { "type": "null" }] },
                 "want": { "anyOf": [{ "type": "number" }, { "type": "null" }] },
-                "outsideFrame": { "type": "boolean" }
+                "outsideFrame": { "type": "boolean" },
+                "location": { "type": "string" },
+                "source": { "type": "string" },
+                "postedAt": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
               }
             }
           }

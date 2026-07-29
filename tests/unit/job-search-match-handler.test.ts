@@ -4,10 +4,15 @@
 // `invokeTool` directly from the browser) and match.set-state (one handler, two shapes — a
 // manual-run queue envelope from the board, or a tool call from the assistant's
 // `job-search.match.dismiss`, which always sets `state: "dismissed"`).
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { renderToolResult } from "@jarv1s/module-sdk";
+import type { JsonSchema } from "@jarv1s/module-sdk";
 import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import { sanitizeAssistantToolResult } from "../../packages/ai/src/gateway/output-validation.js";
 
 import {
   COMPANY_MAX_CHARS,
@@ -161,6 +166,27 @@ function queueCtx(params: Record<string, unknown>): ModuleWorkerContext {
   } as unknown as ModuleWorkerContext;
 }
 
+// The REAL shipped manifest, not a hand-copied schema literal — a test that re-typed the
+// outputSchema here would pass even while the actual jarvis.module.json drifted, which is
+// exactly the bug this test exists to catch (location/source/postedAt were added to the handler
+// in 1a7b9371 but the manifest's outputSchema was never updated, so
+// packages/ai/src/routes.ts's `sanitizeAssistantToolResult(manifestTool.outputSchema, toolResult)`
+// silently stripped all three back off on the real HTTP path while every handler-level test —
+// which calls the handler directly and never touches the manifest — stayed green).
+const manifestPath = fileURLToPath(
+  new URL("../../external-modules/job-search/jarvis.module.json", import.meta.url)
+);
+function matchesListOutputSchema(): JsonSchema {
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+    assistantTools: Array<{ name: string; outputSchema?: JsonSchema }>;
+  };
+  const tool = manifest.assistantTools.find((t) => t.name === "job-search.matches.list");
+  if (!tool?.outputSchema) {
+    throw new Error("job-search.matches.list has no outputSchema in the shipped manifest");
+  }
+  return tool.outputSchema;
+}
+
 describe("createMatchesListHandler", () => {
   it("test 1: no limit throws and does not default; same for 0, 101, and 1.5", async () => {
     const store = createFakeStore({});
@@ -249,6 +275,46 @@ describe("createMatchesListHandler", () => {
     // N39: reasons are detail-only now, not merely truncated to nothing on the row.
     expect(item).not.toHaveProperty("fitReason");
     expect(item).not.toHaveProperty("wantReason");
+  });
+
+  it("survives the manifest's real outputSchema with location/source/postedAt intact — the exact bug this task fixed", async () => {
+    // Test 5 above proves the handler ITSELF returns the three fields. That is necessary but not
+    // sufficient: the REST path (routes.ts:711) runs the handler's result through
+    // `sanitizeAssistantToolResult(manifestTool.outputSchema, toolResult)` before it ever reaches
+    // the wire, and that function reconstructs the object from ONLY the keys the manifest
+    // declares (output-validation.ts's `sanitizeToolOutputObject` — an allow-list, not a filter).
+    // A manifest outputSchema that still lists only the pre-K9 eight fields would pass every test
+    // above while silently dropping location/source/postedAt on the real HTTP response, which is
+    // exactly what shipped: the handler was fixed in 1a7b9371, the manifest was not.
+    const match = makeMatch({ id: "match-1", postingId: "post-1", fit: 80, want: 70 });
+    const posting = makePosting("post-1", {
+      title: "Staff Engineer",
+      company: "Acme",
+      location: "Remote",
+      sourceId: "freehire",
+      postedAt: "2026-07-15T09:00:00.000Z"
+    });
+    const store = createFakeStore({ matches: [match], postings: [posting] });
+    const handler = createMatchesListHandler(store);
+
+    const result = await handler(toolCtx({ profileId: "profile-1", limit: 10 }));
+    const sanitized = sanitizeAssistantToolResult(matchesListOutputSchema(), { data: result });
+    const items = (sanitized.data as { items: Array<Record<string, unknown>> }).items;
+
+    expect(items).toHaveLength(1);
+    expect(items[0]).toEqual({
+      id: "match-1",
+      title: "Staff Engineer",
+      company: "Acme",
+      fit: 80,
+      want: 70,
+      outsideFrame: false,
+      state: "new",
+      url: "https://example.com/post-1",
+      location: "Remote",
+      source: "freehire.me",
+      postedAt: "2026-07-15T09:00:00.000Z"
+    });
   });
 
   it("skips a match whose posting has since been removed, rather than throwing", async () => {
