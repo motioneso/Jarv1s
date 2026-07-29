@@ -426,9 +426,9 @@ describe("transcriptGlobDir (anthropic project-dir encoding)", () => {
       "/data/cli-auth/chat/e5c01155-9c05-4f96-8059-8b0f56ec1bf2:drawer",
       "/data/cli-auth"
     );
-    expect(
-      dir.endsWith("/-data-cli-auth-chat-e5c01155-9c05-4f96-8059-8b0f56ec1bf2-drawer")
-    ).toBe(true);
+    expect(dir.endsWith("/-data-cli-auth-chat-e5c01155-9c05-4f96-8059-8b0f56ec1bf2-drawer")).toBe(
+      true
+    );
     expect(dir).not.toContain(":");
   });
 
