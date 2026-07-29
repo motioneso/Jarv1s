@@ -135,17 +135,70 @@ function matchOrThrow(pattern: RegExp, block: string, label: string): string {
   return match[1];
 }
 
+/**
+ * Pulls the posting url out of a card, which LinkedIn renders in one of **two** shapes,
+ * interleaved on the same page:
+ *
+ *   A) `<div class="base-card …" data-entity-urn=…>` wrapping a separate overlay anchor
+ *      `<a class="base-card__full-link …" href="…">` — the common shape.
+ *   B) `<a href="…" … class="base-card … job-search-card" data-entity-urn=…>` — the card root
+ *      *is* the link. No `base-card__full-link` anywhere in the block, and `href` comes before
+ *      `class`.
+ *
+ * Both are stable renderings of a healthy result set, not a layout change and not a malformed
+ * card. Probed live 2026-07-29 against the real endpoint: a single shape-B card sat on page 4 of
+ * a two-title crawl, and because only shape A was recognised it discarded that whole page and
+ * reported "LinkedIn's page layout changed" on a board whose search was working fine.
+ *
+ * Shape B is read off the block's own opening tag rather than by pattern-matching the attribute
+ * order, because the order is not something this adapter should depend on: shape B happened to
+ * put `href` first, and a class-anchored pattern like shape A's is exactly what missed it.
+ *
+ * Still throws when neither shape yields a url — a card with no link at all is a real parse
+ * failure, and the strict page-level detector below depends on that staying true.
+ */
+function extractPostingUrl(block: string): string {
+  const overlayLink = /base-card__full-link[^"]*"\s+href="([^"]+)"/.exec(block)?.[1];
+  if (overlayLink !== undefined) return overlayLink;
+
+  const rootTag = /^\s*<a\s[^>]*>/.exec(block)?.[0];
+  if (rootTag !== undefined && /\bbase-card\b/.test(rootTag)) {
+    const rootHref = /\shref="([^"]+)"/.exec(rootTag)?.[1];
+    if (rootHref !== undefined) return rootHref;
+  }
+
+  throw new Error("linkedin: missing url");
+}
+
+/**
+ * Pulls the company name out of a card. The same two shapes described on `extractPostingUrl`
+ * differ here too: shape A links the company (`<h4 class="base-search-card__subtitle"><a …>Acme
+ * </a></h4>`), shape B renders it as plain text in the same heading, with no anchor at all.
+ *
+ * The linked form is tried first so the anchor's text is preferred over anything else the
+ * heading might wrap, and the plain-text form is read up to the next tag. Throws when the
+ * heading itself is absent, which is a genuinely unreadable card.
+ */
+function extractCompany(block: string): string {
+  const linked = /base-search-card__subtitle">\s*<a[^>]*>\s*([^<]+?)\s*<\/a>/s.exec(block)?.[1];
+  if (linked !== undefined) return linked;
+
+  const plain = /base-search-card__subtitle">\s*([^<]+?)\s*</.exec(block)?.[1];
+  if (plain !== undefined) return plain;
+
+  throw new Error("linkedin: missing company");
+}
+
 /** Throws on any card missing a field this adapter depends on — mirrors freehire's
  * fail-the-whole-page behaviour on a malformed record rather than emitting a posting with a
  * blank field. One bad card is treated as the whole page being unrecognised; postings already
- * kept from earlier pages are not affected (see `crawl`). */
+ * kept from earlier pages are not affected, and the remaining titles are still searched (see
+ * `crawl`). */
 function parseCard(block: string): ParsedCard {
   const externalId = matchOrThrow(/data-entity-urn="urn:li:jobPosting:(\d+)"/, block, "job id");
-  const rawUrl = matchOrThrow(/base-card__full-link[^"]*"\s+href="([^"]+)"/, block, "url");
+  const rawUrl = extractPostingUrl(block);
   const rawTitle = matchOrThrow(/base-search-card__title">\s*([^<]+?)\s*<\/h3>/, block, "title");
-  const companyMatch = /base-search-card__subtitle">\s*<a[^>]*>\s*([^<]+?)\s*<\/a>/s.exec(block);
-  const rawCompany = companyMatch?.[1];
-  if (rawCompany === undefined) throw new Error("linkedin: missing company");
+  const rawCompany = extractCompany(block);
   const rawLocation = matchOrThrow(
     /job-search-card__location">\s*([^<]+?)\s*<\/span>/,
     block,
@@ -257,6 +310,19 @@ async function crawl(args: {
   const queries = queriesFor(args.criteria.titles);
   const pageBudget = pagesPerQuery(queries.length);
 
+  // Set when a page came back unreadable. A parse failure is *per page* — one card shape this
+  // adapter has not met yet (see extractPostingUrl) discards the page it appeared on, and
+  // returning from the whole crawl at that point handed every remaining title zero requests.
+  // That is the exact failure `pagesPerQuery` exists to prevent ("a title that gets no request
+  // at all is a silently narrower search"), so it is recorded here and the loop moves on to the
+  // next title instead. The failure record is built after every query has run, so its retrieved
+  // count is the whole crawl's rather than the count at the moment of the first bad page.
+  //
+  // Deliberately narrower than the other failure kinds: `deadline` has no time left to spend,
+  // `login_required` cannot succeed on any later request, and `rate_limited`/`network` mean the
+  // next request is likely to fail the same way — those all still stop immediately.
+  let sawParseFailure = false;
+
   for (const query of queries) {
     // `start` is an offset into *this* query's result set. It used to be `postings.length`, which
     // was the same number only because one crawl ran exactly one query; carried over unchanged it
@@ -303,10 +369,8 @@ async function crawl(args: {
             failure: buildFailure("login_required", postings.length, expected, args.lastOkAt)
           };
         }
-        return {
-          postings,
-          failure: buildFailure("parse_failed", postings.length, expected, args.lastOkAt)
-        };
+        sawParseFailure = true;
+        break;
       }
 
       offset += parsed.postings.length;
@@ -319,6 +383,12 @@ async function crawl(args: {
     }
   }
 
+  if (sawParseFailure) {
+    return {
+      postings,
+      failure: buildFailure("parse_failed", postings.length, expected, args.lastOkAt)
+    };
+  }
   return { postings, failure: null };
 }
 

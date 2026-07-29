@@ -21,6 +21,15 @@ const FIXTURE_PATH = fileURLToPath(
 );
 const RAW_FIXTURE = readFileSync(FIXTURE_PATH, "utf8");
 
+// The second card shape LinkedIn serves (captured live 2026-07-29) — see the fixture's own
+// header, and the `card-root-link` cases at the bottom of this file.
+const ROOT_LINK_FIXTURE = readFileSync(
+  fileURLToPath(
+    new URL("../fixtures/job-search/linkedin-guest-card-root-link.html", import.meta.url)
+  ),
+  "utf8"
+);
+
 // Real captured-and-trimmed LinkedIn guest-jobs fragment (three postings), 2026-07-27,
 // tracking-scrubbed. Card three deliberately has no benefits badge, so this one fixture also
 // exercises the "no snippet text at all" branch of `body` without needing a second fixture.
@@ -448,6 +457,133 @@ describe("linkedin adapter (#1296)", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(result.failure).toBeNull();
     expect(result.postings).toHaveLength(3);
+  });
+
+  // -------------------------------------------------------------------------------------------
+  // The second card shape (2026-07-29). LinkedIn serves two renderings of the same result set,
+  // interleaved on one page: the common one wraps an overlay `base-card__full-link` anchor, and
+  // the other makes the card root itself the `<a>` — no overlay anchor at all, `href` before
+  // `class`, and the company as plain text rather than a nested link. Only the first was
+  // recognised, so one such card discarded its whole page and told the user LinkedIn's layout
+  // had changed on a board whose search was working. Captured live; see the fixture's own note.
+  // -------------------------------------------------------------------------------------------
+
+  it("card-root-link 1: reads the real captured card whose root element is the link", async () => {
+    const fetch: FetchLike = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, text: async () => ROOT_LINK_FIXTURE })
+      .mockResolvedValue(emptyPageResponse());
+
+    const result = await linkedinPortal.crawl({
+      fetch,
+      criteria: criteria(),
+      lastOkAt: null,
+      now: "2026-07-29T12:00:00.000Z",
+      deadlineAt: FAR_FUTURE
+    });
+
+    expect(result.failure).toBeNull();
+    expect(result.postings).toHaveLength(1);
+    expect(result.postings[0]).toMatchObject({
+      externalId: "4445430549",
+      title: "Senior Product Designer - Vice President",
+      // Read out of the heading itself: this shape has no anchor to read it from.
+      company: "Intelligentsia Capital",
+      location: "Salt Lake City, UT",
+      postedAt: "2026-07-28"
+    });
+    // Tracking params are stripped from this shape's url exactly as from the other's.
+    expect(result.postings[0]?.url).toBe(
+      "https://www.linkedin.com/jobs/view/senior-product-designer-vice-president-at-intelligentsia-capital-4445430549"
+    );
+  });
+
+  it("card-root-link 2: a page mixing both card shapes yields every posting on it", async () => {
+    // The live failure was exactly this — nine ordinary cards and one of the other shape — so a
+    // fix that reads the new shape but drops the old one would pass case 1 and still be broken.
+    const rootLinkCard = ROOT_LINK_FIXTURE.slice(ROOT_LINK_FIXTURE.indexOf("<li>"));
+    const mixed =
+      pageHtml([
+        card({ id: "1", title: "A", company: "Acme", location: "Remote", date: "2026-07-01" })
+      ]) + rootLinkCard;
+    const fetch: FetchLike = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, text: async () => mixed })
+      .mockResolvedValue(emptyPageResponse());
+
+    const result = await linkedinPortal.crawl({
+      fetch,
+      criteria: criteria(),
+      lastOkAt: null,
+      now: "2026-07-29T12:00:00.000Z",
+      deadlineAt: FAR_FUTURE
+    });
+
+    expect(result.failure).toBeNull();
+    expect(result.postings.map((posting) => posting.externalId)).toEqual(["1", "4445430549"]);
+  });
+
+  it("card-root-link 3: a card that is a link but carries no href is still a parse failure", async () => {
+    // The strict page-level detector is what makes a real layout change visible instead of
+    // silently returning fewer jobs, so widening the url reader must not soften it.
+    const noHref =
+      '<li><a class="base-card job-search-card" data-entity-urn="urn:li:jobPosting:9">' +
+      '<h3 class="base-search-card__title">A</h3>' +
+      '<h4 class="base-search-card__subtitle">Acme</h4>' +
+      '<span class="job-search-card__location">Remote</span></a></li>';
+    const fetch: FetchLike = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, text: async () => pageHtml([noHref]) });
+
+    const result = await linkedinPortal.crawl({
+      fetch,
+      criteria: criteria(),
+      lastOkAt: null,
+      now: "2026-07-29T12:00:00.000Z",
+      deadlineAt: FAR_FUTURE
+    });
+
+    expect(result.postings).toEqual([]);
+    expect(result.failure?.kind).toBe("parse_failed");
+  });
+
+  it("card-root-link 4: an unreadable page does not cost the remaining titles their search", async () => {
+    // The other half of the same live failure: the bad page was page 4 of title 1, and the crawl
+    // returned there — so title 2 got zero requests and the board silently searched half of what
+    // it was asked to. pagesPerQuery exists to stop exactly that.
+    const unreadable = {
+      ok: true,
+      status: 200,
+      text: async () => "<!DOCTYPE html><html><head></head><body>nope</body></html>"
+    };
+    const fetch: FetchLike = vi
+      .fn()
+      .mockResolvedValueOnce(unreadable)
+      .mockResolvedValueOnce(
+        pageResponse([
+          card({ id: "7", title: "B", company: "Acme", location: "Remote", date: "2026-07-02" })
+        ])
+      )
+      .mockResolvedValue(emptyPageResponse());
+
+    const result = await linkedinPortal.crawl({
+      fetch,
+      criteria: criteria({ titles: ["Senior Product Designer", "Staff Product Designer"] }),
+      lastOkAt: null,
+      now: "2026-07-29T12:00:00.000Z",
+      deadlineAt: FAR_FUTURE
+    });
+
+    const keywords = (fetch as ReturnType<typeof vi.fn>).mock.calls.map((call) =>
+      new URL((call as [string])[0]).searchParams.get("keywords")
+    );
+    expect(keywords).toContain("Staff Product Designer");
+    expect(result.postings.map((posting) => posting.externalId)).toEqual(["7"]);
+    // Still reported — a page really was lost — but the count is the whole crawl's, not the zero
+    // it stood at when the bad page came back.
+    expect(result.failure?.kind).toBe("parse_failed");
+    expect(result.failure?.retrieved).toBe(1);
+    expect(result.failure?.disabled).toBe(false);
   });
 
   it("statusToKind covers every status this adapter treats specially", () => {
