@@ -123,7 +123,11 @@ function statusText(row: PortalRow): string {
  *  visible label stays the three words the mockup asks for ("Run now" / "Queuing…" / "Run
  *  queued") since a longer on-button sentence would crowd a row that already carries a switch next
  *  to it. */
-function RunNowControl(props: { key?: string; profileId: string; onEnqueued(): void }): ReactNodeLike {
+function RunNowControl(props: {
+  key?: string;
+  profileId: string;
+  onEnqueued(): void;
+}): ReactNodeLike {
   const [pending, setPending] = useState(false);
   const [outcome, setOutcome] = useState<RunOutcome | null>(null);
 
@@ -146,7 +150,8 @@ function RunNowControl(props: { key?: string; profileId: string; onEnqueued(): v
   // that can only ever report the same thing again. "disabled" and "error" both return the button
   // to its clickable resting label; only "error" gets an inline reason, since "disabled" already
   // has its own quiet hint line below the button.
-  const settled = outcome !== null && (outcome.kind === "queued" || outcome.kind === "already-queued");
+  const settled =
+    outcome !== null && (outcome.kind === "queued" || outcome.kind === "already-queued");
   const label = pending ? "Queuing…" : settled ? "Run queued" : "Run now";
 
   return h(
@@ -165,7 +170,9 @@ function RunNowControl(props: { key?: string; profileId: string; onEnqueued(): v
       <span className="jds-hint jsm-monitor__run-note">Manual runs are off for this account.</span>
     ) : null,
     outcome?.kind === "error" ? (
-      <span className="jds-hint jds-hint--error jsm-monitor__run-note">Couldn&rsquo;t start: {outcome.message}</span>
+      <span className="jds-hint jds-hint--error jsm-monitor__run-note">
+        Couldn&rsquo;t start: {outcome.message}
+      </span>
     ) : null
   );
 }
@@ -339,15 +346,26 @@ export function SettingsScreen(props: { profile: Profile }): ReactNodeLike {
   // "Daily discovery" without a time reads as filler rather than information), and "Add a monitor"
   // has no queue behind it (this file's header). The explanation paragraph and the footer line
   // below carry what the header would otherwise have said.
+  //
+  // Header redrawn (2026-07-28, mockup-alignment pass) to match Overview's/Profile's own new hero
+  // treatment (eyebrow + display headline + strap, closed by an ink rule) — reusing
+  // `.jsm-settings`/`.jsm-settings__head`'s existing flex-column layout rather than adding new
+  // CSS, since a vertical stack is all a header this short ever needed. `jds-display--sm` is the
+  // exact size components-keyline.css already names for this ("44px — profile / monitors screen
+  // title"), so this and profile.tsx's own headline are deliberately the same visual weight.
   return (
     <div className="jsm-settings">
       <header className="jsm-settings__head">
-        <h2 className="jds-section-title">Monitors</h2>
-        <p className="jds-section-sub jsm-monitor__lede">
+        <span className="jds-eyebrow jds-eyebrow--gold">Monitors</span>
+        <h1 className="jds-display jds-display--sm">Where this search is looking</h1>
+        <span className="jds-strap jds-strap--gold" aria-hidden="true" />
+        <p className="jds-hint jsm-monitor__lede">
           Which job boards this search crawls. I check them every morning and only surface what
           clears your bar — nothing is applied on your behalf.
         </p>
       </header>
+
+      <div className="jds-divider jds-divider--ink" />
 
       <section className="jsm-settings__group">
         <SectionHead label="Watched boards">
@@ -359,7 +377,9 @@ export function SettingsScreen(props: { profile: Profile }): ReactNodeLike {
       <div className="jsm-monitor__foot">
         {/* Stands in for the mockup's "Add a monitor" / "Edit query" buttons — the one way either
             action genuinely works today (source.ts's own header: assistantTools only, no queue). */}
-        <p className="jds-hint">Add or edit a job board through chat — ask Jarvis to add or change one.</p>
+        <p className="jds-hint">
+          Add or edit a job board through chat — ask Jarvis to add or change one.
+        </p>
 
         {/* The mockup's footer line, unchanged in substance: no icon (modules can't import
             Lucide — keyline.tsx's own constraint list), plain text instead of a shield glyph. */}

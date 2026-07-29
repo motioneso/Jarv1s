@@ -4,7 +4,127 @@
  * file-size gate. Both files are loaded the same way — imported as raw text by root.tsx and
  * injected into one <style> tag (see css.d.ts for why the `.css` import types as a string).
  *
- * Same contract as styles.css: LAYOUT ONLY. No design tokens live here — `grep -c 'var(--'` on
- * this file must stay 0. Colour and type reach the module through host `jds-*` classes, and an
- * invented `jds-*` class renders as nothing, so check the host inventory before reaching for one.
+ * Same contract as styles.css: LAYOUT ONLY. No design tokens live here — a token-usage check on
+ * this file must find zero matches. Colour and type reach the module through host `jds-*`
+ * classes, and an invented `jds-*` class renders as nothing, so check the host inventory before
+ * reaching for one.
  */
+
+/* ===========================================================================================
+ * Overview — hero (setup progress + readiness gates)
+ * =========================================================================================== */
+
+.jsm-ov-hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 16rem;
+  gap: 2rem;
+  align-items: start;
+}
+
+.jsm-ov-hero-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Caps the hero's own lede line the same way jsm-monitor__lede caps the Monitors screen's — a
+   one-sentence summary should wrap into a paragraph shape, not stretch edge to edge. */
+.jsm-ov-lede {
+  max-width: 54ch;
+}
+
+.jsm-ov-gates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding-top: 0.25rem;
+}
+
+/* Each gate is an indicator dot beside a two-line label+hint stack. The dot spans both text
+   rows (grid-row: 1 / span 2) so it sits centered beside the pair rather than beside just the
+   label — GatesAside renders the three spans as flat siblings, so this leans on structural
+   child selectors instead of a wrapper div. */
+.jsm-ov-gate {
+  display: grid;
+  grid-template-columns: 0.75rem 1fr;
+  column-gap: 0.625rem;
+  row-gap: 0.125rem;
+  align-items: center;
+}
+
+.jsm-ov-gate > *:first-child {
+  grid-row: 1 / span 2;
+  justify-self: center;
+}
+
+@media (max-width: 640px) {
+  .jsm-ov-hero-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===========================================================================================
+ * Overview — setup checkpoints + monitor health split
+ * =========================================================================================== */
+
+.jsm-ov-body-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+/* Extends the host's `.jds-rail-row` (grid-template-columns: 3px 1fr; components-keyline.css) with
+   a third trailing column for the row's own "Done"/"Now"/"To do" word — same element, same rail
+   and gap, one more column. Source order (this file loads after host CSS) settles the tie. */
+.jsm-ov-step-row {
+  grid-template-columns: 3px 1fr auto;
+  align-items: center;
+}
+
+.jsm-ov-step-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+/* A small instrument grid for Monitor health's Boards/Enabled/Needs attention/Last success
+   figures — narrower than the fields row above it, since these are secondary counts. */
+.jsm-ov-health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .jsm-ov-body-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
+/* ===========================================================================================
+ * Profile — résumé/briefing-detail column beside the criteria column
+ * =========================================================================================== */
+
+.jsm-pf-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.5rem;
+}
+
+/* Same 2.5rem gap as `.jsm-settings`'s own top-level stack — keeps the two columns' internal
+   rhythm visually identical to the single-column screens either side of this one. */
+.jsm-pf-column {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+@media (max-width: 640px) {
+  .jsm-pf-columns {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
