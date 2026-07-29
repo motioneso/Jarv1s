@@ -155,6 +155,13 @@ export interface ExternalModuleJobHandlerDeps {
     access: AccessContext,
     attachmentId: string
   ) => Promise<ExternalModuleAttachmentText | null>;
+  // Passed to the shared trust gate so a REJECTED job says so in the worker log. Without
+  // it a gate refusal is a `completed` pg-boss row with NULL output and total log silence
+  // — see external-module-invoke.ts's own note on this dep. Optional so existing test
+  // callers keep compiling unchanged.
+  readonly logger?: {
+    readonly warn: (obj: Record<string, unknown>, msg?: string) => void;
+  };
 }
 
 export function createExternalModuleJobHandler(
@@ -171,6 +178,7 @@ export function createExternalModuleJobHandler(
     ai: deps.ai,
     postNotification: deps.postNotification,
     readAttachmentText: deps.readAttachmentText,
+    logger: deps.logger,
     ...resolveE2eFetchOverride()
   });
   return async (job) => {

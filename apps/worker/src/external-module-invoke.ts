@@ -102,18 +102,51 @@ export interface VerifiedExternalModuleInvokerDeps {
   // createExternalModuleRpcHandler's own `createFetch` seam below — this type has
   // no opinion about what it does, only that it is optional and module-agnostic.
   readonly createFetch?: (allowedHosts: readonly string[]) => typeof fetch;
+  // Optional structured logger for trust-gate REJECTIONS only (never the happy path).
+  //
+  // Why this exists: every gate below resolves the caller to `undefined`, and a pg-boss
+  // queue job that resolves to `undefined` is recorded `completed` with NULL output in
+  // milliseconds. From outside the process that is indistinguishable from "the handler ran
+  // and had nothing to do" — and it emitted no log line at all, so there was nothing to
+  // grep. Diagnosing one of these cost multiple redeploy cycles: see the same class of
+  // problem in packages/module-registry (#413, module failures the module never sees).
+  // A rejection is rare and always actionable, so logging one per rejection is cheap.
+  readonly logger?: {
+    readonly warn: (obj: Record<string, unknown>, msg?: string) => void;
+  };
 }
 
 export function createVerifiedExternalModuleInvoker(
   deps: VerifiedExternalModuleInvokerDeps
 ): VerifiedInvoke {
+  /** Logs why the gate refused, then hands the reason back unchanged. */
+  const reject = (
+    reason: "not-active" | "not-discovered" | "not-enabled" | "hash-mismatch",
+    args: VerifiedExternalModuleInvokeArgs,
+    detail?: Record<string, unknown>
+  ): VerifiedExternalModuleInvokeResult => {
+    deps.logger?.warn(
+      {
+        event: "external_module.trust_gate_rejected",
+        reason,
+        moduleId: args.moduleId,
+        jobKind: args.jobKind,
+        requestId: args.requestId,
+        ...detail
+      },
+      "external module invocation rejected by trust gate"
+    );
+    return { ok: false, reason };
+  };
   return async (args) => {
     if (!(await deps.listActiveUserIds(args.moduleId)).includes(args.actorUserId)) {
-      return { ok: false, reason: "not-active" };
+      return reject("not-active", args);
     }
     const current = deps.discoveryById.get(args.moduleId);
     if (!current) {
-      return { ok: false, reason: "not-discovered" };
+      return reject("not-discovered", args, {
+        discovered: [...deps.discoveryById.keys()]
+      });
     }
     const state = await deps.workerDb
       .selectFrom("app.external_modules")
@@ -121,7 +154,7 @@ export function createVerifiedExternalModuleInvoker(
       .where("id", "=", args.moduleId)
       .executeTakeFirst();
     if (state?.status !== "enabled") {
-      return { ok: false, reason: "not-enabled" };
+      return reject("not-enabled", args, { status: state?.status ?? null });
     }
     // Compare package_hash, not manifest_hash alone (F10): manifest_hash goes stale on a
     // core change alone, so package_hash is the only real content anchor. Both are still
@@ -131,7 +164,15 @@ export function createVerifiedExternalModuleInvoker(
       state.manifest_hash !== current.manifestHash ||
       state.package_hash !== current.packageHash
     ) {
-      return { ok: false, reason: "hash-mismatch" };
+      // Both hashes are logged because "which one drifted" is the whole diagnosis: a
+      // manifest_hash-only mismatch means a core/manifest change without a re-enable,
+      // while a package_hash mismatch means the staged bytes moved under a running worker.
+      return reject("hash-mismatch", args, {
+        dbManifestHash: state.manifest_hash,
+        discoveredManifestHash: current.manifestHash,
+        dbPackageHash: state.package_hash,
+        discoveredPackageHash: current.packageHash
+      });
     }
     const rpc = createExternalModuleRpcHandler({
       module: current,

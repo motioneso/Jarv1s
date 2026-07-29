@@ -337,7 +337,8 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
           listActiveUserIds,
           ai: moduleAiBridge,
           postNotification: postModuleNotification,
-          readAttachmentText: readModuleAttachmentText
+          readAttachmentText: readModuleAttachmentText,
+          logger: workerLogger
         })
       );
     },
