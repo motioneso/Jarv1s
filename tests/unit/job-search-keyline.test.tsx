@@ -9,10 +9,14 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it } from "vitest";
 
 import {
+  FIT_BAND_EYEBROW,
+  FIT_BAND_LABEL,
+  FIT_BAND_RAIL,
   FieldPair,
-  FitRail,
   KeyRow,
-  SectionHead
+  SectionHead,
+  fitBand,
+  type FitBand
 } from "../../external-modules/job-search/src/web/keyline";
 
 async function render(element: unknown): Promise<ReactTestRenderer> {
@@ -46,34 +50,38 @@ function findByClass(renderer: ReactTestRenderer, className: string) {
 }
 
 describe("job-search keyline primitives", () => {
-  // FitRail null must never render a 0 — a missing basis to score (e.g. Fit with no résumé on
-  // file) is not the same claim as "scored zero", and the two must not be visually confusable.
-  it("FitRail with value=null renders no digit anywhere in its subtree", async () => {
-    const renderer = await render(
-      createElement(FitRail, { label: "Fit", value: null })
-    );
-    expect(text(renderer)).toBe("Fit —");
-    expect(text(renderer)).not.toMatch(/\d/);
-    expect(findByClass(renderer, "jds-score")).toHaveLength(0);
-  });
+  // Mockup rewrite (2026-07-29, task #98): FitRail — the old score-bar rendering of Fit — is
+  // retired (K-D1 superseded); see keyline.tsx's own header. Fit now reads as a rail colour plus a
+  // band word (fitBand + FIT_BAND_RAIL/FIT_BAND_EYEBROW/FIT_BAND_LABEL) — never a bar, never a raw
+  // number, on the row or in the opportunity-detail screen. The "null must never render like a
+  // real zero" invariant these two tests protected now lives in the callers that hold the
+  // nullable value (match-row.tsx, inspector.tsx render an em dash / "Not read yet" and never call
+  // fitBand at all when fit is null) — fitBand itself only ever takes a real number, so there is
+  // nothing left here to assert about null. What IS still keyline.tsx's own contract: the
+  // thresholds are quartered correctly, every band has a rail/eyebrow/label, and the label is a
+  // word, never a digit.
+  it("fitBand quarters 0-100 into four bands, each with a rail, an eyebrow tone, and a non-numeric label", () => {
+    expect(fitBand(100)).toBe("strong");
+    expect(fitBand(85)).toBe("strong");
+    expect(fitBand(84)).toBe("good");
+    expect(fitBand(65)).toBe("good");
+    expect(fitBand(64)).toBe("fair");
+    expect(fitBand(40)).toBe("fair");
+    expect(fitBand(39)).toBe("weak");
+    expect(fitBand(0)).toBe("weak");
 
-  // A real zero is a score like any other and must draw through the same Score component as every
-  // other value — including a real, zero-width fill, not an omitted bar.
-  it("FitRail with value=0 renders a 0 and a zero-width fill", async () => {
-    const renderer = await render(createElement(FitRail, { label: "Want", value: 0 }));
-    expect(text(renderer)).toContain("0");
-    expect(findByClass(renderer, "jsm-fit-rail__empty")).toHaveLength(0);
-
-    const fill = renderer.root.find(
-      (item) => (item.props as { className?: string }).className === "jds-score__fill"
-    );
-    expect((fill.props as { style?: Record<string, unknown> }).style?.["--jds-score"]).toBe("0");
+    const bands: FitBand[] = ["strong", "good", "fair", "weak"];
+    for (const band of bands) {
+      expect(FIT_BAND_RAIL[band]).toBeTruthy();
+      expect(FIT_BAND_EYEBROW[band]).toBeTruthy();
+      expect(FIT_BAND_LABEL[band]).toBeTruthy();
+      // Fit reads as a word, not a score, anywhere it's shown — never a raw digit in the label.
+      expect(FIT_BAND_LABEL[band]).not.toMatch(/\d/);
+    }
   });
 
   it("KeyRow with divided renders exactly one jds-divider; without it, none", async () => {
-    const undivided = await render(
-      createElement(KeyRow, { divided: false }, "row content")
-    );
+    const undivided = await render(createElement(KeyRow, { divided: false }, "row content"));
     expect(findByClass(undivided, "jds-divider")).toHaveLength(0);
 
     const divided = await render(createElement(KeyRow, { divided: true }, "row content"));
@@ -108,9 +116,7 @@ describe("job-search keyline primitives", () => {
   });
 
   it("FieldPair renders the label and value on the host's jds-fact hairline unit", async () => {
-    const renderer = await render(
-      createElement(FieldPair, { label: "On your board" }, "12")
-    );
+    const renderer = await render(createElement(FieldPair, { label: "On your board" }, "12"));
     expect(text(renderer)).toBe("On your board 12");
     expect(findByClass(renderer, "jds-fact")).toHaveLength(1);
   });

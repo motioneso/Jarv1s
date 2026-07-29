@@ -219,21 +219,45 @@ function findByRole(renderer: ReactTestRenderer, role: string) {
   return renderer.root.findAll((item) => (item.props as { role?: string }).role === role);
 }
 
-// K2: rows are keyline rows now (KeyRow's own `.jsm-krow`, from keyline.tsx), not cards — this
-// helper follows that rename. KeyRow renders `.jsm-krow__main` (title button first, matching
-// MatchRow's own children order) before `.jsm-krow__aside` (Dismiss), so the first button found
-// inside `.jsm-krow` is still the title button, same as it was inside `.jsm-card`. Scoping to
-// each row's own buttons keeps this from picking up Inspector, sort, tab or banner buttons that
-// also happen to be on the page. Matched on the `jsm-krow` hook rather than on <article>, because
-// the element type is a rendering detail and the hook is the contract the CSS also uses.
+// Mockup rewrite (task #98): rows are match-row.tsx's own `.jsm-row` now — a single button that
+// IS the whole row (no separate title button inside it the way the old two-part `.jsm-krow` row
+// had), with the title nested three levels down inside `.jsm-row__main > .jsm-row__heading >
+// .jds-card-title`. This helper follows that rewrite: find each row by its own `jsm-row` class,
+// then read the title span directly rather than "the row's first button" (there is no second
+// button to disambiguate from any more — see findRowButton below for opening a row).
 function rowTitles(renderer: ReactTestRenderer): string[] {
   return renderer.root
     .findAll((item) =>
       String((item.props as { className?: string }).className ?? "")
         .split(" ")
-        .includes("jsm-krow")
+        .includes("jsm-row")
     )
-    .map((row) => flatten(row.findAllByType("button")[0]?.props.children).trim());
+    .map((row) => {
+      const titleSpan = row
+        .findAllByType("span")
+        .find((span) =>
+          String((span.props as { className?: string }).className ?? "")
+            .split(" ")
+            .includes("jds-card-title")
+        );
+      return flatten(titleSpan?.props.children).trim();
+    });
+}
+
+// Opens a row by its title. match-row.tsx's row button carries no literal string as a direct
+// child (unlike every other button in this screen — Search now, Try again, Fit/Want sort chips,
+// bucket tabs, Save/Pass/Discuss — which all still have one and keep using findButton() above), so
+// finding "the button whose title text matches" needs a flatten() over the row's own subtree
+// rather than a direct-child scan. Scoped to `.jsm-row` so this can't accidentally match Inspector,
+// sort, tab or banner buttons that also happen to be on the page.
+function findRowButton(renderer: ReactTestRenderer, name: RegExp) {
+  return renderer.root
+    .findAll((item) =>
+      String((item.props as { className?: string }).className ?? "")
+        .split(" ")
+        .includes("jsm-row")
+    )
+    .find((row) => name.test(flatten(row.children)));
 }
 
 // K2/K1 (job-search-keyline.test.tsx's own copy): a class-membership predicate over
@@ -298,36 +322,57 @@ describe("job-search web BoardScreen", () => {
     expect(rowTitles(renderer)).toEqual(["Role A", "Role C", "Role B"]);
   });
 
-  it("draws each score as a bar whose length is the score, and keeps the number", async () => {
-    // Twenty rows of bare digits all weigh the same, so 90 and 10 are equally loud and the strong
-    // matches can only be found by reading every row. The bar is the thing that makes the column
-    // scannable; the number stays because a bar alone can't be compared precisely or read aloud.
+  // Mockup rewrite (task #98, K-D1 superseded): Fit no longer draws a bar or keeps a raw number
+  // anywhere — twenty rows of bare digits all weighed the same before this rewrite, and the
+  // design already replaced that with a scannable rail colour plus a band word. Want is
+  // unchanged and still draws its own jds-score bar with the raw number, but only inside
+  // Inspector — match-row.tsx never renders Want at all, so the row itself has nothing left to
+  // assert about Want's bar (see the "row itself" assertions below), and reaching Want's bar
+  // means opening the row first.
+  it("shows Fit as a band word on the row (no bar, no number), and Want as a scored bar with its number once opened", async () => {
     matchesItems = [match({ id: "m1", title: "Role A", fit: 90, want: 10 })];
+    matchGetResult = { match: matchDetail({ id: "m1", fit: 90, want: 10 }) };
     const renderer = await renderBoard();
     await flush(renderer);
 
-    const fills = renderer.root
-      .findAll((item) => (item.props as { className?: string }).className === "jds-score__fill")
-      .map((item) => (item.props as { style?: Record<string, unknown> }).style?.["--jds-score"]);
-    // Fit first, then Want — the two axes are never blended (L9), so they carry their own values.
-    expect(fills).toEqual(["0.9", "0.1"]);
+    // Fit: the row shows "Strong fit" (90 >= 85) — never a bar, never the raw number 90.
+    expect(text(renderer)).toMatch(/Strong fit/);
+    expect(findByClass(renderer, "jds-score")).toEqual([]);
 
-    expect(text(renderer)).toMatch(/90/);
+    await act(async () => {
+      findRowButton(renderer, /Role A/)!.props.onClick();
+    });
+    await flush(renderer);
+
+    // Opened: Want's bar is the one place either axis still draws one.
+    const fill = renderer.root.find(
+      (item) => (item.props as { className?: string }).className === "jds-score__fill"
+    );
+    expect((fill.props as { style?: Record<string, unknown> }).style?.["--jds-score"]).toBe("0.1");
     expect(text(renderer)).toMatch(/10/);
   });
 
-  it("clamps an out-of-range score to the track instead of overflowing it", async () => {
+  it("clamps Want's bar to the track when the score is out of range; Fit has no track left to overflow", async () => {
     // Scores originate in a model-authored record, so a render path must treat 0-100 as an
-    // assumption it enforces rather than one it trusts: a bad value draws a wrong-looking bar,
-    // never a bar that spills past its track.
+    // assumption it enforces, not one it trusts. Fit has nothing left to clamp — fitBand routes
+    // any value into a real band regardless of range (>=85 or <=0 both land on a real word, never
+    // a crash) — so the clamp that still matters is Want's own Score component, in Inspector.
     matchesItems = [match({ id: "m1", title: "Role A", fit: 140, want: -20 })];
+    matchGetResult = { match: matchDetail({ id: "m1", fit: 140, want: -20 }) };
     const renderer = await renderBoard();
     await flush(renderer);
 
-    const fills = renderer.root
-      .findAll((item) => (item.props as { className?: string }).className === "jds-score__fill")
-      .map((item) => (item.props as { style?: Record<string, unknown> }).style?.["--jds-score"]);
-    expect(fills).toEqual(["1", "0"]);
+    expect(text(renderer)).toMatch(/Strong fit/); // 140 >= 85, still a real band
+
+    await act(async () => {
+      findRowButton(renderer, /Role A/)!.props.onClick();
+    });
+    await flush(renderer);
+
+    const fill = renderer.root.find(
+      (item) => (item.props as { className?: string }).className === "jds-score__fill"
+    );
+    expect((fill.props as { style?: Record<string, unknown> }).style?.["--jds-score"]).toBe("0");
   });
 
   it("renders dashes and a 'Not read yet' flag for an unscored row, and the inspector says queued not dropped", async () => {
@@ -345,19 +390,21 @@ describe("job-search web BoardScreen", () => {
 
     expect(text(renderer)).toMatch(/Not read yet/);
     // An unscored row carries no number on either axis, and never a 0 — a zero is a score, drawn
-    // in the same bar as a real one. The row now says "Not read yet" in place of the whole axes
-    // block rather than drawing two em-dashes inside it (two blank instruments read as a
-    // measurement that came back empty; the sentence says why there is no measurement yet). K2
-    // retargets this from the old `.jsm-card__value` class (deleted with the rest of the card
-    // vocabulary) to the two classes that could carry a score today — neither FitRail's own
-    // `jsm-fit-rail` wrapper nor Score's `jds-score` bar renders at all for an unscored row.
-    expect(findByClass(renderer, "jsm-fit-rail")).toEqual([]);
+    // in the same bar as a real one. match-row.tsx (task #98) still draws a rail on every row —
+    // it's the leading fit-band colour swatch, always present — but for an unscored row it's the
+    // quietest neutral tone (`jds-rail--line`), never one of the four band colours, and the
+    // trailing word is "Not read yet", never a band label or a dash pretending to be one. Score's
+    // `jds-score` bar (Want) never renders on the row at all, scored or not — see the test above.
+    expect(findByClass(renderer, "jds-rail--line")).toHaveLength(1);
+    for (const bandRail of ["jds-rail--accent", "jds-rail--steel", "jds-rail--line-strong"]) {
+      expect(findByClass(renderer, bandRail)).toEqual([]);
+    }
     expect(findByClass(renderer, "jds-score")).toEqual([]);
 
-    const titleButton = findButton(renderer, /Unscored Role/);
     await act(async () => {
-      titleButton!.props.onClick();
+      findRowButton(renderer, /Unscored Role/)!.props.onClick();
     });
+    await flush(renderer);
     expect(text(renderer)).toMatch(/queued for scoring, not dropped/i);
   });
 
@@ -411,10 +458,10 @@ describe("job-search web BoardScreen", () => {
     const renderer = await renderBoard();
     await flush(renderer);
 
-    const titleButton = findButton(renderer, /Role A/);
     await act(async () => {
-      titleButton!.props.onClick();
+      findRowButton(renderer, /Role A/)!.props.onClick();
     });
+    await flush(renderer);
 
     expect(text(renderer)).not.toMatch(/\boverall\b|\bcombined\b/i);
   });
@@ -531,48 +578,66 @@ describe("job-search web BoardScreen", () => {
     expect(api.runQueue).toHaveBeenCalledTimes(5);
   });
 
-  it("dismiss enqueues job-search.match-state/match.set-state and hides the row immediately (optimistic)", async () => {
+  // Mockup rewrite (task #98/#100): the per-row Dismiss button is gone — Save/Pass now live in
+  // the opportunity-detail screen's decision block (inspector.tsx), reached only by opening the
+  // row, and "Dismiss" itself was renamed "Pass" in that block (the onDismiss prop name didn't
+  // change, only the button's own text). Both tests below now open the row first.
+  it("Pass (dismiss) enqueues job-search.match-state/match.set-state and hides the row immediately (optimistic)", async () => {
     matchesItems = [match({ id: "m1", title: "To Dismiss" })];
+    matchGetResult = { match: matchDetail({ id: "m1" }) };
     // Never resolves during this test — proves the row hides before the write settles, not after.
     vi.mocked(api.runQueue).mockReturnValue(new Promise(() => undefined));
     const renderer = await renderBoard("p1");
     await flush(renderer);
 
-    const dismissButton = renderer.root.findAllByType("button").find((item) => {
+    await act(async () => {
+      findRowButton(renderer, /To Dismiss/)!.props.onClick();
+    });
+    await flush(renderer);
+
+    const passButton = renderer.root.findAllByType("button").find((item) => {
       const children = Array.isArray(item.props.children)
         ? item.props.children
         : [item.props.children];
-      return children.some((child: unknown) => child === "Dismiss");
+      return children.some((child: unknown) => child === "Pass");
     });
     await act(async () => {
-      dismissButton!.props.onClick();
+      passButton!.props.onClick();
     });
 
     expect(api.runQueue).toHaveBeenCalledWith("job-search.match-state", "match.set-state", {
       matchId: "m1",
       state: "dismissed"
     });
+    // handleDismiss nulls selectedMatchId immediately (board.tsx) — the view swaps straight back
+    // to the list, and the same optimistic hide the old inline Dismiss gave still holds there.
     expect(rowTitles(renderer)).not.toContain("To Dismiss");
   });
 
   it("restores a dismissed match with a plain message if the next read shows it still not dismissed", async () => {
     matchesItems = [match({ id: "m1", title: "Bounces Back", state: "new" })];
+    matchGetResult = { match: matchDetail({ id: "m1" }) };
     const renderer = await renderBoard("p1");
     await flush(renderer);
 
-    const dismissButton = renderer.root.findAllByType("button").find((item) => {
+    await act(async () => {
+      findRowButton(renderer, /Bounces Back/)!.props.onClick();
+    });
+    await flush(renderer);
+
+    const passButton = renderer.root.findAllByType("button").find((item) => {
       const children = Array.isArray(item.props.children)
         ? item.props.children
         : [item.props.children];
-      return children.some((child: unknown) => child === "Dismiss");
+      return children.some((child: unknown) => child === "Pass");
     });
     // The optimistic hide-then-reconcile round trip is all microtask chaining (no macrotask
     // boundary), so it fully drains within this one act() — the immediate-hide moment itself is
     // covered separately by the never-resolving-runQueue test above. What this test verifies is
     // the far side: matchesItems is unchanged (still "new"), simulating a write that never
-    // actually landed, so the row must come back with a plain explanation.
+    // actually landed, so the row must come back with a plain explanation, back on the list view.
     await act(async () => {
-      dismissButton!.props.onClick();
+      passButton!.props.onClick();
     });
     await flush(renderer);
 
@@ -626,7 +691,7 @@ describe("job-search web BoardScreen", () => {
     await flush(renderer);
 
     await act(async () => {
-      findButton(renderer, /Role A/)!.props.onClick();
+      findRowButton(renderer, /Role A/)!.props.onClick();
     });
 
     const link = renderer.root.findAllByType("a").find((item) => item.props.href);
@@ -651,7 +716,7 @@ describe("job-search web BoardScreen", () => {
     // call, so the loading frame isn't independently observable — the loading branch itself is
     // simple JSX with nothing left to verify beyond what TypeScript already checks.
     await act(async () => {
-      findButton(renderer, /Role A/)!.props.onClick();
+      findRowButton(renderer, /Role A/)!.props.onClick();
     });
     await flush(renderer);
 
@@ -668,7 +733,7 @@ describe("job-search web BoardScreen", () => {
     await flush(renderer);
 
     await act(async () => {
-      findButton(renderer, /Role A/)!.props.onClick();
+      findRowButton(renderer, /Role A/)!.props.onClick();
     });
     await flush(renderer);
 
@@ -705,11 +770,20 @@ describe("job-search web BoardScreen", () => {
 
     // Open Role A — its match.get call is left pending on purpose.
     await act(async () => {
-      findButton(renderer, /Role A/)!.props.onClick();
+      findRowButton(renderer, /Role A/)!.props.onClick();
     });
+    // Mockup rewrite (task #99): list and detail are a full view swap now, never shown together
+    // (board.tsx: `selectedMatch ? <Inspector/> : <list/>`), so switching to a different row's
+    // detail means going back to the list first — Role B's row isn't in the tree at all while
+    // Role A's detail is showing. Role A's in-flight fetch keeps running in the background; going
+    // back doesn't cancel it, which is exactly the race this test means to exercise.
+    await act(async () => {
+      findButton(renderer, /Back to matches/)!.props.onClick();
+    });
+    await flush(renderer);
     // Switch to Role B before Role A's fetch resolves, then let Role B's own fetch land.
     await act(async () => {
-      findButton(renderer, /Role B/)!.props.onClick();
+      findRowButton(renderer, /Role B/)!.props.onClick();
     });
     await flush(renderer);
 
@@ -726,14 +800,14 @@ describe("job-search web BoardScreen", () => {
   // all be reachable from one opened row, not just individually wired. Discuss needs the full
   // MatchDetail (fitReason/wantReason) the same way the fit/want reasons do, so this only asserts
   // once matchGetResult has resolved, matching how the other two already behave once a row opens.
-  it("renders Discuss, Open posting, and Dismiss together once a row's detail has loaded", async () => {
+  it("renders Discuss, Open posting, and Pass together once a row's detail has loaded", async () => {
     matchesItems = [match({ id: "m1", title: "Role A", url: "https://jobs.example.com/role-a" })];
     matchGetResult = { match: matchDetail({ id: "m1" }) };
     const renderer = await renderBoard("p1", fakeAssistantSurface());
     await flush(renderer);
 
     await act(async () => {
-      findButton(renderer, /Role A/)!.props.onClick();
+      findRowButton(renderer, /Role A/)!.props.onClick();
     });
     await flush(renderer);
 
@@ -743,30 +817,32 @@ describe("job-search web BoardScreen", () => {
         : [item.props.children];
       return children.some((child: unknown) => child === "Discuss");
     });
-    const dismissButton = renderer.root.findAllByType("button").find((item) => {
+    // Mockup rewrite (task #100): the decision block's own dismiss button reads "Pass" now, not
+    // "Dismiss" — the onDismiss prop it calls didn't rename, only its label (inspector.tsx).
+    const passButton = renderer.root.findAllByType("button").find((item) => {
       const children = Array.isArray(item.props.children)
         ? item.props.children
         : [item.props.children];
-      return children.some((child: unknown) => child === "Dismiss");
+      return children.some((child: unknown) => child === "Pass");
     });
     const openPostingLink = renderer.root.findAllByType("a").find((item) => item.props.href);
 
     expect(discussButton).toBeTruthy();
-    expect(dismissButton).toBeTruthy();
+    expect(passButton).toBeTruthy();
     expect(openPostingLink).toBeTruthy();
   });
 
   // Without assistantSurface, Discuss must not render at all (a hidden control, not a disabled
   // one — discuss.tsx's own "an action that silently does nothing is worse than an action that is
-  // not there") while Open posting and Dismiss are unaffected, since neither depends on it.
-  it("hides Discuss (but not Open posting or Dismiss) when no assistantSurface is provided", async () => {
+  // not there") while Open posting and Pass are unaffected, since neither depends on it.
+  it("hides Discuss (but not Open posting or Pass) when no assistantSurface is provided", async () => {
     matchesItems = [match({ id: "m1", title: "Role A", url: "https://jobs.example.com/role-a" })];
     matchGetResult = { match: matchDetail({ id: "m1" }) };
     const renderer = await renderBoard("p1");
     await flush(renderer);
 
     await act(async () => {
-      findButton(renderer, /Role A/)!.props.onClick();
+      findRowButton(renderer, /Role A/)!.props.onClick();
     });
     await flush(renderer);
 
@@ -776,16 +852,16 @@ describe("job-search web BoardScreen", () => {
         : [item.props.children];
       return children.some((child: unknown) => child === "Discuss");
     });
-    const dismissButton = renderer.root.findAllByType("button").find((item) => {
+    const passButton = renderer.root.findAllByType("button").find((item) => {
       const children = Array.isArray(item.props.children)
         ? item.props.children
         : [item.props.children];
-      return children.some((child: unknown) => child === "Dismiss");
+      return children.some((child: unknown) => child === "Pass");
     });
     const openPostingLink = renderer.root.findAllByType("a").find((item) => item.props.href);
 
     expect(discussButton).toBeFalsy();
-    expect(dismissButton).toBeTruthy();
+    expect(passButton).toBeTruthy();
     expect(openPostingLink).toBeTruthy();
   });
 
@@ -798,7 +874,7 @@ describe("job-search web BoardScreen", () => {
     await flush(renderer);
 
     await act(async () => {
-      findButton(renderer, /Role A/)!.props.onClick();
+      findRowButton(renderer, /Role A/)!.props.onClick();
     });
     await flush(renderer);
 
@@ -810,28 +886,50 @@ describe("job-search web BoardScreen", () => {
     expect(link!.props.onClick).toBeUndefined();
   });
 
-  // K2 (2026-07-28 keyline-restructure plan): the board now renders match-row.tsx's KeyRow-based
-  // rows instead of `.jsm-card`. This block covers the six K2 cases the plan names explicitly.
-  // Case 1 ("an unscored row carries no score-value class") is already covered above by the
-  // retargeted "renders dashes and a 'Not read yet' flag..." test — it now asserts against
-  // jsm-fit-rail/jds-score, the two classes that could carry a score, rather than the deleted
-  // jsm-card__value — so it is not duplicated here.
+  // Mockup rewrite (task #98/#99): the board now renders match-row.tsx's single-button
+  // `.jsm-row`s instead of KeyRow, and the row itself carries no score for either axis any more
+  // — Fit is a band word, Want doesn't render on the row at all (see the "shows Fit as a band
+  // word..." test above). Both replace the old K2-era "carries both numbers" case.
 
-  it("a scored row renders both axis labels and both numbers, never a combined figure", async () => {
+  it("an opened, scored row renders both axis labels, Want's own number, and never a combined figure", async () => {
+    // K-D1 superseded (task #98): Fit's raw number (80) never renders anywhere any more — it's a
+    // band word only. This genuinely narrows the old invariant, which expected Fit to "keep its
+    // number" the same way Want does; that half no longer holds under the new design.
     matchesItems = [match({ id: "m1", title: "Role A", fit: 80, want: 70 })];
+    matchGetResult = { match: matchDetail({ id: "m1", fit: 80, want: 70 }) };
     const renderer = await renderBoard();
     await flush(renderer);
 
-    // Two independent FitRails (L9: fit and want are never blended into one score) — one
-    // jds-score per axis, never a single shared bar.
-    expect(findByClass(renderer, "jds-score")).toHaveLength(2);
+    // Before opening: a single Fit band word ("Good fit", 80 falls in [65,85)) and nothing of
+    // Want's — Want has no row-level rendering at all (match-row.tsx).
+    expect(text(renderer)).toMatch(/Good fit/);
+    expect(findByClass(renderer, "jds-score")).toEqual([]);
+
+    await act(async () => {
+      findRowButton(renderer, /Role A/)!.props.onClick();
+    });
+    await flush(renderer);
+
+    // Opened: both axis labels are present, and there is exactly one jds-score bar — Want's own,
+    // never a second one for Fit (fit and want are still never blended into one score, L9).
     expect(text(renderer)).toMatch(/Fit/);
     expect(text(renderer)).toMatch(/Want/);
-    expect(text(renderer)).toMatch(/80/);
+    expect(findByClass(renderer, "jds-score")).toHaveLength(1);
+    expect(text(renderer)).toMatch(/Good fit/);
     expect(text(renderer)).toMatch(/70/);
+    expect(text(renderer)).not.toMatch(/\b80\b/);
   });
 
-  it("renders exactly n-1 dividers for n rows in the open bucket", async () => {
+  // K-D1 superseded (task #98): the old "n-1 dividers for n rows" mechanism — KeyRow's own
+  // `divided={i > 0}` sibling-divider bookkeeping — is retired along with KeyRow itself.
+  // match-row.tsx draws its own top hairline on EVERY row unconditionally, via the CSS class
+  // `jds-hairline-row` (a border, not a DOM sibling — board.tsx's own comment: "No divided/i > 0
+  // bookkeeping any more... the trailing divider below closes the list off at the bottom"), and
+  // the list closes with exactly one trailing bare `jds-divider` regardless of row count. There is
+  // no per-row-count arithmetic left to get wrong, so this replaces the old count-based assertion
+  // with the two things that are still real: every row carries the hairline hook, and the list
+  // closes with exactly one bare divider, never zero and never one per row.
+  it("draws every row's own hairline via CSS and closes the list with exactly one trailing divider", async () => {
     matchesItems = [
       match({ id: "m1", title: "Role A" }),
       match({ id: "m2", title: "Role B" }),
@@ -840,16 +938,21 @@ describe("job-search web BoardScreen", () => {
     const renderer = await renderBoard();
     await flush(renderer);
 
-    // KeyRow renders its own jds-divider as a sibling above every row but the first
-    // (`divided={i > 0}`, board.tsx's own map) — three rows means two rules, not three, since the
-    // module cannot draw a keyline of its own and the list itself carries no gap (styles.css's
-    // K2 comment on .jsm-list). Filtered to the bare, single-class "jds-divider" KeyRow itself
-    // renders — board.tsx's own hero rule (`jds-divider jds-divider--strong jsm-hero__rule`) also
-    // carries the class and would otherwise inflate this count by one regardless of row count.
-    const rowDividers = renderer.root.findAll(
+    const rows = findByClass(renderer, "jsm-row");
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(String((row.props as { className?: string }).className).split(" ")).toContain(
+        "jds-hairline-row"
+      );
+    }
+
+    // Filtered to the bare, single-class "jds-divider" the list's own trailing <hr> renders —
+    // board.tsx's hero rule (`jds-divider jds-divider--strong jsm-hero__rule`) also carries the
+    // class and would otherwise inflate this count by one regardless of row count.
+    const bareDividers = renderer.root.findAll(
       (item) => (item.props as { className?: string }).className === "jds-divider"
     );
-    expect(rowDividers).toHaveLength(2);
+    expect(bareDividers).toHaveLength(1);
   });
 
   it("bucket tabs count each state correctly and filter the visible rows on click", async () => {
@@ -906,7 +1009,12 @@ describe("job-search web BoardScreen", () => {
     expect(cardClasses).toEqual([]);
   });
 
-  it("renders the outside-frame flag as a chip in the meta line, not by dimming the whole row", async () => {
+  // Already-approved ruling (commit 3914bd36, applied consistently in both match-row.tsx and
+  // inspector.tsx): the outside-frame flag is plain gold-toned text — `jds-eyebrow
+  // jds-eyebrow--gold` — never a badge/chip. This test's old target class (`jds-badge--outline`)
+  // was superseded before this remediation started; porting it forward is a stale-test fix, not a
+  // new design decision.
+  it("renders the outside-frame flag as plain gold text in the meta line, not by dimming the whole row", async () => {
     matchesItems = [
       match({
         id: "m1",
@@ -920,12 +1028,12 @@ describe("job-search web BoardScreen", () => {
     const renderer = await renderBoard();
     await flush(renderer);
 
-    // `.jsm-card--outside` (opacity dimming) is deleted — the outside-frame signal is now a
-    // jds-badge--outline chip that sits inside .jsm-meta beside the existing source/location/
-    // posted-date pills, none of which regressed when the card wrapper was removed.
-    const outsideBadge = findByClass(renderer, "jds-badge--outline");
-    expect(outsideBadge).toHaveLength(1);
-    expect(flatten(outsideBadge[0]!.props.children)).toMatch(/Outside your stated frame/);
+    // `.jsm-card--outside` (opacity dimming) is deleted — the outside-frame signal sits inline in
+    // the row's own meta line beside the existing source/location/posted-date text, none of which
+    // regressed when the card wrapper was removed.
+    const goldFlag = findByClass(renderer, "jds-eyebrow--gold");
+    expect(goldFlag).toHaveLength(1);
+    expect(flatten(goldFlag[0]!.props.children)).toMatch(/Outside your stated frame/);
 
     expect(text(renderer)).toContain("LinkedIn");
     expect(text(renderer)).toContain("Remote — US");

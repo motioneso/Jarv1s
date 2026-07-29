@@ -641,14 +641,19 @@ describe("job-search web Root", () => {
   // status line, since that's the one piece of this task with real logic behind it (mastheadStatus
   // in root.tsx) rather than markup.
   describe("K8 masthead", () => {
-    // Finds the jds-indicator wrapper span itself, not its __dot child — an exact className match
-    // rather than a substring test, since "jds-indicator__dot" also contains the substring
-    // "jds-indicator" and a loose match would find the wrong node.
+    // Finds the jds-indicator wrapper span itself, not its __dot child — a token match against the
+    // split class list rather than a substring test, since "jds-indicator__dot" also contains the
+    // substring "jds-indicator" and a loose match would find the wrong node. A token match (rather
+    // than the exact-string match this started as) is what's needed once "ready" gained a second
+    // modifier: root.tsx appends "jds-indicator--live" to the ready case for the slow pulse, so the
+    // full className is "jds-indicator jds-indicator--ready jds-indicator--live" — still exactly
+    // one indicator, just carrying an extra token the other two states don't.
     function findIndicator(renderer: ReactTestRenderer, modifier: string) {
       return renderer.root.findAll(
         (item) =>
           typeof item.type === "string" &&
-          item.props.className === `jds-indicator jds-indicator--${modifier}`
+          typeof item.props.className === "string" &&
+          item.props.className.split(" ").includes(`jds-indicator--${modifier}`)
       );
     }
 
