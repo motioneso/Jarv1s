@@ -36,6 +36,21 @@ vi.mock("../../external-modules/job-search/src/web/latch", () => ({
 
 vi.mock("../../external-modules/job-search/src/web/styles.css", () => ({ default: "" }));
 
+/** What `job-search.resume.get` hands back. Reset to null before every test (the empty-profile
+ *  default); a test that wants the first crawl to fire sets it to RESUME_ON_FILE first. */
+let resumeFixture: { version: number; content: string; updatedAt: string } | null = null;
+
+/** Whether `job-search.matches.list` answers with an empty board. Root's crawl effect is a
+ *  bootstrap and only fires when the board has nothing on it (see the effect's comment in
+ *  root.tsx), so every test that asserts an enqueue sets this true; the default false keeps the
+ *  one-row fixture below that the board-rendering assertions read. */
+let boardEmpty = false;
+const RESUME_ON_FILE = {
+  version: 1,
+  content: "Staff engineer. TypeScript, Postgres, React.",
+  updatedAt: "2026-07-29T10:35:44.701Z"
+};
+
 import { Root, type HostActions } from "../../external-modules/job-search/src/web/root";
 import * as api from "../../external-modules/job-search/src/web/api";
 import {
@@ -157,6 +172,8 @@ function findParagraphsByRole(renderer: ReactTestRenderer, role: string) {
 describe("job-search web Root", () => {
   beforeEach(() => {
     mockUseProfiles.mockReset();
+    resumeFixture = null;
+    boardEmpty = false;
     vi.mocked(api.invokeTool).mockReset();
     // Default transport for the real BoardScreen/SettingsScreen now rendered once a profile is
     // "active" (Task 20 replaced BoardPlaceholder) — a non-empty matches.list result is what
@@ -177,6 +194,7 @@ describe("job-search web Root", () => {
     // aren't typechecked) catching a second field.
     vi.mocked(api.invokeTool).mockImplementation(async (name: string) => {
       if (name === "job-search.matches.list") {
+        if (boardEmpty) return { items: [] };
         return {
           items: [
             {
@@ -202,7 +220,11 @@ describe("job-search web Root", () => {
       // throw below (that would still render, since both screens swallow a rejected fetch into an
       // "error" state, but a passing suite that only exercises the error branch would be worthless
       // as K5 coverage).
-      if (name === "job-search.resume.get") return { resume: null };
+      // Root's crawl effect now reads this too, and gates the first crawl.run on it — see the
+      // effect's own comment in root.tsx for why (all module queues share one serialized lane, so
+      // a pre-résumé crawl locks out the résumé save for its full ceiling). Tests that assert an
+      // enqueue therefore have to put a résumé on file first; `resumeFixture` is how.
+      if (name === "job-search.resume.get") return { resume: resumeFixture };
       throw new Error(`unexpected invokeTool ${name}`);
     });
     vi.mocked(api.runQueue).mockReset();
@@ -334,6 +356,8 @@ describe("job-search web Root", () => {
   });
 
   it("enqueues exactly one crawl.run for a profile that arrives active, and stays at one across a re-render", async () => {
+    resumeFixture = RESUME_ON_FILE; // the crawl is gated on one being on file
+    boardEmpty = true; // ...and on the board having nothing to show yet
     mockUseProfiles.mockReturnValue(ready([profile({ profileId: "p1", state: "active" })]));
     const actions = hostActions({ actorScopeKey: "actor-1" });
     const renderer = await renderRoot(actions);
@@ -353,7 +377,55 @@ describe("job-search web Root", () => {
     expect(api.runQueue).toHaveBeenCalledTimes(1);
   });
 
+  // Every queue this module declares shares ONE serialized invocation lane per module in the host
+  // runtime, so a crawl.run holds that lane for its whole 600s ceiling. Measured live before this
+  // gate existed: the mount crawl held the lane 9m58s and the résumé save enqueued 12s behind it
+  // never ran at all — it expired on its own ceiling as `handler_failed`, which the user saw as a
+  // save that spun forever. Crawling before a résumé exists is wasted work regardless (score.ts
+  // leaves fit null with no résumé text), so the ordering is résumé first, then crawl.
+  it("does not enqueue the first crawl until a résumé is on file, and does not burn the latch", async () => {
+    resumeFixture = null;
+    boardEmpty = true; // isolates the résumé gate — the board gate is already satisfied
+    mockUseProfiles.mockReturnValue(ready([profile({ profileId: "p1", state: "active" })]));
+    const actions = hostActions({ actorScopeKey: "actor-1" });
+    const renderer = await renderRoot(actions);
+    await flush(renderer);
+    expect(api.runQueue).not.toHaveBeenCalled();
+
+    // Not latching on the no-résumé path is the half that matters: latch here and this browser
+    // would never crawl this profile at all, however many résumés were added afterwards.
+    resumeFixture = RESUME_ON_FILE;
+    // A fresh state object, because that is what the effect's deps actually watch — the real
+    // trigger is ProfileScreen's onResumeSaved, which both refetches profiles and bumps Root's
+    // resumeSavedTick for exactly the case where the refetch returns an equal object.
+    mockUseProfiles.mockReturnValue(ready([profile({ profileId: "p1", state: "active" })]));
+    await act(async () => {
+      renderer.update(createElement(Root, { hostActions: actions }));
+    });
+    await flush(renderer);
+    expect(api.runQueue).toHaveBeenCalledWith("job-search.crawl-run", "crawl.run", {
+      profileId: "p1"
+    });
+  });
+
+  // The other half of the same lane problem, and the one that bites after the first run. Once a
+  // résumé is on file the résumé gate above passes on every mount, so replacing a résumé used to
+  // fire a mount crawl that took the module's only queue lane and starved the save behind it —
+  // measured live at 17:46: crawl.run active, resume-set enqueued 11s later and still not started
+  // two minutes on, with the résumé row untouched. A board that already has rows has nothing to
+  // bootstrap: crawl-sweep keeps it fresh and "Search now" covers an explicit refresh.
+  it("does not enqueue a mount crawl when the board already has rows", async () => {
+    resumeFixture = RESUME_ON_FILE;
+    boardEmpty = false; // the default one-row fixture — a board with something already on it
+    mockUseProfiles.mockReturnValue(ready([profile({ profileId: "p1", state: "active" })]));
+    const renderer = await renderRoot(hostActions({ actorScopeKey: "actor-1" }));
+    await flush(renderer);
+    expect(api.runQueue).not.toHaveBeenCalled();
+  });
+
   it("the enqueue latch survives an unmount/remount for the same actor", async () => {
+    resumeFixture = RESUME_ON_FILE; // the crawl is gated on one being on file
+    boardEmpty = true; // ...and on the board having nothing to show yet
     const actions = hostActions({ actorScopeKey: "actor-A" });
     mockUseProfiles.mockReturnValue(ready([profile({ profileId: "p1", state: "active" })]));
 
@@ -368,6 +440,8 @@ describe("job-search web Root", () => {
   });
 
   it("does not carry a latch across different actorScopeKeys", async () => {
+    resumeFixture = RESUME_ON_FILE; // the crawl is gated on one being on file
+    boardEmpty = true; // ...and on the board having nothing to show yet
     mockUseProfiles.mockReturnValue(ready([profile({ profileId: "p1", state: "active" })]));
 
     const first = await renderRoot(hostActions({ actorScopeKey: "actor-A" }));
@@ -391,6 +465,8 @@ describe("job-search web Root", () => {
   });
 
   it("renders a calm queued notice for already-queued, and an explicit notice for disabled", async () => {
+    resumeFixture = RESUME_ON_FILE; // the crawl is gated on one being on file
+    boardEmpty = true; // ...and on the board having nothing to show yet
     vi.mocked(api.runQueue).mockResolvedValueOnce({ kind: "already-queued" });
     mockUseProfiles.mockReturnValue(ready([profile({ profileId: "p1", state: "active" })]));
     const renderer = await renderRoot(hostActions({ actorScopeKey: "actor-queued" }));

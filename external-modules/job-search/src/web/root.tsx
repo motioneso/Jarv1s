@@ -23,7 +23,7 @@ import {
   useState,
   type ReactNodeLike
 } from "./runtime";
-import { runQueue, type RunOutcome } from "./api";
+import { invokeTool, runQueue, type RunOutcome } from "./api";
 import { isLatched, setLatched } from "./latch";
 import { useProfiles, type Profile } from "./use-profiles";
 import { useProfileThread, type AssistantSurfaceHandleV1 } from "../domain/seed-prompt.js";
@@ -31,6 +31,7 @@ import { OnboardingScreen } from "./screens/onboarding";
 import { BoardScreen } from "./screens/board";
 import { OverviewScreen } from "./screens/overview";
 import { ProfileScreen } from "./screens/profile";
+import { fetchResume } from "./screens/resume-editor";
 import { SettingsScreen } from "./screens/settings";
 import styles from "./styles.css";
 // Split into three files only because of the 1000-line file-size gate — they are one stylesheet as
@@ -254,6 +255,9 @@ function ActiveProfilePanel(props: {
   // else this handle travels — a v1.1 bundle on an older host still renders the board, just
   // without Discuss offered (discuss.tsx's own no-op-when-absent stance).
   assistantSurface?: AssistantSurfaceHandleV1;
+  /** Passed straight to ProfileScreen — Root uses it to re-read profiles, which re-runs the
+   *  résumé-gated crawl effect so the first crawl fires as soon as a résumé lands. */
+  onResumeSaved?: () => void;
 }): ReactNodeLike {
   const [view, setView] = useState<ActiveView>("matches");
   // Bumped by the board's "Add résumé" button, which also switches to the Profile tab. A counter,
@@ -321,7 +325,13 @@ function ActiveProfilePanel(props: {
     // this screen doesn't issue a second profile.list read just to get fields it's handed here.
     screen = <OverviewScreen profileId={props.selected.profileId} profile={props.selected} />;
   } else if (view === "profile") {
-    screen = <ProfileScreen profile={props.selected} openResumeSignal={resumeIntent} />;
+    screen = (
+      <ProfileScreen
+        profile={props.selected}
+        openResumeSignal={resumeIntent}
+        onResumeSaved={props.onResumeSaved}
+      />
+    );
   } else {
     // "monitors": SettingsScreen, unchanged since K4 trimmed it to job boards only — #1343 tracks
     // whether module settings should live behind a shared header template; this tab rename is not
@@ -415,6 +425,10 @@ export function Root(props: RootProps): ReactNodeLike {
   // polling. The refetch is a single profile.list read.
   const refetchRef = useRef(profiles.refetch);
   refetchRef.current = profiles.refetch;
+
+  // Bumped whenever a résumé save lands — see the crawl effect below and ActiveProfilePanel's
+  // onResumeSaved for why the value itself is never read.
+  const [resumeSavedTick, setResumeSavedTick] = useState(0);
   const interviewing = selectedProfile?.state === "in_conversation";
   useEffect(() => {
     if (!interviewing) return;
@@ -429,19 +443,68 @@ export function Root(props: RootProps): ReactNodeLike {
   // Enqueue exactly one crawl.run per profile that arrives "active" and isn't
   // already latched for this actor+profile. in_conversation and paused never
   // enqueue (bound: paused is a deliberate user pause, not a stall).
+  //
+  // This is a BOOTSTRAP, not a refresh, and both gates below exist to keep it that way. Every
+  // queue this module declares shares ONE serialized invocation lane per module in the host
+  // runtime (packages/module-registry/src/external/worker-runtime.ts keys its invocation queue by
+  // `${moduleId}:${lane}`, and apps/worker/src/external-module-job-handler.ts hardcodes every
+  // queue job to the "queue" lane), so ONE crawl.run holds that lane for up to its full 600s
+  // ceiling and no other job in this module can even start meanwhile. Measured live, twice: a
+  // crawl.run enqueued on mount ran the lane to its 600s ceiling while a resume-set enqueued
+  // 11–12s behind it never started at all — first time it expired on its own ceiling as
+  // `handler_failed`, which is exactly what the user saw as a résumé save that spun forever.
+  //
+  // Gate 1, a résumé must exist. A crawl before that is wasted work regardless of the lane:
+  // stages/score.ts leaves `fit` null for every row when there is no résumé text, so a pre-résumé
+  // crawl builds a Fit-less board that the résumé save then has to rescore.
+  //
+  // Gate 2, the board must be empty. Once rows exist the board is not blocked on anything —
+  // crawl-sweep keeps it fresh on a schedule and "Search now" covers an explicit refresh — so a
+  // mount crawl buys nothing and costs the lane. This is the gate that matters for replacing a
+  // résumé, which is the common case after the first run: without it the mount crawl fires
+  // (a résumé exists, so gate 1 passes) and starves the save the user is sitting in front of.
   useEffect(() => {
     if (profiles.status !== "ready") return;
+    let cancelled = false;
     for (const profile of profiles.profiles) {
       if (profile.state !== "active") continue;
       if (isLatched(hostActions.actorScopeKey, profile.profileId)) continue;
-      // Set the latch before the request resolves so a fast refetch (or
-      // StrictMode double-invoke) can't race a second enqueue.
-      setLatched(hostActions.actorScopeKey, profile.profileId);
-      runQueue("job-search.crawl-run", "crawl.run", { profileId: profile.profileId })
-        .then(setQueueNotice)
-        .catch(() => setQueueNotice({ kind: "error", message: "Network error" }));
+      const profileId = profile.profileId;
+      fetchResume(profileId)
+        .then(async (resume) => {
+          // No résumé yet: deliberately DON'T latch. The user is about to add one, and the next
+          // profiles read re-runs this effect and enqueues then. Latching here would mean the
+          // first crawl never fires for this browser at all.
+          if (cancelled || resume === null) return;
+          // limit 1 — this only asks "does the board have anything at all", and matches.list
+          // rejects a limit of 50, so keeping it minimal is both cheaper and safer.
+          const listed = (await invokeTool("job-search.matches.list", {
+            profileId,
+            limit: 1
+          })) as { items?: readonly unknown[] } | null;
+          if (cancelled) return;
+          // Rows already on the board: latch, because this browser has nothing left to bootstrap
+          // and re-checking on every mount is pure cost.
+          if (Array.isArray(listed?.items) && listed.items.length > 0) {
+            setLatched(hostActions.actorScopeKey, profileId);
+            return;
+          }
+          // Latch before the enqueue resolves so a fast refetch (or a StrictMode double-invoke)
+          // can't race a second enqueue.
+          if (isLatched(hostActions.actorScopeKey, profileId)) return;
+          setLatched(hostActions.actorScopeKey, profileId);
+          return runQueue("job-search.crawl-run", "crawl.run", { profileId })
+            .then(setQueueNotice)
+            .catch(() => setQueueNotice({ kind: "error", message: "Network error" }));
+        })
+        // A failed résumé or matches read must not silently cost the user their first crawl, but
+        // it also must not enqueue blind — leaving it unlatched means the next read gets another go.
+        .catch(() => undefined);
     }
-  }, [profiles, hostActions.actorScopeKey]);
+    return () => {
+      cancelled = true;
+    };
+  }, [profiles, hostActions.actorScopeKey, resumeSavedTick]);
 
   // The empty state's one job: get a profile row to exist. It goes through the module's own
   // declared queue rather than through the assistant, because the assistant is not a reliable
@@ -568,7 +631,21 @@ export function Root(props: RootProps): ReactNodeLike {
       selected.state === "in_conversation" ? (
         <OnboardingScreen profile={selected} assistantSurface={props.assistantSurface} />
       ) : (
-        <ActiveProfilePanel selected={selected} assistantSurface={props.assistantSurface} />
+        <ActiveProfilePanel
+          selected={selected}
+          assistantSurface={props.assistantSurface}
+          // Saving a résumé is the event the crawl effect above is waiting on. Re-reading
+          // profiles gives that effect a fresh object to run against, and the profile it now
+          // finds has a résumé, so the first crawl.run finally goes out.
+          onResumeSaved={() => {
+            refetchRef.current();
+            // The refetch alone isn't enough to rely on: profile.list may hand back the same
+            // values it already had (a résumé isn't a Profile field), and if the state object
+            // compares equal the crawl effect never re-runs. This counter is in that effect's
+            // deps precisely so the save itself, not the shape of the response, retriggers it.
+            setResumeSavedTick((tick) => tick + 1);
+          }}
+        />
       )
     );
   }

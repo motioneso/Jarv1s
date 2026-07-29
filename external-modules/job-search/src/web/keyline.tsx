@@ -168,7 +168,16 @@ export function FieldPair(props: FieldPairProps): ReactNodeLike {
     <div className="jds-fact jsm-field">
       <div className="jds-fact__main jsm-field__main">
         <span className="jds-eyebrow">{props.label}</span>
-        <p className="jds-fact__text jsm-field__value">{props.children}</p>
+        {/*
+          A <div>, not a <p>. `children` is explicitly a node — chips, a figure, a hint — and a
+          <p> may only contain phrasing content, so a chip row (<div>) or an empty-state hint
+          (<p>) nested here is invalid HTML. React said so out loud in the browser console:
+          "In HTML, <div> cannot be a descendant of <p>" and "<p> cannot be a descendant of <p>",
+          both pointing at this element. `jds-fact__text` is a plain class selector
+          (components-jarvis.css), so the element type carries no styling of its own and the row
+          looks identical either way.
+        */}
+        <div className="jds-fact__text jsm-field__value">{props.children}</div>
       </div>
     </div>
   );

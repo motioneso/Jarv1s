@@ -163,7 +163,13 @@
 .jsm-pf-resume-file-input {
   position: absolute;
   width: 1px;
+  /* The host's own `input` rule sets a min-height (measured live: the element still laid out at
+     40px tall with `height: 1px` applied), and min-height beats height. Both bounds are pinned
+     here so the clip actually collapses the box rather than merely hiding a full-height one —
+     a 40px invisible input still eats pointer events over whatever sits beneath it. */
   height: 1px;
+  min-height: 0;
+  max-height: 1px;
   padding: 0;
   margin: -1px;
   overflow: hidden;

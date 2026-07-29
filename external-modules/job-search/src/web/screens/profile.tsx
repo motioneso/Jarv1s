@@ -256,6 +256,10 @@ export interface ProfileScreenProps {
   // straight down to the résumé editor, which opens itself whenever the value changes. Optional
   // because arriving here by clicking the Profile tab has no such intent.
   openResumeSignal?: number;
+  /** Root's own hook for "a résumé now exists" — it gates the first crawl.run on exactly that
+   *  (see the crawl effect in root.tsx for why the ordering is load-bearing), and nothing else
+   *  in this screen's lifecycle tells it. Optional so the unit renderer can omit it. */
+  onResumeSaved?: () => void;
 }
 
 export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
@@ -287,7 +291,12 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
   // (ruling I5: a queued write never resolves "done" on its own).
   function reloadResume(): void {
     fetchResume(profile.profileId)
-      .then((resumeValue) => setResume({ status: "ready", resume: resumeValue }))
+      .then((resumeValue) => {
+        setResume({ status: "ready", resume: resumeValue });
+        // Only tell root once the read confirms a résumé is actually on file — a save that
+        // failed must not trip the first crawl.
+        if (resumeValue !== null) props.onResumeSaved?.();
+      })
       .catch(() => setResume({ status: "error" }));
   }
 
