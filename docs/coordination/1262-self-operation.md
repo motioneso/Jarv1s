@@ -4839,3 +4839,31 @@ the real sense; sweep user-visible strings. Per the no-stale-concepts rule the d
 out in the **same** pass, including comments, doc headings and test names.
 
 **Awaiting-Ben parking lot is now empty.**
+
+## 2026-07-28 23:55 UTC — RUN COMPLETE
+
+Epic **#1262 closed**; all three children merged and closed (#1263, #1264, #1265 via PR #1273).
+Board item for #1262 added and set **Done** (it had never been on the board).
+
+Two follow-on PRs opened and merged by the coordinator after the epic closed:
+
+| PR | Issue | What | CI |
+| --- | --- | --- | --- |
+| #1344 | #1342 | `scripts/run-gate.sh` — start/status/wait/stop, sentinel + pid liveness, isolated gate DB under `flock` | all green |
+| #1346 | #1345 | module-suite teardown no longer dies on a cluster-global `DROP ROLE` (helper swallows SQLSTATE 2BP01) | all green |
+
+**Fleet reaped.** No lanes running. Worktrees removed: `1265-module-content-self-operation`,
+`agent-a52f650100dab1363` (fable), `qa-1265`, `qa-1265d`, `gate-runner`, `1345-module-roles`.
+17 stale `jarvis_gate_*`/`jarvis_qa_*` databases dropped (~1.2 GB); disk 83%.
+
+**Open, non-blocking, needs Ben:**
+- **#1121** — real-model tool-choice leg of self-operation is unproven by hand; needs a LAN pass on
+  a live model. Fable adjudicated it as model behaviour, not a trust boundary, and explicitly not a
+  merge hold.
+- **#1327** — structured briefing action rows: queued next, **spec required before any code**.
+
+Other open follow-ups, none blocking: #1266 (deliberately not spawned), #1267, #1272, #1274, #1275,
+#1279, #1312 (needs its own task issue), #1319, #1339.
+
+**Continuation note:** nothing in flight. A successor picks up at #1327 (spec stage) or waits on
+Ben. Coordinator lock: session `43e5f5e2`, pane label `Coordinator`.
