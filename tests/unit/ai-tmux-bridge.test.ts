@@ -412,6 +412,37 @@ describe("transcriptGlobDir (anthropic project-dir encoding)", () => {
     );
     expect(dir.endsWith("/-home-operator-Jarv1s--claude-worktrees-x")).toBe(true);
   });
+
+  it("#1353 — replaces a colon too, as Claude Code does", () => {
+    // The live-chat neutral dir is `<neutralBase>/<sessionKey>`, and a session key
+    // carries a surface suffix (`<userId>:drawer`). Claude Code encodes EVERY
+    // character outside [a-zA-Z0-9-] as "-", so the colon becomes a dash. The old
+    // encoder replaced only "/" and ".", kept the colon, and therefore polled a
+    // directory that never existed — every prod chat turn produced no records at
+    // all, ran the full 180s idle watchdog, and returned an empty reply with no
+    // message persisted.
+    const dir = transcriptGlobDir(
+      "anthropic",
+      "/data/cli-auth/chat/e5c01155-9c05-4f96-8059-8b0f56ec1bf2:drawer",
+      "/data/cli-auth"
+    );
+    expect(dir.endsWith("/-data-cli-auth-chat-e5c01155-9c05-4f96-8059-8b0f56ec1bf2-drawer")).toBe(
+      true
+    );
+    expect(dir).not.toContain(":");
+  });
+
+  it("#1353 — preserves case and does not collapse runs of separators", () => {
+    // Two properties the character-class widening must NOT break: Claude Code keeps
+    // the original casing, and `/.` produces a DOUBLE dash rather than one.
+    const dir = transcriptGlobDir("anthropic", "/home/Op/A.B/.x", "/home/Op");
+    expect(dir.endsWith("/-home-Op-A-B--x")).toBe(true);
+  });
+
+  it("#1353 — encodes every other character Claude Code rejects", () => {
+    const dir = transcriptGlobDir("anthropic", "/tmp/a b_c@d+e", "/h");
+    expect(dir.endsWith("/-tmp-a-b-c-d-e")).toBe(true);
+  });
 });
 
 describe("createRealTmuxIo — env/cwd passthrough", () => {
