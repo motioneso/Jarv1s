@@ -55,22 +55,26 @@ function text(renderer: ReactTestRenderer): string {
   return flatten(renderer.toJSON()).replace(/\s+/g, " ").trim();
 }
 
-/** Chips are matched on the jds-badge class alone, not on the element name. They have been a
- * `span` and are now an `li` (the five steps are asked in order, so the row is an ordered list),
- * and which element carries them is presentation — pinning it here made this suite fail for a
- * reason that had nothing to do with what it is checking. */
-function chips(renderer: ReactTestRenderer): { text: string; done: boolean }[] {
+/** Steps are matched on their `aria-label`, not on a presentation class or the element name.
+ * They have been a `jds-badge--pill` `span` and are now a `jds-rail-row` `li` (keyline-restructure
+ * pass, 2026-07-29) — which element and which classes carry them is presentation, and pinning
+ * either here made this suite fail for a reason that had nothing to do with what it is checking.
+ * The `aria-label` is the one part of a row that is a real contract (this screen's own header:
+ * "the count carries progress for anyone who cannot see the rail colour, and each row keeps its
+ * aria-label answered/still-needed") — reading it back is what actually proves that contract. */
+function stepRows(renderer: ReactTestRenderer): { text: string; done: boolean }[] {
   return renderer.root
     .findAll(
       (node) =>
         typeof node.type === "string" &&
-        typeof node.props.className === "string" &&
-        node.props.className.includes("jds-badge")
+        typeof node.props["aria-label"] === "string" &&
+        /— (answered|still needed)$/.test(node.props["aria-label"] as string)
     )
-    .map((node) => ({
-      text: flatten(node.props.children as unknown).trim(),
-      done: (node.props.className as string).includes("jds-badge--forest")
-    }));
+    .map((node) => {
+      const label = node.props["aria-label"] as string;
+      const done = label.endsWith("answered");
+      return { text: label.replace(/ — (answered|still needed)$/, ""), done };
+    });
 }
 
 /** What the five steps are called on screen, spelled out here rather than imported from the
@@ -92,7 +96,7 @@ describe("OnboardingScreen", () => {
     const completed = [ONBOARDING_STEPS[0], ONBOARDING_STEPS[2]];
     const renderer = await renderScreen(profile({ completedSteps: completed }));
 
-    const rendered = chips(renderer);
+    const rendered = stepRows(renderer);
     expect(rendered.map((c) => c.text)).toEqual(
       ONBOARDING_STEPS.map((step) => EXPECTED_LABELS[step])
     );
@@ -112,14 +116,20 @@ describe("OnboardingScreen", () => {
     expect(renderer.root.findAllByProps({ role: "status" })).toHaveLength(0);
   });
 
-  it("renders no table, rail, or source strip during onboarding", async () => {
+  it("renders no table, match board widgets, or source-filter strip during onboarding", async () => {
     const renderer = await renderScreen(profile({ completedSteps: [...ONBOARDING_STEPS] }));
 
     expect(renderer.root.findAllByType("table")).toHaveLength(0);
     const classNames = renderer.root
       .findAll((node) => typeof node.props.className === "string")
       .map((node) => node.props.className as string);
-    expect(classNames.some((c) => /rail|strip|board/.test(c))).toBe(false);
+    // `jds-rail`/`jds-rail--*` is excluded from this guard on purpose (keyline-restructure pass,
+    // 2026-07-29): the setup steps below are now rail-led rows, the same shared idiom
+    // overview.tsx's own CheckpointRow already uses — that "rail" is this module's generic
+    // status-line primitive, not the match board's fit rail. `board`/`match-row`/`strip` still
+    // catch anything actually board-specific (the fit rail, a match row, a source-filter strip)
+    // leaking onto this screen, which is what this test is really guarding against.
+    expect(classNames.some((c) => /\bboard\b|match-row|strip/.test(c))).toBe(false);
   });
 
   it("renders the conversation as the host's own Surface, with the composer turned on", async () => {
@@ -150,7 +160,7 @@ describe("OnboardingScreen", () => {
 
     const renderer = await renderScreen(profile({ completedSteps: completed }));
 
-    const rendered = chips(renderer);
+    const rendered = stepRows(renderer);
     expect(rendered.map((c) => c.text)).toEqual(
       ONBOARDING_STEPS.map((step) => EXPECTED_LABELS[step])
     );

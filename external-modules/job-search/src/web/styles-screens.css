@@ -128,3 +128,55 @@
     gap: 1.5rem;
   }
 }
+
+/* ===========================================================================================
+ * Onboarding — hero, rail-led step rows, and the assistant surface wrapper
+ * =========================================================================================== */
+
+/* Same short flex-column stack as `.jsm-settings__head` (styles.css) — a hero this short never
+   needed anything beyond a vertical gap between eyebrow/headline/strap/lede. Declared again here
+   rather than reused across files so this screen's chrome doesn't depend on a class the board
+   agent may retarget while sweeping the old `.jsm-onb*` rules out of styles.css. */
+.jsm-onb-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+/* Caps the hero lede the same way `.jsm-ov-lede` does above — a one-sentence summary reads as a
+   paragraph shape, not a line stretched edge to edge. */
+.jsm-onb-lede {
+  max-width: 54ch;
+}
+
+/* Resets the <ol>'s browser default chrome (bullets, indent) — only the ordered-sequence
+   semantics are wanted, not list styling. Flex column with no explicit gap: the five rows sit
+   flush against each other, same as overview.tsx's own checkpoints list. */
+.jsm-onb-steps {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Extends the host's `.jds-rail-row` (grid-template-columns: 3px 1fr; components-keyline.css)
+   with a third trailing column for the row's own "Done"/"Now"/"To do" word — identical shape to
+   `.jsm-ov-step-row` above (overview.tsx's CheckpointRow), so the module has one step-row idiom
+   rather than two independently-tuned ones. */
+.jsm-onb-step-row {
+  grid-template-columns: 3px 1fr auto;
+  align-items: center;
+}
+
+/* #1331: the conversation itself, full width within the onboarding column. Flex column with
+   `align-self: stretch` so the host's Surface (composer input included) takes the full column
+   width rather than shrinking to its own content — same reasoning the old `.jsm-onb__chat` rule
+   in styles.css carried, just without the card it used to sit inside. No min-height: an empty
+   conversation should be short, and the chat grows the column as it fills. */
+.jsm-onb-chat {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  width: 100%;
+}

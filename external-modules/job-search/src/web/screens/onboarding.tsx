@@ -4,25 +4,36 @@
 // Root renders this in place of OnboardingPlaceholder whenever a profile's state is
 // "in_conversation" (root.tsx's branch, Task 18).
 //
+// Redrawn (2026-07-29, keyline-restructure pass) to retire the last surface still wearing the
+// pre-keyline design language: a `jds-card jds-card--sunken` floating card in a module that is
+// now hairline rules and committed fields (Park Press's idiom is "no floating cards"), five
+// `jds-badge--pill` chips Ben already ruled read badly here, and a plain `<h2>` where every
+// other screen in the module now opens with display type. This pass gives it the same hero
+// (eyebrow + `.jds-display` headline + gold strap, closed by an ink rule) Overview/Profile/
+// Monitors already have, and turns the five steps into rail-led rows — the exact shape of
+// overview.tsx's own `CheckpointRow` (`.jds-rail-row` + `.jds-rail--accent`/`--gold`/`--line` +
+// a trailing word) — so the module has one step-row idiom, not two. Nothing about the data or
+// the assistant surface below changes; only the chrome around them does.
+//
 // Progress comes from the record, never the transcript (ledger L9 — the UI is never made of
-// model output): the chips render off the `completedSteps` array on the profile.list wire
+// model output): the rows render off the `completedSteps` array on the profile.list wire
 // result, which the domain layer (Task 10) already decided. ONBOARDING_STEPS is imported from
-// the domain layer rather than redeclared here so this screen's chip list can't drift the
+// the domain layer rather than redeclared here so this screen's step list can't drift the
 // moment Task 10's step list changes.
 //
-// Markup ported from the prototype's `.jp-onb` block (variant-flow.tsx). The prototype directory
-// was deleted from this branch (Task 23, #1307); its full source, including variant-flow.tsx and
-// the README verdict that picked this layout, is preserved on branch `prototype/job-search-ui`
-// at 137ae214003607cc9d5a38d0a43a3ea5b08f9636.
+// Markup originally ported from the prototype's `.jp-onb` block (variant-flow.tsx, preserved on
+// branch `prototype/job-search-ui` at 137ae214003607cc9d5a38d0a43a3ea5b08f9636) — this pass
+// keeps its copy and structure below the hero, only replacing the card/chip chrome.
 //
 // #1331 restores the one piece Task 19 dropped: the block's fake conversation
 // thread and composer simulated the assistant inline, and were rightly cut (root.tsx's header:
 // the only way into the assistant here is hostActions.openAssistant) — but spec §7 calls for a
 // REAL chat, full width, not zero chat. That real chat is the host's own `Surface`
 // (`assistantSurface.Surface` below), already bound to this profile's thread by Task 17's
-// `useProfileThread`; this screen never builds a second chat implementation. Card chrome and
-// chip color come from the host's jds-* primitives (jds-card, jds-eyebrow, jds-badge), matching
-// Root's other panels — styles.css stays layout-only.
+// `useProfileThread`; this screen never builds a second chat implementation. Do not touch that
+// binding — only what surrounds it. Card chrome is gone; colour and type come from the host's
+// jds-* primitives (jds-eyebrow, jds-display, jds-rail, jds-strap), matching Root's other
+// panels — styles-screens.css stays layout-only.
 import type { AssistantSurfaceHandleV1 } from "../../domain/seed-prompt.js";
 import { ONBOARDING_STEPS } from "../../domain/criteria.js";
 import { h, type ReactNodeLike } from "../runtime";
@@ -30,7 +41,7 @@ import type { Profile } from "../use-profiles";
 
 /** What each onboarding step is called on screen.
  *
- * The chips used to render `ONBOARDING_STEPS` verbatim, so the live screen showed a row reading
+ * The rows used to render `ONBOARDING_STEPS` verbatim, so the live screen showed a row reading
  * "role want where comp sources" — internal field names, lowercase, leaked straight into the
  * product. Typed as a total record over the step union on purpose: adding a step to the domain
  * list is a type error here until it has been given a name a person would recognize, rather than
@@ -43,52 +54,102 @@ const STEP_LABELS: Record<(typeof ONBOARDING_STEPS)[number], string> = {
   sources: "Job boards"
 };
 
+type StepStatus = "done" | "now" | "todo";
+
+interface OnbStep {
+  step: (typeof ONBOARDING_STEPS)[number];
+  label: string;
+  status: StepStatus;
+}
+
+// Same walk as overview.tsx's `buildCheckpoints`: the first not-yet-answered step is "now" (the
+// one the conversation is currently on), everything after it is "todo" — so the rail reads as a
+// single moving line rather than an undifferentiated "answered / not answered" split.
+function buildSteps(done: ReadonlySet<(typeof ONBOARDING_STEPS)[number]>): OnbStep[] {
+  let sawCurrent = false;
+  return ONBOARDING_STEPS.map((step) => {
+    let status: StepStatus;
+    if (done.has(step)) {
+      status = "done";
+    } else if (!sawCurrent) {
+      status = "now";
+      sawCurrent = true;
+    } else {
+      status = "todo";
+    }
+    return { step, label: STEP_LABELS[step], status };
+  });
+}
+
+function StepRow(props: { key?: string; step: OnbStep }): ReactNodeLike {
+  const { step } = props;
+  const railTone = step.status === "done" ? "accent" : step.status === "now" ? "gold" : "line";
+  const word = step.status === "done" ? "Done" : step.status === "now" ? "Now" : "To do";
+  return (
+    // The row itself carries the aria-label (as the old chip did) rather than a wrapping element
+    // — a screen reader announcing "Role — answered" / "Role — still needed" per step is the
+    // whole point, and "now" vs "todo" both collapse to "still needed" here: that distinction is
+    // the rail colour and trailing word's job, not a third aria state to invent.
+    <li
+      className="jds-rail-row jsm-onb-step-row"
+      aria-label={`${step.label} — ${step.status === "done" ? "answered" : "still needed"}`}
+    >
+      <span className={`jds-rail jds-rail--${railTone}`} />
+      <span className="jds-eyebrow">{step.label}</span>
+      {/* Same tint overview.tsx's CheckpointRow gives its own "Done" word, and for the same
+          reason — one word marked, the rest stay neutral. */}
+      <span className={`jds-eyebrow${step.status === "done" ? " jds-eyebrow--accent" : ""}`}>
+        {word}
+      </span>
+    </li>
+  );
+}
+
 export function OnboardingScreen(props: {
   profile: Profile;
   // Optional per loader.ts/ledger I1 — absent (or a host predating Surface), the screen still
-  // renders its chips and copy and says the conversation is unavailable rather than throwing
+  // renders its rows and copy and says the conversation is unavailable rather than throwing
   // (plan case 5).
   assistantSurface?: AssistantSurfaceHandleV1;
 }): ReactNodeLike {
   const done = new Set(props.profile.completedSteps);
+  const steps = buildSteps(done);
   const Surface = props.assistantSurface?.Surface;
   return (
-    <div className="jds-card jds-card--sunken jsm-state jsm-onb">
-      {/* No "Job search" eyebrow here: the host already labels this surface twice above the card
-          (the page header and its own eyebrow), and a third copy inside the card was the first
-          thing that read as unconsidered on a live instance. The card leads with its own question
-          instead. */}
-      <h2 className="jsm-onb__head">Let&rsquo;s work out what this search is for.</h2>
-      <p className="jsm-onb__sub">
-        Nothing gets crawled until we both know what we&rsquo;re looking for. You can stop and come
-        back — I keep what we have so far.
-      </p>
-      {/* The count carries the progress; the chips only say which parts. Without it the row read
-          as five decorative pills — on a live screen there was no way to tell you were being
-          measured against anything, let alone how far along you were. It also carries the state
-          for anyone who can't use the fill colour, which was the only signal before. */}
-      {/* jds-eyebrow, not jds-label: jds-label is the host's form-control label (semibold, full
-          text colour) and this labels nothing you type into. jds-eyebrow is the host's section-label
-          utility and is what the rest of the module's small caps-labels already use. */}
-      <p className="jds-eyebrow jsm-onb__count">
-        {done.size} of {ONBOARDING_STEPS.length} answered
-      </p>
-      <ol className="jsm-onb__prog" aria-label="What we still need">
-        {ONBOARDING_STEPS.map((step) => (
-          <li
-            key={step}
-            className={
-              done.has(step)
-                ? "jds-badge jds-badge--pill jds-badge--forest"
-                : "jds-badge jds-badge--pill jds-badge--outline"
-            }
-            aria-label={`${STEP_LABELS[step]} — ${done.has(step) ? "answered" : "still needed"}`}
-          >
-            {STEP_LABELS[step]}
-          </li>
+    // `.jsm-overview`'s flex-column, 2rem-gap rhythm — the same top-level stack Overview itself
+    // uses for hero / divider / body — rather than a screen-specific rule saying the same thing.
+    <div className="jsm-overview jsm-onb">
+      {/* No "Job search" eyebrow here: the host already labels this surface twice above the
+          screen (the page header and its own eyebrow), and a third copy inside the hero was the
+          first thing that read as unconsidered on a live instance. The eyebrow carries progress
+          instead — the count is the fact this hero actually has to state. */}
+      <header className="jsm-onb-head">
+        <span className="jds-eyebrow jds-eyebrow--gold">
+          {done.size} of {ONBOARDING_STEPS.length} answered
+        </span>
+        <h1 className="jds-display jds-display--sm">
+          Let&rsquo;s work out what this search is for.
+        </h1>
+        <span className="jds-strap jds-strap--gold" aria-hidden="true" />
+        <p className="jds-hint jsm-onb-lede">
+          Nothing gets crawled until we both know what we&rsquo;re looking for. You can stop and
+          come back — I keep what we have so far.
+        </p>
+      </header>
+
+      <div className="jds-divider jds-divider--ink" />
+
+      {/* An <ol> because the five steps are asked in order; the list chrome (bullets, padding)
+          is reset in styles-screens.css — only the sequence semantics are wanted. The count
+          above already carries the overall progress for anyone who can't read the rail colour;
+          this list carries which parts, same division of labour the old chip row had. */}
+      <ol className="jsm-onb-steps" aria-label="What we still need">
+        {steps.map((step) => (
+          <StepRow key={step.step} step={step} />
         ))}
       </ol>
-      <div className="jsm-onb__chat">
+
+      <div className="jsm-onb-chat">
         {Surface ? (
           // A `composer` key is required at all — see the `Surface` doc comment on
           // seed-prompt.ts's `AssistantSurfaceHandleV1`: an absent `composer` renders no input box
@@ -100,7 +161,9 @@ export function OnboardingScreen(props: {
           // step in the box is the cheapest possible answer to "what do I type".
           h(Surface, { composer: { placeholder: "Tell me the kind of role you're after…" } })
         ) : (
-          <p className="jsm-onb__unavailable">The conversation isn&rsquo;t available right now.</p>
+          <p className="jds-hint jsm-onb-unavailable">
+            The conversation isn&rsquo;t available right now.
+          </p>
         )}
       </div>
     </div>
