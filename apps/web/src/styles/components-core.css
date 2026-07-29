@@ -510,6 +510,11 @@
 .jds-eyebrow--muted {
   color: var(--ink-3);
 }
+/* The board hero's "credible matches" label, baseline-aligned beside the 72px count — same
+   eyebrow size (--text-2xs already matches its 11px override), just accent-toned. */
+.jds-eyebrow--accent {
+  color: var(--accent);
+}
 
 /* Section heading utility. The eyebrow above is a LABEL, not a title — surfaces that used it as
    one ended up with a page heading lighter than the body text under it. Nothing in the cascade
@@ -580,6 +585,14 @@
 }
 .jds-card-title:hover {
   color: var(--accent);
+}
+/* Job Search's match-row headline (OppRow, the board's highest-traffic surface): same role as a
+   card title, but the mockup wants it heavier and tighter than the base — weight 800 not 600,
+   -0.02em tracking, 1.1 line-height rather than --leading-tight's 1.15. */
+.jds-card-title--heavy {
+  font-weight: var(--weight-heavy);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 /* The line of explanation that so often follows one. */
