@@ -119,16 +119,26 @@ export interface JobSearchStore {
   getLatestResume(profileId: string): Promise<Resume | undefined>;
   getResumeVersion(profileId: string, version: number): Promise<Resume | undefined>;
   setResume(profileId: string, content: string): Promise<Resume>;
-  /** Throw away the matches that were scored with no résumé on file, so the next pass reads
-   * them again now that there is one.
+  /** The scoring stage's OTHER candidate read: postings that already have a match row whose Fit
+   * is empty, so they can be scored again in place now that there is a résumé to judge them
+   * against.
    *
-   * Without this, adding a résumé fixes nothing the user can see: "unscored" means "no match
-   * row exists" (see `listUnscoredPostingsWithEmbeddings`), so every posting already on the
-   * board is permanently past the scoring stage and keeps its empty Fit forever. Only rows
-   * whose fit is null are touched — a real score is never discarded — and only rows the user
-   * has not acted on: deleting a dismissed row would put the role back on the board, which
-   * reads as the product ignoring them. Returns how many were cleared. */
-  clearUnfittedMatches(profileId: string): Promise<number>;
+   * This exists because "unscored" means "no match row exists" (see
+   * `listUnscoredPostingsWithEmbeddings`), which makes every posting scored before the user had a
+   * résumé permanently past the scoring stage — it keeps its empty Fit forever, and adding a
+   * résumé fixes nothing the user can see. The obvious repair is to delete those rows so they read
+   * as unscored again, and that is precisely the trap: deleting is instant and re-scoring is ~9s a
+   * posting, so the board visibly empties at the exact moment the user did the one thing meant to
+   * improve it. Reading them as candidates instead means `upsertMatch` overwrites the row in place
+   * and the board never loses a row at all.
+   *
+   * Only rows whose fit is null are returned — a real score is never re-spent — and only rows the
+   * user has not acted on, because `upsertMatch` returns a row to `new` and that would drag a
+   * dismissed or applied role back onto the board. */
+  listUnfittedPostingsWithEmbeddings(
+    profileId: string,
+    limit: number
+  ): Promise<PostingWithEmbedding[]>;
   /** Module KV, not a profile column: the sweep's rotation cursor belongs to the sweep, and it
    * has to survive the profile it happens to be pointing at being deleted. */
   getSweepCursor(): Promise<number>;

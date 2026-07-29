@@ -91,3 +91,68 @@ export async function runQueue(
   if (response.status === 404) return { kind: "disabled" };
   return { kind: "error", message: `Request failed (${response.status})` };
 }
+
+/**
+ * Task #108 (text) / #112 (binary): the first half of the résumé-save transport, shared by both
+ * draft kinds resume-save.ts's ResumeDraft can carry. Uploads to the user's own vault via the
+ * existing chat-attachments route — never a job payload, never the DB (packages/chat/src/
+ * attachments-routes.ts's own comment: bytes flow request -> ChatAttachmentsService -> vault
+ * only). Returns the attachment id, which is all resume-save.ts then hands to runQueue — two
+ * small id strings, not the résumé's content, so the queue payload stays metadata-only.
+ *
+ * `body: string | ArrayBuffer`, never a `Uint8Array`: this tsconfig has no explicit "lib" key, so
+ * TypeScript falls back to ES2022's default lib set, which DOES include DOM — `fetch`/`BodyInit`
+ * are in scope. But `BodyInit`'s `BufferSource = ArrayBufferView<ArrayBuffer> | ArrayBuffer` pins
+ * its generic to plain `ArrayBuffer`, while a bare `Uint8Array` annotation defaults its generic to
+ * `ArrayBufferLike` (TS 5.7+) — those don't structurally match, so a `Uint8Array` body fails to
+ * typecheck even though it's spec-valid at runtime. Taking `ArrayBuffer` directly (what a File's
+ * own .arrayBuffer() already returns, see resume-editor.tsx) sidesteps the mismatch with no cast.
+ */
+async function uploadAttachment(
+  mimeType: string,
+  fileName: string,
+  body: string | ArrayBuffer
+): Promise<string> {
+  let response: { ok: boolean; status: number; json: () => Promise<unknown> };
+  try {
+    response = await fetch("/api/chat/attachments", {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "content-type": "application/octet-stream",
+        "x-jarvis-mime-type": mimeType,
+        "x-jarvis-file-name": encodeURIComponent(fileName)
+      },
+      body
+    });
+  } catch {
+    throw new Error("Network error");
+  }
+  if (!response.ok) {
+    throw new Error(`Request failed (${response.status})`);
+  }
+  const parsed = (await parseJson(response)) as { attachment?: { id?: unknown } } | null;
+  const attachmentId = parsed?.attachment?.id;
+  if (typeof attachmentId !== "string" || attachmentId.length === 0) {
+    throw new Error("Malformed attachment response");
+  }
+  return attachmentId;
+}
+
+/** The text/paste draft — a paste or a client-read .txt/.md upload, always uploaded as plain text. */
+export async function uploadResumeAttachment(content: string): Promise<string> {
+  return uploadAttachment("text/plain", "resume.txt", content);
+}
+
+/**
+ * The binary draft (task #112) — a .pdf/.docx upload, sent as the raw bytes resume-editor.tsx
+ * read via File.arrayBuffer(), with the mime it derived from the file's own extension (never
+ * `file.type`, which is empty for a .txt/.md file in every browser and would 415 here otherwise).
+ */
+export async function uploadResumeAttachmentBytes(
+  bytes: ArrayBuffer,
+  mimeType: string,
+  fileName: string
+): Promise<string> {
+  return uploadAttachment(mimeType, fileName, bytes);
+}

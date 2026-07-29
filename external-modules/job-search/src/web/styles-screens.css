@@ -129,6 +129,33 @@
   }
 }
 
+/* Résumé editor (upload/paste/replace) — the trigger button plus its own settled feedback line
+   when idle, and the open file+textarea+actions panel while editing/confirming. */
+.jsm-pf-resume-trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.jsm-pf-resume-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.jsm-pf-resume-textarea {
+  width: 100%;
+  min-height: 12rem;
+  resize: vertical;
+}
+
+.jsm-pf-resume-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
 /* ===========================================================================================
  * Onboarding — hero, rail-led step rows, and the assistant surface wrapper
  * =========================================================================================== */

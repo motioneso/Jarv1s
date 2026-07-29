@@ -128,8 +128,16 @@ export async function runScore(deps: {
   now: string;
   deadlineAt: number;
   clock: () => number;
+  /** Which postings to score. "unscored" (the default) is the ordinary pass: postings with no
+   *  match row at all. "unfitted" is the repair pass: postings whose match row exists but whose
+   *  Fit is empty, because they were scored before the profile had a résumé. The repair is a
+   *  separate candidate set rather than a mode flag on the same query so that neither pass can
+   *  starve the other — the crawl's fresh postings still get scored on a board that also has a
+   *  large Fit-empty backlog. */
+  candidates?: "unscored" | "unfitted";
 }): Promise<RunScoreResult> {
   const { store, embed, ai, notify, profileId, budget, now, deadlineAt, clock } = deps;
+  const candidateSet = deps.candidates ?? "unscored";
 
   // Never larger than the platform's own per-invocation cap, regardless of what the caller
   // passed — this is the second layer under the sweep's own arithmetic, not a substitute for it.
@@ -147,10 +155,10 @@ export async function runScore(deps: {
     throw new Error(`runScore: profile ${profileId} not found`);
   }
 
-  const candidates = await store.listUnscoredPostingsWithEmbeddings(
-    profileId,
-    CANDIDATE_POOL_LIMIT
-  );
+  const candidates =
+    candidateSet === "unfitted"
+      ? await store.listUnfittedPostingsWithEmbeddings(profileId, CANDIDATE_POOL_LIMIT)
+      : await store.listUnscoredPostingsWithEmbeddings(profileId, CANDIDATE_POOL_LIMIT);
   if (candidates.length === 0) {
     return { scored: 0, deferred: 0, failed: 0, aiCallsUsed: 0, halted: null };
   }

@@ -10,14 +10,18 @@
 // true of every host class below), and every mockup `var(--token)` → a `jds-*` host class — this
 // screen's own layout lives in styles-screens.css, which carries zero design tokens.
 //
+// Résumé upload/replace (Ben's ask, 2026-07-29): the read side and the write UI both moved to
+// their own file, ./resume-editor.tsx — see that file's header for the write flow, and
+// ./resume-save.ts for the upload-then-enqueue transport (task #108) it calls.
+//
 // What the mockup draws that this pass does NOT build, and why:
 //   - The mockup's résumé card shows a filename, a revision hash, and a list of "confirmed
 //     claims" pulled out of the résumé text. None of that exists on job-search.resume.get's wire
 //     shape (`{resume: {version, content, updatedAt} | null}`) — there is no filename, no hash,
 //     and no per-claim extraction anywhere in this module. Ben's own prior ruling on this module
 //     ("fabricated résumé filenames/rev-hashes/confirmed claims... scrap it") is exactly this
-//     case; ResumeSection below reports only what the wire actually returns: on file, version,
-//     saved-on date, and length.
+//     case; ResumeSection (resume-editor.tsx) reports only what the wire actually returns: on
+//     file, version, saved-on date, and length.
 //   - The mockup's "latest critique" panel (an AI critique of the résumé) has no backing tool or
 //     queue anywhere in this module's manifest — nothing to read, so nothing rendered.
 //   - The mockup's "Work mode" field (remote/hybrid/onsite preference framed as a lifestyle
@@ -29,106 +33,11 @@ import type { Profile } from "../use-profiles";
 import type { BriefingDetail } from "../../domain/store-port.js";
 import type { SearchCriteria } from "../../domain/records.js";
 import { FieldPair, SectionHead } from "../keyline";
+import { RESUME_GET_TOOL, ResumeSection, fetchResume, type ResumeState } from "./resume-editor";
 
-export const RESUME_GET_TOOL = "job-search.resume.get";
+export { RESUME_GET_TOOL };
 export const PROFILE_GET_TOOL = "job-search.profile.get";
 export const PROFILE_SET_BRIEFING_DETAIL_QUEUE = "job-search.profile-set-briefing-detail";
-
-// -------------------------------------------------------------------------------------------
-// Résumé
-// -------------------------------------------------------------------------------------------
-interface ResumeSummary {
-  version: number;
-  updatedAt: string;
-  length: number;
-}
-
-// Three separate members, not a combined `{ status: "loading" | "error" }` — see overview.tsx's
-// own ResumeState for why the combined form fails to narrow through sequential status checks.
-type ResumeState =
-  | { status: "loading" }
-  | { status: "error" }
-  | { status: "ready"; resume: ResumeSummary | null };
-
-async function fetchResume(profileId: string): Promise<ResumeSummary | null> {
-  const result = (await invokeTool(RESUME_GET_TOOL, { profileId })) as {
-    resume?: { version: number; content: unknown; updatedAt: string } | null;
-  } | null;
-  const resume = result?.resume;
-  if (!resume || typeof resume.content !== "string") return null;
-  return { version: resume.version, updatedAt: resume.updatedAt, length: resume.content.length };
-}
-
-// formatPostedOn (keyline.tsx) is a display helper for job postings, not résumé saves — this
-// screen needs its own tiny "Jul 15"-style formatter over the same rule (pure string slicing, no
-// ambient clock) so it isn't borrowing a job-posting-flavored name for an unrelated field.
-const MONTH_LABELS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec"
-];
-
-function formatSavedOn(isoTimestamp: string): string | null {
-  if (isoTimestamp.length < 10) return null;
-  const month = Number(isoTimestamp.slice(5, 7));
-  const day = Number(isoTimestamp.slice(8, 10));
-  if (!(month >= 1 && month <= 12) || !(day >= 1 && day <= 31)) return null;
-  return `${MONTH_LABELS[month - 1]} ${day}`;
-}
-
-function ResumeSection(props: { state: ResumeState }): ReactNodeLike {
-  const { state } = props;
-  if (state.status === "loading") {
-    return (
-      <section className="jsm-settings__group">
-        <SectionHead label="Résumé" />
-        <p className="jds-hint" role="status">
-          Checking…
-        </p>
-      </section>
-    );
-  }
-  if (state.status === "error") {
-    return (
-      <section className="jsm-settings__group">
-        <SectionHead label="Résumé" />
-        <p className="jds-hint" role="alert">
-          Couldn&rsquo;t check whether a résumé is on file.
-        </p>
-      </section>
-    );
-  }
-  const { resume } = state;
-  const savedOn = resume ? (formatSavedOn(resume.updatedAt) ?? "—") : "—";
-  return (
-    <section className="jsm-settings__group">
-      <SectionHead label="Résumé">
-        {resume === null ? <span className="jds-badge jds-badge--outline">None yet</span> : null}
-      </SectionHead>
-      <div className="jsm-fields">
-        <FieldPair label="On file">{resume ? "Yes" : "No"}</FieldPair>
-        <FieldPair label="Version">{resume ? String(resume.version) : "—"}</FieldPair>
-        <FieldPair label="Saved on">{savedOn}</FieldPair>
-        <FieldPair label="Length">{resume ? `${resume.length} characters` : "—"}</FieldPair>
-      </div>
-      <p className="jds-hint">
-        {resume === null
-          ? "Nothing on file. Fit stays empty until there is one — it's the only thing Fit is " +
-            "judged against. Paste yours into the chat and every role gets read again with it."
-          : "Paste a new one into the chat to replace it."}
-      </p>
-    </section>
-  );
-}
 
 // -------------------------------------------------------------------------------------------
 // Search profile (context summary + criteria)
@@ -359,6 +268,16 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
     };
   }, [profile.profileId]);
 
+  // Reloads without flipping back through "loading" — a résumé save's own success/error feedback
+  // lives inside ResumeEditor, and swapping the whole section out from under it mid-message would
+  // hide what just happened. Same reconcile-by-refetch idiom as settings.tsx's refetchPortals
+  // (ruling I5: a queued write never resolves "done" on its own).
+  function reloadResume(): void {
+    fetchResume(profile.profileId)
+      .then((resumeValue) => setResume({ status: "ready", resume: resumeValue }))
+      .catch(() => setResume({ status: "error" }));
+  }
+
   useEffect(() => {
     let cancelled = false;
     setCriteria({ status: "loading" });
@@ -406,7 +325,7 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
 
       <div className="jsm-pf-columns">
         <div className="jsm-pf-column">
-          <ResumeSection state={resume} />
+          <ResumeSection profileId={profile.profileId} state={resume} onSaved={reloadResume} />
           <BriefingDetailSection briefingDetail={briefingDetail} onChange={handleBriefingDetail} />
         </div>
         <div className="jsm-pf-column">

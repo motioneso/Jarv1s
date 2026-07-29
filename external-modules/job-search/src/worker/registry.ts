@@ -36,7 +36,11 @@ import {
   createSetBriefingDetailHandler,
   createSetContextHandler
 } from "./handlers/profile.js";
-import { createResumeGetHandler, createResumeSetHandler } from "./handlers/resume.js";
+import {
+  createResumeGetHandler,
+  createResumeSetFromAttachmentHandler,
+  createResumeSetHandler
+} from "./handlers/resume.js";
 import { createSourceAddHandler, createSourceRemoveHandler } from "./handlers/source.js";
 import { createSqlStore } from "./store-sql.js";
 
@@ -69,6 +73,7 @@ export const HANDLERS: Readonly<Record<string, CtxHandler>> = {
   "profile.set-context": (ctx) => createSetContextHandler(storeFrom(ctx))(ctx),
   "profile.set-briefing-detail": (ctx) => createSetBriefingDetailHandler(storeFrom(ctx))(ctx),
   "resume.set": (ctx) => createResumeSetHandler(storeFrom(ctx))(ctx),
+  "resume.set-from-attachment": (ctx) => createResumeSetFromAttachmentHandler(storeFrom(ctx))(ctx),
   "resume.get": (ctx) => createResumeGetHandler(storeFrom(ctx))(ctx),
   "portal.set-enabled": (ctx) => createPortalSetEnabledHandler(storeFrom(ctx))(ctx),
   "portal.list": (ctx) => createPortalListHandler(storeFrom(ctx))(ctx),

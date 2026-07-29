@@ -38,6 +38,9 @@ export const CRAWL_SHARE = 0.4;
 export interface PassResult {
   crawl: CrawlSummary;
   score: RunScoreResult;
+  /** The Fit-empty repair pass (#110), or null when the profile has no résumé — with nothing to
+   *  judge Fit against there is no repair to make, only the same null written back. */
+  refit: RunScoreResult | null;
 }
 
 /** `ai.used()` reads calls made through THIS wrapper only, incremented before the underlying
@@ -148,7 +151,36 @@ async function runProfileStages(input: {
     clock
   });
 
-  return { crawl, score };
+  // Then repair the Fit-empty backlog (#110). Postings scored before the profile had a résumé keep
+  // an empty Fit forever on their own: the ordinary candidate query is a NOT EXISTS over the match
+  // table, so a row that exists is past scoring for good. `resume.set` repairs as many as its own
+  // invocation can get through and leaves the rest — this is where the remainder is picked up, one
+  // crawl or sweep at a time, until there is no backlog left and this scores nothing.
+  //
+  // Guarded on the résumé existing, and that guard is not cosmetic: with no résumé the scoring
+  // stage writes `fit: null` by design, so this would re-write every row identically and spend one
+  // model call per posting doing it, on every pass, forever.
+  //
+  // Second, on the budget the ordinary pass did not spend — fresh postings from this very crawl are
+  // the more time-sensitive of the two, and the backlog has been waiting for hours already.
+  const resume = await store.getLatestResume(profileId);
+  const refit =
+    resume && resume.content.trim().length > 0
+      ? await runScore({
+          store,
+          embed,
+          ai,
+          notify,
+          profileId,
+          budget: budget - score.aiCallsUsed,
+          now,
+          deadlineAt: scoreDeadlineAt,
+          clock,
+          candidates: "unfitted"
+        })
+      : null;
+
+  return { crawl, score, refit };
 }
 
 function requireProfileIdFromParams(params: Record<string, unknown>): string {

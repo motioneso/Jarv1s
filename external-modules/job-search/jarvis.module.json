@@ -415,6 +415,20 @@
         }
       },
       {
+        "name": "job-search.resume-set",
+        "handler": "resume.set-from-attachment",
+        "retryLimit": 0,
+        "allowManualRun": true,
+        "timeoutMs": 600000,
+        "paramsSchema": {
+          "type": "object",
+          "fields": {
+            "profileId": { "type": "identifier" },
+            "attachmentId": { "type": "identifier" }
+          }
+        }
+      },
+      {
         "name": "job-search.profile-bootstrap",
         "handler": "profile.bootstrap",
         "retryLimit": 1,

@@ -156,7 +156,7 @@ function createFakeStore(input: {
     getLatestResume: vi.fn(async () => undefined),
     getResumeVersion: vi.fn(notUsed("getResumeVersion")),
     setResume: vi.fn(notUsed("setResume")),
-    clearUnfittedMatches: vi.fn(notUsed("clearUnfittedMatches")),
+    listUnfittedPostingsWithEmbeddings: vi.fn(async () => []),
     getSweepCursor: vi.fn(async () => cursor),
     setSweepCursor: vi.fn(async (index: number) => {
       cursor = index;
@@ -251,6 +251,43 @@ describe("createCrawlRunHandler", () => {
       crawl: { found: 0, kept: 0 },
       score: { scored: 1 }
     });
+  });
+
+  it("test 1b: drains the Fit-empty backlog in place, and only once a résumé exists", async () => {
+    // #110's other half. Matches scored before the profile had a résumé carry `fit: null`, and the
+    // ordinary candidate query is a NOT EXISTS over the match table — so those rows are past
+    // scoring for good unless something reads them a second way. That second way is
+    // `listUnfittedPostingsWithEmbeddings`, and it deliberately is NOT a delete: `resume.set`
+    // repairs as many as its own invocation can, and this is where the remainder gets picked up,
+    // pass by pass, with `upsertMatch` overwriting each row so the board never loses one.
+    //
+    // The guard on the résumé is load-bearing, not cosmetic: with no résumé the scoring stage
+    // writes `fit: null` by design, so repairing here would re-write every row identically and
+    // burn one model call per posting doing it, on every single pass forever.
+    const withoutResume = createFakeStore({ profiles: [makeProfile("p-1")] });
+    await createCrawlRunHandler(withoutResume)(
+      createFakeCtx({ input: queueEnvelope({ profileId: "p-1" }), deadlineAt: Date.now() + 60_000 })
+    );
+    expect(withoutResume.listUnfittedPostingsWithEmbeddings).not.toHaveBeenCalled();
+
+    const withResume = createFakeStore({ profiles: [makeProfile("p-1")] });
+    withResume.getLatestResume = vi.fn(async () => ({
+      id: "r-1",
+      version: 1,
+      content: "Ten years shipping backend systems.",
+      updatedAt: new Date().toISOString()
+    }));
+    await createCrawlRunHandler(withResume)(
+      createFakeCtx({ input: queueEnvelope({ profileId: "p-1" }), deadlineAt: Date.now() + 60_000 })
+    );
+
+    expect(withResume.listUnfittedPostingsWithEmbeddings).toHaveBeenCalledWith(
+      "p-1",
+      expect.any(Number)
+    );
+    // The repair reads candidates; it never removes a row. Nothing in the store contract can
+    // delete a match, and that is the whole point of #110's second attempt.
+    expect(Object.keys(withResume)).not.toContain("clearUnfittedMatches");
   });
 
   it("test 2: the crawl deadline leaves room for scoring — crawl gets a share, score gets the full deadline", async () => {

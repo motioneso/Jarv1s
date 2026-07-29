@@ -91,7 +91,7 @@ function createFakeStore(seedProfiles: Profile[] = []) {
     getLatestResume: notImplemented("getLatestResume"),
     getResumeVersion: notImplemented("getResumeVersion"),
     setResume: notImplemented("setResume"),
-    clearUnfittedMatches: notImplemented("clearUnfittedMatches"),
+    listUnfittedPostingsWithEmbeddings: notImplemented("listUnfittedPostingsWithEmbeddings"),
     getSweepCursor: notImplemented("getSweepCursor"),
     setSweepCursor: notImplemented("setSweepCursor"),
     listCustomSources: async (profileId) => {

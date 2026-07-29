@@ -119,7 +119,7 @@ function createFakeStore(
     getLatestResume: vi.fn(notUsed("getLatestResume")),
     getResumeVersion: vi.fn(notUsed("getResumeVersion")),
     setResume: vi.fn(notUsed("setResume")),
-    clearUnfittedMatches: vi.fn(notUsed("clearUnfittedMatches")),
+    listUnfittedPostingsWithEmbeddings: vi.fn(notUsed("listUnfittedPostingsWithEmbeddings")),
     getSweepCursor: vi.fn(notUsed("getSweepCursor")),
     setSweepCursor: vi.fn(notUsed("setSweepCursor")),
     // Task 24 (#1309) additions to JobSearchStore — runCrawl never touches custom sources.

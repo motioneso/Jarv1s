@@ -589,22 +589,43 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
       );
     },
 
-    async clearUnfittedMatches(profileId: string): Promise<number> {
-      // A DELETE, not an UPDATE to state='unscored': "unscored" for the scoring stage means
-      // "no match row exists at all" (its candidate query is a NOT EXISTS over this table), so
-      // a row left behind in any state is a row that will never be read again.
-      // RETURNING, because the host's db contract hands back `{ rows }` and nothing else — there
-      // is no rowCount to read, and a DELETE that reports a count it did not measure would be a
-      // guess.
-      const result = await db.query<{ id: string }>(
-        `DELETE FROM app.job_search_matches
-          WHERE profile_id = $1
-            AND fit IS NULL
-            AND state IN ('unscored', 'new', 'seen')
-          RETURNING id`,
-        [profileId]
+    async listUnfittedPostingsWithEmbeddings(
+      profileId: string,
+      limit: number
+    ): Promise<PostingWithEmbedding[]> {
+      // The scoring stage's second candidate read, and the mirror image of the one above:
+      // `listUnscoredPostingsWithEmbeddings` asks for postings with NO match row, this one asks
+      // for postings whose match row exists but carries no Fit. Together they cover every posting
+      // the scorer still has something to say about.
+      //
+      // This deliberately replaced a DELETE. Clearing the Fit-empty rows so they read as unscored
+      // again works, but clearing is instant and re-scoring is ~9s a posting, so the board visibly
+      // emptied the moment the user uploaded a résumé and refilled over the following ten minutes.
+      // Scoring in place has no such window: `upsertMatch` overwrites the row, so the count on the
+      // board never changes at all.
+      //
+      // The state filter is what protects the user's own actions. `upsertMatch` returns a row to
+      // 'new' by design (a changed score is news), which would drag a dismissed or applied role
+      // back onto the board — so a row the user has acted on is not a candidate, no matter how
+      // empty its Fit. `ORDER BY p.first_seen_at DESC` matches the unscored read, so a bounded
+      // pass walks the backlog newest-first rather than in whatever order the planner reached.
+      const result = await db.query<PostingRow & { embedding: string }>(
+        `SELECT p.id, p.source_id, p.external_id, p.title, p.company, p.location, p.url, p.body,
+                p.posted_at, p.embedding::text AS embedding
+           FROM app.job_search_postings p
+          WHERE p.profile_id = $1
+            AND p.embedding IS NOT NULL
+            AND EXISTS (
+              SELECT 1 FROM app.job_search_matches m
+               WHERE m.posting_id = p.id
+                 AND m.fit IS NULL
+                 AND m.state IN ('unscored', 'new', 'seen')
+            )
+          ORDER BY p.first_seen_at DESC
+          LIMIT $2`,
+        [profileId, limit]
       );
-      return result.rows.length;
+      return result.rows.map(mapPostingWithEmbedding);
     },
 
     async getSweepCursor(): Promise<number> {

@@ -154,7 +154,75 @@ Every hard invariant is preserved because nothing new is introduced:
 - **Task issue:** file a small child issue under epic #1280 for the module-side wiring once the
   UI approach is picked; it does not need a standalone architecture issue since no new capability
   is being added.
-- **Known gap worth flagging separately (not blocking):** the attachments mime whitelist covers
-  `application/pdf`, `text/*`, and images — not `.docx`. A résumé that's only a Word document would
-  be rejected today. That's a content-format gap in the existing attachments feature, not a
-  write-seam problem, and is out of scope for this decision.
+- **Correction to an earlier note in this doc — `.docx` is not a gap.** This doc previously claimed
+  the attachments mime whitelist covers only `application/pdf`, `text/*`, and images, and that a
+  Word-only résumé "would be rejected today." That's wrong, and worth correcting in place rather
+  than leaving a false gap on record: `packages/chat/src/attachments-service.ts:28` declares
+  `DOCX_MIME`, `classifyAttachmentMime` (~line 45) returns `"docx"` for it, extraction uses
+  `mammoth` (imported line 16), and the sniffer requires PK magic bytes plus a `word/document.xml`
+  entry (lines 70-77) — so a renamed `.xlsx`/`.pptx` is rejected, but a real `.docx` is not.
+  `application/json` is also accepted, classified as `"text"`. There is no content-format gap here
+  to fix.
+- **A real, non-blocking limit that does exist:** `ATTACHMENT_TEXT_CAP_CHARS = 15_000`
+  (`attachments-service.ts:39`) truncates the text returned to a caller and appends a truncation
+  note. Comfortably above a résumé's usual length, so not a blocker for this feature — but it's a
+  genuine bound on this path and belongs in the record.
+
+## Addendum (2026-07-29) — does the one-shot engine process outlive a pending confirm?
+
+Separate question, raised after Ben pasted his résumé into live chat and the exchange appeared to
+hang: the chat engine runs one-shot (`claude -p`, epic #1238), and `confirmAndRun` parks a pending
+write-tool call on an in-memory `ConfirmationRegistry` waiter. Hypothesis to confirm or kill: if the
+engine process exits when the turn returns, the waiter dies with it, so the confirmation card is
+either never shown or dead on arrival and Approve does nothing.
+
+**Verdict: the hypothesis is wrong.** Nothing exited early. The exchange hung because the system was
+correctly waiting out its full 150-second confirm window, then correctly gave up — not because a
+process died.
+
+Evidence, from the dev instance's own logs and DB, same run (`scratchpad/devapi.log`, pid
+`2496706`; `app.jarvis_action_audit_log` via `docker exec jarv1s-postgres psql`):
+
+- The MCP tool-call request itself (`POST /api/mcp`, reqId `req-5s`) opened at
+  2026-07-29 08:17:32.154 UTC and did not return until 08:20:02.178 UTC — **responseTime
+  150024.54 ms**, matching `NATIVE_CONFIRM_TIMEOUT_MS = 150_000`
+  (`packages/chat/src/live/claude-permission-hook.ts:17`) to within 25ms. That request is handled
+  entirely inside the long-lived API server's `confirmAndRun`
+  (`packages/ai/src/gateway/gateway.ts:504-596`): the waiter is created at
+  `confirmations.awaitResolution(action.id, confirmTimeoutMs)` (lines 524-527), the card is emitted
+  via `notifier.emit` (lines 548-554), and the handler blocks on `await pendingResolution` (line
+  556) for the whole span. The request staying open for exactly the confirm timeout — not less —
+  proves the waiter lived in the server process for the full 150s; it did not die with any child
+  process.
+- `app.jarvis_action_audit_log` corroborates independently: `tool_name='job-search.resume.set' |
+  approval_mode='timeout' | outcome='denied'`, `occurred_at 2026-07-29 08:20:02.183558+00` — 5ms
+  after the MCP request above returned. That's `confirmAndRun`'s `outcome !== "confirmed"` branch
+  recording the timeout the instant `awaitResolution` resolves.
+- The wrapping `POST /api/chat/turn` request (reqId `req-5m`) that carries the whole turn started
+  at 08:17:08.610 and completed at 08:20:05.448 — **176837.98 ms total**, ~2.7s past the tool
+  call's own timeout. That gap is the CLI receiving the timeout result over MCP, feeding it back to
+  the model, and the model composing a final reply — ordinary turn completion, not a crash.
+  `live-routes.ts:163` awaits `submitTurn` in full, and here it did run to a normal completion; it
+  just took 176.8s.
+- `ClaudePrintChatEngine.submit()` (`packages/chat/src/live/claude-print-chat-engine.ts`) does
+  detach+unref the `claude -p` child so the HTTP layer isn't blocked on the child's own exit — by
+  design, so a long tool wait doesn't tie up anything else. That's orthogonal to what happened here:
+  `chat-session-manager.ts`'s polling loop kept reading a live transcript throughout, and
+  `idleWatchdogMs` (default `180_000`, `chat-session-manager.ts:197` — deliberately set above
+  `NATIVE_CONFIRM_TIMEOUT_MS`) never tripped, because the confirm timeout's own response arrived
+  with 30s of the 180s idle budget to spare.
+- Correction to my own earlier working note: I had "the turn completed 200 in 8.85s" pointing at
+  the résumé exchange. It doesn't — `req-7b` (an 8852ms `/api/chat/turn`) is a later, unrelated
+  turn that started at 08:21:00.7, a minute after the résumé turn had already finished. The résumé
+  turn is `req-5m` above, and it ran 176.8s, not 8.85s.
+
+So there is no process-lifecycle bug here. The system did exactly what its 150-second confirm
+window is designed to do: waited the full window for an Approve click, didn't get one in time,
+recorded the action `timeout`/`denied`, and told the model to report that back — which is why the
+résumé was never written and why the exchange felt like a hang: for up to 150 real seconds it
+correctly was waiting, with nothing in the UI indicating a clock was running or how long was left.
+
+Genuinely open, and a different question from the one asked here: why Ben's Approve didn't land
+inside 150 seconds — whether the card was visibly delivered to the drawer at all in that session,
+not whether the process survived. That's a UI-attention/delivery question, out of scope for this
+addendum; flagging only so it isn't lost.

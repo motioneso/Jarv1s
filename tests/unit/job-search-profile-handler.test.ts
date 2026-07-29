@@ -24,9 +24,11 @@ import type {
   BriefingDetail,
   JobSearchStore,
   PortalState,
+  PostingWithEmbedding,
   Profile,
   Resume
 } from "../../external-modules/job-search/src/domain/store-port.js";
+import type { Match } from "../../external-modules/job-search/src/domain/records.js";
 import {
   createCriteriaSetHandler,
   createProfileBootstrapHandler,
@@ -149,7 +151,7 @@ function createFakeStore(seedProfiles: Profile[] = []) {
     },
     // A no-op that answers, not a thrower: `resume.set` calls it on every save, and this fake
     // keeps no matches at all, so "nothing was cleared" is the honest answer here.
-    clearUnfittedMatches: async () => 0,
+    listUnfittedPostingsWithEmbeddings: async () => [],
     getSweepCursor: notImplemented("getSweepCursor"),
     setSweepCursor: notImplemented("setSweepCursor"),
     // Task 24 (#1309) additions to JobSearchStore — out of scope for these eleven handlers
@@ -180,6 +182,63 @@ function ctx(input: Record<string, unknown>): ModuleWorkerContext {
       }
     }
   ) as ModuleWorkerContext;
+}
+
+/** `resume.set` is the one tool here that legitimately reaches past `ctx.input`. Task #110 made it
+ * run scoring inline, because `ModuleWorkerContext` has no way to enqueue a follow-up pass — so
+ * without an inline rescore, saving a résumé leaves every Fit empty until the next 6-hourly sweep.
+ * That means it needs `embed`/`ai`/`notify`/`deadlineAt`.
+ * Rather than loosen `ctx()` for all nine tools and lose the structural guarantee it enforces,
+ * this widens the allowed set for that one handler and keeps everything else strict.
+ *
+ * Ports below are shaped to match the real contracts (`EmbedPort`/`AiPort`/`NotifyPort` in
+ * `worker/stages/score.ts`, `ModuleNotifyPort` in `module-sdk/src/worker.ts`) — `embedQuery`/
+ * `embedDocuments`/`dimensions`, `generateStructured`, `post` — not guessed names. This variant's
+ * ports all throw, so `resume.set`'s fake store never even needs to reach them (see `createFakeStore`'s
+ * `notImplemented` stubs below, which throw first); `scoringCtxWith` overrides individual ports for
+ * tests that need scoring to actually run. */
+function scoringCtx(input: Record<string, unknown>): ModuleWorkerContext {
+  return scoringCtxWith(input, {});
+}
+
+function scoringCtxWith(
+  input: Record<string, unknown>,
+  overrides: Partial<{
+    embed: unknown;
+    ai: unknown;
+    notify: unknown;
+    deadlineAt: number;
+  }>
+): ModuleWorkerContext {
+  const allowed: Record<string, unknown> = {
+    input,
+    deadlineAt: overrides.deadlineAt ?? Date.now() + 60_000,
+    embed: overrides.embed ?? {
+      embedQuery: async () => {
+        throw new Error("no embedder in this unit test");
+      },
+      embedDocuments: async () => {
+        throw new Error("no embedder in this unit test");
+      },
+      dimensions: async () => {
+        throw new Error("no embedder in this unit test");
+      }
+    },
+    ai: overrides.ai ?? {
+      generateStructured: async () => {
+        throw new Error("no model in this unit test");
+      }
+    },
+    notify: overrides.notify ?? {
+      post: async () => undefined
+    }
+  };
+  return new Proxy(allowed, {
+    get(target, prop) {
+      if (prop in target) return target[String(prop)];
+      throw new Error(`handler touched ctx.${String(prop)} — not part of resume.set's contract`);
+    }
+  }) as unknown as ModuleWorkerContext;
 }
 
 // --- tests ---------------------------------------------------------------------------------
@@ -330,27 +389,220 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
     const { store } = createFakeStore([makeProfile({ id: "p1" })]);
     const setHandler = createResumeSetHandler(store);
 
-    // `rescoring` is how many matches were thrown back into the queue because they had been
-    // scored with no résumé to judge Fit against. Asserted with toEqual, not toMatchObject, so a
-    // handler that silently stopped clearing them would fail here rather than pass quietly.
-    const first = await setHandler(ctx({ profileId: "p1", content: "v1 text" }));
+    // Asserted with toEqual, not toMatchObject, so a handler that grew an extra field — in
+    // particular a resurrected count of deleted matches — fails here rather than passing quietly.
+    // `rescore` is #110's inline scoring pass. Its outcome isn't pinned here — there is no real
+    // embedder or model in a unit test, and scoring has its own suites — but it must be *present*,
+    // and the save must still report success around it. That second half is the point: scoring is
+    // caught and never rethrown, because the résumé row has already committed by then and letting
+    // the error escape would make pg-boss retry the whole handler and bump the version again.
+    const first = await setHandler(scoringCtx({ profileId: "p1", content: "v1 text" }));
     expect(first).toEqual({
       profileId: "p1",
       version: 1,
       updatedAt: expect.any(String),
-      rescoring: 0
+      unchanged: false,
+      rescore: expect.any(Object)
     });
 
-    const second = await setHandler(ctx({ profileId: "p1", content: "v2 text" }));
+    const second = await setHandler(scoringCtx({ profileId: "p1", content: "v2 text" }));
     expect(second).toEqual({
       profileId: "p1",
       version: 2,
       updatedAt: expect.any(String),
-      rescoring: 0
+      unchanged: false,
+      rescore: expect.any(Object)
     });
 
     expect(await store.getResumeVersion("p1", 1)).toMatchObject({ version: 1, content: "v1 text" });
     expect(await store.getLatestResume("p1")).toMatchObject({ version: 2, content: "v2 text" });
+  });
+
+  it("4a. re-saving byte-identical content is idempotent — no new version, no repair pass", async () => {
+    // The invocation timeout that kills this handler is not catchable, so pg-boss can re-enter it
+    // after the résumé row has already committed (observed live: an identical version 2). The
+    // queue carries retryLimit: 0 for that reason, but the guard belongs in the handler too — it
+    // is equally right for a user who uploads the same file twice. `unchanged: true` is what makes
+    // the handler skip the Fit-empty repair pass: those matches were scored against this very
+    // text, so re-scoring them would spend a model call per posting to write the same number back.
+    const { store } = createFakeStore([makeProfile({ id: "p1" })]);
+    const setHandler = createResumeSetHandler(store);
+
+    await setHandler(scoringCtx({ profileId: "p1", content: "same text" }));
+    const again = await setHandler(scoringCtx({ profileId: "p1", content: "same text" }));
+
+    expect(again).toEqual({
+      profileId: "p1",
+      version: 1,
+      updatedAt: expect.any(String),
+      unchanged: true,
+      rescore: expect.any(Object)
+    });
+    expect(await store.getResumeVersion("p1", 2)).toBeUndefined();
+  });
+
+  it("4b. a résumé save actually triggers a scoring pass — a candidate gets scored and written", async () => {
+    // Test 4 above deliberately doesn't pin what `rescore` contains (no real embedder/model in a
+    // unit test). This one gives `runScore` everything it needs to do real work, so "resume.set
+    // triggers scoring" is proven end to end rather than just "scoring was attempted."
+    const profile = makeProfile({
+      id: "p1",
+      criteria: { ...EMPTY_CRITERIA, titles: ["Staff Engineer"] }
+    });
+    const { store } = createFakeStore([profile]);
+    const posting: PostingWithEmbedding = {
+      id: "post-1",
+      sourceId: "freehire",
+      externalId: "ext-1",
+      title: "Staff Engineer",
+      company: "Acme",
+      location: "Remote",
+      url: "https://example.test/post-1",
+      body: "Ship things that matter.",
+      postedAt: null,
+      embedding: [1, 0, 0]
+    };
+    const upserted: Array<Omit<Match, "id">> = [];
+    const scorableStore: JobSearchStore = {
+      ...store,
+      // Stateful on purpose: the handler scores in batches until a batch comes back empty, so a
+      // fake that returns the same posting forever would report it scored once per batch. A real
+      // store stops offering a posting the moment its match row exists.
+      listUnscoredPostingsWithEmbeddings: async () => (upserted.length > 0 ? [] : [posting]),
+      upsertMatch: async (_profileId, match) => {
+        upserted.push(match);
+      }
+    };
+    const setHandler = createResumeSetHandler(scorableStore);
+
+    const result = await setHandler(
+      scoringCtxWith(
+        { profileId: "p1", content: "Ten years shipping backend systems." },
+        {
+          embed: {
+            embedQuery: async () => [1, 0, 0],
+            embedDocuments: async () => {
+              throw new Error("runScore never embeds documents");
+            },
+            dimensions: async () => 3
+          },
+          ai: {
+            generateStructured: async () => ({
+              ok: true,
+              object: { fit: 80, want: 70, fitReason: "Strong overlap", wantReason: "Matches goals" }
+            })
+          }
+        }
+      )
+    );
+
+    expect(result).toMatchObject({
+      profileId: "p1",
+      rescore: { ok: true, scored: 1, failed: 0, deferred: 0, aiCallsUsed: 1, halted: null }
+    });
+    expect(upserted).toEqual([
+      expect.objectContaining({ postingId: "post-1", fit: 80, want: 70, state: "new" })
+    ]);
+  });
+
+  it("4c. a scoring failure still reports the save as succeeded, with a structured cause", async () => {
+    // The default fake store's scoring-related methods are all `notImplemented` (they're out of
+    // scope for these nine tools by design), so `runScore` throws almost immediately here. The
+    // point isn't which method threw — it's that the throw never reaches the caller: the save
+    // above it already committed, and `saveResumeContent`'s try/catch turns the throw into a
+    // structured `{ok: false, cause}` field rather than failing the whole handler (which would
+    // make pg-boss's retryLimit re-run the write and bump the version again for an unrelated
+    // reason — see the doc comment on `saveResumeContent` in worker/handlers/resume.ts).
+    const { store } = createFakeStore([makeProfile({ id: "p1" })]);
+    const setHandler = createResumeSetHandler(store);
+
+    const result = await setHandler(scoringCtx({ profileId: "p1", content: "résumé text" }));
+
+    expect(result).toMatchObject({
+      profileId: "p1",
+      version: 1,
+      rescore: {
+        ok: false,
+        cause: expect.stringContaining("listUnscoredPostingsWithEmbeddings")
+      }
+    });
+    // The save itself is unaffected: the résumé is on file at the version the handler reported.
+    expect(await store.getLatestResume("p1")).toMatchObject({ version: 1, content: "résumé text" });
+  });
+
+  it("4d. repairs Fit-empty matches in place — scores them again, never deletes them", async () => {
+    // #110's whole ruling, in one test. Postings scored before the profile had a résumé carry an
+    // empty Fit forever, because the ordinary candidate read is a NOT EXISTS over the match table.
+    // The obvious repair is to delete those rows so they read as unscored again, and that is the
+    // trap: deleting is instant and scoring is ~9s a posting, so the board visibly empties at the
+    // moment the user did the one thing meant to improve it — live, 116 rows fell to 56 within five
+    // seconds of the save. Bounding the delete only shrank the hole; batching it only bounded the
+    // dip. So the repair reads those rows as a second candidate set and `upsertMatch` overwrites
+    // them where they sit, and the board's row count never moves at all.
+    const profile = makeProfile({
+      id: "p1",
+      criteria: { ...EMPTY_CRITERIA, titles: ["Staff Engineer"] }
+    });
+    const { store } = createFakeStore([profile]);
+
+    // A 15-posting Fit-empty backlog, modelled the way the real store behaves: a posting stops
+    // being a repair candidate the moment its match row has a Fit, and nothing is ever removed.
+    const scored = new Set<string>();
+    const upserted: Array<Omit<Match, "id">> = [];
+    const backlog: PostingWithEmbedding[] = Array.from({ length: 15 }, (_, index) => ({
+      id: `post-${index}`,
+      sourceId: "freehire",
+      externalId: `ext-${index}`,
+      title: "Staff Engineer",
+      company: "Acme",
+      location: "Remote",
+      url: `https://example.test/post-${index}`,
+      body: "Ship things that matter.",
+      postedAt: null,
+      embedding: [1, 0, 0]
+    }));
+    const repairStore: JobSearchStore = {
+      ...store,
+      listUnfittedPostingsWithEmbeddings: async () =>
+        backlog.filter((posting) => !scored.has(posting.id)),
+      // The ordinary pass runs too, and finds nothing: every posting here already has a row.
+      listUnscoredPostingsWithEmbeddings: async () => [],
+      upsertMatch: async (_profileId, match) => {
+        upserted.push(match);
+        scored.add(match.postingId);
+      }
+    };
+
+    const result = await createResumeSetHandler(repairStore)(
+      scoringCtxWith(
+        { profileId: "p1", content: "Ten years shipping backend systems." },
+        {
+          deadlineAt: Date.now() + 600_000,
+          embed: {
+            embedQuery: async () => [1, 0, 0],
+            embedDocuments: async () => {
+              throw new Error("runScore never embeds documents");
+            },
+            dimensions: async () => 3
+          },
+          ai: {
+            generateStructured: async () => ({
+              ok: true,
+              object: { fit: 80, want: 70, fitReason: "Strong overlap", wantReason: "Matches goals" }
+            })
+          }
+        }
+      )
+    );
+
+    // Every backlog row got a real Fit written over it, and each was written exactly once.
+    expect(upserted).toHaveLength(15);
+    expect(new Set(upserted.map((match) => match.postingId)).size).toBe(15);
+    expect(upserted.every((match) => match.fit === 80)).toBe(true);
+    expect(result).toMatchObject({ rescore: { ok: true, scored: 15 } });
+    // And the store this handler is given has no way to delete a match at all — the repair cannot
+    // regress into the delete-and-refill design without this failing first.
+    expect(repairStore).not.toHaveProperty("clearUnfittedMatches");
   });
 
   it("5. keeps the crawl path out of the résumé handlers (no adapters/ports import)", () => {
@@ -369,6 +621,11 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       name: string;
       build: (store: JobSearchStore) => (input: ModuleWorkerContext) => Promise<unknown>;
       valid: Record<string, unknown>;
+      /** `resume.set` is the one handler here that legitimately reads past `ctx.input` — #110
+       * made it run a scoring pass inline, which needs the invocation deadline and the ports. It
+       * gets the looser context builder; every other tool keeps the strict one, so the
+       * "handlers only read ctx.input" guard still has teeth where it applies. */
+      makeCtx?: (input: Record<string, unknown>) => ModuleWorkerContext;
     }> = [
       { name: "profile.create", build: createProfileCreateHandler, valid: { name: "New Profile" } },
       { name: "profile.list", build: createProfileListHandler, valid: {} },
@@ -394,7 +651,8 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       {
         name: "resume.set",
         build: createResumeSetHandler,
-        valid: { profileId: "p1", content: "resume text" }
+        valid: { profileId: "p1", content: "resume text" },
+        makeCtx: scoringCtx
       },
       { name: "resume.get", build: createResumeGetHandler, valid: { profileId: "p1" } },
       {
@@ -409,14 +667,17 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       it(`${testCase.name} accepts the actorUserId envelope and rejects an unknown key`, async () => {
         const { store } = createFakeStore([makeProfile({ id: "p1" })]);
         const handler = testCase.build(store);
+        const makeCtx = testCase.makeCtx ?? ctx;
 
         // The host spreads actorUserId onto every tool input (#1300's standing rule) — a
         // strict validator strips it rather than rejecting the call.
-        await expect(handler(ctx({ ...testCase.valid, actorUserId: "u1" }))).resolves.toBeTruthy();
+        await expect(
+          handler(makeCtx({ ...testCase.valid, actorUserId: "u1" }))
+        ).resolves.toBeTruthy();
 
         // A field the tool's own schema does not declare is a real error, named by key —
         // whether the tool used validateProfileInput (Task 13) or its own local check.
-        await expect(handler(ctx({ ...testCase.valid, bogus: "nope" }))).rejects.toThrow(
+        await expect(handler(makeCtx({ ...testCase.valid, bogus: "nope" }))).rejects.toThrow(
           /unknown key: bogus/
         );
       });
@@ -482,7 +743,9 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
     results.push(
       await createSetBriefingDetailHandler(store)(ctx({ profileId: "p1", detail: "top" }))
     );
-    results.push(await createResumeSetHandler(store)(ctx({ profileId: "p1", content: "resume" })));
+    results.push(
+      await createResumeSetHandler(store)(scoringCtx({ profileId: "p1", content: "resume" }))
+    );
     results.push(await createResumeGetHandler(store)(ctx({ profileId: "p1" })));
     results.push(await createProfileGetHandler(store)(ctx({ profileId: "p1" })));
     results.push(
