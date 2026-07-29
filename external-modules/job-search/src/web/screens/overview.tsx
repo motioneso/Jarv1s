@@ -221,7 +221,12 @@ function CheckpointRow(props: { key?: string; checkpoint: Checkpoint }): ReactNo
         <span className="jds-eyebrow">{checkpoint.label}</span>
         <p className="jds-hint">{checkpoint.hint}</p>
       </div>
-      <span className="jds-eyebrow">{word}</span>
+      {/* The mockup tints only the "Done" word with the accent colour — jds-eyebrow--accent
+          (added to the host after this screen was first drawn) is exactly that tint, applied
+          only to the done state so "Now"/"To do" stay neutral. */}
+      <span className={`jds-eyebrow${checkpoint.status === "done" ? " jds-eyebrow--accent" : ""}`}>
+        {word}
+      </span>
     </div>
   );
 }
