@@ -18,11 +18,20 @@ vi.mock("../../external-modules/job-search/src/web/screens/resume-save", () => (
   saveResume: vi.fn()
 }));
 
+// The editor re-reads the résumé after a queued save to find out whether the worker actually
+// wrote it — that is the whole of the success state. Mocking the transport lets a test hand back
+// a bumped version and assert the "Saved" line, and leaves every other test with a read that
+// resolves to nothing, which is the same as "the worker hasn't got to it yet".
+vi.mock("../../external-modules/job-search/src/web/api", () => ({
+  invokeTool: vi.fn(async () => ({ resume: null }))
+}));
+
 import {
   ResumeSection,
   type ResumeState
 } from "../../external-modules/job-search/src/web/screens/resume-editor";
 import * as resumeSave from "../../external-modules/job-search/src/web/screens/resume-save";
+import * as api from "../../external-modules/job-search/src/web/api";
 
 async function flush(): Promise<void> {
   for (let i = 0; i < 3; i++) {
@@ -44,6 +53,19 @@ function flatten(node: unknown): string {
 
 function text(renderer: ReactTestRenderer): string {
   return flatten(renderer.toJSON()).replace(/\s+/g, " ").trim();
+}
+
+// The résumé facts block always renders a literal "Saved on" row, so a plain text scan for
+// "Saved" can never distinguish "the success badge is on screen" from "the stats table exists".
+// The success state is the forest badge specifically, so assert on that.
+function hasSavedBadge(renderer: ReactTestRenderer): boolean {
+  return (
+    renderer.root.findAll((node) =>
+      String((node.props as { className?: string }).className ?? "")
+        .split(" ")
+        .includes("jds-badge--forest")
+    ).length > 0
+  );
 }
 
 function buttons(renderer: ReactTestRenderer) {
@@ -86,6 +108,8 @@ async function renderSection(
 describe("ResumeSection / ResumeEditor", () => {
   beforeEach(() => {
     vi.mocked(resumeSave.saveResume).mockReset();
+    vi.mocked(api.invokeTool).mockReset();
+    vi.mocked(api.invokeTool).mockResolvedValue({ resume: null });
   });
 
   afterEach(() => {
@@ -121,8 +145,11 @@ describe("ResumeSection / ResumeEditor", () => {
       kind: "text",
       content: "Some pasted résumé text"
     });
-    expect(onSaved).toHaveBeenCalled();
-    expect(text(renderer)).toContain("Résumé queued for saving.");
+    // Enqueue only proves the queue accepted it, so the screen says "Saving", not "Saved", and
+    // does not refetch yet — onSaved fires when the watch below sees the worker's write land.
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(text(renderer)).toContain("Saving your résumé…");
+    expect(hasSavedBadge(renderer)).toBe(false);
   });
 
   it("renders the on-file facts (version, saved-on, length) when a résumé exists", async () => {
@@ -248,9 +275,12 @@ describe("ResumeSection / ResumeEditor", () => {
     });
     await flush();
 
-    // Nothing to preview — the editor shows the filename and defers to save, not a textarea fill.
-    expect(text(renderer)).toContain("resume.pdf selected");
-    expect(text(renderer)).toContain("text will be extracted when this saves");
+    // Nothing to preview — the editor names the file on the picker row and defers to save,
+    // rather than filling the textarea. The name is what Ben asked to see there instead of the
+    // browser's stale "No file selected" (2026-07-29).
+    expect(text(renderer)).toContain("resume.pdf");
+    expect(text(renderer)).not.toContain("No file chosen");
+    expect(text(renderer)).toContain("The text is extracted from this file when it saves.");
     expect(findTextarea(renderer).props.value).toBe("");
 
     await act(async () => {
@@ -264,7 +294,7 @@ describe("ResumeSection / ResumeEditor", () => {
       mimeType: "application/pdf",
       bytes: pdfBytes.buffer
     });
-    expect(onSaved).toHaveBeenCalled();
+    expect(text(renderer)).toContain("Saving your résumé…");
   });
 
   it("refuses a file over the 10 MB limit client-side, without reading it", async () => {
@@ -346,8 +376,64 @@ describe("ResumeSection / ResumeEditor", () => {
     });
     await flush();
 
-    expect(onSaved).toHaveBeenCalled();
-    expect(text(renderer)).toContain("Résumé queued for saving.");
-    expect(text(renderer)).not.toContain("saved.");
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(text(renderer)).toContain("Saving your résumé…");
+    expect(hasSavedBadge(renderer)).toBe(false);
+  });
+  it("turns a queued save into a real 'Saved' state once the worker's write shows up", async () => {
+    // Ben's fifth finding: "after saving it says it is queued for saving, and the user doesn't
+    // know what to do. There's no success so the user doesn't know if they need to stay on the
+    // page, try again, etc." Ruling I5 still holds — the queue never resolves "done" — so the
+    // proof has to be observed, and this is that observation: the résumé's version moving past
+    // the one that was on screen when the save was queued.
+    vi.useFakeTimers();
+    try {
+      vi.mocked(resumeSave.saveResume).mockResolvedValue({ kind: "queued" });
+      const onSaved = vi.fn();
+      const renderer = await renderSection(
+        {
+          status: "ready",
+          resume: { version: 2, updatedAt: "2026-07-20T00:00:00.000Z", length: 10 }
+        },
+        onSaved
+      );
+
+      await act(async () => {
+        findButton(renderer, /^Replace résumé$/).props.onClick();
+      });
+      await act(async () => {
+        findTextarea(renderer).props.onChange({ target: { value: "New résumé text" } });
+      });
+      await act(async () => {
+        findButton(renderer, /^Save résumé$/).props.onClick();
+      });
+      await act(async () => {
+        findButton(renderer, /^Replace résumé$/, /danger/).props.onClick();
+      });
+
+      expect(text(renderer)).toContain("Saving your résumé…");
+      expect(onSaved).not.toHaveBeenCalled();
+
+      // The worker hasn't written yet — still the same version, so still "Saving".
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(hasSavedBadge(renderer)).toBe(false);
+
+      // Now it has.
+      vi.mocked(api.invokeTool).mockResolvedValue({
+        resume: { version: 3, content: "New résumé text", updatedAt: "2026-07-29T00:00:00.000Z" }
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+
+      expect(hasSavedBadge(renderer)).toBe(true);
+      // The one thing the old dead end never told them.
+      expect(text(renderer)).toContain("You can leave this page.");
+      expect(onSaved).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

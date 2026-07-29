@@ -256,6 +256,11 @@ function ActiveProfilePanel(props: {
   assistantSurface?: AssistantSurfaceHandleV1;
 }): ReactNodeLike {
   const [view, setView] = useState<ActiveView>("matches");
+  // Bumped by the board's "Add résumé" button, which also switches to the Profile tab. A counter,
+  // not a boolean: the user can go back to the board and click it again, and a boolean already
+  // set to true would be no change and open nothing the second time. ProfileScreen passes it down
+  // to the résumé editor, which opens itself whenever the number moves.
+  const [resumeIntent, setResumeIntent] = useState(0);
 
   // A tiny declarative table rather than four near-identical <button> blocks — the four tabs
   // differ only in `id`/label, and writing them out longhand four times is exactly the kind of
@@ -284,7 +289,13 @@ function ActiveProfilePanel(props: {
           role="tab"
           aria-selected={view === tab.id}
           className="jds-tab jds-tab--gold"
-          onClick={() => setView(tab.id)}
+          onClick={() => {
+            // Clicking a tab by hand carries no résumé intent, so clear any left over from an
+            // earlier board click — otherwise visiting Profile later would pop the editor open
+            // for no reason the user can connect to what they just did.
+            setResumeIntent(0);
+            setView(tab.id);
+          }}
         >
           {tab.label}
         </button>
@@ -295,7 +306,14 @@ function ActiveProfilePanel(props: {
   let screen: ReactNodeLike;
   if (view === "matches") {
     screen = (
-      <BoardScreen profileId={props.selected.profileId} assistantSurface={props.assistantSurface} />
+      <BoardScreen
+        profileId={props.selected.profileId}
+        assistantSurface={props.assistantSurface}
+        onAddResume={() => {
+          setResumeIntent((n) => n + 1);
+          setView("profile");
+        }}
+      />
     );
   } else if (view === "overview") {
     // Overview needs both the id (for its own reads) and the already-fetched record (for
@@ -303,7 +321,7 @@ function ActiveProfilePanel(props: {
     // this screen doesn't issue a second profile.list read just to get fields it's handed here.
     screen = <OverviewScreen profileId={props.selected.profileId} profile={props.selected} />;
   } else if (view === "profile") {
-    screen = <ProfileScreen profile={props.selected} />;
+    screen = <ProfileScreen profile={props.selected} openResumeSignal={resumeIntent} />;
   } else {
     // "monitors": SettingsScreen, unchanged since K4 trimmed it to job boards only — #1343 tracks
     // whether module settings should live behind a shared header template; this tab rename is not

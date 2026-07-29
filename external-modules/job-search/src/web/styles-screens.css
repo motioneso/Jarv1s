@@ -156,6 +156,53 @@
   gap: 0.75rem;
 }
 
+/* The file input is hidden from sight but NOT from the tab order — `display: none` or
+   `visibility: hidden` would drop it out entirely and its <label> trigger would stop being
+   keyboard-reachable. This is the standard clip-rect pattern: still focusable, still in the
+   accessibility tree, zero pixels on screen. */
+.jsm-pf-resume-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The trigger the user actually sees, plus the name of whatever they picked. */
+.jsm-pf-resume-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+/* Because the real input is hidden, its focus ring has nowhere to land — forward it to the label
+   the user is looking at, or keyboard users get no focus feedback at all. `currentColor` keeps
+   this layout-only: module stylesheets may not reference design tokens. */
+.jsm-pf-resume-file-input:focus-visible + .jsm-pf-resume-picker .jds-btn {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* A <label> has no `disabled`, so mid-save the pointer has to be taken away from this side. */
+.jsm-pf-resume-file-input:disabled + .jsm-pf-resume-picker .jds-btn {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* Badge and sentence on one line, wrapping together on a narrow screen. */
+.jsm-pf-resume-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 /* ===========================================================================================
  * Onboarding — hero, rail-led step rows, and the assistant surface wrapper
  * =========================================================================================== */

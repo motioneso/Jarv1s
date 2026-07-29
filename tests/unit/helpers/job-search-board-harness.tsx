@@ -119,6 +119,11 @@ export interface BoardFixtures {
    *  oversight. */
   matchGetResult: { match: MatchDetail | null } | undefined;
   matchGetShouldReject: boolean;
+  /** job-search.resume.get's fixture — the board reads it to decide whether to show the
+   *  no-résumé notice. `null` (the default) is "no résumé on file", which is what every existing
+   *  board test was implicitly asserting against before the read existed. Set a summary to put
+   *  one on file. */
+  resumeGetResult: { version: number; content: string; updatedAt: string } | null;
 }
 
 export const fixtures: BoardFixtures = {
@@ -126,7 +131,8 @@ export const fixtures: BoardFixtures = {
   matchesItems: [],
   portalsItems: [],
   matchGetResult: undefined,
-  matchGetShouldReject: false
+  matchGetShouldReject: false,
+  resumeGetResult: null
 };
 
 function installTransportMock(): void {
@@ -143,6 +149,9 @@ function installTransportMock(): void {
       if (fixtures.matchGetResult !== undefined) return fixtures.matchGetResult;
       throw new Error(`unexpected invokeTool ${name}`);
     }
+    if (name === "job-search.resume.get") {
+      return { resume: fixtures.resumeGetResult };
+    }
     throw new Error(`unexpected invokeTool ${name}`);
   });
 }
@@ -157,6 +166,7 @@ export function setupBoardHarness(): void {
     fixtures.portalsItems = [];
     fixtures.matchGetResult = undefined;
     fixtures.matchGetShouldReject = false;
+    fixtures.resumeGetResult = null;
     vi.mocked(api.invokeTool).mockReset();
     vi.mocked(api.runQueue).mockReset();
     vi.mocked(api.runQueue).mockResolvedValue({ kind: "queued" });

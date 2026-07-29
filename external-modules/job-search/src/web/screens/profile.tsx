@@ -110,8 +110,17 @@ function ChipGroup(props: { items: string[]; emptyLabel: string }): ReactNodeLik
   }
   return (
     <div className="jsm-chips">
+      {/*
+        jds-badge, not jds-chip. `.jds-chip`'s padding is deliberately lopsided —
+        `space-1 space-1 space-1 space-3` — because it is built to carry a `jds-chip__x` remove
+        button in the gap on the right. These titles and seniority levels are read-only, there is
+        no remove button, and the reserved gap renders as a pill whose text sits visibly
+        off-centre. Ben, looking at exactly these rows: "internal margins are the pills are not
+        correct." `jds-badge --pill` is the design system's own symmetric static-tag primitive, so
+        this is a swap to the right primitive rather than an override of the wrong one.
+      */}
       {props.items.map((item, index) => (
-        <span key={`${item}-${index}`} className="jds-chip">
+        <span key={`${item}-${index}`} className="jds-badge jds-badge--pill jds-badge--neutral">
           {item}
         </span>
       ))}
@@ -243,6 +252,10 @@ function BriefingDetailSection(props: {
 // -------------------------------------------------------------------------------------------
 export interface ProfileScreenProps {
   profile: Profile;
+  // A counter, bumped by the board's "Add résumé" button as it switches to this tab. Passed
+  // straight down to the résumé editor, which opens itself whenever the value changes. Optional
+  // because arriving here by clicking the Profile tab has no such intent.
+  openResumeSignal?: number;
 }
 
 export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
@@ -325,7 +338,12 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
 
       <div className="jsm-pf-columns">
         <div className="jsm-pf-column">
-          <ResumeSection profileId={profile.profileId} state={resume} onSaved={reloadResume} />
+          <ResumeSection
+            profileId={profile.profileId}
+            state={resume}
+            onSaved={reloadResume}
+            openSignal={props.openResumeSignal}
+          />
           <BriefingDetailSection briefingDetail={briefingDetail} onChange={handleBriefingDetail} />
         </div>
         <div className="jsm-pf-column">

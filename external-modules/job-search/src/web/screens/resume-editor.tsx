@@ -26,7 +26,7 @@
 // only ever sees SaveResumeOutcome's shapes ("queued"/"already-queued"/"error" — never "done",
 // same convention as every other manual-run queue in this module), so the day that function's
 // body changes, nothing here does.
-import { Fragment, h, useState, type ReactNodeLike } from "../runtime";
+import { Fragment, h, useEffect, useRef, useState, type ReactNodeLike } from "../runtime";
 import { invokeTool } from "../api";
 import { FieldPair, SectionHead } from "../keyline";
 import { saveResume, type ResumeDraft } from "./resume-save";
@@ -120,7 +120,22 @@ function extensionOf(fileName: string): string {
 
 type EditorMode = "idle" | "editing" | "confirming";
 
-type Feedback = { tone: "success" | "error"; message: string };
+// "pending" is the in-between Ben was missing: the save has been accepted by the queue but the
+// worker hasn't written the row yet. It reads as work-in-progress, not as done and not as broken.
+type Feedback = { tone: "success" | "pending" | "error"; message: string };
+
+// What a queued save is waiting to see. `baselineVersion` is the version that was on screen when
+// the save was queued — anything higher means the worker committed. `fileName` is only carried so
+// the success line can name the file the user picked, which is what they asked to see instead of
+// a character count.
+type SaveWatch = { baselineVersion: number; fileName: string | null };
+
+// ~2s x 30 = about a minute of watching. The worker writes the résumé row before it starts
+// scoring, so a healthy save lands in the first few ticks; the long tail only exists to cover a
+// busy queue. Past that the copy switches to "still saving in the background" — never to an error,
+// because a save that is merely slow has not failed.
+const SAVE_WATCH_INTERVAL_MS = 2000;
+const SAVE_WATCH_MAX_ATTEMPTS = 30;
 
 // A selected .pdf/.docx file, held as opaque bytes until save — mutually exclusive with `draft`
 // (the text/paste path); selecting one clears the other, see handleFileChange/handleDraftChange.
@@ -151,24 +166,114 @@ function ResumeEditor(props: {
   profileId: string;
   resume: ResumeSummary | null;
   onSaved(): void;
+  openSignal?: number;
 }): ReactNodeLike {
-  const { profileId, resume, onSaved } = props;
+  const { profileId, resume, onSaved, openSignal } = props;
   const [mode, setMode] = useState<EditorMode>("idle");
   const [draft, setDraft] = useState("");
   const [selectedBinary, setSelectedBinary] = useState<SelectedBinary | null>(null);
+  // The name of the file the user picked, for BOTH branches. The binary branch keeps the name on
+  // `selectedBinary` because the upload needs it, but the text branch previously kept nothing at
+  // all: it read the file into `draft` and dropped `file.name` on the floor. That left the screen
+  // with no way to say which file had been chosen — and because `handleFileChange` clears the
+  // native input's value (see there for why), the browser's own "No file selected" label came
+  // straight back the instant a file was picked. Ben, on the first live upload: "after selecting a
+  // file it still says No file selected... it just says the char count not the file name, which is
+  // useless really."
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  // Non-null while a queued save is being watched for completion; see the effect below.
+  const [watch, setWatch] = useState<SaveWatch | null>(null);
+
+  // onSaved is a fresh closure on every ProfileScreen render, so depending on it directly would
+  // restart the poll below on every parent render. Same ref idiom as root.tsx's refetchRef.
+  const onSavedRef = useRef(onSaved);
+  onSavedRef.current = onSaved;
+
+  // The success state Ben asked for: "after saving it says it is queued for saving, and the user
+  // doesn't know what to do. There's no success so the user doesn't know if they need to stay on
+  // the page, try again, etc."
+  //
+  // Ruling I5 is still true — runQueue resolves on ACCEPTANCE and there is no push channel back to
+  // the browser — so "saved" cannot come from the enqueue call. It has to be observed, and it is
+  // observable: the worker's handler commits the résumé row (store.setResume) BEFORE it starts
+  // scoring, so the row shows up within a second or two even though the rescore that follows can
+  // run for minutes. This re-reads resume.get until the version moves past the one on screen when
+  // the save was queued, which is exactly "the worker wrote it".
+  //
+  // A byte-identical re-save deliberately does NOT bump the version (the handler returns the
+  // existing row rather than spending model calls on a résumé that cannot have changed), so it
+  // falls through to the timeout copy below — which is why that copy is worded as "still working",
+  // not as a failure.
+  useEffect(() => {
+    if (watch === null) return;
+    let cancelled = false;
+    let attempts = 0;
+    const timer = setInterval(() => {
+      attempts += 1;
+      if (attempts > SAVE_WATCH_MAX_ATTEMPTS) {
+        clearInterval(timer);
+        if (cancelled) return;
+        setWatch(null);
+        setFeedback({
+          tone: "pending",
+          message:
+            "Still saving. It runs in the background, so you can leave this page — this screen " +
+            "will catch up on its own."
+        });
+        onSavedRef.current();
+        return;
+      }
+      fetchResume(profileId)
+        .then((fresh) => {
+          if (cancelled || fresh === null || fresh.version <= watch.baselineVersion) return;
+          clearInterval(timer);
+          setWatch(null);
+          setFeedback({
+            tone: "success",
+            message:
+              (watch.fileName === null ? "Résumé saved" : `${watch.fileName} saved`) +
+              " — every open role is being read against it now. You can leave this page."
+          });
+          onSavedRef.current();
+        })
+        .catch(() => {
+          // A single failed poll is not a failed save; the next tick tries again.
+        });
+    }, SAVE_WATCH_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [watch, profileId]);
+
+  // Arriving from the board's "Add résumé" button. Sending the user to a screen where the thing
+  // they clicked for is behind one more button is the kind of hop that loses people, so the
+  // editor is already open when they land. Zero (or absent) means they got here by clicking the
+  // Profile tab themselves, which carries no such intent — root.tsx resets the counter on a
+  // manual tab click for exactly that reason.
+  useEffect(() => {
+    if (openSignal === undefined || openSignal <= 0) return;
+    setFeedback(null);
+    setDraft("");
+    setSelectedBinary(null);
+    setSelectedFileName(null);
+    setMode("editing");
+  }, [openSignal]);
 
   function openEditor(): void {
     setFeedback(null);
     setDraft("");
     setSelectedBinary(null);
+    setSelectedFileName(null);
     setMode("editing");
   }
 
   function cancelEditor(): void {
     setDraft("");
     setSelectedBinary(null);
+    setSelectedFileName(null);
     setMode("idle");
   }
 
@@ -183,6 +288,9 @@ function ResumeEditor(props: {
   function handleDraftChange(event: { target: { value: string } }): void {
     // Typing directly means the user wants the pasted text, not the file they picked earlier.
     setSelectedBinary(null);
+    // ...and the filename goes with it. Once the text has been edited by hand, still showing
+    // "resume.md selected" would be claiming to save a file whose contents no longer match.
+    setSelectedFileName(null);
     setDraft(event.target.value);
   }
 
@@ -207,12 +315,18 @@ function ResumeEditor(props: {
       return;
     }
     setFeedback(null);
+    setSelectedFileName(file.name);
     if (TEXT_EXTENSIONS.has(extension)) {
       setSelectedBinary(null);
       file
         .text()
         .then((text) => setDraft(text))
-        .catch(() => setFeedback({ tone: "error", message: "Couldn't read that file." }));
+        .catch(() => {
+          // The name is only shown as a promise that this file is what will be saved. If the read
+          // failed there is nothing to save, so drop it rather than leave a stale claim on screen.
+          setSelectedFileName(null);
+          setFeedback({ tone: "error", message: "Couldn't read that file." });
+        });
       return;
     }
     // Binary branch — nothing to preview, so the draft textarea stays empty and this is what
@@ -227,7 +341,12 @@ function ResumeEditor(props: {
           bytes: buffer
         })
       )
-      .catch(() => setFeedback({ tone: "error", message: "Couldn't read that file." }));
+      .catch(() => {
+        // The name is only shown as a promise that this file is what will be saved. If the read
+        // failed there is nothing to save, so drop it rather than leave a stale claim on screen.
+        setSelectedFileName(null);
+        setFeedback({ tone: "error", message: "Couldn't read that file." });
+      });
   }
 
   function requestSave(): void {
@@ -243,17 +362,20 @@ function ResumeEditor(props: {
   }
 
   async function doSave(next: ResumeDraft): Promise<void> {
+    const fileName = selectedFileName;
     setPending(true);
     const outcome = await saveResume(profileId, next);
     setPending(false);
     if (outcome.kind === "queued" || outcome.kind === "already-queued") {
-      // "Queued", not "saved" (ruling I5 — a manual-run queue never resolves "done" on its own).
-      // onSaved() refetches so the read-only facts above catch up once the worker actually runs.
-      setFeedback({ tone: "success", message: "Résumé queued for saving." });
+      // The enqueue only proves acceptance, so this is still "saving", not "saved" — but the
+      // screen no longer stops here. The watch set below re-reads the résumé until the worker's
+      // write shows up, and turns this into a real success line.
+      setFeedback({ tone: "pending", message: "Saving your résumé…" });
       setDraft("");
       setSelectedBinary(null);
+      setSelectedFileName(null);
       setMode("idle");
-      onSaved();
+      setWatch({ baselineVersion: resume?.version ?? 0, fileName });
       return;
     }
     // Back to the editor, draft intact, so a failed save doesn't cost the user their paste/upload.
@@ -278,28 +400,36 @@ function ResumeEditor(props: {
         >
           {resume === null ? "Add résumé" : "Replace résumé"}
         </button>
-        {feedback !== null ? (
-          <p
-            className={feedback.tone === "error" ? "jds-hint jds-hint--error" : "jds-hint"}
-            role={feedback.tone === "error" ? "alert" : "status"}
-          >
-            {feedback.message}
-          </p>
-        ) : null}
+        <FeedbackLine feedback={feedback} />
       </div>
     ) : null,
     showEditor ? (
       <div className="jsm-pf-resume-editor">
-        <label className="jds-label" htmlFor="jsm-pf-resume-file">
-          Upload a .txt, .md, .pdf, or .docx file
-        </label>
+        {/*
+          The input itself is visually hidden rather than `display: none` — hiding it outright takes
+          it out of the tab order and the trigger below stops being reachable by keyboard. The
+          <label htmlFor> is the whole click target, which is why it carries the button classes:
+          `.jds-btn` is a plain class selector, so it styles a label exactly as it styles a button,
+          and the browser's own "Browse… No file selected." chrome never renders. That chrome is
+          what Ben saw as unfinished styling, and its stale "No file selected" is what kept showing
+          after a file had been picked.
+        */}
         <input
+          className="jsm-pf-resume-file-input"
           id="jsm-pf-resume-file"
           type="file"
           accept=".txt,.md,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           onChange={handleFileChange}
           disabled={pending}
         />
+        <div className="jsm-pf-resume-picker">
+          <label className="jds-btn jds-btn--secondary jds-btn--sm" htmlFor="jsm-pf-resume-file">
+            Choose file
+          </label>
+          <span className="jds-hint">
+            {selectedFileName ?? "No file chosen — .txt, .md, .pdf, or .docx"}
+          </span>
+        </div>
         <textarea
           className="jds-textarea jsm-pf-resume-textarea"
           aria-label="Résumé text"
@@ -308,16 +438,18 @@ function ResumeEditor(props: {
           onChange={handleDraftChange}
           disabled={pending || selectedBinary !== null}
         />
+        {/* The filename itself is already on the picker row above; this only explains why the
+            textarea is empty and disabled for a PDF or DOCX. */}
         {selectedBinary !== null ? (
-          <p className="jds-hint">
-            {selectedBinary.fileName} selected — the text will be extracted when this saves.
-          </p>
+          <p className="jds-hint">The text is extracted from this file when it saves.</p>
         ) : null}
         {feedback !== null && feedback.tone === "error" ? (
           <p className="jds-hint jds-hint--error" role="alert">
             {feedback.message}
           </p>
         ) : null}
+        {/* One hierarchy for the pair: Save is the primary action of this screen, Cancel recedes.
+            Both stay --sm so they sit at the same height as the picker trigger above. */}
         <div className="jsm-pf-resume-actions">
           <button
             type="button"
@@ -329,7 +461,7 @@ function ResumeEditor(props: {
           </button>
           <button
             type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
+            className="jds-btn jds-btn--primary jds-btn--sm"
             onClick={requestSave}
             disabled={pending || currentDraft() === null}
           >
@@ -379,6 +511,37 @@ function ResumeEditor(props: {
   );
 }
 
+// The one place a save's state is rendered, so "saving" and "saved" can never drift apart in
+// wording or in shape. The badge carries the state at a glance and the sentence says what the user
+// should do about it — which for a success is explicitly "nothing, you can leave". There is no
+// `jds-hint--success`, so the success tone is a badge plus ordinary hint text rather than an
+// invented class.
+function FeedbackLine(props: { feedback: Feedback | null }): ReactNodeLike {
+  const { feedback } = props;
+  if (feedback === null) return null;
+  if (feedback.tone === "error") {
+    return (
+      <p className="jds-hint jds-hint--error" role="alert">
+        {feedback.message}
+      </p>
+    );
+  }
+  return (
+    <p className="jds-hint jsm-pf-resume-status" role="status">
+      <span
+        className={
+          feedback.tone === "success"
+            ? "jds-badge jds-badge--pill jds-badge--forest"
+            : "jds-badge jds-badge--pill jds-badge--steel"
+        }
+      >
+        {feedback.tone === "success" ? "Saved" : "Saving"}
+      </span>
+      <span>{feedback.message}</span>
+    </p>
+  );
+}
+
 // -------------------------------------------------------------------------------------------
 // Section
 // -------------------------------------------------------------------------------------------
@@ -386,8 +549,9 @@ export function ResumeSection(props: {
   profileId: string;
   state: ResumeState;
   onSaved(): void;
+  openSignal?: number;
 }): ReactNodeLike {
-  const { profileId, state, onSaved } = props;
+  const { profileId, state, onSaved, openSignal } = props;
   if (state.status === "loading") {
     return (
       <section className="jsm-settings__group">
@@ -427,7 +591,13 @@ export function ResumeSection(props: {
             "judged against."
           : "Every open role gets read again against whatever you save here."}
       </p>
-      <ResumeEditor key={profileId} profileId={profileId} resume={resume} onSaved={onSaved} />
+      <ResumeEditor
+        key={profileId}
+        profileId={profileId}
+        resume={resume}
+        onSaved={onSaved}
+        openSignal={openSignal}
+      />
     </section>
   );
 }

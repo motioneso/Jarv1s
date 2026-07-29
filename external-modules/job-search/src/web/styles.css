@@ -291,12 +291,14 @@
 
 /* K6 — profile criteria */
 
-/* One `jds-chip` per titles/seniority/locations/must-have/nice-to-have/dealbreakers entry
+/* One `jds-badge --pill` per titles/seniority/locations/must-have/nice-to-have/dealbreakers entry
    (profile.tsx's `ChipGroup`, inside a `FieldPair`'s value slot) — wraps for the same reason
    `.jsm-fields` does: an unbounded list of user-entered strings will overflow a fixed width
-   sooner or later, and a chip truncated mid-word reads worse than a row that breaks onto two
-   lines. No colour or border of its own — every chip's fill/outline comes from `jds-chip`
-   (component-jarvis.css), this only lays the row out. */
+   sooner or later, and a tag truncated mid-word reads worse than a row that breaks onto two
+   lines. No colour, border or padding of its own — every tag's fill/outline comes from
+   `jds-badge`, this only lays the row out. These were `jds-chip` until 2026-07-29; that primitive
+   reserves asymmetric right-hand padding for a remove button these read-only tags don't have, so
+   the text sat off-centre. See ChipGroup's comment. */
 .jsm-chips {
   display: flex;
   flex-wrap: wrap;

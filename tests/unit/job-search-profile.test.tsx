@@ -196,11 +196,13 @@ describe("ProfileScreen", () => {
         typeof node.type === "string" &&
         node.type === "span" &&
         typeof node.props.className === "string" &&
-        node.props.className.includes("jds-chip")
+        node.props.className.includes("jds-badge--pill")
     );
     // Two titles + one seniority + one location + one must-have + one nice-to-have + one
-    // dealbreaker = 7 chips; not an exact count this test depends on beyond "more than zero" for
-    // any single group, but the full set confirms every group actually rendered its chips.
+    // dealbreaker = 7 tags; not an exact count this test depends on beyond "more than zero" for
+    // any single group, but the full set confirms every group actually rendered its tags.
+    // `jds-badge--pill`, not `jds-chip`: chip reserves asymmetric padding for a remove button these
+    // read-only tags do not have, which rendered them visibly off-centre (2026-07-29).
     expect(chips).toHaveLength(7);
   });
 
@@ -221,14 +223,14 @@ describe("ProfileScreen", () => {
     expect(rendered).toContain("No dealbreakers marked yet.");
     expect(rendered).toContain("Nothing said yet about what you actually want out of this search.");
 
-    // No chip rendered anywhere — every empty group falls back to a one-line prose hint instead
-    // of an empty jds-chip row, which is the "wall of empty headings" this test guards against.
+    // No tag rendered anywhere — every empty group falls back to a one-line prose hint instead
+    // of an empty tag row, which is the "wall of empty headings" this test guards against.
     const chips = renderer.root.findAll(
       (node) =>
         typeof node.type === "string" &&
         node.type === "span" &&
         typeof node.props.className === "string" &&
-        node.props.className.includes("jds-chip")
+        node.props.className.includes("jds-badge--pill")
     );
     expect(chips).toHaveLength(0);
   });

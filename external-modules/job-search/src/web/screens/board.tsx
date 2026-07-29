@@ -13,6 +13,7 @@ import type { AssistantSurfaceHandleV1 } from "../../domain/seed-prompt.js";
 import { Inspector } from "./inspector";
 import { MatchRow } from "./match-row";
 import { MatchRecordCard, useDiscuss } from "./discuss";
+import { fetchResume } from "./resume-editor";
 import { isScored, type BoardMatch, type MatchDetail, type PortalListItem } from "../board-types";
 
 // N43: `MATCHES_LIST_MAX_LIMIT` is defined once in domain/records.ts and imported by both this
@@ -50,6 +51,9 @@ export interface BoardScreenProps {
   // Task 20/#1304: absent on a v1.1 host or before root.tsx has one to hand down — Discuss simply
   // isn't offered in that case (useDiscuss's own no-op stance), same optionality as onboarding.tsx.
   assistantSurface?: AssistantSurfaceHandleV1;
+  // Jump to the profile screen with the résumé editor already open. Optional so the board still
+  // renders standalone in tests and in any caller that has nowhere to send the user.
+  onAddResume?: () => void;
 }
 
 // Unscored rows sort last regardless of direction (the part file's explicit rule); scored rows
@@ -296,6 +300,8 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [detailState, setDetailState] = useState<DetailState>({ status: "idle" });
+  // null until the résumé read below lands (or if it fails) — see that effect.
+  const [hasResume, setHasResume] = useState<boolean | null>(null);
   const { discussing, discuss, close: closeDiscuss } = useDiscuss(props.assistantSurface);
 
   // The conversation renders full width under the board, which is the right measure for a
@@ -357,6 +363,27 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
         setPortals(Array.isArray(list) ? list : []);
       })
       .catch(() => undefined);
+  }, [profileId]);
+
+  // Whether a résumé exists, read directly rather than inferred from the rows. The board used to
+  // decide this from "every scored row has an empty Fit", which is a good tell but only once
+  // there are scored rows — a board that hasn't finished its first crawl showed nothing at all,
+  // which is exactly the state Ben was in when he asked for this notice to live here. Same
+  // non-blocking stance as portals: `null` means "don't know yet", and the row heuristic below
+  // still covers that case, so a failed read degrades to the old behaviour instead of hiding the
+  // notice.
+  useEffect(() => {
+    let cancelled = false;
+    fetchResume(profileId)
+      .then((resume) => {
+        if (!cancelled) setHasResume(resume !== null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // No reload key: the view switcher swaps BoardScreen out entirely for the profile screen, so
+    // coming back from adding a résumé remounts this and re-reads on its own.
   }, [profileId]);
 
   // Refetch on window focus — guarded so this is a no-op under the plain-node test environment
@@ -491,14 +518,19 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
     (item) => item.state !== "dismissed" && !hiddenIds.has(item.id)
   );
   const scoredCount = activeItems.filter(isScored).length;
-  // Every read row has an empty Fit, which only ever has one cause: no résumé is on file, so
-  // there was nothing to judge Fit against. A column of em dashes with no explanation reads as a
-  // product that is broken rather than one that is waiting on something, and the fix is a thing
-  // only the user can do — so it has to be said, and said with the action in it. Keyed on
-  // `every`, not on a profile flag: a résumé added mid-board leaves some rows scored and some
-  // not, and the notice must retire itself the moment the first real Fit lands.
+  // No résumé means every Fit on this board is empty and stays empty, because a résumé is the
+  // only thing Fit is judged against. A column of em dashes with no explanation reads as a
+  // product that is broken rather than one waiting on something, and the fix is a thing only the
+  // user can do — so it has to be said, and said with the action in it.
+  //
+  // Preferred source is the direct résumé read above; the row heuristic is the fallback for the
+  // frame before it lands and for a read that failed. The heuristic alone was the whole test
+  // until 2026-07-29, and it silently said nothing on a board with no scored rows yet — a state
+  // a brand-new profile sits in for its entire first crawl.
   const fitNeedsResume =
-    scoredCount > 0 && activeItems.filter(isScored).every((item) => item.fit === null);
+    hasResume === null
+      ? scoredCount > 0 && activeItems.filter(isScored).every((item) => item.fit === null)
+      : !hasResume;
 
   // boardItems is activeItems' opposite number: every non-hidden row INCLUDING dismissed ones, so
   // Passed has something to show. hiddenIds still applies here too — an optimistically dismissed
@@ -628,9 +660,23 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
               still explains rather than alarms. */}
           <span className="jds-badge jds-badge--amber">No résumé on file</span>
           <p className="jsm-notice__body">
-            Fit is empty because there's no résumé on file — it's the only thing Fit is judged
-            against. Paste yours into the chat and these roles get read again with it.
+            Fit is empty because there&rsquo;s no résumé on file — it&rsquo;s the only thing Fit is
+            judged against. Add one and every role here gets read again with it.
           </p>
+          {/* The notice used to end at "paste yours into the chat", which was the only route that
+              existed when it was written and stopped being true once the upload UI shipped. Ben:
+              "we need to keep that disclaimer on the board if the user doesn't have a resume and
+              give them an option to upload there." The upload itself stays on the profile screen —
+              one editor, one state machine — so this is a jump to it, not a second copy of it. */}
+          {props.onAddResume ? (
+            <button
+              type="button"
+              className="jds-btn jds-btn--secondary jds-btn--sm"
+              onClick={props.onAddResume}
+            >
+              Add résumé
+            </button>
+          ) : null}
         </div>
       ) : null}
       {/* Mockup rewrite (task #99): the list and the open match used to be one two-column region,
