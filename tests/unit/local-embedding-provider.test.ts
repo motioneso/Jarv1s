@@ -9,10 +9,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * regardless of how many providers get constructed.
  */
 
-/** Stand-in for the feature-extraction pipeline; returns a fixed two-dim vector. */
-const fakePipe = vi.fn(async (_text: string, _options: Record<string, unknown>) => ({
-  data: Float32Array.from([0.25, 0.75])
-}));
+/**
+ * Stand-in for the feature-extraction pipeline; returns a fixed two-dim vector.
+ *
+ * It carries a `tokenizer` because the real one does, and because #1359 makes that object the only
+ * place a caller can bound sequence length. `model_max_length` starts at nomic's advertised 8192 so
+ * a test that asserts the bound is observing a real change rather than a value we pre-set.
+ */
+const fakePipe = Object.assign(
+  vi.fn(async (_text: string, _options: Record<string, unknown>) => ({
+    data: Float32Array.from([0.25, 0.75])
+  })),
+  { tokenizer: { model_max_length: 8192 } }
+);
 const pipelineMock = vi.fn(async (_task: string, _modelId: string) => fakePipe);
 
 vi.mock("@huggingface/transformers", () => ({
@@ -27,6 +36,7 @@ describe("LocalEmbeddingProvider model cache (#1355)", () => {
     resetEmbeddingPipelineCacheForTests();
     pipelineMock.mockClear();
     fakePipe.mockClear();
+    fakePipe.tokenizer = { model_max_length: 8192 };
   });
 
   it("loads the model once across separate provider instances", async () => {
@@ -90,5 +100,53 @@ describe("LocalEmbeddingProvider model cache (#1355)", () => {
       "search_document: hello",
       "search_query: hello"
     ]);
+  });
+});
+
+/**
+ * #1359: transformers.js truncates to `tokenizer.model_max_length` and discards any max_length the
+ * caller passes to the pipeline. Left at nomic's 8192 default a single call allocated ~6.8 GB —
+ * self-attention is quadratic in sequence length — and the ONNX runtime keeps that as arena rather
+ * than handing it back. Bounding the tokenizer at load is the only lever that works, so these tests
+ * pin it at the one place it can be applied.
+ */
+describe("LocalEmbeddingProvider sequence bound (#1359)", () => {
+  beforeEach(async () => {
+    const { resetEmbeddingPipelineCacheForTests } = await importProvider();
+    resetEmbeddingPipelineCacheForTests();
+    pipelineMock.mockClear();
+    fakePipe.mockClear();
+    fakePipe.tokenizer = { model_max_length: 8192 };
+  });
+
+  it("bounds the tokenizer at load instead of leaving the model's 8192 default", async () => {
+    const { LocalEmbeddingProvider, EMBED_MAX_TOKENS } = await importProvider();
+
+    await new LocalEmbeddingProvider("model-a").embedDocument("anything");
+
+    expect(EMBED_MAX_TOKENS).toBe(512);
+    expect(fakePipe.tokenizer.model_max_length).toBe(EMBED_MAX_TOKENS);
+  });
+
+  it("applies the bound once per load, and it survives for later callers", async () => {
+    const { LocalEmbeddingProvider } = await importProvider();
+
+    await new LocalEmbeddingProvider("model-a").embedDocument("first");
+    // A later caller reuses the cached pipe, so the bound must still be in force without a reload.
+    await new LocalEmbeddingProvider("model-a").embedQuery("second");
+
+    expect(pipelineMock).toHaveBeenCalledTimes(1);
+    expect(fakePipe.tokenizer.model_max_length).toBe(512);
+  });
+
+  it("refuses to embed at all when the pipeline exposes no tokenizer to bound", async () => {
+    const { LocalEmbeddingProvider } = await importProvider();
+    // Simulates transformers.js changing shape under us. Falling back to the unbounded default
+    // would reintroduce the multi-gigabyte call and surface as an OOM kill far from this code.
+    (fakePipe as { tokenizer?: unknown }).tokenizer = undefined;
+
+    await expect(new LocalEmbeddingProvider("model-a").embedDocument("x")).rejects.toThrow(
+      /exposes no tokenizer/
+    );
   });
 });

@@ -4,9 +4,28 @@ import type { EmbeddingProvider } from "./embedding-provider.js";
 
 const DEFAULT_MODEL_ID = "nomic-ai/nomic-embed-text-v1.5";
 
+/**
+ * Longest token sequence we let the model see in one call.
+ *
+ * #1359: self-attention cost grows with the square of the sequence length, and
+ * `nomic-embed-text-v1.5` advertises an 8192-token window. Left at that default a single call
+ * allocated ~6.8 GB of native scratch — memory the ONNX runtime keeps as arena rather than
+ * returning to the OS — and took 23 seconds. At 512 tokens the same call costs ~26 MB and 0.4
+ * seconds for an identically shaped vector. 512 is also nomic's own training context for retrieval,
+ * so shorter sequences are what the model is actually good at; averaging 8192 tokens into one
+ * 768-dim vector produces a washed-out embedding that matches everything and retrieves nothing.
+ *
+ * This is a safety floor for every caller, not a substitute for chunking. Text past the bound is
+ * DISCARDED, silently, by the tokenizer. `splitIntoChunks` in parser.ts is what keeps the bound
+ * lossless by never handing us a chunk this large in the first place.
+ */
+export const EMBED_MAX_TOKENS = 512;
+
 /** Minimal callable shape we need from the feature-extraction pipeline. */
 interface ExtractPipe {
   (text: string, options: Record<string, unknown>): Promise<{ data: Float32Array }>;
+  /** The pipeline's tokenizer. Mutating `model_max_length` is the only way to bound length. */
+  tokenizer?: { model_max_length?: number };
 }
 
 /**
@@ -34,9 +53,22 @@ function loadPipe(modelId: string): Promise<ExtractPipe> {
   if (cached) return cached;
 
   // pipeline() returns a complex union; we narrow to the callable shape we need.
-  const loading = Promise.resolve(pipeline("feature-extraction", modelId)).then(
-    (p) => p as unknown as ExtractPipe
-  );
+  const loading = Promise.resolve(pipeline("feature-extraction", modelId)).then((p) => {
+    const pipe = p as unknown as ExtractPipe;
+    // #1359: transformers.js FeatureExtractionPipeline._call hardcodes its tokenizer call to
+    // `{ padding: true, truncation: true }` and destructures only pooling/normalize/quantize/
+    // precision from the caller's options. Any max_length we pass at the call site is silently
+    // dropped, so mutating the tokenizer after load is the only lever that bounds sequence length.
+    if (!pipe.tokenizer) {
+      // Failing loud beats falling back to the 8192-token default: that default is what produced
+      // the ~6.8 GB-per-call worker and it fails as an OOM kill far from this line.
+      throw new Error(
+        `Embedding pipeline for "${modelId}" exposes no tokenizer; cannot bound sequence length (#1359)`
+      );
+    }
+    pipe.tokenizer.model_max_length = EMBED_MAX_TOKENS;
+    return pipe;
+  });
   const guarded = loading.catch((err: unknown) => {
     pipeCache.delete(modelId);
     throw err;

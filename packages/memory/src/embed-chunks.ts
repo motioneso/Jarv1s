@@ -10,13 +10,17 @@ import type { NewChunkData } from "./repository.js";
  * #1357: both ingest paths used to embed every chunk of a file with a bare
  * `Promise.all(chunks.map(...))`, so a 200-chunk document fired 200 simultaneous inferences. The
  * embedding runtime allocates scratch buffers per in-flight inference and grows its arena to the
- * high-water mark of that concurrency — an arena it never returns to the OS. The production worker
- * settled at ~15.5 GB of resident memory on a host with 62 GB, one bad document away from the
- * kernel OOM killer taking the container (and every user request with it).
+ * high-water mark of that concurrency — an arena it never returns to the OS. A bound is worth
+ * having: it makes peak memory a function of the cap rather than of document length.
  *
- * Unbounded fan-out never bought throughput either: embedding is CPU-bound and runs in one process,
- * so the concurrent calls were queueing behind each other anyway — they only multiplied peak memory.
- * Four keeps the cores busy while capping the arena.
+ * It bought no throughput either: embedding is CPU-bound and runs in one process, so the concurrent
+ * calls were queueing behind each other anyway. Four keeps the cores busy while capping the arena.
+ *
+ * **This was NOT the cause of the ~15.5 GB production worker**, though #1357 claimed it was. That
+ * turned out to be a single inference running at the model's 8192-token window (~6.8 GB per call,
+ * self-attention being quadratic); see #1359 and `EMBED_MAX_TOKENS` in local-embedding-provider.ts.
+ * The refutation was visible in the paragraph above all along — if the calls serialize, capping how
+ * many may run at once cannot lower peak memory.
  */
 export const EMBED_CONCURRENCY = 4;
 
