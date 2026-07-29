@@ -15,6 +15,8 @@
 import { h, useCallback, useState, type ReactNodeLike } from "../runtime";
 import type { AssistantSurfaceHandleV1 } from "../../domain/seed-prompt.js";
 import type { MatchDetail } from "../board-types";
+import { Score } from "../score";
+import { FIT_BAND_EYEBROW, FIT_BAND_LABEL, fitBand } from "../keyline";
 
 // The card that stands in for the posting, both as the LocalRow the user sees and as the visual
 // reference for what the model was just handed. Built from the record's own fields only — never
@@ -22,22 +24,48 @@ import type { MatchDetail } from "../board-types";
 // what the scoring model already read, and re-sending it here would break Discuss's own byte cap
 // on any real posting). Mirrors inspector.tsx's axis layout (L9: Fit and Want stay two separate
 // numbers with their own reasons, never blended into one).
+//
+// Mockup rewrite (2026-07-29, task #101): visual pass only, no change to the contract above this
+// component or to what's sent through submitTurn — brought in line with the keyline idiom the row,
+// the header meta line and the detail screen's own axes already use. Fit renders as a band word
+// (K-D1 superseded: never a bar, a percentage, or a pill, anywhere in this module — a raw `fit`
+// number here would be the third place this rule got re-broken); Want, which K-D1 never touched,
+// keeps the host's `jds-score` bar via the same `Score` component the detail screen uses, so a
+// user comparing this card to the screen it was opened from sees the same two shapes.
 export function MatchRecordCard(props: { detail: MatchDetail }): ReactNodeLike {
   const { detail } = props;
+  const band = detail.fit !== null ? fitBand(detail.fit) : null;
   return (
     <div className="jds-card jds-card--sunken jsm-discuss-card">
       <span className="jds-eyebrow">{detail.company}</span>
       <h4 className="jsm-discuss-card__title">{detail.title}</h4>
-      {detail.outsideFrame ? <span className="jds-badge">Outside your stated frame</span> : null}
+      {/* Amber here too — the same annotation must not change colour between the row, the inspector
+          and this panel, or it reads as three different flags. */}
+      {detail.outsideFrame ? (
+        <span className="jds-badge jds-badge--amber">Outside your stated frame</span>
+      ) : null}
       <div className="jsm-discuss-card__axes">
         <div className="jsm-discuss-card__axis">
           <span className="jds-eyebrow">Fit</span>
-          <p className="jsm-discuss-card__value">{detail.fit}</p>
+          {detail.fit === null ? (
+            <p className="jsm-discuss-card__value">—</p>
+          ) : (
+            <span className={band !== null ? FIT_BAND_EYEBROW[band] : "jds-eyebrow jds-eyebrow--muted"}>
+              {band !== null ? FIT_BAND_LABEL[band] : "—"}
+            </span>
+          )}
           <p>{detail.fitReason}</p>
         </div>
         <div className="jsm-discuss-card__axis">
           <span className="jds-eyebrow">Want</span>
-          <p className="jsm-discuss-card__value">{detail.want}</p>
+          {/* Want is null on a still-queued match the same way Fit can be (isScored's own header,
+              board-types.ts) — Discuss has no gate on scored state, so this card must handle that
+              case too rather than assume detail.want is always a number. */}
+          {detail.want === null ? (
+            <p className="jsm-discuss-card__value">—</p>
+          ) : (
+            <Score value={detail.want} size="lg" />
+          )}
           <p>{detail.wantReason}</p>
         </div>
       </div>

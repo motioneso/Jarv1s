@@ -13,8 +13,18 @@
 // `jds-eyebrow` for every label. The module CANNOT draw a keyline itself (a hairline is a colour
 // declaration); `jds-divider` as a sibling element is the established way around that —
 // settings.tsx's `PortalRowView` is the precedent this file follows, not a new idea.
+//
+// Mockup rewrite (2026-07-29, task #98): `FitRail` — the score-bar rendering of Fit/Want — is
+// retired here (K-D1 superseded). The mockup (`docs/superpowers/specs/job-search-mockup/
+// JobsMatches.jsx`, `kit.jsx`) never draws a bar or a number for Fit: it reads as a 3px keyline
+// rail plus a single mono word ("Strong fit" / "Good fit" / "Fair fit" / "Weak fit"), banded off
+// the 0-100 score. `fitBand` and its two lookup tables below are that replacement vocabulary,
+// hoisted here rather than duplicated in match-row.tsx and the opportunity-detail screen (#100) —
+// same reasoning as `formatPostedOn`: two screens computing the same band from the same number
+// must not be free to drift apart. `KeyRow`/`FieldPair`/`SectionHead`/`formatPostedOn` are
+// unchanged and stay byte-compatible — overview.tsx, profile.tsx and settings.tsx all import them
+// and are off-limits to this task.
 import { Fragment, h, type ReactNodeLike } from "./runtime";
-import { Score } from "./score";
 
 // -------------------------------------------------------------------------------------------
 // formatPostedOn
@@ -90,32 +100,52 @@ export function KeyRow(props: KeyRowProps): ReactNodeLike {
 }
 
 // -------------------------------------------------------------------------------------------
-// FitRail
+// Fit band — the mockup's `FIT` table (kit.jsx), translated to host classes
 // -------------------------------------------------------------------------------------------
-export interface FitRailProps {
-  /** The axis label — "Fit" or "Want" today. L9's non-blending rule extends to this component's
-   *  own shape: it renders exactly one axis, never a combined figure, so there is no prop for a
-   *  second number to blend in. */
-  label: string;
-  /** `null` means "no basis to score" (e.g. Fit with no résumé on file yet) — never "scored zero".
-   *  It renders the em dash below, with no digit anywhere in the subtree. A real zero
-   *  (`value={0}`) is a score like any other and must draw the bar at zero width via `Score`
-   *  itself, the same clamp path every other value takes — this component never special-cases 0,
-   *  only `null`. */
-  value: number | null;
+// L9's non-blending rule still applies: a band is derived from Fit alone, never from Fit and Want
+// combined, and nothing here renders Want at all — Want has no band or rail in the mockup, only
+// the mono value in the detail view's meta line.
+//
+// Thresholds are this task's own judgment call — the real domain scores Fit 0-100 (score.ts) with
+// no band concept anywhere in it, so a mapping had to be invented rather than found. Quartered
+// evenly; there is no product ruling to check this against, so treat it as a starting point, not
+// a locked decision.
+export type FitBand = "strong" | "good" | "fair" | "weak";
+
+export function fitBand(value: number): FitBand {
+  if (value >= 85) return "strong";
+  if (value >= 65) return "good";
+  if (value >= 40) return "fair";
+  return "weak";
 }
 
-export function FitRail(props: FitRailProps): ReactNodeLike {
-  return (
-    <div className="jsm-fit-rail">
-      <span className="jds-eyebrow">{props.label}</span>
-      {/* Reuses `Score` (score.tsx) for the bar rather than drawing a second one — that file's own
-          header explains why a second implementation would drift (clamping, the host's `jds-score`
-          classes, the `--jds-score` custom property are all owned there, once). */}
-      {props.value === null ? <p className="jsm-fit-rail__empty">—</p> : <Score value={props.value} />}
-    </div>
-  );
-}
+// The row rail's colour. `jds-rail`'s own header (components-keyline.css) names this exact
+// use — "a fit band on the match board" — as one of the generalized rail's intended callers.
+export const FIT_BAND_RAIL: Record<FitBand, string> = {
+  strong: "jds-rail--accent",
+  good: "jds-rail--steel",
+  fair: "jds-rail--line-strong",
+  weak: "jds-rail--line"
+};
+
+// The FitMark word's colour. kit.jsx's FIT table pins strong/fair/weak to accent/ink-3/ink-3,
+// which the host's eyebrow tone modifiers cover exactly; "good" pins to ink-2, which has no
+// dedicated eyebrow tone, so it falls back to the bare `jds-eyebrow` (`--text-subtle`) — close in
+// register, not a pixel match. Not treated as a platform gap worth reporting: the mockup's own
+// four-band ordering (bright -> quiet -> quiet -> quiet) still holds with this substitution.
+export const FIT_BAND_EYEBROW: Record<FitBand, string> = {
+  strong: "jds-eyebrow--accent",
+  good: "jds-eyebrow",
+  fair: "jds-eyebrow--muted",
+  weak: "jds-eyebrow--muted"
+};
+
+export const FIT_BAND_LABEL: Record<FitBand, string> = {
+  strong: "Strong fit",
+  good: "Good fit",
+  fair: "Fair fit",
+  weak: "Weak fit"
+};
 
 // -------------------------------------------------------------------------------------------
 // FieldPair

@@ -1,11 +1,532 @@
-/* Layout for the Matches board and the opportunity detail view.
+/* Layout for the Matches board and the opportunity detail view, plus keyline.tsx's shared K1 row
+ * primitives (KeyRow/FieldPair/SectionHead) — migrated in alongside the rest of this file's own
+ * classes (task #102) because the board is a real consumer of all three, even though KeyRow
+ * itself also renders rows on Overview, Profile and Settings (`.jsm-fields`, the one primitive
+ * with no board caller, stayed behind in styles.css next to those screens instead).
  *
  * Split from styles.css, which carries the shell and was already close to the 1000-line file-size
  * gate. All three module stylesheets are loaded the same way — imported as raw text by root.tsx and
  * injected into one <style> tag (see css.d.ts for why the `.css` import types as a string), so the
  * split is a file-size accommodation, not a cascade boundary.
  *
- * Same contract as its siblings: LAYOUT ONLY. No design tokens live here — `grep -c 'var(--'` on
- * this file must stay 0. Colour and type reach the module through host `jds-*` classes, and an
- * invented `jds-*` class renders as nothing, so check the host inventory before reaching for one.
+ * Same contract as its siblings: LAYOUT ONLY. No design tokens live here — a count of CSS custom-
+ * property references (`var` + open-paren + two dashes) in this file must stay zero, worded here
+ * without the literal sequence so this header doesn't trip its own check. Colour and type reach
+ * the module through host `jds-*` classes, and an invented `jds-*` class renders as nothing, so
+ * check the host inventory before reaching for one.
  */
+
+/* K2 (mockup rewrite, task #98) — the match row (`match-row.tsx`'s `MatchRow`, the mockup's
+   `OppRow`). `.jds-hairline-row` supplies the button reset, the top hairline and the hover tint;
+   this class only adds the 3px/1fr/auto track a fit-rail-led row with a trailing column needs —
+   `jds-rail`'s own header (components-keyline.css) names this exact extension as layout, not a
+   design token, so it doesn't need a host class of its own. */
+.jsm-row {
+  display: grid;
+  grid-template-columns: 3px 1fr auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem 0.75rem 1rem 0;
+}
+
+.jsm-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4375rem;
+  min-width: 0;
+}
+
+/* Title and company sit on one baseline-aligned line in the mockup, wrapping onto two only when
+   the viewport can't fit both. `jds-card-title` is `display: block; width: 100%` by design (the
+   host's own comment: a two-line role title should never centre itself) — exactly right for a
+   title that owns its row alone, wrong for one sharing a line with a company name. Overriding
+   `display`/`width` here is layout, not colour or type (both stay untouched), so it doesn't cross
+   the "module CSS carries no tokens" line — same idiom as extending `grid-template-columns`
+   above. */
+.jsm-row__heading {
+  display: flex;
+  align-items: baseline;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+}
+
+.jsm-row__heading .jds-card-title--heavy {
+  display: inline;
+  width: auto;
+}
+
+.jsm-row__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.jsm-row__aside {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  flex: none;
+}
+
+.jsm-row__chevron {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+/* K2 (mockup rewrite, task #99) — board.tsx's own view swap. JobsMatches.jsx's top-level component
+   is `if (openId) return <DetailView/>; return <ListView/>`: a full swap, not the old side-by-side
+   `.jsm-board-body`/`--open` split (styles.css, dead once #102 removes it). These two wrappers are
+   each one branch of that swap; both just carry the column rhythm the removed split used to. */
+.jsm-board-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.jsm-board-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Sort has no mockup equivalent — JobsMatches.jsx's OPPS array is pre-ordered, so ListView never
+   draws a sort control at all — but it's real, working board functionality with nowhere else to
+   go. Right-aligned so it doesn't compete with the bucket nav above it for the strip's left edge,
+   which is where the gold-marked active bucket already draws the eye. */
+.jsm-sort-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* The sort chip's chevron (board.tsx's `SortChevron`) — a rotate, not a colour, so it stays inside
+   the layout-only line even though it lives beside `jds-eyebrow`/`jds-chip` text. */
+.jsm-sort-chevron {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.jsm-sort-chevron--asc {
+  transform: rotate(180deg);
+}
+
+/* The per-bucket empty state (JobsMatches.jsx: "Nothing here yet" over the bucket's own EMPTY
+   sentence, opened by the row container's own borderTop). A module can't draw that hairline as a
+   border — colour is a token — so `jds-divider` stands in as a sibling, the same workaround
+   keyline.tsx's own header documents for the same constraint. */
+.jsm-bucket-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 48ch;
+}
+
+.jsm-bucket-empty > .jds-divider {
+  margin-bottom: 1rem;
+}
+
+.jsm-bucket-empty__body {
+  margin: 0;
+}
+
+/* K2 (mockup rewrite, task #100) — the opportunity detail screen (inspector.tsx's DetailView
+   rewrite, JobsMatches.jsx's own DetailView). `.jsm-detail` is the screen's own root rhythm;
+   everything below groups one piece of that mockup layout — the back link, the header stack, the
+   two-column split, and the decision block inside the right column. */
+.jsm-detail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.25rem;
+}
+
+.jsm-detail__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+}
+
+.jsm-detail__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-self: stretch;
+}
+
+/* The identity line above the title and the fit/location/link line below it share the same
+   wrapping-row shape as `.jsm-row__meta` above — plain text over `jds-meta-sep`, wrapping onto a
+   second line rather than truncating when the viewport is narrow. */
+.jsm-detail__eyebrow,
+.jsm-detail__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+
+.jsm-detail__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* Shared by both 3px ink rules this screen draws — the one under the header, and the one above the
+   decision block inside the right column. One class, reused, rather than two near-identical ones. */
+.jsm-detail__rule {
+  align-self: stretch;
+  margin: 0.25rem 0;
+}
+
+/* The two-column split — the posting on the left, Jarvis's read on the right, 1.35fr/1fr per the
+   mockup's own grid. Collapses to one column under the same width this module's other multi-column
+   rows already give up their own layout at (see `.jsm-krow`'s phone breakpoint below) — a detail
+   screen fighting for width on a phone reads worse than a single stacked column. */
+.jsm-detail__grid {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 2.5rem;
+  align-items: start;
+  align-self: stretch;
+}
+
+.jsm-detail__role-body {
+  margin: 0;
+  max-width: 60ch;
+}
+
+.jsm-detail__read {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+/* The Fit/Want pair inside the Governor block — side by side on a wide screen, stacked once the
+   right column itself is narrow enough that two value blocks would crowd. */
+.jsm-detail-axes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.jsm-detail-axis {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.jsm-detail-axis__value {
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+.jsm-detail-decision {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-self: stretch;
+}
+
+.jsm-detail-decision__current {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.jsm-detail-decision__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .jsm-detail__grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .jsm-detail-axes {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* K2 (task #102 — migrated from styles.css, which was pushing the 1000-line file-size gate). No
+   rule below changed shape in the move — this file only reorganises which stylesheet a board/
+   detail/discuss class lives in; root.tsx concatenates all three into one <style> tag, so the
+   split has no effect on the cascade (see this file's own header). Two classes that were cut
+   alongside these did not make the trip: `.jsm-sort` and `.jsm-meta`/`.jsm-meta__pill` (plus its
+   divider-pseudo sibling) had already been superseded by `.jsm-sort-row` and `.jsm-row__meta`
+   above and had zero remaining consumers — confirmed by grep, not carried forward. */
+
+/* A standing advisory with a label and a line of explanation (the no-résumé notice above the
+   board). Colour and surface come from the host's `jds-card--sunken`; this only stacks the two. */
+.jsm-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.jsm-notice__body {
+  margin: 0;
+}
+
+/* The board is a rule-separated list of keyline rows, not cards and not a table (see board.tsx's
+   own note). A posting is something you consider — a title, who it's with, and two judgements
+   that each have their own reasoning — and four columns of equal weight flattened all of that
+   into a spreadsheet export. `gap: 0` is deliberate: `.jds-divider` itself carries `margin: 0`
+   (components-core.css) and no vertical rhythm of its own — the row's own padding (`.jsm-row`'s
+   `padding: 1rem 0.75rem 1rem 0`) is what separates one row from the next, and a nonzero gap here
+   would stack on top of that padding rather than replace it, doubling the space between rows.
+   Everything below is layout only; every colour, rule and typeface comes from the host `jds-*`
+   primitives the markup composes. */
+.jsm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* The lede and the search action share one row: lede left, action hard right and top-aligned so it
+   sits level with the eyebrow rather than floating against the middle of a display-scale figure. On
+   a narrow viewport the action wraps under the whole lede instead of squeezing it. */
+.jsm-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.jsm-hero__lede {
+  display: flex;
+  flex-direction: column;
+  /* Tight, and deliberately tighter than the module's usual rhythm: these five elements are one
+     utterance — label, figure, rule, caveat — and at the default gap they read as four unrelated
+     lines stacked in the same corner. */
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/* The figure and its unit on one baseline, so "14 roles" reads as a phrase rather than as a number
+   with a caption under it. */
+.jsm-hero__figure {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.jsm-hero__prose {
+  margin: 0;
+  max-width: 46ch;
+}
+
+/* The rule that closes the lede and opens the list — the mockup's heavy ink rule, which is what
+   separates "what this board is" from "what is on it". Margin only; the weight is the host's. */
+.jsm-hero__rule {
+  margin: 0.25rem 0 0;
+}
+
+.jsm-board-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.jsm-portal-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.jsm-portal-banner__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.75rem 1rem;
+}
+
+.jsm-search-now {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* The conversation about one match. Full width under the board rather than in a side rail: this
+   is a transcript with a composer, and a chat squeezed into a narrow column is unusable. */
+.jsm-discuss-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  /* Clears the app's sticky header when this panel scrolls itself into view — without it the
+     scroll lands the panel's own title bar underneath the header and the transcript opens with no
+     visible indication of which role is being discussed. */
+  scroll-margin-top: 5rem;
+}
+
+.jsm-discuss-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.jsm-discuss-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+}
+
+.jsm-discuss-card__title {
+  margin: 0;
+}
+
+.jsm-discuss-card__axes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.jsm-discuss-card__axis {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.jsm-discuss-card__value {
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+/* K1 — keyline row primitives (keyline.tsx's KeyRow/FieldPair/SectionHead). Migrated here from
+   styles.css alongside the rest of this file's contents (task #102) because K2 — the match board
+   — is a real consumer of all three, not because these primitives stopped being shared: KeyRow
+   itself still renders Overview's and Profile's rows unchanged (`.jsm-fields`, the one primitive
+   with no K2 caller of its own, stayed behind in styles.css next to the screens that use it — see
+   the comment there). Everything below is layout only — every colour, rule and typeface still
+   comes from the host jds-* primitives the markup composes (this file's own header above). */
+
+/* One hairline-ruled row: label content left, an optional aside pinned right. The hairline itself
+   is never drawn here — KeyRow renders a `jds-divider` sibling above the row, so this class only
+   lays out the row's own two slots. `padding` carries the vertical rhythm a border would otherwise
+   have implied; `flex-wrap` so a long meta line on a narrow viewport wraps under the title instead
+   of forcing the aside off the right edge. */
+.jsm-krow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 0.875rem 0;
+  flex-wrap: wrap;
+}
+
+/* min-width: 0 is load-bearing, not decorative — without it a long title/meta line refuses to wrap
+   and instead pushes the aside off the row's right edge (a flex item's default min-width is `auto`,
+   i.e. its content's natural width, not 0). */
+.jsm-krow__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1 1 18rem;
+}
+
+/* `margin-left: auto` holds the aside against the row's right edge even after `.jsm-krow` wraps
+   onto two lines, where `justify-content: space-between` on the row no longer has two siblings to
+   push apart. */
+.jsm-krow__aside {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* The wrapper around one `jds-fact` row. `jds-fact` itself is a flex row (built for an icon +
+   text pair); `.jsm-field__main` below turns its one child into the label-above-value stack this
+   component actually wants, without this file ever touching `jds-fact`'s own rules. */
+.jsm-field {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+.jsm-field__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.jsm-field__value {
+  margin: 0;
+}
+
+/* Eyebrow, then a hairline filling whatever width the label and optional trailing slot don't use,
+   then the slot itself. `align-items: center` keeps the rule on the eyebrow's own vertical centre
+   rather than its cap-height, since `jds-divider` carries no intrinsic height of its own to align
+   against. */
+.jsm-sechead {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* `flex: 1 1 auto` is what makes the rule fill the remaining width at all — `jds-divider` draws
+   itself via `border-top` on an element with no intrinsic size, so left at `flex: 0 0 auto` (the
+   default for a block child here) it would collapse to zero width instead of spanning the gap. */
+.jsm-sechead__rule {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.jsm-sechead__aside {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+/* --- Narrow viewports: KeyRow's phone geometry -------------------------------------------
+   Observed on a 1080px-wide phone (2026-07-28), on the row anatomy this board used before task
+   #98's mockup rewrite moved match rows onto `.jsm-row`/match-row.tsx's own phone handling above:
+   every row stood roughly 420px tall, so 25 roles scrolled for over ten thousand pixels and the
+   board could not be skimmed at all. `.jsm-krow` is no longer a board class — Overview, Profile
+   and Settings are its only callers now (keyline.tsx's KeyRow) — but the same arithmetic still
+   applies wherever KeyRow renders a wide aside next to a narrow phone viewport, so the fix below
+   stays, migrated here with the rest of K1 rather than left behind or deleted.
+
+   The cause is arithmetic, not styling. `.jsm-krow__main` asks for `flex: 1 1 18rem` and
+   `.jsm-krow__aside` is `flex: 0 0 auto`; once the aside's own content is wide enough, the row's
+   1.5rem gap plus both flex basis widths outgrows a phone's ~24rem of content, so the aside always
+   wraps onto its own line — correct behaviour, and exactly what `flex-wrap` is there for.
+
+   `justify-content: space-between` on the wrapped aside also fixes the ragged right edge: the
+   aside's own children group at the left of their line and any trailing control sits at the
+   right, so it lands in the same place on every row instead of floating wherever the row's own
+   content happened to end. */
+@media (max-width: 47.99rem) {
+  .jsm-krow {
+    padding: 0.75rem 0;
+    gap: 0.5rem;
+  }
+
+  /* Full width so `space-between` has a line to work across; `margin-left: auto` is what pinned
+     the whole group right in the wrapped case and is no longer wanted once it spans the row. */
+  .jsm-krow__aside {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+}

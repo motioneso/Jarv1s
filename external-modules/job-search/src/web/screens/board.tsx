@@ -96,12 +96,41 @@ function sortMatches(items: BoardMatch[], sort: SortState | null): BoardMatch[] 
   return [...scored, ...unscored];
 }
 
-/** Shows the effective sort, including the default one nobody has clicked — a table that is
- *  sorted but shows no indicator invites the reader to distrust the order. */
-function sortIndicator(sort: SortState | null, key: SortKey, items: BoardMatch[]): string {
+/** Which direction the given column is sorted in right now, including the default nobody has
+ *  clicked — a control that is sorted but shows no indicator invites the reader to distrust the
+ *  order. Returns null when `key` isn't the active column, so the caller can skip the chevron
+ *  entirely rather than render one pointing nowhere. */
+function sortDirFor(sort: SortState | null, key: SortKey, items: BoardMatch[]): SortState["dir"] | null {
   const effective = sort ?? defaultSortFor(items);
-  if (effective.key !== key) return "";
-  return effective.dir === "asc" ? " ▲" : " ▼";
+  return effective.key === key ? effective.dir : null;
+}
+
+// Mockup rewrite (task #99): the old indicator was " ▲"/" ▼" appended to the chip's own label —
+// plain text standing in for a glyph. Sort has no mockup equivalent (`OPPS` in JobsMatches.jsx is
+// pre-ordered, so the mockup never draws a sort control at all), but the board's own real sort is
+// live functionality with nowhere else to go, so it stays — the ask was to stop forcing the old
+// fit/want *rendering* into the mockup's shape, not to drop working controls the mockup simply
+// never needed. What changes here is only the arrow: a real chevron element, same inline-stroke-SVG
+// idiom match-row.tsx uses for its own chevron (finance's reports.tsx precedent), rotated for
+// ascending rather than drawn as a second glyph.
+function SortChevron(props: { dir: SortState["dir"] | null }): ReactNodeLike {
+  if (props.dir === null) return null;
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={props.dir === "asc" ? "jsm-sort-chevron jsm-sort-chevron--asc" : "jsm-sort-chevron"}
+      aria-hidden="true"
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
 }
 
 // lastOkAt is an ISO timestamp or null (never crawled to a success yet); this is deliberately a
@@ -130,6 +159,18 @@ function bucketOf(item: BoardMatch): Bucket {
   if (item.state === "dismissed") return "passed";
   return "new";
 }
+
+// Mockup rewrite (task #99): copy pulled verbatim from JobsMatches.jsx's own `EMPTY` table — this
+// is authored UI text, not fabricated data, so reusing it is the same discipline as reusing the
+// mockup's row/nav anatomy. The mockup's fourth bucket, `stale`, has no real counterpart (there is
+// no staleness concept anywhere in the domain — see keyline.tsx's fitBand header for the same kind
+// of "no product concept to check against" note) and is dropped along with it; `BUCKETS` above only
+// ever has three keys.
+const BUCKET_EMPTY: Record<Bucket, string> = {
+  new: "Nothing credible has landed here yet. New matches appear after your monitors run each morning.",
+  saved: "Ask Jarvis to save an opportunity and it lands here — decisions happen in the conversation.",
+  passed: "Roles you've passed on file here, with the reason kept."
+};
 
 // Renders a degraded or disabled portal's authored cause verbatim — never composed here.
 // describeFailure (domain/records.ts) is the single authored voice for every failure sentence
@@ -377,6 +418,25 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
     [fetchMatches]
   );
 
+  // #100: the board's other settable state (worker/handlers/matches.ts's SETTABLE_STATES already
+  // allows "seen" through this same queue path) — mirrors handleDismiss's shape (close the detail
+  // view immediately, then fire-and-reconcile via fetchMatches) but deliberately does NOT touch
+  // hiddenIds: a saved match stays visible on the board, it just moves bucket, unlike a dismissed
+  // one which is optimistically hidden outright. Closing the view on both actions sidesteps a real
+  // race — `selectedMatch` below is derived from the current bucket's own filtered+sorted list, so
+  // a Save/Pass that moves an item to a different bucket can make it vanish from that list the
+  // moment fetchMatches resolves; closing immediately means Inspector never renders against that
+  // mid-transition state.
+  const handleSave = useCallback(
+    (matchId: string): void => {
+      setSelectedMatchId((prev) => (prev === matchId ? null : prev));
+      runQueue("job-search.match-state", "match.set-state", { matchId, state: "seen" })
+        .catch(() => undefined)
+        .then(() => fetchMatches());
+    },
+    [fetchMatches]
+  );
+
   function toggleSort(key: SortKey): void {
     // `prev ?? the effective default`, because the board arrives already sorted. Treating an
     // untouched board as "no sort" meant the first click on the column it was already sorted by
@@ -521,16 +581,23 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
             <span className="jds-hero-figure">{activeItems.length}</span>
             <span className="jds-eyebrow">{activeItems.length === 1 ? "role" : "roles"}</span>
           </p>
+          {/* The scoring caveat appears ONLY when some of the board is genuinely unread. It used to
+              have an else-branch — "Every posting here has been read and scored." — which is the
+              normal state, so the line was on screen almost always and said nothing: it read as
+              marketing copy under a figure it was supposed to qualify. A caveat that never fires is
+              not a caveat. Silence now means what it should: everything here has been read.
+              No date anywhere — the module has no ambient-clock allowance
+              (check:no-ambient-dates), which is why the mockup's "Wednesday · July 15" dateline is
+              not reproduced. */}
+          {/* The strap stays unconditionally: it is the mockup's accent bar under the figure, one of
+              the few places the board carries colour at all, and it marks the end of the lede
+              whether or not there is a caveat to print after it. */}
           <span className="jds-strap" aria-hidden="true" />
-          {/* The scoring state as a sentence rather than a second number: how much of the board has
-              been read matters, but it is a caveat on the figure above, not a rival to it. No date
-              anywhere — the module has no ambient-clock allowance (check:no-ambient-dates), which
-              is why the mockup's "Wednesday · July 15" dateline is not reproduced. */}
-          <p className="jsm-hero__prose">
-            {scoredCount < activeItems.length
-              ? `${scoredCount} read and scored so far — the rest are queued.`
-              : "Every posting here has been read and scored."}
-          </p>
+          {scoredCount < activeItems.length ? (
+            <p className="jsm-hero__prose">
+              {scoredCount} read and scored so far — the rest are queued.
+            </p>
+          ) : null}
         </div>
         <SearchNowControl profileId={profileId} onEnqueued={() => void fetchMatches()} />
       </header>
@@ -547,57 +614,87 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
           sentence of chrome. */}
       {fitNeedsResume ? (
         <div className="jds-card jds-card--sunken jds-card--pad-sm jsm-notice" role="status">
-          <span className="jds-eyebrow">No résumé on file</span>
+          {/* An amber badge rather than a bare eyebrow. The notice was a grey label on a grey
+              sunken card between two other grey blocks, so the one thing on the board that is
+              actually actionable — Fit stays empty until you do something — looked like chrome.
+              Amber is the caution tone the badge scale already provides; the copy is unchanged and
+              still explains rather than alarms. */}
+          <span className="jds-badge jds-badge--amber">No résumé on file</span>
           <p className="jsm-notice__body">
             Fit is empty because there's no résumé on file — it's the only thing Fit is judged
             against. Paste yours into the chat and these roles get read again with it.
           </p>
         </div>
       ) : null}
-      {/* The list and the open match are one two-column region, not a table with a panel dropped
-          under it — see `.jsm-board-body` for why. The modifier is what turns the second column on,
-          so a closed board still gets the full width for the table. */}
-      <div className={`jsm-board-body${selectedMatch ? " jsm-board-body--open" : ""}`}>
-        {boardItems.length === 0 ? (
-          <div className="jds-card jds-card--sunken jsm-state" role="status">
-            <span className="jds-eyebrow">Job search</span>
-            <p>No matches yet — check back once your next search run finishes.</p>
-          </div>
-        ) : (
-          <div className="jsm-list">
-            {/* Bucket tabs: New / Saved / Passed, counts against the host's own jds-tab__count
-                slot — the same jds-tabs/jds-tab markup root.tsx's own view switcher already uses,
-                not a new pattern. Filtering is entirely client-side over `boardItems`, which is
-                already the ≤25-row page matches.list returned; clicking a tab never re-fetches. */}
-            <div className="jds-tabs" role="tablist" aria-label="Match bucket">
-              {BUCKETS.map((b) => (
-                <button
-                  key={b.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={bucket === b.key}
-                  className="jds-tab"
-                  onClick={() => setBucket(b.key)}
-                >
-                  {b.label}
-                  <span className="jds-tab__count">{bucketCounts[b.key]}</span>
-                </button>
-              ))}
-            </div>
+      {/* Mockup rewrite (task #99): the list and the open match used to be one two-column region,
+          the table beside a side panel (the retired `.jsm-board-body`/`--open` split, removed in
+          #102's CSS cleanup). JobsMatches.jsx never does that — its own top-level
+          component is `if (openId) return <DetailView/>; return <ListView/>`, a full swap, not a
+          drawer (the README's own "the detail view replaces the list — it is not a drawer" rule).
+          selectedMatch is the same signal the split used to key off of; it now picks which branch
+          renders instead of which grid-template applies. PortalBanner and the dismiss-reconciliation
+          notice above stay visible either way — they're board-level status, not part of either
+          view. */}
+      {selectedMatch ? (
+        <div className="jsm-board-detail">
+          <Inspector
+            match={selectedMatch}
+            detail={detail}
+            detailError={detailError}
+            onClose={() => setSelectedMatchId(null)}
+            onDismiss={(matchId) => handleDismiss(matchId)}
+            onSave={(matchId) => handleSave(matchId)}
+            onDiscuss={onDiscuss}
+          />
+          {discussPanel}
+        </div>
+      ) : boardItems.length === 0 ? (
+        <div className="jds-card jds-card--sunken jsm-state" role="status">
+          <span className="jds-eyebrow">Job search</span>
+          <p>No matches yet — check back once your next search run finishes.</p>
+        </div>
+      ) : (
+        <div className="jsm-board-list">
+          {/* BUCKETS — gold marker, same idiom as the module's own view tabs (JobsMatches.jsx's own
+              comment on this nav, and the reason `jds-tab--gold` exists at all per
+              components-jarvis.css's header: "Job Search's bucket nav"). This used to be
+              `jds-chip--toggle` filter chips out of a since-reversed worry that reusing `jds-tabs`
+              here would read as two identical tab strips meaning two different things — but the
+              mockup deliberately wants that visual echo (its own bucket nav sits directly under the
+              module's Matches/Overview/Profile/Monitors switcher and uses the same gold-underline
+              idiom on purpose), so this now matches it instead of working around it.
 
-            {/* Sorting used to live in the table's own column headers, which is where a spreadsheet
-                puts it. A list of rows has no header row to hang it off, so the two axes become an
-                explicit control strip — and saying "Sort" out loud is an improvement regardless:
-                clickable column headings are a convention people have to already know. */}
-            <div className="jsm-sort">
-              <span className="jds-eyebrow">Sort</span>
+              Filtering stays entirely client-side over `boardItems`, the ≤25-row page matches.list
+              already returned; pressing a bucket never re-fetches. */}
+          <nav className="jds-tabs" role="tablist" aria-label="Match bucket">
+            {BUCKETS.map((b) => (
+              <button
+                key={b.key}
+                type="button"
+                role="tab"
+                aria-selected={bucket === b.key}
+                className="jds-tab jds-tab--gold"
+                onClick={() => setBucket(b.key)}
+              >
+                {b.label}
+                <span className="jds-tab__count">{bucketCounts[b.key]}</span>
+              </button>
+            ))}
+          </nav>
+
+          {bucketItems.length > 0 ? (
+            /* Sorting has no mockup equivalent (JobsMatches.jsx's OPPS is pre-ordered) but is real,
+               working functionality with nowhere else to go — kept as its own small control rather
+               than dropped, and hidden entirely once a bucket has nothing to sort. */
+            <div className="jsm-sort-row" role="group" aria-label="Sort">
+              <span className="jds-eyebrow jds-eyebrow--muted">Sort</span>
               <button
                 type="button"
                 className="jds-chip jds-chip--toggle"
                 aria-pressed={sort?.key === "fit"}
                 onClick={() => toggleSort("fit")}
               >
-                Fit{sortIndicator(sort, "fit", bucketItems)}
+                Fit <SortChevron dir={sortDirFor(sort, "fit", bucketItems)} />
               </button>
               <button
                 type="button"
@@ -605,41 +702,37 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
                 aria-pressed={sort?.key === "want"}
                 onClick={() => toggleSort("want")}
               >
-                Want{sortIndicator(sort, "want", bucketItems)}
+                Want <SortChevron dir={sortDirFor(sort, "want", bucketItems)} />
               </button>
             </div>
+          ) : null}
 
-            {sorted.length === 0 ? (
-              // A bucket can be legitimately empty (nothing Saved yet) while the board as a whole
-              // is not — this is scoped to the open tab, not the "No matches yet" empty-board
-              // state above, which only fires when boardItems itself is empty.
-              <p className="jds-hint" role="status">
-                Nothing in {BUCKETS.find((b) => b.key === bucket)?.label ?? "this bucket"} yet.
-              </p>
-            ) : (
-              sorted.map((item, i) => (
-                <MatchRow
-                  key={item.id}
-                  item={item}
-                  divided={i > 0}
-                  selected={item.id === selectedMatchId}
-                  onSelect={setSelectedMatchId}
-                  onDismiss={handleDismiss}
-                />
-              ))
-            )}
-          </div>
-        )}
-        <Inspector
-          match={selectedMatch}
-          detail={detail}
-          detailError={detailError}
-          onClose={() => setSelectedMatchId(null)}
-          onDismiss={(matchId) => handleDismiss(matchId)}
-          onDiscuss={onDiscuss}
-        />
-      </div>
-      {discussPanel}
+          {sorted.length === 0 ? (
+            // A bucket can be legitimately empty (nothing Saved yet) while the board as a whole is
+            // not — scoped to the open tab, not the "No matches yet" empty-board state above, which
+            // only fires when boardItems itself is empty. `jds-divider` opens it the same way the
+            // mockup's own borderTop does (a module can't draw a hairline itself — see keyline.tsx's
+            // header); copy is EMPTY[bucket] verbatim, minus the `stale` entry this board has no
+            // bucket for.
+            <div className="jsm-bucket-empty">
+              <hr className="jds-divider" />
+              <span className="jds-eyebrow">Nothing here yet</span>
+              <p className="jsm-bucket-empty__body">{BUCKET_EMPTY[bucket]}</p>
+            </div>
+          ) : (
+            <div className="jsm-list">
+              {/* No `divided`/`i > 0` bookkeeping any more — `MatchRow` draws its own top hairline
+                  on every row via `jds-hairline-row` unconditionally (matching the mockup, which
+                  doesn't special-case its first row either). The trailing divider below closes the
+                  list off at the bottom, the mockup's own borderBottom on the row container. */}
+              {sorted.map((item) => (
+                <MatchRow key={item.id} item={item} onOpen={setSelectedMatchId} />
+              ))}
+              <hr className="jds-divider" />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
