@@ -1,11 +1,12 @@
 // external-modules/job-search/src/web/root.tsx
 // Task 18 (#1302): the module's web entrypoint. Owns the empty-install bootstrap handoff, the
-// enqueue latch, and the onboarding/board branch. The onboarding branch renders the real
-// screen (Task 19, ./screens/onboarding.tsx); the board branch (Task 20, #1304) now renders
-// the real BoardScreen/Inspector and SettingsScreen behind a Board/Settings tab switcher —
-// this file is the sole place both halves of Task 20 are wired in (rulings ledger N32: root.tsx
-// stays one agent's file for the whole task, so chat-surface wires in criteria's settings.tsx
-// too rather than criteria touching this file directly).
+// enqueue latch, and the onboarding/active-profile branch. The onboarding branch renders the
+// real screen (Task 19, ./screens/onboarding.tsx); the active-profile branch (Task 20, #1304;
+// extended by K5 of the 2026-07-28 keyline-restructure plan) renders the real BoardScreen/
+// Inspector, OverviewScreen, ProfileScreen and SettingsScreen behind a four-tab Matches/Overview/
+// Profile/Monitors switcher — this file is the sole place all of that is wired in (rulings ledger
+// N32: root.tsx stays one agent's file for the whole task, so chat-surface wires in criteria's
+// settings.tsx too rather than criteria touching this file directly).
 //
 // No chat button lives here (variant-flow.tsx:145's drawer button is prototype-only and must not
 // be ported). The assistant reaches this surface one way only: the onboarding screen renders the
@@ -28,6 +29,8 @@ import { useProfiles, type Profile } from "./use-profiles";
 import { useProfileThread, type AssistantSurfaceHandleV1 } from "../domain/seed-prompt.js";
 import { OnboardingScreen } from "./screens/onboarding";
 import { BoardScreen } from "./screens/board";
+import { OverviewScreen } from "./screens/overview";
+import { ProfileScreen } from "./screens/profile";
 import { SettingsScreen } from "./screens/settings";
 import styles from "./styles.css";
 
@@ -101,7 +104,11 @@ function BootstrapPanel(props: {
   );
 }
 
-type ActiveView = "board" | "settings";
+// K5 (2026-07-28 keyline-restructure plan): the four-tab shell. "board"/"settings" (Task 20)
+// become "matches"/"monitors" and gain "overview"/"profile" either side — Matches / Overview /
+// Profile / Monitors in that fixed order, per JobsModule.jsx's kit shell. Default stays the list
+// the user is here to see, not a summary of it.
+type ActiveView = "matches" | "overview" | "profile" | "monitors";
 
 /** The row of searches, plus the only way to start another one.
  *
@@ -155,10 +162,11 @@ function ProfileBar(props: {
   );
 }
 
-// Rendered once a profile has criteria (state === "active" | "paused"). The Board/Settings view
-// switcher (Task 20, picks which screen renders the selected profile's data) is the panel's own
-// state, deliberately separate from the profile selection above it so switching search never
-// resets which view you were on, and vice versa.
+// Rendered once a profile has criteria (state === "active" | "paused"). The four-tab view
+// switcher (Task 20 built the original Board/Settings pair; K5 extended it to the kit's full
+// Matches/Overview/Profile/Monitors shell) is the panel's own state, deliberately separate from
+// the profile selection above it so switching search never resets which view you were on, and
+// vice versa.
 function ActiveProfilePanel(props: {
   selected: Profile;
   // Task 20/#1304: threaded through to BoardScreen for Discuss, same optionality as everywhere
@@ -166,41 +174,56 @@ function ActiveProfilePanel(props: {
   // without Discuss offered (discuss.tsx's own no-op-when-absent stance).
   assistantSurface?: AssistantSurfaceHandleV1;
 }): ReactNodeLike {
-  const [view, setView] = useState<ActiveView>("board");
+  const [view, setView] = useState<ActiveView>("matches");
 
-  // `jds-tabs`, not two identical secondary buttons: these are two views of one thing, and the
-  // design system already draws that — an underline on the selected tab against a shared rule.
-  // As buttons they were visually identical apart from a font-weight bump, so nothing on screen
-  // said which view you were looking at.
+  // A tiny declarative table rather than four near-identical <button> blocks — the four tabs
+  // differ only in `id`/label, and writing them out longhand four times is exactly the kind of
+  // duplication that drifts (one tab gets an aria-selected fix the other three don't). `jds-tabs`/
+  // `jds-tab` with `aria-selected` is unchanged from Task 20's pair — the design system already
+  // draws the underline off that attribute, so this is a rename and extension of the existing
+  // chrome, not new chrome (plan K5: "not new chrome").
+  const TABS: Array<{ id: ActiveView; label: string }> = [
+    { id: "matches", label: "Matches" },
+    { id: "overview", label: "Overview" },
+    { id: "profile", label: "Profile" },
+    { id: "monitors", label: "Monitors" }
+  ];
+
   const viewSwitcher = (
     <div className="jds-tabs" role="tablist" aria-label="Job search view">
-      <button
-        type="button"
-        role="tab"
-        aria-selected={view === "board"}
-        className="jds-tab"
-        onClick={() => setView("board")}
-      >
-        Board
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={view === "settings"}
-        className="jds-tab"
-        onClick={() => setView("settings")}
-      >
-        Settings
-      </button>
+      {TABS.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          role="tab"
+          aria-selected={view === tab.id}
+          className="jds-tab"
+          onClick={() => setView(tab.id)}
+        >
+          {tab.label}
+        </button>
+      ))}
     </div>
   );
 
-  const screen =
-    view === "board" ? (
+  let screen: ReactNodeLike;
+  if (view === "matches") {
+    screen = (
       <BoardScreen profileId={props.selected.profileId} assistantSurface={props.assistantSurface} />
-    ) : (
-      <SettingsScreen profile={props.selected} />
     );
+  } else if (view === "overview") {
+    // Overview needs both the id (for its own reads) and the already-fetched record (for
+    // completedSteps/readyToCrawl) — Root already has the Profile in hand from useProfiles, so
+    // this screen doesn't issue a second profile.list read just to get fields it's handed here.
+    screen = <OverviewScreen profileId={props.selected.profileId} profile={props.selected} />;
+  } else if (view === "profile") {
+    screen = <ProfileScreen profile={props.selected} />;
+  } else {
+    // "monitors": SettingsScreen, unchanged since K4 trimmed it to job boards only — #1343 tracks
+    // whether module settings should live behind a shared header template; this tab rename is not
+    // that. See this file's K5 header note.
+    screen = <SettingsScreen profile={props.selected} />;
+  }
 
   // Plain h(Fragment, ...) call rather than <>...</> shorthand: TS's JSX
   // fragment-shorthand check requires the fragment factory to have a

@@ -21,15 +21,19 @@ import { describe, expect, it } from "vitest";
 
 import { validateExternalModuleManifest } from "@jarv1s/module-registry";
 
-// settings.tsx captures the host module runtime global at import time (runtime.ts's own
-// header) — this must be imported before it, same requirement as every other test that
+// settings.tsx/profile.tsx capture the host module runtime global at import time (runtime.ts's
+// own header) — this must be imported before either, same requirement as every other test that
 // imports a job-search web file directly (job-search-web-onboarding.test.tsx's precedent).
 import "./helpers/install-module-runtime";
 import {
   PORTAL_LIST_TOOL,
-  PORTAL_SET_ENABLED_QUEUE,
-  PROFILE_SET_BRIEFING_DETAIL_QUEUE
+  PORTAL_SET_ENABLED_QUEUE
 } from "../../external-modules/job-search/src/web/screens/settings";
+// K4 (2026-07-28 keyline-restructure plan) moved the briefing-detail control, and this literal
+// with it, from settings.tsx to the new profile.tsx — imported from its new home so this asserts
+// against the real exported constant, not a retyped copy, same reasoning as the settings.tsx
+// import above.
+import { PROFILE_SET_BRIEFING_DETAIL_QUEUE } from "../../external-modules/job-search/src/web/screens/profile";
 
 const manifestPath = fileURLToPath(
   new URL("../../external-modules/job-search/jarvis.module.json", import.meta.url)

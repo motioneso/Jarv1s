@@ -2,8 +2,11 @@
 // needed — same reasoning as job-search-web-onboarding.test.tsx's header). api.ts is mocked so
 // this file exercises only the screen's own logic: portal.list rendering, the forced read/write
 // transport split (reads via invokeTool, writes via runQueue — rulings I3/I4), the verbatim
-// self-disabled-cause rendering, the exhaustive three-level briefing control, and the absence of
-// any combined-score or scoring-weight control.
+// self-disabled-cause rendering, and the absence of any combined-score or scoring-weight control.
+//
+// K4 (2026-07-28 keyline-restructure plan) moved the briefing-detail control (and its own test)
+// to job-search-profile.test.tsx along with the rest of the résumé/briefing-detail half of this
+// screen — this file no longer renders that control, so it no longer asserts against it.
 import "./helpers/install-module-runtime";
 import { createElement } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
@@ -17,7 +20,6 @@ vi.mock("../../external-modules/job-search/src/web/api", () => ({
 import {
   PORTAL_LIST_TOOL,
   PORTAL_SET_ENABLED_QUEUE,
-  PROFILE_SET_BRIEFING_DETAIL_QUEUE,
   SettingsScreen
 } from "../../external-modules/job-search/src/web/screens/settings";
 import * as api from "../../external-modules/job-search/src/web/api";
@@ -149,32 +151,6 @@ describe("SettingsScreen", () => {
     const rendered = text(renderer);
     expect(rendered).toContain(summary);
     expect(rendered).toContain(nextAction);
-  });
-
-  it("renders exactly three briefing-detail options and selecting one calls profile.set-briefing-detail via runQueue", async () => {
-    vi.mocked(api.invokeTool).mockResolvedValue({ portals: [] });
-
-    const renderer = await renderScreen(profile({ briefingDetail: "top" }));
-    await flush();
-
-    const options = renderer.root.findAll(
-      (node) =>
-        typeof node.type === "string" && node.type === "button" && "aria-pressed" in node.props
-    );
-    expect(options).toHaveLength(3);
-
-    const fullOption = options.find((node) => flatten(node.props.children).match(/full/i));
-    expect(fullOption).toBeDefined();
-    await act(async () => {
-      (fullOption!.props.onClick as () => void)();
-    });
-    await flush();
-
-    expect(api.runQueue).toHaveBeenCalledWith(
-      PROFILE_SET_BRIEFING_DETAIL_QUEUE,
-      "profile.set-briefing-detail",
-      { profileId: "p1", detail: "full" }
-    );
   });
 
   it("renders no combined score and no scoring/weighting control", async () => {

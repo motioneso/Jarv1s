@@ -142,15 +142,19 @@
   font-weight: 600;
 }
 
-/* The board is a list of cards, not a table (see board.tsx's own note). A posting is something you
-   consider — a title, who it's with, and two judgements that each have their own reasoning — and
-   four columns of equal weight flattened all of that into a spreadsheet export. Everything below is
-   layout only; every colour, rule and typeface comes from the host `jds-*` primitives the markup
-   composes. */
+/* K2: the board is a rule-separated list of keyline rows, not cards and not a table (see
+   board.tsx's own note). A posting is something you consider — a title, who it's with, and two
+   judgements that each have their own reasoning — and four columns of equal weight flattened all
+   of that into a spreadsheet export. `gap: 0` is deliberate: `.jds-divider` itself carries
+   `margin: 0` (components-core.css) and no vertical rhythm of its own — the row's own padding
+   (`.jsm-krow`'s `padding: 0.875rem 0`) is what separates one row from the next, and a nonzero
+   gap here would stack on top of that padding rather than replace it, doubling the space between
+   rows. Everything below is layout only; every colour, rule and typeface comes from the host
+   `jds-*` primitives the markup composes. */
 .jsm-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0;
 }
 
 /* Sorting lost its home when the column headers went away. A labelled control strip is where it
@@ -162,67 +166,6 @@
   align-items: baseline;
   flex-wrap: wrap;
   gap: 0.5rem;
-}
-
-.jsm-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-/* Company left, out-of-frame badge hard right — the badge is an exception being flagged, so it
-   belongs at the edge where exceptions are scanned for, not trailing the company name where it
-   reads as part of it. */
-.jsm-card__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-/* The two axes side by side and equal, which is the layout expression of L9: Fit and Want are never
-   blended, so neither may be given more room or a higher position than the other.
-   Sized to their content rather than to the card: as `1fr` columns each axis took half the card,
-   which put a two-digit number a full card-width from its own label and left the middle of every
-   card empty. Equal to each other is the invariant; equal to half the card was never the point. */
-.jsm-card__axes {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 7rem));
-  gap: 0.75rem 1.5rem;
-  min-width: 0;
-}
-
-@media (max-width: 30rem) {
-  .jsm-card__axes {
-    /* Still two columns on a phone — collapsing to one would stack Fit above Want and stacking is
-       a ranking. They narrow instead. */
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-  }
-}
-
-.jsm-card__axis {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-  min-width: 0;
-}
-
-.jsm-card__value {
-  margin: 0;
-}
-
-/* Pending state left, dismissal right. The empty <span> the markup renders when a card *is* scored
-   is what keeps Dismiss pinned right in both states — `space-between` with one child would pull the
-   button back to the left edge and the button would appear to move between cards. */
-/* Scores left, Dismiss right, on one line. `flex-end` so the button sits on the scores' baseline
-   band rather than centring itself against their full two-line height. */
-.jsm-card__foot {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-top: 0.25rem;
 }
 
 /* The factual line under the title: source, location, posted date. Wraps rather than truncating —
@@ -253,10 +196,6 @@
   margin-right: 0.75rem;
   background: currentColor;
   opacity: 0.35;
-}
-
-.jsm-card__pending {
-  min-width: 0;
 }
 
 /* The lede and the search action share one row: lede left, action hard right and top-aligned so it
@@ -402,13 +341,6 @@
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
-}
-
-/* A posting outside the stated frame is still worth seeing — it is shown deliberately, not
-   filtered out — but it should not compete with the ones that are inside it. The badge in the card
-   header carries the actual claim; this just lets the eye skip past it on the way down the list. */
-.jsm-card--outside {
-  opacity: 0.85;
 }
 
 /* The table and the open match sit side by side once there is room for both. Appended under the
@@ -557,4 +489,199 @@
 .jsm-discuss-card__value {
   font-variant-numeric: tabular-nums;
   margin: 0;
+}
+
+/* K1 — keyline primitives (keyline.tsx). Everything below is layout only — every colour, rule and
+   typeface still comes from the host jds-* primitives the markup composes (file header, and this
+   file's own header above). K2 has since deleted .jsm-card and its children now that match rows
+   render through KeyRow (see the K2 block at the end of this file) — nothing here ever
+   duplicated that vocabulary. */
+
+/* One hairline-ruled row: label content left, an optional aside pinned right. The hairline itself
+   is never drawn here — KeyRow renders a `jds-divider` sibling above the row, so this class only
+   lays out the row's own two slots. `padding` carries the vertical rhythm a border would otherwise
+   have implied; `flex-wrap` so a long meta line on a narrow viewport wraps under the title instead
+   of forcing the aside off the right edge. */
+.jsm-krow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 0.875rem 0;
+  flex-wrap: wrap;
+}
+
+/* min-width: 0 is load-bearing, not decorative — without it a long title/meta line refuses to wrap
+   and instead pushes the aside off the row's right edge (a flex item's default min-width is `auto`,
+   i.e. its content's natural width, not 0). */
+.jsm-krow__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1 1 18rem;
+}
+
+/* `margin-left: auto` holds the aside against the row's right edge even after `.jsm-krow` wraps
+   onto two lines, where `justify-content: space-between` on the row no longer has two siblings to
+   push apart (same reasoning as `.jsm-rail__control` above, applied to the new row shape). */
+.jsm-krow__aside {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* One scoring axis: an eyebrow above the bar+number `Score` draws, or the em dash `FitRail` draws
+   in its place when the axis has no basis to score. Column layout, not a row — this is the direct
+   replacement for board.tsx's old `.jsm-card__axis`, kept at the same shape so K2's swap changes
+   only the class name, not the geometry readers are already used to. */
+.jsm-fit-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.jsm-fit-rail__empty {
+  margin: 0;
+}
+
+/* The wrapper around one `jds-fact` row. `jds-fact` itself is a flex row (built for an icon +
+   text pair); `.jsm-field__main` below turns its one child into the label-above-value stack this
+   component actually wants, without this file ever touching `jds-fact`'s own rules. `flex: 1 1
+   10rem` is what lets several fields share one `.jsm-fields` row evenly and wrap onto their own
+   lines on a narrow viewport, the same shape board.tsx's old two-axis grid had for the same
+   reason. */
+.jsm-field {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+.jsm-field__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.jsm-field__value {
+  margin: 0;
+}
+
+/* Groups several FieldPairs into one row — Overview's figures row (K3: on-board / read / new /
+   passed) and Profile's résumé stats (K4) are both a handful of these side by side. Wraps rather
+   than compressing: a stat forced below its own label's width is a worse outcome than a row that
+   breaks onto two lines. */
+.jsm-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+/* Eyebrow, then a hairline filling whatever width the label and optional trailing slot don't use,
+   then the slot itself. `align-items: center` keeps the rule on the eyebrow's own vertical centre
+   rather than its cap-height, since `jds-divider` carries no intrinsic height of its own to align
+   against. */
+.jsm-sechead {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* `flex: 1 1 auto` is what makes the rule fill the remaining width at all — `jds-divider` draws
+   itself via `border-top` on an element with no intrinsic size, so left at `flex: 0 0 auto` (the
+   default for a block child here) it would collapse to zero width instead of spanning the gap. */
+.jsm-sechead__rule {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.jsm-sechead__aside {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+/* K4 — profile */
+
+/* The five onboarding-step pills in "What it's looking for" (profile.tsx's LookingForSection).
+   Colour (done vs. not-yet) comes entirely from the host's jds-badge--forest / jds-badge--outline
+   classes on each `<li>` — this only lays the row out. Wraps for the same reason `.jsm-fields`
+   does: five pills is already tight on a narrow viewport, and a pill truncated mid-word reads
+   worse than a row that breaks onto two lines. */
+.jsm-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* K3 — overview */
+
+/* The three sections stack with generous room between them — this screen has no cards or
+   dividers of its own at the top level, only SectionHead's own rule marking each section's
+   start, so the vertical gap here is what keeps "Where it's looking" from reading as a
+   continuation of the figures row above it. */
+.jsm-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.jsm-overview__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.jsm-overview__figures {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.jsm-overview__figures-note {
+  margin: 0;
+}
+
+/* One KeyRow per portal — a plain stack, no card. KeyRow itself supplies the divider between
+   rows (`divided={i > 0}`), so this wrapper only needs to be a column. */
+.jsm-overview__portals {
+  display: flex;
+  flex-direction: column;
+}
+
+.jsm-overview__portal-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.jsm-overview__portal-cause {
+  margin: 0;
+}
+
+/* One KeyRow per blocker, same shape as the portals list above. */
+.jsm-overview__blockers {
+  display: flex;
+  flex-direction: column;
+}
+
+.jsm-overview__blocker {
+  margin: 0;
+}
+
+/* K2 — matches keyline rows */
+
+/* The "Not read yet" sentence that stands in for the two FitRails on an unscored row's aside.
+   `min-width: 0` is the direct replacement for the old `.jsm-card__pending`'s own rule: without
+   it, this span (a flex child of `.jsm-krow__aside`) refuses to wrap and can push the Dismiss
+   button off the row's right edge on a narrow viewport instead of breaking onto its own line. */
+.jsm-row__pending {
+  min-width: 0;
 }

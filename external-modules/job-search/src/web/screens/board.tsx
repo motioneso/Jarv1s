@@ -10,8 +10,8 @@ import { h, useCallback, useEffect, useRef, useState, type ReactNodeLike } from 
 import { invokeTool, runQueue, type RunOutcome } from "../api";
 import { MATCHES_LIST_MAX_LIMIT, type FailureCause } from "../../domain/records.js";
 import type { AssistantSurfaceHandleV1 } from "../../domain/seed-prompt.js";
-import { Score } from "../score";
 import { Inspector } from "./inspector";
+import { MatchRow } from "./match-row";
 import { MatchRecordCard, useDiscuss } from "./discuss";
 import { isScored, type BoardMatch, type MatchDetail, type PortalListItem } from "../board-types";
 
@@ -111,34 +111,24 @@ function lastWorkedText(lastOkAt: string | null): string {
   return lastOkAt ? `Last worked ${lastOkAt.slice(0, 10)}.` : "Has never completed a search.";
 }
 
-const MONTH_LABELS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec"
+// K2: bucket tabs partition the same ≤25-row set the sort controls already operate on — filtering
+// is client-side, there is no second fetch per tab (matches.list has no notion of a "bucket";
+// MatchState is the only state it tracks). "New" absorbs both `unscored` and `new`: the plan names
+// only Saved (`seen`) and Passed (`dismissed`) explicitly, and the two remaining states share the
+// one fact that actually matters here — nothing has happened to this match yet — so splitting them
+// into a fourth tab would draw a distinction the board has no other use for.
+type Bucket = "new" | "saved" | "passed";
+
+const BUCKETS: ReadonlyArray<{ key: Bucket; label: string }> = [
+  { key: "new", label: "New" },
+  { key: "saved", label: "Saved" },
+  { key: "passed", label: "Passed" }
 ];
 
-// "Jul 15" off the stored instant, by string arithmetic only. Deliberately not
-// `toLocaleDateString` and deliberately not a relative "3 days ago": the first resolves against
-// the *ambient* locale and timezone and is banned in web display layers by check:no-ambient-dates,
-// the second needs a clock read this module has no allowance for. Returns null rather than a
-// placeholder when the field is absent or malformed, so the caller can omit the pill entirely —
-// see the card's meta row for why an absent pill beats a dash.
-function formatPostedOn(postedAt: string | null): string | null {
-  if (postedAt === null || postedAt.length < 10) return null;
-  const month = Number(postedAt.slice(5, 7));
-  const day = Number(postedAt.slice(8, 10));
-  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
-  if (!Number.isInteger(day) || day < 1 || day > 31) return null;
-  return `${MONTH_LABELS[month - 1]} ${day}`;
+function bucketOf(item: BoardMatch): Bucket {
+  if (item.state === "seen") return "saved";
+  if (item.state === "dismissed") return "passed";
+  return "new";
 }
 
 // Renders a degraded or disabled portal's authored cause verbatim — never composed here.
@@ -253,6 +243,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   const [matchesState, setMatchesState] = useState<MatchesState>({ status: "loading" });
   const [portals, setPortals] = useState<PortalListItem[]>([]);
   const [sort, setSort] = useState<SortState | null>(null);
+  const [bucket, setBucket] = useState<Bucket>("new");
   const [hiddenIds, setHiddenIds] = useState<ReadonlySet<string>>(new Set());
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
@@ -425,11 +416,14 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
     );
   }
 
-  const visibleItems = matchesState.items.filter(
+  // activeItems mirrors the board's pre-bucket semantics exactly — dismissed rows excluded,
+  // optimistically-hidden rows excluded — because the hero's role count and "X read and scored"
+  // line describe the whole board, not whichever bucket happens to be open. Switching tabs must
+  // never move that figure.
+  const activeItems = matchesState.items.filter(
     (item) => item.state !== "dismissed" && !hiddenIds.has(item.id)
   );
-  const sorted = sortMatches(visibleItems, sort);
-  const scoredCount = sorted.filter(isScored).length;
+  const scoredCount = activeItems.filter(isScored).length;
   // Every read row has an empty Fit, which only ever has one cause: no résumé is on file, so
   // there was nothing to judge Fit against. A column of em dashes with no explanation reads as a
   // product that is broken rather than one that is waiting on something, and the fix is a thing
@@ -437,7 +431,16 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   // `every`, not on a profile flag: a résumé added mid-board leaves some rows scored and some
   // not, and the notice must retire itself the moment the first real Fit lands.
   const fitNeedsResume =
-    scoredCount > 0 && sorted.filter(isScored).every((item) => item.fit === null);
+    scoredCount > 0 && activeItems.filter(isScored).every((item) => item.fit === null);
+
+  // boardItems is activeItems' opposite number: every non-hidden row INCLUDING dismissed ones, so
+  // Passed has something to show. hiddenIds still applies here too — an optimistically dismissed
+  // row must vanish from every bucket immediately, not just from New/Saved.
+  const boardItems = matchesState.items.filter((item) => !hiddenIds.has(item.id));
+  const bucketCounts: Record<Bucket, number> = { new: 0, saved: 0, passed: 0 };
+  for (const item of boardItems) bucketCounts[bucketOf(item)] += 1;
+  const bucketItems = boardItems.filter((item) => bucketOf(item) === bucket);
+  const sorted = sortMatches(bucketItems, sort);
   const selectedMatch = sorted.find((item) => item.id === selectedMatchId) ?? null;
 
   // Guarded by matchId, not just detailState.status: effects run after render, so there is one
@@ -515,8 +518,8 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
               be read before it could be understood, and it sat at body weight beside a button,
               which made the button the loudest thing on a page about opportunities. */}
           <p className="jsm-hero__figure">
-            <span className="jds-hero-figure">{sorted.length}</span>
-            <span className="jds-eyebrow">{sorted.length === 1 ? "role" : "roles"}</span>
+            <span className="jds-hero-figure">{activeItems.length}</span>
+            <span className="jds-eyebrow">{activeItems.length === 1 ? "role" : "roles"}</span>
           </p>
           <span className="jds-strap" aria-hidden="true" />
           {/* The scoring state as a sentence rather than a second number: how much of the board has
@@ -524,7 +527,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
               anywhere — the module has no ambient-clock allowance (check:no-ambient-dates), which
               is why the mockup's "Wednesday · July 15" dateline is not reproduced. */}
           <p className="jsm-hero__prose">
-            {scoredCount < sorted.length
+            {scoredCount < activeItems.length
               ? `${scoredCount} read and scored so far — the rest are queued.`
               : "Every posting here has been read and scored."}
           </p>
@@ -555,15 +558,35 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
           under it — see `.jsm-board-body` for why. The modifier is what turns the second column on,
           so a closed board still gets the full width for the table. */}
       <div className={`jsm-board-body${selectedMatch ? " jsm-board-body--open" : ""}`}>
-        {sorted.length === 0 ? (
+        {boardItems.length === 0 ? (
           <div className="jds-card jds-card--sunken jsm-state" role="status">
             <span className="jds-eyebrow">Job search</span>
             <p>No matches yet — check back once your next search run finishes.</p>
           </div>
         ) : (
           <div className="jsm-list">
+            {/* Bucket tabs: New / Saved / Passed, counts against the host's own jds-tab__count
+                slot — the same jds-tabs/jds-tab markup root.tsx's own view switcher already uses,
+                not a new pattern. Filtering is entirely client-side over `boardItems`, which is
+                already the ≤25-row page matches.list returned; clicking a tab never re-fetches. */}
+            <div className="jds-tabs" role="tablist" aria-label="Match bucket">
+              {BUCKETS.map((b) => (
+                <button
+                  key={b.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={bucket === b.key}
+                  className="jds-tab"
+                  onClick={() => setBucket(b.key)}
+                >
+                  {b.label}
+                  <span className="jds-tab__count">{bucketCounts[b.key]}</span>
+                </button>
+              ))}
+            </div>
+
             {/* Sorting used to live in the table's own column headers, which is where a spreadsheet
-                puts it. A list of cards has no header row to hang it off, so the two axes become an
+                puts it. A list of rows has no header row to hang it off, so the two axes become an
                 explicit control strip — and saying "Sort" out loud is an improvement regardless:
                 clickable column headings are a convention people have to already know. */}
             <div className="jsm-sort">
@@ -574,7 +597,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
                 aria-pressed={sort?.key === "fit"}
                 onClick={() => toggleSort("fit")}
               >
-                Fit{sortIndicator(sort, "fit", visibleItems)}
+                Fit{sortIndicator(sort, "fit", bucketItems)}
               </button>
               <button
                 type="button"
@@ -582,104 +605,29 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
                 aria-pressed={sort?.key === "want"}
                 onClick={() => toggleSort("want")}
               >
-                Want{sortIndicator(sort, "want", visibleItems)}
+                Want{sortIndicator(sort, "want", bucketItems)}
               </button>
             </div>
 
-            {sorted.map((item) => (
-              // One card per posting, not one row. A posting is a thing you consider — a title, who
-              // it's with, and two judgements with their own reasons — and a table flattened all of
-              // that into four columns of equal weight, which is what made a board of real
-              // opportunities read like a spreadsheet export. `aria-selected` still marks the open
-              // one so the panel beside it is visibly the detail *of that card*.
-              <article
-                key={item.id}
-                aria-selected={item.id === selectedMatchId}
-                // The whole card opens the match. `--interactive` is the host's own hover
-                // treatment, so the card advertises itself as clickable and then actually is,
-                // everywhere — the old table filled a row on hover but only responded on the
-                // ~200px strip under the title. The title stays a real <button> because this
-                // handler is a pointer affordance only and gives no keyboard path.
-                onClick={() => setSelectedMatchId(item.id)}
-                className={`jds-card jds-card--interactive jsm-card${item.outsideFrame ? " jsm-card--outside" : ""}`}
-              >
-                <div className="jsm-card__head">
-                  <span className="jds-eyebrow">{item.company}</span>
-                  {item.outsideFrame ? (
-                    <span className="jds-badge">Outside your stated frame</span>
-                  ) : null}
-                </div>
-
-                <button
-                  type="button"
-                  className="jds-card-title jsm-card__title"
-                  onClick={() => setSelectedMatchId(item.id)}
-                >
-                  {item.title}
-                </button>
-
-                {/* The card's factual line: where the posting came from, where the job is, when it
-                    was posted. Each pill is omitted when its field is empty rather than rendered
-                    as a dash — a row of placeholders reads as broken, an absent pill reads as
-                    "this board doesn't know", which is the truth. */}
-                <div className="jsm-meta">
-                  <span className="jds-eyebrow jsm-meta__pill">{item.source}</span>
-                  {item.location.length > 0 ? (
-                    <span className="jds-eyebrow jsm-meta__pill">{item.location}</span>
-                  ) : null}
-                  {formatPostedOn(item.postedAt) !== null ? (
-                    <span className="jds-eyebrow jsm-meta__pill">
-                      Posted {formatPostedOn(item.postedAt)}
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="jsm-card__foot">
-                  {/* Scores sit on the foot line beside Dismiss rather than in a block of their
-                      own above it. As a two-column grid they left the card two-thirds empty and
-                      pushed the Want number to the far right edge, a full card-width from its own
-                      label — the numbers are short, so they should be laid out at their own width,
-                      not given half the card each. */}
-                  {isScored(item) ? (
-                    <div className="jsm-card__axes">
-                      <div className="jsm-card__axis">
-                        <span className="jds-eyebrow">Fit</span>
-                        {/* Fit and Want are separate claims and never blended. A scored match can
-                            still carry a null Fit — read, but with no résumé on file to judge it
-                            against (the notice above the list is what explains that). Never a 0:
-                            a zero is a score, drawn in the same bar as every real one. */}
-                        {item.fit === null ? (
-                          <p className="jsm-card__value">—</p>
-                        ) : (
-                          <Score value={item.fit} />
-                        )}
-                      </div>
-                      <div className="jsm-card__axis">
-                        <span className="jds-eyebrow">Want</span>
-                        <Score value={item.want} />
-                      </div>
-                    </div>
-                  ) : (
-                    <span className="jds-eyebrow jsm-card__pending">Not read yet</span>
-                  )}
-                  {/* stopPropagation because the card itself opens the match: without it,
-                      dismissing would also open the panel for the card that just went away. */}
-                  <button
-                    type="button"
-                    className="jds-btn jds-btn--quiet jds-btn--sm"
-                    onClick={(event?: { stopPropagation?(): void }) => {
-                      // Optional throughout: a real DOM click always carries an event, but the
-                      // unit tests drive these handlers by calling `props.onClick()` directly,
-                      // and a hard dereference here would turn a dismissal test into a crash.
-                      event?.stopPropagation?.();
-                      handleDismiss(item.id);
-                    }}
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </article>
-            ))}
+            {sorted.length === 0 ? (
+              // A bucket can be legitimately empty (nothing Saved yet) while the board as a whole
+              // is not — this is scoped to the open tab, not the "No matches yet" empty-board
+              // state above, which only fires when boardItems itself is empty.
+              <p className="jds-hint" role="status">
+                Nothing in {BUCKETS.find((b) => b.key === bucket)?.label ?? "this bucket"} yet.
+              </p>
+            ) : (
+              sorted.map((item, i) => (
+                <MatchRow
+                  key={item.id}
+                  item={item}
+                  divided={i > 0}
+                  selected={item.id === selectedMatchId}
+                  onSelect={setSelectedMatchId}
+                  onDismiss={handleDismiss}
+                />
+              ))
+            )}
           </div>
         )}
         <Inspector

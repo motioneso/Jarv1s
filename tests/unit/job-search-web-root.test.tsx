@@ -160,14 +160,21 @@ describe("job-search web Root", () => {
     vi.mocked(api.invokeTool).mockReset();
     // Default transport for the real BoardScreen/SettingsScreen now rendered once a profile is
     // "active" (Task 20 replaced BoardPlaceholder) — a non-empty matches.list result is what
-    // makes the two pre-existing "renders ... table" assertions below still true; individual
-    // tests don't otherwise care what the board or settings screens render.
+    // makes this file's "renders the real board" assertions still true (checked by matching on
+    // the match's title text, not a <table> element — K2's keyline restructure replaced board.tsx's
+    // table with a .jsm-list of rule-separated rows); individual tests don't otherwise care what
+    // the board or settings screens render.
     //
     // Shape matches the real BoardMatch (board-types.ts / worker/handlers/matches.ts) as of N39:
     // no fitReason/wantReason on the list row (those moved to MatchDetail, fetched separately by
     // job-search.match.get), and url is required — found missing here by #1335's follow-up audit,
     // since board.tsx:219-223 casts this response with no runtime validation, so a stale fixture
-    // shape here would have kept passing silently.
+    // shape here would have kept passing silently. location/source/postedAt added by K5 — K2's
+    // match-row.tsx (unmocked here; the real BoardScreen renders through it) calls
+    // formatPostedOn(item.postedAt) unconditionally, and formatPostedOn only guards against
+    // `null`, not `undefined`, so an omitted field crashed every test in this file that reaches
+    // the Matches tab the moment K2's row extraction landed — the same #1335 trap (.tsx fixtures
+    // aren't typechecked) catching a second field.
     vi.mocked(api.invokeTool).mockImplementation(async (name: string) => {
       if (name === "job-search.matches.list") {
         return {
@@ -180,12 +187,22 @@ describe("job-search web Root", () => {
               want: 70,
               outsideFrame: false,
               state: "new",
-              url: "https://example.com/jobs/m1"
+              url: "https://example.com/jobs/m1",
+              location: "Remote — US",
+              source: "LinkedIn",
+              postedAt: "2026-07-15T09:00:00.000Z"
             }
           ]
         };
       }
       if (name === "job-search.portal.list") return { portals: [] };
+      // K5: the Overview and Profile tabs (screens/overview.tsx, screens/profile.tsx) each make
+      // their own resume.get read the moment they mount — every K5 test below visits at least one
+      // of those tabs, so this needs a real answer rather than falling through to the catch-all
+      // throw below (that would still render, since both screens swallow a rejected fetch into an
+      // "error" state, but a passing suite that only exercises the error branch would be worthless
+      // as K5 coverage).
+      if (name === "job-search.resume.get") return { resume: null };
       throw new Error(`unexpected invokeTool ${name}`);
     });
     vi.mocked(api.runQueue).mockReset();
@@ -302,7 +319,9 @@ describe("job-search web Root", () => {
     const renderer = await renderRoot();
     await flush(renderer);
 
-    expect(renderer.root.findAllByType("table")).toHaveLength(1);
+    // K2's keyline restructure replaced board.tsx's <table> with a rule-separated .jsm-list —
+    // check for the real match's title text instead of a table element.
+    expect(text(renderer)).toMatch(/Senior Engineer/);
     expect(text(renderer)).not.toMatch(/work out what this search is for/);
   });
 
@@ -479,6 +498,140 @@ describe("job-search web Root", () => {
     const renderer = await renderRoot(hostActions());
     await flush(renderer);
 
-    expect(renderer.root.findAllByType("table")).toHaveLength(1);
+    // See the K2 keyline-restructure note above: board.tsx has no <table> anymore.
+    expect(text(renderer)).toMatch(/Senior Engineer/);
+  });
+
+  // K5 (2026-07-28 keyline-restructure plan): the four-tab shell. These four tests are the plan's
+  // own list for this task, in the plan's own order.
+  describe("K5 four-tab shell", () => {
+    it("renders all four tabs for an active profile, with Matches selected on mount", async () => {
+      mockUseProfiles.mockReturnValue(ready([profile({ state: "active" })]));
+      const renderer = await renderRoot();
+      await flush(renderer);
+
+      const matchesTab = findButton(renderer, /^Matches$/);
+      const overviewTab = findButton(renderer, /^Overview$/);
+      const profileTab = findButton(renderer, /^Profile$/);
+      const monitorsTab = findButton(renderer, /^Monitors$/);
+      expect(matchesTab).toBeTruthy();
+      expect(overviewTab).toBeTruthy();
+      expect(profileTab).toBeTruthy();
+      expect(monitorsTab).toBeTruthy();
+
+      // aria-selected is what jds-tab draws its underline off — this asserts the actual attribute
+      // the design system reads, not just "some tab looks selected".
+      expect(matchesTab!.props["aria-selected"]).toBe(true);
+      expect(overviewTab!.props["aria-selected"]).toBe(false);
+      expect(profileTab!.props["aria-selected"]).toBe(false);
+      expect(monitorsTab!.props["aria-selected"]).toBe(false);
+
+      // Matches is the board — the pre-existing title-text assertion elsewhere in this file
+      // already covers that it's the real BoardScreen, not a placeholder. (board.tsx has no
+      // <table> — K2's keyline restructure draws a rule-separated .jsm-list instead.)
+      expect(text(renderer)).toMatch(/Senior Engineer/);
+    });
+
+    it("selecting each tab renders that screen and unmounts the previous one", async () => {
+      mockUseProfiles.mockReturnValue(ready([profile({ state: "active" })]));
+      const renderer = await renderRoot();
+      await flush(renderer);
+
+      // Matches (default): the board's match content is present, no other screen's own copy is.
+      expect(text(renderer)).toMatch(/Senior Engineer/);
+      expect(text(renderer)).not.toMatch(/Your board at a glance/);
+      expect(text(renderer)).not.toMatch(/knows about you/);
+      expect(text(renderer)).not.toMatch(/Which job boards this search crawls/);
+
+      await act(async () => {
+        findButton(renderer, /^Overview$/)!.props.onClick();
+      });
+      await flush(renderer);
+      // The board is gone — a real unmount, not a second screen layered on top.
+      expect(text(renderer)).not.toMatch(/Senior Engineer/);
+      expect(text(renderer)).toMatch(/Your board at a glance/);
+
+      await act(async () => {
+        findButton(renderer, /^Profile$/)!.props.onClick();
+      });
+      await flush(renderer);
+      expect(text(renderer)).not.toMatch(/Your board at a glance/);
+      expect(text(renderer)).toMatch(/knows about you/);
+
+      await act(async () => {
+        findButton(renderer, /^Monitors$/)!.props.onClick();
+      });
+      await flush(renderer);
+      expect(text(renderer)).not.toMatch(/knows about you/);
+      expect(text(renderer)).toMatch(/Which job boards this search crawls/);
+
+      await act(async () => {
+        findButton(renderer, /^Matches$/)!.props.onClick();
+      });
+      await flush(renderer);
+      expect(text(renderer)).not.toMatch(/Which job boards this search crawls/);
+      expect(text(renderer)).toMatch(/Senior Engineer/);
+    });
+
+    it("switching profile preserves the selected tab; switching tab preserves the selected profile", async () => {
+      const profiles = [
+        profile({ profileId: "p1", name: "Search A", state: "active" }),
+        profile({ profileId: "p2", name: "Search B", state: "active" })
+      ];
+      const actions = hostActions();
+      mockUseProfiles.mockReturnValue(ready(profiles, "p1"));
+      const renderer = await renderRoot(actions);
+      await flush(renderer);
+
+      // Move off the default tab first — if switching profile ever reset view state, staying on
+      // "matches" (already the default) couldn't tell the difference.
+      await act(async () => {
+        findButton(renderer, /^Overview$/)!.props.onClick();
+      });
+      await flush(renderer);
+      expect(findButton(renderer, /^Overview$/)!.props["aria-selected"]).toBe(true);
+
+      // Switch profile — same shape as this file's own surfaceKey-rebind test above: a real
+      // profile switch happens via useProfiles handing Root a new selectedId, so simulate that by
+      // re-rendering with an updated ready() fixture rather than clicking the mocked select().
+      mockUseProfiles.mockReturnValue(ready(profiles, "p2"));
+      await act(async () => {
+        renderer.update(createElement(Root, { hostActions: actions }));
+      });
+      await flush(renderer);
+
+      // The tab survived the profile switch — ActiveProfilePanel isn't remounted or reset by a
+      // change in which profile is selected.
+      expect(findButton(renderer, /^Overview$/)!.props["aria-selected"]).toBe(true);
+
+      // Now the reverse: switch tab again, then switch profile back, and confirm the profile
+      // switcher (not the view switcher) is what changed — ProfileBar's own selected button.
+      await act(async () => {
+        findButton(renderer, /^Monitors$/)!.props.onClick();
+      });
+      await flush(renderer);
+      mockUseProfiles.mockReturnValue(ready(profiles, "p1"));
+      await act(async () => {
+        renderer.update(createElement(Root, { hostActions: actions }));
+      });
+      await flush(renderer);
+
+      expect(findButton(renderer, /^Monitors$/)!.props["aria-selected"]).toBe(true);
+      const searchA = findButton(renderer, /^Search A$/);
+      expect(searchA!.props["aria-selected"]).toBe(true);
+    });
+
+    it("renders onboarding and no tab bar for an in_conversation profile", async () => {
+      mockUseProfiles.mockReturnValue(ready([profile({ state: "in_conversation" })]));
+      const renderer = await renderRoot();
+
+      expect(text(renderer)).toMatch(/work out what this search is for/);
+      // None of the four view-tab labels exist anywhere — the tab bar itself isn't rendered, not
+      // just hidden or disabled.
+      expect(findButton(renderer, /^Matches$/)).toBeUndefined();
+      expect(findButton(renderer, /^Overview$/)).toBeUndefined();
+      expect(findButton(renderer, /^Profile$/)).toBeUndefined();
+      expect(findButton(renderer, /^Monitors$/)).toBeUndefined();
+    });
   });
 });

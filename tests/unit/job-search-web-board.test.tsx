@@ -219,18 +219,33 @@ function findByRole(renderer: ReactTestRenderer, role: string) {
   return renderer.root.findAll((item) => (item.props as { role?: string }).role === role);
 }
 
-// The title button is always the first button rendered inside a card (dismiss is the second) —
-// scoping to each card's own buttons keeps this from picking up Inspector, sort or banner buttons
-// that also happen to be on the page. Matched on the `jsm-card` hook rather than on <article>,
-// because the element type is a rendering detail and the hook is the contract the CSS also uses.
+// K2: rows are keyline rows now (KeyRow's own `.jsm-krow`, from keyline.tsx), not cards — this
+// helper follows that rename. KeyRow renders `.jsm-krow__main` (title button first, matching
+// MatchRow's own children order) before `.jsm-krow__aside` (Dismiss), so the first button found
+// inside `.jsm-krow` is still the title button, same as it was inside `.jsm-card`. Scoping to
+// each row's own buttons keeps this from picking up Inspector, sort, tab or banner buttons that
+// also happen to be on the page. Matched on the `jsm-krow` hook rather than on <article>, because
+// the element type is a rendering detail and the hook is the contract the CSS also uses.
 function rowTitles(renderer: ReactTestRenderer): string[] {
   return renderer.root
     .findAll((item) =>
       String((item.props as { className?: string }).className ?? "")
         .split(" ")
-        .includes("jsm-card")
+        .includes("jsm-krow")
     )
-    .map((card) => flatten(card.findAllByType("button")[0]?.props.children).trim());
+    .map((row) => flatten(row.findAllByType("button")[0]?.props.children).trim());
+}
+
+// K2/K1 (job-search-keyline.test.tsx's own copy): a class-membership predicate over
+// renderer.root, not over the toJSON() tree flatten()/text() walk — needed whenever a test cares
+// about *how many* elements carry a class (a tab's own count span, a divider count) rather than
+// just whether the class's text appears anywhere in the page.
+function findByClass(renderer: ReactTestRenderer, className: string) {
+  return renderer.root.findAll((item) =>
+    String((item.props as { className?: string }).className ?? "")
+      .split(" ")
+      .includes(className)
+  );
 }
 
 describe("job-search web BoardScreen", () => {
@@ -332,14 +347,12 @@ describe("job-search web BoardScreen", () => {
     // An unscored row carries no number on either axis, and never a 0 — a zero is a score, drawn
     // in the same bar as a real one. The row now says "Not read yet" in place of the whole axes
     // block rather than drawing two em-dashes inside it (two blank instruments read as a
-    // measurement that came back empty; the sentence says why there is no measurement yet). The
-    // invariant under test is unchanged: nothing numeric renders for this row.
-    const scoreBars = renderer.root.findAll((item) =>
-      String((item.props as { className?: string }).className ?? "")
-        .split(" ")
-        .includes("jsm-card__value")
-    );
-    expect(scoreBars).toEqual([]);
+    // measurement that came back empty; the sentence says why there is no measurement yet). K2
+    // retargets this from the old `.jsm-card__value` class (deleted with the rest of the card
+    // vocabulary) to the two classes that could carry a score today — neither FitRail's own
+    // `jsm-fit-rail` wrapper nor Score's `jds-score` bar renders at all for an unscored row.
+    expect(findByClass(renderer, "jsm-fit-rail")).toEqual([]);
+    expect(findByClass(renderer, "jds-score")).toEqual([]);
 
     const titleButton = findButton(renderer, /Unscored Role/);
     await act(async () => {
@@ -795,5 +808,127 @@ describe("job-search web BoardScreen", () => {
     expect(link!.props.target).toBe("_blank");
     expect(link!.props.rel).toBe("noopener noreferrer");
     expect(link!.props.onClick).toBeUndefined();
+  });
+
+  // K2 (2026-07-28 keyline-restructure plan): the board now renders match-row.tsx's KeyRow-based
+  // rows instead of `.jsm-card`. This block covers the six K2 cases the plan names explicitly.
+  // Case 1 ("an unscored row carries no score-value class") is already covered above by the
+  // retargeted "renders dashes and a 'Not read yet' flag..." test — it now asserts against
+  // jsm-fit-rail/jds-score, the two classes that could carry a score, rather than the deleted
+  // jsm-card__value — so it is not duplicated here.
+
+  it("a scored row renders both axis labels and both numbers, never a combined figure", async () => {
+    matchesItems = [match({ id: "m1", title: "Role A", fit: 80, want: 70 })];
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    // Two independent FitRails (L9: fit and want are never blended into one score) — one
+    // jds-score per axis, never a single shared bar.
+    expect(findByClass(renderer, "jds-score")).toHaveLength(2);
+    expect(text(renderer)).toMatch(/Fit/);
+    expect(text(renderer)).toMatch(/Want/);
+    expect(text(renderer)).toMatch(/80/);
+    expect(text(renderer)).toMatch(/70/);
+  });
+
+  it("renders exactly n-1 dividers for n rows in the open bucket", async () => {
+    matchesItems = [
+      match({ id: "m1", title: "Role A" }),
+      match({ id: "m2", title: "Role B" }),
+      match({ id: "m3", title: "Role C" })
+    ];
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    // KeyRow renders its own jds-divider as a sibling above every row but the first
+    // (`divided={i > 0}`, board.tsx's own map) — three rows means two rules, not three, since the
+    // module cannot draw a keyline of its own and the list itself carries no gap (styles.css's
+    // K2 comment on .jsm-list). Filtered to the bare, single-class "jds-divider" KeyRow itself
+    // renders — board.tsx's own hero rule (`jds-divider jds-divider--strong jsm-hero__rule`) also
+    // carries the class and would otherwise inflate this count by one regardless of row count.
+    const rowDividers = renderer.root.findAll(
+      (item) => (item.props as { className?: string }).className === "jds-divider"
+    );
+    expect(rowDividers).toHaveLength(2);
+  });
+
+  it("bucket tabs count each state correctly and filter the visible rows on click", async () => {
+    matchesItems = [
+      match({ id: "m1", title: "New Role", state: "new" }),
+      match({ id: "m2", title: "Unscored Role", state: "unscored", fit: null, want: null }),
+      match({ id: "m3", title: "Saved Role", state: "seen" }),
+      match({ id: "m4", title: "Passed Role", state: "dismissed" })
+    ];
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    // "New" absorbs both `new` and `unscored` (board.tsx's own bucketOf) — two rows there, one
+    // each in Saved and Passed.
+    const counts = findByClass(renderer, "jds-tab__count").map((item) => item.props.children);
+    expect(counts).toEqual([2, 1, 1]);
+
+    // The board opens on New — Saved and Passed rows are not part of the initial render.
+    expect(rowTitles(renderer)).toEqual(["New Role", "Unscored Role"]);
+
+    const savedTab = findButton(renderer, /^Saved/);
+    await act(async () => {
+      savedTab!.props.onClick();
+    });
+    expect(rowTitles(renderer)).toEqual(["Saved Role"]);
+
+    const passedTab = findButton(renderer, /^Passed/);
+    await act(async () => {
+      passedTab!.props.onClick();
+    });
+    expect(rowTitles(renderer)).toEqual(["Passed Role"]);
+  });
+
+  it("never renders any element carrying a jsm-card* class anywhere in the tree", async () => {
+    matchesItems = [
+      match({ id: "m1", title: "Role A", outsideFrame: true }),
+      match({ id: "m2", title: "Role B", state: "unscored", fit: null, want: null })
+    ];
+    portalsItems = [portal({ cause: cause() })];
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    // The whole point of K2: `.jsm-card`/`.jsm-card__head`/`.jsm-card__axes`/`.jsm-card__axis`/
+    // `.jsm-card__value`/`.jsm-card__foot`/`.jsm-card__pending`/`.jsm-card--outside` are all gone,
+    // from styles.css and from every render path — a class-prefix scan is the one assertion that
+    // covers all eight without naming each individually (and would also catch a future regression
+    // reintroducing any of them under the same family).
+    const cardClasses = renderer.root
+      .findAll((item) => {
+        const className = (item.props as { className?: string }).className;
+        return typeof className === "string" && /(^|\s)jsm-card/.test(className);
+      })
+      .map((item) => (item.props as { className?: string }).className);
+    expect(cardClasses).toEqual([]);
+  });
+
+  it("renders the outside-frame flag as a chip in the meta line, not by dimming the whole row", async () => {
+    matchesItems = [
+      match({
+        id: "m1",
+        title: "Frame Breaker",
+        outsideFrame: true,
+        source: "LinkedIn",
+        location: "Remote — US",
+        postedAt: "2026-07-15T09:00:00.000Z"
+      })
+    ];
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    // `.jsm-card--outside` (opacity dimming) is deleted — the outside-frame signal is now a
+    // jds-badge--outline chip that sits inside .jsm-meta beside the existing source/location/
+    // posted-date pills, none of which regressed when the card wrapper was removed.
+    const outsideBadge = findByClass(renderer, "jds-badge--outline");
+    expect(outsideBadge).toHaveLength(1);
+    expect(flatten(outsideBadge[0]!.props.children)).toMatch(/Outside your stated frame/);
+
+    expect(text(renderer)).toContain("LinkedIn");
+    expect(text(renderer)).toContain("Remote — US");
+    expect(text(renderer)).toMatch(/Posted Jul 15/);
   });
 });
