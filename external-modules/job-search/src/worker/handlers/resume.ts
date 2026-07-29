@@ -97,7 +97,8 @@ async function saveResumeContent(
 
   const previous = await store.getLatestResume(profileId);
   const unchanged = previous != null && previous.content === content;
-  const resume = previous != null && unchanged ? previous : await store.setResume(profileId, content);
+  const resume =
+    previous != null && unchanged ? previous : await store.setResume(profileId, content);
 
   const scoreDeadlineAt = ctx.deadlineAt - RESCORE_HEADROOM_MS;
 

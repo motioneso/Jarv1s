@@ -233,10 +233,7 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
   // (or a briefing) reading a job-search résumé attachment saw the identical "missing
   // attachment" outcome as a genuinely-missing one, with no way to tell them apart.
   const attachments = new ChatAttachmentsService(new VaultContextRunner(getVaultBaseDir()));
-  const readModuleAttachmentText = async (
-    access: AccessContext,
-    attachmentId: string
-  ) => {
+  const readModuleAttachmentText = async (access: AccessContext, attachmentId: string) => {
     const content = await attachments.readContent(access, attachmentId);
     return content.kind === "text"
       ? {

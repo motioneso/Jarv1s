@@ -489,7 +489,12 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
           ai: {
             generateStructured: async () => ({
               ok: true,
-              object: { fit: 80, want: 70, fitReason: "Strong overlap", wantReason: "Matches goals" }
+              object: {
+                fit: 80,
+                want: 70,
+                fitReason: "Strong overlap",
+                wantReason: "Matches goals"
+              }
             })
           }
         }
@@ -588,7 +593,12 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
           ai: {
             generateStructured: async () => ({
               ok: true,
-              object: { fit: 80, want: 70, fitReason: "Strong overlap", wantReason: "Matches goals" }
+              object: {
+                fit: 80,
+                want: 70,
+                fitReason: "Strong overlap",
+                wantReason: "Matches goals"
+              }
             })
           }
         }

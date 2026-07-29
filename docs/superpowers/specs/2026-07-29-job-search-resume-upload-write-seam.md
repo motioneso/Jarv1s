@@ -190,12 +190,11 @@ Evidence, from the dev instance's own logs and DB, same run (`scratchpad/devapi.
   entirely inside the long-lived API server's `confirmAndRun`
   (`packages/ai/src/gateway/gateway.ts:504-596`): the waiter is created at
   `confirmations.awaitResolution(action.id, confirmTimeoutMs)` (lines 524-527), the card is emitted
-  via `notifier.emit` (lines 548-554), and the handler blocks on `await pendingResolution` (line
-  556) for the whole span. The request staying open for exactly the confirm timeout — not less —
+  via `notifier.emit` (lines 548-554), and the handler blocks on `await pendingResolution` (line 556) for the whole span. The request staying open for exactly the confirm timeout — not less —
   proves the waiter lived in the server process for the full 150s; it did not die with any child
   process.
 - `app.jarvis_action_audit_log` corroborates independently: `tool_name='job-search.resume.set' |
-  approval_mode='timeout' | outcome='denied'`, `occurred_at 2026-07-29 08:20:02.183558+00` — 5ms
+approval_mode='timeout' | outcome='denied'`, `occurred_at 2026-07-29 08:20:02.183558+00` — 5ms
   after the MCP request above returned. That's `confirmAndRun`'s `outcome !== "confirmed"` branch
   recording the timeout the instant `awaitResolution` resolves.
 - The wrapping `POST /api/chat/turn` request (reqId `req-5m`) that carries the whole turn started

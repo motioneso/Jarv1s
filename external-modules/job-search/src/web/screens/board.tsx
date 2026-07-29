@@ -100,7 +100,11 @@ function sortMatches(items: BoardMatch[], sort: SortState | null): BoardMatch[] 
  *  clicked — a control that is sorted but shows no indicator invites the reader to distrust the
  *  order. Returns null when `key` isn't the active column, so the caller can skip the chevron
  *  entirely rather than render one pointing nowhere. */
-function sortDirFor(sort: SortState | null, key: SortKey, items: BoardMatch[]): SortState["dir"] | null {
+function sortDirFor(
+  sort: SortState | null,
+  key: SortKey,
+  items: BoardMatch[]
+): SortState["dir"] | null {
   const effective = sort ?? defaultSortFor(items);
   return effective.key === key ? effective.dir : null;
 }
@@ -125,7 +129,9 @@ function SortChevron(props: { dir: SortState["dir"] | null }): ReactNodeLike {
       strokeWidth="2.5"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={props.dir === "asc" ? "jsm-sort-chevron jsm-sort-chevron--asc" : "jsm-sort-chevron"}
+      className={
+        props.dir === "asc" ? "jsm-sort-chevron jsm-sort-chevron--asc" : "jsm-sort-chevron"
+      }
       aria-hidden="true"
     >
       <path d="M6 9l6 6 6-6" />
@@ -168,7 +174,8 @@ function bucketOf(item: BoardMatch): Bucket {
 // ever has three keys.
 const BUCKET_EMPTY: Record<Bucket, string> = {
   new: "Nothing credible has landed here yet. New matches appear after your monitors run each morning.",
-  saved: "Ask Jarvis to save an opportunity and it lands here — decisions happen in the conversation.",
+  saved:
+    "Ask Jarvis to save an opportunity and it lands here — decisions happen in the conversation.",
   passed: "Roles you've passed on file here, with the reason kept."
 };
 

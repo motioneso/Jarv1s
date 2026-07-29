@@ -45,7 +45,11 @@ export function MatchRow(props: MatchRowProps): ReactNodeLike {
   const posted = formatPostedOn(item.postedAt);
 
   return (
-    <button type="button" className="jds-hairline-row jsm-row" onClick={() => props.onOpen(item.id)}>
+    <button
+      type="button"
+      className="jds-hairline-row jsm-row"
+      onClick={() => props.onOpen(item.id)}
+    >
       {/* The leading rail — band-coloured when Fit has an answer, the quietest tone otherwise.
           Never a border on the row itself (see jds-rail's own header in components-keyline.css). */}
       <span
@@ -97,7 +101,9 @@ export function MatchRow(props: MatchRowProps): ReactNodeLike {
       </span>
       <span className="jsm-row__aside">
         {scored ? (
-          <span className={band !== null ? FIT_BAND_EYEBROW[band] : "jds-eyebrow jds-eyebrow--muted"}>
+          <span
+            className={band !== null ? FIT_BAND_EYEBROW[band] : "jds-eyebrow jds-eyebrow--muted"}
+          >
             {band !== null ? FIT_BAND_LABEL[band] : "—"}
           </span>
         ) : (

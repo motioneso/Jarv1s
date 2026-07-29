@@ -279,7 +279,17 @@ describe("job-search reconciler binds crawl-sweep's schedule to its own queue (#
       "create:job-search.portal-set-enabled",
       `update:job-search.portal-set-enabled:${JSON.stringify({ retryLimit: 2 })}`,
       "create:job-search.profile-set-briefing-detail",
-      `update:job-search.profile-set-briefing-detail:${JSON.stringify({ retryLimit: 2 })}`
+      `update:job-search.profile-set-briefing-detail:${JSON.stringify({ retryLimit: 2 })}`,
+      // The list is deliberately exhaustive and in manifest order: it doubles as the guard that
+      // catches a queue silently dropped from the manifest, so a new queue means updating this
+      // list, never loosening the assertion. resume-set carries retryLimit 0 on purpose — the
+      // résumé row commits before scoring runs, so a retry would re-bump the résumé version.
+      "create:job-search.resume-set",
+      `update:job-search.resume-set:${JSON.stringify({ retryLimit: 0 })}`,
+      "create:job-search.profile-bootstrap",
+      `update:job-search.profile-bootstrap:${JSON.stringify({ retryLimit: 1 })}`,
+      "create:job-search.profile-new",
+      `update:job-search.profile-new:${JSON.stringify({ retryLimit: 1 })}`
     ]);
 
     expect(schedules).toEqual([

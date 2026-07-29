@@ -187,7 +187,11 @@ describe("ResumeSection / ResumeEditor", () => {
     });
     await flush();
 
-    const fakeFile = { name: "resume.md", size: 42, text: async () => "Content read from the file" };
+    const fakeFile = {
+      name: "resume.md",
+      size: 42,
+      text: async () => "Content read from the file"
+    };
     const fileInput = findFileInput(renderer);
     await act(async () => {
       fileInput.props.onChange({ target: { files: [fakeFile], value: "resume.md" } });

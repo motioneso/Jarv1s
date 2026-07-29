@@ -167,7 +167,9 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
 
         <div className="jsm-detail__meta">
           {scored ? (
-            <span className={band !== null ? FIT_BAND_EYEBROW[band] : "jds-eyebrow jds-eyebrow--muted"}>
+            <span
+              className={band !== null ? FIT_BAND_EYEBROW[band] : "jds-eyebrow jds-eyebrow--muted"}
+            >
               {band !== null ? FIT_BAND_LABEL[band] : "—"}
             </span>
           ) : (
@@ -187,7 +189,12 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
               on. Inline in the meta line, not a standalone button: on a full-page detail view this
               is one fact among several, not the loudest thing on the screen the way it had to be in
               the cramped 26rem side panel. */}
-          <a className="jds-eyebrow jsm-detail__link" href={match.url} target="_blank" rel="noopener noreferrer">
+          <a
+            className="jds-eyebrow jsm-detail__link"
+            href={match.url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             View original posting
             <svg
               width="12"
@@ -246,7 +253,11 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
                   {match.fit === null ? (
                     <p className="jsm-detail-axis__value">—</p>
                   ) : (
-                    <span className={band !== null ? FIT_BAND_EYEBROW[band] : "jds-eyebrow jds-eyebrow--muted"}>
+                    <span
+                      className={
+                        band !== null ? FIT_BAND_EYEBROW[band] : "jds-eyebrow jds-eyebrow--muted"
+                      }
+                    >
                       {band !== null ? FIT_BAND_LABEL[band] : "—"}
                     </span>
                   )}
@@ -288,7 +299,13 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
             <span className="jds-eyebrow">Your decision</span>
             {decided ? (
               <div className="jsm-detail-decision__current">
-                <span className={match.state === "seen" ? "jds-badge jds-badge--forest" : "jds-badge jds-badge--neutral"}>
+                <span
+                  className={
+                    match.state === "seen"
+                      ? "jds-badge jds-badge--forest"
+                      : "jds-badge jds-badge--neutral"
+                  }
+                >
                   {match.state === "seen" ? "Saved" : "Passed"}
                 </span>
               </div>
@@ -322,7 +339,11 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
                 Pass
               </button>
               {props.onDiscuss ? (
-                <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={props.onDiscuss}>
+                <button
+                  type="button"
+                  className="jds-btn jds-btn--quiet jds-btn--sm"
+                  onClick={props.onDiscuss}
+                >
                   Discuss
                 </button>
               ) : null}

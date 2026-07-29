@@ -51,7 +51,9 @@ export function MatchRecordCard(props: { detail: MatchDetail }): ReactNodeLike {
           {detail.fit === null ? (
             <p className="jsm-discuss-card__value">—</p>
           ) : (
-            <span className={band !== null ? FIT_BAND_EYEBROW[band] : "jds-eyebrow jds-eyebrow--muted"}>
+            <span
+              className={band !== null ? FIT_BAND_EYEBROW[band] : "jds-eyebrow jds-eyebrow--muted"}
+            >
               {band !== null ? FIT_BAND_LABEL[band] : "—"}
             </span>
           )}
