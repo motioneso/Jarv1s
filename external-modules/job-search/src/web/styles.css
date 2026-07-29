@@ -780,3 +780,44 @@
   max-width: 68ch;
   text-wrap: pretty;
 }
+
+/* --- Narrow viewports: the board row's phone geometry -------------------------------------
+   Observed on a 1080px-wide phone (2026-07-28): every row stood roughly 420px tall, so 25 roles
+   scrolled for over ten thousand pixels and the board could not be skimmed at all.
+
+   The cause is arithmetic, not styling. `.jsm-krow__main` asks for `flex: 1 1 18rem` and
+   `.jsm-krow__aside` is `flex: 0 0 auto` at about 14rem (two Fit/Want rails plus Dismiss); with
+   the row's 1.5rem gap that needs ~33.5rem, and a phone offers ~24rem of content width. So the
+   aside always wraps onto its own line — correct behaviour, and exactly what `flex-wrap` is there
+   for. What made it expensive is that each `.jsm-fit-rail` is a COLUMN (eyebrow stacked above the
+   number, which itself stacks a numeral above a track), so the wrapped line alone stood four text
+   rows tall, on top of the title, company and meta lines above it.
+
+   Below 48rem the rails lie down instead: label beside its number rather than above it. That is
+   the same information in half the height, and it only applies where the aside has already
+   wrapped — at 48rem and up the row still fits on one line and the column rails are still right.
+
+   `justify-content: space-between` on the wrapped aside also fixes the ragged right edge: Fit and
+   Want group at the left of their line and Dismiss sits at the right, so the control lands in the
+   same place on every row instead of floating wherever the score digits happened to end. */
+@media (max-width: 47.99rem) {
+  .jsm-krow {
+    padding: 0.75rem 0;
+    gap: 0.5rem;
+  }
+
+  /* Full width so `space-between` has a line to work across; `margin-left: auto` is what pinned
+     the whole group right in the wrapped case and is no longer wanted once it spans the row. */
+  .jsm-krow__aside {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .jsm-fit-rail {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.375rem;
+  }
+}
