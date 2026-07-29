@@ -4,6 +4,7 @@ import { listVaultFilesRecursive, readVaultFile } from "@jarv1s/vault";
 import type { DataContextDb } from "@jarv1s/db";
 import type { VaultContext } from "@jarv1s/vault";
 
+import { embedChunks } from "./embed-chunks.js";
 import type { EmbeddingProvider } from "./embedding-provider.js";
 import { parseDocument } from "./parser.js";
 import type { MemoryRepository, NewChunkData } from "./repository.js";
@@ -55,15 +56,10 @@ export class MemoryIngestPipeline {
 
     const { chunks, wikilinks } = parseDocument(content);
 
-    const newChunks: NewChunkData[] = await Promise.all(
-      chunks.map(async (chunk) => ({
-        sourcePath: relativePath,
-        lineStart: chunk.lineStart,
-        lineEnd: chunk.lineEnd,
-        contentHash: createHash("sha256").update(chunk.text).digest("hex"),
-        text: chunk.text,
-        embedding: await this.embeddingProvider.embedDocument(chunk.text)
-      }))
+    const newChunks: NewChunkData[] = await embedChunks(
+      this.embeddingProvider,
+      chunks,
+      relativePath
     );
 
     await this.repository.upsertFileChunks(
