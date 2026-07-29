@@ -177,6 +177,43 @@ describe("ClaudePrintChatEngine", () => {
     expect(result.complete).toBe(true);
     expect(result.offset).toBe(`${transcript}\n`.length);
   });
+
+  it("#1353 reads the transcript when the neutral dir contains a surface suffix", async () => {
+    // The live-chat neutral dir is `<neutralBase>/<userId>:<surface>`. Claude Code
+    // encodes the colon as a dash like every other non-[a-zA-Z0-9-] character, so the
+    // ONLY file that ever exists is the dash-encoded one seeded here. Before #1353 the
+    // engine computed a colon-bearing path, every read was ENOENT, and the turn ran the
+    // full 180s idle watchdog and returned an empty reply with nothing persisted —
+    // which is precisely how prod chat looked after the #1350 fix landed.
+    const transcriptPath =
+      "/home/test/.claude/projects/-tmp-jarvis-neutral-user-1-drawer/" +
+      "00000000-0000-4000-8000-000000000009.jsonl";
+    const transcript = JSON.stringify({
+      type: "assistant",
+      message: {
+        role: "assistant",
+        stop_reason: "end_turn",
+        content: [{ type: "text", text: "surface-suffixed ok" }]
+      }
+    });
+    const io = fakeIo({ [transcriptPath]: `${transcript}\n` });
+    const engine = new ClaudePrintChatEngine("user-1:drawer", io, {
+      mux: fakeMux(),
+      homeBase: "/home/test",
+      sessionId: "00000000-0000-4000-8000-000000000009"
+    });
+
+    await engine.launch({
+      neutralDir: "/tmp/jarvis-neutral/user-1:drawer",
+      personaPath: "/tmp/jarvis-neutral/user-1:drawer/persona.md",
+      personaText: "persona"
+    });
+
+    const result = await engine.readNew(0);
+
+    expect(result.records).toEqual([{ kind: "reply", text: "surface-suffixed ok" }]);
+    expect(result.complete).toBe(true);
+  });
 });
 
 describe("ClaudePrintChatEngine — vault read-only allowlist (#634)", () => {

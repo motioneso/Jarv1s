@@ -38,6 +38,8 @@ export class ClaudePrintChatEngine implements CliChatEngine {
   private transcriptPathValue: string | null = null;
   private currentProcess: ChildProcess | null = null;
   private hasSubmitted = false;
+  /** #1353 — one warning per unreadable-transcript streak, not one per 25ms poll. */
+  private warnedUnreadable = false;
 
   constructor(
     _threadKey: string,
@@ -86,7 +88,24 @@ export class ClaudePrintChatEngine implements CliChatEngine {
     let jsonl: string;
     try {
       jsonl = await this.io.readFile(this.transcriptPathValue);
+      this.warnedUnreadable = false;
     } catch {
+      // A miss here is NORMAL for the first few polls of a turn — `claude -p` has not
+      // created the transcript yet. It is a DEFECT if it never stops: the turn then
+      // produces nothing until the #456 idle watchdog trips 180s later and returns an
+      // empty reply with no message persisted, and nothing anywhere says why.
+      //
+      // #1353 was exactly that (the computed project dir did not match Claude's own
+      // encoding) and took days to find because this branch was silent. Warn ONCE per
+      // unreadable streak, path only — a transcript path contains no user content, but
+      // the transcript itself does, so never log the body.
+      if (this.hasSubmitted && !this.warnedUnreadable) {
+        this.warnedUnreadable = true;
+        console.warn(
+          `[claude-print] transcript not readable at ${this.transcriptPathValue} — ` +
+            "if this persists the turn will time out empty"
+        );
+      }
       return { records: [], offset: afterOffset, complete: false };
     }
 
