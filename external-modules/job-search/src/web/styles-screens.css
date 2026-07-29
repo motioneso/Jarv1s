@@ -180,3 +180,12 @@
   align-self: stretch;
   width: 100%;
 }
+
+/* The no-Surface fallback line (plan case 5) — carried over from the old `.jsm-onb__unavailable`
+   rule in styles.css, renamed to match this file's naming. It's the sole child of `.jsm-onb-chat`
+   with nothing else to share a rhythm with, so a `<p>`'s default browser margin only adds
+   unexplained space above and below a single line of text; zeroing it is the same call
+   `.jsm-overview__figures-note`/`.jsm-overview__blocker` (styles.css) make for the same reason. */
+.jsm-onb-unavailable {
+  margin: 0;
+}
