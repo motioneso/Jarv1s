@@ -163,4 +163,149 @@ describe("SettingsScreen", () => {
     expect(renderer.root.findAllByProps({ type: "range" })).toHaveLength(0);
     expect(text(renderer)).not.toMatch(/\bweight(ing)?\b/i);
   });
+
+  // K7 (2026-07-28 keyline-restructure plan, Monitors redesign): the row's one real fact.
+  it("renders Last success from lastOkAt, and omits the fact entirely when there's no successful run yet", async () => {
+    vi.mocked(api.invokeTool).mockResolvedValue({
+      portals: [
+        portalRow({ sourceId: "linkedin", label: "LinkedIn", lastOkAt: "2026-07-15T09:00:00.000Z" }),
+        portalRow({ sourceId: "freehire", label: "freehire.me", lastOkAt: null })
+      ]
+    });
+
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    const rendered = text(renderer);
+    expect(rendered).toMatch(/Last success.*Jul 15/);
+    // The second row never ran successfully — no fabricated date, no dash placeholder, just an
+    // absent fact (formatPostedOn's own header: an absent fact reads as "this board doesn't know").
+    const freehireIndex = rendered.indexOf("freehire.me");
+    expect(freehireIndex).toBeGreaterThanOrEqual(0);
+  });
+
+  // K7: the mockup's four-column fact grid (Schedule/Last checked/Last success/Found today)
+  // reduces to one real field — none of the other three exist on job-search.portal.list's wire
+  // shape, so they must never appear anywhere on this screen.
+  it("never renders a schedule, last-checked, or found-today figure — none of those fields exist on the wire", async () => {
+    vi.mocked(api.invokeTool).mockResolvedValue({
+      portals: [portalRow({ sourceId: "linkedin", label: "LinkedIn", lastOkAt: "2026-07-15T09:00:00.000Z" })]
+    });
+
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    const rendered = text(renderer);
+    expect(rendered).not.toMatch(/\bschedule\b/i);
+    expect(rendered).not.toMatch(/last checked/i);
+    expect(rendered).not.toMatch(/found today/i);
+    expect(rendered).not.toMatch(/7:00\s*AM/i);
+  });
+
+  // K7: Run now drives job-search.crawl-run through runQueue (the only reachable path — the tool
+  // 403s from the browser), and the button's own settled state is "queued", never "done"
+  // (runQueue resolves on acceptance only — ruling I5).
+  it("Run now queues job-search.crawl-run for the whole profile and settles on \"Run queued\"", async () => {
+    vi.mocked(api.invokeTool).mockResolvedValue({
+      portals: [portalRow({ sourceId: "linkedin", label: "LinkedIn" })]
+    });
+    vi.mocked(api.runQueue).mockResolvedValue({ kind: "queued" });
+
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    const runButton = renderer.root
+      .findAllByProps({ type: "button" })
+      .find((node) => flatten(node.props.children) === "Run now");
+    expect(runButton).toBeDefined();
+
+    await act(async () => {
+      runButton!.props.onClick();
+    });
+    await flush();
+
+    expect(api.runQueue).toHaveBeenCalledWith("job-search.crawl-run", "crawl.run", { profileId: "p1" });
+    expect(text(renderer)).toMatch(/Run queued/);
+  });
+
+  it("Run now shows an inline error and stays clickable when the queue call fails", async () => {
+    vi.mocked(api.invokeTool).mockResolvedValue({
+      portals: [portalRow({ sourceId: "linkedin", label: "LinkedIn" })]
+    });
+    vi.mocked(api.runQueue).mockRejectedValue(new Error("boom"));
+
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    const runButton = renderer.root
+      .findAllByProps({ type: "button" })
+      .find((node) => flatten(node.props.children) === "Run now");
+    await act(async () => {
+      runButton!.props.onClick();
+    });
+    await flush();
+
+    expect(text(renderer)).toMatch(/Couldn.t start/);
+    // Still says "Run now", not stuck on "Queuing…" — an error must return the button to its
+    // clickable resting label, not leave the user with no way to retry.
+    expect(
+      renderer.root.findAllByProps({ type: "button" }).some((node) => flatten(node.props.children) === "Run now")
+    ).toBe(true);
+  });
+
+  // K7: the mockup draws "Add a monitor" and "Edit query" as buttons. Neither has a worker queue
+  // behind it (source.ts declares them assistantTools-only, risk:"write") — a browser click would
+  // 403 with confirmation_required, so this screen must never render either as a working control.
+  it("never renders an Add a monitor or Edit query control — no queue exists for either", async () => {
+    vi.mocked(api.invokeTool).mockResolvedValue({
+      portals: [portalRow({ sourceId: "linkedin", label: "LinkedIn" })]
+    });
+
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    const buttonLabels = renderer.root
+      .findAllByProps({ type: "button" })
+      .map((node) => flatten(node.props.children));
+    expect(buttonLabels).not.toContain("Add a monitor");
+    expect(buttonLabels).not.toContain("Edit query");
+    expect(text(renderer)).toMatch(/through chat/i);
+  });
+
+  // K7: the footer line about keyless public job-board APIs, carried over from the mockup as text
+  // (modules can't import Lucide, so no shield glyph).
+  it("renders the keyless-public-APIs footer line", async () => {
+    vi.mocked(api.invokeTool).mockResolvedValue({ portals: [] });
+
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    expect(text(renderer)).toMatch(/keyless public job-board APIs/i);
+    expect(text(renderer)).toMatch(/never submits anything/i);
+  });
+
+  // K7: the trailing "N enabled · all healthy" meta on the section head must be computed from the
+  // real rows, and must not claim health when nothing is enabled.
+  it("computes the Watched boards meta from real rows, honestly, including the zero-enabled case", async () => {
+    vi.mocked(api.invokeTool).mockResolvedValueOnce({
+      portals: [
+        portalRow({ sourceId: "linkedin", label: "LinkedIn", enabled: true, cause: null }),
+        portalRow({ sourceId: "freehire", label: "freehire.me", enabled: false, cause: null })
+      ]
+    });
+    const healthy = await renderScreen(profile());
+    await flush();
+    expect(text(healthy)).toMatch(/1 enabled.*all healthy/);
+
+    vi.mocked(api.invokeTool).mockResolvedValueOnce({
+      portals: [
+        portalRow({ sourceId: "linkedin", label: "LinkedIn", enabled: false, cause: null }),
+        portalRow({ sourceId: "freehire", label: "freehire.me", enabled: false, cause: null })
+      ]
+    });
+    const none = await renderScreen(profile());
+    await flush();
+    expect(text(none)).toMatch(/No boards enabled/);
+    expect(text(none)).not.toMatch(/all healthy/);
+  });
 });

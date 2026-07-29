@@ -1,23 +1,42 @@
 // external-modules/job-search/src/web/screens/settings.tsx
-// Task 20 (#1304, settings half); trimmed by K4 (2026-07-28 keyline-restructure plan). Originally
-// this screen owned three groups — résumé, job boards, briefing detail. K4 moved the first and
-// third to the new profile.tsx (this file's own header used to explain why a résumé status line
-// and a briefing-detail control lived on a screen named "Settings"; that reasoning now lives in
-// profile.tsx instead). What's left is exactly one job: which job boards are enabled. K5 renames
-// this screen's tab to "Monitors" without touching what it renders.
+// Task 20 (#1304, settings half); trimmed by K4, redesigned by K7 (2026-07-28 keyline-restructure
+// plan — Monitors tab). K4 moved résumé and briefing-detail off this screen to profile.tsx,
+// leaving exactly one job: which job boards this search watches, and what state each one is in.
+// K5/K8 already wired the tab itself (root.tsx routes "Monitors" here unchanged) — this task only
+// redraws what SettingsScreen renders, following a Claude Design mockup (JobsMonitors.jsx) the
+// coordinator described by hand because the file itself couldn't be read directly.
 //
-// The board/inspector and root wiring are chat-surface's half of the original task; this file
-// owns no root wiring of its own (root.tsx stays exclusively K5's for this move).
+// The mockup draws a four-fact grid (Schedule / Last checked / Last success / Found today) and two
+// header buttons ("Add a monitor", "Edit query") that this screen deliberately does NOT build.
+// Every one of those was checked against the real wire shape and the real manifest before writing
+// any markup here, not assumed from the mockup's own copy:
+//   - job-search.portal.list (worker/handlers/portal.ts createPortalListHandler) returns exactly
+//     {sourceId, label, enabled, lastOkAt, cause} per portal. There is no schedule field, no
+//     "last checked" distinct from the last successful run, and no "found today" count anywhere on
+//     the wire — so the fact grid below renders the one fact that's real ("Last success") and
+//     nothing else. Two honest facts beat four where two are fiction.
+//   - job-search.source.add / job-search.source.remove (worker/handlers/source.ts) exist as
+//     assistantTools with risk:"write" but have NO worker.queues entry — a write-risk tool reached
+//     through invokeTool 403s with confirmation_required before it runs (rulings I3/I4), and there
+//     is no runQueue path either, because no queue is declared. "Add a monitor" and "Edit query"
+//     would be buttons wired to nothing, so neither is built; the footer line below points to chat
+//     instead, which is the one way either action genuinely works today.
+//   - job-search.crawl-run (worker.queues, allowManualRun: true, paramsSchema {profileId}) is real
+//     and reachable — but it crawls every enabled board for the profile, not one board at a time.
+//     "Run now" below is honest about that scope rather than implying a per-board rerun the queue
+//     can't actually do.
 //
 // Reads and writes take different transports, and the split is forced (rulings I3/I4): reading
 // job-search.portal.list is risk:"read" so it goes straight through invokeTool from the browser.
 // job-search.portal.set-enabled is risk:"write" — invokeTool on a write tool 403s with
 // confirmation_required before the tool ever runs (packages/ai/src/routes.ts:645-668) — so it
 // goes through the manual-run queue (runQueue) instead. runQueue only ever reports "queued" or
-// "already-queued", never "done" (I5), so the write below applies optimistically to local state
-// and is reconciled by re-fetching job-search.portal.list, not assumed to have succeeded.
-import { Fragment, h, useEffect, useState, type ReactNodeLike } from "../runtime";
-import { invokeTool, runQueue } from "../api";
+// "already-queued", never "done" (I5), so both writes below (the enable/pause switch and Run now)
+// apply optimistically/settle-to-"queued" and are reconciled by re-fetching job-search.portal.list,
+// never assumed to have completed.
+import { Fragment, h, useCallback, useEffect, useState, type ReactNodeLike } from "../runtime";
+import { invokeTool, runQueue, type RunOutcome } from "../api";
+import { FieldPair, KeyRow, SectionHead, formatPostedOn } from "../keyline";
 import type { Profile } from "../use-profiles";
 
 // Queue name follows root.tsx's existing job-search.crawl-run / crawl.run precedent: queue name
@@ -73,42 +92,145 @@ async function fetchPortals(profileId: string): Promise<PortalRow[]> {
   return Array.isArray(result?.portals) ? result.portals : [];
 }
 
-/** One rail row: what it is on the left, the control that changes it flush right.
- *
- * The row used to be a `jsm-switcher` — a plain left-to-right flex with a 0.5rem gap — so the
- * toggle sat immediately after the label text and every row ended at a different horizontal
- * position. Nothing lined up, and a column of controls that doesn't line up reads as unfinished
- * however carefully everything else is spaced. */
-function PortalRowView(props: {
-  key?: string;
-  row: PortalRow;
-  divided: boolean;
-  onToggle(sourceId: string, enabled: boolean): void;
-}): ReactNodeLike {
-  const { row } = props;
-  // A self-disabled portal (cause.disabled, e.g. login_required) is not a user choice — it must
-  // read as "this went off and here's why," not as an ordinary off toggle.
-  const selfDisabled = row.cause !== null && row.cause.disabled;
+// The queue "Run now" drives. Not exported: unlike PORTAL_SET_ENABLED_QUEUE/PORTAL_LIST_TOOL, no
+// test needs to import this literal by reference — the manifest-conformance blind sweep (its own
+// header explains why) finds it by grepping the literal itself, and this screen's own test drives
+// the control and asserts the runQueue call shape directly. Same queue, same job kind, board.tsx's
+// SearchNowControl already uses on the board screen — see this file's header for why a per-row
+// button is still honest even though the queue itself has no per-portal scope.
+const CRAWL_RUN_QUEUE = "job-search.crawl-run";
+
+/** One status dot colour per real state on the wire — never a fifth state invented to fill a gap.
+ *  crawl.ts's own failure handling (worker/stages/crawl.ts) is what makes all four of these
+ *  reachable: only a `login_required` failure sets `cause.disabled`/turns the portal off on its
+ *  own; every other failure kind (rate_limited, parse_failed, network, deadline) leaves the portal
+ *  `enabled: true` with a cause attached, so "on but struggling" is a real, distinct state from
+ *  either "on and fine" or "off". */
+function statusModifier(row: PortalRow): "ready" | "drift" | "idle" {
+  if (!row.enabled) return "idle";
+  return row.cause === null ? "ready" : "drift";
+}
+
+function statusText(row: PortalRow): string {
+  if (row.cause !== null && row.cause.disabled) return "Disabled";
+  return row.enabled ? "Enabled" : "Paused";
+}
+
+/** The "Run now" control, one per row. Mirrors board.tsx's SearchNowControl (same queue, same
+ *  pending/settled state machine) rather than inventing a second pattern — but every row's click
+ *  enqueues the SAME whole-profile crawl (crawl-run has no per-portal params), so the button never
+ *  claims to re-check only this board. A `title` carries that scope for anyone who hovers; the
+ *  visible label stays the three words the mockup asks for ("Run now" / "Queuing…" / "Run
+ *  queued") since a longer on-button sentence would crowd a row that already carries a switch next
+ *  to it. */
+function RunNowControl(props: { key?: string; profileId: string; onEnqueued(): void }): ReactNodeLike {
+  const [pending, setPending] = useState(false);
+  const [outcome, setOutcome] = useState<RunOutcome | null>(null);
+
+  const handleClick = useCallback(() => {
+    setPending(true);
+    runQueue(CRAWL_RUN_QUEUE, "crawl.run", { profileId: props.profileId })
+      .then((result) => {
+        setPending(false);
+        setOutcome(result);
+        props.onEnqueued();
+      })
+      .catch(() => {
+        setPending(false);
+        setOutcome({ kind: "error", message: "Network error" });
+      });
+  }, [props]);
+
+  // "queued"/"already-queued" both read as settled-and-queued (runQueue resolves on acceptance,
+  // never completion — ruling I5) — the button stays disabled rather than inviting a second click
+  // that can only ever report the same thing again. "disabled" and "error" both return the button
+  // to its clickable resting label; only "error" gets an inline reason, since "disabled" already
+  // has its own quiet hint line below the button.
+  const settled = outcome !== null && (outcome.kind === "queued" || outcome.kind === "already-queued");
+  const label = pending ? "Queuing…" : settled ? "Run queued" : "Run now";
+
   return h(
     Fragment,
     null,
-    // Rendered as a sibling rather than as a border on the row, because module CSS is layout-only
-    // (styles.css header) and a rule the colour of a hairline is a colour declaration. `jds-divider`
-    // is the host's own hairline, so the module never names a colour.
-    props.divided ? <div className="jds-divider" /> : null,
-    <div className="jsm-rail__row">
-      <div className="jsm-rail__main">
-        <div className="jsm-rail__label">
-          <span className="jds-label">{row.label}</span>
-          {selfDisabled ? <span className="jds-badge jds-badge--outline">Disabled</span> : null}
+    <button
+      type="button"
+      className="jds-btn jds-btn--quiet jds-btn--sm"
+      disabled={pending || settled || outcome?.kind === "disabled"}
+      title="Runs a check across every enabled board on this search, not only this one — job-search.crawl-run has no per-board scope."
+      onClick={handleClick}
+    >
+      {label}
+    </button>,
+    outcome?.kind === "disabled" ? (
+      <span className="jds-hint jsm-monitor__run-note">Manual runs are off for this account.</span>
+    ) : null,
+    outcome?.kind === "error" ? (
+      <span className="jds-hint jds-hint--error jsm-monitor__run-note">Couldn&rsquo;t start: {outcome.message}</span>
+    ) : null
+  );
+}
+
+/** One watched board: the mockup's three-line row, drawn from exactly the four fields
+ *  job-search.portal.list actually returns (sourceId/label/enabled/lastOkAt/cause — this file's
+ *  header). What the mockup drew that isn't here: a query string (not on the wire — the only
+ *  identifying text a portal has is its label), a 4-column fact grid (reduced to the one real fact,
+ *  "Last success" — Schedule/Last checked/Found today don't exist anywhere in the response), and an
+ *  "Edit query" button (no write path — see header). */
+function MonitorRow(props: {
+  key?: string;
+  row: PortalRow;
+  divided: boolean;
+  profileId: string;
+  onToggle(sourceId: string, enabled: boolean): void;
+  onRunEnqueued(): void;
+}): ReactNodeLike {
+  const { row } = props;
+  const selfDisabled = row.cause !== null && row.cause.disabled;
+  const lastSuccess = formatPostedOn(row.lastOkAt);
+
+  return (
+    <KeyRow
+      divided={props.divided}
+      aside={
+        <span className={`jds-indicator jds-indicator--${statusModifier(row)}`}>
+          <span className="jds-indicator__dot" />
+          <span className="jds-eyebrow">{statusText(row)}</span>
+        </span>
+      }
+    >
+      {/* Line 1: the label used everywhere else this portal is named (jds-label, not
+          jds-card-title — this row opens nothing on click, so the display-weight class that
+          implies interactivity would mislead). No query string alongside it: sourceId/label is
+          all a portal has, there is no separate query field on the wire. */}
+      <span className="jds-label">{row.label}</span>
+
+      {/* Line 2: the one real fact. Omitted entirely (not a placeholder dash) when there's no
+          successful run yet — formatPostedOn's own header is the rule this follows: an absent
+          fact reads as "this board doesn't know", which is the truth. */}
+      {/* Reuses the existing `.jsm-fields` wrapper (Overview's figures row, Profile's résumé
+          stats) rather than a new class for what is, today, a single field — the wrapper is
+          already the right shape (flex-wrap, 1.5rem gap) if a second real fact ever shows up on
+          this wire. */}
+      {lastSuccess !== null ? (
+        <div className="jsm-fields">
+          <FieldPair label="Last success">{lastSuccess}</FieldPair>
         </div>
-        {row.cause ? (
-          <p className={selfDisabled ? "jds-hint jds-hint--error" : "jds-hint"}>
-            {row.cause.summary} {row.cause.nextAction}
-          </p>
-        ) : null}
-      </div>
-      <div className="jsm-rail__control">
+      ) : null}
+
+      {/* Line 3: the cause, verbatim — never a sentence this screen composes itself. */}
+      {row.cause !== null ? (
+        <p className={selfDisabled ? "jds-hint jds-hint--error" : "jds-hint"}>
+          {row.cause.summary} {row.cause.nextAction}
+        </p>
+      ) : null}
+
+      {/* Line 4: the two real actions. Run now (queues a whole-profile crawl-run — see
+          RunNowControl's own header) and the enable/pause switch, kept as a switch rather than
+          redrawn as the mockup's second button — this module already uses jds-switch for exactly
+          this on-off pairing everywhere else (profile.tsx's briefing-detail control included), and
+          a switch reads its own state at a glance the way a button's label alone doesn't. */}
+      <div className="jsm-monitor__actions">
+        <RunNowControl profileId={props.profileId} onEnqueued={props.onRunEnqueued} />
         <label className="jds-switch">
           <input
             type="checkbox"
@@ -122,8 +244,24 @@ function PortalRowView(props: {
           </span>
         </label>
       </div>
-    </div>
+    </KeyRow>
   );
+}
+
+// Trailing meta on the "Watched boards" section head — computed from the same rows the list
+// below renders, never a separate claim. A count of zero enabled boards gets its own sentence
+// instead of the arithmetic "0 enabled · all healthy", which would technically be true and
+// completely misleading (nothing is healthy if nothing is running). "Needs attention" only fires
+// when an enabled board actually has a cause attached — a disabled board isn't "unhealthy", it's
+// off, and its own row already says so.
+function watchedBoardsMeta(rows: PortalRow[]): string {
+  const enabled = rows.filter((row) => row.enabled);
+  if (enabled.length === 0) return "No boards enabled";
+  const needsAttention = enabled.filter((row) => row.cause !== null).length;
+  const enabledLabel = `${enabled.length} enabled`;
+  if (needsAttention === 0) return `${enabledLabel} · all healthy`;
+  if (needsAttention === enabled.length) return `${enabledLabel} · all need attention`;
+  return `${enabledLabel} · ${needsAttention} need${needsAttention === 1 ? "s" : ""} attention`;
 }
 
 export function SettingsScreen(props: { profile: Profile }): ReactNodeLike {
@@ -165,6 +303,7 @@ export function SettingsScreen(props: { profile: Profile }): ReactNodeLike {
   }
 
   let portalsBody: ReactNodeLike;
+  let sectionMeta: string | null = null;
   if (portals.status === "loading") {
     portalsBody = <p className="jds-hint">Loading your job boards…</p>;
   } else if (portals.status === "error") {
@@ -172,10 +311,18 @@ export function SettingsScreen(props: { profile: Profile }): ReactNodeLike {
   } else if (portals.rows.length === 0) {
     portalsBody = <p className="jds-hint">No job boards yet.</p>;
   } else {
+    sectionMeta = watchedBoardsMeta(portals.rows);
     portalsBody = (
-      <div className="jsm-rail">
+      <div className="jsm-monitor__rows">
         {portals.rows.map((row, index) => (
-          <PortalRowView key={row.sourceId} row={row} divided={index > 0} onToggle={handleToggle} />
+          <MonitorRow
+            key={row.sourceId}
+            row={row}
+            divided={index > 0}
+            profileId={profile.profileId}
+            onToggle={handleToggle}
+            onRunEnqueued={refetchPortals}
+          />
         ))}
       </div>
     );
@@ -183,25 +330,44 @@ export function SettingsScreen(props: { profile: Profile }): ReactNodeLike {
 
   // No card. A lone control inside a full-width sunken card left three quarters of a 1100px box
   // empty and read as a container that failed to fill, so the group sits directly on the page
-  // ground at a readable measure (styles.css `.jsm-settings`) instead — same reasoning as before
-  // K4 moved the other two groups out, just with one group left to make it.
+  // ground at a readable measure (styles.css `.jsm-settings`) instead.
   //
-  // Title still says "Settings" here: this screen's own tab label rename to "Monitors" is K5's
-  // task (it also decides whether "custom sources" gets a second group on this same screen), not
-  // a rename K4 should make ahead of that wiring. The subtitle below was rewritten because it
-  // described three groups this screen no longer has — leaving stale copy describing content
-  // that moved elsewhere would be its own defect.
+  // The mockup's header carries a gold "Daily discovery · next run 7:00 AM PT" eyebrow and a
+  // primary "Add a monitor" button. Neither is built: the schedule string isn't on the wire
+  // anywhere a browser tool can read it (jarvis.module.json's cron is the worker's own config,
+  // never exposed through a tool — inventing "7:00 AM" would be a fabricated fact, and the plainer
+  // "Daily discovery" without a time reads as filler rather than information), and "Add a monitor"
+  // has no queue behind it (this file's header). The explanation paragraph and the footer line
+  // below carry what the header would otherwise have said.
   return (
     <div className="jsm-settings">
       <header className="jsm-settings__head">
-        <h2 className="jds-section-title">Settings</h2>
-        <p className="jds-section-sub">Which job boards this search crawls.</p>
+        <h2 className="jds-section-title">Monitors</h2>
+        <p className="jds-section-sub jsm-monitor__lede">
+          Which job boards this search crawls. I check them every morning and only surface what
+          clears your bar — nothing is applied on your behalf.
+        </p>
       </header>
 
       <section className="jsm-settings__group">
-        <span className="jds-eyebrow">Job boards</span>
+        <SectionHead label="Watched boards">
+          {sectionMeta !== null ? <span className="jds-eyebrow">{sectionMeta}</span> : null}
+        </SectionHead>
         {portalsBody}
       </section>
+
+      <div className="jsm-monitor__foot">
+        {/* Stands in for the mockup's "Add a monitor" / "Edit query" buttons — the one way either
+            action genuinely works today (source.ts's own header: assistantTools only, no queue). */}
+        <p className="jds-hint">Add or edit a job board through chat — ask Jarvis to add or change one.</p>
+
+        {/* The mockup's footer line, unchanged in substance: no icon (modules can't import
+            Lucide — keyline.tsx's own constraint list), plain text instead of a shield glyph. */}
+        <p className="jds-hint">
+          Sources are keyless public job-board APIs. Jarvis reads postings — it never submits
+          anything.
+        </p>
+      </div>
     </div>
   );
 }

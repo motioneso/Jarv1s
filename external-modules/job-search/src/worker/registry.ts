@@ -30,6 +30,7 @@ import {
   createCriteriaSetHandler,
   createProfileBootstrapHandler,
   createProfileCreateHandler,
+  createProfileGetHandler,
   createProfileListHandler,
   createProfileNewHandler,
   createSetBriefingDetailHandler,
@@ -63,6 +64,7 @@ export const HANDLERS: Readonly<Record<string, CtxHandler>> = {
   // browser cannot invoke a write tool, so "start another search" needs a sanctioned worker path.
   "profile.new": (ctx) => createProfileNewHandler(storeFrom(ctx))(ctx),
   "profile.list": (ctx) => createProfileListHandler(storeFrom(ctx))(ctx),
+  "profile.get": (ctx) => createProfileGetHandler(storeFrom(ctx))(ctx),
   "criteria.set": (ctx) => createCriteriaSetHandler(storeFrom(ctx))(ctx),
   "profile.set-context": (ctx) => createSetContextHandler(storeFrom(ctx))(ctx),
   "profile.set-briefing-detail": (ctx) => createSetBriefingDetailHandler(storeFrom(ctx))(ctx),

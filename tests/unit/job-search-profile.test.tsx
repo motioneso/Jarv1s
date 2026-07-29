@@ -2,11 +2,21 @@
 //
 // K4 (2026-07-28 keyline-restructure plan): ProfileScreen in isolation, same plain node
 // environment and api.ts mocking pattern as job-search-web-settings.test.tsx (no jsdom needed —
-// job-search-web-onboarding.test.tsx's header explains why). Covers the four cases the plan named
-// for this screen: the résumé date renders with no ambient-locale dependence (the fix for the
-// settings.tsx:193 defect this move carries forward), the empty-résumé state, every onboarding
-// step rendering from completedSteps, and the briefing-detail control (moved here verbatim from
+// job-search-web-onboarding.test.tsx's header explains why). Covers the résumé date rendering
+// with no ambient-locale dependence (the fix for the settings.tsx:193 defect this move carries
+// forward), the empty-résumé state, and the briefing-detail control (moved here verbatim from
 // job-search-web-settings.test.tsx along with the control itself — coverage moved, not dropped).
+//
+// K6 (same plan) swapped "What it's looking for" from `completedSteps` pills onto real
+// `SearchCriteria` fetched via `job-search.profile.get` — the five-onboarding-steps case this
+// file used to cover no longer describes what the screen renders, so it is replaced below by a
+// real-criteria render test and an empty-criteria test, not deleted outright.
+//
+// K6 follow-up (same session): team-lead reversed the original call to fetch `contextSummary` and
+// not render it — it is now its own section, above the criteria chips, with a stated render cap
+// and a "render nothing, not an empty section" absent case. Two more tests below cover that
+// section directly; the existing criteria tests above already exercise `mockInvoke`'s default
+// `contextSummary: null`, which is why they never had to change.
 import "./helpers/install-module-runtime";
 import { createElement } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
@@ -18,12 +28,14 @@ vi.mock("../../external-modules/job-search/src/web/api", () => ({
 }));
 
 import {
+  PROFILE_GET_TOOL,
   PROFILE_SET_BRIEFING_DETAIL_QUEUE,
   ProfileScreen,
   RESUME_GET_TOOL
 } from "../../external-modules/job-search/src/web/screens/profile";
 import * as api from "../../external-modules/job-search/src/web/api";
 import type { Profile } from "../../external-modules/job-search/src/web/use-profiles";
+import type { SearchCriteria } from "../../external-modules/job-search/src/domain/records";
 
 function profile(overrides: Partial<Profile> = {}): Profile {
   return {
@@ -36,6 +48,43 @@ function profile(overrides: Partial<Profile> = {}): Profile {
     surfaceKey: "surf-1",
     ...overrides
   };
+}
+
+const EMPTY_CRITERIA: SearchCriteria = {
+  titles: [],
+  seniority: [],
+  locations: [],
+  remote: "no-preference",
+  compFloorCents: null,
+  excludeCompanies: [],
+  mustHave: [],
+  niceToHave: [],
+  dealbreakers: [],
+  wantNarrative: ""
+};
+
+function criteria(overrides: Partial<SearchCriteria> = {}): SearchCriteria {
+  return { ...EMPTY_CRITERIA, ...overrides };
+}
+
+// Discriminates api.invokeTool's single mock by which tool it was called with — this screen now
+// calls two read tools (résumé, then criteria) instead of one, so a bare `mockResolvedValue`
+// would answer the criteria call with résumé-shaped data and vice versa. Defaults to "nothing on
+// file" for both, matching the pre-K6 tests' implicit assumption.
+function mockInvoke(
+  opts: { resume?: unknown; criteria?: SearchCriteria; contextSummary?: string | null } = {}
+): void {
+  vi.mocked(api.invokeTool).mockImplementation(async (tool: string) => {
+    if (tool === RESUME_GET_TOOL) return { resume: opts.resume ?? null };
+    if (tool === PROFILE_GET_TOOL) {
+      return {
+        profileId: "p1",
+        criteria: opts.criteria ?? EMPTY_CRITERIA,
+        contextSummary: opts.contextSummary ?? null
+      };
+    }
+    throw new Error(`unexpected invokeTool call: ${tool}`);
+  });
 }
 
 async function renderScreen(profileValue: Profile): Promise<ReactTestRenderer> {
@@ -83,7 +132,7 @@ describe("ProfileScreen", () => {
   });
 
   it("renders the résumé's saved-on date from a fixed instant with no locale dependence", async () => {
-    vi.mocked(api.invokeTool).mockResolvedValue({
+    mockInvoke({
       resume: { version: 3, content: "x".repeat(1200), updatedAt: "2026-07-15T09:00:00.000Z" }
     });
 
@@ -100,7 +149,7 @@ describe("ProfileScreen", () => {
   });
 
   it("renders the empty-résumé state with no version number when resume is null", async () => {
-    vi.mocked(api.invokeTool).mockResolvedValue({ resume: null });
+    mockInvoke();
 
     const renderer = await renderScreen(profile());
     await flush();
@@ -112,40 +161,106 @@ describe("ProfileScreen", () => {
     expect(rendered).toMatch(/No/);
   });
 
-  it("renders every one of the five onboarding steps, marked from completedSteps", async () => {
-    vi.mocked(api.invokeTool).mockResolvedValue({ resume: null });
+  it("renders real criteria as chips, remote preference, pay floor, and prose (K6)", async () => {
+    mockInvoke({
+      criteria: criteria({
+        titles: ["Staff Engineer", "Principal Engineer"],
+        seniority: ["Staff"],
+        locations: ["Remote"],
+        remote: "required",
+        compFloorCents: 18_000_000,
+        mustHave: ["Equity"],
+        niceToHave: ["4-day week"],
+        dealbreakers: ["On-call rotation"],
+        wantNarrative: "Something meaningful, not just a paycheck."
+      })
+    });
 
-    const renderer = await renderScreen(
-      profile({ completedSteps: ["role", "where"], readyToCrawl: false })
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    expect(api.invokeTool).toHaveBeenCalledWith(PROFILE_GET_TOOL, { profileId: "p1" });
+    const rendered = text(renderer);
+    expect(rendered).toContain("Staff Engineer");
+    expect(rendered).toContain("Principal Engineer");
+    expect(rendered).toContain("Remote required");
+    // 18,000,000 cents = $180,000 — integer/string arithmetic, no Intl.NumberFormat.
+    expect(rendered).toContain("$180,000");
+    expect(rendered).toContain("Equity");
+    expect(rendered).toContain("4-day week");
+    expect(rendered).toContain("On-call rotation");
+    expect(rendered).toContain("Something meaningful, not just a paycheck.");
+
+    const chips = renderer.root.findAll(
+      (node) =>
+        typeof node.type === "string" &&
+        node.type === "span" &&
+        typeof node.props.className === "string" &&
+        node.props.className.includes("jds-chip")
     );
+    // Two titles + one seniority + one location + one must-have + one nice-to-have + one
+    // dealbreaker = 7 chips; not an exact count this test depends on beyond "more than zero" for
+    // any single group, but the full set confirms every group actually rendered its chips.
+    expect(chips).toHaveLength(7);
+  });
+
+  it("renders a graceful empty state for a brand-new profile's empty criteria, not a wall of empty headings (K6)", async () => {
+    mockInvoke({ criteria: EMPTY_CRITERIA });
+
+    const renderer = await renderScreen(profile());
     await flush();
 
     const rendered = text(renderer);
-    // All five step labels present regardless of completion.
-    for (const label of ["Role", "What you want", "Where", "Pay", "Job boards"]) {
-      expect(rendered).toContain(label);
-    }
+    expect(rendered).toContain("No titles yet.");
+    expect(rendered).toContain("No seniority level yet.");
+    expect(rendered).toContain("No locations yet.");
+    expect(rendered).toContain("No preference");
+    expect(rendered).toContain("No minimum set.");
+    expect(rendered).toContain("Nothing marked must-have yet.");
+    expect(rendered).toContain("Nothing marked nice-to-have yet.");
+    expect(rendered).toContain("No dealbreakers marked yet.");
+    expect(rendered).toContain("Nothing said yet about what you actually want out of this search.");
 
-    const pills = renderer.root.findAll(
+    // No chip rendered anywhere — every empty group falls back to a one-line prose hint instead
+    // of an empty jds-chip row, which is the "wall of empty headings" this test guards against.
+    const chips = renderer.root.findAll(
       (node) =>
         typeof node.type === "string" &&
-        node.type === "li" &&
+        node.type === "span" &&
         typeof node.props.className === "string" &&
-        node.props.className.includes("jds-badge")
+        node.props.className.includes("jds-chip")
     );
-    expect(pills).toHaveLength(5);
+    expect(chips).toHaveLength(0);
+  });
 
-    const done = pills.filter((node) => (node.props.className as string).includes("jds-badge--forest"));
-    const notDone = pills.filter((node) =>
-      (node.props.className as string).includes("jds-badge--outline")
-    );
-    // completedSteps has exactly "role" and "where" — two done, three not yet.
-    expect(done).toHaveLength(2);
-    expect(notDone).toHaveLength(3);
+  it("renders the context summary as framing prose above the criteria, truncated at the stated cap (K6 follow-up)", async () => {
+    const long = "A".repeat(400);
+    mockInvoke({ contextSummary: long });
+
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    expect(text(renderer)).toContain("What I understand you’re after");
+    // Truncated to the 320-char cap plus an ellipsis, not the full 400-char string — proves the
+    // cap actually bites rather than just existing as an unused constant.
+    const truncated = `${"A".repeat(320)}…`;
+    expect(text(renderer)).toContain(truncated);
+    expect(text(renderer)).not.toContain("A".repeat(321));
+  });
+
+  it("renders nothing for the context-summary section when there is no summary on file (K6 follow-up)", async () => {
+    mockInvoke({ contextSummary: null });
+
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    // Not an empty heading, not a placeholder — the section is absent outright, same "prefer
+    // nothing over an empty section" rule LookingForSection's own empty states already follow.
+    expect(text(renderer)).not.toContain("What I understand you’re after");
   });
 
   it("changing briefing detail calls runQueue with job-search.profile-set-briefing-detail and the selected level", async () => {
-    vi.mocked(api.invokeTool).mockResolvedValue({ resume: null });
+    mockInvoke();
 
     const renderer = await renderScreen(profile({ briefingDetail: "top" }));
     await flush();

@@ -63,6 +63,7 @@ export function requireString(input: Record<string, unknown>, field: string): st
 
 const PROFILE_CREATE_FIELDS = new Set(["name"]);
 const NO_FIELDS = new Set<string>();
+const PROFILE_GET_FIELDS = new Set(["profileId"]);
 const CRITERIA_SET_FIELDS = new Set(["profileId", "criteria"]);
 const SET_CONTEXT_FIELDS = new Set(["profileId", "summary"]);
 const SET_BRIEFING_DETAIL_FIELDS = new Set(["profileId", "detail"]);
@@ -223,6 +224,41 @@ export function createProfileListHandler(store: JobSearchStore) {
     );
 
     return { profiles: shaped };
+  };
+}
+
+/** K6 (2026-07-28 keyline-restructure plan): the one read tool that returns what a profile's
+ * criteria actually say, not just how many onboarding steps are answered. `profile.list` already
+ * shapes `completedSteps`/`readyToCrawl` for the switcher; this is a second, deliberately separate
+ * shape for the Profile screen alone — one record, not the 15-25-row list `matches.list` shapes,
+ * so it is exempt from that file's render-cap/truncation arithmetic (same exemption `MatchDetail`
+ * documents for `match.get` in matches.ts). Nothing here truncates `contextSummary` or any
+ * criteria field for that reason.
+ *
+ * Returns exactly `{profileId, criteria, contextSummary}` — never the rest of the `Profile`
+ * record (name, state, schedule, surfaceKey, ...). Secrets never escape a handler by accident,
+ * but the more common leak is a whole-record return where a field nobody meant to expose rides
+ * along; naming every returned key here is what test `10` in
+ * job-search-profile-handler.test.ts checks for. */
+export function createProfileGetHandler(store: JobSearchStore) {
+  return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
+    const input = stripEnvelope(ctx.input);
+    requireNoUnknownKeys(input, PROFILE_GET_FIELDS);
+    const profileId = requireProfileId(input);
+
+    // Matches this file's own idiom (criteria.set / set-context below), not resume.ts's/
+    // matches.ts's "return {..., x: null}" — both idioms exist in this codebase and the task
+    // asked for whichever one the handler's own file already uses.
+    const profile = await store.getProfile(profileId);
+    if (!profile) {
+      throw new InputError("profileId not found");
+    }
+
+    return {
+      profileId,
+      criteria: profile.criteria,
+      contextSummary: profile.contextSummary
+    };
   };
 }
 

@@ -685,3 +685,98 @@
 .jsm-row__pending {
   min-width: 0;
 }
+
+/* K8 — masthead */
+
+/* The module's own identity header (root.tsx's `ModuleMasthead`): eyebrow+title stack on the
+   left, an optional status indicator pinned to the row's own top-right. `align-items: flex-start`
+   is what keeps the status line level with the eyebrow rather than vertically centred against a
+   two-line title — the design source's own "top-aligned" call, expressed here as layout only;
+   every colour and typeface on the two sides comes from `jds-eyebrow` / `jds-section-title` /
+   `jds-indicator` (see the component). `flex-wrap` so a narrow viewport drops the status onto its
+   own line under the title instead of forcing the title to give up width to it. */
+.jsm-masthead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.jsm-masthead__ident {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+/* K7 — monitors */
+
+/* One KeyRow per watched board — same plain-stack shape as `.jsm-overview__portals` (K3) and
+   `.jsm-overview__blockers`: KeyRow supplies its own divider between rows via `divided={i > 0}`,
+   so the wrapper is only ever a column, never a gap of its own (a nonzero gap here would stack on
+   top of KeyRow's own vertical padding, same reasoning `.jsm-list`'s header gives). */
+.jsm-monitor__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The explanation paragraph under the "Monitors" title. Capped at a readable measure rather than
+   stretching to `.jsm-settings`'s own 40rem column — the mockup's own ~54ch cap for this one
+   sentence, kept here rather than as a one-off inline width so it stays next to the rest of this
+   screen's layout rules. */
+.jsm-monitor__lede {
+  max-width: 54ch;
+}
+
+/* Run now + the enable/pause switch, side by side and vertically centred against each other — a
+   button's own line-height and a `jds-switch`'s track height don't match by default, and
+   `align-items: flex-start` (the default for a row's children in this module) left the switch
+   sitting visibly higher than the button's label text next to it. */
+.jsm-monitor__actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* The inline "manual runs are off" / "couldn't start" note next to Run now — a sibling text node,
+   not a block below the button, so a settled row reads as one compact line rather than growing
+   taller than every healthy row around it. */
+.jsm-monitor__run-note {
+  display: inline-block;
+}
+
+/* The chat-pointer line and the keyless-APIs footer line, grouped with a tighter gap than
+   `.jsm-settings`'s own 2.5rem section spacing — both are asides about the screen as a whole
+   rather than a third content section, so they read as one closing block, not two more groups. */
+.jsm-monitor__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* K6 — profile criteria */
+
+/* One `jds-chip` per titles/seniority/locations/must-have/nice-to-have/dealbreakers entry
+   (profile.tsx's `ChipGroup`, inside a `FieldPair`'s value slot) — wraps for the same reason
+   `.jsm-fields`/`.jsm-steps` do: an unbounded list of user-entered strings will overflow a fixed
+   width sooner or later, and a chip truncated mid-word reads worse than a row that breaks onto
+   two lines. No colour or border of its own — every chip's fill/outline comes from `jds-chip`
+   (component-jarvis.css), this only lays the row out. */
+.jsm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* The context-summary paragraph (profile.tsx's ContextSummarySection) — model-written prose, so
+   this bounds its measure to a readable line length rather than letting it run the full
+   `.jsm-settings` column width. 68ch sits inside the 60-70ch range typography guidance treats as
+   readable regardless of font metrics; `text-wrap: pretty` avoids a lone short word stranded on
+   its own last line, same as the host's own long-copy panes (settings-panes-2.css). Neither
+   property names a colour or font — `jds-hint` (component-forms.css) still owns those. */
+.jsm-summary {
+  max-width: 68ch;
+  text-wrap: pretty;
+}

@@ -48,6 +48,19 @@
       "handler": "profile.list"
     },
     {
+      "name": "job-search.profile.get",
+      "permissionId": "job-search.profile.get",
+      "description": "Read one profile's full search criteria (titles, seniority, locations, remote preference, pay floor, must-haves, nice-to-haves, dealbreakers, and what the user said they want) plus its saved context summary.",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId"],
+        "properties": { "profileId": { "type": "string" } }
+      },
+      "handler": "profile.get"
+    },
+    {
       "name": "job-search.criteria.set",
       "permissionId": "job-search.criteria.set",
       "description": "Save what this job search is looking for — roles, places, pay, and what you actually want.",

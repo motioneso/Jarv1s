@@ -634,4 +634,78 @@ describe("job-search web Root", () => {
       expect(findButton(renderer, /^Monitors$/)).toBeUndefined();
     });
   });
+
+  // K8 (2026-07-28 keyline-restructure plan): the module masthead. The eyebrow/title are static
+  // and already covered indirectly everywhere else in this file (every renderRoot call would fail
+  // these two assertions if the masthead didn't mount) — what's worth testing on purpose is the
+  // status line, since that's the one piece of this task with real logic behind it (mastheadStatus
+  // in root.tsx) rather than markup.
+  describe("K8 masthead", () => {
+    // Finds the jds-indicator wrapper span itself, not its __dot child — an exact className match
+    // rather than a substring test, since "jds-indicator__dot" also contains the substring
+    // "jds-indicator" and a loose match would find the wrong node.
+    function findIndicator(renderer: ReactTestRenderer, modifier: string) {
+      return renderer.root.findAll(
+        (item) =>
+          typeof item.type === "string" &&
+          item.props.className === `jds-indicator jds-indicator--${modifier}`
+      );
+    }
+
+    it("renders the module identity even before any profile exists", async () => {
+      mockUseProfiles.mockReturnValue(empty());
+      const renderer = await renderRoot();
+
+      expect(text(renderer)).toMatch(/Jarvis · Module/);
+      expect(text(renderer)).toMatch(/Job Search/);
+      // No profile to derive a status from yet, and no fetch exists to go get one — the aside is
+      // omitted entirely rather than rendered empty or guessed at.
+      expect(
+        renderer.root.findAll(
+          (item) =>
+            typeof item.type === "string" &&
+            typeof item.props.className === "string" &&
+            item.props.className.startsWith("jds-indicator")
+        )
+      ).toHaveLength(0);
+    });
+
+    it('reads "Monitoring on" for an active, ready-to-crawl profile', async () => {
+      mockUseProfiles.mockReturnValue(ready([profile({ state: "active", readyToCrawl: true })]));
+      const renderer = await renderRoot();
+      await flush(renderer);
+
+      expect(text(renderer)).toMatch(/Monitoring on/);
+      expect(findIndicator(renderer, "ready")).toHaveLength(1);
+      // Never the invented "next run" clock from the design source — no schedule is knowable here.
+      expect(text(renderer)).not.toMatch(/next run/i);
+    });
+
+    it('reads "Paused" for a paused profile', async () => {
+      mockUseProfiles.mockReturnValue(ready([profile({ state: "paused" })]));
+      const renderer = await renderRoot();
+      await flush(renderer);
+
+      expect(text(renderer)).toMatch(/Paused/);
+      expect(findIndicator(renderer, "idle")).toHaveLength(1);
+    });
+
+    it('reads "Setup incomplete" for a profile still in_conversation', async () => {
+      mockUseProfiles.mockReturnValue(ready([profile({ state: "in_conversation" })]));
+      const renderer = await renderRoot();
+
+      expect(text(renderer)).toMatch(/Setup incomplete/);
+      expect(findIndicator(renderer, "drift")).toHaveLength(1);
+    });
+
+    it('reads "Setup incomplete" for an active profile that somehow isn\'t ready to crawl', async () => {
+      mockUseProfiles.mockReturnValue(ready([profile({ state: "active", readyToCrawl: false })]));
+      const renderer = await renderRoot();
+      await flush(renderer);
+
+      expect(text(renderer)).toMatch(/Setup incomplete/);
+      expect(findIndicator(renderer, "drift")).toHaveLength(1);
+      expect(text(renderer)).not.toMatch(/Monitoring on/);
+    });
+  });
 });

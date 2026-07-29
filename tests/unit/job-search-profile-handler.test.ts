@@ -31,6 +31,7 @@ import {
   createCriteriaSetHandler,
   createProfileBootstrapHandler,
   createProfileCreateHandler,
+  createProfileGetHandler,
   createProfileListHandler,
   createSetBriefingDetailHandler,
   createSetContextHandler
@@ -367,6 +368,7 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
     }> = [
       { name: "profile.create", build: createProfileCreateHandler, valid: { name: "New Profile" } },
       { name: "profile.list", build: createProfileListHandler, valid: {} },
+      { name: "profile.get", build: createProfileGetHandler, valid: { profileId: "p1" } },
       {
         name: "criteria.set",
         build: createCriteriaSetHandler,
@@ -478,6 +480,7 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
     );
     results.push(await createResumeSetHandler(store)(ctx({ profileId: "p1", content: "resume" })));
     results.push(await createResumeGetHandler(store)(ctx({ profileId: "p1" })));
+    results.push(await createProfileGetHandler(store)(ctx({ profileId: "p1" })));
     results.push(
       await createPortalSetEnabledHandler(store)(
         ctx({ profileId: "p1", sourceId: "freehire", enabled: false })
@@ -512,4 +515,36 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
   // imported HANDLERS map rather than a retyped copy, covers `worker.queues[].handler` and
   // `briefing.handler` as well as `assistantTools[].handler` (this case only ever read the last
   // of the three), and carries its own vacuous-pass floor.
+
+  it("12. profile.get returns exactly {profileId, criteria, contextSummary} for a real profile", async () => {
+    const { store } = createFakeStore([
+      makeProfile({
+        id: "p1",
+        criteria: { ...EMPTY_CRITERIA, titles: ["Staff Engineer"] },
+        contextSummary: "Wants a remote staff role."
+      })
+    ]);
+
+    const result = await createProfileGetHandler(store)(ctx({ profileId: "p1" }));
+
+    // Exact key set, not just "contains" — a whole-record return (name/state/schedule/
+    // surfaceKey riding along unnoticed) is the more common way a handler leaks more than it
+    // means to, not a wrong criteria field.
+    expect(Object.keys(result as Record<string, unknown>).sort()).toEqual(
+      ["contextSummary", "criteria", "profileId"].sort()
+    );
+    expect(result).toEqual({
+      profileId: "p1",
+      criteria: { ...EMPTY_CRITERIA, titles: ["Staff Engineer"] },
+      contextSummary: "Wants a remote staff role."
+    });
+  });
+
+  it("12b. profile.get throws profileId not found for a profile that doesn't exist, matching this file's own idiom (criteria.set/set-context)", async () => {
+    const { store } = createFakeStore([]);
+
+    await expect(createProfileGetHandler(store)(ctx({ profileId: "missing" }))).rejects.toThrow(
+      /profileId not found/
+    );
+  });
 });

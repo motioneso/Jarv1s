@@ -17,7 +17,7 @@ import { h, useEffect, useState, type ReactNodeLike } from "../runtime";
 import { invokeTool, runQueue } from "../api";
 import type { Profile } from "../use-profiles";
 import type { BriefingDetail } from "../../domain/store-port.js";
-import { ONBOARDING_STEPS } from "../../domain/criteria.js";
+import type { SearchCriteria } from "../../domain/records.js";
 import { FieldPair, formatPostedOn, SectionHead } from "../keyline";
 
 // Read-only, same reason RESUME_GET_TOOL was read-only on settings.tsx before this move: this
@@ -26,6 +26,14 @@ import { FieldPair, formatPostedOn, SectionHead } from "../keyline";
 // have sitting on a profile page. Exported so a caller elsewhere (none today) can assert against
 // the same literal rather than a retyped copy — same reasoning as the two exports below.
 export const RESUME_GET_TOOL = "job-search.resume.get";
+
+// K6 (2026-07-28 keyline-restructure plan): the read tool LookingForSection's own K4 header
+// anticipated — read-only for the same structural reason RESUME_GET_TOOL is: the manifest's
+// risk:"read" is what lets this screen call it through invokeTool at all (a risk:"write" tool
+// 403s with confirmation_required before it ever runs — rulings I3/I4). Exported so
+// job-search-manifest-conformance.test.tsx's blind sweep and this screen's own unit test assert
+// against the same literal, never a retyped copy.
+export const PROFILE_GET_TOOL = "job-search.profile.get";
 
 // Moved from settings.tsx unchanged (queue name dashes the tool's last two path segments, jobKind
 // keeps the tool's own dotted handler name — root.tsx's existing job-search.crawl-run precedent).
@@ -48,21 +56,6 @@ const BRIEFING_DETAIL_ORDER: BriefingDetail[] = ["count", "top", "full"];
 function isBriefingDetail(value: string | null): value is BriefingDetail {
   return value === "count" || value === "top" || value === "full";
 }
-
-// What each onboarding step is called on screen. Duplicated from onboarding.tsx rather than
-// imported — onboarding.tsx belongs to a different task's file set on this same branch (K3/K5
-// concurrency), and the two screens showing this list have no shared caller to hoist it into
-// without touching a file outside K4's grant. Keep the wording identical if either one changes;
-// nothing enforces that today. Typed as a total record over the step union on purpose: adding a
-// step to the domain list is a type error here until it has been given a name a person would
-// recognize.
-const STEP_LABELS: Record<(typeof ONBOARDING_STEPS)[number], string> = {
-  role: "Role",
-  want: "What you want",
-  where: "Where",
-  comp: "Pay",
-  sources: "Job boards"
-};
 
 // What this screen keeps of a résumé: whether there is one, which version, when it changed, and
 // how long it is. Deliberately NOT the text — resume.get returns the full content (it is the
@@ -148,40 +141,188 @@ function ResumeSection(props: { state: ResumeState }): ReactNodeLike {
   );
 }
 
+// What this screen keeps of a profile's criteria: the exact `SearchCriteria` shape
+// `job-search.profile.get` returns, plus `contextSummary` alongside it — team-lead reversed the
+// original K6 call to fetch-and-drop that field (see ContextSummarySection below for the
+// rendering half of that reversal). Both fields ride the same fetch/loading/error state because
+// they come off the same tool call; splitting them into two effects would double the network
+// round-trip for no benefit, since neither section can render before the other's data exists
+// anyway.
+type CriteriaState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "ready"; criteria: SearchCriteria; contextSummary: string | null };
+
+async function fetchCriteria(
+  profileId: string
+): Promise<{ criteria: SearchCriteria; contextSummary: string | null }> {
+  const result = (await invokeTool(PROFILE_GET_TOOL, { profileId })) as {
+    criteria?: SearchCriteria;
+    contextSummary?: string | null;
+  };
+  if (!result || typeof result !== "object" || result.criteria == null) {
+    throw new Error("profile.get returned no criteria");
+  }
+  return {
+    criteria: result.criteria,
+    contextSummary: typeof result.contextSummary === "string" ? result.contextSummary : null
+  };
+}
+
+// Independent of CONTEXT_SUMMARY_MAX (domain/criteria.ts), which caps what gets WRITTEN to
+// storage at 1200 characters — this caps what this screen RENDERS, so a future change to the
+// store-side limit can't silently make this section grow past a readable size on its own. 320
+// characters is roughly two short sentences at the `.jsm-summary` 68ch measure: enough for the
+// narrative to frame the criteria below it without becoming the longest thing on the page (the
+// criteria fields, not this paragraph, are the record of truth — see ContextSummarySection).
+const CONTEXT_SUMMARY_RENDER_CAP = 320;
+
+function truncateContextSummary(summary: string): string {
+  if (summary.length <= CONTEXT_SUMMARY_RENDER_CAP) return summary;
+  return `${summary.slice(0, CONTEXT_SUMMARY_RENDER_CAP).trimEnd()}…`;
+}
+
+/** The context-summary section — model-written prose, framing the criteria fields below it, never
+ * standing in for them.
+ *
+ * Renders NOTHING (not an empty section, not a "Checking…" placeholder that resolves to a gap)
+ * once loaded with no summary on file — a brand-new profile has none yet, and an empty heading
+ * here would repeat the exact "wall of empty headings" LookingForSection's own empty states
+ * already guard against. Renders nothing while loading or on error too, for the same reason: this
+ * section is optional framing, not a fact the page owes the user an answer about the way "is
+ * there a résumé on file" is — LookingForSection and ResumeSection still show their own
+ * loading/error states because they always have something to say (yes/no, a count); this one may
+ * legitimately have nothing to say at all.
+ *
+ * `contextSummary` is model-written prose persisted to a record — rendered as plain text inside
+ * JSX (auto-escaped, never `dangerouslySetInnerHTML`) and nothing else. This function does not
+ * branch on its content, does not parse it, and it is never concatenated into any prompt or tool
+ * argument anywhere in this file. If this narrative and the criteria fields below ever disagree,
+ * the fields are the truth — this section never introduces a fact that isn't also a field. */
+function ContextSummarySection(props: { state: CriteriaState }): ReactNodeLike {
+  const state = props.state;
+  if (state.status !== "ready" || state.contextSummary === null) return null;
+  const summary = state.contextSummary.trim();
+  if (summary.length === 0) return null;
+  return (
+    <section className="jsm-settings__group">
+      <SectionHead label="What I understand you&rsquo;re after" />
+      <p className="jds-hint jsm-summary">{truncateContextSummary(summary)}</p>
+    </section>
+  );
+}
+
+// Exhaustive over SearchCriteria["remote"] by construction, same reason
+// BRIEFING_DETAIL_LEVELS is: TS rejects this object literal if the union (domain/records.ts)
+// ever gains or drops a member. "no-preference" — parseCriteriaPatch's own neutral default for a
+// brand-new profile (domain/criteria.ts) — reads as "No preference" here, not as an alarming gap.
+const REMOTE_LABELS: Record<SearchCriteria["remote"], string> = {
+  required: "Remote required",
+  preferred: "Remote preferred",
+  "no-preference": "No preference",
+  "onsite-ok": "Onsite OK"
+};
+
+// Cents to a whole-dollar, comma-grouped string by pure integer/string arithmetic — no
+// Intl.NumberFormat, no toLocaleString. Same reason formatPostedOn (keyline.tsx) avoids
+// Date#toLocaleDateString: both resolve against whatever locale happens to be ambient on the
+// machine rendering them, banned in this module's web layer for exactly that reason.
+function formatCompFloor(cents: number): string {
+  const dollars = Math.trunc(Math.abs(cents) / 100);
+  const digits = String(dollars);
+  let grouped = "";
+  for (let i = 0; i < digits.length; i++) {
+    const remaining = digits.length - i;
+    grouped += digits[i];
+    if (remaining > 1 && remaining % 3 === 1) grouped += ",";
+  }
+  return `${cents < 0 ? "-" : ""}$${grouped}`;
+}
+
+/** One `FieldPair` value: a row of `jds-chip`s, or a one-line empty state when the list is empty
+ * — a brand-new profile's criteria arrays all default to `[]` (domain/criteria.ts), and a wall of
+ * empty chip rows under five headings reads worse than the checkmarks this section replaces. Keys
+ * off `${item}-${index}` rather than the bare string: nothing stops two identical titles/
+ * locations from being saved (no dedupe on this path), and a repeated key would be a silent React
+ * bug, not a caught one. */
+function ChipGroup(props: { items: string[]; emptyLabel: string }): ReactNodeLike {
+  if (props.items.length === 0) {
+    return <p className="jds-hint">{props.emptyLabel}</p>;
+  }
+  return (
+    <div className="jsm-chips">
+      {props.items.map((item, index) => (
+        <span key={`${item}-${index}`} className="jds-chip">
+          {item}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** The "what it's looking for" section.
  *
- * Without K6 (optional, not built here) there is no read tool for the actual `SearchCriteria` —
- * §4 of the plan is explicit that `store.getProfile` has titles/seniority/locations/comp/etc. in
- * hand but nothing on the wire returns them yet. This section is therefore built entirely from
- * `completedSteps` + `readyToCrawl`, both already on the `profile.list` wire shape Root passes
- * down. It is written as one self-contained block precisely so a K6 upgrade is a data-source swap
- * inside this function, not a rewrite of the section's callers — nothing outside
- * `LookingForSection` needs to change shape when `completedSteps: OnboardingStep[]` becomes a real
- * `SearchCriteria` record. */
-function LookingForSection(props: { profile: Profile }): ReactNodeLike {
-  const done = new Set(props.profile.completedSteps);
+ * K6 (2026-07-28 keyline-restructure plan): the data-source swap K4's own header comment on this
+ * function anticipated — `job-search.profile.get` exists now, so this renders the real
+ * `SearchCriteria` instead of onboarding-step pills. `readyToCrawl` (still on the `profile.list`
+ * wire shape) stays as the closing hint; it is a fact about the whole profile, not part of the
+ * criteria record, so it keeps coming from `props.profile` rather than `props.state`. */
+function LookingForSection(props: { profile: Profile; state: CriteriaState }): ReactNodeLike {
+  const state = props.state;
+  if (state.status === "loading") {
+    return (
+      <section className="jsm-settings__group">
+        <SectionHead label="What it&rsquo;s looking for" />
+        <p className="jds-hint">Checking…</p>
+      </section>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <section className="jsm-settings__group">
+        <SectionHead label="What it&rsquo;s looking for" />
+        <p className="jds-hint">Couldn&rsquo;t read this profile&rsquo;s criteria.</p>
+      </section>
+    );
+  }
+  const criteria = state.criteria;
+  const wantNarrative = criteria.wantNarrative.trim();
   return (
     <section className="jsm-settings__group">
       <SectionHead label="What it&rsquo;s looking for" />
-      {/* Pill-per-step, done vs. not — the same visual vocabulary onboarding.tsx already
-          established for this exact data (jds-badge--forest for answered, jds-badge--outline for
-          not yet), so a step read as "done" here reads as "done" the same way it does on the
-          onboarding screen the user saw before this profile went active. */}
-      <ol className="jsm-steps" aria-label="What we know so far">
-        {ONBOARDING_STEPS.map((step) => (
-          <li
-            key={step}
-            className={
-              done.has(step)
-                ? "jds-badge jds-badge--pill jds-badge--forest"
-                : "jds-badge jds-badge--pill jds-badge--outline"
-            }
-            aria-label={`${STEP_LABELS[step]} — ${done.has(step) ? "answered" : "still needed"}`}
-          >
-            {STEP_LABELS[step]}
-          </li>
-        ))}
-      </ol>
+      <div className="jsm-fields">
+        <FieldPair label="Titles">
+          <ChipGroup items={criteria.titles} emptyLabel="No titles yet." />
+        </FieldPair>
+        <FieldPair label="Seniority">
+          <ChipGroup items={criteria.seniority} emptyLabel="No seniority level yet." />
+        </FieldPair>
+        <FieldPair label="Locations">
+          <ChipGroup items={criteria.locations} emptyLabel="No locations yet." />
+        </FieldPair>
+        <FieldPair label="Remote">{REMOTE_LABELS[criteria.remote]}</FieldPair>
+        <FieldPair label="Pay floor">
+          {criteria.compFloorCents === null
+            ? "No minimum set."
+            : formatCompFloor(criteria.compFloorCents)}
+        </FieldPair>
+      </div>
+      <div className="jsm-fields">
+        <FieldPair label="Must have">
+          <ChipGroup items={criteria.mustHave} emptyLabel="Nothing marked must-have yet." />
+        </FieldPair>
+        <FieldPair label="Nice to have">
+          <ChipGroup items={criteria.niceToHave} emptyLabel="Nothing marked nice-to-have yet." />
+        </FieldPair>
+        <FieldPair label="Dealbreakers">
+          <ChipGroup items={criteria.dealbreakers} emptyLabel="No dealbreakers marked yet." />
+        </FieldPair>
+      </div>
+      <p className="jds-hint">
+        {wantNarrative.length > 0
+          ? wantNarrative
+          : "Nothing said yet about what you actually want out of this search."}
+      </p>
       <p className="jds-hint">
         {props.profile.readyToCrawl
           ? "Ready to search — every step above is answered."
@@ -194,6 +335,7 @@ function LookingForSection(props: { profile: Profile }): ReactNodeLike {
 export function ProfileScreen(props: { profile: Profile }): ReactNodeLike {
   const { profile } = props;
   const [resume, setResume] = useState<ResumeState>({ status: "loading" });
+  const [criteria, setCriteria] = useState<CriteriaState>({ status: "loading" });
   const [briefingDetail, setBriefingDetailState] = useState<BriefingDetail>(
     isBriefingDetail(profile.briefingDetail) ? profile.briefingDetail : "top"
   );
@@ -211,6 +353,28 @@ export function ProfileScreen(props: { profile: Profile }): ReactNodeLike {
     return () => {
       // Switching profiles mid-flight would otherwise land the previous profile's résumé status
       // under the newly selected profile's name.
+      cancelled = true;
+    };
+  }, [profile.profileId]);
+
+  useEffect(() => {
+    setCriteria({ status: "loading" });
+    let cancelled = false;
+    fetchCriteria(profile.profileId)
+      .then((value) => {
+        if (!cancelled) {
+          setCriteria({
+            status: "ready",
+            criteria: value.criteria,
+            contextSummary: value.contextSummary
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCriteria({ status: "error" });
+      });
+    return () => {
+      // Same switching-profiles-mid-flight guard as the résumé effect above.
       cancelled = true;
     };
   }, [profile.profileId]);
@@ -237,7 +401,8 @@ export function ProfileScreen(props: { profile: Profile }): ReactNodeLike {
 
       <ResumeSection state={resume} />
 
-      <LookingForSection profile={profile} />
+      <ContextSummarySection state={criteria} />
+      <LookingForSection profile={profile} state={criteria} />
 
       {/* Briefing detail — moved verbatim from settings.tsx, including the jds-segmented control
           and its queue write. It already worked; nothing about its logic changed in this move. */}
