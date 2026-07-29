@@ -1,5 +1,12 @@
 # Job Search — manual test walkthrough
 
+> **Superseded — kept as the evidence record for the 2026-07-28 13:06 UAT run only.**
+> The module was restructured after this was written. This document still describes a two-tab
+> Board/Settings layout, a Fit/Want column table, and a per-run scoring budget that has since been
+> removed. Every screenshot below predates the restructure.
+> For a current walkthrough use
+> `docs/superpowers/handoffs/2026-07-28-job-search-e2e-checklist.md`.
+
 A script you can follow end to end in about twenty minutes. Each step says what to do, what you
 should see, and the one thing that would make it a fail. Screenshots in `screenshots/` show the
 expected state for every step the automated UAT covers.
