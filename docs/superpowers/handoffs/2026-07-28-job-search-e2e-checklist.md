@@ -70,5 +70,11 @@ it bothers you enough to do now.
 - **Zero rows** rather than a short list → the render cap threw the whole result away. Payload is
   currently 9,136 chars against a 12,800 budget, so there is real headroom, but that is the
   failure mode to recognise.
-- Module missing from the rail → it was rebuilt without being re-enabled. See the deploy recipe in
-  `2026-07-28-job-search-keyline-handoff.md`; the re-enable step is mandatory after every build.
+- **Module missing from the rail entirely** → it was rebuilt and then silently disabled itself.
+  This is the most common way a session loses the module, and it can happen *minutes after* a
+  deploy that reported success. Confirm with `GET /api/admin/external-modules`: you will see
+  `status: disabled, drifted: true, "package changed since it was enabled"`.
+  Fix and prevention are the same thing — run
+  `scripts/redeploy-external-module.sh job-search` rather than the steps by hand. The race it
+  avoids is written up under "Why the module keeps disappearing from the rail" in
+  `2026-07-28-job-search-keyline-handoff.md`.

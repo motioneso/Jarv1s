@@ -28,17 +28,55 @@ explanatory comments.
 has not yet reported back. Until he does, the live-path gate is unmet for the UI itself — the
 honest status is _deployed, not yet human-verified_.
 
-## Deploy recipe (works, in this order)
+## Deploy recipe — use the script, do not hand-roll it
 
-1. `pnpm build:external:job-search`
+```bash
+export JARVIS_DEV_EMAIL=ben@ben.com JARVIS_DEV_PASSWORD='…'
+scripts/redeploy-external-module.sh job-search
+```
+
+`scripts/redeploy-external-module.sh` does the whole sequence and fails loudly instead of leaving
+the module half-deployed. **Doing these steps by hand is what makes the module vanish** — see the
+next section. Run the script.
+
+What it does, and why each step is not optional:
+
+1. `pnpm build:external:job-search` — changes the package hash.
 2. `pnpm db:reconcile` — expect `drifted=1`. That is correct: a changed package hash **disables**
    the module on purpose (`scripts/module-reconcile.ts` phase 7).
-3. Reload the API. It is `tsx watch` from this worktree, so `touch apps/api/src/server.ts` is
-   enough — no kill needed. Module discovery is cached at boot, so this must happen **before** the
-   re-enable or the enable captures the stale hash.
+3. Restart the API (`touch apps/api/src/server.ts` under `tsx watch`) and **wait for the listening
+   PID on 3097 to actually change**. Module discovery is cached at boot, so the enable must land on
+   the new process or it captures the stale hash.
 4. Re-enable: sign in, then `POST /api/admin/external-modules/job-search` with `{"enabled":true}`.
-   Expect `drifted:false, active:true`.
 5. `touch apps/worker/src/worker.ts`.
+6. Wait ~8s, then re-read `/api/admin/external-modules` and confirm the module is *still*
+   `enabled / active / drifted:false`. The enable's own 200 is not proof.
+
+### Why the module keeps disappearing from the rail
+
+This has bitten more than once, so it gets its own heading.
+
+The failure looks like a clean deploy: every command exits 0, the enable returns
+`drifted:false`, and a few minutes later Job Search is simply gone from the left rail with nothing
+obviously wrong in any log.
+
+The cause is a race in step 3. `touch apps/api/src/server.ts` triggers a `tsx watch` restart, but
+the **old process keeps listening and answering `/health` with a 200 while the new one boots**. So
+a health-check poll says "API is up" when it is still the pre-restart process. The enable lands
+there, reads the old boot-time discovery cache, stores the **stale** package hash, and cheerfully
+reports `drifted:false`. Then the new process finishes booting, compares the stored hash against
+what is actually on disk, sees a mismatch, and disables the module with
+`disabled_reason = 'package changed since it was enabled'`.
+
+Two rules follow, and the script enforces both:
+
+- **Never gate the enable on `/health`.** Gate it on the listening PID changing
+  (`ss -lptnH "sport = :3097"`). A 200 proves something is listening, not that it is the new build.
+- **Never trust the enable's own response.** Re-read the admin list after a settle delay. The
+  disable happens *after* the enable succeeds, so the only honest check is a later one.
+
+If it has already vanished, `GET /api/admin/external-modules` will show
+`status: disabled, drifted: true` with that reason. Re-running the script fixes it.
 
 Ports: API 3097, web 5197, LAN `192.168.50.36`. Login `ben@ben.com` / `jarvistest123!` (dev only).
 Postgres: `docker exec jarv1s-postgres psql -U postgres -d jarv1s` (`psql` is not on PATH).
