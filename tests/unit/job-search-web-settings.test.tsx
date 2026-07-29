@@ -168,7 +168,11 @@ describe("SettingsScreen", () => {
   it("renders Last success from lastOkAt, and omits the fact entirely when there's no successful run yet", async () => {
     vi.mocked(api.invokeTool).mockResolvedValue({
       portals: [
-        portalRow({ sourceId: "linkedin", label: "LinkedIn", lastOkAt: "2026-07-15T09:00:00.000Z" }),
+        portalRow({
+          sourceId: "linkedin",
+          label: "LinkedIn",
+          lastOkAt: "2026-07-15T09:00:00.000Z"
+        }),
         portalRow({ sourceId: "freehire", label: "freehire.me", lastOkAt: null })
       ]
     });
@@ -189,7 +193,9 @@ describe("SettingsScreen", () => {
   // shape, so they must never appear anywhere on this screen.
   it("never renders a schedule, last-checked, or found-today figure — none of those fields exist on the wire", async () => {
     vi.mocked(api.invokeTool).mockResolvedValue({
-      portals: [portalRow({ sourceId: "linkedin", label: "LinkedIn", lastOkAt: "2026-07-15T09:00:00.000Z" })]
+      portals: [
+        portalRow({ sourceId: "linkedin", label: "LinkedIn", lastOkAt: "2026-07-15T09:00:00.000Z" })
+      ]
     });
 
     const renderer = await renderScreen(profile());
@@ -205,7 +211,7 @@ describe("SettingsScreen", () => {
   // K7: Run now drives job-search.crawl-run through runQueue (the only reachable path — the tool
   // 403s from the browser), and the button's own settled state is "queued", never "done"
   // (runQueue resolves on acceptance only — ruling I5).
-  it("Run now queues job-search.crawl-run for the whole profile and settles on \"Run queued\"", async () => {
+  it('Run now queues job-search.crawl-run for the whole profile and settles on "Run queued"', async () => {
     vi.mocked(api.invokeTool).mockResolvedValue({
       portals: [portalRow({ sourceId: "linkedin", label: "LinkedIn" })]
     });
@@ -224,7 +230,9 @@ describe("SettingsScreen", () => {
     });
     await flush();
 
-    expect(api.runQueue).toHaveBeenCalledWith("job-search.crawl-run", "crawl.run", { profileId: "p1" });
+    expect(api.runQueue).toHaveBeenCalledWith("job-search.crawl-run", "crawl.run", {
+      profileId: "p1"
+    });
     expect(text(renderer)).toMatch(/Run queued/);
   });
 
@@ -249,7 +257,9 @@ describe("SettingsScreen", () => {
     // Still says "Run now", not stuck on "Queuing…" — an error must return the button to its
     // clickable resting label, not leave the user with no way to retry.
     expect(
-      renderer.root.findAllByProps({ type: "button" }).some((node) => flatten(node.props.children) === "Run now")
+      renderer.root
+        .findAllByProps({ type: "button" })
+        .some((node) => flatten(node.props.children) === "Run now")
     ).toBe(true);
   });
 

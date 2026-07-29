@@ -19,7 +19,10 @@ vi.mock("../../external-modules/job-search/src/web/api", () => ({
 import { OverviewScreen } from "../../external-modules/job-search/src/web/screens/overview";
 import * as api from "../../external-modules/job-search/src/web/api";
 import type { Profile } from "../../external-modules/job-search/src/web/use-profiles";
-import type { BoardMatch, PortalListItem } from "../../external-modules/job-search/src/web/board-types";
+import type {
+  BoardMatch,
+  PortalListItem
+} from "../../external-modules/job-search/src/web/board-types";
 
 function profile(overrides: Partial<Profile> = {}): Profile {
   return {
@@ -81,7 +84,10 @@ function mockInvoke(responses: {
       const content = responses.resumeContent ?? null;
       return content === null
         ? { profileId: "p1", resume: null }
-        : { profileId: "p1", resume: { version: 1, content, updatedAt: "2026-07-01T00:00:00.000Z" } };
+        : {
+            profileId: "p1",
+            resume: { version: 1, content, updatedAt: "2026-07-01T00:00:00.000Z" }
+          };
     }
     throw new Error(`unexpected tool: ${tool}`);
   });
@@ -90,7 +96,9 @@ function mockInvoke(responses: {
 async function renderScreen(profileValue: Profile): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
-    renderer = create(createElement(OverviewScreen, { profileId: profileValue.profileId, profile: profileValue }));
+    renderer = create(
+      createElement(OverviewScreen, { profileId: profileValue.profileId, profile: profileValue })
+    );
   });
   return renderer;
 }
@@ -145,7 +153,9 @@ describe("OverviewScreen", () => {
     await flush();
 
     let figures = renderer.root.findAll(
-      (node) => typeof node.type === "string" && (node.props as { className?: string }).className === "jds-hero-figure"
+      (node) =>
+        typeof node.type === "string" &&
+        (node.props as { className?: string }).className === "jds-hero-figure"
     );
     expect(figures.map((f) => flatten(f.props.children))).toEqual(["0", "0", "0", "0"]);
 
@@ -163,7 +173,9 @@ describe("OverviewScreen", () => {
     await flush();
 
     figures = withMatches.root.findAll(
-      (node) => typeof node.type === "string" && (node.props as { className?: string }).className === "jds-hero-figure"
+      (node) =>
+        typeof node.type === "string" &&
+        (node.props as { className?: string }).className === "jds-hero-figure"
     );
     // On your board=4 (raw count), Read and scored=2 (b,c have non-null want and a non-unscored
     // state), New=1 (a), Passed=1 (c).
@@ -181,7 +193,17 @@ describe("OverviewScreen", () => {
           sourceId: "linkedin",
           label: "LinkedIn",
           enabled: false,
-          cause: { kind: "self-disabled", sourceId: "linkedin", summary, retrieved: null, expected: null, lastOkAt: null, nextAction, retryAt: null, disabled: true }
+          cause: {
+            kind: "self-disabled",
+            sourceId: "linkedin",
+            summary,
+            retrieved: null,
+            expected: null,
+            lastOkAt: null,
+            nextAction,
+            retryAt: null,
+            disabled: true
+          }
         })
       ],
       resumeContent: "resume text"
