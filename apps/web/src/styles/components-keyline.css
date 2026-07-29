@@ -1,0 +1,174 @@
+/* Keyline-grid primitives — Park Press's "hairline rules + committed fields, no floating cards"
+   idiom (see the Job Search mockup's kit.jsx). Split out as its own file rather than appended to
+   components-core.css, which was already close to the 1000-line file-size gate; imported right
+   after components-jarvis.css in index.css since the gold tab marker above extends classes
+   defined there.
+
+   These are generic keyline-grid primitives, not job-search-specific — any module doing a
+   hairline-ruled row-list (rails, fields, section heads) should reach for these first. */
+
+/* ---------------------------------------------------------------
+   DISPLAY HEADING — uppercase, weight-800, tight display type
+   ---------------------------------------------------------------
+   One class with size modifiers rather than four separate classes. Sizes come straight from the
+   mockup's four uses: a 72px hero count on the matches board, a 62px two-line overview headline,
+   a 46px opportunity-detail title, and a 44px profile/monitors screen title. Each clamps down for
+   narrow viewports the same way `.jds-hero-figure` already does — a hero that wraps stops being
+   a hero — using the type-scale tokens as the floor so it never shrinks below normal body scale. */
+.jds-display {
+  display: block;
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-heavy);
+  text-transform: uppercase;
+  line-height: 0.9;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-wrap: balance;
+}
+.jds-display--xl {
+  /* 72px — board hero count ("N new") */
+  font-size: clamp(var(--text-4xl), 9vw, 4.5rem);
+  letter-spacing: -0.035em;
+  line-height: 0.85;
+}
+.jds-display--lg {
+  /* 62px — overview two-line hero */
+  font-size: clamp(var(--text-3xl), 8vw, 3.875rem);
+  letter-spacing: -0.035em;
+  line-height: 0.88;
+}
+.jds-display--md {
+  /* 46px — opportunity detail title */
+  font-size: clamp(var(--text-2xl), 6vw, 2.875rem);
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+}
+.jds-display--sm {
+  /* 44px — profile / monitors screen title */
+  font-size: clamp(var(--text-2xl), 5.5vw, 2.75rem);
+  letter-spacing: -0.03em;
+  line-height: 0.92;
+}
+/* The overview hero's second line ("ready to go") — nest inside a `.jds-display--lg`. */
+.jds-display__accent {
+  color: var(--accent);
+}
+
+/* ---------------------------------------------------------------
+   HAIRLINE ROW BUTTON — a full-width row that is a <button>
+   ---------------------------------------------------------------
+   Resets button chrome, then re-declares `display` after `all: unset` so the reset doesn't win —
+   same technique the mockup itself uses inline. Pair with `.jds-rail-row` below for a rail-led
+   row; `.jds-rail-row`'s own `display: grid` is declared later in this file, so it wins the
+   `display` property when both classes are applied to the same element. */
+.jds-hairline-row {
+  all: unset;
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  cursor: pointer;
+  border-top: 1px solid var(--line);
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.jds-hairline-row:hover {
+  background: var(--surface-hover);
+}
+
+/* ---------------------------------------------------------------
+   ROW RAIL — a full-height 3px leading column, coloured by state
+   ---------------------------------------------------------------
+   Same idiom as TaskRow's priority bar, generalized: a fit band on the match board, an
+   enabled-state marker on a monitor row, a done/current/todo marker on a setup step. Never a
+   border on the row itself, never a coloured pill — just this rail.
+   `.jds-rail-row` is the optional grid wrapper (a 3px 1fr track); a row needing a trailing column
+   too (e.g. a fit word + chevron) extends `grid-template-columns` itself — that's layout, not a
+   design token, so it doesn't need a host class. */
+.jds-rail {
+  display: block;
+  width: 3px;
+  align-self: stretch;
+  border-radius: 2px;
+  background: var(--line);
+}
+.jds-rail--accent {
+  background: var(--accent);
+}
+.jds-rail--gold {
+  background: var(--gold);
+}
+.jds-rail--steel {
+  background: var(--steel);
+}
+.jds-rail--line-strong {
+  background: var(--line-strong);
+}
+.jds-rail--line {
+  background: var(--line);
+}
+.jds-rail-row {
+  display: grid;
+  grid-template-columns: 3px 1fr;
+  gap: var(--space-4);
+}
+
+/* ---------------------------------------------------------------
+   META SEPARATOR — a hairline between meta-line items
+   ---------------------------------------------------------------
+   Not a bullet, not a slash: a fixed 1x9 vertical hairline sitting between plain-text meta
+   items ("Remote · US" · "$210k" · "Ashby · 2h ago"). Distinct from `.jds-divider--vertical`,
+   which stretches to fill its container rather than holding a fixed height. */
+.jds-meta-sep {
+  display: inline-block;
+  flex: none;
+  width: 1px;
+  height: 9px;
+  background: var(--line-strong);
+  opacity: 0.8;
+}
+
+/* ---------------------------------------------------------------
+   SECTION HEAD — an uppercase label, a rule filling the rest, an optional trailing slot
+   ---------------------------------------------------------------
+   The label is a `.jds-eyebrow` placed inside — combine both classes rather than duplicating the
+   eyebrow's type rules here; this rule just adds the `white-space: nowrap` a section-head label
+   needs that a plain eyebrow elsewhere does not. */
+.jds-section-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 14px;
+}
+.jds-section-head > .jds-eyebrow {
+  white-space: nowrap;
+}
+.jds-section-head__rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* ---------------------------------------------------------------
+   INSTRUMENT FIELD — an uppercase micro-label over a value, hairline-ruled above
+   ---------------------------------------------------------------
+   The mockup's `Field`: kit.jsx calls it "the platform's instrument idiom." Named `.jds-instrument`
+   rather than `.jds-field` because that name is already taken by the form-control label+input
+   primitive in components-forms.css — a different thing wearing a similar name would be worse
+   than a new name. */
+.jds-instrument {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.jds-instrument--unruled {
+  border-top: none;
+  padding-top: 0;
+}
+.jds-instrument__label {
+  margin: 0 0 5px;
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}

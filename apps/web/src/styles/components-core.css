@@ -484,6 +484,13 @@
   align-self: stretch;
   width: 0;
 }
+/* The Job Search mockup closes each hero section with a 3px solid ink rule — heavier and
+   ink-toned rather than the default hairline, but still conceptually a divider, not a new
+   primitive. */
+.jds-divider--ink {
+  border-top-width: 3px;
+  border-top-color: var(--ink);
+}
 
 /* Eyebrow / section label utility */
 .jds-eyebrow {
@@ -493,6 +500,15 @@
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   color: var(--text-subtle);
+}
+/* Tone modifiers (Job Search mockup's Eyebrow: gold for a hero's date/status line, muted for a
+   quieter aside). Gold maps the mockup's `--gold-hover` to this system's `--gold-strong` — same
+   "emphasized gold" role, this codebase's name for it. */
+.jds-eyebrow--gold {
+  color: var(--gold-strong);
+}
+.jds-eyebrow--muted {
+  color: var(--ink-3);
 }
 
 /* Section heading utility. The eyebrow above is a LABEL, not a title — surfaces that used it as
@@ -533,6 +549,11 @@
   width: 30px;
   height: 3px;
   background: var(--accent);
+}
+/* Job Search's strap sits under a gold eyebrow, not an accent one — same 30x3 brand device,
+   different tone. */
+.jds-strap--gold {
+  background: var(--gold);
 }
 
 /* The headline of a card — one item in a list of things being considered, rather than a section of
