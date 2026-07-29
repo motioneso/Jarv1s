@@ -85,9 +85,7 @@ export function buildScorePrompt(input: {
     // 72 and 78 — the same non-evidence producing wildly different numbers, presented to the
     // user exactly like scores that were actually reasoned about. Naming the absence and fixing
     // the response makes the number mean one thing: nothing is known yet.
-    resume.trim().length > 0
-      ? resume
-      : "(none on file — this person has not added a résumé yet)",
+    resume.trim().length > 0 ? resume : "(none on file — this person has not added a résumé yet)",
     resume.trim().length > 0
       ? ""
       : "With no résumé, Fit is not knowable. The number you return for `fit` is thrown away " +

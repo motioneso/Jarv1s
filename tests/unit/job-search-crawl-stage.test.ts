@@ -188,7 +188,10 @@ const noopFetch: FetchLike = vi.fn(async () => {
 describe("runCrawl", () => {
   it("test 1: a clean crawl stores deduped postings and records lastOkAt for each portal", async () => {
     const profile = makeProfile();
-    const store = createFakeStore(profile, [enabledRow("freehire"), enabledRow("linkedin")]) as ReturnType<typeof createFakeStore> & {
+    const store = createFakeStore(profile, [
+      enabledRow("freehire"),
+      enabledRow("linkedin")
+    ]) as ReturnType<typeof createFakeStore> & {
       __postings: Map<string, Posting>;
       __portalStates: Map<string, PortalState>;
     };
@@ -236,7 +239,10 @@ describe("runCrawl", () => {
 
   it("test 2: one portal failing does not lose the others' results", async () => {
     const profile = makeProfile();
-    const store = createFakeStore(profile, [enabledRow("freehire"), enabledRow("linkedin")]) as ReturnType<typeof createFakeStore> & {
+    const store = createFakeStore(profile, [
+      enabledRow("freehire"),
+      enabledRow("linkedin")
+    ]) as ReturnType<typeof createFakeStore> & {
       __postings: Map<string, Posting>;
       __portalStates: Map<string, PortalState>;
     };
@@ -283,7 +289,9 @@ describe("runCrawl", () => {
 
   it("test 3: a login_required portal is written back with enabled: false", async () => {
     const profile = makeProfile();
-    const store = createFakeStore(profile, [enabledRow("linkedin")]) as ReturnType<typeof createFakeStore> & {
+    const store = createFakeStore(profile, [enabledRow("linkedin")]) as ReturnType<
+      typeof createFakeStore
+    > & {
       __portalStates: Map<string, PortalState>;
     };
     const loginRequired = describeFailure({
@@ -412,7 +420,10 @@ describe("runCrawl", () => {
 
   it("test 7: stops starting portals past the deadline and reports that it did", async () => {
     const profile = makeProfile();
-    const store = createFakeStore(profile, [enabledRow("freehire"), enabledRow("linkedin")]) as ReturnType<typeof createFakeStore> & {
+    const store = createFakeStore(profile, [
+      enabledRow("freehire"),
+      enabledRow("linkedin")
+    ]) as ReturnType<typeof createFakeStore> & {
       __postings: Map<string, Posting>;
     };
     const deadlineAt = 1_000;
@@ -445,7 +456,10 @@ describe("runCrawl", () => {
 
   it("test 8: a portal that throws does not prevent later portals from running", async () => {
     const profile = makeProfile();
-    const store = createFakeStore(profile, [enabledRow("freehire"), enabledRow("linkedin")]) as ReturnType<typeof createFakeStore> & {
+    const store = createFakeStore(profile, [
+      enabledRow("freehire"),
+      enabledRow("linkedin")
+    ]) as ReturnType<typeof createFakeStore> & {
       __postings: Map<string, Posting>;
       __portalStates: Map<string, PortalState>;
     };
@@ -518,7 +532,10 @@ describe("runCrawl", () => {
     // one. Only two survive: the duplicate collapses into freehire's copy (higher source
     // priority), and the excluded-company posting is dropped outright.
     const profile = makeProfile({ criteria: makeCriteria({ excludeCompanies: ["Cegience"] }) });
-    const store = createFakeStore(profile, [enabledRow("freehire"), enabledRow("linkedin")]) as ReturnType<typeof createFakeStore> & {
+    const store = createFakeStore(profile, [
+      enabledRow("freehire"),
+      enabledRow("linkedin")
+    ]) as ReturnType<typeof createFakeStore> & {
       __postings: Map<string, Posting>;
     };
     const freehireUnique = makePosting({

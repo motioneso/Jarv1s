@@ -261,8 +261,12 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
     const { store } = createFakeStore([makeProfile({ id: "p1" })]);
     const handler = createCriteriaSetHandler(store);
 
-    await handler(ctx({ profileId: "p1", criteria: { wantNarrative: "Small team, real ownership" } }));
-    const second = await handler(ctx({ profileId: "p1", criteria: { titles: ["Staff Engineer"] } }));
+    await handler(
+      ctx({ profileId: "p1", criteria: { wantNarrative: "Small team, real ownership" } })
+    );
+    const second = await handler(
+      ctx({ profileId: "p1", criteria: { titles: ["Staff Engineer"] } })
+    );
 
     expect(second).toMatchObject({ completedSteps: ["role", "want"] });
     const stored = await store.getProfile("p1");

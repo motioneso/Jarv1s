@@ -4,8 +4,8 @@ Plan for the UI restructure of the job-search module onto Claude Design's keylin
 Branch `feat/job-search`, epic #1280. Written 2026-07-28.
 
 **Scope stance:** UI only. Tasks K1–K5 add no handler, no tool, no migration, no wire field — every
-screen is composed from reads that already exist. K6 is the one backend task and it is *optional and
-last*; the Profile screen ships without it and gets richer with it.
+screen is composed from reads that already exist. K6 is the one backend task and it is _optional and
+last_; the Profile screen ships without it and gets richer with it.
 
 ---
 
@@ -37,23 +37,23 @@ fidelity for a screen in a commit message or a PR; say "built from the kit vocab
 
 ### The kit's vocabulary (this is the design contract)
 
-| Kit export | What it is | Host equivalent to use |
-| --- | --- | --- |
-| `monoLabel` / `Eyebrow` | uppercase 10.5px tracked label | `jds-eyebrow` |
-| `Strap` | 30×3px gold block | `jds-strap` |
-| `SectionHead` | label + flex hairline + trailing slot | module layout + `jds-divider` |
-| `FitMark` | keyline rail + a word, "never a colored score pill" | `jds-score` rail (see K2) |
-| `Meta` | inline text meta, "no outline pill" | `jds-eyebrow` in `.jsm-meta` (already built) |
-| `Field` | mono label over a value, hairline-ruled above | `jds-fact` (host, already hairline-ruled) |
-| `Figure` | display-font number, 300 weight, tabular-nums | `jds-hero-figure` |
-| `Chip` | flush 2px-radius chip, never a 999px pill | `jds-chip` / `jds-badge--outline` |
-| `StatusDot` | 7px dot | `jds-indicator__dot` |
+| Kit export              | What it is                                          | Host equivalent to use                       |
+| ----------------------- | --------------------------------------------------- | -------------------------------------------- |
+| `monoLabel` / `Eyebrow` | uppercase 10.5px tracked label                      | `jds-eyebrow`                                |
+| `Strap`                 | 30×3px gold block                                   | `jds-strap`                                  |
+| `SectionHead`           | label + flex hairline + trailing slot               | module layout + `jds-divider`                |
+| `FitMark`               | keyline rail + a word, "never a colored score pill" | `jds-score` rail (see K2)                    |
+| `Meta`                  | inline text meta, "no outline pill"                 | `jds-eyebrow` in `.jsm-meta` (already built) |
+| `Field`                 | mono label over a value, hairline-ruled above       | `jds-fact` (host, already hairline-ruled)    |
+| `Figure`                | display-font number, 300 weight, tabular-nums       | `jds-hero-figure`                            |
+| `Chip`                  | flush 2px-radius chip, never a 999px pill           | `jds-chip` / `jds-badge--outline`            |
+| `StatusDot`             | 7px dot                                             | `jds-indicator__dot`                         |
 
 ### Two deliberate deviations from the mockup — both already ruled, do not "fix" them
 
 - **K-D1 — no blended fit band.** The kit's `FitMark` renders ONE word ("Strong fit"/"Good fit"/
   "Fair fit"/"Weak fit") from a single blended fit number. Fit and Want are two independent axes and
-  are never blended (L9, structural in `domain/records.ts`). Adopt the *keyline rail* treatment;
+  are never blended (L9, structural in `domain/records.ts`). Adopt the _keyline rail_ treatment;
   keep two numbers. A single band would also read "Weak fit" on every row today, because Fit is null
   until a résumé is on file.
 - **K-D2 — no mono.** The kit sets every label in `var(--font-mono)`. Mono was retired 2026-07-08.
@@ -78,7 +78,7 @@ fidelity for a screen in a commit message or a PR; say "built from the kit vocab
 6. **File-size gate: 1000 lines, CSS included.** `board.tsx` is at 697 and `styles.css` at 560. K2
    and K3 must extract rather than append; see each task for where.
 7. **A write from the browser must go through a declared queue**, never `invokeTool` — a `risk:
-   "write"` tool 403s with `confirmation_required` before it executes. Reads go through `invokeTool`.
+"write"` tool 403s with `confirmation_required` before it executes. Reads go through `invokeTool`.
 8. `.tsx` test files are **not** typechecked (#1335). A fixture missing a field fails at runtime
    only, and `pnpm typecheck` will say EXIT=0. Run the unit suites.
 
@@ -86,20 +86,20 @@ fidelity for a screen in a commit message or a PR; say "built from the kit vocab
 
 Every browser-callable read, and its full result shape:
 
-| Tool | Returns |
-| --- | --- |
-| `job-search.profile.list` | `profileId, name, state, briefingDetail, completedSteps[], readyToCrawl, surfaceKey` |
+| Tool                      | Returns                                                                                       |
+| ------------------------- | --------------------------------------------------------------------------------------------- |
+| `job-search.profile.list` | `profileId, name, state, briefingDetail, completedSteps[], readyToCrawl, surfaceKey`          |
 | `job-search.matches.list` | ≤25 × `{id, title, company, fit, want, outsideFrame, state, url, location, source, postedAt}` |
-| `job-search.match.get` | one match, untruncated, `+ fitReason, wantReason` |
-| `job-search.portal.list` | `sourceId, label, enabled, lastOkAt, cause{summary, nextAction, disabled, …}` |
-| `job-search.resume.get` | `version, content, updatedAt` (`null` when none) |
+| `job-search.match.get`    | one match, untruncated, `+ fitReason, wantReason`                                             |
+| `job-search.portal.list`  | `sourceId, label, enabled, lastOkAt, cause{summary, nextAction, disabled, …}`                 |
+| `job-search.resume.get`   | `version, content, updatedAt` (`null` when none)                                              |
 
 **Overview needs nothing new** — it is entirely derived from those four reads.
 
 **Profile is the gap.** No read tool returns `SearchCriteria` (titles, seniority, locations, remote,
 compFloorCents, mustHave, niceToHave, dealbreakers, wantNarrative) or `contextSummary`, even though
-`store.getProfile` already has both in hand. Without K6, Profile can only show *completeness*
-(which of the five onboarding steps are done) — not *what you told it*. K4 ships that honest version;
+`store.getProfile` already has both in hand. Without K6, Profile can only show _completeness_
+(which of the five onboarding steps are done) — not _what you told it_. K4 ships that honest version;
 K6 upgrades it.
 
 **Counting honesty.** Every count on Overview is computed over the ≤25 rows `matches.list` returns,
@@ -195,8 +195,8 @@ Answers "what is this search doing for me". Composed from reads that already exi
 
 Sections, top to bottom:
 
-1. **Figures row** — four `FieldPair`s using `jds-hero-figure` for the number: *On your board*
-   (row count), *Read and scored* (rows with a non-null want), *New* (state `new`), *Passed*
+1. **Figures row** — four `FieldPair`s using `jds-hero-figure` for the number: _On your board_
+   (row count), _Read and scored_ (rows with a non-null want), _New_ (state `new`), _Passed_
    (state `dismissed`). Label them as board counts, per §4.
 2. **Where it's looking** — one `KeyRow` per portal from `portal.list`: label, a `jds-indicator__dot`
    for enabled, and `lastOkAt` rendered by the same string-arithmetic date helper as the row
@@ -207,7 +207,7 @@ Sections, top to bottom:
    - no résumé on file → "Fit stays empty until there is one" + point at chat;
    - `readyToCrawl === false` → name the incomplete steps from `completedSteps`;
    - every portal disabled → say so.
-   Render nothing at all when nothing is missing. An empty "all good" panel is filler.
+     Render nothing at all when nothing is missing. An empty "all good" panel is filler.
 
 No new tool. No new wire field.
 
@@ -270,7 +270,7 @@ draws exactly that (`aria-selected` carries the underline), so this is a rename 
   switching tab must not reset the search. Already true; hold it.
 - **#1343 caveat:** module settings placement is a platform question with its own issue. Do not build
   a global header template here. Renaming this module's settings tab to "Monitors" is inside this
-  plan; changing how any *other* module reaches settings is not.
+  plan; changing how any _other_ module reaches settings is not.
 
 **Tests:**
 
@@ -320,7 +320,7 @@ K1 ──┬── K2 (Matches)
 One Sonnet agent per task. K2/K3/K4 may run concurrently after K1 — they touch disjoint files except
 `styles.css`, which every one of them appends to. **`styles.css` is the collision point:** each agent
 appends its own block at the end of the file under a comment naming its task, and never reformats or
-reorders anything above. K2 is the only task permitted to *delete* from it.
+reorders anything above. K2 is the only task permitted to _delete_ from it.
 
 ## 7. Definition of done
 
@@ -335,4 +335,4 @@ reorders anything above. K2 is the only task permitted to *delete* from it.
   module through the admin REST route, restart the worker — the deploy order matters.
 - **Live-path proof.** This is a user-facing UI change, so CI-green is not done: install it on the
   dev instance, drive all four tabs through the real UI, and record the proof. Until then the honest
-  status is *code-complete, unverified*.
+  status is _code-complete, unverified_.

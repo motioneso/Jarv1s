@@ -284,8 +284,11 @@ describe("registry.ts's HANDLERS map vs. the manifest's declared handler names (
 
     const tool = result.manifest.assistantTools?.find((t) => t.name === "job-search.criteria.set");
     const properties = (
-      (tool?.inputSchema as { properties?: { criteria?: { properties?: Record<string, unknown> } } })
-        .properties?.criteria ?? {}
+      (
+        tool?.inputSchema as {
+          properties?: { criteria?: { properties?: Record<string, unknown> } };
+        }
+      ).properties?.criteria ?? {}
     ).properties;
 
     expect(Object.keys(properties ?? {}).sort()).toEqual(

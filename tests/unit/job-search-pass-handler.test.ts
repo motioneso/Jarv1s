@@ -374,7 +374,9 @@ describe("createCrawlSweepHandler", () => {
   const OVERFLOW_PROFILE_COUNT = AI_CALL_BUDGET + 1;
 
   it("test 8: budget-plus-one active profiles, one sweep — exactly AI_CALL_BUDGET AI calls, the last profile untouched", async () => {
-    const profiles = Array.from({ length: OVERFLOW_PROFILE_COUNT }, (_, i) => makeProfile(`p-${i}`));
+    const profiles = Array.from({ length: OVERFLOW_PROFILE_COUNT }, (_, i) =>
+      makeProfile(`p-${i}`)
+    );
     const unscoredByProfile = new Map(profiles.map((p) => [p.id, [makePosting(`post-${p.id}`)]]));
     const store = createFakeStore({ profiles, unscoredByProfile });
 
@@ -389,7 +391,9 @@ describe("createCrawlSweepHandler", () => {
   });
 
   it("test 9: the next sweep starts at the first unserved profile — cursor seeded from the first sweep's write", async () => {
-    const profiles = Array.from({ length: OVERFLOW_PROFILE_COUNT }, (_, i) => makeProfile(`p-${i}`));
+    const profiles = Array.from({ length: OVERFLOW_PROFILE_COUNT }, (_, i) =>
+      makeProfile(`p-${i}`)
+    );
     const unscoredByProfile = new Map(profiles.map((p) => [p.id, [makePosting(`post-${p.id}`)]]));
     const store = createFakeStore({ profiles, unscoredByProfile });
 

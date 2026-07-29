@@ -133,7 +133,9 @@ export function parseCriteria(raw: unknown): SearchCriteria {
  * rejected and reported. Throwing on the read path would make the profile itself unloadable — the
  * screen would go blank rather than show the user what they had already said.
  */
-export function withCriteriaDefaults(stored: Partial<SearchCriteria> | null | undefined): SearchCriteria {
+export function withCriteriaDefaults(
+  stored: Partial<SearchCriteria> | null | undefined
+): SearchCriteria {
   const c = stored ?? {};
   const list = (value: unknown): string[] =>
     Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
