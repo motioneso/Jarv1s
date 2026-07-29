@@ -32,9 +32,7 @@ import {
   type RpcClientLogger,
   type RpcReconcileDriver
 } from "./chat-engine-rpc-client.js";
-import { AgyPrintChatEngine } from "./agy-print-chat-engine.js";
-import { ClaudePrintChatEngine } from "./claude-print-chat-engine.js";
-import { CliChatEngineImpl } from "./cli-chat-engine.js";
+import { createChatEngine } from "./engine-selection.js";
 import { CliChatUnavailableError } from "./errors.js";
 import { purgePrivateTranscripts } from "./private-transcript-cleanup.js";
 export { CliChatUnavailableError } from "./errors.js";
@@ -93,20 +91,10 @@ export function createRealEngineFactory(opts: { mux?: Multiplexer } = {}): ChatE
   // CLI-dir base (/host-home) so transcripts written by the host CLI are read back
   // correctly. Unset on a host install → the engine uses the OS home (unchanged).
   const homeBase = process.env.JARVIS_CLI_HOME_BASE;
-  return (provider, sessionKey, engineOpts) => {
-    if (provider === "anthropic" && engineOpts?.executionMode === "non_interactive") {
-      return new ClaudePrintChatEngine(sessionKey, createRealTmuxIo(), {
-        mux: opts.mux,
-        homeBase
-      });
-    }
-    if (provider === "google" && engineOpts?.executionMode === "non_interactive") {
-      return new AgyPrintChatEngine(sessionKey, createRealTmuxIo(), {
-        mux: opts.mux,
-        homeBase
-      });
-    }
-    return new CliChatEngineImpl(provider, sessionKey, createRealTmuxIo(), {
+  return (provider, sessionKey, engineOpts) =>
+    // #1350: selection lives in ONE shared helper so this root and the cli-runner's
+    // EngineHost cannot drift apart on which engine a mode gets.
+    createChatEngine(provider, sessionKey, createRealTmuxIo(), {
       mux: opts.mux,
       homeBase,
       executionMode: engineOpts?.executionMode,
@@ -116,7 +104,6 @@ export function createRealEngineFactory(opts: { mux?: Multiplexer } = {}): ChatE
           `[chat-runtime] ${sessionKey} diagnostic ${event.kind} paneChars=${event.paneChars}`
         )
     });
-  };
 }
 
 /**
