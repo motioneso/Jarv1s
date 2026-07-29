@@ -210,7 +210,11 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
 
       <hr className="jds-divider jds-divider--ink jsm-detail__rule" />
 
-      {match.outsideFrame ? <span className="jds-badge jds-badge--amber">Outside your stated frame</span> : null}
+      {/* Gold, not a badge — see match-row.tsx's own comment for the ruling; the same annotation
+          must not change shape between the row and this screen. */}
+      {match.outsideFrame ? (
+        <span className="jds-eyebrow jds-eyebrow--gold">Outside your stated frame</span>
+      ) : null}
 
       <div className="jsm-detail__grid">
         {/* LEFT — the posting. No description field ever reaches this wire (board-types.ts's

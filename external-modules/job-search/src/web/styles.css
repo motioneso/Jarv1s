@@ -162,49 +162,6 @@
   justify-content: center;
 }
 
-.jsm-onb__head,
-.jsm-onb__sub {
-  margin: 0;
-  max-width: 46ch;
-}
-
-/* The count leads the chip row it summarises, and sits tight against it rather than taking the
-   card's default gap — at arm's length it read as an unrelated floating line. */
-.jsm-onb__count {
-  margin: 0.25rem 0 -0.25rem;
-}
-
-/* An <ol> because the five steps are asked in order; the list chrome is not wanted, only the
-   sequence semantics. */
-.jsm-onb__prog {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-/* #1331: the conversation itself, full width within the onboarding column. `.jsm-state`'s
-   `align-items: flex-start` shrink-wraps flex children to their content width by default —
-   `align-self: stretch` overrides that for just this child so the host's Surface (composer
-   input included) gets the whole card's width rather than collapsing to its own content. */
-/* No min-height. There used to be 20rem here, reserving a transcript's worth of room before there
-   was a transcript: on the very first screen the card stood 500px tall with the composer near the
-   top and roughly 300px of empty ground under it, which is the single thing that made this screen
-   look unfinished. The conversation grows the card as it fills, which is what a chat does; an
-   empty one should be short. */
-.jsm-onb__chat {
-  display: flex;
-  flex-direction: column;
-  align-self: stretch;
-  width: 100%;
-}
-
-.jsm-onb__unavailable {
-  margin: 0;
-}
-
 /* Groups several FieldPairs into one row — Overview's figures row (K3: on-board / read / new /
    passed) and Profile's résumé stats (K4) are both a handful of these side by side. Wraps rather
    than compressing: a stat forced below its own label's width is a worse outcome than a row that

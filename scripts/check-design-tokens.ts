@@ -14,7 +14,11 @@ const allowList = new Set([
   "--cal-h",
   "--em-tint",
   "--em-soft",
-  "--em-ink"
+  "--em-ink",
+  // job-search's Score component (score.tsx) sets this as a 0-1 fraction inline — a caller-scoped
+  // runtime value, not a design token. Want still renders through the jds-score bar everywhere Fit
+  // doesn't (K-D1 covers Fit only), so this survives the Matches board rebuild.
+  "--jds-score"
 ]);
 
 interface Violation {

@@ -80,16 +80,17 @@ export function MatchRow(props: MatchRowProps): ReactNodeLike {
                 <span className="jds-eyebrow">Posted {posted}</span>
               )
             : null}
-          {/* No plain-text amber tone exists on the host (only jds-badge--amber, a filled pill) —
-              a real platform gap against the mockup's "meta is plain text, no outline pill" rule,
-              not licence to invent one. The badge is the closest available amber affordance, so
-              this stays a badge rather than dropping real, meaningful data off the row. */}
+          {/* Gold, not a badge — the mockup's own caution register (its Stale meta line and
+              NoteList items both render as plain coloured text, never a filled pill) and the
+              meta line's own rule above ("never bullets, slashes or an outline pill"). Team
+              ruling: jds-eyebrow--gold reads as amber here the same way jds-rail--gold would on a
+              rail, without a raw colour or an invented class. */}
           {item.outsideFrame
             ? h(
                 Fragment,
                 null,
                 <span className="jds-meta-sep" aria-hidden="true" />,
-                <span className="jds-badge jds-badge--amber">Outside your stated frame</span>
+                <span className="jds-eyebrow jds-eyebrow--gold">Outside your stated frame</span>
               )
             : null}
         </span>

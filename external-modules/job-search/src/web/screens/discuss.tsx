@@ -39,10 +39,11 @@ export function MatchRecordCard(props: { detail: MatchDetail }): ReactNodeLike {
     <div className="jds-card jds-card--sunken jsm-discuss-card">
       <span className="jds-eyebrow">{detail.company}</span>
       <h4 className="jsm-discuss-card__title">{detail.title}</h4>
-      {/* Amber here too — the same annotation must not change colour between the row, the inspector
-          and this panel, or it reads as three different flags. */}
+      {/* Gold, not a badge, here too — the same annotation must not change shape between the
+          row, the detail screen and this panel, or it reads as three different flags (match-
+          row.tsx's own comment carries the ruling). */}
       {detail.outsideFrame ? (
-        <span className="jds-badge jds-badge--amber">Outside your stated frame</span>
+        <span className="jds-eyebrow jds-eyebrow--gold">Outside your stated frame</span>
       ) : null}
       <div className="jsm-discuss-card__axes">
         <div className="jsm-discuss-card__axis">
