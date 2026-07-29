@@ -17,12 +17,6 @@
   gap: 1rem;
 }
 
-.jsm-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
 .jsm-state {
   display: flex;
   flex-direction: column;
@@ -84,13 +78,6 @@
   /* min-width:0 so a long hint wraps instead of forcing the control off the right edge. */
   min-width: 0;
   flex: 1 1 18rem;
-}
-
-.jsm-rail__label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
 }
 
 .jsm-rail__control {
@@ -174,22 +161,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 1.5rem;
-}
-
-/* K4 — profile */
-
-/* The five onboarding-step pills in "What it's looking for" (profile.tsx's LookingForSection).
-   Colour (done vs. not-yet) comes entirely from the host's jds-badge--forest / jds-badge--outline
-   classes on each `<li>` — this only lays the row out. Wraps for the same reason `.jsm-fields`
-   does: five pills is already tight on a narrow viewport, and a pill truncated mid-word reads
-   worse than a row that breaks onto two lines. */
-.jsm-steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
 
 /* K3 — overview */
@@ -322,9 +293,9 @@
 
 /* One `jds-chip` per titles/seniority/locations/must-have/nice-to-have/dealbreakers entry
    (profile.tsx's `ChipGroup`, inside a `FieldPair`'s value slot) — wraps for the same reason
-   `.jsm-fields`/`.jsm-steps` do: an unbounded list of user-entered strings will overflow a fixed
-   width sooner or later, and a chip truncated mid-word reads worse than a row that breaks onto
-   two lines. No colour or border of its own — every chip's fill/outline comes from `jds-chip`
+   `.jsm-fields` does: an unbounded list of user-entered strings will overflow a fixed width
+   sooner or later, and a chip truncated mid-word reads worse than a row that breaks onto two
+   lines. No colour or border of its own — every chip's fill/outline comes from `jds-chip`
    (component-jarvis.css), this only lays the row out. */
 .jsm-chips {
   display: flex;

@@ -122,17 +122,22 @@ describe("job-search keyline primitives", () => {
   });
 
   // Constraint 1 of the keyline-restructure plan: module CSS is layout-only. No colour, font,
-  // border colour or shadow declaration may appear in styles.css — every visual rule comes from
-  // the host jds-* primitives the markup composes. This is the one CSS-contract check in the
-  // job-search suite (there was no existing one to extend), so every later task's own CSS
-  // additions are covered by the same assertion without each writing its own copy.
-  it("styles.css declares zero CSS custom-property references (layout-only contract)", () => {
-    const cssPath = new URL(
-      "../../external-modules/job-search/src/web/styles.css",
-      import.meta.url
-    );
-    const css = readFileSync(cssPath, "utf8");
-    const matches = css.match(/var\(--/g) ?? [];
-    expect(matches).toHaveLength(0);
+  // border colour or shadow declaration may appear in any module stylesheet — every visual rule
+  // comes from the host jds-* primitives the markup composes. This is the one CSS-contract check
+  // in the job-search suite, so every later task's own CSS additions are covered by the same
+  // assertion without each writing its own copy. The module now ships three stylesheets (#102
+  // split styles.css's board/detail classes into styles-board.css, and the Overview/Profile/
+  // Monitors screens into styles-screens.css, both loaded and concatenated the same way — see
+  // either file's own header), so all three are checked here, not just the original one.
+  it("every module stylesheet declares zero CSS custom-property references (layout-only contract)", () => {
+    const stylesheets = ["styles.css", "styles-board.css", "styles-screens.css"];
+    for (const name of stylesheets) {
+      const cssPath = new URL(`../../external-modules/job-search/src/web/${name}`, import.meta.url);
+      const css = readFileSync(cssPath, "utf8");
+      // Built at runtime, not written literally, so this very assertion doesn't trip its own check.
+      const token = ["var", "(", "--"].join("");
+      const matches = css.match(new RegExp(token.replace(/[()]/g, "\\$&"), "g")) ?? [];
+      expect(matches, `${name} should declare zero design-token references`).toHaveLength(0);
+    }
   });
 });

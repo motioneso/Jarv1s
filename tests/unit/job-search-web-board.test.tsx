@@ -408,6 +408,47 @@ describe("job-search web BoardScreen", () => {
     expect(text(renderer)).toMatch(/queued for scoring, not dropped/i);
   });
 
+  // Team-lead ask (task #106 follow-up): the retired FitRail's two rendering tests protected "a
+  // null Fit must never read as a scored zero" at the component level; fitBand itself never sees
+  // null any more (match-row.tsx guards it — see fitBand's own test in job-search-keyline.test.tsx),
+  // so the only place left to assert that invariant is here, on a SCORED row (want present, state
+  // !== "unscored") with fit: null versus a real fit: 0 — both are isScored === true, but only one
+  // has a band. Scoped to each row's own `.jsm-row__aside` (the fit-label slot) rather than the
+  // whole row: the row's own meta line uses an em dash as an ordinary separator character
+  // ("Remote — US"), which would otherwise falsely satisfy "renders a dash" for either fixture.
+  it("on a scored row, a null Fit renders a bare em dash with no digit, distinguishable from a real 0 which renders 'Weak fit'", async () => {
+    matchesItems = [
+      match({ id: "m1", title: "No Basis", fit: null, want: 50, state: "new" }),
+      match({ id: "m2", title: "Rock Bottom", fit: 0, want: 50, state: "new" })
+    ];
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    function asideText(row: ReturnType<typeof findRowButton>): string {
+      const aside = row!
+        .findAll(
+          (item) =>
+            String((item.props as { className?: string }).className ?? "")
+              .split(" ")
+              .includes("jsm-row__aside")
+        )[0]!;
+      return flatten(aside.children);
+    }
+
+    // Null Fit: a bare em dash, no band word, no digit anywhere in the fit-label slot.
+    const noBasisAside = asideText(findRowButton(renderer, /No Basis/));
+    expect(noBasisAside).toMatch(/—/);
+    expect(noBasisAside).not.toMatch(/\d/);
+    expect(noBasisAside).not.toMatch(/fit/i);
+
+    // fit: 0 is a real score, not "no basis" — it lands in the weak band and reads as a word, the
+    // same as any other real number would, never as the dash above and never as a raw digit.
+    const rockBottomAside = asideText(findRowButton(renderer, /Rock Bottom/));
+    expect(rockBottomAside).toMatch(/Weak fit/);
+    expect(rockBottomAside).not.toMatch(/—/);
+    expect(rockBottomAside).not.toMatch(/\d/);
+  });
+
   it("sorts unscored rows last regardless of the active sort direction", async () => {
     matchesItems = [
       match({ id: "m1", title: "Scored Low", fit: 10, want: 10 }),
