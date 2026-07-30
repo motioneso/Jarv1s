@@ -117,6 +117,40 @@ describe("job-search manifest scaffold (#1287)", () => {
   });
 });
 
+describe("job-search install grant (#1246)", () => {
+  it("declares one action family for routine job-search changes", () => {
+    const result = validateExternalModuleManifest(loadManifest(), "job-search", "0.1.0");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.manifest.assistantActionFamilies).toEqual([
+      {
+        id: "profile_changes",
+        label: "Job-search changes",
+        description: "Manage your private job searches, sources, résumés, and matches.",
+        defaultTier: "ask_each_time",
+        allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
+      }
+    ]);
+  });
+
+  it("grants all ten routine writes at install", () => {
+    const result = validateExternalModuleManifest(loadManifest(), "job-search", "0.1.0");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const writes = (result.manifest.assistantTools ?? []).filter((tool) => tool.risk === "write");
+    expect(writes).toHaveLength(10);
+    for (const tool of writes) {
+      expect(tool).toMatchObject({
+        actionFamilyId: "profile_changes",
+        executionPolicy: "auto",
+        selfOperationGrant: "granted_at_install"
+      });
+    }
+  });
+});
+
 // Task 15 (#1299): the worker queues, schedule, and tool risk levels this task's handlers wire
 // into the manifest. Asserted through validateExternalModuleManifest()'s output, same discipline
 // as every other case in this file. The original spec text for the first case below says "THREE

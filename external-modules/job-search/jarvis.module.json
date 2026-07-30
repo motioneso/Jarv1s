@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "job-search",
   "name": "Job Search",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "Jarvis Project",
   "lifecycle": "optional",
   "compatibility": { "jarv1s": ">=0.1.0" },
@@ -25,12 +25,24 @@
   "runtime": { "workerEntrypoint": "dist/worker.js", "workerContractVersion": 1 },
   "fetchHosts": ["www.linkedin.com", "freehire.me"],
   "fetchHostGrantsNamespace": "job-search.fetch-host-grants",
+  "assistantActionFamilies": [
+    {
+      "id": "profile_changes",
+      "label": "Job-search changes",
+      "description": "Manage your private job searches, sources, résumés, and matches.",
+      "defaultTier": "ask_each_time",
+      "allowedTiers": ["ask_each_time", "trusted_auto", "always_confirm"]
+    }
+  ],
   "assistantTools": [
     {
       "name": "job-search.profile.create",
       "permissionId": "job-search.profile.create",
       "description": "Start a new job search — one for each kind of role being pursued.",
       "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,
@@ -65,6 +77,9 @@
       "permissionId": "job-search.criteria.set",
       "description": "Save what this job search is looking for — roles, places, pay, and what you actually want.",
       "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,
@@ -134,6 +149,9 @@
       "permissionId": "job-search.profile.set-context",
       "description": "Save background about this search that isn't a hard filter — the why behind it.",
       "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,
@@ -150,6 +168,9 @@
       "permissionId": "job-search.profile.set-briefing-detail",
       "description": "Change how much this search shows up in your daily briefing.",
       "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,
@@ -166,6 +187,9 @@
       "permissionId": "job-search.resume.set",
       "description": "Save a new version of your résumé to this search.",
       "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,
@@ -195,6 +219,9 @@
       "permissionId": "job-search.portal.set-enabled",
       "description": "Turn a job board on or off for this search.",
       "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,
@@ -228,6 +255,9 @@
       "permissionId": "job-search.source.add",
       "description": "Add a job board you named as a source for this search.",
       "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,
@@ -248,6 +278,9 @@
       "permissionId": "job-search.source.remove",
       "description": "Remove a job board you added from this search.",
       "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,
@@ -264,6 +297,9 @@
       "permissionId": "job-search.crawl.run-now",
       "description": "Check this search's job boards for new postings now.",
       "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,
@@ -368,6 +404,9 @@
       "permissionId": "job-search.match.dismiss",
       "description": "Dismiss a job so it leaves your board.",
       "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,
