@@ -218,3 +218,27 @@ docker exec -u 1000 jarv1s-prod-jarv1s-1 tmux list-sessions
 
 Do not attach to tmux or send keys to make chat work. If the first chat turn after restart needs
 manual tmux intervention, treat that as a product failure: fix code, restart Docker, and test again.
+
+### Chat smoke check (run this after every deploy that touches chat)
+
+A ready health check and a 200 from the chat endpoint prove almost nothing about chat. Both #1361
+and #1363 shipped with green CI, a 200 from `/api/mcp`, a 200 from `/api/chat/turn`, and a fluent
+reply the assistant had composed without reaching a single tool. Run the smoke check:
+
+```sh
+scripts/smoke-chat-prod.sh you@example.com
+```
+
+It posts one turn that can only be answered with a tool and asserts a real `mcp__jarvis__*` tool
+call reaches the live transcript before the reply. Exit `0` pass · `1` chat is degraded · `2` the
+check could not run at all (bad URL, no such user — not a chat verdict).
+
+Run it after any deploy touching chat, the permission hook, the CLI runner, or a module's assistant
+tools. It mints a ten-minute session for the account you name, talks to its own throwaway chat
+surface rather than that user's real conversation, and revokes the session and deletes the surface
+on exit — including on failure and on Ctrl-C. Mint it for an account you own: the session can read
+that user's private data.
+
+A failure names the tools it did and did not see. Check, in order: the permission hook (does it
+still allow `ToolSearch`? #1361), the CLI's MCP client log for a tool the API rejected and the CLI
+therefore dropped (#1363), then the gateway.

@@ -464,6 +464,13 @@ export function registerChatLiveRoutes(
       Connection: "keep-alive"
     });
 
+    // Flush the head immediately. `writeHead` only buffers it — Node puts nothing on the wire until
+    // the first body write, so a client that waits for response headers (anything built on `fetch`,
+    // plus some proxies) blocks until a transcript record happens to arrive. On a cold turn that is
+    // a minute or more, which reads as a hung stream. A comment frame is inert by the SSE spec
+    // (EventSource ignores any line that is not a field), so the browser is unaffected.
+    reply.raw.write(": connected\n\n");
+
     request.raw.on("close", () => {
       unsubscribe();
       if (!reply.raw.destroyed && !reply.raw.writableEnded) reply.raw.end();
