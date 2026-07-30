@@ -4867,3 +4867,62 @@ Other open follow-ups, none blocking: #1266 (deliberately not spawned), #1267, #
 
 **Continuation note:** nothing in flight. A successor picks up at #1327 (spec stage) or waits on
 Ben. Coordinator lock: session `43e5f5e2`, pane label `Coordinator`.
+
+---
+
+## Post-epic run — prod chat outage arc (2026-07-27 → 2026-07-30)
+
+Epic #1262 is closed. This section covers the unplanned work that followed: prod chat was broken
+for Ben, and fixing it turned up three independent faults in a row, each of which produced a
+**200 response with a plausible answer**. That is the thread tying them together, and it is why the
+arc ends in a smoke check rather than a third point fix.
+
+**Ben's standing instruction for this stretch:** fix prod first, then make sure every issue is
+fixed and updated, then wrap up. Given unattended ("I can't actively work — see it through
+yourself, make sure to test it"), so each lane below was carried to merge, deploy, and a live
+check by the coordinator rather than handed to a build agent.
+
+### Landed
+
+| PR | Issue | What | CI |
+| --- | --- | --- | --- |
+| #1351 | #1350 | cli-runner honoured the RPC's `execution_mode`, so prod ran a tmux REPL while the DB said non-interactive | all green |
+| #1356 | #1355 | worker loaded the embedding model once per job — a ~25 GB worker and a host OOM kill | all green |
+| #1358 | #1357 | bounded embedding fan-out (the *other* half of the memory story) | all green |
+| #1360 | — | re-index the oversized prod note chunks | all green |
+| #1362 | #1361 | the one-shot permission hook denied `ToolSearch`, so the model concluded it had no tools at all | all green |
+
+### In flight
+
+| PR | Issue | What | Tier | State |
+| --- | --- | --- | --- | --- |
+| #1364 | #1363 | `app.getMapSlice` carried a **top-level `anyOf`**; the Anthropic API rejects a root combinator on a tool input schema, so the CLI silently dropped the whole tool | routine | `Verify foundation and app` green; awaiting the image build |
+| #1367 | #1365 | post-deploy chat smoke check + an SSE head flush on `/api/chat/stream` | routine | re-running after a lint fix (`no-useless-assignment`) |
+
+### What this arc actually taught
+
+- **A green gate says nothing about chat.** #1361 and #1363 both shipped clean CI, a 200 from
+  `/api/mcp`, and a 200 from `/api/chat/turn` carrying a fluent, entirely ungrounded reply. UAT
+  cannot close this: it runs a fake provider with no CLI engine in the image (#1121). #1367 is the
+  answer — it asserts a real `mcp__jarvis__*` tool record on the live transcript, which exists only
+  if the CLI advertised the tool, the model chose it, and the hook allowed it.
+- **A smoke check that cannot go red is worse than none** — it converts an outage into a tick. This
+  one cannot be proven red against a live deployment (every session is seeded with a memory block
+  and the model opens with a notes search regardless of the prompt), so discrimination is proven
+  against a fake server in `tests/unit/smoke-chat-script.test.ts` instead.
+- **Nested `anyOf` is fine; a root one is not.** The output schema's `narrative` field still uses
+  one legitimately. `tests/unit/assistant-tool-schema-combinators.test.ts` guards input schemas only.
+
+### Still open
+
+- **What caused Ben's specific 502 on 2026-07-25 is UNRESOLVED.** Three hypotheses were raised and
+  all three dropped. Notes indexing was proven to allocate ~6.8 GB per call; it was **never proven**
+  that this caused his 502. I restarted prod early on and destroyed the state that would have
+  diagnosed it. Do not record this as solved.
+- **#1121** — real-token UAT pass, Ben-owned.
+- **#1327** — structured briefing action rows, **spec required before code**.
+
+**Continuation note (2026-07-30):** #1364 and #1367 are the only things in flight, both routine
+tier, both awaiting CI. On green: merge #1364 → deploy → run `scripts/smoke-chat-prod.sh` as the
+live proof and post it on the PR; then merge #1367. After that, the issue-hygiene sweep Ben asked
+for, then #1327 at spec stage. Coordinator lock unchanged: session `43e5f5e2`, label `Coordinator`.
