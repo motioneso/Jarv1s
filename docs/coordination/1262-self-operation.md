@@ -4973,8 +4973,35 @@ alarming direction. Saved as memory `mcp-tools-list-needs-a-jst-token`.
 - **#1327** — structured briefing action rows, **spec required before code**. Next item.
 - **#1369** — smoke wrapper prompt forwarding.
 
-**Continuation note (2026-07-30, post-arc):** the prod-chat arc is closed and prod is verified
-working on `d984879c`. The only remaining item from Ben's wrap-up instruction is **#1327**, which is
-at spec stage — no code until a spec is approved (`gpt-5.6-sol high` writes it, per Ben's standing
-ruling that Sonnet never writes plans). Coordinator lock unchanged: session `43e5f5e2`, label
+## 2026-07-29 — #1327 spec lane OPEN
+
+Ben's authorisation, verbatim: **"yes go"**, answering the offer "#1327 (briefing action rows) needs
+a spec before code — I'd have `gpt-5.6-sol high` write it. Say go and I'll start it." That is an
+authorisation to **start the spec**, not to build. No build lane opens until Ben approves the spec.
+
+| Field | Value |
+| ----- | ----- |
+| Issue | #1327 (`enhancement`, `needs-spec`) |
+| Stage | spec authoring |
+| Agent | `spec-1327`, Codex **`gpt-5.6-sol` high** (confirmed in the pane), session `019fb172-7624-70a1-b226-538d5a24cb0f` |
+| Pane | `w1:p14V`, tab `w1:t3T` labelled `agents` (resolve fresh by label — never trust this number) |
+| Worktree | `~/Jarv1s/.claude/worktrees/spec-1327`, branch `spec/1327-briefing-action-rows`, off `origin/main` at `d984879c` |
+| Handoff | `docs/superpowers/handoffs/2026-07-29-spec-1327-briefing-action-rows.md` (commit `6aa9e1ab`, pushed) |
+| Deliverable | `docs/superpowers/specs/2026-07-29-1327-briefing-action-rows.md`, committed and pushed; **no PR** |
+| Expected tier | at least `sensitive` — stored model-written text plus a new trust-boundary surface. The spec author is asked to argue the tier. |
+
+What the handoff locks down, so nobody re-derives it: issue #1327's three settled sections
+(`## Decided (Ben, 2026-07-27)`, `## Already answered by the code`, `## Where to draw the line for
+v1`) are **not reopenable** by the spec author — disagreement goes to the coordinator as a report,
+not into the spec. The centre of the spec is the structured-payload channel out of `composeBriefing`
+(`packages/briefings/src/compose.ts`), which today can only emit prose; everything else in the issue
+is comparatively easy. The author was also warned that the issue's code citations were checked on
+2026-07-27 and must be re-verified against the current tree, and that "vault" in ruling 4 means the
+**ingested notes + memory graph**, never the `@jarv1s/vault` package.
+
+**Continuation note (2026-07-29):** the prod-chat arc is closed and prod is verified working on
+`d984879c`. The live item is the **#1327 spec lane** above — a Codex `gpt-5.6-sol high` author is
+writing the spec into `docs/superpowers/specs/`. When it reports: sanity-check the spec against the
+issue's settled sections and the CLAUDE.md invariants, then **take it to Ben for approval**. Do not
+spawn a builder before he approves. Coordinator lock unchanged: session `43e5f5e2`, label
 `Coordinator`.
