@@ -1,14 +1,18 @@
 // tests/unit/external-module-trust-gate-logging.test.ts
 //
-// Every trust-gate refusal in createVerifiedExternalModuleInvoker resolves the caller to
-// `undefined`, and a pg-boss queue job that resolves to `undefined` is recorded `completed`
-// with NULL output in milliseconds. From outside the worker that is indistinguishable from
-// "the handler ran and had nothing to do", and until this logging existed it emitted no log
-// line at all — there was nothing to grep, so diagnosing one cost repeated redeploy cycles.
+// A trust-gate refusal on the queue path must be LOUD in two independent places: a `warn`
+// log line, and a rejected promise carrying the reason.
 //
-// These tests pin the log line, not the refusal: the refusal behavior itself (resolve to
-// undefined, never throw) is covered by external-module-invocation-budget.test.ts and is
-// deliberately re-asserted here so a future "make the gate throw" change fails loudly.
+// It used to be neither. The refusal resolved the caller to `undefined`, and a pg-boss job
+// that resolves to `undefined` is recorded `completed` with NULL output in milliseconds —
+// from outside the worker, indistinguishable from "the handler ran and had nothing to do",
+// with nothing to grep. On 2026-07-29 that cost hours: leaked worker processes holding stale
+// discovery refused three real jobs `hash-mismatch`, and the job rows said `completed`.
+//
+// So these tests pin BOTH halves. The log line is asserted per reason because which field
+// differs is the whole diagnosis (see each case). The rejection is asserted alongside it
+// because a log file is not a durable record — the one from that incident was truncated by a
+// restart script mid-investigation, and the reason survived only on the thrown error.
 import { describe, expect, it, vi } from "vitest";
 import type { Kysely } from "kysely";
 import type { Job } from "pg-boss";
@@ -106,7 +110,9 @@ function fixture(
 describe("external module trust-gate rejection logging", () => {
   it("logs the reason when the actor is not an active user of the module", async () => {
     const { handler, warn, invoke } = fixture({ activeUsers: [] });
-    await expect(handler(job())).resolves.toBeUndefined();
+    // Rejects rather than resolves: a refused job must land in pg-boss as `failed` with the
+    // reason, never as a `completed` row with NULL output that reads exactly like success.
+    await expect(handler(job())).rejects.toThrow(/declined: not-active/);
     expect(invoke).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0]?.[0]).toMatchObject({
@@ -122,7 +128,7 @@ describe("external module trust-gate rejection logging", () => {
     // missing or unreadable, while a populated one without this id says the module alone
     // failed to stage.
     const { handler, warn } = fixture({ discovered: false });
-    await expect(handler(job())).resolves.toBeUndefined();
+    await expect(handler(job())).rejects.toThrow(/declined: not-discovered/);
     expect(warn.mock.calls[0]?.[0]).toMatchObject({
       reason: "not-discovered",
       discovered: []
@@ -133,7 +139,7 @@ describe("external module trust-gate rejection logging", () => {
     const { handler, warn } = fixture({
       row: { status: "disabled", manifest_hash: MANIFEST_HASH, package_hash: PACKAGE_HASH }
     });
-    await expect(handler(job())).resolves.toBeUndefined();
+    await expect(handler(job())).rejects.toThrow(/declined: not-enabled/);
     expect(warn.mock.calls[0]?.[0]).toMatchObject({
       reason: "not-enabled",
       status: "disabled"
@@ -142,7 +148,7 @@ describe("external module trust-gate rejection logging", () => {
 
   it("logs the reason with an absent status when there is no installation row at all", async () => {
     const { handler, warn } = fixture({ row: undefined });
-    await expect(handler(job())).resolves.toBeUndefined();
+    await expect(handler(job())).rejects.toThrow(/declined: not-enabled/);
     expect(warn.mock.calls[0]?.[0]).toMatchObject({
       reason: "not-enabled",
       status: null
@@ -156,7 +162,7 @@ describe("external module trust-gate rejection logging", () => {
     const { handler, warn } = fixture({
       row: { status: "enabled", manifest_hash: MANIFEST_HASH, package_hash: stale }
     });
-    await expect(handler(job())).resolves.toBeUndefined();
+    await expect(handler(job())).rejects.toThrow(/declined: hash-mismatch/);
     expect(warn.mock.calls[0]?.[0]).toMatchObject({
       reason: "hash-mismatch",
       dbManifestHash: MANIFEST_HASH,
@@ -173,9 +179,10 @@ describe("external module trust-gate rejection logging", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it("does not require a logger — an unwired caller still refuses without throwing", async () => {
-    // The dep is optional so existing callers compile unchanged; a missing logger must not
-    // turn a quiet refusal into a crash.
+  it("does not require a logger — an unwired caller still refuses, with the reason on the error", async () => {
+    // The dep is optional so existing callers compile unchanged. With no logger the thrown
+    // reason is the ONLY surviving record of the refusal, which is why it carries the reason
+    // string: the 2026-07-30 incident lost its log file to a restart script's truncation.
     const module = discovery();
     const handler = createExternalModuleJobHandler({
       module,
@@ -190,6 +197,6 @@ describe("external module trust-gate rejection logging", () => {
       runtime: { invoke: vi.fn() },
       listActiveUserIds: async () => [OWNER]
     });
-    await expect(handler(job())).resolves.toBeUndefined();
+    await expect(handler(job())).rejects.toThrow(/declined: not-enabled/);
   });
 });

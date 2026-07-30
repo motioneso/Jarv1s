@@ -8,8 +8,10 @@
 // is now shared with the briefing composer's worker invoker via
 // createVerifiedExternalModuleInvoker (external-module-invoke.ts) — this file
 // is a thin adapter from a pg-boss Job onto that shared gate, not a second
-// copy of it. Behavior is unchanged: any non-ok gate result resolves to
-// `undefined` exactly as the inline early-returns did.
+// copy of it. One behavior deliberately diverges from the inline early-returns:
+// a non-ok gate result now throws rather than resolving `undefined`, so a refusal
+// is a `failed` job row instead of a silent `completed` one — see the comment at
+// the throw site for the live incident that forced this.
 import type { Job } from "pg-boss";
 import type { Kysely } from "kysely";
 
@@ -204,7 +206,27 @@ export function createExternalModuleJobHandler(
       // to the runtime's own default.
       timeoutMs: queue.timeoutMs
     });
-    if (!outcome.ok) return;
+    // A refused invocation must FAIL the pg-boss job, never resolve.
+    //
+    // Resolving `undefined` here (the pre-#1280 behavior, inherited verbatim from the
+    // inline gate this file replaced) records the job as `completed` with NULL output in
+    // ~20ms — byte-for-byte indistinguishable from a job that really ran, because a warm
+    // module child answers a full invocation including its DB write in 7-10ms. The
+    // `logger` dep above was the intended mitigation, but a log line is the wrong place
+    // for this: it lives outside the transaction, in a file that any restart script can
+    // truncate, and it is gone the moment nobody thought to tail it. Live on 2026-07-30
+    // three profile-bootstrap jobs were refused `hash-mismatch` by leaked worker
+    // processes holding stale discovery, and the only surviving record was an unlinked
+    // inode still open on /proc/<pid>/fd/1 — the job rows themselves said "completed".
+    //
+    // Throwing puts the reason in the durable record: the row goes to `failed` with the
+    // message in `output`, and the queue's own retryLimit gets a second attempt that a
+    // correctly-pinned worker can serve. The briefing invoker already throws on a
+    // declined outcome (external-module-invoke.ts) — this makes the queue lane, the one
+    // a user's button press actually travels, consistent with it.
+    if (!outcome.ok) {
+      throw new Error(`external module queue invoke declined: ${outcome.reason}`);
+    }
     return outcome.result;
   };
 }
