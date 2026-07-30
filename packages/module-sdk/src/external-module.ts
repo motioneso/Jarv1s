@@ -16,8 +16,11 @@
 // This file is the union — main's name, with the job-search additions folded in. There is no
 // `external-manifest.ts`; do not reintroduce one.
 import type {
+  ModuleAssistantActionFamilyManifest,
   ModuleAssistantOnboardingManifest,
+  ModuleAssistantToolExecutionPolicy,
   ModuleAssistantToolRisk,
+  ModuleAssistantToolSelfOperationGrant,
   ModuleCompatibility,
   ModuleLifecycle,
   JsonSchema
@@ -167,11 +170,21 @@ export interface ModuleFetchResponse {
   readonly bodyBase64: string;
 }
 
+export interface ExternalModuleConfirmWhenClause {
+  readonly key: string;
+  readonly equals: string | number | boolean;
+}
+
 export interface ExternalModuleAssistantToolDeclaration {
   readonly name: string;
   readonly description: string;
   readonly permissionId: string;
   readonly risk: ModuleAssistantToolRisk;
+  readonly actionFamilyId?: string;
+  readonly executionPolicy?: ModuleAssistantToolExecutionPolicy;
+  readonly selfOperationGrant?: ModuleAssistantToolSelfOperationGrant;
+  readonly confirmWhen?: readonly ExternalModuleConfirmWhenClause[];
+  readonly confirmWhenKeys?: readonly string[];
   readonly inputSchema?: JsonSchema;
   readonly outputSchema?: JsonSchema;
   readonly handler: string;
@@ -264,6 +277,7 @@ export interface JsonJarvisModuleManifest {
   readonly web?: ModuleWebDeclaration;
   readonly runtime?: ModuleWorkerDeclaration;
   readonly assistantTools?: readonly ExternalModuleAssistantToolDeclaration[];
+  readonly assistantActionFamilies?: readonly ModuleAssistantActionFamilyManifest[];
   readonly worker?: ExternalModuleWorkerDeclaration;
   readonly fetchHosts?: readonly string[];
   /**

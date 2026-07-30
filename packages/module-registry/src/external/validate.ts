@@ -11,6 +11,8 @@ import type {
   ExternalModuleDatabaseDeclaration,
   ExternalModuleNavigationEntry,
   ExternalModuleWorkerDeclaration,
+  JarvisActionPermissionTier,
+  ModuleAssistantActionFamilyManifest,
   ModuleAssistantOnboardingManifest,
   ModuleAuthDeclaration,
   ModuleLifecycle,
@@ -52,8 +54,8 @@ const LIFECYCLES: readonly ModuleLifecycle[] = [
 // Every field of the compiled JarvisModuleManifest that carries executable behavior
 // or a UI/data surface. Presence of ANY of these in an external manifest is a
 // rejection. `auth`/`storage`/`web` are first-class as of #918 Slice 2, `database` as
-// of #964, and `navigation` as of #1019 (each validated positively below) and are
-// deliberately absent from this list.
+// of #964, `navigation` as of #1019, and `assistantActionFamilies` as of #1246
+// (each validated positively below) and are deliberately absent from this list.
 const FORBIDDEN_FIELDS: readonly string[] = [
   "availability",
   "settings",
@@ -63,7 +65,6 @@ const FORBIDDEN_FIELDS: readonly string[] = [
   "routes",
   "jobs",
   "shareableResources",
-  "assistantActionFamilies",
   "sourceBehaviors",
   "focusSignal",
   "proactiveMonitor",
@@ -74,6 +75,161 @@ const FORBIDDEN_FIELDS: readonly string[] = [
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+const ACTION_FAMILY_ID_RE = /^[a-z][a-z0-9_-]*$/;
+const ACTION_PERMISSION_TIERS: readonly JarvisActionPermissionTier[] = [
+  "ask_each_time",
+  "trusted_auto",
+  "always_confirm"
+];
+
+function validateActionFamilies(
+  raw: unknown,
+  errors: string[]
+): readonly ModuleAssistantActionFamilyManifest[] | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    errors.push("assistantActionFamilies must be a non-empty array");
+    return undefined;
+  }
+
+  const families: ModuleAssistantActionFamilyManifest[] = [];
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      errors.push("assistantActionFamilies entries must be objects");
+      continue;
+    }
+    const family = entry as Record<string, unknown>;
+    if (!isNonEmptyString(family.id) || !ACTION_FAMILY_ID_RE.test(family.id)) {
+      errors.push("action family id must be a lowercase identifier");
+      continue;
+    }
+    if (seen.has(family.id)) {
+      errors.push(`duplicate action family id: ${family.id}`);
+      continue;
+    }
+    seen.add(family.id);
+    if (!isNonEmptyString(family.label) || !isNonEmptyString(family.description)) {
+      errors.push(`action family ${family.id} needs a label and description`);
+      continue;
+    }
+    if (
+      !Array.isArray(family.allowedTiers) ||
+      family.allowedTiers.length === 0 ||
+      !family.allowedTiers.every((tier) =>
+        ACTION_PERMISSION_TIERS.includes(tier as JarvisActionPermissionTier)
+      ) ||
+      new Set(family.allowedTiers).size !== family.allowedTiers.length
+    ) {
+      errors.push(`action family ${family.id} has invalid allowedTiers`);
+      continue;
+    }
+    if (family.defaultTier !== "ask_each_time" && family.defaultTier !== "always_confirm") {
+      errors.push(`action family ${family.id} has an invalid defaultTier`);
+      continue;
+    }
+    if (!family.allowedTiers.includes(family.defaultTier)) {
+      errors.push(`action family ${family.id} defaultTier must appear in allowedTiers`);
+      continue;
+    }
+    families.push({
+      id: family.id,
+      label: family.label,
+      description: family.description,
+      defaultTier: family.defaultTier,
+      allowedTiers: family.allowedTiers as readonly JarvisActionPermissionTier[]
+    });
+  }
+  return families.length > 0 ? families : undefined;
+}
+
+function validateAssistantToolPolicy(
+  tool: Record<string, unknown>,
+  families: readonly ModuleAssistantActionFamilyManifest[] | undefined,
+  errors: string[]
+): void {
+  const family =
+    typeof tool.actionFamilyId === "string"
+      ? families?.find((candidate) => candidate.id === tool.actionFamilyId)
+      : undefined;
+
+  if (tool.actionFamilyId !== undefined) {
+    if (!isNonEmptyString(tool.actionFamilyId)) {
+      errors.push("assistant tool actionFamilyId must be a non-empty string");
+    } else if (!family) {
+      errors.push(`assistant tool references undeclared action family: ${tool.actionFamilyId}`);
+    }
+  }
+  if (
+    tool.executionPolicy !== undefined &&
+    tool.executionPolicy !== "auto" &&
+    tool.executionPolicy !== "confirm"
+  ) {
+    errors.push('assistant tool executionPolicy must be "auto" or "confirm"');
+  }
+  if (tool.executionPolicy === "auto") {
+    if (!family) {
+      errors.push('assistant tool executionPolicy "auto" requires an actionFamilyId');
+    } else if (!family.allowedTiers.includes("trusted_auto")) {
+      errors.push(
+        `assistant tool executionPolicy "auto" requires family ${family.id} to allow trusted_auto`
+      );
+    }
+  }
+
+  if (
+    tool.selfOperationGrant !== undefined &&
+    tool.selfOperationGrant !== "granted_at_install" &&
+    tool.selfOperationGrant !== "confirm_always" &&
+    tool.selfOperationGrant !== "user_promotable"
+  ) {
+    errors.push("assistant tool selfOperationGrant is invalid");
+  }
+  if (
+    tool.selfOperationGrant === "granted_at_install" ||
+    tool.selfOperationGrant === "user_promotable"
+  ) {
+    if (tool.risk !== "write" || tool.executionPolicy !== "auto" || !family) {
+      errors.push(
+        `assistant tool ${tool.selfOperationGrant} requires risk "write", executionPolicy "auto", and an actionFamilyId`
+      );
+    } else if (!family.allowedTiers.includes("always_confirm")) {
+      errors.push(
+        `assistant tool ${tool.selfOperationGrant} requires family ${family.id} to allow always_confirm`
+      );
+    }
+  }
+  if (tool.selfOperationGrant === "confirm_always" && tool.executionPolicy === "auto") {
+    errors.push('assistant tool confirm_always cannot use executionPolicy "auto"');
+  }
+
+  if (
+    tool.confirmWhenKeys !== undefined &&
+    (!Array.isArray(tool.confirmWhenKeys) ||
+      !tool.confirmWhenKeys.every((key) => isNonEmptyString(key)))
+  ) {
+    errors.push("assistant tool confirmWhenKeys must be an array of non-empty strings");
+  }
+  if (tool.confirmWhen !== undefined) {
+    if (!Array.isArray(tool.confirmWhen)) {
+      errors.push("assistant tool confirmWhen must be an array");
+    } else {
+      for (const clause of tool.confirmWhen) {
+        if (!clause || typeof clause !== "object" || Array.isArray(clause)) {
+          errors.push("assistant tool confirmWhen entries must be objects");
+          continue;
+        }
+        const { key, equals } = clause as Record<string, unknown>;
+        if (!isNonEmptyString(key) || !["string", "number", "boolean"].includes(typeof equals)) {
+          errors.push(
+            "assistant tool confirmWhen entries need key:string and equals:string|number|boolean"
+          );
+        }
+      }
+    }
+  }
 }
 
 function hasDeadLetterCycle(queues: readonly Record<string, unknown>[]): boolean {
@@ -470,6 +626,7 @@ export function validateExternalModuleManifest(
       }
     }
   }
+  const assistantActionFamilies = validateActionFamilies(obj.assistantActionFamilies, errors);
   if (obj.assistantTools !== undefined) {
     if (!Array.isArray(obj.assistantTools)) {
       errors.push("assistantTools must be an array");
@@ -498,6 +655,7 @@ export function validateExternalModuleManifest(
         if (tool.risk !== "read" && tool.risk !== "write" && tool.risk !== "destructive") {
           errors.push('assistant tool risk must be "read", "write", or "destructive"');
         }
+        validateAssistantToolPolicy(tool, assistantActionFamilies, errors);
         if (!isNonEmptyString(tool.handler)) errors.push("assistant tool handler is required");
         else handlers.push(tool.handler);
       }
@@ -809,6 +967,7 @@ export function validateExternalModuleManifest(
     ...(obj.assistantTools !== undefined
       ? { assistantTools: obj.assistantTools as readonly ExternalModuleAssistantToolDeclaration[] }
       : {}),
+    ...(assistantActionFamilies !== undefined ? { assistantActionFamilies } : {}),
     ...(worker !== undefined ? { worker } : {}),
     ...(obj.fetchHosts !== undefined ? { fetchHosts: obj.fetchHosts as readonly string[] } : {}),
     ...(obj.fetchHostGrantsNamespace !== undefined
