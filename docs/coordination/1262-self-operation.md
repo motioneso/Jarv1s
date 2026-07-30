@@ -4922,7 +4922,59 @@ check by the coordinator rather than handed to a build agent.
 - **#1121** — real-token UAT pass, Ben-owned.
 - **#1327** — structured briefing action rows, **spec required before code**.
 
-**Continuation note (2026-07-30):** #1364 and #1367 are the only things in flight, both routine
-tier, both awaiting CI. On green: merge #1364 → deploy → run `scripts/smoke-chat-prod.sh` as the
-live proof and post it on the PR; then merge #1367. After that, the issue-hygiene sweep Ben asked
-for, then #1327 at spec stage. Coordinator lock unchanged: session `43e5f5e2`, label `Coordinator`.
+### Arc closed — 2026-07-30
+
+Both in-flight PRs merged and the result is live-proven on the deployed build.
+
+| PR | Issue | Merged | State |
+| --- | --- | --- | --- |
+| #1364 | #1363 — root `anyOf` dropped `app.getMapSlice` | `03:01Z` | closed, live-proven |
+| #1367 | #1365 — post-deploy chat smoke check | `03:15Z` | closed, live-proven |
+
+**Deploy.** `ghcr.io/motioneso/jarv1s:edge` built from `d984879c` (CI run `30510783146`, success;
+headSha verified equal to `origin/main` tip **before** pulling). Ready in 20s, `tmux list-sessions`
+empty — no orphan slot.
+
+**Live proof (posted on both PRs).** Two runs, because a generic probe cannot prove a *specific*
+tool — the default notes-search probe would have passed on a build where `getMapSlice` was still
+dropped:
+
+1. `scripts/smoke-chat-prod.sh` → `mcp__jarvis__notes_search`, `SMOKE PASS`, exit 0.
+2. Same harness, app-map-only prompt → **`mcp__jarvis__app_getMapSlice`, 9 calls**, exit 0. That
+   count was structurally zero before #1364 regardless of what the user asked.
+
+Cleanup verified after both: only `drawer|45` and the pre-existing `smoke|1` in `app.chat_threads`,
+zero leftover `app.auth_sessions` rows.
+
+**Prod memory is healthy** — app container at 3.48 GiB, against the 15–25 GB that produced the OOM
+kills. #1355 and #1360 hold.
+
+**Issue hygiene (Ben's ask), done.** All 13 arc/epic issues verified closed: #1264, #1265, #1273,
+#1310, #1311, #1350, #1355, #1357, #1360, #1361, #1362, #1363, #1365. Deferral notes posted on
+**#1246** and **#1266** — both open children of the closed epic, both blocked on their own spec, now
+explicitly recorded as deferred rather than dropped. **#1352** got a pickup note (it is
+self-contained and cold-startable; flagged its overlap with the orphan-tmux slot symptom).
+
+**New follow-up filed: #1369** — `smoke-chat-prod.sh` does not forward `JARVIS_SMOKE_PROMPT`, so the
+wrapper can only run the default probe. One line; no spec needed; not urgent. Found the hard way
+while proving #1363.
+
+**A wrong call I made and am recording rather than burying:** my first attempt at proving #1363
+poked `/api/mcp` `tools/list` with an ordinary `app.auth_sessions` bearer and reported *"tools
+advertised: 0 — #1363 not fixed on this build."* That endpoint wants a per-session `jst_` token
+(`packages/chat/src/mcp-transport.ts:76`); the 401 body has no `result.tools`, and `?? []` turned an
+auth failure into a factual claim about the tool list. It was wrong, and it was wrong in the
+alarming direction. Saved as memory `mcp-tools-list-needs-a-jst-token`.
+
+### Still open after the arc
+
+- **Ben's specific 502 on 2026-07-25 remains UNRESOLVED** and is deliberately not closed. See above.
+- **#1121** — real-token UAT pass, Ben-owned.
+- **#1327** — structured briefing action rows, **spec required before code**. Next item.
+- **#1369** — smoke wrapper prompt forwarding.
+
+**Continuation note (2026-07-30, post-arc):** the prod-chat arc is closed and prod is verified
+working on `d984879c`. The only remaining item from Ben's wrap-up instruction is **#1327**, which is
+at spec stage — no code until a spec is approved (`gpt-5.6-sol high` writes it, per Ben's standing
+ruling that Sonnet never writes plans). Coordinator lock unchanged: session `43e5f5e2`, label
+`Coordinator`.
