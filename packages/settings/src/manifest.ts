@@ -450,7 +450,7 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       name: "app.getMapSlice",
       description:
-        "Look up a bounded slice of the app's declared screens, settings, features, errors, and remediations by screen id, setting id, error code, or free-text query.",
+        "Look up a bounded slice of the app's declared screens, settings, features, errors, and remediations. Supply at least one of screenId, settingId, errorCode, or query — a call with none of them is rejected.",
       permissionId: "settings.view",
       risk: "read",
       inputSchema: appGetMapSliceInputSchema,
