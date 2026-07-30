@@ -194,7 +194,7 @@ async function main() {
     return EXIT_ERROR;
   }
 
-  let replyLength = 0;
+  let replyLength;
   try {
     replyLength = await submitTurn(config, controller.signal);
   } catch (error) {
