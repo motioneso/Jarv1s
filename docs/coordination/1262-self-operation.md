@@ -5030,6 +5030,35 @@ Four constraints attached to the ruling, all of which must appear in the spec:
 4. Reply is chat-mediated and therefore unavailable on any surface without chat — recorded as a
    known v1 limitation, not hidden.
 
+### #1327 spec DELIVERED — awaiting Ben's approval (2026-07-29)
+
+`docs/superpowers/specs/2026-07-29-1327-briefing-action-rows.md`, 589 lines, commit `74ef0978` on
+`spec/1327-briefing-action-rows`. Written in 16m by the Codex `gpt-5.6-sol high` author; pane reaped,
+worktree kept in case Ben wants revisions. **No PR, no code — the branch contains exactly two docs
+files** (`git diff --stat origin/main...` confirms it).
+
+Coordinator sanity check (headings + §1, §11–13 only — the body was not read into coordinator
+context):
+
+- **The author tiered it `security`, not `sensitive`,** and argued it mechanically: cross-module
+  contracts and a shared-table change make it `sensitive`; owner-only suppression state under FORCE
+  RLS pushes it to `security`. That is the higher call and it is the right one. Consequence: the
+  build needs Opus adversarial QA, a posted PR verdict, and **Ben's explicit merge sign-off**.
+- All five of Ben's locked rulings survive intact in §1, including volume-never-resurfaces and the
+  ingested-notes/memory-graph reading of ruling 4.
+- The Reply ruling landed with all four constraints (§13, §12, exit criterion 4).
+- **The gap I told it to verify is real:** `TaskDto.sourceRef` is *not* a `cacheMessageId`. It is
+  isolated as build Task 2 — composite account + external-ID cache resolution, plus a live Gmail
+  deep-link check — rather than glossed.
+- Migration discipline honoured explicitly: two new module-owned migrations, and the spec refuses to
+  reserve a number ("the builder resolves the next free number immediately before the commit").
+- Exit criterion 14 makes the live dev UAT the gate: without the artifact the status is
+  "code-complete, unverified", not done.
+
+One judgement call worth Ben's eye rather than mine: §13 decides **Accept does not clear prior
+subject dismissals in v1**. Defensible as a v1 simplification, but it means accepting a row about a
+topic leaves an older mute on that topic standing.
+
 **Continuation note (2026-07-29):** the prod-chat arc is closed and prod is verified working on
 `d984879c`. The live item is the **#1327 spec lane** above — a Codex `gpt-5.6-sol high` author is
 writing the spec into `docs/superpowers/specs/`. When it reports: sanity-check the spec against the
