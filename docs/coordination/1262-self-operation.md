@@ -4999,6 +4999,37 @@ is comparatively easy. The author was also warned that the issue's code citation
 2026-07-27 and must be re-verified against the current tree, and that "vault" in ruling 4 means the
 **ingested notes + memory graph**, never the `@jarv1s/vault` package.
 
+### Coordinator ruling — #1327 Reply UX (2026-07-29)
+
+The spec author escalated `[DESIGN-FORK]`: `email.draftReply` takes `{cacheMessageId, body}` only —
+the tool does not compose, so a Reply button has to get a body from somewhere. **Ruling: v1 Reply is
+the existing chat handoff. No new compose endpoint, no second AI write path.**
+
+Both of the author's claims were verified against the tree before ruling, not taken on trust:
+`packages/email/src/tools.ts` really does accept `{cacheMessageId, body}` only and re-derives
+recipient/subject/threadId server-side under `DataContextDb`; `ChatControls.openChatWith(prompt:
+string)` really does exist in `apps/web/src/shell/chat-controls-context.ts`.
+
+Why the handoff wins: issue #1327's own "Not doing" list already forbids a reply composer beyond the
+`draftReply` tool, and requirement 3 says Reply calls the **existing** tool. A second compose path
+would duplicate tool policy and confirmation copy, and duplicated write paths in this repo drift —
+the worker AI bridge silently lost its CLI adapter exactly that way.
+
+Four constraints attached to the ruling, all of which must appear in the spec:
+
+1. The prompt handed to `openChatWith` is a **fixed literal template** with exactly one interpolated
+   value, the opaque `cacheMessageId`. Never the row's model-written title or explanation, never any
+   email body text.
+2. `openChatWith` auto-sends, which is acceptable **only** because the write is still gated
+   downstream by the existing `draftReply` confirmation card. The spec must say so in one sentence
+   so nobody later reads Reply as a one-click write. (`openAssistantWithDraft` is the
+   non-auto-sending sibling if the author prefers it; state which and why.)
+3. **Verify, do not assume,** that `TaskDto.sourceRef` on an email-derived row resolves to a
+   `cacheMessageId` that `draftReply` accepts. If it doesn't, that gap is net-new work and gets its
+   own task.
+4. Reply is chat-mediated and therefore unavailable on any surface without chat — recorded as a
+   known v1 limitation, not hidden.
+
 **Continuation note (2026-07-29):** the prod-chat arc is closed and prod is verified working on
 `d984879c`. The live item is the **#1327 spec lane** above — a Codex `gpt-5.6-sol high` author is
 writing the spec into `docs/superpowers/specs/`. When it reports: sanity-check the spec against the
