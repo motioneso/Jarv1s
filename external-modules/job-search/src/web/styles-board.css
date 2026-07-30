@@ -353,11 +353,30 @@
   padding: 0.75rem 1rem;
 }
 
+/* "Search now" and whatever the run in flight has to say about itself.
+
+   A column with its width reserved, not a row that grows. The notice used to sit beside the button
+   inside this group, and the group is the right-hand item of a `space-between` header — so the
+   moment a search started the group got wider and shoved the button leftward, out from under the
+   cursor that had just clicked it. Reserving the width up front means the button occupies exactly
+   the same pixels idle, running and finished, and the notice wraps inside the space already set
+   aside for it. The notice's own copy is kept short (see runNotice in screens/board.tsx) because a
+   reserved column only works if nothing put in it wants to be a paragraph. */
 .jsm-search-now {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  width: 17rem;
+  max-width: 100%;
+  text-align: right;
+}
+
+/* The shared notice carries horizontal padding for its full-width uses elsewhere on this screen.
+   Here it would hold the text 0.75rem clear of the right edge while the button above sits flush,
+   reading as a misalignment rather than as one control. */
+.jsm-search-now .jsm-queue-notice {
+  padding-inline: 0;
 }
 
 /* The conversation about one match. Full width under the board rather than in a side rail: this

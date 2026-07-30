@@ -16,6 +16,7 @@ import { sanitizeAssistantToolResult } from "../../packages/ai/src/gateway/outpu
 
 import {
   COMPANY_MAX_CHARS,
+  createMatchesCountHandler,
   createMatchesListHandler,
   createMatchGetHandler,
   createMatchSetStateHandler,
@@ -54,15 +55,17 @@ function createFakeStore(input: {
   // directly rather than contorting `matches` to produce a miss.
   getMatchImpl?: (matchId: string) => Promise<Match | null>;
 }): JobSearchStore & {
-  __listMatchesCalls: Array<{ profileId: string; limit: number }>;
+  __listMatchesCalls: Array<{ profileId: string; limit: number; offset: number }>;
   __setMatchStateCalls: Array<{ matchId: string; state: Match["state"] }>;
   __getMatchCalls: string[];
+  __countMatchesCalls: string[];
 } {
   const matches = input.matches ?? [];
   const postingsById = new Map((input.postings ?? []).map((posting) => [posting.id, posting]));
-  const listMatchesCalls: Array<{ profileId: string; limit: number }> = [];
+  const listMatchesCalls: Array<{ profileId: string; limit: number; offset: number }> = [];
   const setMatchStateCalls: Array<{ matchId: string; state: Match["state"] }> = [];
   const getMatchCalls: string[] = [];
+  const countMatchesCalls: string[] = [];
   const getMatchImpl =
     input.getMatchImpl ??
     (async (matchId: string) => matches.find((match) => match.id === matchId) ?? null);
@@ -81,9 +84,24 @@ function createFakeStore(input: {
     setEmbedding: vi.fn(notUsed("setEmbedding")),
     listUnscored: vi.fn(notUsed("listUnscored")),
     listUnscoredPostingsWithEmbeddings: vi.fn(notUsed("listUnscoredPostingsWithEmbeddings")),
-    listMatches: vi.fn(async (profileId: string, limit: number) => {
-      listMatchesCalls.push({ profileId, limit });
-      return matches;
+    // Slices the way the real SQL does. It matters here rather than being fixture pedantry: the
+    // handler asks for one row more than the page so it can answer `hasMore` without a COUNT, and a
+    // fake that ignored `limit` would report `hasMore: true` on a single-page board — or hide the
+    // opposite bug — while still passing every assertion about the rows themselves.
+    listMatches: vi.fn(async (profileId: string, limit: number, offset: number) => {
+      listMatchesCalls.push({ profileId, limit, offset });
+      return matches.slice(offset, offset + limit);
+    }),
+    // Counts from the same fixture `listMatches` pages, so a test can assert the two agree — the
+    // count is what the board's poll watches, and a count that disagreed with the rows would make
+    // the poll either miss a finished search or never call one finished.
+    countMatches: vi.fn(async (profileId: string) => {
+      countMatchesCalls.push(profileId);
+      const active = matches.filter((match) => match.state !== "dismissed");
+      return {
+        active: active.length,
+        scored: active.filter((match) => match.state !== "unscored" && match.want !== null).length
+      };
     }),
     upsertMatch: vi.fn(notUsed("upsertMatch")),
     setMatchState: vi.fn(async (matchId: string, state: Match["state"]) => {
@@ -112,11 +130,13 @@ function createFakeStore(input: {
     }),
     __listMatchesCalls: listMatchesCalls,
     __setMatchStateCalls: setMatchStateCalls,
-    __getMatchCalls: getMatchCalls
+    __getMatchCalls: getMatchCalls,
+    __countMatchesCalls: countMatchesCalls
   } as JobSearchStore & {
-    __listMatchesCalls: Array<{ profileId: string; limit: number }>;
+    __listMatchesCalls: Array<{ profileId: string; limit: number; offset: number }>;
     __setMatchStateCalls: Array<{ matchId: string; state: Match["state"] }>;
     __getMatchCalls: string[];
+    __countMatchesCalls: string[];
   };
 }
 
@@ -176,15 +196,21 @@ function queueCtx(params: Record<string, unknown>): ModuleWorkerContext {
 const manifestPath = fileURLToPath(
   new URL("../../external-modules/job-search/jarvis.module.json", import.meta.url)
 );
-function matchesListOutputSchema(): JsonSchema {
+function shippedOutputSchema(toolName: string): JsonSchema {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
     assistantTools: Array<{ name: string; outputSchema?: JsonSchema }>;
   };
-  const tool = manifest.assistantTools.find((t) => t.name === "job-search.matches.list");
+  const tool = manifest.assistantTools.find((t) => t.name === toolName);
   if (!tool?.outputSchema) {
-    throw new Error("job-search.matches.list has no outputSchema in the shipped manifest");
+    throw new Error(`${toolName} has no outputSchema in the shipped manifest`);
   }
   return tool.outputSchema;
+}
+function matchesListOutputSchema(): JsonSchema {
+  return shippedOutputSchema("job-search.matches.list");
+}
+function matchesCountOutputSchema(): JsonSchema {
+  return shippedOutputSchema("job-search.matches.count");
 }
 
 describe("createMatchesListHandler", () => {
@@ -211,13 +237,63 @@ describe("createMatchesListHandler", () => {
     ).resolves.toBeDefined();
   });
 
-  it("test 2: profileId and limit reach the store unchanged", async () => {
+  it("test 2: profileId and limit reach the store unchanged, plus one row to answer hasMore", async () => {
     const store = createFakeStore({ matches: [], postings: [] });
     const handler = createMatchesListHandler(store);
 
     await handler(toolCtx({ profileId: "profile-77", limit: 12 }));
 
-    expect(store.__listMatchesCalls).toEqual([{ profileId: "profile-77", limit: 12 }]);
+    // 13, not 12, and that is deliberate: the extra row is how `hasMore` is answered without a
+    // second COUNT query, and it is sliced off before anything is returned, so the render budget
+    // still only ever sees `limit` rows. An offset the caller did not send defaults to the first
+    // page — the assistant calls this tool too, and page one is the only thing a model ever means.
+    expect(store.__listMatchesCalls).toEqual([{ profileId: "profile-77", limit: 13, offset: 0 }]);
+  });
+
+  it("pages: offset reaches the store, and hasMore says whether another page exists", async () => {
+    // The board is read a page at a time (web/read-board.ts) because one browser response can only
+    // carry ~25 rows past the assistant render cap. `hasMore` is the whole stopping condition for
+    // that walk, and it cannot be inferred from a short page: the handler skips a match whose
+    // posting has since been removed, so a page can come back short without being the last one.
+    const matches = Array.from({ length: 5 }, (_unused, index) =>
+      makeMatch({ id: `match-${index}`, postingId: `post-${index}`, fit: 70, want: 60 })
+    );
+    const postings = Array.from({ length: 5 }, (_unused, index) => makePosting(`post-${index}`));
+    const store = createFakeStore({ matches, postings });
+    const handler = createMatchesListHandler(store);
+
+    const first = (await handler(toolCtx({ profileId: "profile-1", limit: 2, offset: 0 }))) as {
+      items: Array<{ id: string }>;
+      hasMore: boolean;
+    };
+    expect(first.items.map((item) => item.id)).toEqual(["match-0", "match-1"]);
+    expect(first.hasMore).toBe(true);
+
+    const last = (await handler(toolCtx({ profileId: "profile-1", limit: 2, offset: 4 }))) as {
+      items: Array<{ id: string }>;
+      hasMore: boolean;
+    };
+    expect(last.items.map((item) => item.id)).toEqual(["match-4"]);
+    expect(last.hasMore).toBe(false);
+
+    expect(store.__listMatchesCalls).toEqual([
+      { profileId: "profile-1", limit: 3, offset: 0 },
+      { profileId: "profile-1", limit: 3, offset: 4 }
+    ]);
+  });
+
+  it("pages: a present-but-invalid offset throws rather than quietly reading page one", async () => {
+    // Silently correcting it would hand back page one while the caller believed it had page four,
+    // which reads as a board that repeats itself rather than as a failure.
+    const store = createFakeStore({ matches: [], postings: [] });
+    const handler = createMatchesListHandler(store);
+
+    for (const offset of [-1, 1.5, "3"]) {
+      await expect(handler(toolCtx({ profileId: "profile-1", limit: 10, offset }))).rejects.toThrow(
+        /offset/
+      );
+    }
+    expect(store.__listMatchesCalls).toEqual([]);
   });
 
   it("test 5: returns board records, never a raw store row — assert the exact keys", async () => {
@@ -426,6 +502,103 @@ describe("createMatchesListHandler", () => {
 
     expect(renderAt(30).length).toBeLessThanOrEqual(RENDER_HEADROOM_TARGET);
     expect(renderAt(31).length).toBeGreaterThan(RENDER_HEADROOM_TARGET);
+  });
+});
+
+// The board's change detector. It exists because matches.list is paged at 25 rows, and the search
+// poll was answering "is anything still arriving?" by re-reading every page every six seconds —
+// about eighty requests a minute against a host budget of sixty shared by every module read tool in
+// the app, which earned 429s mid-crawl. Its contract is therefore about cost and agreement: one
+// request at any board size, and a number that matches the rows matches.list would page.
+describe("createMatchesCountHandler", () => {
+  it("rejects an unknown key", async () => {
+    const store = createFakeStore({});
+    const handler = createMatchesCountHandler(store);
+
+    await expect(handler(toolCtx({ profileId: "profile-1", limit: 25 }))).rejects.toThrow(
+      /unknown key: limit/
+    );
+    expect(store.countMatches).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing profileId", async () => {
+    const store = createFakeStore({});
+    const handler = createMatchesCountHandler(store);
+
+    await expect(handler(toolCtx({}))).rejects.toThrow();
+    expect(store.countMatches).not.toHaveBeenCalled();
+  });
+
+  it("echoes the profile it counted, so a caller switching profiles can attribute the answer", async () => {
+    const store = createFakeStore({ matches: [makeMatch({ id: "match-1" })] });
+    const handler = createMatchesCountHandler(store);
+
+    const result = await handler(toolCtx({ profileId: "profile-1" }));
+
+    expect(result).toEqual({ profileId: "profile-1", active: 1, scored: 1 });
+    expect(store.__countMatchesCalls).toEqual(["profile-1"]);
+  });
+
+  it("counts one request's worth regardless of board size — never one per page", async () => {
+    // Four pages of rows. The old poll would have spent four requests to learn this number.
+    const matches = Array.from({ length: MATCHES_LIST_MAX_LIMIT * 4 }, (_, i) =>
+      makeMatch({ id: `match-${i}`, postingId: `post-${i}` })
+    );
+    const store = createFakeStore({ matches });
+    const handler = createMatchesCountHandler(store);
+
+    const result = (await handler(toolCtx({ profileId: "profile-1" }))) as { active: number };
+
+    expect(result.active).toBe(MATCHES_LIST_MAX_LIMIT * 4);
+    expect(store.countMatches).toHaveBeenCalledTimes(1);
+    expect(store.listMatches).not.toHaveBeenCalled();
+  });
+
+  it("excludes dismissed rows from active, matching what the board renders", async () => {
+    const store = createFakeStore({
+      matches: [
+        makeMatch({ id: "match-1", state: "new" }),
+        makeMatch({ id: "match-2", postingId: "post-2", state: "dismissed" })
+      ]
+    });
+    const handler = createMatchesCountHandler(store);
+
+    const result = await handler(toolCtx({ profileId: "profile-1" }));
+
+    // A counter that included dismissed rows would disagree with the number rendered beside it.
+    expect(result).toEqual({ profileId: "profile-1", active: 1, scored: 1 });
+  });
+
+  it("counts a match scored before a résumé existed as scored — Fit is not part of the test", async () => {
+    // `isScored` in web/board-types.ts is keyed on Want alone, deliberately: every row on a board
+    // with no résumé on file has a real Want and an empty Fit, and those rows are read and judged.
+    // If `scored` disagreed, the poll would treat a finished search as still working.
+    const store = createFakeStore({
+      matches: [
+        makeMatch({ id: "match-1", fit: null, want: 70, state: "new" }),
+        makeMatch({ id: "match-2", postingId: "post-2", want: null, state: "unscored" })
+      ]
+    });
+    const handler = createMatchesCountHandler(store);
+
+    const result = await handler(toolCtx({ profileId: "profile-1" }));
+
+    expect(result).toEqual({ profileId: "profile-1", active: 2, scored: 1 });
+  });
+
+  it("survives the shipped manifest's own outputSchema, and cannot be truncated away", async () => {
+    const store = createFakeStore({ matches: [makeMatch({ id: "match-1" })] });
+    const result = await createMatchesCountHandler(store)(toolCtx({ profileId: "profile-1" }));
+
+    // Against the REAL manifest, not a re-typed literal: every field the browser reads has to be
+    // declared `required` there or the host's sanitiser strips it on the HTTP path, and the poll
+    // then compares against `undefined` for ever while every handler-level test stays green.
+    const sanitized = sanitizeAssistantToolResult(matchesCountOutputSchema(), { data: result });
+    expect(sanitized.data).toEqual({ profileId: "profile-1", active: 1, scored: 1 });
+
+    // Two integers, so this is the one board read the 16 000-character render cap cannot reach —
+    // which is precisely why the poll can lean on it at any board size.
+    expect(renderToolResult(sanitized).length).toBeLessThan(400);
   });
 });
 

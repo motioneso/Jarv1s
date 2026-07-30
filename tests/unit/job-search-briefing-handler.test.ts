@@ -57,6 +57,7 @@ function createFakeStore(input: {
     listUnscored: vi.fn(notUsed("listUnscored")),
     listUnscoredPostingsWithEmbeddings: vi.fn(notUsed("listUnscoredPostingsWithEmbeddings")),
     listMatches: vi.fn(async (profileId: string) => matchesByProfile[profileId] ?? []),
+    countMatches: vi.fn(notUsed("countMatches")),
     upsertMatch: vi.fn(notUsed("upsertMatch")),
     setMatchState: vi.fn(notUsed("setMatchState")),
     getMatch: vi.fn(notUsed("getMatch")),

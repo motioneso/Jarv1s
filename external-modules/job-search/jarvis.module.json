@@ -282,14 +282,16 @@
         "additionalProperties": false,
         "properties": {
           "profileId": { "type": "string" },
-          "limit": { "type": "integer", "minimum": 1, "maximum": 25 }
+          "limit": { "type": "integer", "minimum": 1, "maximum": 25 },
+          "offset": { "type": "integer", "minimum": 0 }
         },
         "required": ["profileId", "limit"]
       },
       "outputSchema": {
         "type": "object",
-        "required": ["items"],
+        "required": ["items", "hasMore"],
         "properties": {
+          "hasMore": { "type": "boolean" },
           "items": {
             "type": "array",
             "items": {
@@ -325,6 +327,28 @@
         }
       },
       "handler": "matches.list"
+    },
+    {
+      "name": "job-search.matches.count",
+      "permissionId": "job-search.matches.count",
+      "description": "Count the roles on a search profile's board, without listing them.",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "profileId": { "type": "string" } },
+        "required": ["profileId"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["profileId", "active", "scored"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "active": { "type": "integer" },
+          "scored": { "type": "integer" }
+        }
+      },
+      "handler": "matches.count"
     },
     {
       "name": "job-search.match.get",

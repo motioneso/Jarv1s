@@ -83,7 +83,7 @@ export const SOURCE_LABEL_MAX_CHARS = 24;
 export const SETTABLE_STATES = ["new", "seen", "dismissed"] as const;
 const SETTABLE_STATES_SET: ReadonlySet<string> = new Set(SETTABLE_STATES);
 
-const MATCHES_LIST_KEYS = new Set(["profileId", "limit"]);
+const MATCHES_LIST_KEYS = new Set(["profileId", "limit", "offset"]);
 
 // N39: no `fitReason`/`wantReason` here — `board.tsx` never renders them (verified by grep, not
 // assumed), so they don't belong on the row's type at all. They live only on `MatchDetail`, below.
@@ -147,6 +147,21 @@ function requireLimit(input: Record<string, unknown>): number {
   return value;
 }
 
+/** Unlike `limit`, `offset` IS optional and defaults to 0 — the assistant calls this tool too, and
+ * "the first page" is the only thing a model asking for matches ever means. A present-but-invalid
+ * offset still throws: a silently-corrected one would return page one while the caller believed it
+ * had page four, which reads as a board that repeats itself rather than as a failure. No upper
+ * bound: `limit` alone bounds the response size, and there is nothing to protect past the last
+ * row — an offset beyond the end simply returns nothing. */
+function readOffset(input: Record<string, unknown>): number {
+  const value = input.offset;
+  if (value === undefined) return 0;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new InputError("offset must be an integer of 0 or more");
+  }
+  return value;
+}
+
 function requireMatchId(input: Record<string, unknown>): string {
   const value = input.matchId;
   if (typeof value !== "string" || value.length === 0) {
@@ -179,8 +194,13 @@ export function createMatchesListHandler(store: JobSearchStore) {
     }
     const profileId = requireProfileId(input);
     const limit = requireLimit(input);
+    const offset = readOffset(input);
 
-    const matches = await store.listMatches(profileId, limit);
+    // One row past the page, purely to answer `hasMore` without a second COUNT query. The extra
+    // row is never mapped or returned, so the render budget still only ever sees `limit` rows.
+    const page = await store.listMatches(profileId, limit + 1, offset);
+    const hasMore = page.length > limit;
+    const matches = page.slice(0, limit);
     const postings = await store.getPostings(matches.map((match) => match.postingId));
 
     const items: BoardMatch[] = [];
@@ -206,7 +226,43 @@ export function createMatchesListHandler(store: JobSearchStore) {
       });
     }
 
-    return { items };
+    // `items.length` can be short of `limit` on a page that is NOT the last one: a match whose
+    // posting has since been removed is skipped above. A caller walking the pages must therefore
+    // advance by the `limit` it asked for and stop on `hasMore`, never infer the end from a short
+    // page — see web/read-board.ts, which is the caller this contract exists for.
+    return { items, hasMore };
+  };
+}
+
+const MATCHES_COUNT_KEYS = new Set(["profileId"]);
+
+/**
+ * `risk: "read"` — how many rows the board holds, without reading them.
+ *
+ * The board's "is the search still finding things?" poll used to answer that by re-reading the
+ * whole board every six seconds. That is seven requests a tick on a 167-row board, against a
+ * host limit of sixty a minute shared by every module read tool in the app, so it earned 429s —
+ * and a failed read part-way through a crawl is indistinguishable from a search that broke.
+ * This is the same question at a fixed cost of one request at any board size.
+ *
+ * Nothing here is bounded by the 16 000-character render cap the list tool is shaped around:
+ * the response is two integers, so this tool is also the one board read that cannot be truncated
+ * out of existence.
+ */
+export function createMatchesCountHandler(store: JobSearchStore) {
+  return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
+    const input = stripEnvelope(ctx.input);
+    for (const key of Object.keys(input)) {
+      if (!MATCHES_COUNT_KEYS.has(key)) {
+        throw new InputError(`unknown key: ${key}`);
+      }
+    }
+    const profileId = requireProfileId(input);
+    const counts = await store.countMatches(profileId);
+    // `profileId` is echoed for the same reason match.get echoes `matchId`: the caller polls this
+    // while the user may be switching profiles, and a response that does not say which board it
+    // counted cannot be safely attributed to one.
+    return { profileId, active: counts.active, scored: counts.scored };
   };
 }
 

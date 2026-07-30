@@ -29,6 +29,10 @@ import type { AssistantSurfaceHandleV1 } from "../../../external-modules/job-sea
 // to instead of skipping that branch entirely.
 export function installWindowStub(): void {
   const store = new Map<string, string>();
+  // Listeners are recorded rather than discarded so a test can fire the real window event a
+  // behaviour hangs off — board.tsx's focus refetch is the one that matters, and the previous
+  // no-op stub meant that whole branch attached and was never exercised.
+  windowListeners.clear();
   (globalThis as unknown as { window: unknown }).window = {
     localStorage: {
       getItem: (key: string) => (store.has(key) ? (store.get(key) as string) : null),
@@ -39,9 +43,26 @@ export function installWindowStub(): void {
         store.delete(key);
       }
     },
-    addEventListener: () => undefined,
-    removeEventListener: () => undefined
+    addEventListener: (type: string, handler: () => void) => {
+      const existing = windowListeners.get(type) ?? [];
+      existing.push(handler);
+      windowListeners.set(type, existing);
+    },
+    removeEventListener: (type: string, handler: () => void) => {
+      const existing = windowListeners.get(type) ?? [];
+      windowListeners.set(
+        type,
+        existing.filter((item) => item !== handler)
+      );
+    }
   };
+}
+
+const windowListeners = new Map<string, Array<() => void>>();
+
+/** Fires every handler registered for a window event, in registration order. */
+export function fireWindowEvent(type: string): void {
+  for (const handler of windowListeners.get(type) ?? []) handler();
 }
 
 export function match(overrides: Partial<BoardMatch> = {}): BoardMatch {
@@ -124,6 +145,10 @@ export interface BoardFixtures {
    *  board test was implicitly asserting against before the read existed. Set a summary to put
    *  one on file. */
   resumeGetResult: { version: number; content: string; updatedAt: string } | null;
+  /** job-search.matches.count's failure switch — the shape a 429 arrives in. Separate from
+   *  `matchesShouldReject` because the whole point of the count tool is that the two reads fail
+   *  independently: a rate-limited count must not provoke a whole-board read. */
+  countShouldReject: boolean;
 }
 
 export const fixtures: BoardFixtures = {
@@ -132,7 +157,8 @@ export const fixtures: BoardFixtures = {
   portalsItems: [],
   matchGetResult: undefined,
   matchGetShouldReject: false,
-  resumeGetResult: null
+  resumeGetResult: null,
+  countShouldReject: false
 };
 
 function installTransportMock(): void {
@@ -143,6 +169,20 @@ function installTransportMock(): void {
     }
     if (name === "job-search.portal.list") {
       return { portals: fixtures.portalsItems };
+    }
+    // The search poll's change detector. Derived from `matchesItems` rather than being its own
+    // fixture field so the number can never disagree with the rows the list tool would page — a
+    // count that drifted from the rows would let a test "pass" against a poll that either missed a
+    // finished search or never called one finished. The two filters mirror the SQL in
+    // worker/store-sql.ts and `isScored` in web/board-types.ts.
+    if (name === "job-search.matches.count") {
+      if (fixtures.countShouldReject) throw new Error("Request failed (429)");
+      const active = fixtures.matchesItems.filter((item) => item.state !== "dismissed");
+      return {
+        profileId: "p1",
+        active: active.length,
+        scored: active.filter((item) => item.state !== "unscored" && item.want !== null).length
+      };
     }
     if (name === "job-search.match.get") {
       if (fixtures.matchGetShouldReject) throw new Error("Request failed (500)");
@@ -167,6 +207,7 @@ export function setupBoardHarness(): void {
     fixtures.matchGetResult = undefined;
     fixtures.matchGetShouldReject = false;
     fixtures.resumeGetResult = null;
+    fixtures.countShouldReject = false;
     vi.mocked(api.invokeTool).mockReset();
     vi.mocked(api.runQueue).mockReset();
     vi.mocked(api.runQueue).mockResolvedValue({ kind: "queued" });

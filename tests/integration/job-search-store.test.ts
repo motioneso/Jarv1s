@@ -34,6 +34,9 @@ const ownedTables = JOB_SEARCH_TABLES.map((table) => `app.${table}`);
 // failures, safe to reuse across `it`s because afterEach deletes it (CASCADE clears every owned
 // row) after every test.
 const ownerA = "50000000-0000-4000-8000-000000000011";
+// A second actor, used only where a case has to prove a read is behind the RLS boundary
+// rather than merely filtered in SQL. Torn down alongside ownerA below.
+const ownerB = "50000000-0000-4000-8000-000000000012";
 
 beforeAll(async () => {
   await resetEmptyFoundationDatabase();
@@ -65,7 +68,7 @@ afterEach(async () => {
   // the REVOKEs above already do.
   await client.query("DELETE FROM app.module_kv WHERE module_id = $1", [moduleId]);
   await client.query("DELETE FROM app.external_modules WHERE id = $1", [moduleId]);
-  await client.query("DELETE FROM app.users WHERE id = $1", [ownerA]);
+  await client.query("DELETE FROM app.users WHERE id = ANY($1)", [[ownerA, ownerB]]);
   await client.end();
 });
 
@@ -494,7 +497,7 @@ describe("job-search store (#1297)", () => {
       scoredAt: null
     });
 
-    const matches = await store.listMatches(profile.id, 10);
+    const matches = await store.listMatches(profile.id, 10, 0);
     expect(matches).toHaveLength(2);
 
     const scored = matches.find((match) => match.postingId === scoredPosting!.id);
@@ -550,10 +553,131 @@ describe("job-search store (#1297)", () => {
       scoredAt: null
     });
 
-    const matches = await store.listMatches(profile.id, 1);
+    const matches = await store.listMatches(profile.id, 1, 0);
     expect(matches).toHaveLength(1);
     expect(matches[0]!.postingId).toBe(scoredPosting!.id);
     expect(matches[0]!.state).toBe("new");
+  });
+
+  it("pages every row exactly once with offset, never repeating or skipping one", async () => {
+    // The board's page size is not the board's size: a browser read can only carry ~25 rows past
+    // the assistant render cap, so a profile with more matches than that is read a page at a time.
+    // What has to hold is that walking the offsets visits every row once — the risk is a
+    // non-unique ORDER BY key letting a row appear on two pages while another appears on none,
+    // which is why the query's last sort key is the unique `p.id`.
+    await install();
+    await seedUser(ownerA);
+    const store = storeFor(ownerA);
+    const profile = await store.createProfile("Staff Engineer search");
+
+    // Scored in one statement each, so several rows share a `scored_at` to the microsecond and the
+    // tiebreaker is the only thing keeping the order stable across pages.
+    const created = await store.upsertPostings(
+      profile.id,
+      Array.from({ length: 7 }, (_unused, index) =>
+        posting({ sourceId: "linkedin", externalId: `ext-page-${index}` })
+      )
+    );
+    expect(created).toHaveLength(7);
+    for (const item of created) {
+      await store.upsertMatch(profile.id, {
+        profileId: profile.id,
+        postingId: item.id,
+        fit: 50,
+        want: 50,
+        fitReason: "ok",
+        wantReason: "ok",
+        outsideFrame: false,
+        state: "new",
+        scoredAt: null
+      });
+    }
+
+    const seen: string[] = [];
+    for (let offset = 0; offset < 12; offset += 3) {
+      const page = await store.listMatches(profile.id, 3, offset);
+      seen.push(...page.map((match) => match.postingId));
+    }
+    expect(seen).toHaveLength(7);
+    expect(new Set(seen).size).toBe(7);
+    expect(new Set(seen)).toEqual(new Set(created.map((item) => item.id)));
+
+    // And an offset past the end is empty rather than an error or a wrapped first page.
+    await expect(store.listMatches(profile.id, 3, 99)).resolves.toEqual([]);
+  });
+
+  it("countMatches agrees with what listMatches would page, at one query and one round trip", async () => {
+    // The board's search poll asks "is anything still arriving?" ten times a minute, and every
+    // module read tool in the app shares one host budget of sixty requests a minute. Answering it
+    // by walking the pages cost one request per 25 rows — ~80 a minute on a 167-row board, which
+    // earned 429s mid-crawl. This is the same question at a fixed cost, so the only thing that can
+    // go wrong is the two disagreeing: a count that drifted from the rows would make the poll
+    // either miss a finished search or never call one finished. Only real SQL proves the FILTER
+    // clauses, which is why this is here and not in a fake.
+    await install();
+    await seedUser(ownerA);
+    const store = storeFor(ownerA);
+    const profile = await store.createProfile("Staff Engineer search");
+
+    // Five postings: two scored and left alone, one scored then dismissed, one scored with a null
+    // Fit (the board-with-no-résumé case), and one the scorer never reached at all — which has no
+    // match row, so a count over the matches table alone would miss it entirely.
+    const created = await store.upsertPostings(
+      profile.id,
+      Array.from({ length: 5 }, (_unused, index) =>
+        posting({ sourceId: "linkedin", externalId: `ext-count-${index}` })
+      )
+    );
+    expect(created).toHaveLength(5);
+    const score = async (postingId: string, overrides: { fit?: number | null } = {}) => {
+      await store.upsertMatch(profile.id, {
+        profileId: profile.id,
+        postingId,
+        fit: overrides.fit === undefined ? 50 : overrides.fit,
+        want: 50,
+        fitReason: "ok",
+        wantReason: "ok",
+        outsideFrame: false,
+        state: "new",
+        scoredAt: null
+      });
+    };
+    await score(created[0]!.id);
+    await score(created[1]!.id);
+    await score(created[2]!.id);
+    // A match scored before any résumé existed: a real Want, an empty Fit. It still counts as
+    // scored, because `isScored` in web/board-types.ts is keyed on Want alone.
+    await score(created[3]!.id, { fit: null });
+    // Dismiss by posting rather than by page position: every row here has a null `scored_at`, so
+    // the ordering between them is not something this test should depend on — and the row that
+    // happened to sort first might be the synthetic unscored one, which has no match id to set.
+    const rows = await store.listMatches(profile.id, 10, 0);
+    const toDismiss = rows.find((match) => match.postingId === created[2]!.id);
+    expect(toDismiss).toBeDefined();
+    await store.setMatchState(toDismiss!.id, "dismissed");
+
+    const counts = await store.countMatches(profile.id);
+
+    // Four active (five postings less the dismissed one) and three of those scored — the fifth
+    // posting has no match row at all, so it is active and unscored.
+    expect(counts).toEqual({ active: 4, scored: 3 });
+    // Integers, not the bigint strings `count(*)` arrives as: the browser compares this against the
+    // previous tick's value, and "167" !== 167 would make every tick look like a change.
+    expect(Number.isInteger(counts.active)).toBe(true);
+    expect(Number.isInteger(counts.scored)).toBe(true);
+
+    // The agreement that matters: `active` is exactly the rows the board would render.
+    const paged = await store.listMatches(profile.id, 10, 0);
+    expect(paged.filter((match) => match.state !== "dismissed")).toHaveLength(counts.active);
+
+    // Another actor's count of the same profile id is zero, not four: this read is behind the same
+    // RLS boundary as every other, and a count is exactly the kind of aggregate that leaks a
+    // board's size across owners if it is written against the table instead of the policy.
+    await seedUser(ownerB);
+    await expect(storeFor(ownerB).countMatches(profile.id)).resolves.toEqual({
+      active: 0,
+      scored: 0
+    });
   });
 
   it("getMatch returns the untruncated row by real id, and null for a synthetic or unknown id (case 11, #1330)", async () => {
@@ -576,7 +700,7 @@ describe("job-search store (#1297)", () => {
       scoredAt: null
     });
 
-    const [realMatch] = await store.listMatches(profile.id, 10);
+    const [realMatch] = await store.listMatches(profile.id, 10, 0);
     expect(await store.getMatch(realMatch!.id)).toEqual(realMatch);
 
     // A synthetic id (the bare posting id an unscored row is keyed by) has no job_search_matches

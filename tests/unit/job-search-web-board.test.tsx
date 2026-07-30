@@ -19,6 +19,9 @@ vi.mock("../../external-modules/job-search/src/web/api", () => ({
 import { act } from "react-test-renderer";
 import * as api from "../../external-modules/job-search/src/web/api";
 import { setLatched } from "../../external-modules/job-search/src/web/latch";
+// The search poll's tick, so the one test that has to reach a poll-driven board read advances by
+// the real interval rather than a copied literal that could drift out of step with the hook.
+import { TICK_MS } from "../../external-modules/job-search/src/web/use-search-run";
 
 import {
   match,
@@ -35,7 +38,8 @@ import {
   findByRole,
   rowTitles,
   findRowButton,
-  findByClass
+  findByClass,
+  fireWindowEvent
 } from "./helpers/job-search-board-harness";
 
 setupBoardHarness();
@@ -46,9 +50,13 @@ describe("job-search web BoardScreen", () => {
     const renderer = await renderBoard("p1");
     await flush(renderer);
 
+    // `offset: 0` is not incidental: the board reads every page (web/read-board.ts) rather than
+    // rendering the tool's first page and calling that the board, which is what left a profile with
+    // 167 matches showing 25 rows and every search afterwards looking like it did nothing.
     expect(api.invokeTool).toHaveBeenCalledWith("job-search.matches.list", {
       profileId: "p1",
-      limit: 25
+      limit: 25,
+      offset: 0
     });
     void renderer;
   });
@@ -340,49 +348,57 @@ describe("job-search web BoardScreen", () => {
   });
 
   it("renders each RunOutcome distinctly and keeps the button usable after an error", async () => {
-    fixtures.matchesItems = [match()];
-    const renderer = await renderBoard();
-    await flush(renderer);
+    // One fresh board per outcome, deliberately. The button is disabled for the whole run now, not
+    // just for the enqueue POST, so a single render cannot be clicked four times in a row the way
+    // this test used to — a user who has started a search cannot start another until it ends, and a
+    // test that reached past `disabled` to call the handler directly would be asserting a click no
+    // one can make. Each outcome is what a first click produces from an idle board.
+    async function clickSearch(outcome: Awaited<ReturnType<typeof api.runQueue>>) {
+      fixtures.matchesItems = [match()];
+      const renderer = await renderBoard();
+      await flush(renderer);
+      vi.mocked(api.runQueue).mockResolvedValueOnce(outcome);
+      await act(async () => {
+        findButton(renderer, /^Search now/)!.props.onClick();
+      });
+      await flush(renderer);
+      return renderer;
+    }
 
-    vi.mocked(api.runQueue).mockResolvedValueOnce({ kind: "queued" });
-    await act(async () => {
-      findButton(renderer, /^Search now/)!.props.onClick();
-    });
-    await flush(renderer);
-    expect(text(renderer)).toMatch(/new matches will appear here/i);
+    // Accepted, so the run is followed: the notice says a search is under way and the button is
+    // held disabled until the poll says the board has settled.
+    const queued = await clickSearch({ kind: "queued" });
+    expect(text(queued)).toMatch(/Searching… new roles will appear below/i);
+    expect(findButton(queued, /^Search now/)!.props.disabled).toBe(true);
+    expect(findByRole(queued, "alert")).toHaveLength(0);
 
-    vi.mocked(api.runQueue).mockResolvedValueOnce({ kind: "already-queued" });
-    await act(async () => {
-      findButton(renderer, /^Search now/)!.props.onClick();
-    });
-    await flush(renderer);
-    expect(text(renderer)).toMatch(/Already searching/);
-    expect(findByRole(renderer, "alert")).toHaveLength(0);
+    // The host's five-second manual-run singleton rejecting a double-click. There is a run in
+    // flight either way, so this is followed exactly like an accepted one — not reported as a
+    // failure, and not left with a clickable button.
+    const already = await clickSearch({ kind: "already-queued" });
+    expect(text(already)).toMatch(/Searching… new roles will appear below/i);
+    expect(findButton(already, /^Search now/)!.props.disabled).toBe(true);
+    expect(findByRole(already, "alert")).toHaveLength(0);
 
-    vi.mocked(api.runQueue).mockResolvedValueOnce({ kind: "disabled" });
-    await act(async () => {
-      findButton(renderer, /^Search now/)!.props.onClick();
-    });
-    await flush(renderer);
-    expect(text(renderer)).toMatch(/turned off for this account/i);
+    // Nothing is running in either of the next two, so the button must come straight back.
+    const disabled = await clickSearch({ kind: "disabled" });
+    expect(text(disabled)).toMatch(/turned off for this account/i);
+    expect(findButton(disabled, /^Search now/)!.props.disabled).toBeFalsy();
 
-    vi.mocked(api.runQueue).mockResolvedValueOnce({ kind: "error", message: "Network error" });
-    await act(async () => {
-      findButton(renderer, /^Search now/)!.props.onClick();
-    });
-    await flush(renderer);
-    expect(text(renderer)).toMatch(/Couldn't start a search: Network error/);
+    const failed = await clickSearch({ kind: "error", message: "Network error" });
+    expect(text(failed)).toMatch(/Couldn't start a search: Network error/);
+    expect(findByRole(failed, "alert").length).toBeGreaterThan(0);
 
-    // The button must still be present, enabled, and clickable after the error outcome.
-    const button = findButton(renderer, /^Search now/);
-    expect(button).toBeTruthy();
+    // And a retry after the error really does reach the transport again.
+    const button = findButton(failed, /^Search now/);
     expect(button!.props.disabled).toBeFalsy();
+    const callsBefore = vi.mocked(api.runQueue).mock.calls.length;
     vi.mocked(api.runQueue).mockResolvedValueOnce({ kind: "queued" });
     await act(async () => {
       button!.props.onClick();
     });
-    await flush(renderer);
-    expect(api.runQueue).toHaveBeenCalledTimes(5);
+    await flush(failed);
+    expect(vi.mocked(api.runQueue).mock.calls.length).toBe(callsBefore + 1);
   });
 
   // Mockup rewrite (task #98/#100): the per-row Dismiss button is gone — Save/Pass now live in
@@ -470,6 +486,84 @@ describe("job-search web BoardScreen", () => {
 
     expect(findByRole(renderer, "alert")).toHaveLength(0);
     expect(rowTitles(renderer)).toContain("Recovered Role");
+  });
+
+  // The live regression: a board with 167 rows and a crawl in progress vanished entirely because
+  // one poll read failed. The whole screen was swapped for the error card, which also unmounted the
+  // Search now control and with it the run being followed — so the user's search disappeared along
+  // with the rows, and nothing said why. A board that has rows keeps them.
+  it("keeps its rows and its search control when a later read fails", async () => {
+    vi.useFakeTimers();
+    try {
+      fixtures.matchesItems = [match({ id: "m1", title: "Already Loaded Role" })];
+      const renderer = await renderBoard();
+      await flush(renderer);
+      expect(rowTitles(renderer)).toContain("Already Loaded Role");
+
+      const search = findButton(renderer, /^Search now/);
+      await act(async () => {
+        search!.props.onClick();
+      });
+      await flush(renderer);
+
+      // The crawl finds a second role, so the poll's count moves and it goes to fetch the rows —
+      // and that read is the one that fails. This is the exact sequence of the live regression: a
+      // board mid-crawl, one failed read, and the whole screen replaced by an error card that took
+      // the Search now control (and the run it was following) down with it.
+      fixtures.matchesItems = [
+        match({ id: "m1", title: "Already Loaded Role" }),
+        match({ id: "m2", title: "Never Arrives" })
+      ];
+      fixtures.matchesShouldReject = true;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TICK_MS);
+      });
+      await flush(renderer);
+
+      expect(rowTitles(renderer)).toContain("Already Loaded Role");
+      expect(findButton(renderer, /^Search now/)).toBeTruthy();
+      expect(findByRole(renderer, "alert")).toHaveLength(0);
+      expect(text(renderer)).toMatch(/from the last load/i);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Every full read costs one request per 25 rows, and every module read tool in the app shares one
+  // sixty-per-minute host budget — so a second read starting on top of one already running is
+  // fourteen requests inside a second on a 168-row board. That is exactly how the live proof
+  // collected 429s: the window-focus refetch landed on the mount read and every page offset was
+  // requested twice. A 429 mid-read loses a whole page of the board, so this is not just waste.
+  it("joins the read already in flight instead of paging the whole board a second time", async () => {
+    const releases: Array<() => void> = [];
+    let listCalls = 0;
+    vi.mocked(api.invokeTool).mockImplementation(async (name: string) => {
+      if (name === "job-search.matches.list") {
+        listCalls += 1;
+        // Held open, so the focus event below arrives while the mount read is genuinely still in
+        // flight rather than after it has quietly finished.
+        return await new Promise<unknown>((resolve) => {
+          releases.push(() => resolve({ items: [match({ id: "m1", title: "Held Role" })] }));
+        });
+      }
+      if (name === "job-search.portal.list") return { portals: [] };
+      if (name === "job-search.resume.get") return { resume: null };
+      throw new Error(`unexpected invokeTool ${name}`);
+    });
+
+    const renderer = await renderBoard();
+    expect(listCalls).toBe(1);
+
+    await act(async () => {
+      fireWindowEvent("focus");
+    });
+    // Still one: the focus handler wants current rows, and a read for exactly that is already
+    // running. Without the join this would be 2 here and 14 on Ben's board.
+    expect(listCalls).toBe(1);
+
+    for (const release of releases) release();
+    await flush(renderer);
+    expect(rowTitles(renderer)).toContain("Held Role");
   });
 
   it("renders a distinct empty state for zero matches — not loading, not error", async () => {

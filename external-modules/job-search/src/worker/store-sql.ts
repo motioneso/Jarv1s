@@ -11,6 +11,7 @@
 //      called with the wrong one.
 //   2. Positional `$1`-style params only, and every list method takes an explicit `limit`.
 import type {
+  BoardCounts,
   BriefingDetail,
   CustomSource,
   JobSearchStore,
@@ -460,7 +461,7 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
       return result.rows.map(mapPostingWithEmbedding);
     },
 
-    async listMatches(profileId: string, limit: number): Promise<Match[]> {
+    async listMatches(profileId: string, limit: number, offset: number): Promise<Match[]> {
       // The board read. Both axes stay separate columns all the way through — no expression
       // here may combine fit and want (L9); that invariant is enforced structurally, not by
       // convention.
@@ -473,6 +474,11 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
       // (owner_user_id, profile_id, posting_id) rather than posting_id alone — belt-and-braces
       // against RLS ever widening this read across owners or profiles, even though RLS on both
       // tables already confines every row to the actor's own.
+      //
+      // OFFSET paging is only safe because the ORDER BY ends in `p.id ASC`, which is unique — the
+      // two keys before it are both non-unique (a batch of postings scored in the same statement
+      // shares a `scored_at` to the microsecond), and without a unique final key the same row can
+      // appear on two pages while another appears on none. Do not drop that clause.
       const result = await db.query<MatchesReadRow>(
         `SELECT p.id AS posting_id, m.id AS match_id, m.fit, m.want, m.fit_reason, m.want_reason,
                 m.outside_frame, m.state, m.scored_at
@@ -483,10 +489,47 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
             AND m.posting_id = p.id
           WHERE p.profile_id = $1
           ORDER BY m.scored_at DESC NULLS LAST, p.first_seen_at DESC, p.id ASC
-          LIMIT $2`,
-        [profileId, limit]
+          LIMIT $2 OFFSET $3`,
+        [profileId, limit, offset]
       );
       return result.rows.map((row) => mapMatchesReadRow(row, profileId));
+    },
+
+    async countMatches(profileId: string): Promise<BoardCounts> {
+      // Deliberately the same postings-anchored LEFT JOIN and the same `WHERE p.profile_id = $1`
+      // as listMatches above, so the number the board's poll watches counts exactly the rows the
+      // board would render — a count over `job_search_matches` alone would miss every crawled,
+      // not-yet-scored posting, which is the population a running search is adding to.
+      //
+      // Two aggregates in one statement rather than two queries: the whole point of this method is
+      // that a change detector costs one request and one round trip regardless of board size.
+      //
+      // `m.state IS NULL` is the synthetic unscored posting (no match row yet) — it is active and
+      // unscored, never dismissed. The `scored` filter mirrors `isScored` in web/board-types.ts:
+      // Want present and out of the `unscored` state, with Fit deliberately absent from the test.
+      const result = await db.query<{ active: string; scored: string }>(
+        `SELECT count(*) FILTER (WHERE m.state IS NULL OR m.state <> 'dismissed') AS active,
+                count(*) FILTER (
+                  WHERE m.state IS NOT NULL AND m.state <> 'dismissed'
+                    AND m.state <> 'unscored' AND m.want IS NOT NULL
+                ) AS scored
+           FROM app.job_search_postings p
+           LEFT JOIN app.job_search_matches m
+             ON m.owner_user_id = p.owner_user_id
+            AND m.profile_id = p.profile_id
+            AND m.posting_id = p.id
+          WHERE p.profile_id = $1`,
+        [profileId]
+      );
+      // `count(*)` comes back as a bigint, which node-postgres hands over as a string rather than
+      // risking a silent precision loss. A board of this size never approaches that, but the
+      // conversion still has to be explicit or the browser compares "167" to 167 and every tick
+      // looks like a change.
+      const row = result.rows[0];
+      return {
+        active: Number(row?.active ?? 0),
+        scored: Number(row?.scored ?? 0)
+      };
     },
 
     async upsertMatch(profileId: string, match: Omit<Match, "id">): Promise<void> {

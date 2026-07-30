@@ -180,7 +180,11 @@ describe("OverviewScreen", () => {
     // On your board=4 (raw count), Read and scored=2 (b,c have non-null want and a non-unscored
     // state), New=1 (a), Passed=1 (c).
     expect(figures.map((f) => flatten(f.props.children))).toEqual(["4", "2", "1", "1"]);
-    expect(text(withMatches)).toMatch(/25/);
+    // The caption no longer names a row count. It used to say "the 25 matches currently on your
+    // board", which was only ever true because the screen read one page and stopped; it now reads
+    // every page, so the honest caveat is about what a board holds, not how many rows fit in a read.
+    expect(text(withMatches)).toMatch(/what is on your board now/i);
+    expect(text(withMatches)).not.toMatch(/\b25\b/);
   });
 
   it("renders a disabled portal's cause verbatim, not a composed sentence", async () => {

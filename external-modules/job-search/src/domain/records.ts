@@ -86,6 +86,13 @@ export interface Match {
   scoredAt: string | null;
 }
 
+// This is a PAGE size, not the size of the board. It used to be both, which is the whole reason it
+// needs saying: the board asked for one page and rendered it, so a profile with 167 matches showed
+// 25 rows and a search that added dozens left the count sitting on the same number — a working
+// search that looked broken. The page size is still pinned by the render cap below, because that
+// cap is per response; the board now walks the pages (web/read-board.ts) instead of stopping at the
+// first one, and `matches.list` returns `hasMore` so it knows when to stop.
+//
 // N43: this is the ONE definition of the matches.list page size. worker/handlers/matches.ts's
 // requireLimit rejects any request above it, and web/screens/board.tsx is the only caller — both
 // import this constant rather than each carrying their own literal, so the two can never drift

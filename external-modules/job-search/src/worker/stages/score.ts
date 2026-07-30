@@ -414,7 +414,9 @@ export async function contributeToBriefing(deps: {
 
   const shaped = await Promise.all(
     profiles.map(async (profile) => {
-      const matches = await store.listMatches(profile.id, BRIEFING_MATCH_READ_LIMIT);
+      // Offset 0: the briefing wants the newest matches and nothing else, so it reads the first
+      // page and never pages past it — unlike the board, which walks every page.
+      const matches = await store.listMatches(profile.id, BRIEFING_MATCH_READ_LIMIT, 0);
       const postings = await store.getPostings(matches.map((match) => match.postingId));
       return { id: profile.id, name: profile.name, matches, postings };
     })

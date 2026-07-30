@@ -34,15 +34,15 @@
 // risk:read only — a write from the browser 403s before it runs, so this screen has nothing to
 // write and no queue calls at all):
 //   - job-search.matches.list  → the figures row and the "read and scored" / "new" / "passed"
-//     counts. This is deliberately the SAME read board.tsx makes, not a derived total — see the
-//     module comment on MATCHES_LIST_MAX_LIMIT below for why "on your board" cannot mean more
-//     than the capped 25 rows the tool is willing to return.
+//     counts. This is deliberately the SAME read board.tsx makes, through the same paged helper
+//     (web/read-board.ts), so the two screens can never disagree about how many roles are on the
+//     board — they used to both stop at the tool's 25-row page and call that a board.
 //   - job-search.portal.list   → "Where it's looking" and "Monitor health".
 //   - job-search.resume.get    → the résumé blocker and the résumé readiness gate. The content is
 //     dropped the instant it arrives; this screen only ever needs to know whether a résumé exists.
 import { h, useEffect, useState, type ReactNodeLike } from "../runtime";
 import { invokeTool } from "../api";
-import { MATCHES_LIST_MAX_LIMIT } from "../../domain/records.js";
+import { readWholeBoard } from "../read-board";
 import { ONBOARDING_STEPS } from "../../domain/criteria.js";
 import { FieldPair, KeyRow, SectionHead, formatPostedOn } from "../keyline";
 import { isScored, type BoardMatch, type PortalListItem } from "../board-types";
@@ -324,17 +324,14 @@ function HealthSection(props: { state: PortalsState }): ReactNodeLike {
 // section head is restyled to match the new page below, not its internal logic.
 // -------------------------------------------------------------------------------------------
 async function fetchMatches(profileId: string): Promise<BoardMatch[]> {
-  const result = (await invokeTool("job-search.matches.list", {
-    profileId,
-    limit: MATCHES_LIST_MAX_LIMIT
-  })) as { items?: BoardMatch[] } | null;
-  return Array.isArray(result?.items) ? (result!.items as BoardMatch[]) : [];
+  const { items } = await readWholeBoard(profileId);
+  return items;
 }
 
-// One figure per stat, computed over the same ≤25 rows the board itself renders. Deliberately
-// NOT a total: matches.list has a hard cap (see MATCHES_LIST_MAX_LIMIT's own header in
-// domain/records.ts). A count over these rows is therefore a claim about "the board right now",
-// never "everything this search has ever found" — the caption under the row says that explicitly.
+// One figure per stat, computed over the same rows the board itself renders — every page of them,
+// which is what makes these figures the board's real counts rather than a claim about its first
+// 25 rows. Still not a lifetime total: a dismissed role stays on the board and a removed posting
+// leaves it, so "on your board" means exactly that.
 function figuresFrom(items: BoardMatch[]): {
   onBoard: number;
   readScored: number;
@@ -384,11 +381,9 @@ function FiguresSection(props: { state: MatchesState }): ReactNodeLike {
           <span className="jds-hero-figure">{figures.passedCount}</span>
         </FieldPair>
       </div>
-      {/* The caveat every figure above needs: matches.list is capped at MATCHES_LIST_MAX_LIMIT
-          rows, so these are board counts, never lifetime totals. */}
+      {/* These are what is on the board now, not what the search has found over its lifetime. */}
       <p className="jds-hint jsm-overview__figures-note">
-        Counts reflect the {MATCHES_LIST_MAX_LIMIT} matches currently on your board — not a running
-        total.
+        Counts reflect what is on your board now — not a running total.
       </p>
     </div>
   );

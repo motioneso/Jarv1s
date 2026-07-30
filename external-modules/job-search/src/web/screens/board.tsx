@@ -7,23 +7,21 @@
 // the row immediately, then reconcile against the next matches.list read, restoring the row
 // with a plain message if it comes back still not-dismissed (the write never actually landed).
 import { h, useCallback, useEffect, useRef, useState, type ReactNodeLike } from "../runtime";
-import { invokeTool, runQueue, type RunOutcome } from "../api";
-import { MATCHES_LIST_MAX_LIMIT, type FailureCause } from "../../domain/records.js";
+import { invokeTool, runQueue } from "../api";
+import { type FailureCause } from "../../domain/records.js";
+import { readWholeBoard } from "../read-board";
 import type { AssistantSurfaceHandleV1 } from "../../domain/seed-prompt.js";
 import { Inspector } from "./inspector";
 import { MatchRow } from "./match-row";
 import { MatchRecordCard, useDiscuss } from "./discuss";
 import { fetchResume } from "./resume-editor";
 import { isScored, type BoardMatch, type MatchDetail, type PortalListItem } from "../board-types";
+import { useSearchRun, type SearchRunState } from "../use-search-run";
 
-// N43: `MATCHES_LIST_MAX_LIMIT` is defined once in domain/records.ts and imported by both this
-// screen and worker/handlers/matches.ts's requireLimit — there is no local literal here to drift
-// out of sync (a999a081 shipped the handler at a lower value while this file still asked for 40,
-// and every board load threw InputError; see the ruling for why the fix is a shared constant, not
-// a synced pair). The tool has no default, so an omitted limit throws rather than silently
-// defaulting to an unbounded read; passing the max shows the whole board in one page — Task 20 was
-// never asked to build pagination (#1333 tracks paging as a separate, out-of-scope product
-// question).
+// #1333 (paging) is no longer deferrable and is done: this screen reads through
+// web/read-board.ts, which walks `matches.list` a page at a time until the tool says there is
+// nothing left. Passing the page size as the whole board was the reason a profile with 167 matches
+// rendered 25 rows and every search afterwards left the count on the same number.
 
 type MatchesState =
   | { status: "loading" }
@@ -217,60 +215,54 @@ function PortalBanner(props: { portals: PortalListItem[] }): ReactNodeLike {
   );
 }
 
-function SearchNowControl(props: { profileId: string; onEnqueued(): void }): ReactNodeLike {
-  const [pending, setPending] = useState(false);
-  const [outcome, setOutcome] = useState<RunOutcome | null>(null);
-
-  const handleClick = useCallback(() => {
-    // Deliberately does not check ../latch.ts's isLatched: that latch exists only to stop the
-    // *automatic* per-profile crawl on mount from firing twice (root.tsx's own effect).
-    // "Search now" is a deliberate, explicit user action and must enqueue every time it's
-    // clicked, latched or not.
-    setPending(true);
-    runQueue("job-search.crawl-run", "crawl.run", { profileId: props.profileId })
-      .then((result) => {
-        setPending(false);
-        setOutcome(result);
-        props.onEnqueued();
-      })
-      .catch(() => {
-        setPending(false);
-        setOutcome({ kind: "error", message: "Network error" });
-      });
-  }, [props]);
-
-  let notice: ReactNodeLike = null;
-  if (pending) {
-    notice = (
-      <p className="jsm-queue-notice" role="status">
-        Searching…
-      </p>
-    );
-  } else if (outcome?.kind === "queued") {
-    notice = (
-      <p className="jsm-queue-notice" role="status">
-        Searching now — new matches will appear here as they're scored.
-      </p>
-    );
-  } else if (outcome?.kind === "already-queued") {
-    notice = (
-      <p className="jsm-queue-notice" role="status">
-        Already searching.
-      </p>
-    );
-  } else if (outcome?.kind === "disabled") {
-    notice = (
-      <p className="jsm-queue-notice" role="status">
-        Manual search runs are turned off for this account.
-      </p>
-    );
-  } else if (outcome?.kind === "error") {
-    notice = (
-      <p className="jsm-queue-notice" role="alert">
-        Couldn't start a search: {outcome.message}
-      </p>
-    );
+// The notice's own copy, kept beside the states it describes rather than inline in the markup, so
+// the whole vocabulary of this control is readable in one place. Every line is short on purpose:
+// the control reserves a fixed column (.jsm-search-now) so the button cannot move when a notice
+// appears, and a reserved column only works if nothing put in it wants to be a paragraph.
+function runNotice(state: SearchRunState): { text: string; alert: boolean } | null {
+  switch (state.status) {
+    case "idle":
+      return null;
+    case "starting":
+      return { text: "Starting…", alert: false };
+    case "running":
+      // No promise about scoring: the poll behind this state re-reads the board every few seconds,
+      // so rows genuinely arrive under it, and saying less is safer than describing the mechanism.
+      return { text: "Searching… new roles will appear below.", alert: false };
+    case "finished":
+      return {
+        text:
+          state.added === 0
+            ? "Search finished — nothing new this time."
+            : `Search finished — ${state.added} new ${state.added === 1 ? "role" : "roles"}.`,
+        alert: false
+      };
+    case "still-running":
+      // Six minutes elapsed without the board settling. The run may well still be working, so this
+      // says what is true rather than declaring a failure or a success.
+      return { text: "Still working — the board keeps updating.", alert: false };
+    case "disabled":
+      return { text: "Manual search is turned off for this account.", alert: false };
+    case "error":
+      return { text: `Couldn't start a search: ${state.message}`, alert: true };
   }
+}
+
+function SearchNowControl(props: {
+  profileId: string;
+  refreshBoard: () => Promise<void>;
+}): ReactNodeLike {
+  // Deliberately does not check ../latch.ts's isLatched: that latch exists only to stop the
+  // *automatic* per-profile crawl on mount from firing twice (root.tsx's own effect).
+  // "Search now" is a deliberate, explicit user action and must enqueue every time it's clicked,
+  // latched or not.
+  const { state, start } = useSearchRun(props.profileId, props.refreshBoard);
+  // Disabled for the whole run, not just for the enqueue request. The POST answers in about a
+  // hundred milliseconds and the run it started takes minutes; re-enabling on the POST meant the
+  // button spent the entire search looking ready, and a second click only hit the host's
+  // five-second singleton and then enqueued a duplicate crawl.
+  const busy = state.status === "starting" || state.status === "running";
+  const notice = runNotice(state);
 
   return (
     <div className="jsm-search-now">
@@ -280,12 +272,20 @@ function SearchNowControl(props: { profileId: string; onEnqueued(): void }): Rea
       <button
         type="button"
         className="jds-btn jds-btn--secondary"
-        onClick={handleClick}
-        disabled={pending}
+        onClick={start}
+        disabled={busy}
+        aria-busy={busy}
       >
+        {/* The label never changes. Swapping it to "Searching…" while a run is in flight would
+            resize the button, which is the same complaint as the notice pushing it sideways — the
+            control has to hold still. Disabled state plus the notice beneath it carry the status. */}
         Search now
       </button>
-      {notice}
+      {notice ? (
+        <p className="jsm-queue-notice" role={notice.alert ? "alert" : "status"}>
+          {notice.text}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -298,6 +298,10 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   const [bucket, setBucket] = useState<Bucket>("new");
   const [hiddenIds, setHiddenIds] = useState<ReadonlySet<string>>(new Set());
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
+  // A read that failed while the board already had rows. Kept apart from MatchesState because the
+  // two mean different things: this one is "the rows on screen are a moment stale", not "there is
+  // nothing to show". See fetchMatches's catch for why the difference matters.
+  const [readError, setReadError] = useState<string | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [detailState, setDetailState] = useState<DetailState>({ status: "idle" });
   // null until the résumé read below lands (or if it fails) — see that effect.
@@ -333,26 +337,77 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
     });
   }, []);
 
-  const fetchMatches = useCallback(async (): Promise<void> => {
+  // Returns a digest of what landed, or null if the read failed, so a caller following a run can
+  // tell "still arriving" from "settled" without owning the board's state. Dismissed rows are
+  // excluded because a run's own count must not move when the user passes on something. It does
+  // not subtract `hiddenIds` the way activeItems below does: those are rows dismissed in this
+  // session awaiting server confirmation, and reading that state here would rebuild this callback
+  // on every dismissal, restarting any poll holding a reference to it.
+  // Whether a read has ever succeeded, in a ref rather than derived from matchesState: naming that
+  // state in this callback's dependency list would rebuild the callback on every read and restart
+  // any poll holding a reference to it, for the same reason hiddenIds is excluded above.
+  const hasRowsRef = useRef(false);
+
+  // Returns nothing on purpose. It used to hand back a digest so the search poll could tell a
+  // changing board from a settled one, which meant every tick of a run re-read all seven pages —
+  // and every module read tool in the app shares one sixty-per-minute host budget, so that poll
+  // spent about eighty and collected 429s. The poll now asks `job-search.matches.count` for that
+  // number in a single request and calls this only when it has changed.
+  const readWholeBoardIntoState = useCallback(async (): Promise<void> => {
     try {
-      const result = (await invokeTool("job-search.matches.list", {
-        profileId,
-        limit: MATCHES_LIST_MAX_LIMIT
-      })) as { items?: BoardMatch[] } | null;
-      const items = Array.isArray(result?.items) ? (result!.items as BoardMatch[]) : [];
+      // Every page, not the first one — see web/read-board.ts for why the board is paged at all
+      // and why 25 is a page size rather than the size of the board.
+      const { items } = await readWholeBoard(profileId);
       reconcileHidden(items);
       setMatchesState({ status: "ready", items });
+      hasRowsRef.current = true;
+      setReadError(null);
     } catch (error) {
-      setMatchesState({
-        status: "error",
-        message: error instanceof Error ? error.message : "Couldn't load your matches."
-      });
+      const message = error instanceof Error ? error.message : "Couldn't load your matches.";
+      // A board that already has rows is never thrown away because one read failed. The search
+      // control lives inside this screen, so replacing the whole board with an error card also
+      // unmounts the run that is still going — measured live: a single failed read partway into a
+      // crawl took the rows, the button and the run with it, and the user saw a board that had
+      // simply stopped existing. Keep the rows, say plainly that they may be a moment stale, and
+      // let the next read recover. Only a board with nothing on it yet shows the error card.
+      if (hasRowsRef.current) {
+        setReadError(message);
+        return;
+      }
+      setMatchesState({ status: "error", message });
     }
   }, [profileId, reconcileHidden]);
 
+  // A full read is one request per 25 rows — seven on a 168-row board — and every module read tool
+  // in the app shares one sixty-per-minute host budget. Two of them overlapping is therefore not a
+  // harmless duplicate but fourteen requests inside a second: measured live, the window-focus
+  // refetch landing on top of the mount read doubled every page offset and collected 429s, and a
+  // 429 mid-read loses a whole page of the board. So a caller that only wants current rows joins
+  // the read already in flight (refreshRows below), while a caller that must see a write it just
+  // made always starts its own (fetchMatches) — a dismissal served a read that began before its
+  // own write would look like the write never landed and raise a false "didn't go through".
+  const inFlightRef = useRef<Promise<void> | null>(null);
+
+  const fetchMatches = useCallback((): Promise<void> => {
+    const run = readWholeBoardIntoState().finally(() => {
+      if (inFlightRef.current === run) inFlightRef.current = null;
+    });
+    inFlightRef.current = run;
+    return run;
+  }, [readWholeBoardIntoState]);
+
+  const refreshRows = useCallback(
+    (): Promise<void> => inFlightRef.current ?? fetchMatches(),
+    [fetchMatches]
+  );
+
+  // Joins rather than forces, same as the focus refetch: a mount has no write of its own to
+  // confirm, and under React's development double-mount this effect runs twice, which is where the
+  // board's every page offset being requested twice came from — fourteen requests against a
+  // sixty-per-minute budget before the user had done anything.
   useEffect(() => {
-    void fetchMatches();
-  }, [fetchMatches]);
+    void refreshRows();
+  }, [refreshRows]);
 
   // Portal health is a banner, not a blocking read — a failed fetch just means no banner this
   // render; the board still works from matches.list alone.
@@ -391,12 +446,14 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   // runtime).
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.addEventListener !== "function") return;
+    // Joins a read already in flight rather than starting a second one — see inFlightRef above.
+    // A focus event carries no information about a write, so current rows are all this wants.
     const handler = (): void => {
-      void fetchMatches();
+      void refreshRows();
     };
     window.addEventListener("focus", handler);
     return () => window.removeEventListener("focus", handler);
-  }, [fetchMatches]);
+  }, [refreshRows]);
 
   // #1330: fetches the untruncated detail (fitReason/wantReason, per N39) the instant a row is
   // selected — Inspector never calls invokeTool itself (see that file's header). `cancelled`
@@ -638,12 +695,20 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
             </p>
           ) : null}
         </div>
-        <SearchNowControl profileId={profileId} onEnqueued={() => void fetchMatches()} />
+        <SearchNowControl profileId={profileId} refreshBoard={refreshRows} />
       </header>
       <hr className="jds-divider jds-divider--strong jsm-hero__rule" />
       {restoreMessage ? (
         <p className="jsm-queue-notice" role="status">
           {restoreMessage}
+        </p>
+      ) : null}
+      {/* Stale, not broken: the rows below are the last ones that loaded. Deliberately a small
+          notice rather than the error card, because the board and any search in progress are both
+          still here. */}
+      {readError ? (
+        <p className="jsm-queue-notice" role="status">
+          Couldn&rsquo;t refresh just now ({readError}) — these rows are from the last load.
         </p>
       ) : null}
       {/* A bounded surface, not a bare paragraph. This is the one persistent advisory on the

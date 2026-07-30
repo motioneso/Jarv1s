@@ -34,6 +34,20 @@ export type BriefingDetail = "count" | "top" | "full";
  * field stays nullable even though a write always supplies content. */
 export type ProfileContext = string;
 
+/**
+ * How many rows a profile's board holds, split the two ways the board itself splits them.
+ *
+ * `active` excludes dismissed rows, because the board does — a counter that included them would
+ * disagree with the number rendered beside it. `scored` counts the rows that have been read and
+ * judged, and must stay in step with `isScored` in `web/board-types.ts` (Want present and the row
+ * out of the `unscored` state); Fit is deliberately not part of it, since a match scored before a
+ * résumé existed has a real Want and an empty Fit.
+ */
+export interface BoardCounts {
+  readonly active: number;
+  readonly scored: number;
+}
+
 /** The richest row in the schema (Task 4). Every field a later task might need is here so it is
  * defined once, not re-invented per caller (N4). */
 export interface Profile {
@@ -97,10 +111,30 @@ export interface JobSearchStore {
     profileId: string,
     limit: number
   ): Promise<PostingWithEmbedding[]>;
-  /** `limit` is required, not optional: the SQL binds it as `$2` and the board is a paged
-   *  surface. An interface that omits it and a query that binds it is how `$2` ends up
-   *  `undefined` at runtime — the driver rejects the statement and every board read 500s. */
-  listMatches(profileId: string, limit: number): Promise<Match[]>;
+  /** `limit` and `offset` are both required, not optional: the SQL binds them as `$2`/`$3` and
+   *  the board is a paged surface. An interface that omits one and a query that binds it is how
+   *  a bind parameter ends up `undefined` at runtime — the driver rejects the statement and
+   *  every board read 500s.
+   *
+   *  `offset` exists because the board's page size is not the board's size. A browser read
+   *  returns through the assistant tool-result route, which discards any result rendering past
+   *  16 000 characters, so one response can carry about 25 rows and no more — but a real search
+   *  produces hundreds of matches, and a board frozen at its first page reads as a search that
+   *  found nothing. The screens walk the pages; this is where they get past row 25. */
+  listMatches(profileId: string, limit: number, offset: number): Promise<Match[]>;
+  /** How big the board is, without reading it.
+   *
+   *  This exists because of the page size above. Every module read tool goes through one host
+   *  route with a 60-requests-per-minute limit shared across the whole app, and the board's
+   *  "is the search still finding things" poll was answering that question by re-reading all
+   *  seven pages every six seconds — about eighty requests a minute, which earned 429s, and a
+   *  failed read part-way through a crawl is indistinguishable from a search that broke. A
+   *  change detector has to cost one request no matter how large the board is, which is this.
+   *
+   *  Counting is also the only honest way to notice new rows: `listMatches` orders scored rows
+   *  first (`scored_at DESC NULLS LAST`), so a freshly crawled, not-yet-scored posting lands on
+   *  the LAST page. Watching page one would miss precisely the rows a running search adds. */
+  countMatches(profileId: string): Promise<BoardCounts>;
   upsertMatch(profileId: string, match: Omit<Match, "id">): Promise<void>;
   setMatchState(matchId: string, state: Match["state"]): Promise<void>;
   /** #1330: the detail read behind `job-search.match.get`. `listMatches`'s row is a capped
