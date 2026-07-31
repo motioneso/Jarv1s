@@ -615,7 +615,7 @@ describe("job-search web Root", () => {
 
       // Matches (default): the board's match content is present, no other screen's own copy is.
       expect(text(renderer)).toMatch(/Senior Engineer/);
-      expect(text(renderer)).not.toMatch(/Your board at a glance/);
+      expect(text(renderer)).not.toMatch(/Search status/);
       expect(text(renderer)).not.toMatch(/knows about you/);
       expect(text(renderer)).not.toMatch(/Which job boards this search crawls/);
 
@@ -625,13 +625,13 @@ describe("job-search web Root", () => {
       await flush(renderer);
       // The board is gone — a real unmount, not a second screen layered on top.
       expect(text(renderer)).not.toMatch(/Senior Engineer/);
-      expect(text(renderer)).toMatch(/Your board at a glance/);
+      expect(text(renderer)).toMatch(/Search status/);
 
       await act(async () => {
         findButton(renderer, /^Profile$/)!.props.onClick();
       });
       await flush(renderer);
-      expect(text(renderer)).not.toMatch(/Your board at a glance/);
+      expect(text(renderer)).not.toMatch(/Search status/);
       expect(text(renderer)).toMatch(/knows about you/);
 
       await act(async () => {
@@ -646,6 +646,23 @@ describe("job-search web Root", () => {
       });
       await flush(renderer);
       expect(text(renderer)).not.toMatch(/Which job boards this search crawls/);
+      expect(text(renderer)).toMatch(/Senior Engineer/);
+    });
+
+    it("Review unreviewed roles returns from Overview to Matches", async () => {
+      mockUseProfiles.mockReturnValue(ready([profile({ state: "active" })]));
+      const renderer = await renderRoot();
+      await flush(renderer);
+
+      await act(async () => {
+        findButton(renderer, /^Overview$/)!.props.onClick();
+      });
+      await flush(renderer);
+      await act(async () => {
+        findButton(renderer, /^Review unreviewed roles$/)!.props.onClick();
+      });
+      await flush(renderer);
+
       expect(text(renderer)).toMatch(/Senior Engineer/);
     });
 

@@ -181,40 +181,6 @@
   gap: 0.75rem;
 }
 
-.jsm-overview__figures {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.jsm-overview__figures-note {
-  margin: 0;
-}
-
-/* One KeyRow per portal — a plain stack, no card. KeyRow itself supplies the divider between
-   rows (`divided={i > 0}`), so this wrapper only needs to be a column. */
-.jsm-overview__portals {
-  display: flex;
-  flex-direction: column;
-}
-
-.jsm-overview__portal-main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 0;
-}
-
-.jsm-overview__portal-cause {
-  margin: 0;
-}
-
-/* One KeyRow per blocker, same shape as the portals list above. */
-.jsm-overview__blockers {
-  display: flex;
-  flex-direction: column;
-}
-
 .jsm-overview__blocker {
   margin: 0;
 }

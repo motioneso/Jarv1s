@@ -93,11 +93,18 @@ function mockInvoke(responses: {
   });
 }
 
-async function renderScreen(profileValue: Profile): Promise<ReactTestRenderer> {
+async function renderScreen(
+  profileValue: Profile,
+  onReviewUnreviewed = vi.fn()
+): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
     renderer = create(
-      createElement(OverviewScreen, { profileId: profileValue.profileId, profile: profileValue })
+      createElement(OverviewScreen, {
+        profileId: profileValue.profileId,
+        profile: profileValue,
+        onReviewUnreviewed
+      })
     );
   });
   return renderer;
@@ -143,11 +150,7 @@ describe("OverviewScreen", () => {
     vi.clearAllMocks();
   });
 
-  // Board counts, never totals: On your board is the raw row count (matches.list's own handler
-  // applies no state filter), Read and scored is isScored's own definition (non-null want), New
-  // and Passed key on state directly. A fixture with zero matches must render literal "0"s, not
-  // blank fields — an empty board is still a fact worth stating plainly.
-  it("figures reflect board counts, including the zero case", async () => {
+  it("leads with coherent operational counts, including the zero case", async () => {
     mockInvoke({ matches: [], portals: [], resumeContent: "resume text" });
     const renderer = await renderScreen(profile());
     await flush();
@@ -158,6 +161,10 @@ describe("OverviewScreen", () => {
         (node.props as { className?: string }).className === "jds-hero-figure"
     );
     expect(figures.map((f) => flatten(f.props.children))).toEqual(["0", "0", "0", "0"]);
+    expect(text(renderer)).toMatch(
+      /Unreviewed.*Scored.*Queued.*Last successful check.*Source issues/i
+    );
+    expect(text(renderer)).toMatch(/Checks automatically/i);
 
     mockInvoke({
       matches: [
@@ -177,15 +184,24 @@ describe("OverviewScreen", () => {
         typeof node.type === "string" &&
         (node.props as { className?: string }).className === "jds-hero-figure"
     );
-    // On your board=4 (raw count), Read and scored=2 (b,c have non-null want and a non-unscored
-    // state), Unreviewed=2 (a,d), Passed=1 (c).
-    expect(figures.map((f) => flatten(f.props.children))).toEqual(["4", "2", "2", "1"]);
+    // Unreviewed=2 (a,d), Scored=2 (b,c), Queued=1 (d), Source issues=0.
+    expect(figures.map((f) => flatten(f.props.children))).toEqual(["2", "2", "1", "0"]);
     expect(text(withMatches)).toMatch(/Unreviewed/i);
-    // The caption no longer names a row count. It used to say "the 25 matches currently on your
-    // board", which was only ever true because the screen read one page and stopped; it now reads
-    // every page, so the honest caveat is about what a board holds, not how many rows fit in a read.
-    expect(text(withMatches)).toMatch(/what is on your board now/i);
     expect(text(withMatches)).not.toMatch(/\b25\b/);
+  });
+
+  it("reviews unreviewed roles through the parent view switch callback", async () => {
+    mockInvoke({ matches: [match({ state: "new" })], portals: [], resumeContent: "resume" });
+    const onReviewUnreviewed = vi.fn();
+    const renderer = await renderScreen(profile(), onReviewUnreviewed);
+    await flush();
+
+    const review = renderer.root
+      .findAllByType("button")
+      .find((button) => flatten(button.children).includes("Review unreviewed roles"));
+    expect(review).toBeTruthy();
+    act(() => review!.props.onClick());
+    expect(onReviewUnreviewed).toHaveBeenCalledOnce();
   });
 
   it("renders a disabled portal's cause verbatim, not a composed sentence", async () => {
@@ -244,6 +260,19 @@ describe("OverviewScreen", () => {
     await flush();
 
     expect(text(renderer)).not.toMatch(/what's missing/i);
+  });
+
+  it("removes setup ceremony for active and paused searches while keeping actionable blockers", async () => {
+    mockInvoke({ matches: [], portals: [], resumeContent: null });
+    const active = await renderScreen(profile({ state: "active" }));
+    await flush();
+    const paused = await renderScreen(profile({ state: "paused" }));
+    await flush();
+
+    for (const renderer of [active, paused]) {
+      expect(text(renderer)).not.toMatch(/ready to run|readiness gates|setup checkpoints/i);
+      expect(text(renderer)).toMatch(/No résumé on file/i);
+    }
   });
 
   it("computes every displayed date by string arithmetic, never an ambient clock read", () => {

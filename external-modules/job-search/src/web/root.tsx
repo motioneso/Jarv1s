@@ -323,7 +323,13 @@ function ActiveProfilePanel(props: {
     // Overview needs both the id (for its own reads) and the already-fetched record (for
     // completedSteps/readyToCrawl) — Root already has the Profile in hand from useProfiles, so
     // this screen doesn't issue a second profile.list read just to get fields it's handed here.
-    screen = <OverviewScreen profileId={props.selected.profileId} profile={props.selected} />;
+    screen = (
+      <OverviewScreen
+        profileId={props.selected.profileId}
+        profile={props.selected}
+        onReviewUnreviewed={() => setView("matches")}
+      />
+    );
   } else if (view === "profile") {
     screen = (
       <ProfileScreen
