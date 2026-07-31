@@ -5452,3 +5452,7 @@ with blockers 2–5: archived resurfacing/evidence consumption, raw feedback-err
 `structured_payload_failed` observability, and missing admin/worker negative RLS proof. The build
 agent agrees and supplied minimum fixes/tests for those four. The lane remains stopped pending
 Ben's failure-budget ruling.
+
+**Failure budget reopened by Ben.** The build lane is authorized to fix blockers 2–5 only; the
+spec-aligned Reply behavior remains unchanged. It must push narrow commits, run a fresh unpiped
+exclusive full gate, update PR #1376, and return to fresh `gpt-5.6-sol high` review before merge.
