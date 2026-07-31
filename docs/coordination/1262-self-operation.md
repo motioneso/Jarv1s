@@ -5153,8 +5153,20 @@ posted to issue #1327. Worktree `ruling-1327` reaped.
   migrations `0178` (tasks) + `0179` (connectors), owner-only suppression repository + RLS. Agent
   evidence: 5 unit, 8 integration, `tsc --noEmit` / prettier / lint all pass. Not independently
   verified — this is a `security` lane, so the RLS and migration claims get re-proved by Opus
-  adversarial QA at PR time, not taken on the self-report. Task 2 (reply-target resolution) now in
-  progress.
+  adversarial QA at PR time, not taken on the self-report.
+- core `#1371` — **Task 2 done**, commit `335e0585`: account-scoped cache key, nullable
+  `sourceHref`, `email-action-links.ts`, `sourceRef` and `cacheMessageId` kept distinct, 39 unit
+  tests. Gmail links ship **off** behind `GMAIL_ACTION_LINKS_ENABLED=false`; convention implemented
+  but unverified. Task 3 in progress.
+
+**Open item — Gmail deep links unverified (Ben-owned).** The agent reported the dev worker produced
+nothing after an authorised sync. That diagnosis was wrong and I corrected it: `pgboss.job` shows 18
+`connectors.google-sync` rows `completed`. Real cause — the dev Google account holds exactly one
+scope, `https://www.googleapis.com/auth/calendar`, so `accessHasEmailScope()`
+(`packages/connectors/src/feature-grants.ts:52-54`) is false, the email feature is ungranted, and
+the sync completes with nothing to fetch. Needs a browser OAuth re-consent granting Gmail read —
+only Ben can do it. Until then Gmail rows are omitted per §3 and the feature emits no email rows.
+Saved as memory `dev-google-account-has-calendar-scope-only`.
 - prose `#1372` — plan `docs/superpowers/plans/2026-07-30-1327-briefing-prose.md` **approved**
   (existing evening test deliberately replaced, morning prose test added, morning same-day run
   query added). Two approval conditions attached: live dev-instance walkthrough recorded on the PR,
