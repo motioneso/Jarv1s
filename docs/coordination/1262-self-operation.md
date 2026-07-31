@@ -5496,6 +5496,9 @@ after resolving its pane fresh. The exclusive unpiped gate at `4249b980` complet
 Coordinator source verification found blocker 3 incomplete before fresh security re-review. The
 new regression exercised only a task without `subjectSignature`; the signed-task branch still
 rethrows the raw feedback error into the shared route logger, which logs the complete error object.
-The builder is adding a sanitized rollback-preserving error plus a non-null-signature regression,
-then must push and complete another fresh unpiped exclusive full gate. Do not spawn sol-high QA
-until that gate is terminal green and the coordinator re-verifies the fix.
+The builder added a sanitized rollback-preserving error plus a non-null-signature regression at
+`3747c6266bdb5dad91318ec09df06bca221fe972`. Coordinator re-verification confirmed the raw error no
+longer reaches the shared route logger and the signed-task transaction still rolls back. The fresh
+unpiped exclusive full gate ended with exact `### FINAL rc=0`: 173 files passed, 1,785 tests passed,
+2 skipped; branch and origin match with a clean tree. GitHub's foundation check is still running.
+Spawn fresh sol-high QA only after all required PR checks are green.
