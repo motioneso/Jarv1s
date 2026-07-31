@@ -5123,3 +5123,29 @@ reaped; worktree kept.
 
 Coordinator note for whoever builds this: Task 5's tests are `.tsx`, and **no `.tsx` test file is
 typechecked** (#1335) — fixtures there drift silently. Worth an explicit note in the build handoff.
+
+### #1327 build lanes opened (2026-07-30)
+
+Ben approved the amended spec. Spec merged to `main` via PR #1370 → `d8bf5e3b` (the amendment
+commit failed `Verify docs` on prettier; fixed in `bb295a30` before merge). Two parallel lanes, both
+Codex **`gpt-5.6-luna high`**, model confirmed in-pane:
+
+| lane | issue | branch / worktree | agent · pane | tier | scope |
+| ---- | ----- | ----------------- | ------------ | ---- | ----- |
+| core | #1371 | `build/1327-core` · `~/Jarv1s/.claude/worktrees/build-1327-core` | `build-1327-core` · `w1:p14Y` | `security` | §9 Tasks 1–4 |
+| prose | #1372 | `build/1327-prose` · `~/Jarv1s/.claude/worktrees/build-1327-prose` | `build-1327-prose` · `w1:p14Z` | `routine` | §9 Task 5 |
+
+Both based on `origin/main` at `d8bf5e3b`. Briefs: `docs/superpowers/handoffs/2026-07-30-build-1327-{core,prose}.md`.
+Collision boundary: prose owns `apps/web/src/today/*`; core is told to stay out of it. Tasks 6–7
+(unified row UI + integrated proof) are a **third lane after both land** — not spawned.
+
+**Open ruling blocking core's Task 3:** §13's "Accept does not clear prior subject dismissals in
+v1". Ben has questioned it; the core brief tells the agent to stop and ask if it arrives there
+before a ruling does. Coordinator recommendation to Ben: flip it — an Accept should clear that
+subject's dismissal count, because the two-strike rule is meant for things you keep rejecting, not
+for a subject you rejected once and later adopted.
+
+**Continuation note (2026-07-30):** two build lanes in flight, nothing merged. `security` tier on
+#1371 means Opus adversarial QA + a posted PR verdict + Ben's explicit merge sign-off. #1372 is
+`routine` but user-facing, so it still needs live dev-instance proof on the PR. Coordinator lock
+unchanged: session `43e5f5e2`, label `Coordinator`.
