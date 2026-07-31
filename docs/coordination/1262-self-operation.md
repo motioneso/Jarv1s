@@ -5217,3 +5217,33 @@ assertion added real coverage rather than deleting it (no `.tsx` file is typeche
 every `jds-*` class used actually resolves in the stylesheets; that the live-path comment records a
 real authenticated run rather than a code-read; and that no dev seed data or test cadence leaked
 into product code. Merge is held until that verdict lands.
+
+### #1372 prose — MERGED (2026-07-30)
+
+QA verdict **GREEN**, posted to the PR at `#issuecomment-5138454180`. It cleared all five directed
+questions: scope contained to spec §9 Task 5 (no action-row, composition, persistence, contract, or
+API work); the replaced `today-evening-mode.test.tsx` assertion is genuine — it flips
+`not.toContain` to `toContain` against `renderToString(TodayPage)` real component output and its
+fixtures match the shared `BriefingRunDto`/`BriefingDefinitionDto` exactly, with a new compact-cut
+test added; every `jds-*` class used resolves in `components-jarvis.css` / `kit-today-misc.css` and
+the only new CSS is `white-space: pre-wrap` on the existing `.jds-brief__body`; the live-path
+comment reads as a real authenticated walkthrough (sign-in, live definition creation, triggered runs
+returning 202 then succeeded, Today reopened in both modes through the real UI); and no seed data,
+cadence value, or dev-only value is hardcoded in product code.
+
+Session-id authority re-confirmed before the merge (`43e5f5e2-…` on the sole `Coordinator` pane).
+The PR was still in draft — flipped ready, then squash-merged at 2026-07-31T02:10:58Z, branch
+deleted. Issue #1372 auto-closed by the merge; because an auto-close carries no evidence, the
+verification was recorded separately at `#issuecomment-5138461707`. Pane `w1:p14Z` closed and the
+worktree `build-1327-prose` removed.
+
+`merges_since_relay` = 1 (routine). No relay — Ben's standing override ("don't worry about
+successors, keep going here") cancels the coordinate skill's relay trigger.
+
+**Collision check on the unrelated `perms-1246` lane** (a Codex session Ben is running outside this
+run, in its own worktree): its three feature commits touch no migration files, so it cannot collide
+with #1371's claimed `0178`/`0179`. No coordination needed; leaving it alone.
+
+**Next:** #1371 core is still building Task 3, with the `threadId` persistence fix queued behind it.
+Tasks 6-7 (unified action-row UI + integrated proof) open as a third lane only after #1371 lands —
+they collide with the files this prose lane just changed.
