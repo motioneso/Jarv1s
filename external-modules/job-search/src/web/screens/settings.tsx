@@ -355,8 +355,8 @@ export function SettingsScreen(props: { profile: Profile }): ReactNodeLike {
     <div className="jsm-settings">
       <h2 className="jds-section-title">Monitors</h2>
       <p className="jds-hint jsm-monitor__lede">
-        Checks automatically and only surfaces roles that clear your bar. Nothing is applied on
-        your behalf.
+        Checks automatically and only surfaces roles that clear your bar. Nothing is applied on your
+        behalf.
       </p>
 
       <section className="jsm-settings__group">

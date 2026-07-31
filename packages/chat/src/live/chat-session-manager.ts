@@ -41,11 +41,7 @@ export {
   renderReplayBlock,
   renderSummaryBlock
 } from "./chat-context-blocks.js";
-export {
-  ChatStreamLimitError,
-  ChatThreadNotFoundError,
-  ChatTurnInFlightError
-} from "./errors.js";
+export { ChatStreamLimitError, ChatThreadNotFoundError, ChatTurnInFlightError } from "./errors.js";
 export type {
   ChatPersistencePort,
   PassiveRetrievalPort,

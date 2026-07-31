@@ -219,7 +219,9 @@ describe("ProfileScreen", () => {
     const rendered = text(renderer);
     expect(rendered.indexOf("What it's looking for")).toBeLessThan(rendered.indexOf("Résumé"));
     expect(rendered).not.toContain("What this search knows about you");
-    expect(renderer.root.findAllByProps({ className: "jds-strap jds-strap--gold" })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ className: "jds-strap jds-strap--gold" })).toHaveLength(
+      0
+    );
   });
 
   it("seeds an editable criteria-change draft without submitting it", async () => {

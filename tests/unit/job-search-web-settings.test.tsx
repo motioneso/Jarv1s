@@ -165,7 +165,9 @@ describe("SettingsScreen", () => {
     expect(rendered).toContain("Checks automatically");
     expect(rendered).not.toMatch(/every morning/i);
     expect(rendered).not.toContain("Where this search is looking");
-    expect(renderer.root.findAllByProps({ className: "jds-strap jds-strap--gold" })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ className: "jds-strap jds-strap--gold" })).toHaveLength(
+      0
+    );
   });
 
   it("renders a self-disabled portal's cause verbatim, not a composed sentence", async () => {
