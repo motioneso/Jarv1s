@@ -48,11 +48,12 @@ import {
   BriefingProse,
   latestBriefingRunForToday,
   latestEveningRunForToday,
-  scheduleTodayModeRefresh
+  scheduleTodayModeRefresh,
+  selectActionRowsRun
 } from "./evening-mode";
 import { BriefingStaleBanner, parseBriefingFreshness } from "./briefing-freshness";
 import { ProactiveCards } from "./proactive-cards";
-import { SuggestedFromEmailSection } from "./today-suggested-email";
+import { BriefingActionRowsSection } from "./briefing-action-rows";
 import { TaskDetailsDialog } from "../tasks/task-details-dialog";
 import { createEmptyTodayFeed, type TodayFeed } from "./feed-source";
 import { ModuleTodayWidgets } from "./module-today-widgets";
@@ -225,7 +226,9 @@ export function TodayPage(props: {
   const lists = listsQuery.data?.lists ?? [];
 
   const open = tasks.filter((t) => t.parentTaskId === null && t.status === "todo");
-  const suggestedTasks = tasks.filter((t) => t.status === "suggested");
+  const actionRowsRun = selectActionRowsRun(todayMode, latestMorningRun, latestEveningRun);
+  const actionRowsLoading =
+    todayMode === "day" ? morningRunsQuery.isPending : eveningRunsQuery.isPending;
   // "Priorities" = Do First (important + urgent); "At risk" = due today/soon or overdue.
   const priorities = open.filter(isDoFirst);
   const atRisk = open.filter((t) => isAtRisk(t, locale.timezone));
@@ -380,10 +383,13 @@ export function TodayPage(props: {
             ) : null}
           </section>
 
-          <SuggestedFromEmailSection
-            tasks={suggestedTasks}
+          <BriefingActionRowsSection
+            run={actionRowsRun}
+            loading={actionRowsLoading}
+            tasks={tasks}
             locale={locale}
-            onOpen={(id) => setDialog({ id })}
+            chatAvailable={true}
+            onOpenTask={(id) => setDialog({ id })}
           />
 
           {feed.overnight.length > 0 ? <OvernightSection items={feed.overnight} /> : null}

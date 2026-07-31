@@ -175,6 +175,7 @@ function briefingRun(overrides: Partial<BriefingRunDto> = {}): BriefingRunDto {
     summaryText: "Morning summary",
     sourceMetadata: {},
     feedbackItems: [],
+    structuredPayload: { version: 1, actionRows: [], catchUp: null },
     createdAt: "2026-06-30T01:15:00.000Z",
     ...overrides
   };
