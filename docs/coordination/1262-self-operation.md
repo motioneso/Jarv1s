@@ -5149,9 +5149,12 @@ posted to issue #1327. Worktree `ruling-1327` reaped.
 
 **Lane state (2026-07-30):**
 
-- core `#1371` — Task 1 in progress. Migration numbers claimed: tasks `0178`, connectors `0179`
-  (0175–0177 applied and frozen); agent instructed to rescan module `sql/` immediately before the
-  migration commit.
+- core `#1371` — **Task 1 done**, commit `c5c0bd76`: typed action-row/task metadata contracts,
+  migrations `0178` (tasks) + `0179` (connectors), owner-only suppression repository + RLS. Agent
+  evidence: 5 unit, 8 integration, `tsc --noEmit` / prettier / lint all pass. Not independently
+  verified — this is a `security` lane, so the RLS and migration claims get re-proved by Opus
+  adversarial QA at PR time, not taken on the self-report. Task 2 (reply-target resolution) now in
+  progress.
 - prose `#1372` — plan `docs/superpowers/plans/2026-07-30-1327-briefing-prose.md` **approved**
   (existing evening test deliberately replaced, morning prose test added, morning same-day run
   query added). Two approval conditions attached: live dev-instance walkthrough recorded on the PR,
