@@ -344,7 +344,7 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
   }
 
   return (
-    <div className="jsm-settings">
+    <div className="jsm-settings jsm-settings--profile">
       <h2 className="jds-section-title">Profile</h2>
       <LookingForSection
         profile={profile}

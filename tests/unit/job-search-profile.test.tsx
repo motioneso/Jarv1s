@@ -135,6 +135,16 @@ describe("ProfileScreen", () => {
     vi.clearAllMocks();
   });
 
+  it("uses the full module width instead of the narrow settings column", async () => {
+    mockInvoke();
+
+    const renderer = await renderScreen(profile());
+
+    expect(
+      renderer.root.findByProps({ className: "jsm-settings jsm-settings--profile" })
+    ).toBeDefined();
+  });
+
   it("renders the résumé's saved-on date from a fixed instant with no locale dependence", async () => {
     mockInvoke({
       resume: { version: 3, content: "x".repeat(1200), updatedAt: "2026-07-15T09:00:00.000Z" }

@@ -43,6 +43,10 @@
   gap: 2.5rem;
 }
 
+.jsm-settings--profile {
+  max-width: 72rem;
+}
+
 .jsm-settings__head {
   display: flex;
   flex-direction: column;
