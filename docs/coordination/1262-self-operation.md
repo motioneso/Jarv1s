@@ -5194,3 +5194,26 @@ thread id, message id, subject, sender, or body may appear anywhere, including t
 #1371 means Opus adversarial QA + a posted PR verdict + Ben's explicit merge sign-off. #1372 is
 `routine` but user-facing, so it still needs live dev-instance proof on the PR. Coordinator lock
 unchanged: session `43e5f5e2`, label `Coordinator`.
+
+### #1372 prose — PR #1374 open, QA in flight (2026-07-30)
+
+Agent reported done. Commit `b3f37079`, branch `build/1327-prose`, 7 files, +423/-14, tree clean.
+Self-reported gate: `VF_EXIT=0` on a fresh isolated `jarvis_gate_build_1327_prose` (458 unit files /
+3,495 tests; 11 UAT-seed files / 23 tests; 167 integration files / 1,776 tests), `format:check`,
+`lint`, `typecheck` all green, targeted rendered-output tests 7/7. `AUDIT_EXIT` was not run in the
+lane. CI on the PR is independently green (`Verify foundation and app` pass 17m21s, both compose
+smokes pass, `Detect change scope` pass; `Verify docs` skipped; image publish still running and is
+not a gate).
+
+Live-path proof claimed MET via PR comment `#issuecomment-5138412202` — an authenticated dev-instance
+walkthrough with screenshots showing morning prose above "Start here" in day mode and the full
+evening recap in evening mode. The agent also disabled duplicate live seed definitions on dev and
+restored the active cadence to 07:00/19:00.
+
+**Coordinator position: the agent's evidence is a self-report and does not clear the merge on its
+own.** QA spawned (`coordinated-qa`, Sonnet, isolated worktree) with five directed questions: scope
+containment against Task 5 only; whether the deliberately replaced `today-evening-mode.test.tsx`
+assertion added real coverage rather than deleting it (no `.tsx` file is typechecked, #1335); that
+every `jds-*` class used actually resolves in the stylesheets; that the live-path comment records a
+real authenticated run rather than a code-read; and that no dev seed data or test cadence leaked
+into product code. Merge is held until that verdict lands.
