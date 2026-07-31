@@ -198,6 +198,11 @@ describe("runEmailMonitor", () => {
     });
     expect(sourceRef).not.toBe(cacheMessageId);
     expect(sourceRef).not.toBe(sourceHref);
+
+    expect(buildEmailActionLink({ providerId: "google", threadId: "gmail-thread" })).toBe(
+      sourceHref
+    );
+    expect(buildEmailActionLink({ providerId: "google", threadId: null })).toBeNull();
     expect(buildEmailActionLink({ providerId: "yahoo-imap", threadId: "imap-thread" })).toBeNull();
   });
 
