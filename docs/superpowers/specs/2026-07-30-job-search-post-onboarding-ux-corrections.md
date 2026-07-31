@@ -1,7 +1,7 @@
 # Job Search Post-Onboarding UX Corrections
 
-**Status:** Draft — awaiting approval  
-**Date:** 2026-07-30  
+**Status:** Approved
+**Date:** 2026-07-30 · **Approved:** 2026-07-30
 **Issue:** #1375 · child of #1280  
 **Evidence:** `docs/superpowers/research/2026-07-30-job-search-ui-post-onboarding-re-review.md`
 
@@ -44,8 +44,9 @@ experience coherent and faster to triage. It is a correction pass, not a visual 
 - No combined recommendation score or new score visualizations.
 - No new dependency.
 - No paging work already owned by #1333.
-- No rebuild of the match-detail/open-posting read path already owned by #1330. This work may add
-  the already-stored `scoredAt` field to that response, but does not otherwise expand the route.
+- No rebuild of the match-detail/open-posting route already owned by #1330. This work extends that
+  landed one-match read with the already-stored posting body and `scoredAt`; it does not change the
+  list-row contract or add another detail route.
 - No per-source crawl schedule editor. Runtime schedule metadata remains a separate capability.
 - No automatic application submission or other change to the original Job Search safety boundary.
 
@@ -192,25 +193,45 @@ to the nearest remaining row or the board heading.
 
 The inspector must begin below the fixed shell header at mobile widths.
 
-## 9. Inspector
+## 9. Posting description and inspector
 
-Because the module never stores posting body text, the empty “The role” column is removed.
+`Posting.body` is already part of the domain record and database row. freehire already converts its
+HTML description to plain text and stores it. Two gaps are corrected:
+
+1. `job-search.match.get` returns the stored body with the existing one-match detail response.
+2. LinkedIn search cards contain no description, so the adapter fetches the public job-detail
+   fragment for each posting selected for full scoring, converts its description HTML to plain text
+   with the existing adapter logic, and stores it before scoring.
+
+Existing LinkedIn rows with an empty body are handled lazily: opening `match.get` performs one
+bounded public-detail enrichment and persists the body on success. The next read reuses the stored
+text. The fetch remains subject to the existing deadline, host allowlist, auth-wall stop, and
+structured failure rules; it never signs in or works around a login wall.
+
+The scoring pass uses the enriched body when it is available. This improves both the displayed
+description and the evidence used for Fit/Want without creating a second copy of the posting.
 
 The inspector becomes one readable column:
 
 1. Back;
 2. company, source, posting date, title, location, and original-posting link;
-3. a short axis definition;
-4. Fit, then its reason;
-5. Want as `N/100`, then its reason;
-6. scored time; and
-7. Save, Pass, and Discuss.
+3. **Job description**, rendered as readable plain text;
+4. a short axis definition;
+5. Fit, then its reason;
+6. Want as `N/100`, then its reason;
+7. scored time; and
+8. Save, Pass, and Discuss.
+
+The current paragraph telling the user that Jarv1s does not store the description and to open the
+original posting is removed. The original-posting link remains a secondary source link in the
+header. If a source genuinely provides no public description or enrichment fails, the section says
+only **Job description unavailable** and exposes the structured source failure when one exists.
 
 Fit and Want reasons use a readable 55–75 character measure. The queued state keeps its current
 honest explanation. The role title is `h2`; the module masthead remains the single `h1`.
 
-The match detail response adds `scoredAt`, already stored on the match row. No posting body,
-revision model, confidence score, or provenance subsystem is introduced.
+The match detail response adds `body` and `scoredAt`, both already stored. No revision model,
+confidence score, rich-HTML renderer, or provenance subsystem is introduced.
 
 ## 10. Utility-screen hierarchy
 
@@ -293,14 +314,17 @@ Minimum proof:
    `statusText`, and survive history reload.
 4. Board tests cover every filter, combined filtering, row Save/Pass event isolation, shared
    unreviewed counts, and list restoration.
-5. Inspector tests cover the one-column no-body layout, `N/100`, `scoredAt`, and heading level.
-6. Settings tests assert the switch name and absence of “every morning.”
-7. Overview/Profile/Monitors tests assert their task-specific primary content and absence of the
+5. Adapter and handler tests prove freehire and LinkedIn descriptions become stored plain text,
+   existing empty LinkedIn rows enrich once, and `match.get` returns `body` and `scoredAt`.
+6. Inspector tests cover the one-column description layout, unavailable fallback, `N/100`,
+   `scoredAt`, and heading level.
+7. Settings tests assert the switch name and absence of “every morning.”
+8. Overview/Profile/Monitors tests assert their task-specific primary content and absence of the
    repeated hero template.
-8. A browser pass at 1280 × 1800 and 390 × 844 verifies focus/scroll continuity, fixed-header
+9. A browser pass at 1280 × 1800 and 390 × 844 verifies focus/scroll continuity, fixed-header
    clearance, accessible names, and no horizontal overflow.
-9. Live dev proof confirms a source enablement produces a visible terminal outcome and the
-   Monitors row agrees after reload.
+10. Live dev proof confirms a LinkedIn inspector contains the description text, a source enablement
+    produces a visible terminal outcome, and the Monitors row agrees after reload.
 
 ## 14. Success criteria
 
@@ -309,6 +333,7 @@ This work is complete when:
 - explicit mismatch/dealbreaker evidence cannot coexist with a Strong fit band;
 - a chat-initiated source change ends on a durable result that agrees with Monitors;
 - inspecting and returning to a role does not lose place;
+- the detail page shows the stored public job description instead of directing the user elsewhere;
 - a user can reduce and decide a 50+ role board without opening every inspector;
 - Matches and Overview use the same unreviewed definition;
 - monitor controls are named and cadence copy is true;
