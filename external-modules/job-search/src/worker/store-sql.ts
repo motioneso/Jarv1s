@@ -533,17 +533,24 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
       };
     },
 
-    async upsertMatch(profileId: string, match: Omit<Match, "id">): Promise<void> {
+    async upsertMatch(
+      profileId: string,
+      match: Omit<Match, "id">,
+      options?: { readonly preserveWant?: boolean }
+    ): Promise<void> {
       // Idempotent on (profile, posting) so re-scoring updates rather than duplicating.
       // Re-scoring returns the row to 'new' deliberately: a changed score is news.
       await db.query(
-        `INSERT INTO app.job_search_matches
+        `INSERT INTO app.job_search_matches AS existing
            (owner_user_id, profile_id, posting_id, fit, want, fit_reason, want_reason,
             outside_frame, state, scored_at)
          VALUES (app.current_actor_user_id(), $1, $2, $3, $4, $5, $6, $7, 'new', now())
          ON CONFLICT (owner_user_id, profile_id, posting_id) DO UPDATE
-           SET fit = excluded.fit, want = excluded.want, fit_reason = excluded.fit_reason,
-               want_reason = excluded.want_reason, outside_frame = excluded.outside_frame,
+           SET fit = excluded.fit,
+               want = CASE WHEN $8 THEN existing.want ELSE excluded.want END,
+               fit_reason = excluded.fit_reason,
+               want_reason = CASE WHEN $8 THEN existing.want_reason ELSE excluded.want_reason END,
+               outside_frame = excluded.outside_frame,
                state = 'new', scored_at = now()`,
         [
           profileId,
@@ -552,7 +559,8 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
           match.want,
           match.fitReason,
           match.wantReason,
-          match.outsideFrame
+          match.outsideFrame,
+          options?.preserveWant ?? false
         ]
       );
     },

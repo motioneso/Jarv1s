@@ -351,6 +351,11 @@ describe("runScore", () => {
     expect(store.listUnfittedPostingsWithEmbeddings).toHaveBeenCalled();
     expect(store.__matches[0]?.postingId).toBe("p-invalidated");
     expect(store.__matches[0]?.fit).toBe(80);
+    expect(store.upsertMatch).toHaveBeenCalledWith(
+      "profile-1",
+      expect.objectContaining({ postingId: "p-invalidated" }),
+      { preserveWant: true }
+    );
   });
 
   it("keeps an invalidated row unscored when the profile still has no résumé", async () => {

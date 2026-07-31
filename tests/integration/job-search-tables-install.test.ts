@@ -7,7 +7,6 @@
 // single schema-shape case — each `it` below reinstalls the module fresh and asserts through it,
 // because most of these cases need real rows under real RLS, not just a shape check.
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
 
 import { Client } from "pg";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -169,9 +168,9 @@ async function insertMatch(
 }
 
 describe("job-search module table install (#1288)", () => {
-  it("installs all nine migrations, FORCE RLS on every table, and re-runs idempotently", async () => {
+  it("installs all ten migrations, FORCE RLS on every table, and re-runs idempotently", async () => {
     const result = await install();
-    expect(result.installed).toHaveLength(9);
+    expect(result.installed).toHaveLength(10);
 
     const client = new Client({ connectionString: urls.bootstrap });
     await client.connect();
@@ -196,7 +195,7 @@ describe("job-search module table install (#1288)", () => {
       "SELECT version FROM app.module_schema_migrations WHERE module_id = $1",
       [moduleId]
     );
-    expect(ledger.rows).toHaveLength(9);
+    expect(ledger.rows).toHaveLength(10);
 
     await client.end();
 
@@ -204,7 +203,7 @@ describe("job-search module table install (#1288)", () => {
     expect(second.installed).toHaveLength(0);
   });
 
-  it("invalidates legacy Fit idempotently without changing Want, reasons, state, or posting data", async () => {
+  it("invalidates legacy Fit through the real installer without changing the other match data", async () => {
     await install();
     await seedUser(ownerA);
     const profileId = randomUUID();
@@ -221,18 +220,16 @@ describe("job-search module table install (#1288)", () => {
       )
     );
 
-    const sql = readFileSync(
-      new URL(
-        "../../external-modules/job-search/sql/0009_invalidate_legacy_fit_scores.sql",
-        import.meta.url
-      ),
-      "utf8"
-    );
     const migration = new Client({ connectionString: urls.bootstrap });
     await migration.connect();
-    await migration.query(sql);
-    await migration.query(sql);
+    await migration.query(
+      "DELETE FROM app.module_schema_migrations WHERE module_id = $1 AND version = '0010'",
+      [moduleId]
+    );
     await migration.end();
+
+    const retry = await install();
+    expect(retry.installed).toEqual(["0010_retry_legacy_fit_invalidation.sql"]);
 
     const result = await asRuntime(ownerA, (client) =>
       client.query(
@@ -251,6 +248,8 @@ describe("job-search module table install (#1288)", () => {
       state: "new",
       title: "Staff Engineer"
     });
+
+    expect((await install()).installed).toEqual([]);
   });
 
   it("stores and reads back a 768-dimension posting embedding", async () => {

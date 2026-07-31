@@ -732,6 +732,51 @@ describe("job-search store (#1297)", () => {
     expect(await store.getMatch(randomUUID())).toBeNull();
   });
 
+  it("updates only Fit during an unfitted repair", async () => {
+    await install();
+    await seedUser(ownerA);
+    const store = storeFor(ownerA);
+    const profile = await store.createProfile("Staff Engineer search");
+    const [scoredPosting] = await store.upsertPostings(profile.id, [
+      posting({ sourceId: "linkedin", externalId: "ext-preserve-want" })
+    ]);
+
+    await store.upsertMatch(profile.id, {
+      profileId: profile.id,
+      postingId: scoredPosting!.id,
+      fit: null,
+      want: 58,
+      fitReason: "Legacy Fit reason.",
+      wantReason: "Original Want synopsis.",
+      outsideFrame: false,
+      state: "new",
+      scoredAt: null
+    });
+    await store.upsertMatch(
+      profile.id,
+      {
+        profileId: profile.id,
+        postingId: scoredPosting!.id,
+        fit: 39,
+        want: 20,
+        fitReason: "Different profession.",
+        wantReason: "Regenerated Want synopsis.",
+        outsideFrame: false,
+        state: "new",
+        scoredAt: null
+      },
+      { preserveWant: true }
+    );
+
+    const [repaired] = await store.listMatches(profile.id, 10, 0);
+    expect(repaired).toMatchObject({
+      fit: 39,
+      want: 58,
+      fitReason: "Different profession.",
+      wantReason: "Original Want synopsis."
+    });
+  });
+
   // A Fit is a judgment of a posting AGAINST a résumé, so replacing the résumé invalidates every
   // score already on the board. This query is the only thing that notices: while it tested
   // `fit IS NULL` alone it returned nothing once a board was fully scored, so a replaced résumé

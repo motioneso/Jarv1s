@@ -317,17 +317,21 @@ export async function runScore(deps: {
       if (result.ok) {
         try {
           const parsed = parseScoreResult(result.object);
-          await store.upsertMatch(profileId, {
+          await store.upsertMatch(
             profileId,
-            postingId: posting.id,
-            fit: hasResume ? normalizeFitScore(parsed.fit, parsed.fitDisposition) : null,
-            want: parsed.want,
-            fitReason: parsed.fitReason,
-            wantReason: parsed.wantReason,
-            outsideFrame,
-            state: "new",
-            scoredAt: now
-          });
+            {
+              profileId,
+              postingId: posting.id,
+              fit: hasResume ? normalizeFitScore(parsed.fit, parsed.fitDisposition) : null,
+              want: parsed.want,
+              fitReason: parsed.fitReason,
+              wantReason: parsed.wantReason,
+              outsideFrame,
+              state: "new",
+              scoredAt: now
+            },
+            candidateSet === "unfitted" ? { preserveWant: true } : undefined
+          );
           scored++;
         } catch {
           // A parse failure is the model's fault, not the platform's — increment `failed` and
