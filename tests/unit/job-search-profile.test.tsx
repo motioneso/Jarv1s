@@ -36,6 +36,7 @@ import {
 import * as api from "../../external-modules/job-search/src/web/api";
 import type { Profile } from "../../external-modules/job-search/src/web/use-profiles";
 import type { SearchCriteria } from "../../external-modules/job-search/src/domain/records";
+import type { AssistantSurfaceHandleV1 } from "../../external-modules/job-search/src/domain/seed-prompt";
 
 function profile(overrides: Partial<Profile> = {}): Profile {
   return {
@@ -87,10 +88,13 @@ function mockInvoke(
   });
 }
 
-async function renderScreen(profileValue: Profile): Promise<ReactTestRenderer> {
+async function renderScreen(
+  profileValue: Profile,
+  assistantSurface?: AssistantSurfaceHandleV1
+): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
-    renderer = create(createElement(ProfileScreen, { profile: profileValue }));
+    renderer = create(createElement(ProfileScreen, { profile: profileValue, assistantSurface }));
   });
   return renderer;
 }
@@ -204,6 +208,47 @@ describe("ProfileScreen", () => {
     // `jds-badge--pill`, not `jds-chip`: chip reserves asymmetric padding for a remove button these
     // read-only tags do not have, which rendered them visibly off-centre (2026-07-29).
     expect(chips).toHaveLength(7);
+  });
+
+  it("leads with criteria and résumé fields without repeating the ceremonial page hero", async () => {
+    mockInvoke({ criteria: criteria({ titles: ["Staff Engineer"] }) });
+
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    const rendered = text(renderer);
+    expect(rendered.indexOf("What it's looking for")).toBeLessThan(rendered.indexOf("Résumé"));
+    expect(rendered).not.toContain("What this search knows about you");
+    expect(renderer.root.findAllByProps({ className: "jds-strap jds-strap--gold" })).toHaveLength(0);
+  });
+
+  it("seeds an editable criteria-change draft without submitting it", async () => {
+    mockInvoke({ criteria: criteria({ titles: ["Staff Engineer"] }) });
+    const seedComposer = vi.fn();
+    const submitTurn = vi.fn().mockResolvedValue(undefined);
+    const surface = {
+      setSurfaceKey: vi.fn(),
+      seedContext: vi.fn().mockResolvedValue(undefined),
+      seedComposer,
+      Surface: vi.fn(),
+      submitTurn
+    } as unknown as AssistantSurfaceHandleV1;
+
+    const renderer = await renderScreen(profile(), surface);
+    await flush();
+
+    const changeButton = renderer.root
+      .findAllByType("button")
+      .find((node) => flatten(node.props.children) === "Change in chat");
+    expect(changeButton).toBeDefined();
+
+    await act(async () => {
+      changeButton!.props.onClick();
+    });
+
+    expect(seedComposer).toHaveBeenCalledOnce();
+    expect(seedComposer.mock.calls[0]?.[0]).toMatch(/change.*criteria/i);
+    expect(submitTurn).not.toHaveBeenCalled();
   });
 
   it("renders a graceful empty state for a brand-new profile's empty criteria, not a wall of empty headings (K6)", async () => {

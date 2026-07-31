@@ -334,6 +334,7 @@ function ActiveProfilePanel(props: {
     screen = (
       <ProfileScreen
         profile={props.selected}
+        assistantSurface={props.assistantSurface}
         openResumeSignal={resumeIntent}
         onResumeSaved={props.onResumeSaved}
       />

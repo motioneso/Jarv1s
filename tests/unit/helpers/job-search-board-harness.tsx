@@ -261,6 +261,7 @@ export function fakeAssistantSurface(): AssistantSurfaceHandleV1 {
   return {
     setSurfaceKey: vi.fn(),
     seedContext: vi.fn(async () => undefined),
+    seedComposer: vi.fn(),
     submitTurn: vi.fn(async () => undefined),
     Surface: () => null
   };

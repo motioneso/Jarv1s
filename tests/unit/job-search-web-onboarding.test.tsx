@@ -142,6 +142,7 @@ describe("OnboardingScreen", () => {
     const surface: AssistantSurfaceHandleV1 = {
       setSurfaceKey: vi.fn(),
       seedContext: vi.fn().mockResolvedValue(undefined),
+      seedComposer: vi.fn(),
       Surface: SurfaceSpy,
       submitTurn: vi.fn().mockResolvedValue(undefined)
     };

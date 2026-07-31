@@ -112,16 +112,13 @@ async function renderRoot(
 
 // setSurfaceKey/seedContext are the two methods Root's useProfileThread actually calls; every
 // test in this file uses an "active" profile (the board branch), so Surface itself is never
-// rendered here (that's job-search-web-onboarding.test.tsx's job) and submitTurn is never
-// invoked (no test here opens a row's detail panel or clicks Discuss — that's
-// job-search-web-board.test.tsx's job) — but AssistantSurfaceHandleV1 is now a four-member
-// interface (Surface added for #1331, submitTurn added for #1304), and a fixture typed against
-// it must satisfy all four or it's silently wrong the moment a .tsx test (never typechecked,
-// #1335) is trusted to catch a shape mismatch.
+// rendered here (that's job-search-web-onboarding.test.tsx's job) and submitTurn/seedComposer are
+// exercised by their owning screens.
 function assistantSurface(): AssistantSurfaceHandleV1 {
   return {
     setSurfaceKey: vi.fn(),
     seedContext: vi.fn().mockResolvedValue(undefined),
+    seedComposer: vi.fn(),
     Surface: vi.fn(),
     submitTurn: vi.fn().mockResolvedValue(undefined)
   };
@@ -225,6 +222,23 @@ describe("job-search web Root", () => {
       // a pre-résumé crawl locks out the résumé save for its full ceiling). Tests that assert an
       // enqueue therefore have to put a résumé on file first; `resumeFixture` is how.
       if (name === "job-search.resume.get") return { resume: resumeFixture };
+      if (name === "job-search.profile.get") {
+        return {
+          criteria: {
+            titles: ["Staff Engineer"],
+            seniority: [],
+            locations: [],
+            remote: "no-preference",
+            compFloorCents: null,
+            excludeCompanies: [],
+            mustHave: [],
+            niceToHave: [],
+            dealbreakers: [],
+            wantNarrative: ""
+          },
+          contextSummary: null
+        };
+      }
       throw new Error(`unexpected invokeTool ${name}`);
     });
     vi.mocked(api.runQueue).mockReset();
@@ -328,7 +342,9 @@ describe("job-search web Root", () => {
     const surface: AssistantSurfaceHandleV1 = {
       setSurfaceKey: vi.fn(),
       seedContext: vi.fn().mockResolvedValue(undefined),
-      Surface: SurfaceSpy
+      seedComposer: vi.fn(),
+      Surface: SurfaceSpy,
+      submitTurn: vi.fn().mockResolvedValue(undefined)
     };
 
     const renderer = await renderRoot(hostActions(), surface);
@@ -632,13 +648,13 @@ describe("job-search web Root", () => {
       });
       await flush(renderer);
       expect(text(renderer)).not.toMatch(/Search status/);
-      expect(text(renderer)).toMatch(/knows about you/);
+      expect(text(renderer)).toMatch(/Profile What it's looking for/);
 
       await act(async () => {
         findButton(renderer, /^Monitors$/)!.props.onClick();
       });
       await flush(renderer);
-      expect(text(renderer)).not.toMatch(/knows about you/);
+      expect(text(renderer)).not.toMatch(/What it's looking for/);
       expect(text(renderer)).toMatch(/Which job boards this search crawls/);
 
       await act(async () => {
@@ -647,6 +663,24 @@ describe("job-search web Root", () => {
       await flush(renderer);
       expect(text(renderer)).not.toMatch(/Which job boards this search crawls/);
       expect(text(renderer)).toMatch(/Senior Engineer/);
+    });
+
+    it("threads the profile-scoped composer into Change in chat without submitting", async () => {
+      mockUseProfiles.mockReturnValue(ready([profile({ state: "active" })]));
+      const surface = assistantSurface();
+      const renderer = await renderRoot(hostActions(), surface);
+      await flush(renderer);
+
+      await act(async () => {
+        findButton(renderer, /^Profile$/)!.props.onClick();
+      });
+      await flush(renderer);
+      await act(async () => {
+        findButton(renderer, /^Change in chat$/)!.props.onClick();
+      });
+
+      expect(surface.seedComposer).toHaveBeenCalledOnce();
+      expect(surface.submitTurn).not.toHaveBeenCalled();
     });
 
     it("Review unreviewed roles returns from Overview to Matches", async () => {

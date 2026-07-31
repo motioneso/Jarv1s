@@ -32,6 +32,7 @@ import { invokeTool, runQueue } from "../api";
 import type { Profile } from "../use-profiles";
 import type { BriefingDetail } from "../../domain/store-port.js";
 import type { SearchCriteria } from "../../domain/records.js";
+import type { AssistantSurfaceHandleV1 } from "../../domain/seed-prompt.js";
 import { FieldPair, SectionHead } from "../keyline";
 import { RESUME_GET_TOOL, ResumeSection, fetchResume, type ResumeState } from "./resume-editor";
 
@@ -128,7 +129,11 @@ function ChipGroup(props: { items: string[]; emptyLabel: string }): ReactNodeLik
   );
 }
 
-function LookingForSection(props: { profile: Profile; state: CriteriaState }): ReactNodeLike {
+function LookingForSection(props: {
+  profile: Profile;
+  state: CriteriaState;
+  onChangeInChat?: () => void;
+}): ReactNodeLike {
   const { profile, state } = props;
   if (state.status === "loading") {
     return (
@@ -154,7 +159,17 @@ function LookingForSection(props: { profile: Profile; state: CriteriaState }): R
   const wantNarrative = criteria.wantNarrative?.trim();
   return (
     <section className="jsm-settings__group">
-      <SectionHead label="What it's looking for" />
+      <SectionHead label="What it's looking for">
+        {props.onChangeInChat ? (
+          <button
+            type="button"
+            className="jds-btn jds-btn--quiet jds-btn--sm"
+            onClick={props.onChangeInChat}
+          >
+            Change in chat
+          </button>
+        ) : null}
+      </SectionHead>
       <div className="jsm-fields">
         <FieldPair label="Titles">
           <ChipGroup items={criteria.titles} emptyLabel="No titles yet." />
@@ -252,6 +267,7 @@ function BriefingDetailSection(props: {
 // -------------------------------------------------------------------------------------------
 export interface ProfileScreenProps {
   profile: Profile;
+  assistantSurface?: AssistantSurfaceHandleV1;
   // A counter, bumped by the board's "Add résumé" button as it switches to this tab. Passed
   // straight down to the résumé editor, which opens itself whenever the value changes. Optional
   // because arriving here by clicking the Profile tab has no such intent.
@@ -327,39 +343,29 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
     }).catch(() => {});
   }
 
-  // Reuses `.jsm-settings`/`.jsm-settings__head` (styles.css) for the page wrapper and hero
-  // stack — the same flex-column layout settings.tsx's own header already reuses for its
-  // matching hero — rather than a new page-wrapper class. Only the two-column split below
-  // (`.jsm-pf-columns`) is genuinely new layout, since nothing existing puts two stacks side by
-  // side.
   return (
     <div className="jsm-settings">
-      <header className="jsm-settings__head">
-        <span className="jds-eyebrow jds-eyebrow--gold">Profile</span>
-        <h1 className="jds-display jds-display--sm">What this search knows about you</h1>
-        <span className="jds-strap jds-strap--gold" aria-hidden="true" />
-        <p className="jds-hint">
-          What this search knows about you, and how much it says in your briefing.
-        </p>
-      </header>
-
-      <div className="jds-divider jds-divider--ink" />
-
-      <div className="jsm-pf-columns">
-        <div className="jsm-pf-column">
-          <ResumeSection
-            profileId={profile.profileId}
-            state={resume}
-            onSaved={reloadResume}
-            openSignal={props.openResumeSignal}
-          />
-          <BriefingDetailSection briefingDetail={briefingDetail} onChange={handleBriefingDetail} />
-        </div>
-        <div className="jsm-pf-column">
-          <ContextSummarySection state={criteria} />
-          <LookingForSection profile={profile} state={criteria} />
-        </div>
-      </div>
+      <h2 className="jds-section-title">Profile</h2>
+      <LookingForSection
+        profile={profile}
+        state={criteria}
+        onChangeInChat={
+          props.assistantSurface
+            ? () =>
+                props.assistantSurface?.seedComposer(
+                  `I want to change the criteria for the "${profile.name}" job search.`
+                )
+            : undefined
+        }
+      />
+      <ContextSummarySection state={criteria} />
+      <ResumeSection
+        profileId={profile.profileId}
+        state={resume}
+        onSaved={reloadResume}
+        openSignal={props.openResumeSignal}
+      />
+      <BriefingDetailSection briefingDetail={briefingDetail} onChange={handleBriefingDetail} />
     </div>
   );
 }
