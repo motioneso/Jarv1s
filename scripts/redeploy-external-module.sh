@@ -25,6 +25,14 @@ MODULE_ID="${1:?usage: redeploy-external-module.sh <module-id> [api-port]}"
 API_PORT="${2:-3097}"
 API="http://127.0.0.1:${API_PORT}"
 SETTLE_SECONDS="${SETTLE_SECONDS:-8}"
+SOURCE_DIR="external-modules/${MODULE_ID}"
+STAGED_DIR="data/modules/${MODULE_ID}"
+
+if [[ ! "$MODULE_ID" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] ||
+  [[ ! -d "$SOURCE_DIR" ]] || [[ ! -d "$STAGED_DIR" ]]; then
+  echo "refusing: ${MODULE_ID} is not an installed external module" >&2
+  exit 2
+fi
 
 # The prod API is not on this host's dev ports, but a mistyped port should stop rather than
 # authenticate somewhere unexpected. 1533 is the production instance.
@@ -42,6 +50,15 @@ listening_pid() {
 
 echo "==> building ${MODULE_ID}"
 pnpm "build:external:${MODULE_ID}"
+
+echo "==> restaging ${MODULE_ID}"
+rsync -a --delete \
+  --include='/dist/***' \
+  --include='/sql/***' \
+  --include='/jarvis.module.json' \
+  --include='/package.json' \
+  --exclude='*' \
+  "${SOURCE_DIR}/" "${STAGED_DIR}/"
 
 echo "==> reconciling (expect drifted=1 — that is the rebuild disabling it, by design)"
 pnpm db:reconcile
