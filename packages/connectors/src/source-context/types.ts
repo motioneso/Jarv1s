@@ -63,6 +63,8 @@ export interface EmailContextItem {
   readonly subject: string;
   readonly receivedAt: string;
   readonly threadId: string | null;
+  /** Stable provider deep link when the provider exposes one; IMAP is null in v1. */
+  readonly sourceHref: string | null;
   readonly snippet: string | null;
   /** Bounded, body-echo-guarded triage summary. Full bodies never leave triage internals. */
   readonly summary: string | null;

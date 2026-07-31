@@ -21,6 +21,7 @@ function item(overrides: Partial<EmailContextItem> = {}): EmailContextItem {
     subject: "Budget approval needed",
     receivedAt: "2026-07-04T09:00:00.000Z",
     threadId: null,
+    sourceHref: null,
     snippet: null,
     summary: "Approve the Q3 budget by Friday",
     actionability: "needs_action",

@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb, EmailMessage } from "@jarv1s/db";
 import {
+  buildGmailThreadLink,
+  buildEmailActionLink,
+  emailSourceRef,
   EMAIL_TASK_MODE_PREF_KEY,
+  listEmailContext,
   MONITOR_STATUS_PREF_KEY,
   runEmailMonitor,
+  type ConnectorAccountSafeRow,
+  type EmailSourceContextDeps,
   type EmailContextItem,
   type EmailContextResult,
   type MonitorPreferencesPort,
@@ -25,6 +31,7 @@ function item(overrides: Partial<EmailContextItem> = {}): EmailContextItem {
     subject: "Budget approval needed",
     receivedAt: "2026-07-04T09:00:00.000Z",
     threadId: null,
+    sourceHref: null,
     snippet: null,
     summary: "Approve the Q3 budget by Friday",
     actionability: "needs_action",
@@ -51,6 +58,48 @@ function liveResult(items: EmailContextItem[]): EmailContextResult {
       }
     ],
     gaps: []
+  };
+}
+
+function sourceAccount(id: string): ConnectorAccountSafeRow {
+  return {
+    id,
+    provider_id: "google",
+    provider_type: "google",
+    provider_display_name: "Gmail",
+    provider_status: "available",
+    owner_user_id: "user-1",
+    scopes: ["https://www.googleapis.com/auth/gmail.modify"],
+    status: "active",
+    has_secret: true,
+    revoked_at: null,
+    created_at: new Date("2026-07-04T00:00:00.000Z"),
+    updated_at: new Date("2026-07-04T00:00:00.000Z"),
+    last_sync_started_at: null,
+    last_sync_finished_at: null,
+    last_sync_status: null,
+    last_sync_error: null,
+    last_sync_counts: null
+  };
+}
+
+function cachedEmail(accountId: string, id: string): EmailMessage {
+  return {
+    id,
+    connector_account_id: accountId,
+    owner_user_id: "user-1",
+    sender: "boss@work.example",
+    recipients: ["me@self.example"],
+    subject: "Budget approval needed",
+    snippet: null,
+    body_excerpt: null,
+    received_at: new Date("2026-07-04T09:00:00.000Z"),
+    external_id: "shared-provider-message-id",
+    external_metadata: { threadId: `thread-${accountId}` },
+    summary: `Cached summary for ${accountId}`,
+    signals: { actionability: { category: "needs_action" }, confidence: 0.9 },
+    created_at: new Date("2026-07-04T09:00:00.000Z"),
+    updated_at: new Date("2026-07-04T09:00:00.000Z")
   };
 }
 
@@ -97,6 +146,67 @@ function fakePorts(
 }
 
 describe("runEmailMonitor", () => {
+  it("preserves account identity when external message ids collide", async () => {
+    const first = sourceAccount("acct-1");
+    const second = sourceAccount("acct-2");
+    const deps: EmailSourceContextDeps = {
+      connectorsRepository: { listAccounts: async () => [first, second] },
+      preferencesRepository: { get: async () => null },
+      resolveGoogleCredential: async () => "token",
+      resolveImapCredential: async () => undefined,
+      googleProvider: {
+        listFolders: async () => ["INBOX"],
+        listMessageKeys: async () => [{ folder: "INBOX", id: "shared-provider-message-id" }],
+        getMessage: async () => ({
+          externalId: "shared-provider-message-id",
+          historyId: null,
+          subject: "Budget approval needed",
+          from: "boss@work.example",
+          recipients: ["me@self.example"],
+          receivedAt: "2026-07-04T09:00:00.000Z",
+          labelIds: [],
+          snippet: null,
+          body: "",
+          bodyTruncated: false
+        })
+      },
+      imapProvider: {} as EmailSourceContextDeps["imapProvider"],
+      emailRepository: {
+        listVisibleForBriefing: async () => [
+          cachedEmail("acct-1", "cache-1"),
+          cachedEmail("acct-2", "cache-2")
+        ]
+      },
+      makeEmailExtractDeps: () => ({
+        selectModel: async () => ({ tier: "economy" }),
+        runChat: async () => ({ text: "{}" })
+      })
+    };
+
+    const result = await listEmailContext(DB, deps, {});
+    expect(
+      result.items.map((entry) => [entry.account.connectorAccountId, entry.cacheMessageId])
+    ).toEqual([
+      ["acct-1", "cache-1"],
+      ["acct-2", "cache-2"]
+    ]);
+  });
+
+  it("keeps source ref cache id and provider link as distinct values", () => {
+    const sourceRef = emailSourceRef(ACCOUNT, "shared-provider-message-id");
+    const cacheMessageId = "cache-message-row";
+    const sourceHref = buildGmailThreadLink({ accountIndex: 0, threadId: "gmail-thread" });
+
+    expect({ sourceRef, cacheMessageId, sourceHref }).toEqual({
+      sourceRef: "acct-1:shared-provider-message-id",
+      cacheMessageId: "cache-message-row",
+      sourceHref: "https://mail.google.com/mail/u/0/#all/gmail-thread"
+    });
+    expect(sourceRef).not.toBe(cacheMessageId);
+    expect(sourceRef).not.toBe(sourceHref);
+    expect(buildEmailActionLink({ providerId: "yahoo-imap", threadId: "imap-thread" })).toBeNull();
+  });
+
   it("suggest mode (default) stages suggested tasks and persists an ok status", async () => {
     const { deps, taskStore, prefs } = fakePorts(liveResult([item()]));
     const run = await runEmailMonitor(DB, ACCOUNT, deps);
