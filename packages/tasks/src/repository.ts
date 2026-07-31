@@ -211,6 +211,28 @@ export class TasksRepository {
         .executeTakeFirst();
 
       if (existing) {
+        if (
+          existing.status === "archived" &&
+          input.status === "suggested" &&
+          input.suggestionMetadata?.resurfaceReason != null
+        ) {
+          return scopedDb.db
+            .updateTable("app.tasks")
+            .set({
+              title: input.title,
+              description: input.description ?? null,
+              status: "suggested",
+              priority: input.priority ?? null,
+              due_at: input.dueAt ?? null,
+              source_ref: input.sourceRef ?? existing.source_ref,
+              suggestion_metadata: input.suggestionMetadata as unknown as Record<string, unknown>,
+              completed_at: null,
+              updated_at: new Date()
+            })
+            .where("id", "=", existing.id)
+            .returningAll()
+            .executeTakeFirstOrThrow();
+        }
         if (existing.status === "suggested" && input.suggestionMetadata !== undefined) {
           return scopedDb.db
             .updateTable("app.tasks")

@@ -317,7 +317,10 @@ export function registerTasksRoutes(
                 // Failure-isolated, but when it succeeds status and suppression share this transaction.
                 if (subjectSignature !== null) throw feedbackError;
                 request.log.warn(
-                  { err: feedbackError, taskId: row.id, verdict: triageVerdict },
+                  {
+                    stage: "email-triage-feedback",
+                    name: feedbackError instanceof Error ? feedbackError.name : "UnknownError"
+                  },
                   "email triage feedback recording failed"
                 );
               }

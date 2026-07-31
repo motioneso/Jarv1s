@@ -110,7 +110,13 @@ export interface BriefingGap {
   // connector-sync slice lands cache state, so an empty source is just `empty`.
   // `source_auth` (#729): a live-first source-context read reported an auth/grant/revocation
   // gap — the user must reconnect or re-grant; the data was NOT silently served from cache.
-  readonly reason: "tool_failed" | "truncated" | "empty" | "unwired" | "source_auth";
+  readonly reason:
+    | "tool_failed"
+    | "structured_payload_failed"
+    | "truncated"
+    | "empty"
+    | "unwired"
+    | "source_auth";
 }
 
 export interface ComposeResult {

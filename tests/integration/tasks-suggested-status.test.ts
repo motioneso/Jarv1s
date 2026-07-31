@@ -110,6 +110,62 @@ describe("Tasks — suggested status (migration 0140, spec #729 §5)", () => {
     });
   });
 
+  it("revives an archived email task when new evidence resurfaces it", async () => {
+    const first = await dataContext.withDataContext(ctx, (scopedDb) =>
+      repository.create(scopedDb, {
+        title: "Dismissed email task",
+        status: "suggested",
+        source: "email",
+        externalKey: "email:conn-1:msg-resurface-1",
+        suggestionMetadata: {
+          version: 1,
+          category: "needs_action",
+          sourceLabel: "Gmail",
+          sourceHref: "https://mail.google.com/mail/u/0/#all/thread-old",
+          cacheMessageId: "cache-old",
+          subjectSignature: "e".repeat(64),
+          computedAt: "2026-07-30T12:00:00.000Z",
+          resurfaceReason: null
+        }
+      })
+    );
+    await dataContext.withDataContext(ctx, (scopedDb) =>
+      repository.update(scopedDb, first.id, { status: "archived" })
+    );
+
+    const revived = await dataContext.withDataContext(ctx, (scopedDb) =>
+      repository.create(scopedDb, {
+        title: "Updated resurfaced email task",
+        description: "Updated description",
+        status: "suggested",
+        dueAt: "2026-07-31T12:00:00.000Z",
+        source: "email",
+        externalKey: "email:conn-1:msg-resurface-1",
+        suggestionMetadata: {
+          version: 1,
+          category: "needs_action",
+          sourceLabel: "Gmail",
+          sourceHref: "https://mail.google.com/mail/u/0/#all/thread-new",
+          cacheMessageId: "cache-new",
+          subjectSignature: "e".repeat(64),
+          computedAt: "2026-07-30T12:01:00.000Z",
+          resurfaceReason: "relevant_context"
+        }
+      })
+    );
+
+    expect(revived.id).toBe(first.id);
+    expect(revived.status).toBe("suggested");
+    expect(revived.completed_at).toBeNull();
+    expect(revived.title).toBe("Updated resurfaced email task");
+    expect(revived.description).toBe("Updated description");
+    expect(revived.due_at).toEqual(new Date("2026-07-31T12:00:00.000Z"));
+    expect(revived.suggestion_metadata).toMatchObject({
+      cacheMessageId: "cache-new",
+      resurfaceReason: "relevant_context"
+    });
+  });
+
   it("returns the existing task when the same (source, externalKey) is created again", async () => {
     const first = await dataContext.withDataContext(ctx, (scopedDb) =>
       repository.create(scopedDb, {

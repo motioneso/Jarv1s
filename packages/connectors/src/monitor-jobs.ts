@@ -221,6 +221,7 @@ export async function runEmailMonitor(
     suppressionStates.map((state) => [state.subjectSignature, state])
   );
   const resurfaceReasons = new Map<string, "due_tomorrow" | "relevant_context">();
+  const contextEvidenceToRecord = new Map<string, { signature: string; key: string }>();
   const actorTimeZone = parseMonitorTimeZone(
     await deps.preferencesRepository.get(scopedDb, "locale")
   );
@@ -253,11 +254,10 @@ export async function runEmailMonitor(
         "email monitor relevance check failed"
       );
     }
-    if (deps.suppressionRepository) {
-      await deps.suppressionRepository.recordContextEvidence(scopedDb, signature, contextKey);
-    }
     if (relevant) {
       resurfaceReasons.set(emailActionResurfaceKey(signature, item.messageKey), "relevant_context");
+    } else {
+      contextEvidenceToRecord.set(contextKey, { signature, key: contextKey });
     }
   }
 
@@ -288,6 +288,13 @@ export async function runEmailMonitor(
       if (task.suggestionMetadata.resurfaceReason === "due_tomorrow") {
         deadlineEvidenceToRecord.set(task.suggestionMetadata.subjectSignature, task.dueAt ?? "");
       }
+      if (task.suggestionMetadata.resurfaceReason === "relevant_context") {
+        const contextKey = `${task.item.account.connectorAccountId}:${task.item.messageKey}`;
+        contextEvidenceToRecord.set(contextKey, {
+          signature: task.suggestionMetadata.subjectSignature,
+          key: contextKey
+        });
+      }
     } catch (error) {
       // Sanitized: never the task title or error message (may echo subject lines).
       logger.warn(
@@ -298,6 +305,13 @@ export async function runEmailMonitor(
   }
 
   if (deps.suppressionRepository) {
+    for (const evidence of contextEvidenceToRecord.values()) {
+      await deps.suppressionRepository.recordContextEvidence(
+        scopedDb,
+        evidence.signature,
+        evidence.key
+      );
+    }
     for (const [signature, dueAt] of deadlineEvidenceToRecord) {
       await deps.suppressionRepository.recordDeadlineEvidence(
         scopedDb,

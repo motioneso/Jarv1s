@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Writable } from "node:stream";
 
 import Fastify from "fastify";
 import { Client } from "pg";
@@ -263,12 +264,29 @@ describe("Tasks — email triage feedback on suggested-task accept/reject (spec 
   });
 
   it("a throwing feedback port never breaks the PATCH itself", async () => {
+    const logLines: string[] = [];
     const throwingPort: EmailTriageFeedbackPort = {
       record: async () => {
-        throw new Error("feedback store exploded");
+        throw new Error("private subject prefix: feedback store exploded");
       }
     };
-    const app = await buildApp(throwingPort);
+    const app = Fastify({
+      logger: {
+        stream: new Writable({
+          write(chunk, _encoding, callback) {
+            logLines.push(chunk.toString());
+            callback();
+          }
+        })
+      }
+    });
+    registerTasksRoutes(app, {
+      resolveAccessContext: async () => ctx,
+      dataContext,
+      boss: undefined as never,
+      emailTriageFeedback: throwingPort
+    });
+    await app.ready();
     try {
       const before = (await listFeedbackRows()).length;
       const taskId = await createSuggestedEmailTask();
@@ -284,5 +302,9 @@ describe("Tasks — email triage feedback on suggested-task accept/reject (spec 
     } finally {
       await app.close();
     }
+    const serializedLogs = logLines.join("\n");
+    expect(serializedLogs).not.toContain("private subject prefix");
+    expect(serializedLogs).toContain('"stage":"email-triage-feedback"');
+    expect(serializedLogs).toContain('"name":"Error"');
   });
 });

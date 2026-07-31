@@ -425,6 +425,57 @@ describe("runEmailMonitor — relevance evidence", () => {
     expect(await runEmailMonitor(DB, "acct-1", deps)).toMatchObject({ planned: 0 });
     expect(relevanceCalls).toBe(1);
   });
+
+  it("consumes matching context evidence only after a task is created", async () => {
+    const suppression: EmailActionSuppressionSnapshot = {
+      subjectSignature: createEmailActionSubjectSignature("Budget approval"),
+      dismissalCount: 2,
+      lastDeadlineEvidenceKey: "deadline:2026-07-01T00:00:00.000Z",
+      lastContextMessageKey: null
+    };
+    let lastContextKey: string | null = null;
+    let createCalls = 0;
+    const deps: RunEmailMonitorDeps = {
+      sourceContext: {
+        listEmailContext: async () => ({ items: [item()], accounts: [], gaps: [] })
+      },
+      taskPort: {
+        create: async () => {
+          createCalls += 1;
+          if (createCalls === 1) throw new Error("task store unavailable");
+          return { id: "task" };
+        }
+      },
+      preferencesRepository: { get: async () => null, upsert: async () => undefined },
+      suppressionRepository: {
+        list: async () => [{ ...suppression, lastContextMessageKey: lastContextKey }],
+        recordContextEvidence: async (_db, _signature, key) => {
+          lastContextKey = key;
+        },
+        recordDeadlineEvidence: async () => undefined
+      },
+      actionRowRelevance: { hasRelevantContext: async () => true },
+      actorUserId: "user-1",
+      now: () => new Date(NOW)
+    };
+
+    await expect(runEmailMonitor(DB, "acct-1", deps)).resolves.toMatchObject({
+      planned: 1,
+      created: 0
+    });
+    expect(lastContextKey).toBeNull();
+
+    await expect(runEmailMonitor(DB, "acct-1", deps)).resolves.toMatchObject({
+      planned: 1,
+      created: 1
+    });
+    expect(lastContextKey).toBe("acct-1:msg-1");
+
+    await expect(runEmailMonitor(DB, "acct-1", deps)).resolves.toMatchObject({
+      planned: 0,
+      created: 0
+    });
+  });
 });
 
 describe("planEmailTasks — status by mode", () => {

@@ -29,6 +29,7 @@ interface SuggestedTaskShape {
 export interface ActionRowCollection {
   readonly payload: BriefingStructuredPayloadV1;
   readonly sourceRefs: ReadonlySet<string>;
+  readonly invalidMetadataCount: number;
 }
 
 export function emptyStructuredPayload(): BriefingStructuredPayloadV1 {
@@ -96,9 +97,14 @@ function updatedTimestamp(value: string | null): number {
 }
 
 export function projectActionRows(tasks: readonly unknown[]): ActionRowCollection {
+  let invalidMetadataCount = 0;
   const rows = tasks.flatMap(
     (item): Array<{ row: BriefingActionRowDto; updatedAt: string | null }> => {
       if (!isRecord(item)) return [];
+      if (!isSuggestionMetadata(item.suggestionMetadata)) {
+        invalidMetadataCount += 1;
+        return [];
+      }
       const task = taskShape(item);
       if (!task || task.sourceRef === null || task.sourceRef.length === 0) return [];
       const metadata = task.suggestionMetadata;
@@ -141,7 +147,8 @@ export function projectActionRows(tasks: readonly unknown[]): ActionRowCollectio
   const emitted = rows.slice(0, SECTION_ITEM_CAP).map(({ row }) => row);
   return {
     payload: { version: 1, actionRows: emitted, catchUp: null },
-    sourceRefs: new Set(emitted.map((row) => row.sourceRef))
+    sourceRefs: new Set(emitted.map((row) => row.sourceRef)),
+    invalidMetadataCount
   };
 }
 
@@ -153,12 +160,12 @@ export async function gatherActionRows(
   gaps: BriefingGap[]
 ): Promise<ActionRowCollection> {
   if (!definition.selected_tool_names.includes("tasks.list")) {
-    return { payload: emptyStructuredPayload(), sourceRefs: new Set() };
+    return { payload: emptyStructuredPayload(), sourceRefs: new Set(), invalidMetadataCount: 0 };
   }
   const tool = findExecute(deps.moduleManifests, "tasks.list");
   if (!tool?.execute) {
-    gaps.push({ source: "action_rows", reason: "tool_failed" });
-    return { payload: emptyStructuredPayload(), sourceRefs: new Set() };
+    gaps.push({ source: "action_rows", reason: "structured_payload_failed" });
+    return { payload: emptyStructuredPayload(), sourceRefs: new Set(), invalidMetadataCount: 0 };
   }
   try {
     const result = await tool.execute(
@@ -169,7 +176,18 @@ export async function gatherActionRows(
     );
     const data = isRecord(result.data) ? result.data : {};
     const items = Array.isArray(data.items) ? data.items : [];
-    return projectActionRows(items);
+    const projected = projectActionRows(items);
+    if (projected.invalidMetadataCount > 0) {
+      deps.logger?.error(
+        {
+          stage: "action-row-projection",
+          name: "InvalidSuggestionMetadata",
+          count: projected.invalidMetadataCount
+        },
+        "briefing structured payload contained invalid metadata"
+      );
+    }
+    return projected;
   } catch (error) {
     deps.logger?.error(
       {
@@ -178,8 +196,8 @@ export async function gatherActionRows(
       },
       "briefing action-row gather failed"
     );
-    gaps.push({ source: "action_rows", reason: "tool_failed" });
-    return { payload: emptyStructuredPayload(), sourceRefs: new Set() };
+    gaps.push({ source: "action_rows", reason: "structured_payload_failed" });
+    return { payload: emptyStructuredPayload(), sourceRefs: new Set(), invalidMetadataCount: 0 };
   }
 }
 

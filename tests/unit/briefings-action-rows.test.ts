@@ -113,9 +113,43 @@ describe("structured briefing action rows", () => {
     const result = await gatherActionRows(fakeScopedDb, definition(), runInput, deps, gaps);
 
     expect(result.payload.actionRows).toEqual([]);
-    expect(gaps).toEqual([{ source: "action_rows", reason: "tool_failed" }]);
+    expect(gaps).toEqual([{ source: "action_rows", reason: "structured_payload_failed" }]);
     expect(logs[0]?.[0]).toEqual({ stage: "action-row-gather", name: "Error" });
     expect(JSON.stringify(logs)).not.toContain("message");
+    expect(JSON.stringify(logs)).not.toContain("private");
+  });
+
+  it("records a sanitized invalid-metadata metric while omitting malformed rows", async () => {
+    const logs: unknown[][] = [];
+    const base = makeFakeDeps();
+    const deps = {
+      ...base,
+      logger: { error: (...args: unknown[]) => logs.push(args) },
+      moduleManifests: base.moduleManifests.map((manifest) => ({
+        ...manifest,
+        assistantTools: (manifest.assistantTools ?? []).map((tool) =>
+          tool.name === "tasks.list"
+            ? {
+                ...tool,
+                execute: async () => ({
+                  data: { items: [{ id: "bad-row", suggestionMetadata: { private: "content" } }] }
+                })
+              }
+            : tool
+        )
+      }))
+    } as unknown as ComposeDeps;
+    const gaps: Parameters<typeof gatherActionRows>[4] = [];
+
+    const result = await gatherActionRows(fakeScopedDb, definition(), runInput, deps, gaps);
+
+    expect(result.payload.actionRows).toEqual([]);
+    expect(gaps).toEqual([]);
+    expect(logs[0]?.[0]).toEqual({
+      stage: "action-row-projection",
+      name: "InvalidSuggestionMetadata",
+      count: 1
+    });
     expect(JSON.stringify(logs)).not.toContain("private");
   });
 
