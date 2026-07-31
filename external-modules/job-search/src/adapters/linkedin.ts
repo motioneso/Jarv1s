@@ -258,7 +258,6 @@ function parseCard(block: string): ParsedCard {
     "location"
   );
   const dateMatch = /job-search-card__listdate"\s+datetime="([^"]+)"/.exec(block);
-  const benefitsMatch = /job-posting-benefits__text">\s*([^<]*)/.exec(block);
 
   const url = stripTrackingParams(decodeEntities(rawUrl));
   if (!url.startsWith("https://")) {
@@ -269,8 +268,6 @@ function parseCard(block: string): ParsedCard {
   // element access, so `xMatch[1]` is still `string | undefined` even inside `xMatch ? … : …`.
   // Reading the group into a local first (or `?.[1] ?? …`) is the proper narrowing — see #1320.
   const rawDate = dateMatch?.[1];
-  const rawBenefits = benefitsMatch?.[1];
-
   return {
     externalId,
     title: decodeEntities(rawTitle),
@@ -278,13 +275,10 @@ function parseCard(block: string): ParsedCard {
     location: decodeEntities(rawLocation),
     url,
     postedAt: rawDate ?? null,
-    // The guest fragment carries no job description — the plan's own "snippet text" is, in
-    // practice, at most one short benefits badge line ("Be an early applicant") and is often
-    // absent entirely (flagged to the team lead: there is no distinct snippet field to fall
-    // back on, only this). Falling back to "" rather than inventing filler text is deliberate:
-    // Task 8's triage genuinely has less signal from this source than from freehire, and that
-    // is a real asymmetry, not an oversight.
-    body: rawBenefits ? decodeEntities(rawBenefits) : ""
+    // The guest fragment has no description. Its `job-posting-benefits__text` value is a badge
+    // such as "Be an early applicant" or "Medical insurance +2 benefits", never body prose.
+    // Leave this empty so match.get knows to fetch the public detail page lazily.
+    body: ""
   };
 }
 

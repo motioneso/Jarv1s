@@ -280,7 +280,12 @@ describe("job-search store (#1297)", () => {
     const profile = await store.createProfile("Staff Engineer search");
 
     const [created] = await store.upsertPostings(profile.id, [
-      posting({ sourceId: "linkedin", externalId: "ext-1", title: "Old Title" })
+      posting({
+        sourceId: "linkedin",
+        externalId: "ext-1",
+        title: "Old Title",
+        body: "Full description fetched from the detail page."
+      })
     ]);
     expect(created).toBeDefined();
 
@@ -289,7 +294,7 @@ describe("job-search store (#1297)", () => {
     );
 
     const [updated] = await store.upsertPostings(profile.id, [
-      posting({ sourceId: "linkedin", externalId: "ext-1", title: "New Title" })
+      posting({ sourceId: "linkedin", externalId: "ext-1", title: "New Title", body: "" })
     ]);
 
     const after = await asRuntime(ownerA, (client) =>
@@ -302,6 +307,7 @@ describe("job-search store (#1297)", () => {
     expect(rows.rows).toHaveLength(1);
     expect(updated!.id).toBe(created!.id);
     expect(updated!.title).toBe("New Title");
+    expect(updated!.body).toBe("Full description fetched from the detail page.");
     expect(after.rows[0]!.first_seen_at).toEqual(before.rows[0]!.first_seen_at);
   });
 

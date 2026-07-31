@@ -758,12 +758,12 @@ describe("createMatchGetHandler", () => {
     expect(rendered.length).toBeLessThanOrEqual(12_800);
   });
 
-  it("fetches and stores an empty LinkedIn description once", async () => {
+  it("replaces a legacy LinkedIn benefits badge with the fetched description", async () => {
     const match = makeMatch();
     const posting = makePosting("post-1", {
       sourceId: "linkedin",
       externalId: "424242",
-      body: ""
+      body: "Medical insurance\n+2 benefits"
     });
     const store = createFakeStore({ matches: [match], postings: [posting] });
     const fetch: FetchLike = vi.fn().mockResolvedValue({
@@ -805,7 +805,7 @@ describe("createMatchGetHandler", () => {
     const posting = makePosting("post-1", {
       sourceId: "linkedin",
       externalId: "424242",
-      body: ""
+      body: "Medical insurance\n+2 benefits"
     });
     const store = createFakeStore({ matches: [match], postings: [posting] });
     const fetch: FetchLike = vi.fn().mockRejectedValue(new Error("offline"));

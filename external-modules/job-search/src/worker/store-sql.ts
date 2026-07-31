@@ -400,6 +400,8 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
         body: capPostingBody(posting.body),
         posted_at: posting.postedAt
       }));
+      // LinkedIn detail descriptions are filled lazily; a later crawl's empty search-card body
+      // must not erase prose already fetched from the detail page.
       const result = await db.query<PostingRow>(
         `INSERT INTO app.job_search_postings
            (owner_user_id, profile_id, source_id, external_id, title, company, location, url,
@@ -410,7 +412,10 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
                 company text, location text, url text, body text, posted_at timestamptz)
          ON CONFLICT (owner_user_id, profile_id, source_id, external_id) DO UPDATE
            SET title = excluded.title, company = excluded.company, location = excluded.location,
-               url = excluded.url, body = excluded.body, posted_at = excluded.posted_at
+               url = excluded.url,
+               body = CASE WHEN excluded.body = '' THEN app.job_search_postings.body
+                           ELSE excluded.body END,
+               posted_at = excluded.posted_at
          RETURNING id, source_id, external_id, title, company, location, url, body, posted_at`,
         [profileId, JSON.stringify(batch)]
       );

@@ -34,8 +34,8 @@ const ROOT_LINK_FIXTURE = readFileSync(
 );
 
 // Real captured-and-trimmed LinkedIn guest-jobs fragment (three postings), 2026-07-27,
-// tracking-scrubbed. Card three deliberately has no benefits badge, so this one fixture also
-// exercises the "no snippet text at all" branch of `body` without needing a second fixture.
+// tracking-scrubbed. Card three deliberately has no benefits badge, proving that neither the
+// presence nor absence of that search-card metadata changes the empty description body.
 function fixtureResponse() {
   return { ok: true, status: 200, text: async () => RAW_FIXTURE };
 }
@@ -144,13 +144,9 @@ describe("linkedin adapter (#1296)", () => {
       // No cookies/tracking params survive the extraction — the fixture is committed and public.
       expect(posting.url).not.toContain("?");
     }
-    // The real asymmetry vs. freehire (see linkedin.ts's header + Constraints in part 17): the
-    // guest fragment carries no job description at all, only an optional "early applicant"
-    // badge. Card three has none, so `body` legitimately comes back empty here — that is
-    // correct, not a bug, and Task 8's triage has less signal from this source than freehire.
-    const [first, , third] = result.postings;
-    expect(first?.body).toBe("Be an early applicant");
-    expect(third?.body).toBe("");
+    // The guest fragment carries no job description. Its optional benefits/applicant badge is
+    // metadata, not prose the scorer or inspector may treat as the posting body.
+    expect(result.postings.every((posting) => posting.body === "")).toBe(true);
     expect(result.postings[0]?.title).toBe("Sr Staff Engineer, Compiler");
     expect(result.postings[0]?.company).toBe("Renesas Electronics");
     // HTML entities in source text must be decoded, not left as literal markup.

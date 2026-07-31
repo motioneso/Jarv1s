@@ -275,6 +275,7 @@ const DESCRIPTION_FAILURE_NAMESPACE = "description-fetch-failures";
 const DESCRIPTION_RETRY_MS = 24 * 60 * 60 * 1_000;
 const DESCRIPTION_FETCH_MAX_MS = 5_000;
 const DESCRIPTION_DEADLINE_HEADROOM_MS = 1_000;
+const LEGACY_LINKEDIN_BADGE_MAX_CHARS = 200;
 
 async function beforeDeadline<T>(work: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -323,7 +324,10 @@ export function createMatchGetHandler(store: JobSearchStore, fetch: FetchLike) {
     }
 
     let body = capPostingBody(posting.body);
-    if (body.length === 0 && posting.sourceId === "linkedin") {
+    // Older crawls stored LinkedIn's short benefits/applicant badge as `body`. Treat those rows
+    // like an empty body once so opening an existing match repairs it as well as new postings.
+    if (posting.sourceId === "linkedin" && body.length <= LEGACY_LINKEDIN_BADGE_MAX_CHARS) {
+      body = "";
       const priorFailure = await ctx.kv
         .get("user", DESCRIPTION_FAILURE_NAMESPACE, posting.id)
         .catch(() => null);
