@@ -5705,3 +5705,13 @@ commit, push, and live curl exit 0. The branch Vite server was restarted on port
 `JARVIS_API_PROXY_TARGET=http://localhost:3000`; the tailnet `/today` URL returns HTTP 200. Ben
 should reload <http://100.64.98.99:5198/today> and continue the authenticated pass. Final sol-high
 QA and merge remain gated on the complete live evidence artifact.
+
+### 2026-07-31 — loading fix live-proven; action-row data absent
+
+Ben's authenticated reload proves `8cd72b87`: the permanent `Checking what needs you…` state is
+gone. The `Needs you` section is absent because the real account has no suggested tasks or briefing
+action-row payload. The shipped producer is the email-monitor pipeline; a genuine row requires a
+connected email account, configured generation model, running workers, and a genuine actionable
+inbound email. Chat and ordinary task creation cannot create valid suggestion metadata. This is a
+live-data precondition, not another #1327 code defect. Keep PR #1379 code-complete, unverified; do
+not spawn final sol-high QA or merge until the full action-row interaction artifact is captured.

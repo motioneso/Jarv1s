@@ -17,7 +17,11 @@ screenshots/video on PR #1379. No artifact means no sol-high QA and no merge.
 The first authenticated pass was **RED**: `Needs you` remained at `Checking what needs you…`
 indefinitely when the morning briefing was absent or disabled. The root loading-state fix and
 regression test are pushed as `8cd72b87`, and the tailnet frontend has been restarted. Ben should
-reload the same URL and continue the action-row pass.
+reload the same URL and continue the action-row pass. The reload confirms the stuck loader is gone,
+but Ben's account has no genuine action rows to exercise. Producing one through the shipped path
+requires a connected email account, configured generation model, running workers, and a genuine
+actionable inbound email; chat and ordinary task creation cannot manufacture the required metadata.
+The full Accept/Dismiss/View/Reply proof remains blocked on that live-data precondition.
 
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
