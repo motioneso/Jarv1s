@@ -33,6 +33,7 @@ export const MAX_SIGNAL_ITEMS = 50;
 
 export interface ParsedEmail {
   readonly externalId: string;
+  readonly threadId?: string | null;
   readonly historyId: string | null;
   readonly subject: string;
   readonly from: string;
@@ -112,6 +113,7 @@ export function parseEmail(message: GmailMessageFull): ParsedEmail {
 
   return {
     externalId: message.id,
+    threadId: message.threadId ?? null,
     historyId: message.historyId ?? null,
     subject: header(payload, "Subject") ?? "(no subject)",
     from: header(payload, "From") ?? "(unknown)",

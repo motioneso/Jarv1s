@@ -55,6 +55,7 @@ function imapAccount(overrides: Partial<ConnectorAccountSafeRow> = {}): Connecto
 function parsed(overrides: Partial<ParsedEmail> = {}): ParsedEmail {
   return {
     externalId: "ext-1",
+    threadId: null,
     historyId: null,
     subject: "Hello",
     from: "Alice <alice@example.com>",

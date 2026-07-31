@@ -9,6 +9,7 @@ import {
   type GoogleSyncPayload
 } from "@jarv1s/connectors";
 import { CalendarRepository, isCalendarFollowThroughEvent } from "@jarv1s/calendar";
+import { EmailRepository } from "@jarv1s/email";
 import { ALLOWED_PAYLOAD_KEYS } from "@jarv1s/jobs";
 import { getAllQueueDefinitions } from "@jarv1s/module-registry";
 import { googleSyncRouteSchema, type GoogleSyncResponse } from "@jarv1s/shared";
@@ -523,6 +524,7 @@ describe("runGoogleSync handler", () => {
       listMessageIds: async () => [{ id: "hist-1" }],
       getMessage: async () => ({
         id: "hist-1",
+        threadId: "thread-1",
         historyId: "H100",
         payload: {
           mimeType: "text/plain",
@@ -554,6 +556,11 @@ describe("runGoogleSync handler", () => {
     await run(); // first sync: summarizes once, stores historyId H100 + a non-null summary
     await run(); // second sync: historyId unchanged AND summary present → skip the LLM pass
     expect(llmCalls).toBe(1);
+
+    const cached = await handles.dataContext.withDataContext(ctx, (db) =>
+      new EmailRepository().getByConnectorAccountAndExternalId(db, accountId, "hist-1")
+    );
+    expect(cached?.external_metadata).toMatchObject({ threadId: "thread-1" });
   });
 
   it("re-summarizes an unchanged message that was first cached with NO summary", async () => {

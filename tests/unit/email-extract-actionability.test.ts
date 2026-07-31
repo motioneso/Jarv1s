@@ -10,6 +10,7 @@ import {
 function parsedEmail(overrides: Partial<ParsedEmail> = {}): ParsedEmail {
   return {
     externalId: "msg-1",
+    threadId: null,
     historyId: null,
     subject: "Quarterly numbers",
     from: "Alice <alice@example.com>",
