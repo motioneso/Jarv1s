@@ -197,6 +197,24 @@ describe("planEmailTasks — candidate selection", () => {
     expect(planned).toHaveLength(2);
     expect(new Set(planned.map((t) => t.externalKey)).size).toBe(2);
   });
+
+  it("counts a cached IMAP candidate without a source link", () => {
+    const planned = plan(
+      [
+        item({
+          account: { connectorAccountId: "acct-1", providerId: "imap", providerLabel: "IMAP" },
+          sourceHref: null
+        })
+      ],
+      "suggest"
+    );
+    expect(planned).toHaveLength(1);
+    expect(planned[0]?.suggestionMetadata.sourceHref).toBeNull();
+  });
+
+  it("omits a candidate without a cache message id", () => {
+    expect(plan([item({ sourceHref: null, cacheMessageId: null })], "suggest")).toEqual([]);
+  });
 });
 
 describe("planEmailTasks — sender volume", () => {
@@ -280,6 +298,38 @@ it("accept clears the subject dismissal count and used evidence keys", () => {
 });
 
 describe("runEmailMonitor — relevance evidence", () => {
+  it("counts a cached IMAP candidate without a source link", async () => {
+    const created: string[] = [];
+    const deps: RunEmailMonitorDeps = {
+      sourceContext: {
+        listEmailContext: async () => ({
+          items: [
+            item({
+              account: { connectorAccountId: "acct-1", providerId: "imap", providerLabel: "IMAP" },
+              sourceHref: null
+            })
+          ],
+          accounts: [],
+          gaps: []
+        })
+      },
+      taskPort: {
+        create: async (_db, input) => {
+          created.push(input.title);
+          return { id: "task" };
+        }
+      },
+      preferencesRepository: { get: async () => null, upsert: async () => undefined },
+      now: () => new Date(NOW)
+    };
+
+    await expect(runEmailMonitor(DB, "acct-1", deps)).resolves.toMatchObject({
+      planned: 1,
+      created: 1
+    });
+    expect(created).toHaveLength(1);
+  });
+
   it("resurfaces once for new due-tomorrow evidence", async () => {
     const signature = createEmailActionSubjectSignature("Budget approval");
     const suppression: EmailActionSuppressionSnapshot = {

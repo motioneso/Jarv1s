@@ -49,7 +49,7 @@ function isSuggestionMetadata(value: unknown): value is TaskSuggestionMetadataV1
     value.version === 1 &&
     isCategory(value.category) &&
     typeof value.sourceLabel === "string" &&
-    typeof value.sourceHref === "string" &&
+    (value.sourceHref === null || typeof value.sourceHref === "string") &&
     (value.cacheMessageId === null || typeof value.cacheMessageId === "string") &&
     typeof value.subjectSignature === "string" &&
     typeof value.computedAt === "string" &&
@@ -79,9 +79,8 @@ function primaryAction(metadata: TaskSuggestionMetadataV1) {
       ? { kind: "reply" as const, cacheMessageId: metadata.cacheMessageId }
       : null;
   }
-  return metadata.sourceHref.trim().length > 0
-    ? { kind: "view" as const, href: metadata.sourceHref }
-    : null;
+  const href = metadata.sourceHref;
+  return href && href.trim().length > 0 ? { kind: "view" as const, href } : null;
 }
 
 function dueTimestamp(value: string | null): number {
@@ -104,7 +103,7 @@ export function projectActionRows(tasks: readonly unknown[]): ActionRowCollectio
       if (!task || task.sourceRef === null || task.sourceRef.length === 0) return [];
       const metadata = task.suggestionMetadata;
       const action = primaryAction(metadata);
-      if (!action) return [];
+      if (!action && metadata.category === "needs_reply") return [];
       return [
         {
           row: {

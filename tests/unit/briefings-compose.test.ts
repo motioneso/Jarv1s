@@ -921,7 +921,7 @@ describe("composeBriefing — structured action rows", () => {
     expect(evening.structuredPayload.actionRows).toEqual(morning.structuredPayload.actionRows);
   });
 
-  it("counts only eligible linked rows and emits authored empty payload", () => {
+  it("counts cached linkless rows and omits rows without a source", () => {
     const result = projectActionRows([
       { id: "missing-source", sourceRef: null, suggestionMetadata: null },
       {
@@ -935,9 +935,9 @@ describe("composeBriefing — structured action rows", () => {
         suggestionMetadata: {
           version: 1,
           category: "needs_action",
-          sourceLabel: "Gmail",
-          sourceHref: "",
-          cacheMessageId: null,
+          sourceLabel: "IMAP",
+          sourceHref: null,
+          cacheMessageId: "cache-imap",
           subjectSignature: "sig",
           computedAt: FIXED_NOW.toISOString(),
           resurfaceReason: null
@@ -945,8 +945,13 @@ describe("composeBriefing — structured action rows", () => {
       }
     ]);
 
-    expect(result.payload).toEqual({ version: 1, actionRows: [], catchUp: null });
-    expect(result.sourceRefs).toHaveLength(0);
+    expect(result.payload.actionRows).toHaveLength(1);
+    expect(result.payload.actionRows[0]).toMatchObject({
+      taskId: "missing-link",
+      primaryAction: null,
+      sourceHref: null
+    });
+    expect(result.sourceRefs).toEqual(new Set(["acct:message"]));
   });
 
   it("builds bounded email-only catch-up from guarded summaries", async () => {

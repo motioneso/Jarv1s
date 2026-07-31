@@ -196,11 +196,7 @@ export async function runEmailMonitor(
     (item) => item.account.connectorAccountId === connectorAccountId
   );
   const actionItems = items.filter(
-    (item) =>
-      item.cacheMessageId !== null &&
-      item.sourceHref !== null &&
-      item.sourceHref.length > 0 &&
-      item.inferredSubject?.trim().length
+    (item) => item.cacheMessageId !== null && item.inferredSubject?.trim().length
   );
   const subjectSignatures = [
     ...new Set(

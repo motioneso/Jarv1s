@@ -10,7 +10,7 @@ export interface TaskSuggestionMetadataV1 {
   readonly version: 1;
   readonly category: BriefingActionCategory;
   readonly sourceLabel: string;
-  readonly sourceHref: string;
+  readonly sourceHref: string | null;
   readonly cacheMessageId: string | null;
   readonly subjectSignature: string;
   readonly computedAt: string;
@@ -23,11 +23,11 @@ export interface BriefingActionRowDto {
   readonly explanation: string;
   readonly category: BriefingActionCategory;
   readonly status: "suggested" | "accepted" | "dismissed";
-  readonly primaryAction: BriefingActionPrimaryAction;
+  readonly primaryAction: BriefingActionPrimaryAction | null;
   readonly source: string;
   readonly sourceLabel: string;
   readonly sourceRef: string;
-  readonly sourceHref: string;
+  readonly sourceHref: string | null;
   readonly dueAt: string | null;
   readonly computedAt: string;
   readonly resurfaceReason: BriefingActionResurfaceReason | null;
@@ -69,7 +69,8 @@ const primaryActionSchema = {
       additionalProperties: false,
       required: ["kind", "href"],
       properties: { kind: { type: "string", enum: ["view"] }, href: { type: "string" } }
-    }
+    },
+    { type: "null" }
   ]
 } as const;
 
@@ -90,7 +91,7 @@ export const taskSuggestionMetadataV1Schema = {
     version: { type: "integer", enum: [1] },
     category: actionCategorySchema,
     sourceLabel: { type: "string" },
-    sourceHref: { type: "string" },
+    sourceHref: { type: ["string", "null"] },
     cacheMessageId: { type: ["string", "null"] },
     subjectSignature: { type: "string" },
     computedAt: { type: "string" },
@@ -126,7 +127,7 @@ export const briefingActionRowDtoSchema = {
     source: { type: "string" },
     sourceLabel: { type: "string" },
     sourceRef: { type: "string" },
-    sourceHref: { type: "string" },
+    sourceHref: { type: ["string", "null"] },
     dueAt: { type: ["string", "null"] },
     computedAt: { type: "string" },
     resurfaceReason: resurfaceReasonSchema

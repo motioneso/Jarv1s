@@ -159,9 +159,7 @@ export function planEmailTasks(input: PlanEmailTasksInput): PlannedEmailTask[] {
       ? input.resurfaceReasons?.get(subjectSignature)
       : undefined;
     if ((suppression?.dismissalCount ?? 0) >= 2 && !resurfaceReason) continue;
-    if (item.cacheMessageId === null || item.sourceHref === null || item.sourceHref.length === 0) {
-      continue;
-    }
+    if (item.cacheMessageId === null) continue;
     const description = boundedDescription(item);
     if (description === null) continue;
 
