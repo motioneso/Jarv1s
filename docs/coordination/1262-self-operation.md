@@ -5403,3 +5403,25 @@ merge gate is two-party consensus, Tasks 6–7 lane not yet open.
 
 **Coordinator lock:** Codex session `019fb8fb-32b8-7d41-9156-d9d5c2883d30`, pane label
 `Coordinator`. This supersedes outgoing session `43e5f5e2`.
+
+### 2026-07-31 — PR #1376 fixes verified; security re-review in flight
+
+Build lane `build/1327-core` is done and clean at `9ce72e69ce9b8f1e068734433735decc8ad6d978`.
+Its fresh exclusive isolated gate (`scripts/run-gate.sh start --exclusive`) ended `### FINAL rc=0`:
+173 integration files, 1,782 passed, 2 skipped. The earlier non-exclusive run ended `rc=1` on a
+PostgreSQL concurrent-catalog update during the existing multi-user isolation reset; it was not
+counted as green. GitHub CI is fully green at the same head.
+
+The successor coordinator independently verified all five code findings: guarded email title and
+description fields, category-independent cache-ID omission, fail-closed degraded suppression reads,
+message-scoped resurfacing with same-subject replay proof, and stage-plus-error-class logging. The
+wrong-behaviour tests were corrected in the split suites rather than deleted. The Gmail flag remains
+`true`; the PR body records Ben's conclusion-only verification and the `/u/0` limitation. Coordinator
+concurs with the fixes.
+
+Fresh security re-review: label `qa-1327-core-r2`, Codex session
+`019fb92a-52f2-7131-a088-19b4d29bb7bb`, detached worktree
+`~/Jarv1s/.claude/worktrees/coord-1262/.claude/worktrees/qa-1327-core`, head `9ce72e69`, model
+`gpt-5.6-sol high`, status `reviewing`. It is following
+`docs/coordination/1327-qa-security-brief.md` verbatim and must post its durable PR verdict. Merge
+only on sol approval plus coordinator concurrence; required CI must remain green.
