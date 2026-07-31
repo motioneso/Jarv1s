@@ -14,8 +14,7 @@ import {
   type EmailContextItem,
   type EmailContextResult,
   type MonitorPreferencesPort,
-  type RunEmailMonitorDeps,
-  type TriageRejectionAggregate
+  type RunEmailMonitorDeps
 } from "@jarv1s/connectors";
 
 const DB = {} as DataContextDb;
@@ -31,18 +30,19 @@ function item(overrides: Partial<EmailContextItem> = {}): EmailContextItem {
     subject: "Budget approval needed",
     receivedAt: "2026-07-04T09:00:00.000Z",
     threadId: null,
-    sourceHref: null,
+    sourceHref: "https://mail.google.com/mail/u/0/#all/thread-1",
     snippet: null,
     summary: "Approve the Q3 budget by Friday",
     actionability: "needs_action",
     importance: "normal",
     confidence: 0.9,
     reason: "Asks you to approve the budget",
+    inferredSubject: "Budget approval",
     dueDate: null,
     suggestedTasks: [{ title: "Approve Q3 budget", dueDate: "2026-07-10T00:00:00.000Z" }],
     source: "live",
     degradedReason: null,
-    cacheMessageId: null,
+    cacheMessageId: "cache-msg-1",
     ...overrides
   };
 }
@@ -109,10 +109,7 @@ interface FakePorts {
   prefs: Map<string, unknown>;
 }
 
-function fakePorts(
-  result: EmailContextResult,
-  options: { mode?: string; aggregates?: TriageRejectionAggregate[] } = {}
-): FakePorts {
+function fakePorts(result: EmailContextResult, options: { mode?: string } = {}): FakePorts {
   const taskStore = new Map<string, { status: string; title: string }>();
   const prefs = new Map<string, unknown>();
   if (options.mode) {
@@ -126,9 +123,6 @@ function fakePorts(
   };
   const deps: RunEmailMonitorDeps = {
     sourceContext: { listEmailContext: async () => result },
-    connectorsRepository: {
-      listTriageRejectionAggregates: async () => options.aggregates ?? []
-    },
     taskPort: {
       // Dedupes on externalKey like TasksRepository.create's (source, external_key) check.
       create: async (_db, input) => {
@@ -228,22 +222,11 @@ describe("runEmailMonitor", () => {
     expect(taskStore.size).toBe(1);
   });
 
-  it("off mode creates nothing and skips the rejection-aggregate query", async () => {
-    let aggregateQueries = 0;
+  it("off mode creates nothing", async () => {
     const { deps, taskStore } = fakePorts(liveResult([item()]), { mode: "off" });
-    const deps2: RunEmailMonitorDeps = {
-      ...deps,
-      connectorsRepository: {
-        listTriageRejectionAggregates: async () => {
-          aggregateQueries += 1;
-          return [];
-        }
-      }
-    };
-    const run = await runEmailMonitor(DB, ACCOUNT, deps2);
+    const run = await runEmailMonitor(DB, ACCOUNT, deps);
     expect(run).toEqual({ planned: 0, created: 0, degraded: false });
     expect(taskStore.size).toBe(0);
-    expect(aggregateQueries).toBe(0);
   });
 
   it("an account gap plans nothing and persists a gap status — no auth-gap tasks", async () => {

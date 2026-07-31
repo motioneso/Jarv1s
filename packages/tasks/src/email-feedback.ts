@@ -5,11 +5,12 @@ import type { AccessContext, DataContextDb, DataContextRunner, Task, TaskStatus 
  * email-suggested task. Implemented by the composition root over the connectors
  * module's triage-feedback store — tasks never imports connectors (module isolation).
  */
-export interface EmailTriageFeedbackPort {
+export interface SuggestionSuppressionPort {
   record(
     scopedDb: DataContextDb,
     input: {
       readonly taskSourceRef: string | null;
+      readonly subjectSignature?: string | null;
       readonly verdict: "accepted" | "rejected";
       readonly title: string;
     }
@@ -79,3 +80,6 @@ export async function recordTriageFeedbackIfNeeded(
     );
   }
 }
+
+/** Backward-compatible name for the same composition-root port. */
+export type EmailTriageFeedbackPort = SuggestionSuppressionPort;

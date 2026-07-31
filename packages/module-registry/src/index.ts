@@ -109,6 +109,7 @@ import {
 import { TerminalRpcClient } from "@jarv1s/chat/live";
 import {
   ConnectorsRepository,
+  EmailActionSuppressionRepository,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
   GOOGLE_SYNC_SWEEP_QUEUE_DEFINITIONS,
   GoogleEmailWriteProvider,
@@ -129,7 +130,9 @@ import {
   registerGoogleSyncSweepWorker,
   registerImapSyncWorker,
   registerSourceMonitorWorkers,
+  sharesSubjectToken,
   parseEmailSourceRef,
+  type ActionRowRelevancePort,
   type EmailTaskCreationPort,
   type GoogleApiClient,
   type GoogleConnectionService
@@ -945,6 +948,7 @@ function createNotificationDigestSender(): NotificationDigestSender {
 export function createEmailTriageFeedbackPort(): EmailTriageFeedbackPort {
   const emailRepository = new EmailRepository();
   const connectorsRepository = new ConnectorsRepository();
+  const suppressionRepository = new EmailActionSuppressionRepository();
   return {
     async record(scopedDb, input) {
       const parsedRef = input.taskSourceRef ? parseEmailSourceRef(input.taskSourceRef) : null;
@@ -975,6 +979,36 @@ export function createEmailTriageFeedbackPort(): EmailTriageFeedbackPort {
         verdict: input.verdict,
         reason: null
       });
+      if (input.subjectSignature) {
+        if (input.verdict === "accepted") {
+          await suppressionRepository.resetAccepted(scopedDb, input.subjectSignature);
+        } else {
+          await suppressionRepository.incrementDismissal(scopedDb, input.subjectSignature);
+        }
+      }
+    }
+  };
+}
+
+/** Boolean-only bridge from connectors to both existing memory retrieval paths. */
+export function createActionRowRelevancePort(): ActionRowRelevancePort {
+  return {
+    async hasRelevantContext(scopedDb, input) {
+      const [vaultChunks, graphResult] = await Promise.all([
+        runtimeMemoryRetriever.retrieve(scopedDb, input.inferredSubject, 5, "vault"),
+        (async () => {
+          const provider = await createRuntimeEmbeddingProvider(scopedDb);
+          return new GraphMemoryRecallService(provider).recall(
+            scopedDb,
+            input.ownerUserId,
+            input.inferredSubject
+          );
+        })()
+      ]);
+      return (
+        graphResult.items.length > 0 ||
+        vaultChunks.some((chunk) => sharesSubjectToken(input.inferredSubject, chunk.text))
+      );
     }
   };
 }
@@ -1129,14 +1163,16 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
             priority: input.priority ?? undefined,
             source: input.source,
             sourceRef: input.sourceRef,
-            externalKey: input.externalKey
+            externalKey: input.externalKey,
+            suggestionMetadata: input.suggestionMetadata
           });
           return { id: task.id };
         }
       };
       const monitorWorkIds = await registerSourceMonitorWorkers(boss, {
         dataContext: deps.dataContext,
-        taskPort: emailTaskPort
+        taskPort: emailTaskPort,
+        actionRowRelevance: createActionRowRelevancePort()
       });
       return [...googleWorkIds, googleSweepWorkId, ...imapWorkIds, ...monitorWorkIds];
     }

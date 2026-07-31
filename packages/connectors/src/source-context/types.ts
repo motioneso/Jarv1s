@@ -72,6 +72,8 @@ export interface EmailContextItem {
   readonly importance: "low" | "normal" | "high";
   readonly confidence: number;
   readonly reason: string | null;
+  /** Guarded model-written subject used only for action-row suppression matching. */
+  readonly inferredSubject?: string | null;
   readonly dueDate: string | null;
   readonly suggestedTasks: readonly EmailSuggestedTaskCandidate[];
   readonly source: SourceMode;

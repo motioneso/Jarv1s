@@ -1,8 +1,11 @@
+import { createHash } from "node:crypto";
+
 import type { DataContextDb } from "@jarv1s/db";
 import {
   DEFAULT_EMAIL_TASK_MODE,
   EMAIL_TASK_CREATION_MODES,
   EMAIL_TASK_MODE_PREF_KEY,
+  type TaskSuggestionMetadataV1,
   parseEmailTaskMode,
   type EmailTaskCreationMode
 } from "@jarv1s/shared";
@@ -25,7 +28,6 @@ const CONFIDENCE_FLOOR = 0.4;
 const TIME_SENSITIVE_CONFIDENCE_FLOOR = 0.7;
 const AUTO_SAFE_TODO_CONFIDENCE = 0.75;
 const AUTO_TODO_CONFIDENCE = 0.6;
-const REJECTION_SKIP_THRESHOLD = 3;
 const DUE_SOON_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 export interface EmailTaskCreationPort {
@@ -40,8 +42,24 @@ export interface EmailTaskCreationPort {
       readonly source: "email";
       readonly sourceRef: string;
       readonly externalKey: string;
+      readonly suggestionMetadata?: TaskSuggestionMetadataV1;
     }
   ): Promise<{ readonly id: string }>;
+}
+
+export interface EmailActionSuppressionState {
+  readonly subjectSignature: string;
+  readonly dismissalCount: number;
+  readonly lastDeadlineEvidenceKey: string | null;
+  readonly lastContextMessageKey: string | null;
+}
+
+export type EmailActionResurfaceReason = "due_tomorrow" | "relevant_context";
+
+/** Same normalization/hash contract as memory signatures, kept local to connectors. */
+export function createEmailActionSubjectSignature(inferredSubject: string): string {
+  const normalized = inferredSubject.trim().toLowerCase().replace(/\s+/g, " ");
+  return createHash("sha256").update(`email-action-subject::${normalized}`).digest("hex");
 }
 
 /**
@@ -86,11 +104,14 @@ export function parseEmailSourceRef(
 export interface PlanEmailTasksInput {
   readonly items: readonly EmailContextItem[];
   readonly mode: EmailTaskCreationMode;
-  readonly rejectionAggregates: readonly {
+  /** Retained for callers compiled against the pre-subject planner; intentionally ignored. */
+  readonly rejectionAggregates?: readonly {
     senderDomain: string;
     rejected: number;
     accepted: number;
   }[];
+  readonly suppressionStates?: readonly EmailActionSuppressionState[];
+  readonly resurfaceReasons?: ReadonlyMap<string, EmailActionResurfaceReason>;
   /** Injected clock (ISO) — keeps the planner pure and the due-soon priority testable. */
   readonly now: string;
 }
@@ -103,6 +124,7 @@ export interface PlannedEmailTask {
   readonly priority: number | null;
   readonly sourceRef: string;
   readonly externalKey: string;
+  readonly suggestionMetadata: TaskSuggestionMetadataV1;
   readonly item: EmailContextItem;
 }
 
@@ -115,14 +137,33 @@ export function planEmailTasks(input: PlanEmailTasksInput): PlannedEmailTask[] {
   if (input.mode === "off") return [];
 
   const nowMs = Date.parse(input.now);
+  const suppressions = new Map(
+    (input.suppressionStates ?? []).map((state) => [state.subjectSignature, state])
+  );
   const planned: PlannedEmailTask[] = [];
 
   for (const item of input.items) {
     if (!isCandidateActionability(item)) continue;
     if (item.suggestedTasks.length === 0 && item.dueDate === null) continue;
 
-    const confidence = effectiveConfidence(item, input.rejectionAggregates);
-    if (confidence === null || confidence < CONFIDENCE_FLOOR) continue;
+    const confidence = item.confidence;
+    if (confidence < CONFIDENCE_FLOOR) continue;
+
+    const inferredSubject = item.inferredSubject?.trim();
+    const subjectSignature = inferredSubject
+      ? createEmailActionSubjectSignature(inferredSubject)
+      : undefined;
+    if (subjectSignature === undefined) continue;
+    const suppression = subjectSignature ? suppressions.get(subjectSignature) : undefined;
+    const resurfaceReason = subjectSignature
+      ? input.resurfaceReasons?.get(subjectSignature)
+      : undefined;
+    if ((suppression?.dismissalCount ?? 0) >= 2 && !resurfaceReason) continue;
+    if (item.cacheMessageId === null || item.sourceHref === null || item.sourceHref.length === 0) {
+      continue;
+    }
+    const description = boundedDescription(item);
+    if (description === null) continue;
 
     const candidates =
       item.suggestedTasks.length > 0
@@ -130,11 +171,22 @@ export function planEmailTasks(input: PlanEmailTasksInput): PlannedEmailTask[] {
         : [{ title: item.subject, dueDate: null }];
 
     for (const candidate of candidates) {
+      if (candidate.title.trim().length === 0) continue;
       const dueAt = candidate.dueDate ?? item.dueDate;
+      const suggestionMetadata: TaskSuggestionMetadataV1 = {
+        version: 1,
+        category: item.actionability as TaskSuggestionMetadataV1["category"],
+        sourceLabel: item.account.providerLabel,
+        sourceHref: item.sourceHref,
+        cacheMessageId: item.cacheMessageId,
+        subjectSignature,
+        computedAt: input.now,
+        resurfaceReason: resurfaceReason ?? null
+      };
       planned.push({
-        status: statusFor(input.mode, item, confidence),
+        status: resurfaceReason ? "suggested" : statusFor(input.mode, item, confidence),
         title: candidate.title,
-        description: boundedDescription(item),
+        description,
         dueAt,
         priority: priorityFor(item, dueAt, nowMs),
         sourceRef: emailSourceRef(item.account.connectorAccountId, item.messageKey),
@@ -143,6 +195,7 @@ export function planEmailTasks(input: PlanEmailTasksInput): PlannedEmailTask[] {
           item.messageKey,
           candidate.title
         ),
+        suggestionMetadata,
         item
       });
     }
@@ -157,22 +210,6 @@ function isCandidateActionability(item: EmailContextItem): boolean {
     item.actionability === "time_sensitive_info" &&
     item.confidence >= TIME_SENSITIVE_CONFIDENCE_FLOOR
   );
-}
-
-/**
- * Accept/reject learning (#729 §6): a domain the user rejected ≥3 times with zero accepts is
- * skipped outright (returns null); with some accepts its confidence is halved so it must clear
- * the floor and status thresholds on merit.
- */
-function effectiveConfidence(
-  item: EmailContextItem,
-  aggregates: PlanEmailTasksInput["rejectionAggregates"]
-): number | null {
-  const domain = item.sender.split("@").pop()?.toLowerCase() ?? "";
-  const aggregate = aggregates.find((entry) => entry.senderDomain === domain);
-  if (!aggregate || aggregate.rejected < REJECTION_SKIP_THRESHOLD) return item.confidence;
-  if (aggregate.accepted === 0) return null;
-  return item.confidence / 2;
 }
 
 function statusFor(

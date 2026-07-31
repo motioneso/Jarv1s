@@ -1,5 +1,6 @@
 export * from "./crypto.js";
 export * from "./action-suppression-repository.js";
+export * from "./action-row-relevance.js";
 export * from "./email-extract.js";
 export * from "./email-read-provider.js";
 export * from "./extract-deps.js";

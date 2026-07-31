@@ -4,14 +4,21 @@ import type { ActorScopedJobPayload, QueueDefinition } from "@jarv1s/jobs";
 import { registerDataContextWorker } from "@jarv1s/jobs";
 import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
 import { PreferencesRepository } from "@jarv1s/structured-state";
+import { localDay } from "@jarv1s/shared";
 
-import { ConnectorsRepository, type TriageRejectionAggregate } from "./repository.js";
+import { EmailActionSuppressionRepository } from "./action-suppression-repository.js";
+import {
+  createEmailActionSubjectSignature,
+  type EmailActionSuppressionState
+} from "./source-context/email-tasks.js";
+import type { ActionRowRelevancePort } from "./action-row-relevance.js";
 import {
   EMAIL_TASK_MODE_PREF_KEY,
   parseEmailTaskMode,
   planEmailTasks,
   type EmailTaskCreationPort
 } from "./source-context/email-tasks.js";
+import type { EmailContextItem } from "./source-context/types.js";
 import { buildRuntimeSourceContextService } from "./source-context/runtime.js";
 import type { SourceContextService } from "./source-context/types.js";
 import type { SyncLogger } from "./sync-jobs.js";
@@ -88,13 +95,56 @@ async function persistMonitorStatus(
 
 export interface RunEmailMonitorDeps {
   readonly sourceContext: Pick<SourceContextService, "listEmailContext">;
-  readonly connectorsRepository: {
-    listTriageRejectionAggregates(scopedDb: DataContextDb): Promise<TriageRejectionAggregate[]>;
-  };
   readonly taskPort: EmailTaskCreationPort;
   readonly preferencesRepository: MonitorPreferencesPort;
+  readonly suppressionRepository?: Pick<
+    EmailActionSuppressionRepository,
+    "list" | "recordContextEvidence" | "recordDeadlineEvidence"
+  >;
+  readonly actionRowRelevance?: ActionRowRelevancePort;
+  readonly actorUserId?: string;
   readonly now?: () => Date;
   readonly logger?: SyncLogger;
+}
+
+function subjectSignatureFor(item: EmailContextItem): string | undefined {
+  const subject = item.inferredSubject?.trim();
+  return subject ? createEmailActionSubjectSignature(subject) : undefined;
+}
+
+function localTomorrow(now: string, timeZone: string): string | null {
+  const today = localDay(new Date(now), timeZone);
+  const [year, month, day] = today.split("-").map(Number);
+  if (year === undefined || month === undefined || day === undefined) return null;
+  if (![year, month, day].every(Number.isFinite)) return null;
+  return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+}
+
+function parseMonitorTimeZone(value: unknown): string {
+  const candidate =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>).timezone
+      : undefined;
+  if (typeof candidate !== "string" || candidate.trim().length === 0) {
+    return "America/Los_Angeles";
+  }
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format(0);
+    return candidate;
+  } catch {
+    return "America/Los_Angeles";
+  }
+}
+
+function hasDueTomorrow(item: EmailContextItem, now: string, timeZone: string): string | null {
+  const tomorrow = localTomorrow(now, timeZone);
+  if (tomorrow === null) return null;
+  const dueDates = [
+    ...item.suggestedTasks.map((candidate) => candidate.dueDate),
+    item.dueDate
+  ].filter((value): value is string => value !== null);
+  const dueAt = dueDates.find((value) => localDay(new Date(value), timeZone) === tomorrow);
+  return dueAt ? `deadline:${dueAt}` : null;
 }
 
 /**
@@ -145,11 +195,74 @@ export async function runEmailMonitor(
   const items = result.items.filter(
     (item) => item.account.connectorAccountId === connectorAccountId
   );
-  const rejectionAggregates =
-    mode === "off" ? [] : await deps.connectorsRepository.listTriageRejectionAggregates(scopedDb);
-  const planned = planEmailTasks({ items, mode, rejectionAggregates, now: nowIso });
+  const actionItems = items.filter(
+    (item) =>
+      item.cacheMessageId !== null &&
+      item.sourceHref !== null &&
+      item.sourceHref.length > 0 &&
+      item.inferredSubject?.trim().length
+  );
+  const subjectSignatures = [
+    ...new Set(
+      actionItems.map(subjectSignatureFor).filter((value): value is string => value !== undefined)
+    )
+  ];
+  const suppressionRows = deps.suppressionRepository
+    ? await deps.suppressionRepository.list(scopedDb, subjectSignatures)
+    : [];
+  const suppressionStates: EmailActionSuppressionState[] = [...suppressionRows];
+  const suppressionBySignature = new Map(
+    suppressionStates.map((state) => [state.subjectSignature, state])
+  );
+  const resurfaceReasons = new Map<string, "due_tomorrow" | "relevant_context">();
+  const actorTimeZone = parseMonitorTimeZone(
+    await deps.preferencesRepository.get(scopedDb, "locale")
+  );
+
+  for (const item of actionItems) {
+    const signature = subjectSignatureFor(item);
+    const state = signature ? suppressionBySignature.get(signature) : undefined;
+    if (!signature || !state || state.dismissalCount < 2) continue;
+
+    const deadlineKey = hasDueTomorrow(item, nowIso, actorTimeZone);
+    if (deadlineKey !== null && deadlineKey !== state.lastDeadlineEvidenceKey) {
+      resurfaceReasons.set(signature, "due_tomorrow");
+      continue;
+    }
+
+    const contextKey = `${item.account.connectorAccountId}:${item.messageKey}`;
+    if (item.source !== "live" || contextKey === state.lastContextMessageKey) continue;
+    let relevant = false;
+    try {
+      relevant =
+        deps.actionRowRelevance !== undefined && deps.actorUserId !== undefined
+          ? await deps.actionRowRelevance.hasRelevantContext(scopedDb, {
+              ownerUserId: deps.actorUserId,
+              inferredSubject: item.inferredSubject ?? ""
+            })
+          : false;
+    } catch (error) {
+      logger.warn(
+        { stage: "action-row-relevance", name: (error as Error).name },
+        "email monitor relevance check failed"
+      );
+    }
+    if (deps.suppressionRepository) {
+      await deps.suppressionRepository.recordContextEvidence(scopedDb, signature, contextKey);
+    }
+    if (relevant) resurfaceReasons.set(signature, "relevant_context");
+  }
+
+  const planned = planEmailTasks({
+    items: actionItems,
+    mode,
+    suppressionStates,
+    resurfaceReasons,
+    now: nowIso
+  });
 
   let created = 0;
+  const deadlineEvidenceToRecord = new Set<string>();
   for (const task of planned) {
     try {
       await deps.taskPort.create(scopedDb, {
@@ -160,14 +273,33 @@ export async function runEmailMonitor(
         priority: task.priority,
         source: "email",
         sourceRef: task.sourceRef,
-        externalKey: task.externalKey
+        externalKey: task.externalKey,
+        suggestionMetadata: task.suggestionMetadata
       });
       created += 1;
+      if (task.suggestionMetadata.resurfaceReason === "due_tomorrow") {
+        deadlineEvidenceToRecord.add(
+          `${task.suggestionMetadata.subjectSignature}:${task.dueAt ?? ""}`
+        );
+      }
     } catch (error) {
       // Sanitized: never the task title or error message (may echo subject lines).
       logger.warn(
         { stage: "task-create", name: (error as Error).name },
         "email-monitor task create failed"
+      );
+    }
+  }
+
+  if (deps.suppressionRepository) {
+    for (const evidence of deadlineEvidenceToRecord) {
+      const separator = evidence.indexOf(":");
+      const signature = evidence.slice(0, separator);
+      const dueAt = evidence.slice(separator + 1);
+      await deps.suppressionRepository.recordDeadlineEvidence(
+        scopedDb,
+        signature,
+        `deadline:${dueAt}`
       );
     }
   }
@@ -227,6 +359,7 @@ export interface RegisterSourceMonitorWorkersDeps {
   readonly dataContext: DataContextRunner;
   /** Structural task-creation port — connectors never imports the tasks module. */
   readonly taskPort: EmailTaskCreationPort;
+  readonly actionRowRelevance?: ActionRowRelevancePort;
   readonly workOptions?: WorkOptions;
   readonly logger?: SyncLogger;
 }
@@ -235,7 +368,7 @@ export async function registerSourceMonitorWorkers(
   boss: PgBoss,
   deps: RegisterSourceMonitorWorkersDeps
 ): Promise<string[]> {
-  const connectorsRepository = new ConnectorsRepository();
+  const suppressionRepository = new EmailActionSuppressionRepository();
   const preferencesRepository = new PreferencesRepository();
   const sourceContext = buildRuntimeSourceContextService({ logger: deps.logger });
 
@@ -246,9 +379,11 @@ export async function registerSourceMonitorWorkers(
     (job, scopedDb) =>
       runEmailMonitor(scopedDb, job.data.connectorAccountId, {
         sourceContext,
-        connectorsRepository,
         taskPort: deps.taskPort,
         preferencesRepository,
+        suppressionRepository,
+        actionRowRelevance: deps.actionRowRelevance,
+        actorUserId: job.data.actorUserId,
         logger: deps.logger
       }),
     deps.workOptions

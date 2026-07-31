@@ -1,16 +1,24 @@
 import { describe, expect, it } from "vitest";
 
+import type { DataContextDb } from "@jarv1s/db";
 import {
   DEFAULT_EMAIL_TASK_MODE,
+  createEmailActionSubjectSignature,
+  resetAcceptedSuppression,
   emailSourceRef,
   emailTaskExternalKey,
   parseEmailSourceRef,
   parseEmailTaskMode,
   planEmailTasks,
-  type EmailContextItem
+  runEmailMonitor,
+  type MonitorPreferencesPort,
+  type RunEmailMonitorDeps,
+  type EmailContextItem,
+  type EmailActionSuppressionSnapshot
 } from "@jarv1s/connectors";
 
 const NOW = "2026-07-04T12:00:00.000Z";
+const DB = {} as DataContextDb;
 
 function item(overrides: Partial<EmailContextItem> = {}): EmailContextItem {
   return {
@@ -21,18 +29,19 @@ function item(overrides: Partial<EmailContextItem> = {}): EmailContextItem {
     subject: "Budget approval needed",
     receivedAt: "2026-07-04T09:00:00.000Z",
     threadId: null,
-    sourceHref: null,
+    sourceHref: "https://mail.google.com/mail/u/0/#all/thread-1",
     snippet: null,
     summary: "Approve the Q3 budget by Friday",
     actionability: "needs_action",
     importance: "normal",
     confidence: 0.9,
     reason: "Asks you to approve the budget",
+    inferredSubject: "Budget approval",
     dueDate: null,
     suggestedTasks: [{ title: "Approve Q3 budget", dueDate: "2026-07-10T00:00:00.000Z" }],
     source: "live",
     degradedReason: null,
-    cacheMessageId: null,
+    cacheMessageId: "cache-msg-1",
     ...overrides
   };
 }
@@ -40,9 +49,10 @@ function item(overrides: Partial<EmailContextItem> = {}): EmailContextItem {
 function plan(
   items: EmailContextItem[],
   mode: Parameters<typeof planEmailTasks>[0]["mode"],
-  rejectionAggregates: Parameters<typeof planEmailTasks>[0]["rejectionAggregates"] = []
+  rejectionAggregates: Parameters<typeof planEmailTasks>[0]["rejectionAggregates"] = [],
+  extras: Pick<Parameters<typeof planEmailTasks>[0], "suppressionStates" | "resurfaceReasons"> = {}
 ) {
-  return planEmailTasks({ items, mode, rejectionAggregates, now: NOW });
+  return planEmailTasks({ items, mode, rejectionAggregates, now: NOW, ...extras });
 }
 
 describe("parseEmailTaskMode", () => {
@@ -189,31 +199,177 @@ describe("planEmailTasks — candidate selection", () => {
   });
 });
 
-describe("planEmailTasks — rejection-domain learning", () => {
-  it("skips domains with >=3 rejections and no accepts", () => {
-    const planned = plan([item({ sender: "billing@noisy.example" })], "suggest", [
-      { senderDomain: "noisy.example", rejected: 3, accepted: 0 }
+describe("planEmailTasks — sender volume", () => {
+  it("never hides or demotes a candidate because of sender-domain volume", () => {
+    const planned = plan([item({ sender: "a@noisy.example", confidence: 0.9 })], "auto", [
+      { senderDomain: "noisy.example", rejected: 99, accepted: 0 }
     ]);
-    expect(planned).toEqual([]);
+    expect(planned).toHaveLength(1);
+    expect(planned[0]?.status).toBe("todo");
+  });
+});
+
+describe("planEmailTasks — subject suppression", () => {
+  it("suppresses exact subject after two dismissals and ignores volume", () => {
+    const signature = createEmailActionSubjectSignature("Budget approval");
+    expect(
+      plan(
+        [item({ sender: "alerts.noisy.example@example.com" })],
+        "suggest",
+        [{ senderDomain: "example.com", rejected: 99, accepted: 0 }],
+        {
+          suppressionStates: [
+            {
+              subjectSignature: signature,
+              dismissalCount: 2,
+              lastDeadlineEvidenceKey: null,
+              lastContextMessageKey: null
+            }
+          ]
+        }
+      )
+    ).toEqual([]);
   });
 
-  it("halves effective confidence for domains with >=3 rejections but some accepts", () => {
-    const aggregates = [{ senderDomain: "mixed.example", rejected: 4, accepted: 1 }];
-    // 0.9 → 0.45: still planned, but below the auto todo threshold (0.6) → suggested.
-    const demoted = plan(
-      [item({ sender: "a@mixed.example", confidence: 0.9 })],
-      "auto",
-      aggregates
-    );
-    expect(demoted).toHaveLength(1);
-    expect(demoted[0]?.status).toBe("suggested");
-    // 0.7 → 0.35: below the 0.4 floor → dropped entirely.
-    const dropped = plan(
-      [item({ sender: "a@mixed.example", messageKey: "msg-2", confidence: 0.7 })],
-      "auto",
-      aggregates
-    );
-    expect(dropped).toEqual([]);
+  it("resurfaces once for new due-tomorrow evidence", () => {
+    const signature = createEmailActionSubjectSignature("Budget approval");
+    const planned = plan([item()], "suggest", [], {
+      suppressionStates: [
+        {
+          subjectSignature: signature,
+          dismissalCount: 2,
+          lastDeadlineEvidenceKey: null,
+          lastContextMessageKey: null
+        }
+      ],
+      resurfaceReasons: new Map([[signature, "due_tomorrow"]])
+    });
+    expect(planned).toHaveLength(1);
+    expect(planned[0]?.suggestionMetadata.resurfaceReason).toBe("due_tomorrow");
+  });
+
+  it("resurfaces relevant context only when the monitor supplies a boolean match", () => {
+    const signature = createEmailActionSubjectSignature("Budget approval");
+    const planned = plan([item({ messageKey: "new-message" })], "suggest", [], {
+      suppressionStates: [
+        {
+          subjectSignature: signature,
+          dismissalCount: 2,
+          lastDeadlineEvidenceKey: "deadline:2026-07-10T00:00:00.000Z",
+          lastContextMessageKey: null
+        }
+      ],
+      resurfaceReasons: new Map([[signature, "relevant_context"]])
+    });
+    expect(planned[0]?.suggestionMetadata.resurfaceReason).toBe("relevant_context");
+  });
+});
+
+it("accept clears the subject dismissal count and used evidence keys", () => {
+  expect(
+    resetAcceptedSuppression({
+      dismissal_count: 2,
+      last_deadline_evidence_key: "deadline:tomorrow",
+      last_context_message_key: "acct-1:message-1"
+    })
+  ).toEqual({
+    dismissal_count: 0,
+    last_deadline_evidence_key: null,
+    last_context_message_key: null
+  });
+});
+
+describe("runEmailMonitor — relevance evidence", () => {
+  it("resurfaces once for new due-tomorrow evidence", async () => {
+    const signature = createEmailActionSubjectSignature("Budget approval");
+    const suppression: EmailActionSuppressionSnapshot = {
+      subjectSignature: signature,
+      dismissalCount: 2,
+      lastDeadlineEvidenceKey: null,
+      lastContextMessageKey: null
+    };
+    let lastDeadlineEvidenceKey = suppression.lastDeadlineEvidenceKey;
+    const preferences: MonitorPreferencesPort = {
+      get: async () => null,
+      upsert: async () => undefined
+    };
+    const deps: RunEmailMonitorDeps = {
+      sourceContext: {
+        listEmailContext: async () => ({
+          items: [
+            item({
+              dueDate: "2026-07-05T12:00:00.000Z",
+              suggestedTasks: [{ title: "Approve Q3 budget", dueDate: null }]
+            })
+          ],
+          accounts: [],
+          gaps: []
+        })
+      },
+      taskPort: { create: async () => ({ id: "task" }) },
+      preferencesRepository: preferences,
+      suppressionRepository: {
+        list: async () => [{ ...suppression, lastDeadlineEvidenceKey }],
+        recordContextEvidence: async () => undefined,
+        recordDeadlineEvidence: async (_db, _signature, key) => {
+          lastDeadlineEvidenceKey = key;
+        }
+      },
+      actionRowRelevance: {
+        hasRelevantContext: async () => {
+          throw new Error("must not query context when deadline evidence is unused");
+        }
+      },
+      actorUserId: "user-1",
+      now: () => new Date(NOW)
+    };
+
+    expect(await runEmailMonitor(DB, "acct-1", deps)).toMatchObject({ planned: 1 });
+    expect(lastDeadlineEvidenceKey).toBe("deadline:2026-07-05T12:00:00.000Z");
+    expect(await runEmailMonitor(DB, "acct-1", deps)).toMatchObject({ planned: 0 });
+  });
+
+  it("evaluates relevance only for a new message and fails closed", async () => {
+    const suppression: EmailActionSuppressionSnapshot = {
+      subjectSignature: createEmailActionSubjectSignature("Budget approval"),
+      dismissalCount: 2,
+      lastDeadlineEvidenceKey: "deadline:2026-07-01T00:00:00.000Z",
+      lastContextMessageKey: null
+    };
+    let relevanceCalls = 0;
+    let lastContextKey: string | null = null;
+    const preferences: MonitorPreferencesPort = {
+      get: async () => null,
+      upsert: async () => undefined
+    };
+    const deps: RunEmailMonitorDeps = {
+      sourceContext: {
+        listEmailContext: async () => ({ items: [item()], accounts: [], gaps: [] })
+      },
+      taskPort: { create: async () => ({ id: "task" }) },
+      preferencesRepository: preferences,
+      suppressionRepository: {
+        list: async () => [{ ...suppression, lastContextMessageKey: lastContextKey }],
+        recordContextEvidence: async (_db, _signature, key) => {
+          lastContextKey = key;
+        },
+        recordDeadlineEvidence: async () => undefined
+      },
+      actionRowRelevance: {
+        hasRelevantContext: async () => {
+          relevanceCalls += 1;
+          throw new Error("retrieval unavailable");
+        }
+      },
+      actorUserId: "user-1",
+      now: () => new Date(NOW)
+    };
+
+    expect(await runEmailMonitor(DB, "acct-1", deps)).toMatchObject({ planned: 0 });
+    expect(relevanceCalls).toBe(1);
+    expect(lastContextKey).toBe("acct-1:msg-1");
+    expect(await runEmailMonitor(DB, "acct-1", deps)).toMatchObject({ planned: 0 });
+    expect(relevanceCalls).toBe(1);
   });
 });
 

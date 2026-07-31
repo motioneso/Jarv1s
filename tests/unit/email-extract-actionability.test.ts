@@ -141,4 +141,52 @@ describe("email actionability triage", () => {
       MAX_SIGNAL_STR_CHARS
     );
   });
+
+  it("guards inferred subject against body echo and reconstruction", async () => {
+    const body = "A".repeat(240) + " B".repeat(120);
+    const longSlice = body.slice(0, 220);
+    const wrapped = `Subject summary: ${longSlice}`;
+    const exact = await extractEmailSignals(
+      parsedEmail({ body }),
+      depsReturning({
+        ...BASE_REPLY,
+        actionability: { category: "needs_action", inferredSubject: body }
+      })
+    );
+    expect(exact.signals.actionability?.inferredSubject).toBeUndefined();
+
+    const long = await extractEmailSignals(
+      parsedEmail({ body }),
+      depsReturning({
+        ...BASE_REPLY,
+        actionability: { category: "needs_action", inferredSubject: longSlice }
+      })
+    );
+    expect(long.signals.actionability?.inferredSubject).toBeUndefined();
+
+    const wrappedResult = await extractEmailSignals(
+      parsedEmail({ body }),
+      depsReturning({
+        ...BASE_REPLY,
+        actionability: { category: "needs_action", inferredSubject: wrapped }
+      })
+    );
+    expect(wrappedResult.signals.actionability?.inferredSubject).toBeUndefined();
+
+    const reconstructionBody = Array.from({ length: 24 }, (_, index) => `chunk-${index}`).join(" ");
+    const chunks = reconstructionBody.split(" ");
+    const reconstructed = await extractEmailSignals(
+      parsedEmail({ body: reconstructionBody }),
+      depsReturning({
+        ...BASE_REPLY,
+        actionability: {
+          category: "needs_action",
+          inferredSubject: chunks[0],
+          reason: chunks[1],
+          suggestedTasks: chunks.slice(2).map((text) => ({ text }))
+        }
+      })
+    );
+    expect(reconstructed.signals.actionability).toEqual({ category: "needs_action" });
+  });
 });
