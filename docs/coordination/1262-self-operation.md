@@ -5502,3 +5502,9 @@ longer reaches the shared route logger and the signed-task transaction still rol
 unpiped exclusive full gate ended with exact `### FINAL rc=0`: 173 files passed, 1,785 tests passed,
 2 skipped; branch and origin match with a clean tree. GitHub's foundation check is still running.
 Spawn fresh sol-high QA only after all required PR checks are green.
+
+All required PR checks later completed green. Fresh security re-review is in flight in detached
+worktree `~/Jarv1s/.claude/worktrees/qa-1327-core` at exact head `3747c626`, using `gpt-5.6-sol
+high`, Codex session `019fb993-5679-72a2-a173-e4dd0a2f6cee`. It was instructed to execute
+`docs/coordination/1327-qa-security-brief.md` verbatim, preserve the durable blocker-1 ruling, post
+its verdict to PR #1376, and return only the compact verdict pointer to `Coordinator`.
