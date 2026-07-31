@@ -5,6 +5,16 @@ current.
 
 _Last updated: 2026-07-31, during issue #1327 coordination._
 
+## 10. #1327 PR #1379 needs an authenticated live-path pass
+
+Tasks 6–7 are code-complete with every automated gate green, but the required real live-path proof
+cannot cross the real Sign in gate without Ben's authenticated session and existing briefing data.
+The branch frontend successfully reached the real dev API; the agent stopped rather than guess
+credentials or fabricate rows. When Ben is ready, the coordinator can restart the branch frontend
+and provide the `/today` URL. The pass must record morning/evening prose and rows plus
+Accept/Dismiss/View/Reply→existing confirmation, catch-up, and allowed resurfacing with
+screenshots/video on PR #1379. No artifact means no sol-high QA and no merge.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged

@@ -5639,3 +5639,27 @@ paths intentionally excluded are `.claude/context-meter.log` and untracked relay
 session `019fba1b-72cc-7e73-a143-2be9edb4fe89` is now building Task 7 only: e2e proof, required
 gates, PR, and real live-path artifact. Missing live credentials/data may yield code-complete,
 unverified; no waiver or fabricated proof.
+
+### 2026-07-31 — Tasks 6–7 code-complete, live-path blocked
+
+Task 7 committed as `cbbaa88c42414279f66608f1845493d2ad19da7b`; draft PR #1379 is open at
+<https://github.com/motioneso/Jarv1s/pull/1379>. Evidence: focused Task 7 e2e 1/1 exit 0
+(preceded by expected RED); full e2e 91 passed / 22 skipped exit 0; full unit 461 files / 3,524
+passed / 2 skipped exit 0; lint, format, typecheck, file-size, cached diff check, commit, and push
+all exit 0. Shared mock helpers were unchanged. A real branch frontend reached the real dev API,
+but fresh Firefox stopped at the real Sign in gate; no authenticated briefing data or credentials
+were available. PR body/comment records `code-complete, unverified` plus local blocker artifacts.
+`AWAITING-BEN.md` item 10 now gates the lane. Do not spawn final sol-high security QA or merge until
+Ben's authenticated live-path artifact is posted.
+
+### 2026-07-31 — coordinator relay at authenticated-live-pass gate
+
+Compaction tripwire fired, so coordinator session `019fb9d9-8e73-7422-b7ff-67a7a5de94ec` is
+relaying before QA or merge. The only #1327 fleet pane to re-adopt is retained build session
+`019fba1b-72cc-7e73-a143-2be9edb4fe89` in worktree `~/Jarv1s/.claude/worktrees/1327-action-row-ui`
+on branch `build/1327-action-row-ui`; its code-complete draft is PR #1379. The successor must claim
+the `Coordinator` label with its own immutable session id, verify exactly one active Coordinator,
+then resolve and reap this old coordinator fresh from the old session id (never a written pane
+number). Lead the next Ben report with `AWAITING-BEN.md` item 10 and offer to restart the branch
+frontend for his authenticated `/today` pass. No live-path artifact means no final sol-high QA and
+no merge.
