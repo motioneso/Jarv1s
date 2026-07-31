@@ -5284,3 +5284,37 @@ call site, and record it as a known limitation in the PR body.
 
 **Lane risk:** the core agent is at ~10% context. If it degrades mid-fix, hand the lane to a fresh
 agent rather than let it thrash.
+
+### 2026-07-30 — linkless email rows kept (Ben's ruling)
+
+Ben ruled that a briefing action row without a provider source link must still be shown:
+_"Just show the content w/o a link rather than no content at all."_ The spec previously dropped
+those candidates, which meant IMAP contributed zero rows.
+
+Split into two rules: **missing `cacheMessageId` still omits** the row (nothing could act on it);
+**missing source link keeps and counts** the row and renders no **View** control. `email.draftReply`
+takes `{ cacheMessageId, body }` and never needs a URL, so a linkless row stays fully actionable via
+Reply, Accept and Dismiss.
+
+Ben then asked whether a generic scheme would do instead. Answered no, and recorded the reasoning in
+spec §11: `mailto:` composes a new message rather than opening the thread (actively misleading under
+a **View** label), `imap://` (RFC 5092) has effectively no registered desktop handler and would need
+folder + UID + host we do not persist, and `message:` is Apple Mail on macOS only.
+
+- Spec amendment: **PR #1377, merged** (`c591a8f9`). `sourceHref` is `string | null` on both
+  interfaces; `primaryAction` is nullable for a view-category row with no link.
+- Follow-up filed: **#1378** — per-account webmail base URL for email source links,
+  `enhancement`+`needs-spec`, depends on #1327 landing. Not started, needs its own spec.
+- Relayed to the core lane (`w1:p14Y`, queued behind the file-size split and the
+  `GMAIL_ACTION_LINKS_ENABLED` flip): drop the `sourceHref` clauses from exactly two conditionals —
+  `packages/connectors/src/source-context/email-tasks.ts` (~:162) and
+  `packages/connectors/src/monitor-jobs.ts` (~:201-202) — keep the `cacheMessageId` requirement, add
+  the two tests, stay on `build/1327-core` / PR #1376. **The link builder is unchanged**: google
+  without thread metadata → null, IMAP → null. Only the drop-the-row behaviour changed.
+
+The View-control half (don't render **View** when `sourceHref` is null) belongs to the Tasks 6–7
+lane, which opens after #1371 lands.
+
+**Continuation note:** waiting on the core lane to report `DONE-IMAP` plus the file-size split and
+the Gmail flag flip on PR #1376. #1376 is `security` tier — Opus adversarial QA, posted `gh pr
+comment` verdict, and Ben's explicit merge sign-off before any merge.
