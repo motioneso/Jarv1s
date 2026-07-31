@@ -18,7 +18,8 @@ import { ChatControlsProvider } from "../../apps/web/src/shell/chat-controls-con
 import {
   deriveTodayMode,
   latestEveningRunForToday,
-  scheduleTodayModeRefresh
+  scheduleTodayModeRefresh,
+  selectActionRowsRun
 } from "../../apps/web/src/today/evening-mode.js";
 import { TodayPage } from "../../apps/web/src/today/today-page.js";
 
@@ -97,6 +98,18 @@ describe("scheduleTodayModeRefresh", () => {
     expect(deriveTodayMode(definition, locale, renderedNow)).toBe("evening");
 
     stop();
+  });
+});
+
+describe("selectActionRowsRun", () => {
+  it("day selects morning payload and evening selects outstanding evening payload", () => {
+    const morningRun = briefingRun({ id: "morning-run" });
+    const eveningRun = briefingRun({ id: "evening-run" });
+
+    expect(selectActionRowsRun("day", morningRun, eveningRun)).toBe(morningRun);
+    expect(selectActionRowsRun("evening", morningRun, eveningRun)).toBe(eveningRun);
+    expect(selectActionRowsRun("day", null, eveningRun)).toBeNull();
+    expect(selectActionRowsRun("evening", morningRun, null)).toBeNull();
   });
 });
 
@@ -251,6 +264,7 @@ function briefingRun(overrides: Partial<BriefingRunDto> = {}): BriefingRunDto {
     summaryText: "Evening summary",
     sourceMetadata: {},
     feedbackItems: [],
+    structuredPayload: { version: 1, actionRows: [], catchUp: null },
     createdAt: "2026-06-30T02:15:00.000Z",
     ...overrides
   };
