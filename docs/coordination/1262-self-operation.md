@@ -5685,3 +5685,13 @@ retained lane restarted only Vite on port 5198 with `JARVIS_API_PROXY_TARGET=htt
 Use <http://100.64.98.99:5198/today>: `/today` returns HTTP 200, and a tailnet-origin email sign-in
 reaches credential validation (`401 INVALID_EMAIL_OR_PASSWORD`) instead of origin rejection. The
 live-evidence, final-QA, and merge gates are unchanged.
+
+### 2026-07-31 — authenticated pass RED; lane reopened
+
+Ben's authenticated screenshot showed `/today` rendering correctly but `Needs you` remaining at
+`Checking what needs you…`; it was still stuck after a refresh. Root cause: day mode disables
+`morningRunsQuery` when no enabled morning definition exists, but derives `actionRowsLoading` from
+that disabled query's `isPending`, which remains true while fetch status is idle. Retained build
+session `019fba1b-72cc-7e73-a143-2be9edb4fe89` is reopened for the shared loading-state fix, one
+focused regression test, commit/push, and port-5198 restart. No final QA or merge before Ben retries
+the fixed live path and posts the full evidence artifact.

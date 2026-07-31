@@ -14,6 +14,11 @@ tailnet URL <http://100.64.98.99:5198/today>. The pass must record morning/eveni
 Accept/Dismiss/View/Reply→existing confirmation, catch-up, and allowed resurfacing with
 screenshots/video on PR #1379. No artifact means no sol-high QA and no merge.
 
+The first authenticated pass is **RED**: `Needs you` remains at `Checking what needs you…`
+indefinitely when the morning briefing is absent or disabled. The #1327 lane is reopened on the
+root loading-state defect and a focused regression test. Ben does not need to retry until the branch
+frontend is restarted with that fix.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged
