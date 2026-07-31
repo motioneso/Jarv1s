@@ -1,8 +1,11 @@
+import { createHash } from "node:crypto";
+
 import type { DataContextDb } from "@jarv1s/db";
 import {
   DEFAULT_EMAIL_TASK_MODE,
   EMAIL_TASK_CREATION_MODES,
   EMAIL_TASK_MODE_PREF_KEY,
+  type TaskSuggestionMetadataV1,
   parseEmailTaskMode,
   type EmailTaskCreationMode
 } from "@jarv1s/shared";
@@ -25,8 +28,8 @@ const CONFIDENCE_FLOOR = 0.4;
 const TIME_SENSITIVE_CONFIDENCE_FLOOR = 0.7;
 const AUTO_SAFE_TODO_CONFIDENCE = 0.75;
 const AUTO_TODO_CONFIDENCE = 0.6;
-const REJECTION_SKIP_THRESHOLD = 3;
 const DUE_SOON_WINDOW_MS = 48 * 60 * 60 * 1000;
+const DEFAULT_EMAIL_TASK_DESCRIPTION = "This email may need your attention.";
 
 export interface EmailTaskCreationPort {
   create(
@@ -40,8 +43,31 @@ export interface EmailTaskCreationPort {
       readonly source: "email";
       readonly sourceRef: string;
       readonly externalKey: string;
+      readonly suggestionMetadata?: TaskSuggestionMetadataV1;
     }
   ): Promise<{ readonly id: string }>;
+}
+
+export interface EmailActionSuppressionState {
+  readonly subjectSignature: string;
+  readonly dismissalCount: number;
+  readonly lastDeadlineEvidenceKey: string | null;
+  readonly lastContextMessageKey: string | null;
+  readonly deadlineEvidenceKeys: readonly string[];
+  readonly contextMessageKeys: readonly string[];
+}
+
+export type EmailActionResurfaceReason = "due_tomorrow" | "relevant_context";
+
+/** Same normalization/hash contract as memory signatures, kept local to connectors. */
+export function createEmailActionSubjectSignature(inferredSubject: string): string {
+  const normalized = inferredSubject.trim().toLowerCase().replace(/\s+/g, " ");
+  return createHash("sha256").update(`email-action-subject::${normalized}`).digest("hex");
+}
+
+/** Resurfacing is evidence for one cached message, never every message sharing a subject. */
+export function emailActionResurfaceKey(subjectSignature: string, messageKey: string): string {
+  return `${subjectSignature}:${messageKey}`;
 }
 
 /**
@@ -86,11 +112,15 @@ export function parseEmailSourceRef(
 export interface PlanEmailTasksInput {
   readonly items: readonly EmailContextItem[];
   readonly mode: EmailTaskCreationMode;
-  readonly rejectionAggregates: readonly {
+  /** Retained for callers compiled against the pre-subject planner; intentionally ignored. */
+  readonly rejectionAggregates?: readonly {
     senderDomain: string;
     rejected: number;
     accepted: number;
   }[];
+  readonly suppressionStates?: readonly EmailActionSuppressionState[];
+  /** Keys are emailActionResurfaceKey(subjectSignature, messageKey). */
+  readonly resurfaceReasons?: ReadonlyMap<string, EmailActionResurfaceReason>;
   /** Injected clock (ISO) — keeps the planner pure and the due-soon priority testable. */
   readonly now: string;
 }
@@ -103,6 +133,7 @@ export interface PlannedEmailTask {
   readonly priority: number | null;
   readonly sourceRef: string;
   readonly externalKey: string;
+  readonly suggestionMetadata: TaskSuggestionMetadataV1;
   readonly item: EmailContextItem;
 }
 
@@ -115,26 +146,50 @@ export function planEmailTasks(input: PlanEmailTasksInput): PlannedEmailTask[] {
   if (input.mode === "off") return [];
 
   const nowMs = Date.parse(input.now);
+  const suppressions = new Map(
+    (input.suppressionStates ?? []).map((state) => [state.subjectSignature, state])
+  );
   const planned: PlannedEmailTask[] = [];
 
   for (const item of input.items) {
     if (!isCandidateActionability(item)) continue;
-    if (item.suggestedTasks.length === 0 && item.dueDate === null) continue;
+    if (item.suggestedTasks.length === 0) continue;
 
-    const confidence = effectiveConfidence(item, input.rejectionAggregates);
-    if (confidence === null || confidence < CONFIDENCE_FLOOR) continue;
+    const confidence = item.confidence;
+    if (confidence < CONFIDENCE_FLOOR) continue;
 
-    const candidates =
-      item.suggestedTasks.length > 0
-        ? item.suggestedTasks
-        : [{ title: item.subject, dueDate: null }];
+    const inferredSubject = item.inferredSubject?.trim();
+    const subjectSignature = inferredSubject
+      ? createEmailActionSubjectSignature(inferredSubject)
+      : undefined;
+    if (subjectSignature === undefined) continue;
+    const suppression = subjectSignature ? suppressions.get(subjectSignature) : undefined;
+    const resurfaceReason = subjectSignature
+      ? input.resurfaceReasons?.get(emailActionResurfaceKey(subjectSignature, item.messageKey))
+      : undefined;
+    if ((suppression?.dismissalCount ?? 0) >= 2 && !resurfaceReason) continue;
+    if (item.cacheMessageId === null) continue;
+    const description = boundedDescription(item);
+    if (description === null) continue;
+    const candidates = item.suggestedTasks;
 
     for (const candidate of candidates) {
+      if (candidate.title.trim().length === 0) continue;
       const dueAt = candidate.dueDate ?? item.dueDate;
+      const suggestionMetadata: TaskSuggestionMetadataV1 = {
+        version: 1,
+        category: item.actionability as TaskSuggestionMetadataV1["category"],
+        sourceLabel: item.account.providerLabel,
+        sourceHref: item.sourceHref,
+        cacheMessageId: item.cacheMessageId,
+        subjectSignature,
+        computedAt: input.now,
+        resurfaceReason: resurfaceReason ?? null
+      };
       planned.push({
-        status: statusFor(input.mode, item, confidence),
+        status: resurfaceReason ? "suggested" : statusFor(input.mode, item, confidence),
         title: candidate.title,
-        description: boundedDescription(item),
+        description,
         dueAt,
         priority: priorityFor(item, dueAt, nowMs),
         sourceRef: emailSourceRef(item.account.connectorAccountId, item.messageKey),
@@ -143,6 +198,7 @@ export function planEmailTasks(input: PlanEmailTasksInput): PlannedEmailTask[] {
           item.messageKey,
           candidate.title
         ),
+        suggestionMetadata,
         item
       });
     }
@@ -157,22 +213,6 @@ function isCandidateActionability(item: EmailContextItem): boolean {
     item.actionability === "time_sensitive_info" &&
     item.confidence >= TIME_SENSITIVE_CONFIDENCE_FLOOR
   );
-}
-
-/**
- * Accept/reject learning (#729 §6): a domain the user rejected ≥3 times with zero accepts is
- * skipped outright (returns null); with some accepts its confidence is halved so it must clear
- * the floor and status thresholds on merit.
- */
-function effectiveConfidence(
-  item: EmailContextItem,
-  aggregates: PlanEmailTasksInput["rejectionAggregates"]
-): number | null {
-  const domain = item.sender.split("@").pop()?.toLowerCase() ?? "";
-  const aggregate = aggregates.find((entry) => entry.senderDomain === domain);
-  if (!aggregate || aggregate.rejected < REJECTION_SKIP_THRESHOLD) return item.confidence;
-  if (aggregate.accepted === 0) return null;
-  return item.confidence / 2;
 }
 
 function statusFor(
@@ -205,6 +245,6 @@ function priorityFor(item: EmailContextItem, dueAt: string | null, nowMs: number
 }
 
 function boundedDescription(item: EmailContextItem): string | null {
-  const text = item.reason ?? item.summary;
-  return text === null ? null : text.slice(0, MAX_DESCRIPTION_CHARS);
+  const text = item.reason?.trim();
+  return text ? text.slice(0, MAX_DESCRIPTION_CHARS) : DEFAULT_EMAIL_TASK_DESCRIPTION;
 }

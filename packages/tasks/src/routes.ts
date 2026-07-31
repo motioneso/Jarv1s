@@ -38,11 +38,7 @@ import { sendJob } from "@jarv1s/jobs";
 import { handleRouteError } from "@jarv1s/module-sdk";
 
 import { HttpError } from "./errors.js";
-import {
-  recordTriageFeedbackIfNeeded,
-  resolveTriageVerdict,
-  type EmailTriageFeedbackPort
-} from "./email-feedback.js";
+import { resolveTriageVerdict, type EmailTriageFeedbackPort } from "./email-feedback.js";
 import type { DeferredTaskStatusPayload } from "./jobs.js";
 import { TASKS_DEFERRED_STATUS_QUEUE } from "./manifest.js";
 import { parseRecurrenceSpec, type RecurrenceSpec } from "./recurrence.js";
@@ -293,31 +289,54 @@ export function registerTasksRoutes(
       try {
         const accessContext = await dependencies.resolveAccessContext(request);
         const input = parseUpdateTaskBody(request.body);
-        const { task, tags, triageVerdict, taskSourceRef } =
-          await dependencies.dataContext.withDataContext(accessContext, async (scopedDb) => {
+        const { task, tags } = await dependencies.dataContext.withDataContext(
+          accessContext,
+          async (scopedDb) => {
             const prior = await repository.getById(scopedDb, request.params.id);
             const row = prior
               ? await repository.update(scopedDb, request.params.id, input)
               : undefined;
             const t = row ? await repository.getTagsForTask(scopedDb, row.id) : [];
+            const metadata = prior?.suggestion_metadata;
+            const candidateSubjectSignature =
+              metadata && typeof metadata === "object" && !Array.isArray(metadata)
+                ? (metadata as Record<string, unknown>).subjectSignature
+                : undefined;
+            const subjectSignature =
+              typeof candidateSubjectSignature === "string" ? candidateSubjectSignature : null;
+            const triageVerdict = prior ? resolveTriageVerdict(prior, input.status) : null;
+            if (row && triageVerdict && dependencies.emailTriageFeedback) {
+              try {
+                await dependencies.emailTriageFeedback.record(scopedDb, {
+                  taskSourceRef: prior?.source_ref ?? null,
+                  subjectSignature,
+                  verdict: triageVerdict,
+                  title: row.title
+                });
+              } catch (feedbackError) {
+                // Signed feedback failures must abort the transaction, but never expose raw
+                // email/error content through the shared route-error logger.
+                const failure = {
+                  stage: "email-triage-feedback",
+                  name: feedbackError instanceof Error ? feedbackError.name : "UnknownError"
+                };
+                request.log.warn(failure, "email triage feedback recording failed");
+                if (subjectSignature !== null) {
+                  throw new HttpError(500, "Internal server error");
+                }
+              }
+            }
             return {
               task: row,
               tags: t,
-              triageVerdict: prior ? resolveTriageVerdict(prior, input.status) : null,
-              taskSourceRef: prior?.source_ref ?? null
+              triageVerdict
             };
-          });
+          }
+        );
 
         if (!task) {
           return reply.code(404).send({ error: "Task not found" });
         }
-
-        await recordTriageFeedbackIfNeeded(dependencies, accessContext, request.log, {
-          taskId: task.id,
-          taskSourceRef,
-          title: task.title,
-          triageVerdict
-        });
 
         return { task: serializeTask(task, tags) };
       } catch (error) {

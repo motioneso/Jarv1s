@@ -2,7 +2,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { sql } from "kysely";
 
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { TasksRepository } from "@jarv1s/tasks";
+import { createEmailTriageFeedbackPort } from "@jarv1s/module-registry";
+import { serializeTask, TasksRepository } from "@jarv1s/tasks";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -27,7 +28,17 @@ describe("Tasks — suggested status (migration 0140, spec #729 §5)", () => {
         title: "Reply to vendor about invoice",
         status: "suggested",
         source: "email",
-        externalKey: "email:conn-1:msg-suggested-1"
+        externalKey: "email:conn-1:msg-suggested-1",
+        suggestionMetadata: {
+          version: 1,
+          category: "needs_reply",
+          sourceLabel: "Gmail",
+          sourceHref: "https://mail.google.com/mail/u/0/#inbox/msg-suggested-1",
+          cacheMessageId: "cache-msg-suggested-1",
+          subjectSignature: "a".repeat(64),
+          computedAt: "2026-07-30T12:00:00.000Z",
+          resurfaceReason: null
+        }
       })
     );
 
@@ -35,6 +46,124 @@ describe("Tasks — suggested status (migration 0140, spec #729 §5)", () => {
     expect(task.completed_at).toBeNull();
     expect(task.source).toBe("email");
     expect(task.external_key).toBe("email:conn-1:msg-suggested-1");
+    expect(serializeTask(task).suggestionMetadata).toEqual({
+      version: 1,
+      category: "needs_reply",
+      sourceLabel: "Gmail",
+      sourceHref: "https://mail.google.com/mail/u/0/#inbox/msg-suggested-1",
+      cacheMessageId: "cache-msg-suggested-1",
+      subjectSignature: "a".repeat(64),
+      computedAt: "2026-07-30T12:00:00.000Z",
+      resurfaceReason: null
+    });
+  });
+
+  it("refreshes typed metadata on a suggested idempotent task without changing status", async () => {
+    const first = await dataContext.withDataContext(ctx, (scopedDb) =>
+      repository.create(scopedDb, {
+        title: "Original suggested task",
+        status: "suggested",
+        source: "email",
+        externalKey: "email:conn-1:msg-metadata-refresh-1",
+        suggestionMetadata: {
+          version: 1,
+          category: "needs_reply",
+          sourceLabel: "Gmail",
+          sourceHref: "https://mail.google.com/mail/u/0/#inbox/old",
+          cacheMessageId: "cache-old",
+          subjectSignature: "b".repeat(64),
+          computedAt: "2026-07-30T12:00:00.000Z",
+          resurfaceReason: null
+        }
+      })
+    );
+    const refreshed = await dataContext.withDataContext(ctx, (scopedDb) =>
+      repository.create(scopedDb, {
+        title: "Ignored duplicate title",
+        status: "todo",
+        source: "email",
+        externalKey: "email:conn-1:msg-metadata-refresh-1",
+        suggestionMetadata: {
+          version: 1,
+          category: "needs_action",
+          sourceLabel: "Gmail",
+          sourceHref: "https://mail.google.com/mail/u/0/#inbox/new",
+          cacheMessageId: null,
+          subjectSignature: "b".repeat(64),
+          computedAt: "2026-07-30T12:01:00.000Z",
+          resurfaceReason: "relevant_context"
+        }
+      })
+    );
+
+    expect(refreshed.id).toBe(first.id);
+    expect(refreshed.status).toBe("suggested");
+    expect(refreshed.suggestion_metadata).toEqual({
+      version: 1,
+      category: "needs_action",
+      sourceLabel: "Gmail",
+      sourceHref: "https://mail.google.com/mail/u/0/#inbox/new",
+      cacheMessageId: null,
+      subjectSignature: "b".repeat(64),
+      computedAt: "2026-07-30T12:01:00.000Z",
+      resurfaceReason: "relevant_context"
+    });
+  });
+
+  it("revives an archived email task when new evidence resurfaces it", async () => {
+    const first = await dataContext.withDataContext(ctx, (scopedDb) =>
+      repository.create(scopedDb, {
+        title: "Dismissed email task",
+        status: "suggested",
+        source: "email",
+        externalKey: "email:conn-1:msg-resurface-1",
+        suggestionMetadata: {
+          version: 1,
+          category: "needs_action",
+          sourceLabel: "Gmail",
+          sourceHref: "https://mail.google.com/mail/u/0/#all/thread-old",
+          cacheMessageId: "cache-old",
+          subjectSignature: "e".repeat(64),
+          computedAt: "2026-07-30T12:00:00.000Z",
+          resurfaceReason: null
+        }
+      })
+    );
+    await dataContext.withDataContext(ctx, (scopedDb) =>
+      repository.update(scopedDb, first.id, { status: "archived" })
+    );
+
+    const revived = await dataContext.withDataContext(ctx, (scopedDb) =>
+      repository.create(scopedDb, {
+        title: "Updated resurfaced email task",
+        description: "Updated description",
+        status: "suggested",
+        dueAt: "2026-07-31T12:00:00.000Z",
+        source: "email",
+        externalKey: "email:conn-1:msg-resurface-1",
+        suggestionMetadata: {
+          version: 1,
+          category: "needs_action",
+          sourceLabel: "Gmail",
+          sourceHref: "https://mail.google.com/mail/u/0/#all/thread-new",
+          cacheMessageId: "cache-new",
+          subjectSignature: "e".repeat(64),
+          computedAt: "2026-07-30T12:01:00.000Z",
+          resurfaceReason: "relevant_context"
+        }
+      })
+    );
+
+    expect(revived.id).toBe(first.id);
+    expect(revived.status).toBe("suggested");
+    expect(revived.completed_at).toBeNull();
+    expect(revived.title).toBe("Updated resurfaced email task");
+    expect(revived.description).toBe("Updated description");
+    expect(revived.due_at).toEqual(new Date("2026-07-31T12:00:00.000Z"));
+    expect(revived.suggestion_metadata).toMatchObject({
+      cacheMessageId: "cache-new",
+      resurfaceReason: "relevant_context"
+    });
   });
 
   it("returns the existing task when the same (source, externalKey) is created again", async () => {
@@ -125,6 +254,134 @@ describe("Tasks — suggested status (migration 0140, spec #729 §5)", () => {
 
     expect(updated?.status).toBe("todo");
     expect(updated?.completed_at).toBeNull();
+  });
+
+  it("dismiss and suppression update commit atomically", async () => {
+    const subjectSignature = "c".repeat(64);
+    await dataContext.withDataContext(ctx, (scopedDb) =>
+      sql`
+        INSERT INTO app.email_action_suppression
+          (owner_user_id, subject_signature, dismissal_count,
+           last_deadline_evidence_key, last_context_message_key)
+        VALUES (${ids.userA}, ${subjectSignature}, 1, 'deadline:old', 'acct:message')
+      `.execute(scopedDb.db)
+    );
+    await dataContext.withDataContext(ctx, (scopedDb) =>
+      sql`
+        INSERT INTO app.email_action_suppression_evidence
+          (owner_user_id, subject_signature, evidence_kind, evidence_key)
+        VALUES
+          (${ids.userA}, ${subjectSignature}, 'deadline', 'deadline:old'),
+          (${ids.userA}, ${subjectSignature}, 'context', 'acct:message')
+      `.execute(scopedDb.db)
+    );
+    const task = await dataContext.withDataContext(ctx, (scopedDb) =>
+      repository.create(scopedDb, {
+        title: "Dismiss this suggestion",
+        status: "suggested",
+        source: "email",
+        sourceRef: "00000000-0000-0000-0000-000000000001:message-atomic",
+        externalKey: "email:atomic-dismiss",
+        suggestionMetadata: {
+          version: 1,
+          category: "needs_action",
+          sourceLabel: "Gmail",
+          sourceHref: "https://mail.google.com/mail/u/0/#all/thread-atomic",
+          cacheMessageId: "cache-atomic",
+          subjectSignature,
+          computedAt: "2026-07-30T12:00:00.000Z",
+          resurfaceReason: null
+        }
+      })
+    );
+    const port = createEmailTriageFeedbackPort();
+    const dismissed = await dataContext.withDataContext(ctx, async (scopedDb) => {
+      const updated = await repository.update(scopedDb, task.id, { status: "archived" });
+      await port.record(scopedDb, {
+        taskSourceRef: updated?.source_ref ?? null,
+        subjectSignature,
+        verdict: "rejected",
+        title: updated?.title ?? ""
+      });
+      return updated;
+    });
+    expect(dismissed?.status).toBe("archived");
+
+    const afterDismiss = await dataContext.withDataContext(ctx, (scopedDb) =>
+      scopedDb.db
+        .selectFrom("app.email_action_suppression")
+        .selectAll()
+        .where("subject_signature", "=", subjectSignature)
+        .executeTakeFirstOrThrow()
+    );
+    expect(afterDismiss).toMatchObject({ dismissal_count: 2 });
+
+    const acceptedTask = await dataContext.withDataContext(ctx, (scopedDb) =>
+      repository.create(scopedDb, {
+        title: "Accept this suggestion",
+        status: "suggested",
+        source: "email",
+        sourceRef: "00000000-0000-0000-0000-000000000001:message-accept",
+        externalKey: "email:atomic-accept",
+        suggestionMetadata: {
+          version: 1,
+          category: "needs_action",
+          sourceLabel: "Gmail",
+          sourceHref: "https://mail.google.com/mail/u/0/#all/thread-accept",
+          cacheMessageId: "cache-accept",
+          subjectSignature,
+          computedAt: "2026-07-30T12:00:00.000Z",
+          resurfaceReason: null
+        }
+      })
+    );
+    await dataContext.withDataContext(ctx, async (scopedDb) => {
+      const updated = await repository.update(scopedDb, acceptedTask.id, { status: "todo" });
+      await port.record(scopedDb, {
+        taskSourceRef: updated?.source_ref ?? null,
+        subjectSignature,
+        verdict: "accepted",
+        title: updated?.title ?? ""
+      });
+    });
+    const afterAccept = await dataContext.withDataContext(ctx, (scopedDb) =>
+      scopedDb.db
+        .selectFrom("app.email_action_suppression")
+        .selectAll()
+        .where("subject_signature", "=", subjectSignature)
+        .executeTakeFirstOrThrow()
+    );
+    expect(afterAccept).toMatchObject({
+      dismissal_count: 0,
+      last_deadline_evidence_key: null,
+      last_context_message_key: null
+    });
+    const evidenceAfterAccept = await dataContext.withDataContext(ctx, (scopedDb) =>
+      scopedDb.db
+        .selectFrom("app.email_action_suppression_evidence")
+        .selectAll()
+        .where("subject_signature", "=", subjectSignature)
+        .execute()
+    );
+    expect(evidenceAfterAccept).toEqual([]);
+
+    const missingSignature = "d".repeat(64);
+    await dataContext.withDataContext(ctx, (scopedDb) =>
+      port.record(scopedDb, {
+        taskSourceRef: null,
+        subjectSignature: missingSignature,
+        verdict: "accepted",
+        title: "No suppression row"
+      })
+    );
+    const missing = await dataContext.withDataContext(ctx, (scopedDb) =>
+      scopedDb.db
+        .selectFrom("app.email_action_suppression")
+        .select("subject_signature")
+        .where("subject_signature", "=", missingSignature)
+        .executeTakeFirst()
+    );
+    expect(missing).toBeUndefined();
   });
 
   it("leaves suggested children unreviewed when a parent closes", async () => {

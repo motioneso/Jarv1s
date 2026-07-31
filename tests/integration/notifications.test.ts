@@ -89,7 +89,7 @@ describe("Notifications module M5", () => {
         `
           SELECT version, name
           FROM app.schema_migrations
-          WHERE version IN ('0008', '0071', '0101', '0102', '0105', '0142', '0178')
+          WHERE version IN ('0008', '0071', '0101', '0102', '0105', '0142', '0181')
           ORDER BY version
         `
       );
@@ -123,12 +123,12 @@ describe("Notifications module M5", () => {
 
       // 0071 (real-briefings) added a worker-role SELECT/INSERT grant + policies on
       // app.notifications ONLY (so the briefings worker can deliver the "morning briefing
-      // ready" notification); before 0178 the worker could never UPDATE/DELETE notifications.
+      // ready" notification); before 0181 the worker could never UPDATE/DELETE notifications.
       // 0101 adds the metadata size CHECK; 0102 adds the defense-in-depth SQL comments on the
       // notifications / notification_reads tables. 0166 (export gap) adds a worker-role
       // SELECT-only grant + policy on notification_reads so export.build can read a user's
-      // notification read-state. 0178 (Task 2b, #1283 — authored as 0175 on the job-search
-      // branch, renumbered on merge because #1264 landed 0175-0177 on main first) adds the
+      // notification read-state. 0181 (Task 2b, #1283 — renumbered because other migrations
+      // landed first) adds the
       // ctx.notify keyed-upsert
       // columns/index and — for BOTH jarvis_app_runtime and jarvis_worker_runtime — the
       // UPDATE-on-notifications and DELETE-on-notification_reads grant/policy pairs the
@@ -155,8 +155,8 @@ describe("Notifications module M5", () => {
           name: "0142_notifications_module_id.sql"
         },
         {
-          version: "0178",
-          name: "0178_notification_event_keys.sql"
+          version: "0181",
+          name: "0181_notification_event_keys.sql"
         }
       ]);
       expect(tables.rows).toEqual([

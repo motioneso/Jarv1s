@@ -35,7 +35,8 @@ describe("TaskDto.tags contract", () => {
       completedAt: null,
       createdAt: null,
       updatedAt: null,
-      tags: []
+      tags: [],
+      suggestionMetadata: null
     };
     expect(dto.tags).toEqual([]);
   });

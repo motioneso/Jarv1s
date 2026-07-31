@@ -15,6 +15,7 @@ import {
   renderPersonaText
 } from "@jarv1s/shared";
 import type { BriefingContribution, ExternalBriefingInvoker } from "./external-contributions.js";
+import type { BriefingStructuredPayloadV1 } from "@jarv1s/shared";
 
 export type GenerateChatFn = (input: GenerateChatInput) => Promise<{ readonly text: string }>;
 
@@ -120,13 +121,20 @@ export interface BriefingGap {
   // connector-sync slice lands cache state, so an empty source is just `empty`.
   // `source_auth` (#729): a live-first source-context read reported an auth/grant/revocation
   // gap — the user must reconnect or re-grant; the data was NOT silently served from cache.
-  readonly reason: "tool_failed" | "truncated" | "empty" | "unwired" | "source_auth";
+  readonly reason:
+    | "tool_failed"
+    | "structured_payload_failed"
+    | "truncated"
+    | "empty"
+    | "unwired"
+    | "source_auth";
 }
 
 export interface ComposeResult {
   readonly status: BriefingRunStatus;
   readonly summaryText: string;
   readonly sourceMetadata: Record<string, unknown>;
+  readonly structuredPayload: BriefingStructuredPayloadV1;
 }
 
 export interface Section {
@@ -327,6 +335,8 @@ export async function gatherToolSection(
      * email bodyExcerpt, chat thread titles, or LLM-derived summary/signals).
      */
     readonly format: (item: Record<string, unknown>) => string;
+    /** Optional post-read filter for prose sections (e.g. exclude suggested tasks). */
+    readonly include?: (item: Record<string, unknown>) => boolean;
     /** When set, items are filtered to the definition's local day on this field. */
     readonly localDayField?: string;
     /**
@@ -372,6 +382,9 @@ export async function gatherToolSection(
     // slice not built yet so there is no source-side date filter — compose enforces it).
     if (args.localDayField) {
       items = items.filter((it) => withinLocalDay(it[args.localDayField!], now, timeZone));
+    }
+    if (args.include) {
+      items = items.filter(args.include);
     }
     if (items.length === 0) {
       // Neutral `empty` only: we cannot distinguish "synced and empty" from

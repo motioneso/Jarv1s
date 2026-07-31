@@ -30,6 +30,7 @@ export function transientProviderError(): Error {
 export function parsedEmail(overrides: Partial<ParsedEmail> = {}): ParsedEmail {
   return {
     externalId: "live-ext-1",
+    threadId: null,
     historyId: null,
     subject: "Hello from live",
     from: "Alice <alice@example.test>",

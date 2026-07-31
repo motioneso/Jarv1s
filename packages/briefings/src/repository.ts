@@ -17,7 +17,9 @@ import {
 import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 
 import { composeBriefing, type ComposeDeps } from "./compose.js";
+import { emptyStructuredPayload } from "./action-rows.js";
 import { defaultScheduleMetadataFor, timezoneFor } from "./schedule.js";
+import type { BriefingStructuredPayloadV1 } from "@jarv1s/shared";
 
 export interface CreateBriefingDefinitionInput {
   readonly title: string;
@@ -234,7 +236,8 @@ export class BriefingsRepository {
       const run = await this.persistRun(scopedDb, definition, input, {
         status: "blocked",
         summaryText: "Briefing blocked because selected tools are not all declared read tools.",
-        sourceMetadata: { degraded: false, gaps: [], blockedReason: "non_read_tool" }
+        sourceMetadata: { degraded: false, gaps: [], blockedReason: "non_read_tool" },
+        structuredPayload: emptyStructuredPayload()
       });
       return { run, created: true };
     }
@@ -274,6 +277,7 @@ export class BriefingsRepository {
       status: BriefingRunStatus;
       summaryText: string;
       sourceMetadata: Record<string, unknown>;
+      structuredPayload: BriefingStructuredPayloadV1;
     }
   ): Promise<BriefingRun> {
     const createdAt = new Date();
@@ -287,7 +291,10 @@ export class BriefingsRepository {
         run_kind: input.runKind,
         briefing_type: definition.briefing_type,
         summary_text: composed.summaryText,
-        source_metadata: composed.sourceMetadata,
+        source_metadata: {
+          ...composed.sourceMetadata,
+          structuredPayload: composed.structuredPayload
+        },
         created_at: createdAt
       })
       .returningAll()

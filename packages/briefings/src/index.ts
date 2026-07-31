@@ -1,5 +1,6 @@
 export * from "./compose.js";
 export * from "./external-contributions.js";
+export * from "./action-rows.js";
 export * from "./feedback-verifier.js";
 export * from "./feedback-targets.js";
 export * from "./compose-evening.js";

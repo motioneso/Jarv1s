@@ -1,5 +1,9 @@
 import { nullableStringSchema } from "./schema-fragments.js";
 import type { TaskQuadrant } from "./tasks-view.js";
+import {
+  taskSuggestionMetadataV1Schema,
+  type TaskSuggestionMetadataV1
+} from "./briefing-action-rows.js";
 
 export const TASK_STATUSES = ["todo", "suggested", "done", "archived"] as const;
 export const TASK_EFFORTS = ["quick", "medium", "large"] as const;
@@ -43,6 +47,7 @@ export interface TaskDto {
   readonly createdAt: string | null;
   readonly updatedAt: string | null;
   readonly tags: readonly TaskTagDto[];
+  readonly suggestionMetadata: TaskSuggestionMetadataV1 | null;
 }
 
 export interface TaskActivityDto {
@@ -287,7 +292,8 @@ export const taskDtoSchema = {
     "completedAt",
     "createdAt",
     "updatedAt",
-    "tags"
+    "tags",
+    "suggestionMetadata"
   ],
   properties: {
     id: { type: "string" },
@@ -307,8 +313,10 @@ export const taskDtoSchema = {
     completedAt: nullableStringSchema,
     createdAt: nullableStringSchema,
     updatedAt: nullableStringSchema,
-    tags: { type: "array", items: taskTagDtoSchema }
-  }
+    tags: { type: "array", items: taskTagDtoSchema },
+    suggestionMetadata: { anyOf: [taskSuggestionMetadataV1Schema, { type: "null" }] }
+  },
+  additionalProperties: false
 } as const;
 
 export const taskActivityDtoSchema = {

@@ -257,9 +257,10 @@ side:
   filenames** (`external-module.ts` on main, `external-manifest.ts` here). Resolved to main's
   filename carrying this branch's superset; `external-manifest.ts` is deleted and must not come
   back. `index.ts` re-exports the three added symbols by name.
-- `packages/notifications/sql/0175_…` → **`0178_notification_event_keys.sql`** — main landed
-  0175/0176/0177 first. Never applied anywhere under the old number, so renumbering does not touch
-  an applied migration. `foundation-schema-catalog.test.ts` and `notifications.test.ts:157` follow.
+- `packages/notifications/sql/0175_…` → `0178_…` → **`0181_notification_event_keys.sql`** — main
+  landed 0175-0180 first. Never applied anywhere under the old numbers, so renumbering does not
+  touch an applied migration. `foundation-schema-catalog.test.ts` and `notifications.test.ts`
+  follow.
 - `docs/coordination/AWAITING-BEN.md` — unioned; main's two 2026-07-27 entries are resolved, ours
   stays.
 

@@ -1,4 +1,4 @@
--- Task 2b (#1283): ctx.notify lets an external module post a KEYED notification —
+-- Migration 0181. Task 2b (#1283): ctx.notify lets an external module post a KEYED notification —
 -- re-firing the same key updates the existing row in place and returns it to
 -- unread, rather than piling up a duplicate. This migration adds the columns,
 -- the partial unique index that makes "same key = same row" enforceable at the
