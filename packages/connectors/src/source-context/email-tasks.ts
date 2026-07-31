@@ -53,6 +53,8 @@ export interface EmailActionSuppressionState {
   readonly dismissalCount: number;
   readonly lastDeadlineEvidenceKey: string | null;
   readonly lastContextMessageKey: string | null;
+  readonly deadlineEvidenceKeys: readonly string[];
+  readonly contextMessageKeys: readonly string[];
 }
 
 export type EmailActionResurfaceReason = "due_tomorrow" | "relevant_context";

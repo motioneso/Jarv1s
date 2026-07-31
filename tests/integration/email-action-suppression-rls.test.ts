@@ -120,4 +120,39 @@ describe("email action suppression owner-only RLS", () => {
     );
     expect(workerOwnerRead?.dismissal_count).toBe(1);
   });
+
+  it("retains independent deadline and context evidence keys", async () => {
+    const signature = "e".repeat(64);
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req:suppression-evidence-seed" },
+      (scopedDb) =>
+        repository.upsert(scopedDb, {
+          subjectSignature: signature,
+          dismissalCount: 2
+        })
+    );
+
+    await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req:suppression-evidence-write" },
+      async (scopedDb) => {
+        await repository.recordDeadlineEvidence(scopedDb, signature, "deadline:tomorrow");
+        await repository.recordDeadlineEvidence(scopedDb, signature, "deadline:later");
+        await repository.recordContextEvidence(scopedDb, signature, "acct:message-1");
+        await repository.recordContextEvidence(scopedDb, signature, "acct:message-2");
+      }
+    );
+
+    const state = await dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "req:suppression-evidence-read" },
+      (scopedDb) => repository.list(scopedDb, [signature])
+    );
+    expect(state[0]?.deadlineEvidenceKeys).toEqual(
+      expect.arrayContaining(["deadline:tomorrow", "deadline:later"])
+    );
+    expect(state[0]?.deadlineEvidenceKeys).toHaveLength(2);
+    expect(state[0]?.contextMessageKeys).toEqual(
+      expect.arrayContaining(["acct:message-1", "acct:message-2"])
+    );
+    expect(state[0]?.contextMessageKeys).toHaveLength(2);
+  });
 });

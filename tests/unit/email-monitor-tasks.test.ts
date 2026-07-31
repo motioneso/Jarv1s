@@ -243,7 +243,9 @@ describe("planEmailTasks — subject suppression", () => {
               subjectSignature: signature,
               dismissalCount: 2,
               lastDeadlineEvidenceKey: null,
-              lastContextMessageKey: null
+              lastContextMessageKey: null,
+              deadlineEvidenceKeys: [],
+              contextMessageKeys: []
             }
           ]
         }
@@ -259,7 +261,9 @@ describe("planEmailTasks — subject suppression", () => {
           subjectSignature: signature,
           dismissalCount: 2,
           lastDeadlineEvidenceKey: null,
-          lastContextMessageKey: null
+          lastContextMessageKey: null,
+          deadlineEvidenceKeys: [],
+          contextMessageKeys: []
         }
       ],
       resurfaceReasons: new Map([[emailActionResurfaceKey(signature, "msg-1"), "due_tomorrow"]])
@@ -276,7 +280,9 @@ describe("planEmailTasks — subject suppression", () => {
           subjectSignature: signature,
           dismissalCount: 2,
           lastDeadlineEvidenceKey: "deadline:2026-07-10T00:00:00.000Z",
-          lastContextMessageKey: null
+          lastContextMessageKey: null,
+          deadlineEvidenceKeys: ["deadline:2026-07-10T00:00:00.000Z"],
+          contextMessageKeys: []
         }
       ],
       resurfaceReasons: new Map([
@@ -340,9 +346,12 @@ describe("runEmailMonitor — relevance evidence", () => {
       subjectSignature: signature,
       dismissalCount: 2,
       lastDeadlineEvidenceKey: null,
-      lastContextMessageKey: null
+      lastContextMessageKey: null,
+      deadlineEvidenceKeys: [],
+      contextMessageKeys: []
     };
     let lastDeadlineEvidenceKey = suppression.lastDeadlineEvidenceKey;
+    const deadlineEvidenceKeys: string[] = [];
     const preferences: MonitorPreferencesPort = {
       get: async () => null,
       upsert: async () => undefined
@@ -363,10 +372,11 @@ describe("runEmailMonitor — relevance evidence", () => {
       taskPort: { create: async () => ({ id: "task" }) },
       preferencesRepository: preferences,
       suppressionRepository: {
-        list: async () => [{ ...suppression, lastDeadlineEvidenceKey }],
+        list: async () => [{ ...suppression, lastDeadlineEvidenceKey, deadlineEvidenceKeys }],
         recordContextEvidence: async () => undefined,
         recordDeadlineEvidence: async (_db, _signature, key) => {
           lastDeadlineEvidenceKey = key;
+          deadlineEvidenceKeys.push(key);
         }
       },
       actionRowRelevance: {
@@ -388,10 +398,13 @@ describe("runEmailMonitor — relevance evidence", () => {
       subjectSignature: createEmailActionSubjectSignature("Budget approval"),
       dismissalCount: 2,
       lastDeadlineEvidenceKey: "deadline:2026-07-01T00:00:00.000Z",
-      lastContextMessageKey: null
+      lastContextMessageKey: null,
+      deadlineEvidenceKeys: ["deadline:2026-07-01T00:00:00.000Z"],
+      contextMessageKeys: []
     };
     let relevanceCalls = 0;
     let lastContextKey: string | null = null;
+    const contextMessageKeys: string[] = [];
     const preferences: MonitorPreferencesPort = {
       get: async () => null,
       upsert: async () => undefined
@@ -403,9 +416,12 @@ describe("runEmailMonitor — relevance evidence", () => {
       taskPort: { create: async () => ({ id: "task" }) },
       preferencesRepository: preferences,
       suppressionRepository: {
-        list: async () => [{ ...suppression, lastContextMessageKey: lastContextKey }],
+        list: async () => [
+          { ...suppression, lastContextMessageKey: lastContextKey, contextMessageKeys }
+        ],
         recordContextEvidence: async (_db, _signature, key) => {
           lastContextKey = key;
+          contextMessageKeys.push(key);
         },
         recordDeadlineEvidence: async () => undefined
       },
@@ -431,9 +447,12 @@ describe("runEmailMonitor — relevance evidence", () => {
       subjectSignature: createEmailActionSubjectSignature("Budget approval"),
       dismissalCount: 2,
       lastDeadlineEvidenceKey: "deadline:2026-07-01T00:00:00.000Z",
-      lastContextMessageKey: null
+      lastContextMessageKey: null,
+      deadlineEvidenceKeys: ["deadline:2026-07-01T00:00:00.000Z"],
+      contextMessageKeys: []
     };
     let lastContextKey: string | null = null;
+    const contextMessageKeys: string[] = [];
     let createCalls = 0;
     const deps: RunEmailMonitorDeps = {
       sourceContext: {
@@ -448,9 +467,12 @@ describe("runEmailMonitor — relevance evidence", () => {
       },
       preferencesRepository: { get: async () => null, upsert: async () => undefined },
       suppressionRepository: {
-        list: async () => [{ ...suppression, lastContextMessageKey: lastContextKey }],
+        list: async () => [
+          { ...suppression, lastContextMessageKey: lastContextKey, contextMessageKeys }
+        ],
         recordContextEvidence: async (_db, _signature, key) => {
           lastContextKey = key;
+          contextMessageKeys.push(key);
         },
         recordDeadlineEvidence: async () => undefined
       },
@@ -629,12 +651,15 @@ describe("runEmailMonitor — suppression read failures and message-scoped evide
 
   it("resurfaces only the due message when same-subject siblings share a signature", async () => {
     let lastDeadlineEvidenceKey: string | null = null;
+    const deadlineEvidenceKeys: string[] = [];
     const createdTitles: string[] = [];
     const suppression: EmailActionSuppressionSnapshot = {
       subjectSignature: createEmailActionSubjectSignature("Budget approval"),
       dismissalCount: 2,
       lastDeadlineEvidenceKey: null,
-      lastContextMessageKey: null
+      lastContextMessageKey: null,
+      deadlineEvidenceKeys: [],
+      contextMessageKeys: []
     };
     const deps: RunEmailMonitorDeps = {
       sourceContext: {
@@ -662,10 +687,11 @@ describe("runEmailMonitor — suppression read failures and message-scoped evide
       },
       preferencesRepository: { get: async () => null, upsert: async () => undefined },
       suppressionRepository: {
-        list: async () => [{ ...suppression, lastDeadlineEvidenceKey }],
+        list: async () => [{ ...suppression, lastDeadlineEvidenceKey, deadlineEvidenceKeys }],
         recordContextEvidence: async () => undefined,
         recordDeadlineEvidence: async (_db, _signature, key) => {
           lastDeadlineEvidenceKey = key;
+          deadlineEvidenceKeys.push(key);
         }
       },
       now: () => new Date(NOW)
@@ -678,5 +704,122 @@ describe("runEmailMonitor — suppression read failures and message-scoped evide
 
     expect(await runEmailMonitor(DB, "acct-1", deps)).toMatchObject({ planned: 0, created: 0 });
     expect(createdTitles).toEqual([]);
+  });
+
+  it("consumes the deadline trigger once across multiple child task dates", async () => {
+    const signature = createEmailActionSubjectSignature("Budget approval");
+    const deadlineEvidenceKeys: string[] = [];
+    const createdTitles: string[] = [];
+    const suppression: EmailActionSuppressionSnapshot = {
+      subjectSignature: signature,
+      dismissalCount: 2,
+      lastDeadlineEvidenceKey: null,
+      lastContextMessageKey: null,
+      deadlineEvidenceKeys,
+      contextMessageKeys: []
+    };
+    const deps: RunEmailMonitorDeps = {
+      sourceContext: {
+        listEmailContext: async () => ({
+          items: [
+            item({
+              suggestedTasks: [
+                { title: "Approve tomorrow", dueDate: "2026-07-05T12:00:00.000Z" },
+                { title: "Review later", dueDate: "2026-07-10T12:00:00.000Z" }
+              ]
+            })
+          ],
+          accounts: [],
+          gaps: []
+        })
+      },
+      taskPort: {
+        create: async (_db, input) => {
+          createdTitles.push(input.title);
+          return { id: input.externalKey };
+        }
+      },
+      preferencesRepository: { get: async () => null, upsert: async () => undefined },
+      suppressionRepository: {
+        list: async () => [suppression],
+        recordContextEvidence: async () => undefined,
+        recordDeadlineEvidence: async (_db, _signature, key) => {
+          deadlineEvidenceKeys.push(key);
+        }
+      },
+      now: () => new Date(NOW)
+    };
+
+    await expect(runEmailMonitor(DB, "acct-1", deps)).resolves.toMatchObject({
+      planned: 2,
+      created: 2
+    });
+    expect(createdTitles).toEqual(["Approve tomorrow", "Review later"]);
+    expect(deadlineEvidenceKeys).toEqual(["deadline:2026-07-05T12:00:00.000Z"]);
+
+    createdTitles.length = 0;
+    await expect(runEmailMonitor(DB, "acct-1", deps)).resolves.toMatchObject({
+      planned: 0,
+      created: 0
+    });
+    expect(createdTitles).toEqual([]);
+    expect(deadlineEvidenceKeys).toEqual(["deadline:2026-07-05T12:00:00.000Z"]);
+  });
+
+  it("consumes each same-subject context message once across monitor runs", async () => {
+    const signature = createEmailActionSubjectSignature("Budget approval");
+    const contextMessageKeys: string[] = [];
+    let relevanceCalls = 0;
+    const suppression: EmailActionSuppressionSnapshot = {
+      subjectSignature: signature,
+      dismissalCount: 2,
+      lastDeadlineEvidenceKey: "deadline:2026-07-01T00:00:00.000Z",
+      lastContextMessageKey: null,
+      deadlineEvidenceKeys: ["deadline:2026-07-01T00:00:00.000Z"],
+      contextMessageKeys
+    };
+    const deps: RunEmailMonitorDeps = {
+      sourceContext: {
+        listEmailContext: async () => ({
+          items: [
+            item({ messageKey: "context-1", source: "live", dueDate: null }),
+            item({ messageKey: "context-2", source: "live", dueDate: null })
+          ],
+          accounts: [],
+          gaps: []
+        })
+      },
+      taskPort: { create: async () => ({ id: "task" }) },
+      preferencesRepository: { get: async () => null, upsert: async () => undefined },
+      suppressionRepository: {
+        list: async () => [suppression],
+        recordContextEvidence: async (_db, _signature, key) => {
+          contextMessageKeys.push(key);
+        },
+        recordDeadlineEvidence: async () => undefined
+      },
+      actionRowRelevance: {
+        hasRelevantContext: async () => {
+          relevanceCalls += 1;
+          return true;
+        }
+      },
+      actorUserId: "user-1",
+      now: () => new Date(NOW)
+    };
+
+    await expect(runEmailMonitor(DB, "acct-1", deps)).resolves.toMatchObject({
+      planned: 2,
+      created: 2
+    });
+    expect(relevanceCalls).toBe(2);
+    expect(contextMessageKeys).toEqual(["acct-1:context-1", "acct-1:context-2"]);
+
+    await expect(runEmailMonitor(DB, "acct-1", deps)).resolves.toMatchObject({
+      planned: 0,
+      created: 0
+    });
+    expect(relevanceCalls).toBe(2);
+    expect(contextMessageKeys).toEqual(["acct-1:context-1", "acct-1:context-2"]);
   });
 });

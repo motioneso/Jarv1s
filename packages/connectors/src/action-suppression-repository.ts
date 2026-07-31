@@ -14,6 +14,8 @@ export interface EmailActionSuppressionSnapshot {
   readonly dismissalCount: number;
   readonly lastDeadlineEvidenceKey: string | null;
   readonly lastContextMessageKey: string | null;
+  readonly deadlineEvidenceKeys: readonly string[];
+  readonly contextMessageKeys: readonly string[];
 }
 
 export function resetAcceptedSuppression(
@@ -46,11 +48,33 @@ export class EmailActionSuppressionRepository {
       .selectAll()
       .where("subject_signature", "in", [...new Set(subjectSignatures)])
       .execute();
+    const evidenceRows = await scopedDb.db
+      .selectFrom("app.email_action_suppression_evidence")
+      .select(["subject_signature", "evidence_kind", "evidence_key"])
+      .where("subject_signature", "in", [...new Set(subjectSignatures)])
+      .execute();
+    const evidenceBySubject = new Map<string, { deadline: string[]; context: string[] }>();
+    for (const evidence of evidenceRows) {
+      const values = evidenceBySubject.get(evidence.subject_signature) ?? {
+        deadline: [],
+        context: []
+      };
+      values[evidence.evidence_kind].push(evidence.evidence_key);
+      evidenceBySubject.set(evidence.subject_signature, values);
+    }
     return rows.map((row) => ({
       subjectSignature: row.subject_signature,
       dismissalCount: row.dismissal_count,
       lastDeadlineEvidenceKey: row.last_deadline_evidence_key,
-      lastContextMessageKey: row.last_context_message_key
+      lastContextMessageKey: row.last_context_message_key,
+      deadlineEvidenceKeys: [
+        ...(row.last_deadline_evidence_key ? [row.last_deadline_evidence_key] : []),
+        ...(evidenceBySubject.get(row.subject_signature)?.deadline ?? [])
+      ].filter((key, index, keys) => keys.indexOf(key) === index),
+      contextMessageKeys: [
+        ...(row.last_context_message_key ? [row.last_context_message_key] : []),
+        ...(evidenceBySubject.get(row.subject_signature)?.context ?? [])
+      ].filter((key, index, keys) => keys.indexOf(key) === index)
     }));
   }
 
@@ -134,6 +158,12 @@ export class EmailActionSuppressionRepository {
       })
       .where("subject_signature", "=", subjectSignature)
       .executeTakeFirst();
+    if ((result.numUpdatedRows ?? 0n) > 0n) {
+      await scopedDb.db
+        .deleteFrom("app.email_action_suppression_evidence")
+        .where("subject_signature", "=", subjectSignature)
+        .execute();
+    }
     return (result.numUpdatedRows ?? 0n) > 0n;
   }
 
@@ -143,6 +173,21 @@ export class EmailActionSuppressionRepository {
     evidenceKey: string
   ): Promise<void> {
     assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .insertInto("app.email_action_suppression_evidence")
+      .values({
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        subject_signature: subjectSignature,
+        evidence_kind: "context",
+        evidence_key: evidenceKey,
+        created_at: new Date()
+      })
+      .onConflict((oc) =>
+        oc
+          .columns(["owner_user_id", "subject_signature", "evidence_kind", "evidence_key"])
+          .doNothing()
+      )
+      .execute();
     await scopedDb.db
       .updateTable("app.email_action_suppression")
       .set({ last_context_message_key: evidenceKey, updated_at: new Date() })
@@ -156,6 +201,21 @@ export class EmailActionSuppressionRepository {
     evidenceKey: string
   ): Promise<void> {
     assertDataContextDb(scopedDb);
+    await scopedDb.db
+      .insertInto("app.email_action_suppression_evidence")
+      .values({
+        owner_user_id: sql<string>`app.current_actor_user_id()`,
+        subject_signature: subjectSignature,
+        evidence_kind: "deadline",
+        evidence_key: evidenceKey,
+        created_at: new Date()
+      })
+      .onConflict((oc) =>
+        oc
+          .columns(["owner_user_id", "subject_signature", "evidence_kind", "evidence_key"])
+          .doNothing()
+      )
+      .execute();
     await scopedDb.db
       .updateTable("app.email_action_suppression")
       .set({ last_deadline_evidence_key: evidenceKey, updated_at: new Date() })

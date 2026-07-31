@@ -420,6 +420,14 @@ export interface EmailActionSuppressionTable {
   updated_at: TimestampColumn;
 }
 
+export interface EmailActionSuppressionEvidenceTable {
+  owner_user_id: string;
+  subject_signature: string;
+  evidence_kind: "deadline" | "context";
+  evidence_key: string;
+  created_at: TimestampColumn;
+}
+
 export type AiAuthMethod = "cli" | "api_key";
 
 type AiProviderPurpose = "assistant" | "voice"; // #874 (migration 0149): chat provider vs voice(STT)
@@ -1097,6 +1105,7 @@ export interface JarvisDatabase {
   "app.email_messages": EmailMessagesTable;
   "app.email_triage_feedback": EmailTriageFeedbackTable;
   "app.email_action_suppression": EmailActionSuppressionTable;
+  "app.email_action_suppression_evidence": EmailActionSuppressionEvidenceTable;
   "app.ai_provider_configs": AiProviderConfigsTable;
   "app.ai_configured_models": AiConfiguredModelsTable;
   "app.ai_assistant_action_requests": AiAssistantActionRequestsTable;
@@ -1152,6 +1161,7 @@ export type ExternalModuleRow = Selectable<ExternalModulesTable>;
 export type RlsProbeItem = Selectable<RlsProbeItemsTable>;
 export type Task = Selectable<TasksTable>;
 export type EmailActionSuppression = Selectable<EmailActionSuppressionTable>;
+export type EmailActionSuppressionEvidence = Selectable<EmailActionSuppressionEvidenceTable>;
 export type TaskActivity = Selectable<TaskActivityTable>;
 export type TaskList = Selectable<TaskListsTable>;
 export type TaskTag = Selectable<TaskTagsTable>;

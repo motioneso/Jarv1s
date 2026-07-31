@@ -313,7 +313,8 @@ describe("MVP foundation schema catalog", () => {
         // #1264 — widen audit outcome CHECK for settings CAS-conflict/validation-error tools.
         { version: "0177", name: "0177_audit_outcome_widen.sql" },
         { version: "0178", name: "0178_task_suggestion_metadata.sql" },
-        { version: "0179", name: "0179_email_action_suppression.sql" }
+        { version: "0179", name: "0179_email_action_suppression.sql" },
+        { version: "0180", name: "0180_email_action_suppression_evidence.sql" }
       ]);
     } finally {
       await client.end();

@@ -266,6 +266,15 @@ describe("Tasks — suggested status (migration 0140, spec #729 §5)", () => {
         VALUES (${ids.userA}, ${subjectSignature}, 1, 'deadline:old', 'acct:message')
       `.execute(scopedDb.db)
     );
+    await dataContext.withDataContext(ctx, (scopedDb) =>
+      sql`
+        INSERT INTO app.email_action_suppression_evidence
+          (owner_user_id, subject_signature, evidence_kind, evidence_key)
+        VALUES
+          (${ids.userA}, ${subjectSignature}, 'deadline', 'deadline:old'),
+          (${ids.userA}, ${subjectSignature}, 'context', 'acct:message')
+      `.execute(scopedDb.db)
+    );
     const task = await dataContext.withDataContext(ctx, (scopedDb) =>
       repository.create(scopedDb, {
         title: "Dismiss this suggestion",
@@ -347,6 +356,14 @@ describe("Tasks — suggested status (migration 0140, spec #729 §5)", () => {
       last_deadline_evidence_key: null,
       last_context_message_key: null
     });
+    const evidenceAfterAccept = await dataContext.withDataContext(ctx, (scopedDb) =>
+      scopedDb.db
+        .selectFrom("app.email_action_suppression_evidence")
+        .selectAll()
+        .where("subject_signature", "=", subjectSignature)
+        .execute()
+    );
+    expect(evidenceAfterAccept).toEqual([]);
 
     const missingSignature = "d".repeat(64);
     await dataContext.withDataContext(ctx, (scopedDb) =>

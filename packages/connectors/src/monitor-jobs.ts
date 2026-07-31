@@ -222,6 +222,7 @@ export async function runEmailMonitor(
   );
   const resurfaceReasons = new Map<string, "due_tomorrow" | "relevant_context">();
   const contextEvidenceToRecord = new Map<string, { signature: string; key: string }>();
+  const deadlineEvidenceToRecord = new Map<string, { signature: string; key: string }>();
   const actorTimeZone = parseMonitorTimeZone(
     await deps.preferencesRepository.get(scopedDb, "locale")
   );
@@ -232,13 +233,24 @@ export async function runEmailMonitor(
     if (!signature || !state || state.dismissalCount < 2) continue;
 
     const deadlineKey = hasDueTomorrow(item, nowIso, actorTimeZone);
-    if (deadlineKey !== null && deadlineKey !== state.lastDeadlineEvidenceKey) {
-      resurfaceReasons.set(emailActionResurfaceKey(signature, item.messageKey), "due_tomorrow");
+    const resurfaceKey = emailActionResurfaceKey(signature, item.messageKey);
+    if (
+      deadlineKey !== null &&
+      !state.deadlineEvidenceKeys.includes(deadlineKey) &&
+      deadlineKey !== state.lastDeadlineEvidenceKey
+    ) {
+      resurfaceReasons.set(resurfaceKey, "due_tomorrow");
+      deadlineEvidenceToRecord.set(resurfaceKey, { signature, key: deadlineKey });
       continue;
     }
 
     const contextKey = `${item.account.connectorAccountId}:${item.messageKey}`;
-    if (item.source !== "live" || contextKey === state.lastContextMessageKey) continue;
+    if (
+      item.source !== "live" ||
+      state.contextMessageKeys.includes(contextKey) ||
+      contextKey === state.lastContextMessageKey
+    )
+      continue;
     let relevant = false;
     try {
       relevant =
@@ -270,7 +282,7 @@ export async function runEmailMonitor(
   });
 
   let created = 0;
-  const deadlineEvidenceToRecord = new Map<string, string>();
+  const consumedDeadlineEvidence = new Map<string, { signature: string; key: string }>();
   for (const task of planned) {
     try {
       await deps.taskPort.create(scopedDb, {
@@ -286,7 +298,12 @@ export async function runEmailMonitor(
       });
       created += 1;
       if (task.suggestionMetadata.resurfaceReason === "due_tomorrow") {
-        deadlineEvidenceToRecord.set(task.suggestionMetadata.subjectSignature, task.dueAt ?? "");
+        const resurfaceKey = emailActionResurfaceKey(
+          task.suggestionMetadata.subjectSignature,
+          task.item.messageKey
+        );
+        const evidence = deadlineEvidenceToRecord.get(resurfaceKey);
+        if (evidence) consumedDeadlineEvidence.set(resurfaceKey, evidence);
       }
       if (task.suggestionMetadata.resurfaceReason === "relevant_context") {
         const contextKey = `${task.item.account.connectorAccountId}:${task.item.messageKey}`;
@@ -312,11 +329,11 @@ export async function runEmailMonitor(
         evidence.key
       );
     }
-    for (const [signature, dueAt] of deadlineEvidenceToRecord) {
+    for (const evidence of consumedDeadlineEvidence.values()) {
       await deps.suppressionRepository.recordDeadlineEvidence(
         scopedDb,
-        signature,
-        `deadline:${dueAt}`
+        evidence.signature,
+        evidence.key
       );
     }
   }
