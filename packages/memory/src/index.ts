@@ -1,3 +1,4 @@
+export { embedChunks, EMBED_CONCURRENCY } from "./embed-chunks.js";
 export type { EmbeddingProvider } from "./embedding-provider.js";
 export { StubEmbeddingProvider } from "./embedding-provider.js";
 export { IngestionService } from "./ingestion-service.js";

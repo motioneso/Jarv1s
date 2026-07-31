@@ -64,7 +64,7 @@ export function millisecondsUntilNextTodayModeRefresh(
   return Math.max(1, delay);
 }
 
-export function effectiveEveningTimeZone(
+export function effectiveBriefingTimeZone(
   definition: BriefingDefinitionDto | undefined,
   locale: LocaleSettingsDto
 ): string | undefined {
@@ -74,8 +74,16 @@ export function effectiveEveningTimeZone(
   return DEFAULT_LOCALE.timezone;
 }
 
-export function latestEveningRunForToday(
+export function effectiveEveningTimeZone(
+  definition: BriefingDefinitionDto | undefined,
+  locale: LocaleSettingsDto
+): string | undefined {
+  return effectiveBriefingTimeZone(definition, locale);
+}
+
+export function latestBriefingRunForToday(
   runs: readonly BriefingRunDto[],
+  briefingType: "morning" | "evening",
   timeZone: string | undefined,
   now: Date = new Date(Date.now())
 ): BriefingRunDto | null {
@@ -83,10 +91,18 @@ export function latestEveningRunForToday(
   return (
     [...runs]
       .filter(
-        (run) => run.briefingType === "evening" && localDay(run.createdAt, timeZone) === todayKey
+        (run) => run.briefingType === briefingType && localDay(run.createdAt, timeZone) === todayKey
       )
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] ?? null
   );
+}
+
+export function latestEveningRunForToday(
+  runs: readonly BriefingRunDto[],
+  timeZone: string | undefined,
+  now: Date = new Date(Date.now())
+): BriefingRunDto | null {
+  return latestBriefingRunForToday(runs, "evening", timeZone, now);
 }
 
 export function addDaysToKey(key: string, days: number): string {
@@ -119,10 +135,13 @@ export function buildEveningLede(
 export function EveningReviewSection(props: {
   readonly kind: "primary" | "compact";
   readonly run: BriefingRunDto | null;
+  readonly loading?: boolean;
   readonly locale: LocaleSettingsDto;
   readonly targetTime: string;
   readonly onFeedbackChanged: () => void;
 }) {
+  const freshness = props.run ? parseBriefingFreshness(props.run.sourceMetadata) : null;
+  const hasSummary = Boolean(props.run?.summaryText.trim());
   const content = (
     <>
       <div className={props.kind === "primary" ? "jds-brief__head" : "inst__head"}>
@@ -138,12 +157,12 @@ export function EveningReviewSection(props: {
       {props.kind === "primary" ? (
         <div className="jds-brief__title">What happened today</div>
       ) : null}
-      {props.run ? (
+      {freshness ? <BriefingStaleBanner freshness={freshness} /> : null}
+      {props.loading ? (
+        <div className="agenda-clear">Gathering your evening review…</div>
+      ) : props.run && hasSummary ? (
         <>
-          {(() => {
-            const freshness = parseBriefingFreshness(props.run.sourceMetadata);
-            return freshness ? <BriefingStaleBanner freshness={freshness} /> : null;
-          })()}
+          {props.kind === "primary" ? <BriefingProse summaryText={props.run.summaryText} /> : null}
           {props.kind === "compact" ? (
             <p className="cmd-empty">{compactSummary(props.run.summaryText)}</p>
           ) : null}
@@ -170,6 +189,10 @@ export function EveningReviewSection(props: {
   ) : (
     <div className="inst">{content}</div>
   );
+}
+
+export function BriefingProse({ summaryText }: { readonly summaryText: string }) {
+  return <div className="jds-brief__body">{summaryText}</div>;
 }
 
 // Evening-only right-rail CTA. Split out of the recap card so "Prep for

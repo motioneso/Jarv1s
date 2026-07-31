@@ -63,7 +63,7 @@ runs cheap and spends up only where same-lens review demonstrably misses things.
 | Resident coordinator loop + build agents + routine/sensitive QA | **Sonnet** | ~90% mechanical; Opus here is the single biggest $ waste |
 | Phase-0 collision/dependency map | **Opus** (one-shot subagent) | reasoning-heavy, done once |
 | Design-fork adjudication | **Opus** (one-shot subagent) | wrong call has data-loss/security cost |
-| Security-tier QA (adversarial pass) | **Opus** | same-lens Sonnet missed CRITICALs in a real run — THE place to spend up. (For a true cross-model lens, use Codex via `codex-review` when available.) |
+| Security-tier QA (adversarial pass) | **Opus** | same-lens Sonnet missed CRITICALs in a real run — THE place to spend up. (For a true cross-model lens, use Codex via `/codex:adversarial-review`.) |
 | Gate execution (lint/typecheck/test) | **CI — don't re-run** | QA trusts `gh pr checks`; matched e2e-UAT remains a separate sensitive-tier runtime gate |
 
 **⚠️ Herdr spawns default to Opus.** Every `herdr agent start … -- claude …` MUST pass

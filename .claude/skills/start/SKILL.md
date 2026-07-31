@@ -102,8 +102,11 @@ signal — not a doc edit.
 
 **4. Close out** (after the build's exit criteria are met):
 
-- Verify yourself — do not trust an agent's self-report: `pnpm verify:foundation` and
-  `pnpm audit:release-hardening` must be green. **REQUIRED SUB-SKILL:**
+- Verify yourself — do not trust an agent's self-report. Run both gates through
+  `scripts/run-gate.sh` (`start` → `wait` → `status`; `--gate audit:release-hardening` for the
+  second). It handles the isolated gate DB and decides completion from a trap-guaranteed
+  `### FINAL rc=N` sentinel — never from `pgrep`, which matches Claude's own bash wrappers
+  forever and once hid a dead gate for 19 hours. **REQUIRED SUB-SKILL:**
   `superpowers:verification-before-completion`.
 - GitHub bookkeeping (source of truth): check off the epic's exit-criteria boxes, **close the
   issue**, **close the milestone** if all criteria are met, move the board item to **Done**.
@@ -154,7 +157,7 @@ gh api -X PATCH repos/motioneso/Jarv1s/milestones/<M> -f state=closed
   your commit. Wait until it finishes, and send a heads-up via the `tmux-pane-message` skill (see
   CLAUDE.md → _Coordinating With Other Agent Sessions_).
 - About to mark an issue/milestone done from an **agent's self-report** → verify with
-  `pnpm verify:foundation` + `pnpm audit:release-hardening` yourself first.
+  `scripts/run-gate.sh` (both gates) yourself first.
 - About to update only the doc and not the board → GitHub is the source of truth; move the board.
 - Skipped the agentmemory recalls → locked decisions and traps may be missed.
 

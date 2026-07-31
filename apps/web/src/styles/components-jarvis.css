@@ -465,6 +465,7 @@
   line-height: var(--leading-relaxed);
   color: var(--text-muted);
   max-width: var(--measure);
+  white-space: pre-wrap;
 }
 .jds-brief__updated {
   display: inline-flex;

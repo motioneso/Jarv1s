@@ -241,6 +241,7 @@ import {
 import { registerWeatherRoutes, weatherModuleManifest } from "@jarv1s/weather";
 import {
   configureSportsBriefingService,
+  configureSportsChatTools,
   createEspnDatasetAdapter,
   registerSportsRoutes,
   sportsModuleManifest,
@@ -1539,6 +1540,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       // static manifest data at import time, before this wiring runs, so it adopts the client
       // via a late-bound setter (mirrors `adoptChatRpcConnection` above for the chat RPC path).
       configureSportsBriefingService(datasetClient);
+      configureSportsChatTools(datasetClient);
       registerSportsRoutes(server, {
         dataContext: deps.dataContext,
         resolveAccessContext: deps.resolveAccessContext,

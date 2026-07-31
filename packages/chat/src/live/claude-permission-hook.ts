@@ -301,6 +301,15 @@ export const CLAUDE_ONE_SHOT_PERMISSION_HOOK_SOURCE = `import path from "node:pa
 
 const ROOT_PATTERN = /^\\/[\\w.-][\\w./-]*$/;
 
+// #1361: once an MCP server exposes enough tools, the CLI stops sending their schemas up front and
+// instead advertises a built-in loader the model must call to pull in the ones it needs. Denying
+// that loader denies every tool behind it — prod chat answered "tool access is restricted" while
+// the gateway was healthy and each mcp__jarvis__ tool would have been allowed by name a moment
+// later. These entries read schemas the server has already published to this very session: they
+// move no user data and perform no action, so allowing them widens nothing the checks below do not
+// already permit. Keep this list to pure discovery — anything that touches data belongs elsewhere.
+const DISCOVERY_TOOLS = new Set(["ToolSearch"]);
+
 function decide(permissionDecision, permissionDecisionReason) {
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
@@ -399,6 +408,9 @@ async function main() {
 
   if (tool.startsWith("mcp__jarvis__")) {
     decide("allow", "pre-approved Jarv1s MCP tool");
+  }
+  if (DISCOVERY_TOOLS.has(tool)) {
+    decide("allow", "tool-schema discovery, no data access and no side effects");
   }
   if (safeVaultRead(tool, input)) {
     decide("allow", "pre-approved read-only vault path");

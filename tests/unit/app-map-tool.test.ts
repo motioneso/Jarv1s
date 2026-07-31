@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { sanitizeAssistantToolResult } from "@jarv1s/ai";
-import { createAppMapReadService, appGetMapSliceOutputSchema } from "@jarv1s/settings";
+import {
+  APP_MAP_SLICE_LOOKUP_KEYS,
+  createAppMapReadService,
+  appGetMapSliceExecute,
+  appGetMapSliceInputSchema,
+  appGetMapSliceOutputSchema
+} from "@jarv1s/settings";
 
 const artifact = {
   schemaVersion: 1,
@@ -100,5 +106,44 @@ describe("AppMapReadService", () => {
     });
     await service.query({} as never, "u1", { query: "quantum sandwich settings" });
     expect(logGap).toHaveBeenCalledWith({ kind: "query", value: "quantum sandwich settings" });
+  });
+});
+
+// #1363: "supply at least one lookup key" used to be a top-level `anyOf` in the input schema. That
+// is valid JSON Schema, but the Anthropic API rejects a top-level combinator and the CLI drops the
+// whole tool — so the rule now lives here, in the execute handler, where a bad call fails
+// recoverably instead of the tool vanishing from every chat.
+describe("app.getMapSlice lookup-key requirement", () => {
+  const ctx = { actorUserId: "u1", requestId: "r1" } as never;
+
+  const runWith = (input: Record<string, unknown>, query = vi.fn().mockResolvedValue({})) =>
+    appGetMapSliceExecute({} as never, input, ctx, { appMap: { query } } as never);
+
+  it("stays out of the schema, which must never regain a top-level combinator", () => {
+    const schema = appGetMapSliceInputSchema as Record<string, unknown>;
+    expect(schema).not.toHaveProperty("anyOf");
+    expect(schema).not.toHaveProperty("oneOf");
+    expect(schema).not.toHaveProperty("allOf");
+  });
+
+  it.each(APP_MAP_SLICE_LOOKUP_KEYS)("accepts a call carrying only %s", async (key) => {
+    const query = vi.fn().mockResolvedValue({ kind: "slice", items: [] });
+    await expect(runWith({ [key]: "something" }, query)).resolves.toEqual({
+      data: { kind: "slice", items: [] }
+    });
+    expect(query).toHaveBeenCalledOnce();
+  });
+
+  // The message must name the keys: the model has to be able to retry, not conclude the tool is
+  // broken and fall back to its priors — which is the exact failure #1363 caused in the first place.
+  it.each([
+    ["no keys at all", {}],
+    ["only a limit", { limit: 3 }],
+    ["a blank key", { query: "   " }],
+    ["a non-string key", { screenId: 42 }]
+  ])("rejects %s and names the keys it wanted", async (_label, input) => {
+    const query = vi.fn();
+    await expect(runWith(input, query)).rejects.toThrow(/screenId, settingId, errorCode, query/);
+    expect(query).not.toHaveBeenCalled();
   });
 });

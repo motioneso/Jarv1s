@@ -291,4 +291,70 @@ describe("resolveSourceInput", () => {
       )
     ).resolves.toMatchObject({ status: "rejected", reason: "unreachable" });
   });
+
+  // #1265 relay-5 SSRF scope restoration (approved spec lines 47-49): the requested domain is
+  // a normal public publisher, but the HTTP redirect chain lands on a private/internal address
+  // (SSRF via redirect, not a typed-in IP literal). acceptedFinalDomain in source-resolution.ts
+  // must normalize `fetched.finalUrl` (the POST-redirect URL), not the raw input, for this to
+  // reject — a check that only validated the typed domain would miss this.
+  it("refuses a public domain whose redirect chain lands on a private/internal address", async () => {
+    const redirectsToMetadataService: NewsSafeFetchPort = async (url) => {
+      if (url === "https://publisher.example/") {
+        return {
+          ok: true,
+          status: 200,
+          finalUrl: "http://169.254.169.254/latest/meta-data/",
+          contentType: "text/html",
+          body: "<title>internal</title>",
+          truncated: false
+        };
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    };
+
+    await expect(
+      resolveSourceInput(
+        db,
+        { fetch: redirectsToMetadataService, search: noSearch, ai: ai(), repo: repo() },
+        { raw: "https://publisher.example", hasWebSearch: false }
+      )
+    ).resolves.toMatchObject({ status: "rejected", reason: "policy" });
+  });
+
+  // #1265 ALSO-1: same-host mutations that samePublisherIdentity can't catch on its own — the
+  // hostname string is identical to the requested domain, so only normalizePublisherDomain's own
+  // scheme/port/credentials checks (personalization-domain.ts) stand between this and acceptance.
+  // A mutant that deleted those checks but kept samePublisherIdentity would still pass this suite
+  // without this case.
+  it("refuses a same-host redirect that downgrades to http, adds a port, or embeds credentials", async () => {
+    const cases = [
+      "http://publisher.example/",
+      "https://publisher.example:8443/",
+      "https://user:pass@publisher.example/"
+    ];
+    for (const finalUrl of cases) {
+      const redirectsSameHost: NewsSafeFetchPort = async (url) => {
+        if (url === "https://publisher.example/") {
+          return {
+            ok: true,
+            status: 200,
+            finalUrl,
+            contentType: "text/html",
+            body: "<title>publisher</title>",
+            truncated: false
+          };
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      };
+
+      await expect(
+        resolveSourceInput(
+          db,
+          { fetch: redirectsSameHost, search: noSearch, ai: ai(), repo: repo() },
+          { raw: "https://publisher.example", hasWebSearch: false }
+        ),
+        `finalUrl=${finalUrl}`
+      ).resolves.toMatchObject({ status: "rejected", reason: "policy" });
+    }
+  });
 });

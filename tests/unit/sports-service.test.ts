@@ -259,7 +259,13 @@ export function makeDeps(
         work({} as DataContextDb)
     },
     repository: {
-      list: async () => follows
+      list: async () => follows,
+      async create() {
+        throw new Error("not exercised by this test file — see sports-service-follows.test.ts");
+      },
+      async remove() {
+        throw new Error("not exercised by this test file — see sports-service-follows.test.ts");
+      }
     },
     now: () => FIXED_NOW
   };

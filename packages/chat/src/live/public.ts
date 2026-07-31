@@ -24,6 +24,12 @@
  * here makes it resolvable through the one declared "./live" subpath instead.
  */
 export * from "./cli-chat-engine.js";
+// #1350 — the ONE engine-selection rule. The cli-runner's EngineHost must build its engine
+// through this, not by hand, or `execution_mode` silently means nothing on a containerized deploy.
+export * from "./engine-selection.js";
+// The engine interface itself, so hosts can hold any engine (one-shot or interactive) rather
+// than narrowing to the tmux implementation and quietly assuming a pane exists.
+export type { CliChatEngine } from "./types.js";
 export * from "./rpc-contract.js";
 export * from "./login-contract.js";
 export * from "./install-contract.js";

@@ -283,6 +283,32 @@ describe("Claude PreToolUse permission hook", () => {
     expect(result.decision).toBe("allow");
   });
 
+  // #1361: the CLI stops sending MCP schemas up front past a certain tool count and expects the
+  // model to call ToolSearch for them. Denying that call denied every Jarv1s tool behind it, and
+  // prod chat told the user "tool access is restricted" with a perfectly healthy gateway.
+  it("one-shot allows ToolSearch so deferred MCP schemas can load", async () => {
+    const result = await runOneShotHook(
+      { tool_name: "ToolSearch", tool_input: { query: "notes" } },
+      { JARVIS_SESSION_ROOT: "/tmp/session" }
+    );
+    expect(result.code).toBe(0);
+    expect(result.decision).toBe("allow");
+  });
+
+  // The discovery allowance is exact-match, not a prefix or a substring: a tool merely *named*
+  // like the loader must still fall through to the deny below.
+  it.each([["ToolSearchExec"], ["toolsearch"], ["Bash ToolSearch"]])(
+    "one-shot still denies %s, which only resembles the discovery tool",
+    async (tool_name) => {
+      const result = await runOneShotHook(
+        { tool_name, tool_input: {} },
+        { JARVIS_SESSION_ROOT: "/tmp/session" }
+      );
+      expect(result.code).toBe(0);
+      expect(result.decision).toBe("deny");
+    }
+  );
+
   it.each([
     ["Bash", { command: "echo hi" }],
     ["Write", { file_path: "/etc/jarvis.conf" }],

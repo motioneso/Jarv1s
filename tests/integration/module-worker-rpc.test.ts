@@ -18,7 +18,12 @@ import {
 import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
 import type { Kysely } from "kysely";
 
-import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
+import {
+  connectionStrings,
+  dropModuleRolesAtTeardown,
+  ids,
+  resetFoundationDatabase
+} from "./test-database.js";
 
 const { Client } = pg;
 let bootstrap: pg.Client;
@@ -772,8 +777,10 @@ describe("db.query (#1167)", () => {
       await client.query(
         "REVOKE EXECUTE ON FUNCTION app.current_actor_user_id() FROM jarvis_mod_acme_db_install"
       );
-      await client.query("DROP ROLE IF EXISTS jarvis_mod_acme_db_install");
-      await client.query("DROP ROLE IF EXISTS jarvis_mod_acme_db_runtime");
+      await dropModuleRolesAtTeardown(client, [
+        "jarvis_mod_acme_db_install",
+        "jarvis_mod_acme_db_runtime"
+      ]);
     } finally {
       await client.end();
     }

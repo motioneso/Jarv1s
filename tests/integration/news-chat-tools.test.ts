@@ -361,6 +361,16 @@ describe("news chat tools — previewSource/confirmSource via assistant gateway 
         owner_user_id: ids.userA,
         approval_mode: "confirmed"
       });
+
+      // Regression: `guidance` was dropped from the tool schema, but the gateway validator does
+      // not strip undeclared keys (input-validation.ts), so the input above still carried
+      // guidance: "prefer municipal coverage" as if the model had emitted it anyway. Assert the
+      // execute fn — not the schema — is what refuses it: the persisted row must be null.
+      const rows = await bootstrap.query(
+        `SELECT guidance FROM app.news_custom_topics WHERE owner_user_id = $1 AND label = $2`,
+        [ids.userA, "Local climate policy"]
+      );
+      expect(rows.rows[0].guidance).toBeNull();
     }, 30_000);
 
     it("addTopic at the per-user cap returns a friendly error and writes nothing", async () => {
