@@ -5,9 +5,11 @@
 // only `{hostActions, assistantSurface?}` and it has no database access of any kind.
 import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
 
-import { MATCHES_LIST_MAX_LIMIT } from "../../domain/records.js";
+import { capPostingBody, MATCHES_LIST_MAX_LIMIT } from "../../domain/records.js";
 import type { Match } from "../../domain/records.js";
 import type { JobSearchStore } from "../../domain/store-port.js";
+import { fetchLinkedInDescription } from "../../adapters/linkedin.js";
+import type { FetchLike } from "../../adapters/types.js";
 import { looksLikeJobEnvelope, parseJobEnvelope } from "../job-input.js";
 import { labelFor } from "./portal.js";
 import { InputError, stripEnvelope } from "../validate.js";
@@ -111,11 +113,13 @@ export interface MatchDetail {
   title: string;
   company: string;
   url: string;
+  body: string;
   fit: number | null;
   want: number | null;
   fitReason: string;
   wantReason: string;
   outsideFrame: boolean;
+  scoredAt: string | null;
   state: Match["state"];
 }
 
@@ -267,6 +271,26 @@ export function createMatchesCountHandler(store: JobSearchStore) {
 }
 
 const MATCH_GET_KEYS = new Set(["matchId"]);
+const DESCRIPTION_FAILURE_NAMESPACE = "description-fetch-failures";
+const DESCRIPTION_RETRY_MS = 24 * 60 * 60 * 1_000;
+const DESCRIPTION_FETCH_MAX_MS = 5_000;
+const DESCRIPTION_DEADLINE_HEADROOM_MS = 1_000;
+
+async function beforeDeadline<T>(work: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("description fetch timed out")), timeoutMs);
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
 
 /** #1330: `risk: "read"`, one match by id, untruncated. Exists so the row can stay a capped
  * summary without the full Fit/Want reason becoming permanently unreachable — the inspector
@@ -277,7 +301,7 @@ const MATCH_GET_KEYS = new Set(["matchId"]);
  * posting-id "match id", which is never a real row) returns `{matchId, match: null}` rather than
  * throwing, matching `resume.get`'s own not-found idiom: the caller has one outcome to handle
  * either way, "nothing more to show here." */
-export function createMatchGetHandler(store: JobSearchStore) {
+export function createMatchGetHandler(store: JobSearchStore, fetch: FetchLike) {
   return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
     const input = stripEnvelope(ctx.input);
     for (const key of Object.keys(input)) {
@@ -298,16 +322,57 @@ export function createMatchGetHandler(store: JobSearchStore) {
       return { matchId, match: null };
     }
 
+    let body = capPostingBody(posting.body);
+    if (body.length === 0 && posting.sourceId === "linkedin") {
+      const priorFailure = await ctx.kv
+        .get("user", DESCRIPTION_FAILURE_NAMESPACE, posting.id)
+        .catch(() => null);
+      const failedAt =
+        typeof priorFailure?.failedAt === "string" ? Date.parse(priorFailure.failedAt) : Number.NaN;
+      const retrySuppressed =
+        Number.isFinite(failedAt) && Date.now() - failedAt < DESCRIPTION_RETRY_MS;
+
+      if (!retrySuppressed) {
+        const timeoutMs = Math.min(
+          DESCRIPTION_FETCH_MAX_MS,
+          ctx.deadlineAt - Date.now() - DESCRIPTION_DEADLINE_HEADROOM_MS
+        );
+        try {
+          if (timeoutMs <= 0) throw new Error("description fetch deadline exhausted");
+          body = capPostingBody(
+            await beforeDeadline(
+              fetchLinkedInDescription(fetch, posting.externalId),
+              Math.max(1, timeoutMs)
+            )
+          );
+          // Public cache-fill exception inside this read tool: the write is idempotent, stays in
+          // the actor's existing RLS scope, and only avoids fetching the same public detail again.
+          await store
+            .upsertPostings(match.profileId, [{ ...posting, body }])
+            .catch(() => undefined);
+        } catch {
+          body = "";
+          await ctx.kv
+            .set("user", DESCRIPTION_FAILURE_NAMESPACE, posting.id, {
+              failedAt: new Date().toISOString()
+            })
+            .catch(() => undefined);
+        }
+      }
+    }
+
     const detail: MatchDetail = {
       id: match.id,
       title: posting.title,
       company: posting.company,
       url: posting.url,
+      body,
       fit: match.fit,
       want: match.want,
       fitReason: match.fitReason,
       wantReason: match.wantReason,
       outsideFrame: match.outsideFrame,
+      scoredAt: match.scoredAt,
       state: match.state
     };
     return { matchId, match: detail };

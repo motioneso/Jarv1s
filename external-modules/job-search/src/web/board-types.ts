@@ -43,11 +43,13 @@ export interface MatchDetail {
   title: string;
   company: string;
   url: string;
+  body: string;
   fit: number | null;
   want: number | null;
   fitReason: string;
   wantReason: string;
   outsideFrame: boolean;
+  scoredAt: string | null;
   state: MatchState;
 }
 

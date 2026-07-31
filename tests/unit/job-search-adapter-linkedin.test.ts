@@ -12,7 +12,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import type { SearchCriteria } from "../../external-modules/job-search/src/domain/records.js";
-import { linkedinPortal } from "../../external-modules/job-search/src/adapters/linkedin.js";
+import {
+  fetchLinkedInDescription,
+  linkedinPortal
+} from "../../external-modules/job-search/src/adapters/linkedin.js";
 import type { FetchLike } from "../../external-modules/job-search/src/adapters/types.js";
 import { PAGE_CAP, statusToKind } from "../../external-modules/job-search/src/adapters/types.js";
 
@@ -593,5 +596,68 @@ describe("linkedin adapter (#1296)", () => {
     expect(statusToKind(404)).toBe("parse_failed");
     expect(statusToKind(500)).toBe("network");
     expect(statusToKind(418)).toBe("network");
+  });
+});
+
+describe("fetchLinkedInDescription", () => {
+  it("returns normalized plain text from the public guest detail fragment", async () => {
+    const fetch: FetchLike = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        '<section><div class="show-more-less-html__markup show-more-less-html__markup--clamp-after-5">' +
+        "<p>Build &amp; operate the platform.</p><ul><li>Own reliability</li><li>Coach peers</li></ul>" +
+        "</div></section>"
+    });
+
+    await expect(fetchLinkedInDescription(fetch, "424242")).resolves.toBe(
+      "Build & operate the platform. Own reliability Coach peers"
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/424242",
+      { headers: { "User-Agent": "Jarvis-JobSearch/0.1 (personal use)" } }
+    );
+  });
+
+  it.each([
+    [403, "login_required"],
+    [429, "rate_limited"],
+    [503, "network"]
+  ] as const)("maps HTTP %s to the adapter's %s failure", async (status, kind) => {
+    const fetch: FetchLike = vi.fn().mockResolvedValue({
+      ok: false,
+      status,
+      text: async () => ""
+    });
+
+    await expect(fetchLinkedInDescription(fetch, "424242")).rejects.toMatchObject({ kind });
+  });
+
+  it("treats a 200 auth wall as login_required", async () => {
+    const fetch: FetchLike = vi.fn().mockResolvedValue(authWallResponse());
+
+    await expect(fetchLinkedInDescription(fetch, "424242")).rejects.toMatchObject({
+      kind: "login_required"
+    });
+  });
+
+  it("reports a missing public description as parse_failed", async () => {
+    const fetch: FetchLike = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => "<section>Job detail layout changed.</section>"
+    });
+
+    await expect(fetchLinkedInDescription(fetch, "424242")).rejects.toMatchObject({
+      kind: "parse_failed"
+    });
+  });
+
+  it("reports a rejected detail fetch as network", async () => {
+    const fetch: FetchLike = vi.fn().mockRejectedValue(new Error("ECONNRESET"));
+
+    await expect(fetchLinkedInDescription(fetch, "424242")).rejects.toMatchObject({
+      kind: "network"
+    });
   });
 });

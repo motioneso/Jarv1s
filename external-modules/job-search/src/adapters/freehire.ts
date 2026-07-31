@@ -140,7 +140,7 @@ function asArray(value: unknown, key: string): unknown[] {
  * ATS), but Task 9's scoring prompt wants plain text. A regex strip is deliberately simple —
  * this is throwaway job-ad markup, not content that needs a real HTML parser — and
  * failure-safe: worst case it leaves a stray fragment in the body, never an exception. */
-function htmlToText(html: string): string {
+export function htmlToText(html: string): string {
   return html
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/gi, " ")

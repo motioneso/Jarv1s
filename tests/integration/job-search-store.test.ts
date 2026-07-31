@@ -19,6 +19,7 @@ import {
 import { getJarvisDatabaseUrls } from "../../packages/db/src/urls.js";
 import { JOB_SEARCH_TABLES } from "../../external-modules/job-search/src/db/tables.js";
 import { createSqlStore } from "../../external-modules/job-search/src/worker/store-sql.js";
+import { BODY_MAX_CHARS } from "../../external-modules/job-search/src/domain/records.js";
 import type {
   FailureCause,
   Posting
@@ -302,6 +303,25 @@ describe("job-search store (#1297)", () => {
     expect(updated!.id).toBe(created!.id);
     expect(updated!.title).toBe("New Title");
     expect(after.rows[0]!.first_seen_at).toEqual(before.rows[0]!.first_seen_at);
+  });
+
+  it("caps posting bodies at the shared storage boundary", async () => {
+    await install();
+    await seedUser(ownerA);
+    const store = storeFor(ownerA);
+    const profile = await store.createProfile("Staff Engineer search");
+
+    const [created] = await store.upsertPostings(profile.id, [
+      posting({
+        sourceId: "linkedin",
+        externalId: "body-cap",
+        body: "x".repeat(BODY_MAX_CHARS + 200)
+      })
+    ]);
+
+    expect(created!.body).toHaveLength(BODY_MAX_CHARS);
+    const stored = await store.getPostings([created!.id]);
+    expect(stored.get(created!.id)!.body).toHaveLength(BODY_MAX_CHARS);
   });
 
   it("round-trips a 768-dimension embedding through setEmbedding/listUnscoredPostingsWithEmbeddings (case 3)", async () => {

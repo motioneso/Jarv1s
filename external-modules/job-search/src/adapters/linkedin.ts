@@ -43,12 +43,14 @@
 // — which is the safe direction to be wrong in, not a silent failure).
 import type { FailureKind, Posting, SearchCriteria } from "../domain/records.js";
 import { describeFailure } from "../domain/records.js";
+import { htmlToText } from "./freehire.js";
 import type { CrawlResult, FetchLike, Portal } from "./types.js";
 import { pagesPerQuery, queriesFor, statusToKind } from "./types.js";
 
 const SOURCE_ID = "linkedin";
 const SOURCE_LABEL = "LinkedIn";
 const BASE_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search";
+const DETAIL_BASE_URL = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting";
 const USER_AGENT = "Jarvis-JobSearch/0.1 (personal use)";
 
 /** Case-insensitive markers of LinkedIn's own sign-in interstitial. Unverified against a live
@@ -68,6 +70,57 @@ function looksLikeEmptyResultsPage(body: string): boolean {
 
 function isAuthWall(body: string): boolean {
   return AUTH_WALL_MARKERS.some((marker) => marker.test(body));
+}
+
+export class LinkedInDescriptionError extends Error {
+  constructor(
+    readonly kind: FailureKind,
+    message: string
+  ) {
+    super(message);
+  }
+}
+
+export async function fetchLinkedInDescription(
+  fetch: FetchLike,
+  externalId: string
+): Promise<string> {
+  let response;
+  try {
+    response = await fetch(`${DETAIL_BASE_URL}/${encodeURIComponent(externalId)}`, {
+      headers: { "User-Agent": USER_AGENT }
+    });
+  } catch {
+    throw new LinkedInDescriptionError("network", "linkedin: public detail request failed");
+  }
+  if (!response.ok) {
+    throw new LinkedInDescriptionError(
+      statusToKind(response.status),
+      `linkedin: public detail returned ${response.status}`
+    );
+  }
+
+  let body: string;
+  try {
+    body = await response.text();
+  } catch {
+    throw new LinkedInDescriptionError("network", "linkedin: public detail body failed");
+  }
+  if (isAuthWall(body)) {
+    throw new LinkedInDescriptionError("login_required", "linkedin: auth-wall interstitial");
+  }
+  const description =
+    /<div[^>]*class="[^"]*show-more-less-html__markup[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(
+      body
+    )?.[1];
+  if (description === undefined) {
+    throw new LinkedInDescriptionError("parse_failed", "linkedin: missing public job description");
+  }
+  const plainText = htmlToText(description);
+  if (plainText.length === 0) {
+    throw new LinkedInDescriptionError("parse_failed", "linkedin: empty public job description");
+  }
+  return plainText;
 }
 
 /** One title per call — see `queriesFor` for why the titles are never joined into one

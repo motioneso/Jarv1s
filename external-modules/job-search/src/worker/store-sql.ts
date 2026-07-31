@@ -21,6 +21,7 @@ import type {
   PostingWithEmbedding,
   Resume
 } from "../domain/store-port.js";
+import { capPostingBody } from "../domain/records.js";
 import type {
   FailureCause,
   Match,
@@ -396,7 +397,7 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
         company: normalizeCompanyName(posting.company),
         location: posting.location,
         url: posting.url,
-        body: posting.body,
+        body: capPostingBody(posting.body),
         posted_at: posting.postedAt
       }));
       const result = await db.query<PostingRow>(

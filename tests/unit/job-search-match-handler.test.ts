@@ -29,11 +29,13 @@ import {
 // N43: MATCHES_LIST_MAX_LIMIT lives in domain/records.ts now — one definition, imported by the
 // worker handler, board.tsx, and this test, none of them a second literal.
 import {
+  BODY_MAX_CHARS,
   MATCHES_LIST_MAX_LIMIT,
   type Match,
   type Posting
 } from "../../external-modules/job-search/src/domain/records.js";
 import type { JobSearchStore } from "../../external-modules/job-search/src/domain/store-port.js";
+import type { FetchLike } from "../../external-modules/job-search/src/adapters/types.js";
 
 // N39 removed `REASON_MAX_CHARS` from matches.ts entirely — there is no longer a row-level
 // reason cap to import. `MatchDetail` is deliberately untruncated, so these tests use a plain,
@@ -59,6 +61,7 @@ function createFakeStore(input: {
   __setMatchStateCalls: Array<{ matchId: string; state: Match["state"] }>;
   __getMatchCalls: string[];
   __countMatchesCalls: string[];
+  __upsertPostingsCalls: Array<{ profileId: string; postings: Posting[] }>;
 } {
   const matches = input.matches ?? [];
   const postingsById = new Map((input.postings ?? []).map((posting) => [posting.id, posting]));
@@ -66,6 +69,7 @@ function createFakeStore(input: {
   const setMatchStateCalls: Array<{ matchId: string; state: Match["state"] }> = [];
   const getMatchCalls: string[] = [];
   const countMatchesCalls: string[] = [];
+  const upsertPostingsCalls: Array<{ profileId: string; postings: Posting[] }> = [];
   const getMatchImpl =
     input.getMatchImpl ??
     (async (matchId: string) => matches.find((match) => match.id === matchId) ?? null);
@@ -80,7 +84,12 @@ function createFakeStore(input: {
     setBriefingDetail: vi.fn(notUsed("setBriefingDetail")),
     listPortals: vi.fn(notUsed("listPortals")),
     setPortalState: vi.fn(notUsed("setPortalState")),
-    upsertPostings: vi.fn(notUsed("upsertPostings")),
+    upsertPostings: vi.fn(async (profileId: string, postings: readonly Posting[]) => {
+      const copied = postings.map((posting) => ({ ...posting }));
+      upsertPostingsCalls.push({ profileId, postings: copied });
+      for (const posting of copied) postingsById.set(posting.id, posting);
+      return copied;
+    }),
     setEmbedding: vi.fn(notUsed("setEmbedding")),
     listUnscored: vi.fn(notUsed("listUnscored")),
     listUnscoredPostingsWithEmbeddings: vi.fn(notUsed("listUnscoredPostingsWithEmbeddings")),
@@ -131,12 +140,14 @@ function createFakeStore(input: {
     __listMatchesCalls: listMatchesCalls,
     __setMatchStateCalls: setMatchStateCalls,
     __getMatchCalls: getMatchCalls,
-    __countMatchesCalls: countMatchesCalls
+    __countMatchesCalls: countMatchesCalls,
+    __upsertPostingsCalls: upsertPostingsCalls
   } as JobSearchStore & {
     __listMatchesCalls: Array<{ profileId: string; limit: number; offset: number }>;
     __setMatchStateCalls: Array<{ matchId: string; state: Match["state"] }>;
     __getMatchCalls: string[];
     __countMatchesCalls: string[];
+    __upsertPostingsCalls: Array<{ profileId: string; postings: Posting[] }>;
   };
 }
 
@@ -171,8 +182,27 @@ function makeMatch(overrides: Partial<Match> = {}): Match {
   };
 }
 
-function toolCtx(input: Record<string, unknown>): ModuleWorkerContext {
-  return { input: { ...input, actorUserId: "user-1" } } as unknown as ModuleWorkerContext;
+function toolCtx(
+  input: Record<string, unknown>,
+  overrides: Partial<ModuleWorkerContext> = {}
+): ModuleWorkerContext {
+  return {
+    input: { ...input, actorUserId: "user-1" },
+    deadlineAt: Date.now() + 30_000,
+    kv: {
+      get: vi.fn().mockResolvedValue(null),
+      set: vi.fn().mockResolvedValue(undefined),
+      delete: vi.fn().mockResolvedValue(false),
+      list: vi.fn().mockResolvedValue([])
+    },
+    ...overrides
+  } as unknown as ModuleWorkerContext;
+}
+
+function unusedFetch(): FetchLike {
+  return vi.fn(async () => {
+    throw new Error("fetch should not be called");
+  });
 }
 
 function queueCtx(params: Record<string, unknown>): ModuleWorkerContext {
@@ -605,7 +635,7 @@ describe("createMatchesCountHandler", () => {
 describe("createMatchGetHandler", () => {
   it("rejects an unknown key", async () => {
     const store = createFakeStore({});
-    const handler = createMatchGetHandler(store);
+    const handler = createMatchGetHandler(store, unusedFetch());
 
     await expect(handler(toolCtx({ matchId: "match-1", extra: 1 }))).rejects.toThrow(
       /unknown key: extra/
@@ -615,7 +645,7 @@ describe("createMatchGetHandler", () => {
 
   it("requires matchId", async () => {
     const store = createFakeStore({});
-    const handler = createMatchGetHandler(store);
+    const handler = createMatchGetHandler(store, unusedFetch());
 
     await expect(handler(toolCtx({}))).rejects.toThrow(/matchId is required/);
     expect(store.getMatch).not.toHaveBeenCalled();
@@ -631,23 +661,27 @@ describe("createMatchGetHandler", () => {
     });
     const posting = makePosting("post-1", { title: "Staff Engineer", company: "Acme" });
     const store = createFakeStore({ matches: [match], postings: [posting] });
-    const handler = createMatchGetHandler(store);
+    const fetch = unusedFetch();
+    const handler = createMatchGetHandler(store, fetch);
 
     const result = (await handler(toolCtx({ matchId: "match-1" }))) as {
       match: Record<string, unknown>;
     };
 
     expect(store.__getMatchCalls).toEqual(["match-1"]);
+    expect(fetch).not.toHaveBeenCalled();
     // Pinned separately from matches.ts's BoardMatch key list (test 5, above): the two shapes
     // diverge on purpose. If MatchDetail ever grows a truncateText call, or loses a reason key
     // to match BoardMatch, this fails loudly rather than silently.
     expect(Object.keys(result.match).sort()).toEqual(
       [
         "company",
+        "body",
         "fit",
         "fitReason",
         "id",
         "outsideFrame",
+        "scoredAt",
         "state",
         "title",
         "url",
@@ -666,11 +700,13 @@ describe("createMatchGetHandler", () => {
         title: "Staff Engineer",
         company: "Acme",
         url: "https://example.com/post-1",
+        body: "Description",
         fit: 80,
         want: 70,
         fitReason: longReason,
         wantReason: longReason,
         outsideFrame: false,
+        scoredAt: "2026-07-27T00:00:00.000Z",
         state: "new"
       }
     });
@@ -678,7 +714,7 @@ describe("createMatchGetHandler", () => {
 
   it("returns match: null for an id the store doesn't resolve (wrong owner, deleted, or a synthetic unscored id)", async () => {
     const store = createFakeStore({ getMatchImpl: async () => null });
-    const handler = createMatchGetHandler(store);
+    const handler = createMatchGetHandler(store, unusedFetch());
 
     const result = await handler(toolCtx({ matchId: "post-42" }));
 
@@ -688,11 +724,165 @@ describe("createMatchGetHandler", () => {
   it("returns match: null when the match's posting has since been removed", async () => {
     const match = makeMatch({ id: "match-1", postingId: "post-gone" });
     const store = createFakeStore({ matches: [match], postings: [] });
-    const handler = createMatchGetHandler(store);
+    const handler = createMatchGetHandler(store, unusedFetch());
 
     const result = await handler(toolCtx({ matchId: "match-1" }));
 
     expect(result).toEqual({ matchId: "match-1", match: null });
+  });
+
+  it("keeps the worst-case detail below the rendered-result cap", async () => {
+    const match = makeMatch({
+      id: "00000001-aaaa-bbbb-cccc-000000000001",
+      postingId: "post-1",
+      fitReason: "f".repeat(600),
+      wantReason: "w".repeat(600),
+      outsideFrame: true,
+      state: "dismissed"
+    });
+    const posting = makePosting("post-1", {
+      title: "t".repeat(TITLE_MAX_CHARS + 200),
+      company: "c".repeat(COMPANY_MAX_CHARS + 200),
+      url: `https://example.com/${"u".repeat(URL_MAX_CHARS + 200)}`,
+      body: "b".repeat(BODY_MAX_CHARS + 200)
+    });
+    const store = createFakeStore({ matches: [match], postings: [posting] });
+
+    const result = (await createMatchGetHandler(
+      store,
+      unusedFetch()
+    )(toolCtx({ matchId: match.id }))) as Record<string, unknown> & { match: { body: string } };
+    const rendered = renderToolResult({ data: result });
+
+    expect(result.match.body).toHaveLength(BODY_MAX_CHARS);
+    expect(rendered.length).toBeLessThanOrEqual(12_800);
+  });
+
+  it("fetches and stores an empty LinkedIn description once", async () => {
+    const match = makeMatch();
+    const posting = makePosting("post-1", {
+      sourceId: "linkedin",
+      externalId: "424242",
+      body: ""
+    });
+    const store = createFakeStore({ matches: [match], postings: [posting] });
+    const fetch: FetchLike = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '<div class="show-more-less-html__markup"><p>Build the platform.</p></div>'
+    });
+
+    const result = (await createMatchGetHandler(store, fetch)(toolCtx({ matchId: "match-1" }))) as {
+      match: { body: string };
+    };
+
+    expect(result.match.body).toBe("Build the platform.");
+    expect(store.__upsertPostingsCalls).toEqual([
+      {
+        profileId: "profile-1",
+        postings: [{ ...posting, body: "Build the platform." }]
+      }
+    ]);
+  });
+
+  it("does not fetch an empty body from a non-LinkedIn source", async () => {
+    const match = makeMatch();
+    const posting = makePosting("post-1", { body: "" });
+    const store = createFakeStore({ matches: [match], postings: [posting] });
+    const fetch = unusedFetch();
+
+    const result = (await createMatchGetHandler(store, fetch)(toolCtx({ matchId: "match-1" }))) as {
+      match: { body: string };
+    };
+
+    expect(result.match.body).toBe("");
+    expect(fetch).not.toHaveBeenCalled();
+    expect(store.__upsertPostingsCalls).toEqual([]);
+  });
+
+  it("returns an empty body, suppresses retries for 24 hours, and leaves portal health alone", async () => {
+    const match = makeMatch();
+    const posting = makePosting("post-1", {
+      sourceId: "linkedin",
+      externalId: "424242",
+      body: ""
+    });
+    const store = createFakeStore({ matches: [match], postings: [posting] });
+    const fetch: FetchLike = vi.fn().mockRejectedValue(new Error("offline"));
+    const values = new Map<string, Record<string, unknown>>();
+    const kv = {
+      get: vi.fn(async (_scope: string, namespace: string, key: string) => {
+        return values.get(`${namespace}:${key}`) ?? null;
+      }),
+      set: vi.fn(
+        async (_scope: string, namespace: string, key: string, value: Record<string, unknown>) => {
+          values.set(`${namespace}:${key}`, value);
+        }
+      ),
+      delete: vi.fn().mockResolvedValue(false),
+      list: vi.fn().mockResolvedValue([])
+    };
+    const ctx = toolCtx({ matchId: "match-1" }, { kv } as Partial<ModuleWorkerContext>);
+    const handler = createMatchGetHandler(store, fetch);
+
+    const first = (await handler(ctx)) as { match: { body: string } };
+    const second = (await handler(ctx)) as { match: { body: string } };
+
+    expect(first.match.body).toBe("");
+    expect(second.match.body).toBe("");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(kv.set).toHaveBeenCalledTimes(1);
+    expect(store.setPortalState).not.toHaveBeenCalled();
+    expect(store.__upsertPostingsCalls).toEqual([]);
+  });
+
+  it("times out description enrichment before the invocation deadline", async () => {
+    const match = makeMatch();
+    const posting = makePosting("post-1", {
+      sourceId: "linkedin",
+      externalId: "424242",
+      body: ""
+    });
+    const store = createFakeStore({ matches: [match], postings: [posting] });
+    const fetch: FetchLike = () => new Promise(() => undefined);
+    const ctx = toolCtx({ matchId: "match-1" }, {
+      deadlineAt: Date.now() + 1_002
+    } as Partial<ModuleWorkerContext>);
+
+    const result = (await createMatchGetHandler(store, fetch)(ctx)) as {
+      match: { body: string };
+    };
+
+    expect(result.match.body).toBe("");
+    expect(ctx.kv.set).toHaveBeenCalledTimes(1);
+    expect(store.__upsertPostingsCalls).toEqual([]);
+  });
+
+  it("converges harmlessly when two empty-body detail reads race", async () => {
+    const match = makeMatch();
+    const posting = makePosting("post-1", {
+      sourceId: "linkedin",
+      externalId: "424242",
+      body: ""
+    });
+    const store = createFakeStore({ matches: [match], postings: [posting] });
+    const fetch: FetchLike = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '<div class="show-more-less-html__markup"><p>Build the platform.</p></div>'
+    });
+    const handler = createMatchGetHandler(store, fetch);
+
+    const results = (await Promise.all([
+      handler(toolCtx({ matchId: "match-1" })),
+      handler(toolCtx({ matchId: "match-1" }))
+    ])) as Array<{ match: { body: string } }>;
+
+    expect(results.map((result) => result.match.body)).toEqual([
+      "Build the platform.",
+      "Build the platform."
+    ]);
+    expect(store.__upsertPostingsCalls).toHaveLength(2);
   });
 });
 

@@ -44,6 +44,7 @@ import {
 } from "./handlers/resume.js";
 import { createSourceAddHandler, createSourceRemoveHandler } from "./handlers/source.js";
 import { createSqlStore } from "./store-sql.js";
+import { toFetchLike } from "./ports.js";
 
 export type CtxHandler = (ctx: ModuleWorkerContext) => Promise<unknown>;
 
@@ -85,7 +86,7 @@ export const HANDLERS: Readonly<Record<string, CtxHandler>> = {
   "crawl.sweep": (ctx) => createCrawlSweepHandler(storeFrom(ctx))(ctx),
   "matches.list": (ctx) => createMatchesListHandler(storeFrom(ctx))(ctx),
   "matches.count": (ctx) => createMatchesCountHandler(storeFrom(ctx))(ctx),
-  "match.get": (ctx) => createMatchGetHandler(storeFrom(ctx))(ctx),
+  "match.get": (ctx) => createMatchGetHandler(storeFrom(ctx), toFetchLike(ctx))(ctx),
   "match.set-state": (ctx) => createMatchSetStateHandler(storeFrom(ctx))(ctx),
   "briefing.contribute": (ctx) => createBriefingContributeHandler(storeFrom(ctx))(ctx)
 };

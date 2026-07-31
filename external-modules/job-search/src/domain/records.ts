@@ -103,6 +103,15 @@ export interface Match {
 // arithmetic) — not a number to change here without re-running that measurement.
 export const MATCHES_LIST_MAX_LIMIT = 25;
 
+// `match.get` shares the platform's 16,000-character rendered-result boundary. Ten thousand
+// characters leaves the measured worst-case detail (identity fields and both 600-character
+// reasons included) below the same 80% safety target used by matches.list.
+export const BODY_MAX_CHARS = 10_000;
+
+export function capPostingBody(body: string): string {
+  return body.slice(0, BODY_MAX_CHARS);
+}
+
 export interface PortalState {
   sourceId: string;
   enabled: boolean;
