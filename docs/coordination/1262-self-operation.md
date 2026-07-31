@@ -5390,3 +5390,13 @@ reconstruction guard.
 was at 27% context when it posted, so the re-review likely needs a fresh pane on the same brief
 (`scratchpad/qa-1376-brief.md`, reproduce it if the scratchpad is gone). Merge gate is unchanged:
 sol approves **and** the coordinator concurs.
+
+### 2026-07-31 — coordinator handoff to a `gpt-5.6-sol high` successor
+
+Ben's usage is near cap, so the resident coordinator session (`43e5f5e2`, pane `w1:p11T`) hands off.
+The successor's entry point is **`docs/coordination/2026-07-31-coordinator-handoff-1327.md`**, which
+is self-contained — it should not deep-read this manifest. The sol security brief was copied out of
+the session scratchpad to `docs/coordination/1327-qa-security-brief.md` so it survives the handoff.
+
+State at handoff: PR #1376 rejected on six findings, lane `w1:p14Y` mid-fix and `working`, CI green,
+merge gate is two-party consensus, Tasks 6–7 lane not yet open.
