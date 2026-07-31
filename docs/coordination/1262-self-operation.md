@@ -5485,3 +5485,17 @@ was exactly one active `Coordinator`: Codex session
 `019fb8fb-32b8-7d41-9156-d9d5c2883d30`, pane label `Coordinator`. The build lane resolved fresh as
 Codex session `019fb5b0-47b2-7bf2-88a3-c7f15767d17e`, worktree
 `~/Jarv1s/.claude/worktrees/build-1327-core`, status `working`.
+
+### 2026-07-31 — successor adopted; coordinator verification reopened blocker 3
+
+Coordinator session `019fb962-b11d-78b1-93ff-2456559d2f5b` claimed the lock, re-adopted the live
+builder by session id, and reaped predecessor session `019fb8fb-32b8-7d41-9156-d9d5c2883d30`
+after resolving its pane fresh. The exclusive unpiped gate at `4249b980` completed with exact
+`### FINAL rc=0`: 173 test files passed, 1,784 tests passed, 2 skipped; required PR checks are green.
+
+Coordinator source verification found blocker 3 incomplete before fresh security re-review. The
+new regression exercised only a task without `subjectSignature`; the signed-task branch still
+rethrows the raw feedback error into the shared route logger, which logs the complete error object.
+The builder is adding a sanitized rollback-preserving error plus a non-null-signature regression,
+then must push and complete another fresh unpiped exclusive full gate. Do not spawn sol-high QA
+until that gate is terminal green and the coordinator re-verifies the fix.
