@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -119,6 +119,24 @@ describe("packModuleArtifact", () => {
     writeFileSync(join(dir, "dist", "worker.js"), "// worker");
     const packed = await packModuleArtifact(dir, out, "tiny", "0.1.0");
     expect(packed.artifact).toBe("tiny-0.1.0.tgz");
+  });
+
+  it("produces identical bytes when source mtimes differ", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "pack-repro-"));
+    const out1 = mkdtempSync(join(tmpdir(), "pack-repro-out1-"));
+    const out2 = mkdtempSync(join(tmpdir(), "pack-repro-out2-"));
+    dirs.push(dir, out1, out2);
+    const manifest = join(dir, "jarvis.module.json");
+    writeFileSync(manifest, "{}");
+    mkdirSync(join(dir, "dist"));
+    writeFileSync(join(dir, "dist", "worker.js"), "// worker");
+
+    const first = await packModuleArtifact(dir, out1, "demo-module", "1.0.0");
+    utimesSync(manifest, new Date("2020-01-01T00:00:00Z"), new Date("2030-01-01T00:00:00Z"));
+    const second = await packModuleArtifact(dir, out2, "demo-module", "1.0.0");
+
+    expect(second.sha256).toBe(first.sha256);
+    expect(second.sizeBytes).toBe(first.sizeBytes);
   });
 });
 

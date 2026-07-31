@@ -88,7 +88,10 @@ export async function packModuleArtifact(
   if (existsSync(join(moduleDir, "sql"))) members.push("sql");
   const file = join(outDir, artifact);
   // portable: strips uid/gid/atime metadata so identical trees pack identically.
-  await tar.create({ gzip: true, portable: true, cwd: resolve(moduleDir), file }, members);
+  await tar.create(
+    { gzip: true, portable: true, mtime: new Date(0), cwd: resolve(moduleDir), file },
+    members
+  );
   const bytes = readFileSync(file);
   return {
     version,
