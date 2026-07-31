@@ -21,5 +21,6 @@ export function buildGmailThreadLink(input: GmailActionLinkInput): string {
 
 export function buildEmailActionLink(input: EmailActionLinkInput): string | null {
   if (!GMAIL_ACTION_LINKS_ENABLED || input.providerId !== "google" || !input.threadId) return null;
+  // v1 limitation: index 0 assumes the viewer's browser session ordering; connector data cannot verify it.
   return buildGmailThreadLink({ accountIndex: 0, threadId: input.threadId });
 }
