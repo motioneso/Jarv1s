@@ -74,6 +74,7 @@ export function createMockBriefingRun(
       ]
     },
     feedbackItems: [],
+    structuredPayload: { version: 1, actionRows: [], catchUp: null },
     createdAt: "2026-06-06T12:00:00.000Z",
     ...overrides,
     briefingType: overrides.briefingType ?? "morning"

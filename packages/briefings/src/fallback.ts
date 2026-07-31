@@ -1,4 +1,4 @@
-import type { SourceFreshnessV1 } from "@jarv1s/shared";
+import type { BriefingStructuredPayloadV1, SourceFreshnessV1 } from "@jarv1s/shared";
 
 import type { BriefingGap, ComposeResult, Section } from "./compose.js";
 
@@ -17,6 +17,7 @@ export function fallback(
   vault: Section,
   chats: Section,
   vaultNotes: Array<{ path: string; id: string; excerpt: string }>,
+  structuredPayload: BriefingStructuredPayloadV1,
   sourceTimestamps?: SourceFreshnessV1
 ): ComposeResult {
   const text = sections
@@ -43,6 +44,7 @@ export function fallback(
       degraded: true,
       degradedReason: reason,
       ...(sourceTimestamps !== undefined ? { sourceTimestamps } : {})
-    }
+    },
+    structuredPayload
   };
 }

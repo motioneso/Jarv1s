@@ -105,6 +105,7 @@ function task(id: string, overrides: Partial<TaskDto> = {}): TaskDto {
     completedAt: overrides.completedAt ?? null,
     createdAt: "2026-06-14T00:00:00.000Z",
     updatedAt: "2026-06-14T00:00:00.000Z",
-    tags: []
+    tags: [],
+    suggestionMetadata: null
   };
 }

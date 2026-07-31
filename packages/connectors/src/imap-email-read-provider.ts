@@ -120,6 +120,7 @@ export class ImapEmailReadProvider implements EmailReadProvider<ImapConnectionSe
 
       return {
         externalId: key.id,
+        threadId: null,
         historyId: null,
         subject: mail.subject ?? "(no subject)",
         from: mail.from?.text ?? "(unknown)",

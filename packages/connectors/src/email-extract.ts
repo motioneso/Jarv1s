@@ -33,6 +33,7 @@ export const MAX_SIGNAL_ITEMS = 50;
 
 export interface ParsedEmail {
   readonly externalId: string;
+  readonly threadId?: string | null;
   readonly historyId: string | null;
   readonly subject: string;
   readonly from: string;
@@ -112,6 +113,7 @@ export function parseEmail(message: GmailMessageFull): ParsedEmail {
 
   return {
     externalId: message.id,
+    threadId: message.threadId ?? null,
     historyId: message.historyId ?? null,
     subject: header(payload, "Subject") ?? "(no subject)",
     from: header(payload, "From") ?? "(unknown)",
@@ -163,6 +165,8 @@ export interface EmailActionabilitySignal {
   readonly category: EmailActionabilityCategory;
   readonly reason?: string;
   readonly dueDate?: string;
+  /** Short model-written subject for suppression matching; body-echo guarded before storage. */
+  readonly inferredSubject?: string;
   readonly suggestedTasks?: EmailActionItem[];
 }
 
@@ -226,7 +230,7 @@ function buildPrompt(parsed: ParsedEmail): string {
     "{ summary: string, billsDue: {description:string, amount?:number, currency?:string, dueDate?:string}[],",
     " actionItems: {text:string, dueDate?:string}[], deadlines: {text:string, date?:string}[],",
     ' actionability: { category: "needs_reply"|"needs_action"|"time_sensitive_info"|"waiting_on_someone"|"fyi"|"noise"|"unknown",',
-    "   reason?: string, dueDate?: string, suggestedTasks?: {text:string, dueDate?:string}[] },",
+    "   reason?: string, dueDate?: string, inferredSubject?: string, suggestedTasks?: {text:string, dueDate?:string}[] },",
     ' mayGetLostInShuffle: boolean, importance: "low"|"normal"|"high", confidence: number }',
     "Use ISO dates. confidence is 0..1.",
     "Actionability rules:",
@@ -269,6 +273,13 @@ function safeSignalStr(value: unknown, normalizedBody: string): string | undefin
   if (normalizedBody.length > 0) {
     if (normalized === normalizedBody) return undefined;
     if (normalizedBody.includes(normalized) && normalized.length > 40) return undefined;
+    if (normalized.length >= SUMMARY_BODY_SUBSTRING_FLOOR) {
+      for (let i = 0; i + SUMMARY_BODY_SUBSTRING_FLOOR <= normalized.length; i += 1) {
+        if (normalizedBody.includes(normalized.slice(i, i + SUMMARY_BODY_SUBSTRING_FLOOR))) {
+          return undefined;
+        }
+      }
+    }
   }
   return trimmed;
 }
@@ -328,6 +339,7 @@ function safeActionability(value: unknown, body: string): EmailActionabilitySign
     category,
     reason: safeSignalStr(o.reason, body),
     dueDate: safeSignalStr(o.dueDate, body),
+    inferredSubject: safeSignalStr(o.inferredSubject, body),
     ...(suggestedTasks.length > 0 ? { suggestedTasks } : {})
   };
 }
@@ -401,6 +413,7 @@ function signalStrings(signals: EmailSignals): string[] {
     const a = signals.actionability;
     if (a.reason) out.push(a.reason);
     if (a.dueDate) out.push(a.dueDate);
+    if (a.inferredSubject) out.push(a.inferredSubject);
     for (const t of a.suggestedTasks ?? []) {
       if (t.text) out.push(t.text);
       if (t.dueDate) out.push(t.dueDate);

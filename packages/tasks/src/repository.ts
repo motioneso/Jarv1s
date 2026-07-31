@@ -11,7 +11,7 @@ import {
   type TaskTag,
   type TasksTable
 } from "@jarv1s/db";
-import { localDay } from "@jarv1s/shared";
+import { localDay, type TaskSuggestionMetadataV1 } from "@jarv1s/shared";
 
 import { HttpError } from "./errors.js";
 import {
@@ -38,6 +38,7 @@ export interface CreateTaskInput {
   readonly sourceRef?: string | null;
   readonly externalKey?: string | null;
   readonly recurrence?: RecurrenceSpec | null;
+  readonly suggestionMetadata?: TaskSuggestionMetadataV1 | null;
 }
 
 export interface UpdateTaskInput {
@@ -210,6 +211,39 @@ export class TasksRepository {
         .executeTakeFirst();
 
       if (existing) {
+        if (
+          existing.status === "archived" &&
+          input.status === "suggested" &&
+          input.suggestionMetadata?.resurfaceReason != null
+        ) {
+          return scopedDb.db
+            .updateTable("app.tasks")
+            .set({
+              title: input.title,
+              description: input.description ?? null,
+              status: "suggested",
+              priority: input.priority ?? null,
+              due_at: input.dueAt ?? null,
+              source_ref: input.sourceRef ?? existing.source_ref,
+              suggestion_metadata: input.suggestionMetadata as unknown as Record<string, unknown>,
+              completed_at: null,
+              updated_at: new Date()
+            })
+            .where("id", "=", existing.id)
+            .returningAll()
+            .executeTakeFirstOrThrow();
+        }
+        if (existing.status === "suggested" && input.suggestionMetadata !== undefined) {
+          return scopedDb.db
+            .updateTable("app.tasks")
+            .set({
+              suggestion_metadata: input.suggestionMetadata as Record<string, unknown> | null,
+              updated_at: new Date()
+            })
+            .where("id", "=", existing.id)
+            .returningAll()
+            .executeTakeFirstOrThrow();
+        }
         return existing;
       }
     }
@@ -266,6 +300,7 @@ export class TasksRepository {
         external_key: input.externalKey ?? null,
         recurrence: recurrenceValue ? { ...recurrenceValue } : null,
         recurrence_series_id: recurrenceSeriesId,
+        suggestion_metadata: input.suggestionMetadata as Record<string, unknown> | null,
         completed_at: completedAt,
         created_at: now,
         updated_at: now

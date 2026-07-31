@@ -254,6 +254,7 @@ export interface TasksTable {
   external_key: string | null;
   recurrence: Record<string, unknown> | null;
   recurrence_series_id: string | null;
+  suggestion_metadata: Record<string, unknown> | null;
   created_at: TimestampColumn;
   updated_at: TimestampColumn;
 }
@@ -407,6 +408,23 @@ export interface EmailTriageFeedbackTable {
   model_version: string | null;
   verdict: TriageFeedbackVerdict;
   reason: string | null;
+  created_at: TimestampColumn;
+}
+
+export interface EmailActionSuppressionTable {
+  owner_user_id: string;
+  subject_signature: string;
+  dismissal_count: number;
+  last_deadline_evidence_key: string | null;
+  last_context_message_key: string | null;
+  updated_at: TimestampColumn;
+}
+
+export interface EmailActionSuppressionEvidenceTable {
+  owner_user_id: string;
+  subject_signature: string;
+  evidence_kind: "deadline" | "context";
+  evidence_key: string;
   created_at: TimestampColumn;
 }
 
@@ -1086,6 +1104,8 @@ export interface JarvisDatabase {
   "app.calendar_events": CalendarEventsTable;
   "app.email_messages": EmailMessagesTable;
   "app.email_triage_feedback": EmailTriageFeedbackTable;
+  "app.email_action_suppression": EmailActionSuppressionTable;
+  "app.email_action_suppression_evidence": EmailActionSuppressionEvidenceTable;
   "app.ai_provider_configs": AiProviderConfigsTable;
   "app.ai_configured_models": AiConfiguredModelsTable;
   "app.ai_assistant_action_requests": AiAssistantActionRequestsTable;
@@ -1140,6 +1160,8 @@ export type ModuleEnablementRow = Selectable<ModuleEnablementTable>;
 export type ExternalModuleRow = Selectable<ExternalModulesTable>;
 export type RlsProbeItem = Selectable<RlsProbeItemsTable>;
 export type Task = Selectable<TasksTable>;
+export type EmailActionSuppression = Selectable<EmailActionSuppressionTable>;
+export type EmailActionSuppressionEvidence = Selectable<EmailActionSuppressionEvidenceTable>;
 export type TaskActivity = Selectable<TaskActivityTable>;
 export type TaskList = Selectable<TaskListsTable>;
 export type TaskTag = Selectable<TaskTagsTable>;
