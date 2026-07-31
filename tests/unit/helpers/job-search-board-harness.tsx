@@ -33,7 +33,16 @@ export function installWindowStub(): void {
   // behaviour hangs off — board.tsx's focus refetch is the one that matters, and the previous
   // no-op stub meant that whole branch attached and was never exercised.
   windowListeners.clear();
+  scrollToSpy.mockReset();
+  focusSpy.mockReset();
+  documentGetElementByIdSpy.mockClear();
   (globalThis as unknown as { window: unknown }).window = {
+    scrollY: 480,
+    scrollTo: scrollToSpy,
+    requestAnimationFrame: (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    },
     localStorage: {
       getItem: (key: string) => (store.has(key) ? (store.get(key) as string) : null),
       setItem: (key: string, value: string) => {
@@ -56,9 +65,15 @@ export function installWindowStub(): void {
       );
     }
   };
+  (globalThis as unknown as { document: unknown }).document = {
+    getElementById: documentGetElementByIdSpy
+  };
 }
 
 const windowListeners = new Map<string, Array<() => void>>();
+export const scrollToSpy = vi.fn();
+export const focusSpy = vi.fn();
+export const documentGetElementByIdSpy = vi.fn(() => ({ focus: focusSpy }));
 
 /** Fires every handler registered for a window event, in registration order. */
 export function fireWindowEvent(type: string): void {
@@ -91,11 +106,13 @@ export function matchDetail(overrides: Partial<MatchDetail> = {}): MatchDetail {
     title: "Senior Engineer",
     company: "Acme",
     url: "https://example.com/jobs/senior-engineer",
+    body: "Build reliable systems with a small product team.",
     fit: 80,
     want: 70,
     fitReason: "Matches your stated skills.",
     wantReason: "Aligns with your stated priorities.",
     outsideFrame: false,
+    scoredAt: "2026-07-29T18:00:00.000Z",
     state: "new",
     ...overrides
   };
@@ -149,6 +166,7 @@ export interface BoardFixtures {
    *  `matchesShouldReject` because the whole point of the count tool is that the two reads fail
    *  independently: a rate-limited count must not provoke a whole-board read. */
   countShouldReject: boolean;
+  matchesTruncated: boolean;
 }
 
 export const fixtures: BoardFixtures = {
@@ -158,14 +176,19 @@ export const fixtures: BoardFixtures = {
   matchGetResult: undefined,
   matchGetShouldReject: false,
   resumeGetResult: null,
-  countShouldReject: false
+  countShouldReject: false,
+  matchesTruncated: false
 };
 
 function installTransportMock(): void {
-  vi.mocked(api.invokeTool).mockImplementation(async (name: string) => {
+  vi.mocked(api.invokeTool).mockImplementation(async (name: string, params?: unknown) => {
     if (name === "job-search.matches.list") {
       if (fixtures.matchesShouldReject) throw new Error("Request failed (500)");
-      return { items: fixtures.matchesItems };
+      const offset = (params as { offset?: number } | undefined)?.offset ?? 0;
+      return {
+        items: offset === 0 ? fixtures.matchesItems : [],
+        hasMore: fixtures.matchesTruncated
+      };
     }
     if (name === "job-search.portal.list") {
       return { portals: fixtures.portalsItems };
@@ -208,6 +231,7 @@ export function setupBoardHarness(): void {
     fixtures.matchGetShouldReject = false;
     fixtures.resumeGetResult = null;
     fixtures.countShouldReject = false;
+    fixtures.matchesTruncated = false;
     vi.mocked(api.invokeTool).mockReset();
     vi.mocked(api.runQueue).mockReset();
     vi.mocked(api.runQueue).mockResolvedValue({ kind: "queued" });

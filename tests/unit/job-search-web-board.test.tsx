@@ -19,6 +19,12 @@ vi.mock("../../external-modules/job-search/src/web/api", () => ({
 import { act } from "react-test-renderer";
 import * as api from "../../external-modules/job-search/src/web/api";
 import { setLatched } from "../../external-modules/job-search/src/web/latch";
+import {
+  EMPTY_BOARD_FILTERS,
+  filterBoardMatches,
+  matchBucket
+} from "../../external-modules/job-search/src/web/board-types";
+import { activeFilterCount } from "../../external-modules/job-search/src/web/screens/board-filters";
 // The search poll's tick, so the one test that has to reach a poll-driven board read advances by
 // the real interval rather than a copied literal that could drift out of step with the hook.
 import { TICK_MS } from "../../external-modules/job-search/src/web/use-search-run";
@@ -45,6 +51,91 @@ import {
 setupBoardHarness();
 
 describe("job-search web BoardScreen", () => {
+  it("shares bucket membership for scored and unscored matches", () => {
+    expect(matchBucket(match({ state: "new" }))).toBe("unreviewed");
+    expect(matchBucket(match({ state: "unscored", fit: null, want: null }))).toBe("unreviewed");
+    expect(matchBucket(match({ state: "seen" }))).toBe("saved");
+    expect(matchBucket(match({ state: "dismissed" }))).toBe("passed");
+  });
+
+  it("filters title/company, location, age, Fit, and source together over more than one page", () => {
+    const nowMs = Date.parse("2026-07-30T12:00:00.000Z");
+    const filler = Array.from({ length: 29 }, (_, index) =>
+      match({
+        id: `filler-${index}`,
+        title: `Filler ${index}`,
+        company: "Elsewhere",
+        location: "Seattle",
+        source: "FreeHire",
+        postedAt: "2026-06-01T00:00:00.000Z",
+        fit: 20
+      })
+    );
+    const target = match({
+      id: "target",
+      title: "Staff Platform Engineer",
+      company: "Acme Labs",
+      location: "Remote — US",
+      source: "LinkedIn",
+      postedAt: "2026-07-28T12:00:00.000Z",
+      fit: 90
+    });
+
+    expect(
+      filterBoardMatches(
+        [...filler, target],
+        {
+          query: "acme",
+          location: "remote",
+          posted: "week",
+          fit: "strong",
+          source: "linkedin"
+        },
+        nowMs
+      ).map((item) => item.id)
+    ).toEqual(["target"]);
+  });
+
+  it("treats unknown dates and null Fit explicitly, and counts only active filters", () => {
+    const nowMs = Date.parse("2026-07-30T12:00:00.000Z");
+    const unknownDate = match({ id: "unknown-date", postedAt: null });
+    const unscored = match({ id: "unscored", state: "unscored", fit: null, want: null });
+
+    expect(
+      filterBoardMatches(
+        [unknownDate, unscored],
+        { ...EMPTY_BOARD_FILTERS, posted: "month" },
+        nowMs
+      ).map((item) => item.id)
+    ).toEqual(["unscored"]);
+    expect(
+      filterBoardMatches(
+        [unknownDate, unscored],
+        { ...EMPTY_BOARD_FILTERS, fit: "unscored" },
+        nowMs
+      ).map((item) => item.id)
+    ).toEqual(["unscored"]);
+    expect(
+      activeFilterCount({
+        ...EMPTY_BOARD_FILTERS,
+        query: "engineer",
+        source: "linkedin"
+      })
+    ).toBe(2);
+    expect(activeFilterCount(EMPTY_BOARD_FILTERS)).toBe(0);
+    expect(activeFilterCount({ ...EMPTY_BOARD_FILTERS, query: "   " })).toBe(0);
+  });
+
+  it("states when filters and counts cover only the truncated loaded board", async () => {
+    fixtures.matchesItems = [match({ id: "m1", title: "Loaded Role" })];
+    fixtures.matchesTruncated = true;
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    expect(text(renderer)).toMatch(/filters and counts apply to the first 1,000 loaded roles/i);
+    expect(text(renderer)).not.toMatch(/all roles|whole board/i);
+  });
+
   it("reads matches via job-search.matches.list with explicit profileId and limit", async () => {
     fixtures.matchesItems = [match()];
     const renderer = await renderBoard("p1");
@@ -401,10 +492,45 @@ describe("job-search web BoardScreen", () => {
     expect(vi.mocked(api.runQueue).mock.calls.length).toBe(callsBefore + 1);
   });
 
-  // Mockup rewrite (task #98/#100): the per-row Dismiss button is gone — Save/Pass now live in
-  // the opportunity-detail screen's decision block (inspector.tsx), reached only by opening the
-  // row, and "Dismiss" itself was renamed "Pass" in that block (the onDismiss prop name didn't
-  // change, only the button's own text). Both tests below now open the row first.
+  it("offers Save and Pass on undecided real rows without opening the inspector", async () => {
+    fixtures.matchesItems = [
+      match({ id: "m1", title: "Decide Me", state: "new" }),
+      match({
+        id: "synthetic",
+        title: "Unscored Role",
+        state: "unscored",
+        fit: null,
+        want: null
+      })
+    ];
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    const save = renderer.root
+      .findAllByType("button")
+      .find((item) => item.props["aria-label"] === "Save Decide Me");
+    const pass = renderer.root
+      .findAllByType("button")
+      .find((item) => item.props["aria-label"] === "Pass on Decide Me");
+
+    expect(save).toBeTruthy();
+    expect(pass).toBeTruthy();
+    expect(
+      renderer.root
+        .findAllByType("button")
+        .some((item) => String(item.props["aria-label"] ?? "").includes("Unscored Role"))
+    ).toBe(false);
+
+    await act(async () => {
+      save!.props.onClick({ stopPropagation: vi.fn() });
+    });
+    expect(api.runQueue).toHaveBeenCalledWith("job-search.match-state", "match.set-state", {
+      matchId: "m1",
+      state: "seen"
+    });
+    expect(api.invokeTool).not.toHaveBeenCalledWith("job-search.match.get", { matchId: "m1" });
+  });
+
   it("Pass (dismiss) enqueues job-search.match-state/match.set-state and hides the row immediately (optimistic)", async () => {
     fixtures.matchesItems = [match({ id: "m1", title: "To Dismiss" })];
     fixtures.matchGetResult = { match: matchDetail({ id: "m1" }) };

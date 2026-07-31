@@ -13,9 +13,20 @@ import { readWholeBoard } from "../read-board";
 import type { AssistantSurfaceHandleV1 } from "../../domain/seed-prompt.js";
 import { Inspector } from "./inspector";
 import { MatchRow } from "./match-row";
+import { BoardFilterRow } from "./board-filters";
 import { MatchRecordCard, useDiscuss } from "./discuss";
 import { fetchResume } from "./resume-editor";
-import { isScored, type BoardMatch, type MatchDetail, type PortalListItem } from "../board-types";
+import {
+  EMPTY_BOARD_FILTERS,
+  filterBoardMatches,
+  isScored,
+  matchBucket,
+  type BoardFilters,
+  type BoardMatch,
+  type MatchBucket,
+  type MatchDetail,
+  type PortalListItem
+} from "../board-types";
 import { useSearchRun, type SearchRunState } from "../use-search-run";
 
 // #1333 (paging) is no longer deferrable and is done: this screen reads through
@@ -26,7 +37,7 @@ import { useSearchRun, type SearchRunState } from "../use-search-run";
 type MatchesState =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "ready"; items: BoardMatch[] };
+  | { status: "ready"; items: BoardMatch[]; truncated: boolean };
 
 type SortKey = "fit" | "want";
 interface SortState {
@@ -154,19 +165,11 @@ function lastWorkedText(lastOkAt: string | null): string {
 // only Saved (`seen`) and Passed (`dismissed`) explicitly, and the two remaining states share the
 // one fact that actually matters here — nothing has happened to this match yet — so splitting them
 // into a fourth tab would draw a distinction the board has no other use for.
-type Bucket = "new" | "saved" | "passed";
-
-const BUCKETS: ReadonlyArray<{ key: Bucket; label: string }> = [
-  { key: "new", label: "New" },
+const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string }> = [
+  { key: "unreviewed", label: "Unreviewed" },
   { key: "saved", label: "Saved" },
   { key: "passed", label: "Passed" }
 ];
-
-function bucketOf(item: BoardMatch): Bucket {
-  if (item.state === "seen") return "saved";
-  if (item.state === "dismissed") return "passed";
-  return "new";
-}
 
 // Mockup rewrite (task #99): copy pulled verbatim from JobsMatches.jsx's own `EMPTY` table — this
 // is authored UI text, not fabricated data, so reusing it is the same discipline as reusing the
@@ -174,8 +177,8 @@ function bucketOf(item: BoardMatch): Bucket {
 // no staleness concept anywhere in the domain — see keyline.tsx's fitBand header for the same kind
 // of "no product concept to check against" note) and is dropped along with it; `BUCKETS` above only
 // ever has three keys.
-const BUCKET_EMPTY: Record<Bucket, string> = {
-  new: "Nothing credible has landed here yet. New matches appear after your monitors run each morning.",
+const BUCKET_EMPTY: Record<MatchBucket, string> = {
+  unreviewed: "Nothing credible has landed here yet. New matches appear after monitors run.",
   saved:
     "Ask Jarvis to save an opportunity and it lands here — decisions happen in the conversation.",
   passed: "Roles you've passed on file here, with the reason kept."
@@ -295,7 +298,14 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   const [matchesState, setMatchesState] = useState<MatchesState>({ status: "loading" });
   const [portals, setPortals] = useState<PortalListItem[]>([]);
   const [sort, setSort] = useState<SortState | null>(null);
-  const [bucket, setBucket] = useState<Bucket>("new");
+  const [bucket, setBucket] = useState<MatchBucket>("unreviewed");
+  const [filters, setFilters] = useState<BoardFilters>(EMPTY_BOARD_FILTERS);
+  const filterNowRef = useRef(Date.now());
+  const returnTargetRef = useRef<{
+    scrollY: number;
+    matchId: string;
+    fallbackId: string | null;
+  } | null>(null);
   const [hiddenIds, setHiddenIds] = useState<ReadonlySet<string>>(new Set());
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
   // A read that failed while the board already had rows. Kept apart from MatchesState because the
@@ -357,9 +367,9 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
     try {
       // Every page, not the first one — see web/read-board.ts for why the board is paged at all
       // and why 25 is a page size rather than the size of the board.
-      const { items } = await readWholeBoard(profileId);
+      const { items, truncated } = await readWholeBoard(profileId);
       reconcileHidden(items);
-      setMatchesState({ status: "ready", items });
+      setMatchesState({ status: "ready", items, truncated });
       hasRowsRef.current = true;
       setReadError(null);
     } catch (error) {
@@ -498,16 +508,13 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
     };
   }, [selectedMatchId]);
 
-  const handleDismiss = useCallback(
-    (matchId: string): void => {
-      setHiddenIds((prev) => new Set(prev).add(matchId));
-      setSelectedMatchId((prev) => (prev === matchId ? null : prev));
-      runQueue("job-search.match-state", "match.set-state", { matchId, state: "dismissed" })
-        .catch(() => undefined)
-        .then(() => fetchMatches());
-    },
-    [fetchMatches]
-  );
+  function handleDismiss(matchId: string): void {
+    setHiddenIds((prev) => new Set(prev).add(matchId));
+    if (selectedMatchId === matchId) closeInspector(true);
+    runQueue("job-search.match-state", "match.set-state", { matchId, state: "dismissed" })
+      .catch(() => undefined)
+      .then(() => fetchMatches());
+  }
 
   // #100: the board's other settable state (worker/handlers/matches.ts's SETTABLE_STATES already
   // allows "seen" through this same queue path) — mirrors handleDismiss's shape (close the detail
@@ -518,15 +525,36 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   // a Save/Pass that moves an item to a different bucket can make it vanish from that list the
   // moment fetchMatches resolves; closing immediately means Inspector never renders against that
   // mid-transition state.
-  const handleSave = useCallback(
-    (matchId: string): void => {
-      setSelectedMatchId((prev) => (prev === matchId ? null : prev));
-      runQueue("job-search.match-state", "match.set-state", { matchId, state: "seen" })
-        .catch(() => undefined)
-        .then(() => fetchMatches());
-    },
-    [fetchMatches]
-  );
+  function handleSave(matchId: string): void {
+    if (selectedMatchId === matchId) closeInspector(true);
+    runQueue("job-search.match-state", "match.set-state", { matchId, state: "seen" })
+      .catch(() => undefined)
+      .then(() => fetchMatches());
+  }
+
+  function closeInspector(useFallback = false): void {
+    const target = returnTargetRef.current;
+    returnTargetRef.current = null;
+    setSelectedMatchId(null);
+    if (!target || typeof window === "undefined" || typeof document === "undefined") return;
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: target.scrollY });
+      const focusId = useFallback ? target.fallbackId : target.matchId;
+      const focusTarget =
+        (focusId ? document.getElementById(`job-search-match-${focusId}`) : null) ??
+        document.getElementById("job-search-board-heading");
+      focusTarget?.focus();
+    });
+  }
+
+  function openInspector(matchId: string, fallbackId: string | null): void {
+    returnTargetRef.current = {
+      scrollY: typeof window === "undefined" ? 0 : window.scrollY,
+      matchId,
+      fallbackId
+    };
+    setSelectedMatchId(matchId);
+  }
 
   function toggleSort(key: SortKey): void {
     // `prev ?? the effective default`, because the board arrives already sorted. Treating an
@@ -593,9 +621,10 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
   // Passed has something to show. hiddenIds still applies here too — an optimistically dismissed
   // row must vanish from every bucket immediately, not just from New/Saved.
   const boardItems = matchesState.items.filter((item) => !hiddenIds.has(item.id));
-  const bucketCounts: Record<Bucket, number> = { new: 0, saved: 0, passed: 0 };
-  for (const item of boardItems) bucketCounts[bucketOf(item)] += 1;
-  const bucketItems = boardItems.filter((item) => bucketOf(item) === bucket);
+  const filteredItems = filterBoardMatches(boardItems, filters, filterNowRef.current);
+  const bucketCounts: Record<MatchBucket, number> = { unreviewed: 0, saved: 0, passed: 0 };
+  for (const item of filteredItems) bucketCounts[matchBucket(item)] += 1;
+  const bucketItems = filteredItems.filter((item) => matchBucket(item) === bucket);
   const sorted = sortMatches(bucketItems, sort);
   const selectedMatch = sorted.find((item) => item.id === selectedMatchId) ?? null;
 
@@ -673,7 +702,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
               opens this screen with. As a line of prose ("14 roles · 9 scored so far") it had to
               be read before it could be understood, and it sat at body weight beside a button,
               which made the button the loudest thing on a page about opportunities. */}
-          <p className="jsm-hero__figure">
+          <p id="job-search-board-heading" className="jsm-hero__figure" tabIndex={-1}>
             <span className="jds-hero-figure">{activeItems.length}</span>
             <span className="jds-eyebrow">{activeItems.length === 1 ? "role" : "roles"}</span>
           </p>
@@ -759,7 +788,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
             match={selectedMatch}
             detail={detail}
             detailError={detailError}
-            onClose={() => setSelectedMatchId(null)}
+            onClose={() => closeInspector()}
             onDismiss={(matchId) => handleDismiss(matchId)}
             onSave={(matchId) => handleSave(matchId)}
             onDiscuss={onDiscuss}
@@ -784,13 +813,12 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
 
               Filtering stays entirely client-side over `boardItems`, the ≤25-row page matches.list
               already returned; pressing a bucket never re-fetches. */}
-          <nav className="jds-tabs" role="tablist" aria-label="Match bucket">
+          <nav className="jds-tabs" aria-label="Match bucket">
             {BUCKETS.map((b) => (
               <button
                 key={b.key}
                 type="button"
-                role="tab"
-                aria-selected={bucket === b.key}
+                aria-current={bucket === b.key ? "page" : undefined}
                 className="jds-tab jds-tab--gold"
                 onClick={() => setBucket(b.key)}
               >
@@ -799,6 +827,17 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
               </button>
             ))}
           </nav>
+
+          <BoardFilterRow
+            filters={filters}
+            sources={[...new Set(boardItems.map((item) => item.source))].sort()}
+            onChange={setFilters}
+          />
+          {matchesState.truncated ? (
+            <p className="jsm-queue-notice" role="status">
+              Filters and counts apply to the first 1,000 loaded roles.
+            </p>
+          ) : null}
 
           {bucketItems.length > 0 ? (
             /* Sorting has no mockup equivalent (JobsMatches.jsx's OPPS is pre-ordered) but is real,
@@ -843,8 +882,16 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
                   on every row via `jds-hairline-row` unconditionally (matching the mockup, which
                   doesn't special-case its first row either). The trailing divider below closes the
                   list off at the bottom, the mockup's own borderBottom on the row container. */}
-              {sorted.map((item) => (
-                <MatchRow key={item.id} item={item} onOpen={setSelectedMatchId} />
+              {sorted.map((item, index) => (
+                <MatchRow
+                  key={item.id}
+                  item={item}
+                  onOpen={(matchId) =>
+                    openInspector(matchId, sorted[index + 1]?.id ?? sorted[index - 1]?.id ?? null)
+                  }
+                  onSave={handleSave}
+                  onPass={handleDismiss}
+                />
               ))}
               <hr className="jds-divider" />
             </div>

@@ -33,7 +33,10 @@ import {
   findByRole,
   rowTitles,
   findRowButton,
-  findByClass
+  findByClass,
+  scrollToSpy,
+  focusSpy,
+  documentGetElementByIdSpy
 } from "./helpers/job-search-board-harness";
 
 setupBoardHarness();
@@ -160,6 +163,25 @@ describe("job-search web BoardScreen — inspector", () => {
     await flush(renderer);
 
     expect(text(renderer)).not.toContain("Stale reason for Role A.");
+  });
+
+  it("Back restores the opened row's scroll position and keyboard focus", async () => {
+    fixtures.matchesItems = [match({ id: "m1", title: "Role A" })];
+    fixtures.matchGetResult = { match: matchDetail({ id: "m1" }) };
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    await act(async () => {
+      findRowButton(renderer, /Role A/)!.props.onClick();
+    });
+    await flush(renderer);
+    await act(async () => {
+      findButton(renderer, /Back to matches/)!.props.onClick();
+    });
+
+    expect(scrollToSpy).toHaveBeenCalledWith({ top: 480 });
+    expect(documentGetElementByIdSpy).toHaveBeenCalledWith("job-search-match-m1");
+    expect(focusSpy).toHaveBeenCalledOnce();
   });
 
   // Task 20/#1304: the plan's three-actions requirement — Discuss, Open posting, and Dismiss must
@@ -337,12 +359,12 @@ describe("job-search web BoardScreen — inspector", () => {
     const renderer = await renderBoard();
     await flush(renderer);
 
-    // "New" absorbs both `new` and `unscored` (board.tsx's own bucketOf) — two rows there, one
+    // "Unreviewed" absorbs both `new` and `unscored` through the shared matchBucket helper — two rows there, one
     // each in Saved and Passed.
     const counts = findByClass(renderer, "jds-tab__count").map((item) => item.props.children);
     expect(counts).toEqual([2, 1, 1]);
 
-    // The board opens on New — Saved and Passed rows are not part of the initial render.
+    // The board opens on Unreviewed — Saved and Passed rows are not part of the initial render.
     expect(rowTitles(renderer)).toEqual(["New Role", "Unscored Role"]);
 
     const savedTab = findButton(renderer, /^Saved/);

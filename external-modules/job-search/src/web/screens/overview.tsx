@@ -45,7 +45,7 @@ import { invokeTool } from "../api";
 import { readWholeBoard } from "../read-board";
 import { ONBOARDING_STEPS } from "../../domain/criteria.js";
 import { FieldPair, KeyRow, SectionHead, formatPostedOn } from "../keyline";
-import { isScored, type BoardMatch, type PortalListItem } from "../board-types";
+import { isScored, matchBucket, type BoardMatch, type PortalListItem } from "../board-types";
 import type { Profile } from "../use-profiles";
 
 export interface OverviewScreenProps {
@@ -335,7 +335,7 @@ async function fetchMatches(profileId: string): Promise<BoardMatch[]> {
 function figuresFrom(items: BoardMatch[]): {
   onBoard: number;
   readScored: number;
-  newCount: number;
+  unreviewedCount: number;
   passedCount: number;
 } {
   return {
@@ -343,8 +343,8 @@ function figuresFrom(items: BoardMatch[]): {
     // "Read and scored" reuses board-types.ts's own `isScored` predicate rather than re-deriving
     // "non-null want" here a second time, so the two screens can't drift.
     readScored: items.filter(isScored).length,
-    newCount: items.filter((item) => item.state === "new").length,
-    passedCount: items.filter((item) => item.state === "dismissed").length
+    unreviewedCount: items.filter((item) => matchBucket(item) === "unreviewed").length,
+    passedCount: items.filter((item) => matchBucket(item) === "passed").length
   };
 }
 
@@ -374,8 +374,8 @@ function FiguresSection(props: { state: MatchesState }): ReactNodeLike {
         <FieldPair label="Read and scored">
           <span className="jds-hero-figure">{figures.readScored}</span>
         </FieldPair>
-        <FieldPair label="New">
-          <span className="jds-hero-figure">{figures.newCount}</span>
+        <FieldPair label="Unreviewed">
+          <span className="jds-hero-figure">{figures.unreviewedCount}</span>
         </FieldPair>
         <FieldPair label="Passed">
           <span className="jds-hero-figure">{figures.passedCount}</span>

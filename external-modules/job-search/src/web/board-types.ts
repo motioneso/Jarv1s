@@ -8,6 +8,7 @@
 // postingId, scoredAt) and adds two it does (title/company, joined in from Posting) — so
 // re-declaring the shape here, rather than importing domain Match, is deliberate.
 import type { FailureCause } from "../domain/records.js";
+import { FIT_BAND_MINIMUMS } from "../domain/score.js";
 
 export type MatchState = "unscored" | "new" | "seen" | "dismissed";
 
@@ -77,4 +78,78 @@ export interface PortalListItem {
 // deliberately no longer narrows it, so the compiler asks the question at every use site.
 export function isScored(item: BoardMatch): item is BoardMatch & { want: number } {
   return item.state !== "unscored" && item.want !== null;
+}
+
+export type MatchBucket = "unreviewed" | "saved" | "passed";
+
+export function matchBucket(item: BoardMatch): MatchBucket {
+  if (item.state === "seen") return "saved";
+  if (item.state === "dismissed") return "passed";
+  return "unreviewed";
+}
+
+export type FitFilter = "any" | "strong" | "good" | "fair" | "weak" | "unscored";
+export type PostedFilter = "any" | "day" | "week" | "month";
+
+export interface BoardFilters {
+  query: string;
+  location: string;
+  posted: PostedFilter;
+  fit: FitFilter;
+  source: string;
+}
+
+export const EMPTY_BOARD_FILTERS: BoardFilters = {
+  query: "",
+  location: "",
+  posted: "any",
+  fit: "any",
+  source: ""
+};
+
+function fitFilterFor(value: number | null): FitFilter {
+  if (value === null) return "unscored";
+  if (value >= FIT_BAND_MINIMUMS.strong) return "strong";
+  if (value >= FIT_BAND_MINIMUMS.good) return "good";
+  if (value >= FIT_BAND_MINIMUMS.fair) return "fair";
+  return "weak";
+}
+
+export function filterBoardMatches(
+  items: readonly BoardMatch[],
+  filters: BoardFilters,
+  nowMs: number
+): BoardMatch[] {
+  const query = filters.query.trim().toLowerCase();
+  const location = filters.location.trim().toLowerCase();
+  const source = filters.source.trim().toLowerCase();
+  const postedWindow =
+    filters.posted === "day"
+      ? 86_400_000
+      : filters.posted === "week"
+        ? 604_800_000
+        : filters.posted === "month"
+          ? 2_592_000_000
+          : null;
+
+  return items.filter((item) => {
+    if (
+      query &&
+      !item.title.toLowerCase().includes(query) &&
+      !item.company.toLowerCase().includes(query)
+    ) {
+      return false;
+    }
+    if (location && !item.location.toLowerCase().includes(location)) return false;
+    if (source && item.source.toLowerCase() !== source) return false;
+    if (filters.fit !== "any" && fitFilterFor(item.fit) !== filters.fit) return false;
+    if (postedWindow !== null) {
+      if (!item.postedAt) return false;
+      const postedAt = Date.parse(item.postedAt);
+      if (!Number.isFinite(postedAt) || postedAt > nowMs || nowMs - postedAt > postedWindow) {
+        return false;
+      }
+    }
+    return true;
+  });
 }
