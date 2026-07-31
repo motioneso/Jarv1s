@@ -193,6 +193,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 1.25rem;
+  scroll-margin-top: 5rem;
 }
 
 .jsm-detail__back {
@@ -232,21 +233,25 @@
   margin: 0.25rem 0;
 }
 
-/* The two-column split — the posting on the left, Jarvis's read on the right, 1.35fr/1fr per the
-   mockup's own grid. Collapses to one column under the same width this module's other multi-column
-   rows already give up their own layout at (see `.jsm-krow`'s phone breakpoint below) — a detail
-   screen fighting for width on a phone reads worse than a single stacked column. */
-.jsm-detail__grid {
-  display: grid;
-  grid-template-columns: 1.35fr 1fr;
-  gap: 2.5rem;
-  align-items: start;
+.jsm-detail__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
   align-self: stretch;
+  max-width: 72ch;
 }
 
-.jsm-detail__role-body {
+.jsm-detail__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.jsm-detail__description,
+.jsm-detail__axis-definition {
   margin: 0;
-  max-width: 60ch;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 .jsm-detail__read {
@@ -256,12 +261,10 @@
   min-width: 0;
 }
 
-/* The Fit/Want pair inside the Governor block — side by side on a wide screen, stacked once the
-   right column itself is narrow enough that two value blocks would crowd. */
 .jsm-detail-axes {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .jsm-detail-axis {
@@ -309,13 +312,8 @@
     grid-column: auto;
   }
 
-  .jsm-detail__grid {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-  }
-
-  .jsm-detail-axes {
-    grid-template-columns: 1fr;
+  .jsm-detail {
+    scroll-margin-top: 6rem;
   }
 }
 

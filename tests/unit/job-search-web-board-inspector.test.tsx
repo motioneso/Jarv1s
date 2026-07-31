@@ -95,6 +95,52 @@ describe("job-search web BoardScreen — inspector", () => {
     expect(findByRole(renderer, "alert")).toHaveLength(0);
   });
 
+  it("renders the captured job description, explicit axes, score scale, scored time, and an h2 title", async () => {
+    fixtures.matchesItems = [match({ id: "m1", title: "Role A", want: 74 })];
+    fixtures.matchGetResult = {
+      match: matchDetail({
+        id: "m1",
+        body: "Own the reliability roadmap and mentor the platform team.",
+        want: 74,
+        scoredAt: "2026-07-29T18:05:00.000Z"
+      })
+    };
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    await act(async () => {
+      findRowButton(renderer, /Role A/)!.props.onClick();
+    });
+    await flush(renderer);
+
+    const rendered = text(renderer);
+    expect(rendered).toContain("Job description");
+    expect(rendered).toContain("Own the reliability roadmap and mentor the platform team.");
+    expect(rendered).toContain("74/100");
+    expect(rendered).toContain("Scored Jul 29 at 18:05 UTC");
+    expect(rendered).toMatch(/Fit measures.*Want measures.*independently/i);
+    expect(rendered).not.toMatch(/doesn.t store the full posting text|open the original posting/i);
+    expect(renderer.root.findAllByType("h1")).toHaveLength(0);
+    expect(renderer.root.findAllByType("h2").map((heading) => flatten(heading.children))).toEqual([
+      "Role A"
+    ]);
+  });
+
+  it("uses the plain unavailable fallback only when the description body is empty", async () => {
+    fixtures.matchesItems = [match({ id: "m1", title: "Role A" })];
+    fixtures.matchGetResult = { match: matchDetail({ id: "m1", body: "" }) };
+    const renderer = await renderBoard();
+    await flush(renderer);
+
+    await act(async () => {
+      findRowButton(renderer, /Role A/)!.props.onClick();
+    });
+    await flush(renderer);
+
+    expect(text(renderer)).toContain("Job description unavailable");
+    expect(text(renderer)).not.toMatch(/doesn.t store the full posting text|open the original/i);
+  });
+
   it("shows a plain error message, not a crash, when job-search.match.get fails", async () => {
     fixtures.matchesItems = [match({ id: "m1", title: "Role A" })];
     fixtures.matchGetShouldReject = true;

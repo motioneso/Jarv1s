@@ -28,7 +28,7 @@ export function Score(props: ScoreProps): ReactNodeLike {
   const className = props.size === "lg" ? "jds-score jds-score--lg" : "jds-score";
   return (
     <span className={className}>
-      {props.value}
+      {`${props.value}/100`}
       <span className="jds-score__track" aria-hidden="true">
         <span className="jds-score__fill" style={{ "--jds-score": String(fraction) }} />
       </span>

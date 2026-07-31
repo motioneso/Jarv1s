@@ -5,8 +5,9 @@
 // 26rem side panel this file used to render. Same file, same export, same prop-shape discipline —
 // pure presentation, no invokeTool/runQueue, board.tsx still owns every fetch/write decision and
 // hands this file the result — but the render tree below is new top to bottom: a back link,
-// display-scale title, a meta line, a 3px rule, then the mockup's 1.35fr/1fr split — the posting on
-// the left, "Jarvis's read" on the right, wrapped in the host's `.jds-governor*` block
+// display-scale title, a meta line, a 3px rule, then one readable column for the description,
+// independent Fit/Want evidence, scored time, and decisions. The read remains wrapped in the
+// host's `.jds-governor*` block
 // (components-jarvis.css) until a decision is made. There is no in-repo precedent for that block —
 // grepped clean across every .tsx/.ts file before writing this — so its markup below is built
 // directly off the CSS class semantics, not copied from an existing caller.
@@ -25,8 +26,8 @@
 //   hasn't been read yet.
 //
 // Data the mockup's DetailView draws that this board cannot — omitted, not fabricated (the task's
-// own rule): `desc` (no posting body ever reaches the wire — not "truncated", never stored),
-// `recommendation` (no verdict field), `summary` (see L9 above), `evidence`/`blockers`/`gaps`/
+// own rule): `recommendation` (no verdict field), `summary` (see L9 above),
+// `evidence`/`blockers`/`gaps`/
 // `prefMatch`/`prefConflict`/`unknowns` (no structured arrays exist, only the two reason strings),
 // the `Profile rev … · resume rev …` provenance line (no revision concept on the wire), `workMode`/
 // `comp` (BoardMatch/MatchDetail carry neither). The mockup's own fallback-copy idiom for a missing
@@ -94,6 +95,23 @@ function GovernorBlock(props: { confirmed: boolean; children: ReactNodeLike }): 
   );
 }
 
+function formatScoredAt(value: string | null): string | null {
+  if (value === null) return null;
+  const date = formatPostedOn(value);
+  const hour = value.slice(11, 13);
+  const minute = value.slice(14, 16);
+  if (
+    date === null ||
+    !/^\d{2}$/.test(hour) ||
+    !/^\d{2}$/.test(minute) ||
+    Number(hour) > 23 ||
+    Number(minute) > 59
+  ) {
+    return null;
+  }
+  return `${date} at ${hour}:${minute} UTC`;
+}
+
 export function Inspector(props: InspectorProps): ReactNodeLike {
   const { match, detail, detailError } = props;
 
@@ -116,6 +134,7 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
   const scored = isScored(match);
   const band = scored && match.fit !== null ? fitBand(match.fit) : null;
   const posted = formatPostedOn(match.postedAt);
+  const scoredAt = formatScoredAt(detail?.scoredAt ?? null);
   // Read off match.state, not a local optimistic flag — the same choice the old panel's
   // "Dismissed." status line already made, so reopening a Saved or Passed match from its own bucket
   // shows the real, current decision rather than whatever this component last rendered.
@@ -163,7 +182,7 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
             : null}
         </div>
 
-        <h1 className="jds-display jds-display--md">{match.title}</h1>
+        <h2 className="jds-display jds-display--md">{match.title}</h2>
 
         <div className="jsm-detail__meta">
           {scored ? (
@@ -223,33 +242,30 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
         <span className="jds-eyebrow jds-eyebrow--gold">Outside your stated frame</span>
       ) : null}
 
-      <div className="jsm-detail__grid">
-        {/* LEFT — the posting. No description field ever reaches this wire (board-types.ts's
-            MatchDetail has no `desc`), so there is nothing to render here but an honest explanation
-            of why, plus the two ways to actually read the posting. */}
-        <div className="jsm-detail__role">
-          <SectionHead label="The role" />
-          <p className="jsm-detail__role-body">
-            This board doesn't store the full posting text. Open the original posting above to read
-            it, or ask Jarvis about it in the conversation.
-          </p>
-        </div>
+      <div className="jsm-detail__content">
+        <section className="jsm-detail__section">
+          <SectionHead label="Job description" />
+          {detail === null && detailError === null ? (
+            <p role="status">Loading job description…</p>
+          ) : detail?.body.trim() ? (
+            <p className="jsm-detail__description">{detail.body}</p>
+          ) : (
+            <p>Job description unavailable</p>
+          )}
+          {detailError ? <p role="alert">{detailError}</p> : null}
+        </section>
 
-        {/* RIGHT — Jarvis's read, governed until a decision is made. */}
-        <aside className="jsm-detail__read">
+        <section className="jsm-detail__read">
           <SectionHead label="Jarvis's read" />
+          <p className="jds-hint jsm-detail__axis-definition">
+            Fit measures résumé evidence for the role; Want measures alignment with the work you
+            said you want, independently.
+          </p>
           {scored ? (
             <GovernorBlock confirmed={decided}>
               <div className="jsm-detail-axes">
                 <div className="jsm-detail-axis">
                   <span className="jds-eyebrow">Fit</span>
-                  {/* K-D1 (superseded): Fit never draws as a bar, percentage or pill anywhere in
-                      this module — a band word only, the same rail-less word already shown in the
-                      header meta line above and at row level (match-row.tsx). Reusing `band` here
-                      (not re-deriving it) is the same "two screens computing the same thing must
-                      not drift" reasoning keyline.tsx's own header gives fitBand.
-                      An em dash, not a band, when Fit has no basis at all (fit-zero-without-resume
-                      is a known, separate bug — see this task's own report). */}
                   {match.fit === null ? (
                     <p className="jsm-detail-axis__value">—</p>
                   ) : (
@@ -261,95 +277,79 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
                       {band !== null ? FIT_BAND_LABEL[band] : "—"}
                     </span>
                   )}
-                  {detail ? (
-                    <p>{detail.fitReason}</p>
-                  ) : detailError ? (
-                    <p role="alert">{detailError}</p>
-                  ) : (
-                    <p role="status">Loading the reason…</p>
-                  )}
+                  {detail ? <p>{detail.fitReason}</p> : null}
                 </div>
                 <div className="jsm-detail-axis">
                   <span className="jds-eyebrow">Want</span>
                   <Score value={match.want} size="lg" />
-                  {detail ? (
-                    <p>{detail.wantReason}</p>
-                  ) : detailError ? (
-                    <p role="alert">{detailError}</p>
-                  ) : (
-                    <p role="status">Loading the reason…</p>
-                  )}
+                  {detail ? <p>{detail.wantReason}</p> : null}
                 </div>
+                {scoredAt ? <p className="jds-hint">Scored {scoredAt}</p> : null}
               </div>
             </GovernorBlock>
           ) : (
-            // Not a spinner, not an error: this posting is sitting in the scoring queue, which can
-            // legitimately run behind a crawl. Saying so plainly is the whole point.
             <p role="status">
               Not read yet — this posting is queued for scoring, not dropped. Fit and Want will
-              appear here once it's been read.
+              appear here once it&rsquo;s been read.
             </p>
           )}
+        </section>
 
-          {/* The decision block — Save, Pass and (when available) Discuss all live here together,
-              the one action surface for this screen, rather than scattered across a top action row
-              and a bottom one the way the old side panel split them. */}
-          <div className="jsm-detail-decision">
-            <hr className="jds-divider jds-divider--ink jsm-detail__rule" />
-            <span className="jds-eyebrow">Your decision</span>
-            {decided ? (
-              <div className="jsm-detail-decision__current">
-                <span
-                  className={
-                    match.state === "seen"
-                      ? "jds-badge jds-badge--forest"
-                      : "jds-badge jds-badge--neutral"
-                  }
-                >
-                  {match.state === "seen" ? "Saved" : "Passed"}
-                </span>
-              </div>
-            ) : null}
-            <div className="jsm-detail-decision__actions">
-              <button
-                type="button"
-                className="jds-btn jds-btn--primary jds-btn--sm"
-                onClick={() => props.onSave(match.id)}
+        <div className="jsm-detail-decision">
+          <hr className="jds-divider jds-divider--ink jsm-detail__rule" />
+          <span className="jds-eyebrow">Your decision</span>
+          {decided ? (
+            <div className="jsm-detail-decision__current">
+              <span
+                className={
+                  match.state === "seen"
+                    ? "jds-badge jds-badge--forest"
+                    : "jds-badge jds-badge--neutral"
+                }
               >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-                </svg>
-                Save
-              </button>
-              <button
-                type="button"
-                className="jds-btn jds-btn--secondary jds-btn--sm"
-                onClick={() => props.onDismiss(match.id)}
-              >
-                Pass
-              </button>
-              {props.onDiscuss ? (
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--quiet jds-btn--sm"
-                  onClick={props.onDiscuss}
-                >
-                  Discuss
-                </button>
-              ) : null}
+                {match.state === "seen" ? "Saved" : "Passed"}
+              </span>
             </div>
+          ) : null}
+          <div className="jsm-detail-decision__actions">
+            <button
+              type="button"
+              className="jds-btn jds-btn--primary jds-btn--sm"
+              onClick={() => props.onSave(match.id)}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+              </svg>
+              Save
+            </button>
+            <button
+              type="button"
+              className="jds-btn jds-btn--secondary jds-btn--sm"
+              onClick={() => props.onDismiss(match.id)}
+            >
+              Pass
+            </button>
+            {props.onDiscuss ? (
+              <button
+                type="button"
+                className="jds-btn jds-btn--quiet jds-btn--sm"
+                onClick={props.onDiscuss}
+              >
+                Discuss
+              </button>
+            ) : null}
           </div>
-        </aside>
+        </div>
       </div>
     </article>
   );
