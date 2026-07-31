@@ -4,6 +4,8 @@
 **Date:** 2026-07-30 · **Approved:** 2026-07-30
 **Issue:** #1375 · child of #1280  
 **Evidence:** `docs/superpowers/research/2026-07-30-job-search-ui-post-onboarding-re-review.md`
+**Independent review:**
+`docs/superpowers/research/2026-07-30-fable-5-job-search-plan-review.md` — approved with changes
 
 ## 1. Problem
 
@@ -42,7 +44,8 @@ experience coherent and faster to triage. It is a correction pass, not a visual 
 
 - No cards, Kanban board, dashboard-card grid, gradients, animation pass, or decorative AI motifs.
 - No combined recommendation score or new score visualizations.
-- No new dependency.
+- No new dependency or schema migration. One data-only migration may invalidate legacy Fit values
+  so the existing refit path can correct them.
 - No paging work already owned by #1333.
 - No rebuild of the match-detail/open-posting route already owned by #1330. This work extends that
   landed one-match read with the already-stored posting body and `scoredAt`; it does not change the
@@ -114,8 +117,15 @@ so the inspector explains the negative evidence rather than hiding it.
 
 Want is untouched. A Fit disposition must never alter Want.
 
-Existing matches are corrected on their next ordinary scoring pass; this slice does not add a
-one-off database rewrite.
+The displayed numeral is the normalized Fit, not necessarily the exact number returned by the
+model. Its preserved reason remains the explanation for that value; the disposition is not exposed
+as a third user-facing axis.
+
+Already-scored matches do not enter an ordinary scoring pass. A one-time, idempotent data-only
+module migration therefore clears their legacy Fit values without changing Want, reasons, state, or
+posting data. The existing bounded `unfitted` repair pass then rescores them with the new schema.
+Profiles without a résumé remain honestly unscored until evidence exists. No new queue, scoring
+mode, or schema column is introduced.
 
 ## 7. Chat action truth
 
@@ -171,11 +181,16 @@ One compact filter row provides:
 Filters combine with the selected bucket and existing single-axis sort. An active filter count and
 one Clear action are enough; no saved searches or query builder.
 
+If the existing whole-board reader reports that its safety cap truncated the board, the UI says
+that filters and counts apply only to the loaded roles. It never presents a filtered truncated set
+as the whole board.
+
 ### 8.3 Row actions
 
-Each row exposes keyboard-operable Save and Pass controls without opening the inspector. They call
-the existing match-state queue and reuse its optimistic/reconcile behavior. Activating either
-control must not also activate the row.
+Each row with a real match record exposes keyboard-operable Save and Pass controls without opening
+the inspector. Synthetic `unscored` rows have posting ids rather than settable match ids and
+therefore expose no decision controls. The controls call the existing match-state queue and reuse
+its optimistic/reconcile behavior. Activating either control must not also activate the row.
 
 The inspector retains Save, Pass, and Discuss for users who want the evidence first.
 
@@ -205,8 +220,19 @@ HTML description to plain text and stores it. Two gaps are corrected:
 
 This lazy path covers both existing and future LinkedIn rows without adding one detail request for
 every search result during a crawl. The next read reuses the stored text. The fetch remains subject
-to the existing deadline, host allowlist, auth-wall stop, and structured failure rules; it never
-signs in or works around a login wall.
+to the host allowlist, auth-wall stop, and structured failure rules; it never signs in or works
+around a login wall. It also has a short timeout inside the host invocation deadline. A failed
+per-posting enrichment never changes portal health and is suppressed through the existing
+user-scoped module KV for 24 hours before another open may retry it.
+
+This public cache fill is the bounded exception that lets the existing `risk: "read"` detail tool
+perform a network read and idempotent posting-body write. Concurrent opens may fetch twice and
+converge through the existing posting upsert; no lock or new cache subsystem is added.
+
+Posting bodies are normalized and capped at the shared storage boundary. `BODY_MAX_CHARS` is sized
+against the platform's 16 000-character rendered-result limit with every other detail field at its
+maximum, so a long description can be shortened but can never replace the entire structured detail
+result with the gateway's truncation sentinel.
 
 The inspector becomes one readable column:
 
@@ -223,6 +249,9 @@ The current paragraph telling the user that Jarv1s does not store the descriptio
 original posting is removed. The original-posting link remains a secondary source link in the
 header. If a source genuinely provides no public description or enrichment fails, the section says
 only **Job description unavailable** and exposes the structured source failure when one exists.
+
+Identity metadata remains sourced from the selected `BoardMatch` row and keeps its existing short
+field caps. The detail payload adds only `body` and `scoredAt`.
 
 Fit and Want reasons use a readable 55–75 character measure. The queued state keeps its current
 honest explanation. The role title is `h2`; the module masthead remains the single `h1`.
@@ -310,9 +339,11 @@ Minimum proof:
 3. Chat tests prove executed/denied/error outcomes render outside “Behind the scenes,” use
    `statusText`, and survive history reload.
 4. Board tests cover every filter, combined filtering, row Save/Pass event isolation, shared
-   unreviewed counts, and list restoration.
+   unreviewed counts, truncated-board disclosure, and list restoration. Filter fixtures exceed one
+   25-row page.
 5. Adapter and handler tests prove freehire and LinkedIn descriptions become stored plain text,
-   existing empty LinkedIn rows enrich once, and `match.get` returns `body` and `scoredAt`.
+   existing empty LinkedIn rows enrich once, failed enrichment is retry-suppressed without changing
+   portal state, and `match.get` returns `body` and `scoredAt` below the rendered-result cap.
 6. Inspector tests cover the one-column description layout, unavailable fallback, `N/100`,
    `scoredAt`, and heading level.
 7. Settings tests assert the switch name and absence of “every morning.”
@@ -322,6 +353,8 @@ Minimum proof:
    clearance, accessible names, and no horizontal overflow.
 10. Live dev proof confirms a LinkedIn inspector contains the description text, a source enablement
     produces a visible terminal outcome, and the Monitors row agrees after reload.
+11. Live dev proof confirms a pre-existing scored mismatch is invalidated and corrected through the
+    existing bounded refit path.
 
 ## 14. Success criteria
 
