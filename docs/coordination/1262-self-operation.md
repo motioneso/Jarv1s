@@ -5695,3 +5695,13 @@ that disabled query's `isPending`, which remains true while fetch status is idle
 session `019fba1b-72cc-7e73-a143-2be9edb4fe89` is reopened for the shared loading-state fix, one
 focused regression test, commit/push, and port-5198 restart. No final QA or merge before Ben retries
 the fixed live path and posts the full evidence artifact.
+
+### 2026-07-31 — stuck loading fixed; live retry open
+
+Retained build session `019fba1b-72cc-7e73-a143-2be9edb4fe89` pushed `8cd72b87` (`fix(today): stop
+waiting on disabled morning runs`). Evidence: expected RED focused unit exit 1; focused
+`today-evening-mode` + `today-briefing-action-rows` units 12/12 exit 0; targeted ESLint, Prettier,
+commit, push, and live curl exit 0. The branch Vite server was restarted on port 5198 with
+`JARVIS_API_PROXY_TARGET=http://localhost:3000`; the tailnet `/today` URL returns HTTP 200. Ben
+should reload <http://100.64.98.99:5198/today> and continue the authenticated pass. Final sol-high
+QA and merge remain gated on the complete live evidence artifact.
