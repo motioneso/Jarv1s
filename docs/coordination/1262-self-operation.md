@@ -4782,7 +4782,7 @@ Merged squash at 02:40:42Z. Issue **#1311 auto-closed**. Branch `1311-install-gr
 **Five gates checked before the merge — all independently verified, none taken on self-report:**
 
 1. **Session-id authority** — my pane's `agent_session.value` re-read fresh and matched the
-   manifest lock anchor `43e5f5e2-0deb-4ab5-9237-436e8795b611`.
+   then-current manifest lock anchor (`43e5f5e2`).
 2. **CI** — `Verify foundation and app` = SUCCESS, plus `Detect change scope`,
    `Compose deployment smoke`, `Prod compose deployment smoke` all SUCCESS; `Verify docs` SKIPPED.
    PR read `UNSTABLE` only because `Build and publish images` had not reported. **`main` has no
@@ -5400,3 +5400,6 @@ the session scratchpad to `docs/coordination/1327-qa-security-brief.md` so it su
 
 State at handoff: PR #1376 rejected on six findings, lane `w1:p14Y` mid-fix and `working`, CI green,
 merge gate is two-party consensus, Tasks 6–7 lane not yet open.
+
+**Coordinator lock:** Codex session `019fb8fb-32b8-7d41-9156-d9d5c2883d30`, pane label
+`Coordinator`. This supersedes outgoing session `43e5f5e2`.
