@@ -157,7 +157,8 @@
 .jds-tab:hover {
   color: var(--text);
 }
-.jds-tab[aria-selected="true"] {
+.jds-tab[aria-selected="true"],
+.jds-tab[aria-current="page"] {
   color: var(--text);
   font-weight: var(--weight-semibold);
   border-bottom-color: var(--accent);
@@ -176,11 +177,13 @@
    a 3px gold underline instead of the default 2px accent one, and the count beside the label
    turns gold when its tab is active. Do not change the base `.jds-tab` selected state above —
    this is a distinct marker style, not a fix. */
-.jds-tab--gold[aria-selected="true"] {
+.jds-tab--gold[aria-selected="true"],
+.jds-tab--gold[aria-current="page"] {
   border-bottom-width: 3px;
   border-bottom-color: var(--gold-strong);
 }
-.jds-tab--gold[aria-selected="true"] .jds-tab__count {
+.jds-tab--gold[aria-selected="true"] .jds-tab__count,
+.jds-tab--gold[aria-current="page"] .jds-tab__count {
   color: var(--gold-strong);
 }
 

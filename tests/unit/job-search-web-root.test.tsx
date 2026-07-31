@@ -611,12 +611,15 @@ describe("job-search web Root", () => {
       expect(profileTab).toBeTruthy();
       expect(monitorsTab).toBeTruthy();
 
-      // aria-selected is what jds-tab draws its underline off — this asserts the actual attribute
-      // the design system reads, not just "some tab looks selected".
-      expect(matchesTab!.props["aria-selected"]).toBe(true);
-      expect(overviewTab!.props["aria-selected"]).toBe(false);
-      expect(profileTab!.props["aria-selected"]).toBe(false);
-      expect(monitorsTab!.props["aria-selected"]).toBe(false);
+      expect(matchesTab!.props["aria-current"]).toBe("page");
+      expect(overviewTab!.props["aria-current"]).toBeUndefined();
+      expect(profileTab!.props["aria-current"]).toBeUndefined();
+      expect(monitorsTab!.props["aria-current"]).toBeUndefined();
+      expect(renderer.root.findAllByProps({ role: "tablist" })).toHaveLength(0);
+      expect(renderer.root.findAllByProps({ role: "tab" })).toHaveLength(0);
+      expect(renderer.root.findAllByType("h1").map((heading) => flatten(heading.children))).toEqual([
+        "Job Search"
+      ]);
 
       // Matches is the board — the pre-existing title-text assertion elsewhere in this file
       // already covers that it's the real BoardScreen, not a placeholder. (board.tsx has no
@@ -716,7 +719,7 @@ describe("job-search web Root", () => {
         findButton(renderer, /^Overview$/)!.props.onClick();
       });
       await flush(renderer);
-      expect(findButton(renderer, /^Overview$/)!.props["aria-selected"]).toBe(true);
+      expect(findButton(renderer, /^Overview$/)!.props["aria-current"]).toBe("page");
 
       // Switch profile — same shape as this file's own surfaceKey-rebind test above: a real
       // profile switch happens via useProfiles handing Root a new selectedId, so simulate that by
@@ -729,7 +732,7 @@ describe("job-search web Root", () => {
 
       // The tab survived the profile switch — ActiveProfilePanel isn't remounted or reset by a
       // change in which profile is selected.
-      expect(findButton(renderer, /^Overview$/)!.props["aria-selected"]).toBe(true);
+      expect(findButton(renderer, /^Overview$/)!.props["aria-current"]).toBe("page");
 
       // Now the reverse: switch tab again, then switch profile back, and confirm the profile
       // switcher (not the view switcher) is what changed — ProfileBar's own selected button.
@@ -743,9 +746,9 @@ describe("job-search web Root", () => {
       });
       await flush(renderer);
 
-      expect(findButton(renderer, /^Monitors$/)!.props["aria-selected"]).toBe(true);
+      expect(findButton(renderer, /^Monitors$/)!.props["aria-current"]).toBe("page");
       const searchA = findButton(renderer, /^Search A$/);
-      expect(searchA!.props["aria-selected"]).toBe(true);
+      expect(searchA!.props["aria-current"]).toBe("page");
     });
 
     it("renders onboarding and no tab bar for an in_conversation profile", async () => {
@@ -759,6 +762,9 @@ describe("job-search web Root", () => {
       expect(findButton(renderer, /^Overview$/)).toBeUndefined();
       expect(findButton(renderer, /^Profile$/)).toBeUndefined();
       expect(findButton(renderer, /^Monitors$/)).toBeUndefined();
+      expect(renderer.root.findAllByType("h1").map((heading) => flatten(heading.children))).toEqual([
+        "Job Search"
+      ]);
     });
   });
 

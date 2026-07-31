@@ -214,13 +214,12 @@ function ProfileBar(props: {
 }): ReactNodeLike {
   return (
     <div className="jsm-profilebar">
-      <div className="jsm-switcher" role="tablist" aria-label="Job search profile">
+      <nav className="jsm-switcher" aria-label="Job search profile">
         {props.profiles.map((profile) => (
           <button
             key={profile.profileId}
             type="button"
-            role="tab"
-            aria-selected={profile.profileId === props.selectedId}
+            aria-current={profile.profileId === props.selectedId ? "page" : undefined}
             className={
               profile.profileId === props.selectedId
                 ? "jds-btn jds-btn--secondary jsm-switcher-btn is-selected"
@@ -231,7 +230,7 @@ function ProfileBar(props: {
             {profile.name}
           </button>
         ))}
-      </div>
+      </nav>
       <button
         type="button"
         className="jds-btn jds-btn--quiet jds-btn--sm"
@@ -266,12 +265,10 @@ function ActiveProfilePanel(props: {
   // to the résumé editor, which opens itself whenever the number moves.
   const [resumeIntent, setResumeIntent] = useState(0);
 
-  // A tiny declarative table rather than four near-identical <button> blocks — the four tabs
+  // A tiny declarative table rather than four near-identical <button> blocks — the four views
   // differ only in `id`/label, and writing them out longhand four times is exactly the kind of
-  // duplication that drifts (one tab gets an aria-selected fix the other three don't). `jds-tabs`/
-  // `jds-tab` with `aria-selected` is unchanged from Task 20's pair — the design system already
-  // draws the underline off that attribute, so this is a rename and extension of the existing
-  // chrome, not new chrome (plan K5: "not new chrome").
+  // duplication that drifts. These are ordinary navigation buttons, so the selected destination
+  // uses aria-current rather than promising arrow-key tab behavior this switcher does not provide.
   //
   // `jds-tab--gold` is the mockup's marker: a 3px gold underline on the selected tab rather than
   // the default 2px accent one. `JobsModule.jsx` — the module rendered inside the app shell, which
@@ -285,13 +282,12 @@ function ActiveProfilePanel(props: {
   ];
 
   const viewSwitcher = (
-    <div className="jds-tabs" role="tablist" aria-label="Job search view">
+    <nav className="jds-tabs" aria-label="Job search view">
       {TABS.map((tab) => (
         <button
           key={tab.id}
           type="button"
-          role="tab"
-          aria-selected={view === tab.id}
+          aria-current={view === tab.id ? "page" : undefined}
           className="jds-tab jds-tab--gold"
           onClick={() => {
             // Clicking a tab by hand carries no résumé intent, so clear any left over from an
@@ -304,7 +300,7 @@ function ActiveProfilePanel(props: {
           {tab.label}
         </button>
       ))}
-    </div>
+    </nav>
   );
 
   let screen: ReactNodeLike;

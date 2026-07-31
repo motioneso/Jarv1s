@@ -127,9 +127,9 @@ export function OnboardingScreen(props: {
         <span className="jds-eyebrow jds-eyebrow--gold">
           {done.size} of {ONBOARDING_STEPS.length} answered
         </span>
-        <h1 className="jds-display jds-display--sm">
+        <h2 className="jds-display jds-display--sm">
           Let&rsquo;s work out what this search is for.
-        </h1>
+        </h2>
         <span className="jds-strap jds-strap--gold" aria-hidden="true" />
         <p className="jds-hint jsm-onb-lede">
           Nothing gets crawled until we both know what we&rsquo;re looking for. You can stop and

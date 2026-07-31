@@ -412,12 +412,18 @@ describe("job-search web BoardScreen — inspector", () => {
 
     // The board opens on Unreviewed — Saved and Passed rows are not part of the initial render.
     expect(rowTitles(renderer)).toEqual(["New Role", "Unscored Role"]);
+    const unreviewed = findButton(renderer, /^Unreviewed/);
+    expect(unreviewed!.props["aria-current"]).toBe("page");
+    expect(renderer.root.findAllByProps({ role: "tablist" })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ role: "tab" })).toHaveLength(0);
 
     const savedTab = findButton(renderer, /^Saved/);
     await act(async () => {
       savedTab!.props.onClick();
     });
     expect(rowTitles(renderer)).toEqual(["Saved Role"]);
+    expect(savedTab!.props["aria-current"]).toBe("page");
+    expect(unreviewed!.props["aria-current"]).toBeUndefined();
 
     const passedTab = findButton(renderer, /^Passed/);
     await act(async () => {

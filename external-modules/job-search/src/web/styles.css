@@ -113,7 +113,7 @@
   min-width: 0;
 }
 
-.jsm-switcher-btn[aria-selected="true"] {
+.jsm-switcher-btn[aria-current="page"] {
   font-weight: 600;
 }
 
