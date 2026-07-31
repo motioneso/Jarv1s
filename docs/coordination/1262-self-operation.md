@@ -5167,6 +5167,24 @@ scope, `https://www.googleapis.com/auth/calendar`, so `accessHasEmailScope()`
 the sync completes with nothing to fetch. Needs a browser OAuth re-consent granting Gmail read —
 only Ben can do it. Until then Gmail rows are omitted per §3 and the feature emits no email rows.
 Saved as memory `dev-google-account-has-calendar-scope-only`.
+
+**RESOLVED, and a second blocker found (2026-07-30).** Ben re-consented. Dev now has **two active
+google connector accounts**: the original calendar-only row, and a new row carrying the Gmail scope
+(`last_sync_status = partial`, `truncated: true`, `emailUpserted: 50`, `calendarUpserted: 16`).
+`app.email_messages` holds 50 rows on one account, all with `external_id`. The scope gap is closed.
+
+The second blocker is independent: `external_metadata` on all 50 rows carries **exactly two keys,
+`historyId` and `labelIds` — no `threadId`**. Task 2 implemented the convention
+`https://mail.google.com/mail/u/{accountIndex}/#all/{threadId}` and its helper rejects missing
+thread metadata, so against real cached data every Gmail `sourceHref` is still null — the same
+zero-rows outcome, a different cause. Root cause: `GmailMessageFull`
+(`packages/connectors/src/google-api-client.ts:69-77`) does expose `threadId`, but
+`packages/connectors/src/email-extract.ts:115` maps only `historyId`, dropping `threadId` before
+persistence. Ruling relayed to the core agent: **persist `threadId` at sync alongside `historyId`,
+re-sync, then verify one real link** — do not pivot the convention to a message id to dodge the
+missing field. The two-account state is now a genuine fixture for Task 2's account-scoped composite
+cache key and must be exercised against both. Standing privacy constraint restated to the agent: no
+thread id, message id, subject, sender, or body may appear anywhere, including the PR.
 - prose `#1372` — plan `docs/superpowers/plans/2026-07-30-1327-briefing-prose.md` **approved**
   (existing evening test deliberately replaced, morning prose test added, morning same-day run
   query added). Two approval conditions attached: live dev-instance walkthrough recorded on the PR,
