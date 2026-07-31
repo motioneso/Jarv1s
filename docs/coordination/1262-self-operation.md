@@ -5425,3 +5425,21 @@ Fresh security re-review: label `qa-1327-core-r2`, Codex session
 `gpt-5.6-sol high`, status `reviewing`. It is following
 `docs/coordination/1327-qa-security-brief.md` verbatim and must post its durable PR verdict. Merge
 only on sol approval plus coordinator concurrence; required CI must remain green.
+
+### 2026-07-31 — PR #1376 security re-review RED; lane stopped
+
+Fresh `gpt-5.6-sol high` review at exact head `9ce72e69` posted **RED**:
+<https://github.com/motioneso/Jarv1s/pull/1376#issuecomment-5145673190>. CI was green and the scoped
+UAT passed, but five blockers remain:
+
+1. Linkless `needs_reply` rows incorrectly receive a Reply primary action; locked shape requires
+   `null`.
+2. Archived-task dedupe can consume resurfacing evidence while counting creation as success;
+   context evidence can also be consumed before task creation succeeds.
+3. A tasks route logs raw feedback errors, risking sender/subject leakage.
+4. Malformed/projection failure lacks the required sanitized `structured_payload_failed` metric/gap.
+5. Suppression RLS proof omits the required admin and worker negative roles.
+
+**No merge.** This is the second failed QA cycle on the lane, so the coordinate failure budget is
+stop-the-line. The build lane remains at `9ce72e69` and has been asked for a concise per-finding
+assessment only; no edits are authorized until Ben decides whether to reopen the failure budget.
