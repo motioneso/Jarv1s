@@ -232,7 +232,10 @@ export function TodayPage(props: {
   const open = tasks.filter((t) => t.parentTaskId === null && t.status === "todo");
   const actionRowsRun = selectActionRowsRun(todayMode, latestMorningRun, latestEveningRun);
   const actionRowsLoading =
-    todayMode === "day" ? morningRunsQuery.isPending : eveningRunsQuery.isPending;
+    todayMode === "day"
+      ? briefingDefinitionsQuery.isPending ||
+        (morningDefinition?.enabled === true && morningRunsQuery.isPending)
+      : eveningRunsQuery.isPending;
   // "Priorities" = Do First (important + urgent); "At risk" = due today/soon or overdue.
   const priorities = open.filter(isDoFirst);
   const atRisk = open.filter((t) => isAtRisk(t, locale.timezone));
