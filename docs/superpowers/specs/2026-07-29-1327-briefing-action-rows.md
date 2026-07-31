@@ -2,13 +2,15 @@
 
 **Status:** draft — awaiting Ben approval
 **GitHub:** #1327
-**Grounded on:** `6aa9e1ab` (`spec/1327-briefing-action-rows`)
+**Grounded on:** `c637da5c` (`spec/1327-briefing-action-rows`)
 **Risk tier:** `security`
 
 This spec adds a typed action-row payload beside briefing prose. It does not turn the prose into
 data, derive actions at briefing time, add an email client, or add a second reply-writing path.
 Email sync continues to create `status: "suggested"` tasks; briefing composition only snapshots
-those continuously maintained rows.
+those continuously maintained rows. It also closes the existing Today-page render gap for morning
+and primary-evening prose using the `summaryText` already composed, persisted, and served—no new
+composition logic, API field, or migration.
 
 The tier is mechanical under `.claude/skills/coordinate/SKILL.md`: this changes cross-module
 contracts and a shared table (`sensitive`) and adds owner-only suppression state with FORCE RLS
@@ -48,9 +50,22 @@ sign-off, and the user-facing live-path proof below.
 - `packages/briefings/src/compose-evening.ts:107` is the separate evening gather path.
 - `packages/briefings/src/compose-shared.ts` owns `ComposeResult`, manifest-tool gathering, and the
   capability-routed economy synthesis call.
+- Morning `summaryText` is composed at `packages/briefings/src/compose.ts:457`, persisted as
+  `summary_text` at `packages/briefings/src/repository.ts:289`, and served at
+  `packages/briefings/src/routes.ts:590`.
+- Across `apps/web/src` and `packages/chat/src`, `summaryText` has exactly one render site:
+  `apps/web/src/today/evening-mode.tsx:148`.
+- `apps/web/src/today/today-page.tsx:116-136` selects and fetches only the evening definition and
+  runs. Its “Start here” content is derived client-side from tasks at
+  `apps/web/src/today/today-page.tsx:240-243` and rendered at
+  `apps/web/src/today/today-page.tsx:332-362`; no morning run prose is queried or rendered.
+- The one prose render is the `compact` evening variant; the primary “What happened today” card at
+  `apps/web/src/today/evening-mode.tsx:138-156` renders no prose. `compactSummary()` truncates that
+  compact copy to 220 characters at `apps/web/src/today/evening-mode.tsx:280-284`, and the compact
+  variant appears in day mode at `apps/web/src/today/today-page.tsx:539-550`.
 - `packages/briefings/src/trust-boundary.ts` sanitizes every external prompt line and keeps the
   trusted preamble literal.
-- `packages/connectors/src/monitor-jobs.ts:107` continuously plans email tasks and writes them
+- `packages/connectors/src/monitor-jobs.ts:109` continuously plans email tasks and writes them
   through a structural task port.
 - `packages/connectors/src/source-context/email-tasks.ts` enforces the confidence floors and
   deterministic per-message task key.
@@ -314,6 +329,9 @@ run, so accepted/dismissed morning rows are absent while still-outstanding rows 
   are rendered separately, so the prose must not invent, count, or restate action items.
   Interpolate no row value into trusted text.
 - Fallback prose uses the same filtered sections.
+- On Today, render prose and rows as separate authored sections. Prose provides orientation; row
+  titles, explanations, counts, and controls appear only in `BriefingActionRowsSection`. The web
+  layer must not concatenate structured row or catch-up copy into `summaryText`.
 
 The structured payload itself never enters the synthesis prompt. It travels alongside
 `summaryText` through `ComposeResult`, persistence, and `BriefingRunDto`.
@@ -330,6 +348,32 @@ counted but contribute no text. If none has safe text, use the authored copy
 timestamp, not briefing creation time.
 
 ## 8. Web behavior
+
+### Briefing prose surfaces
+
+Close the existing render gap before adding rows:
+
+- In day/morning mode, resolve the enabled morning definition and its same-local-day run using the
+  existing briefing API. Render that run's `summaryText` as the first `jds-brief` in the main
+  column, immediately before “Start here”. The resulting order is morning prose → “Start here” →
+  `BriefingActionRowsSection` (replacing the suggested-from-email section) → the optional overnight
+  section → the calendar card. The narrative frames the day first; task triage and discrete email
+  actions follow; the calendar remains the chronological detail.
+- In evening mode, render the run's `summaryText` directly below the primary “What happened today”
+  heading and any freshness banner.
+- Morning and primary-evening prose are complete text: preserve paragraphs, render as text, and do
+  not call `compactSummary()`, line-clamp, or otherwise truncate them. The small day-mode evening
+  tile keeps the existing whitespace normalization and 220-character `compactSummary()` cut.
+- If the relevant briefing definition is disabled, omit its prose surface. While an enabled
+  definition or run query is loading, keep the card in place with the authored
+  `Gathering your morning briefing…` or `Gathering your evening review…` state. When no
+  same-local-day run exists or its prose is blank, use `Your morning briefing is not ready yet.` or
+  the existing `Your evening review is not ready yet.` empty state; never render a blank card.
+- Reuse `parseBriefingFreshness()` and `BriefingStaleBanner` above the prose on both full surfaces.
+  The morning surface gets the same stale treatment as evening. Extend existing `jds-brief__*`,
+  `agenda-clear`, and authored loading/empty patterns; do not add raw colors, mono, or serif.
+
+### Action rows
 
 Replace `SuggestedFromEmailSection` with `BriefingActionRowsSection` in
 `apps/web/src/today/briefing-action-rows.tsx`; use it from both day and evening layouts.
@@ -481,7 +525,26 @@ Tests:
 - `tests/integration/briefings-synthesis.test.ts` —
   `persists and serializes structured payload without sourceMetadata duplication`
 
-### Task 5 — unified briefing row UI (**user-facing**)
+### Task 5 — surface existing briefing prose (**user-facing**)
+
+This lands before the row UI so a builder cannot ship structured actions onto a Today page whose
+narrative is still absent. It reuses the served `summaryText`; no briefing contract, composition,
+storage, or API work belongs here.
+
+Files:
+
+- `apps/web/src/today/today-page.tsx`
+- `apps/web/src/today/evening-mode.tsx`
+- existing tokenized Today CSS files only
+
+Tests:
+
+- new `tests/unit/today-briefing-prose.test.tsx` —
+  `renders full morning prose before Start here with authored loading empty and stale states`
+- new `tests/unit/today-evening-mode.test.tsx` —
+  `renders full primary recap and keeps the 220 character cut only on the compact tile`
+
+### Task 6 — unified briefing row UI (**user-facing**)
 
 Files:
 
@@ -504,7 +567,7 @@ Tests:
 - `tests/unit/today-evening-mode.test.tsx` —
   `day selects morning payload and evening selects outstanding evening payload`
 
-### Task 6 — integrated proof (**user-facing**)
+### Task 7 — integrated proof (**user-facing**)
 
 Files:
 
@@ -513,13 +576,15 @@ Files:
 
 Test:
 
-- `morning and evening action rows accept dismiss view reply and stay suppressed`
+- `morning and evening prose and action rows render accept dismiss view reply and stay suppressed`
 
-The test seeds one row per category, verifies count 3, verifies the source links, accepts one,
-dismisses one twice across independent messages, and clicks Reply. It asserts that the chat turn
-contains only the fixed literal plus opaque cache ID, that the existing confirmation card appears,
-and that no draft is created before confirmation. It then verifies authored empty/loading states
-and that a new run keeps the twice-dismissed subject absent until one allowed evidence trigger.
+The test first proves full morning prose appears before “Start here”, the full recap appears on the
+primary evening card, and only the compact day tile uses the 220-character cut. It seeds one row per
+category, verifies count 3, verifies the source links, accepts one, dismisses one twice across
+independent messages, and clicks Reply. It asserts that the chat turn contains only the fixed
+literal plus opaque cache ID, that the existing confirmation card appears, and that no draft is
+created before confirmation. It then verifies authored prose and row empty/loading/stale states and
+that a new run keeps the twice-dismissed subject absent until one allowed evidence trigger.
 
 ## 10. Failure behavior
 
@@ -541,28 +606,35 @@ explanation, inferred subject, summary, body, prompt, note text, memory text, or
 ## 11. Exit criteria
 
 1. Morning and evening `BriefingRunDto` objects carry versioned rows beside unchanged prose.
-2. The same suggested task ID appears on Today and in a briefing; Accept/Dismiss updates both.
-3. Category→button mapping is exact and every emitted row has a verified source link.
-4. Reply uses only the fixed chat template plus opaque cache ID and reaches the existing
+2. Day/morning Today renders the full same-local-day morning `summaryText` immediately before
+   “Start here”; “Start here”, action rows, and calendar remain ordered as defined in §8.
+3. Primary “What happened today” renders the full evening recap; only the compact day-mode tile
+   applies the existing 220-character cut.
+4. Enabled prose surfaces have distinct authored loading and empty states, never render a blank
+   card, and show `BriefingStaleBanner` when freshness metadata is stale.
+5. The same suggested task ID appears on Today and in a briefing; Accept/Dismiss updates both.
+6. Category→button mapping is exact and every emitted row has a verified source link.
+7. Reply uses only the fixed chat template plus opaque cache ID and reaches the existing
    `email.draftReply` confirmation flow; no second compose/write path exists.
-5. Counts include only emitted, confidence-cleared, currently outstanding rows.
-6. Row freshness reflects monitor/sync computation time, not briefing creation time.
-7. Exact normalized-subject suppression holds after two dismissals; volume never resurfaces.
-8. Deadline and relevant-context evidence each resurface once, state why, and cannot replay the
+8. Counts include only emitted, confidence-cleared, currently outstanding rows.
+9. Row freshness reflects monitor/sync computation time, not briefing creation time.
+10. Exact normalized-subject suppression holds after two dismissals; volume never resurfaces.
+11. Deadline and relevant-context evidence each resurface once, state why, and cannot replay the
    same evidence after another dismissal.
-9. Catch-up is email-only, exact-counted, bounded, and contains only previously body-echo-guarded
+12. Catch-up is email-only, exact-counted, bounded, and contains only previously body-echo-guarded
    summaries.
-10. Body-echo/reconstruction tests cover every stored model-written field named in §5.
-11. RLS proves suppression state is owner-only for ordinary users, admins, and workers; task
+13. Body-echo/reconstruction tests cover every stored model-written field named in §5.
+14. RLS proves suppression state is owner-only for ordinary users, admins, and workers; task
     suggestion metadata follows existing owner-or-share task policy.
-12. `DataContextDb`, module isolation, capability-routed AI, metadata-only jobs, and pure trusted
+15. `DataContextDb`, module isolation, capability-routed AI, metadata-only jobs, and pure trusted
     literals remain intact.
-13. `pnpm verify:foundation`, `pnpm test:e2e`, `pnpm check:design-tokens`, and file-size checks pass
+16. `pnpm verify:foundation`, `pnpm test:e2e`, `pnpm check:design-tokens`, and file-size checks pass
     with real exit codes.
-14. A real dev-instance UAT is recorded on the PR with screenshots: morning rows, Accept,
-    Dismiss, View source, Reply→chat→existing confirmation→Gmail draft, catch-up, authored empty
-    state, evening outstanding rows, and one permitted resurfacing. Without that artifact the
-    status is **code-complete, unverified**, not done.
+17. A real dev-instance UAT is recorded on the PR with screenshots or video: full morning prose
+    above “Start here”, its loading/empty/stale states, morning rows, Accept, Dismiss, View source,
+    Reply→chat→existing confirmation→Gmail draft, catch-up, full primary evening prose, the compact
+    evening tile, evening outstanding rows, and one permitted resurfacing. Without that artifact
+    the status is **code-complete, unverified**, not done.
 
 ## 12. Explicitly out of scope / v1 ceilings
 
