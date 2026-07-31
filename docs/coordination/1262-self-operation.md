@@ -5443,3 +5443,12 @@ UAT passed, but five blockers remain:
 **No merge.** This is the second failed QA cycle on the lane, so the coordinate failure budget is
 stop-the-line. The build lane remains at `9ce72e69` and has been asked for a concise per-finding
 assessment only; no edits are authorized until Ben decides whether to reopen the failure budget.
+
+**Coordinator assessment:** blocker 1 is overruled. Spec §7 explicitly requires `needs_reply` with
+a cache ID to map to Reply; the `sourceHref: null` rule applies to View-category rows, and exit
+criterion 11.6 says no View control rather than no Reply. The durable pushback is
+<https://github.com/motioneso/Jarv1s/pull/1376#issuecomment-5145711095>. The coordinator concurs
+with blockers 2–5: archived resurfacing/evidence consumption, raw feedback-error logging,
+`structured_payload_failed` observability, and missing admin/worker negative RLS proof. The build
+agent agrees and supplied minimum fixes/tests for those four. The lane remains stopped pending
+Ben's failure-budget ruling.
