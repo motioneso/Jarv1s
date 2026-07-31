@@ -5675,3 +5675,13 @@ proxied `/api/me` returns the expected unauthenticated 401). The predecessor rec
 evidence checklist, then session `019fb9d9-8e73-7422-b7ff-67a7a5de94ec` was reaped after fresh
 session-id resolution. Await Ben's authenticated screenshots/video on PR #1379; do not spawn final
 sol-high QA or merge before that artifact exists.
+
+### 2026-07-31 — tailnet origin corrected
+
+The first LAN URL was unreachable from Ben's tailnet and sign-in reported `Invalid origin`. The
+frontend proxy had been started with `JARVIS_API_PROXY_TARGET=http://127.0.0.1:3000`; Vite rewrites
+the proxied `Origin` to that exact target, while Better Auth trusts `http://localhost:3000`. The
+retained lane restarted only Vite on port 5198 with `JARVIS_API_PROXY_TARGET=http://localhost:3000`.
+Use <http://100.64.98.99:5198/today>: `/today` returns HTTP 200, and a tailnet-origin email sign-in
+reaches credential validation (`401 INVALID_EMAIL_OR_PASSWORD`) instead of origin rejection. The
+live-evidence, final-QA, and merge gates are unchanged.
