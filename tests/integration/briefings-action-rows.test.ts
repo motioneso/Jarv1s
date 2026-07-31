@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PgBoss } from "pg-boss";
 
-import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
+import { createAiSecretCipher, type AiRepository } from "@jarv1s/ai";
 import { composeBriefing, type BriefingsRepository } from "@jarv1s/briefings";
 import type { DataContextRunner } from "@jarv1s/db";
 import {
