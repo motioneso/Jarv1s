@@ -110,9 +110,17 @@ export function createPortalListHandler(store: JobSearchStore) {
     const { profileId } = validateProfileInput(ctx.input);
 
     const portals = await store.listPortals(profileId);
+    const bySourceId = new Map(portals.map((portal) => [portal.sourceId, portal]));
+    const visiblePortals = [
+      ...Object.keys(BUILT_IN_PORTAL_LABELS).map(
+        (sourceId): PortalState =>
+          bySourceId.get(sourceId) ?? { sourceId, enabled: false, lastOkAt: null, cause: null }
+      ),
+      ...portals.filter((portal) => !Object.hasOwn(BUILT_IN_PORTAL_LABELS, portal.sourceId))
+    ];
 
     return {
-      portals: portals.map((portal) => ({
+      portals: visiblePortals.map((portal) => ({
         sourceId: portal.sourceId,
         label: labelFor(portal.sourceId),
         enabled: portal.enabled,

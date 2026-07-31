@@ -388,6 +388,39 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
     });
   });
 
+  it("3b. portal.list includes both built-in boards before either one has been configured", async () => {
+    const { store, portals } = createFakeStore([makeProfile({ id: "p1" })]);
+    portals.set("p1", [
+      {
+        sourceId: "linkedin",
+        enabled: true,
+        lastOkAt: "2026-07-31T17:01:20.588Z",
+        cause: null
+      }
+    ]);
+
+    const result = await createPortalListHandler(store)(ctx({ profileId: "p1" }));
+
+    expect(result).toEqual({
+      portals: [
+        {
+          sourceId: "freehire",
+          label: "freehire.me",
+          enabled: false,
+          lastOkAt: null,
+          cause: null
+        },
+        {
+          sourceId: "linkedin",
+          label: "LinkedIn",
+          enabled: true,
+          lastOkAt: "2026-07-31T17:01:20.588Z",
+          cause: null
+        }
+      ]
+    });
+  });
+
   it("4. resume.set bumps the version and keeps the prior row", async () => {
     const { store } = createFakeStore([makeProfile({ id: "p1" })]);
     const setHandler = createResumeSetHandler(store);
