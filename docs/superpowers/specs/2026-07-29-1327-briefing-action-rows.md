@@ -27,7 +27,11 @@ sign-off, and the user-facing live-path proof below.
   `waiting_on_someone`, `fyi`, `noise`, and `unknown` never become rows.
 - `needs_reply` gets **Reply**. `needs_action` and `time_sensitive_info` get **View**.
   Accept and Dismiss remain available on every outstanding row.
-- Every row has a valid source link. A candidate without one is omitted and is not counted.
+- Every row has a `cacheMessageId`. A candidate without one is omitted and is not counted, because
+  no action could run against it.
+- A source link is optional. A candidate without one is still shown and still counted; it simply
+  renders no **View** control. Reply resolves through `cacheMessageId`, not through the link, so a
+  linkless row remains fully actionable via Reply, Accept, and Dismiss.
 - Existing confidence floors stand: `0.4` generally and `0.7` for `time_sensitive_info`.
 - Subject-level suppression is exact-match v1: normalize inferred subject by trimming,
   lowercasing, and collapsing whitespace, then SHA-256 hash it with a fixed namespace, matching
@@ -107,7 +111,7 @@ export interface TaskSuggestionMetadataV1 {
   readonly version: 1;
   readonly category: BriefingActionCategory;
   readonly sourceLabel: string;
-  readonly sourceHref: string;
+  readonly sourceHref: string | null;
   readonly cacheMessageId: string | null;
   readonly subjectSignature: string;
   readonly computedAt: string;
@@ -120,11 +124,11 @@ export interface BriefingActionRowDto {
   readonly explanation: string;
   readonly category: BriefingActionCategory;
   readonly status: "suggested" | "accepted" | "dismissed";
-  readonly primaryAction: BriefingActionPrimaryAction;
+  readonly primaryAction: BriefingActionPrimaryAction | null;
   readonly source: string;
   readonly sourceLabel: string;
   readonly sourceRef: string;
-  readonly sourceHref: string;
+  readonly sourceHref: string | null;
   readonly dueAt: string | null;
   readonly computedAt: string;
   readonly resurfaceReason: BriefingActionResurfaceReason | null;
@@ -227,14 +231,21 @@ embedding dependency.
 - guarded title and explanation;
 - guarded inferred subject and its signature;
 - `cacheMessageId`;
-- a valid provider source link;
+- a provider source link when one can be built (optional — its absence does not drop the row);
 - an eligible actionability category and confidence.
 
 For Gmail, add a provider-owned deep-link helper using verified account/thread metadata. The
 builder must verify the final URL against a real connected dev account before enabling it.
-IMAP rows are omitted in v1 unless its configured provider exposes a stable message link; building
-an email reader is out of scope. Missing `cacheMessageId` or source link means no row and no count,
-though the underlying suggested task may remain visible in Tasks.
+IMAP exposes no linkable surface — it is a protocol, not a web application, so there is no address
+to send an actor to and no way to know which client reads the mailbox. IMAP rows therefore carry no
+source link, but they are still shown: they simply render no **View** control. Building an email
+reader remains out of scope.
+
+Missing `cacheMessageId` means no row and no count, because nothing could act on it — though the
+underlying suggested task may remain visible in Tasks. A missing source link is not a reason to drop
+a row (Ben's ruling, 2026-07-30): Reply resolves through `cacheMessageId`, so a linkless row is
+fully actionable via Reply, Accept, and Dismiss, and dropping it would hide real mail from anyone on
+a non-Gmail provider.
 
 Fix `listEmailContext()` cache lookup to key by connector account plus external ID. Add a collision
 test with two accounts sharing the same provider message ID; each must receive its own cache row ID.
@@ -303,10 +314,12 @@ second dismissal. An explicit Accept is the only thing that resets the counter.
 Add `packages/briefings/src/action-rows.ts` with a pure projector plus one gather function:
 
 - call the declared `tasks.list` read-risk assistant tool with `status: "suggested"`;
-- accept only tasks with valid `TaskSuggestionMetadataV1`, non-null `sourceRef`, and valid primary
-  action target;
+- accept only tasks with valid `TaskSuggestionMetadataV1` and non-null `sourceRef`. A `needs_reply`
+  row additionally requires a `cacheMessageId`; a view-category row does not require a
+  `sourceHref` and emits `primaryAction: null` without one;
 - map `needs_reply` to `{ kind: "reply", cacheMessageId }`;
-- map the other two categories to `{ kind: "view", href: sourceHref }`;
+- map the other two categories to `{ kind: "view", href: sourceHref }` when `sourceHref` is
+  present; when it is null the row has no primary action and offers only Accept and Dismiss;
 - sort due date first, then task `updatedAt`, then task ID for deterministic output;
 - cap at the existing section item cap; count only the emitted rows;
 - set row status to `suggested` in the run snapshot.
@@ -382,8 +395,8 @@ Replace `SuggestedFromEmailSection` with `BriefingActionRowsSection` in
 
 - Extend existing `jds-brief`, `loose`, and `loose-row` primitives.
 - No raw colors outside `apps/web/src/styles/tokens.css`; no mono or serif.
-- Title is the instruction, explanation is one sentence, provenance is a source link, and
-  `computedAt` supplies “Updated … ago”.
+- Title is the instruction, explanation is one sentence, provenance is a source link where one
+  exists and plain non-interactive text where it does not, and `computedAt` supplies “Updated … ago”.
 - The displayed count is the number whose live task status is still `suggested`.
 - Join run-snapshot rows to the existing `tasksQuery` by `taskId`:
   `suggested` stays actionable, `todo|done` renders Accepted, and `archived` renders Dismissed.
@@ -593,7 +606,9 @@ that a new run keeps the twice-dismissed subject absent until one allowed eviden
 ## 10. Failure behavior
 
 - Invalid/missing suggestion metadata: omit row, do not count, record a sanitized metric.
-- Missing cache ID or source link: omit row; no fallback URL and no guessed account index.
+- Missing cache ID: omit row and do not count it — no action could run against it.
+- Missing source link: keep and count the row, and render no View control. Never invent a fallback
+  URL and never guess an account index.
 - Suppression read failure: fail closed for previously suppressed candidates; monitor continues.
 - Relevance retrieval failure: remain suppressed; no recalled content in logs.
 - Structured-payload projection failure: prose run still succeeds with empty payload and a
@@ -617,7 +632,8 @@ explanation, inferred subject, summary, body, prompt, note text, memory text, or
 4. Enabled prose surfaces have distinct authored loading and empty states, never render a blank
    card, and show `BriefingStaleBanner` when freshness metadata is stale.
 5. The same suggested task ID appears on Today and in a briefing; Accept/Dismiss updates both.
-6. Category→button mapping is exact and every emitted row has a verified source link.
+6. Category→button mapping is exact. A row with a source link renders a working View control; a
+   row without one renders no View control and is still emitted and counted.
 7. Reply uses only the fixed chat template plus opaque cache ID and reaches the existing
    `email.draftReply` confirmation flow; no second compose/write path exists.
 8. Counts include only emitted, confidence-cleared, currently outstanding rows.
@@ -667,4 +683,7 @@ explanation, inferred subject, summary, body, prompt, note text, memory text, or
   permanent deletion. Accept therefore resets the count; the evidence triggers still do not.
 - Catch-up is deterministic over guarded per-message summaries rather than a second LLM call.
 - A relevance error keeps the mute instead of guessing.
-- Email providers without a stable source link do not contribute rows in v1.
+- Email providers without a stable source link still contribute rows in v1; they contribute no
+  View control. A generic scheme is not a substitute: `mailto:` composes a new message rather
+  than opening the thread, and `imap://` (RFC 5092) has effectively no registered desktop
+  handler. A per-account webmail base URL would be the real answer and is out of scope here.
