@@ -5318,3 +5318,10 @@ lane, which opens after #1371 lands.
 **Continuation note:** waiting on the core lane to report `DONE-IMAP` plus the file-size split and
 the Gmail flag flip on PR #1376. #1376 is `security` tier — Opus adversarial QA, posted `gh pr
 comment` verdict, and Ben's explicit merge sign-off before any merge.
+
+**QA lens change (Ben, 2026-07-30):** #1376's security-tier adversarial review runs on
+**`gpt-5.6-sol high` via a Codex Herdr pane**, not an Opus subagent. This is the true cross-model
+lens the coordinate skill prefers where available, rather than a same-family Opus pass. Everything
+else about the security gate is unchanged: the reviewer still posts its verdict to the PR with
+`gh pr comment` (durable evidence that survives a coordinator relay), and Ben's explicit merge
+sign-off is still required. Codex panes need a second `Enter` after `herdr pane run`.
