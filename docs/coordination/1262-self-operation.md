@@ -5326,15 +5326,26 @@ else about the security gate is unchanged: the reviewer still posts its verdict 
 `gh pr comment` (durable evidence that survives a coordinator relay), and Ben's explicit merge
 sign-off is still required. Codex panes need a second `Enter` after `herdr pane run`.
 
-**Merge authority delegated (Ben, 2026-07-30):** _"after sol-high approval merge. this is my sign
-off."_ Clarified on follow-up: _"once sol approves, not if. So my approval is delegated to it."_
+**Merge sign-off for PR #1376 — two-party consensus (Ben, 2026-07-30).** Settled over three turns;
+this paragraph is the ruling, the earlier framings in this manifest were wrong and are superseded.
 
-For PR #1376 the security-tier merge sign-off is **delegated to the `gpt-5.6-sol high` reviewer**.
-Its approval IS Ben's approval — the coordinator merges on it and does not re-adjudicate the
-verdict's shape or hold it against an added bar. Do not read this as a conditional sign-off; an
-earlier note in this manifest framed it that way and was wrong.
+Ben's words: _"after sol-high approval merge. this is my sign off"_ → _"once sol approves, not if.
+So my approval is delegated to it"_ → _"you can pushback on sol. you two agree = merge."_
 
-Two things are unchanged because they are separate decisions, not merge sign-off: the reviewer still
-posts its verdict to the PR with `gh pr comment` (durable evidence that survives a coordinator
-relay), and a red required CI check still blocks — waiving one needs Ben under the standing waiver
-protocol. The delegation covers #1376 only and does not extend to the Tasks 6-7 lane.
+The gate is **sol-high approves AND the coordinator concurs**. Both yeses are required and neither
+is a rubber stamp:
+
+- Sol approves, coordinator agrees → **merge**, without returning to Ben.
+- Sol approves, coordinator disagrees → **do not merge**. Push back on sol with the specific
+  objection; resolve it between the two, or escalate to Ben if it will not resolve.
+- Sol rejects → **do not merge**, even if the coordinator thinks the finding is wrong. Argue it with
+  sol; a coordinator override alone is not a merge.
+
+The coordinator keeps an independent read — Ben explicitly restored that after an earlier note here
+wrongly recorded the decision as pure delegation. It is a concurrence, not a second bar layered on
+top of sol's verdict, and not a licence to invent extra criteria.
+
+Unchanged because they are separate decisions rather than merge sign-off: sol still posts its verdict
+to the PR with `gh pr comment` (durable evidence that survives a coordinator relay), and a red
+required CI check still blocks — waiving one needs Ben under the standing waiver protocol. This
+ruling covers #1376 only and does not extend to the Tasks 6-7 lane.
