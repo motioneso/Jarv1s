@@ -10,7 +10,12 @@
 import { triage } from "../../domain/triage.js";
 import type { SearchCriteria } from "../../domain/records.js";
 import type { JobSearchStore } from "../../domain/store-port.js";
-import { buildScorePrompt, parseScoreResult, SCORE_SCHEMA } from "../../domain/score.js";
+import {
+  buildScorePrompt,
+  normalizeFitScore,
+  parseScoreResult,
+  SCORE_SCHEMA
+} from "../../domain/score.js";
 import { buildBriefingContribution } from "../../domain/surface.js";
 import type { EmbedPort } from "./crawl.js";
 
@@ -315,7 +320,7 @@ export async function runScore(deps: {
           await store.upsertMatch(profileId, {
             profileId,
             postingId: posting.id,
-            fit: hasResume ? parsed.fit : null,
+            fit: hasResume ? normalizeFitScore(parsed.fit, parsed.fitDisposition) : null,
             want: parsed.want,
             fitReason: parsed.fitReason,
             wantReason: parsed.wantReason,

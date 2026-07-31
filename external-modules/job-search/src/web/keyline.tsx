@@ -25,6 +25,7 @@
 // unchanged and stay byte-compatible — overview.tsx, profile.tsx and settings.tsx all import them
 // and are off-limits to this task.
 import { Fragment, h, type ReactNodeLike } from "./runtime";
+import { FIT_BAND_MINIMUMS } from "../domain/score";
 
 // -------------------------------------------------------------------------------------------
 // formatPostedOn
@@ -113,9 +114,9 @@ export function KeyRow(props: KeyRowProps): ReactNodeLike {
 export type FitBand = "strong" | "good" | "fair" | "weak";
 
 export function fitBand(value: number): FitBand {
-  if (value >= 85) return "strong";
-  if (value >= 65) return "good";
-  if (value >= 40) return "fair";
+  if (value >= FIT_BAND_MINIMUMS.strong) return "strong";
+  if (value >= FIT_BAND_MINIMUMS.good) return "good";
+  if (value >= FIT_BAND_MINIMUMS.fair) return "fair";
   return "weak";
 }
 

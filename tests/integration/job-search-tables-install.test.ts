@@ -7,6 +7,7 @@
 // single schema-shape case — each `it` below reinstalls the module fresh and asserts through it,
 // because most of these cases need real rows under real RLS, not just a shape check.
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 
 import { Client } from "pg";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -168,10 +169,9 @@ async function insertMatch(
 }
 
 describe("job-search module table install (#1288)", () => {
-  it("installs all eight migrations, FORCE RLS on every table, and re-runs idempotently", async () => {
+  it("installs all nine migrations, FORCE RLS on every table, and re-runs idempotently", async () => {
     const result = await install();
-    // Migration 0008 (Task 24, #1309) added job_search_custom_sources; bumped 7 -> 8 here to match.
-    expect(result.installed).toHaveLength(8);
+    expect(result.installed).toHaveLength(9);
 
     const client = new Client({ connectionString: urls.bootstrap });
     await client.connect();
@@ -196,12 +196,61 @@ describe("job-search module table install (#1288)", () => {
       "SELECT version FROM app.module_schema_migrations WHERE module_id = $1",
       [moduleId]
     );
-    expect(ledger.rows).toHaveLength(8);
+    expect(ledger.rows).toHaveLength(9);
 
     await client.end();
 
     const second = await install();
     expect(second.installed).toHaveLength(0);
+  });
+
+  it("invalidates legacy Fit idempotently without changing Want, reasons, state, or posting data", async () => {
+    await install();
+    await seedUser(ownerA);
+    const profileId = randomUUID();
+    const postingId = randomUUID();
+    const matchId = randomUUID();
+    await seedProfile(ownerA, profileId);
+    await seedPosting(ownerA, profileId, postingId);
+    await asRuntime(ownerA, (client) =>
+      client.query(
+        `INSERT INTO app.job_search_matches
+           (id, owner_user_id, profile_id, posting_id, fit, want, fit_reason, want_reason, state)
+         VALUES ($1, $2, $3, $4, 96, 73, 'Different profession.', 'Wanted work.', 'new')`,
+        [matchId, ownerA, profileId, postingId]
+      )
+    );
+
+    const sql = readFileSync(
+      new URL(
+        "../../external-modules/job-search/sql/0009_invalidate_legacy_fit_scores.sql",
+        import.meta.url
+      ),
+      "utf8"
+    );
+    const migration = new Client({ connectionString: urls.bootstrap });
+    await migration.connect();
+    await migration.query(sql);
+    await migration.query(sql);
+    await migration.end();
+
+    const result = await asRuntime(ownerA, (client) =>
+      client.query(
+        `SELECT m.fit, m.want, m.fit_reason, m.want_reason, m.state, p.title
+           FROM app.job_search_matches m
+           JOIN app.job_search_postings p ON p.id = m.posting_id
+          WHERE m.id = $1`,
+        [matchId]
+      )
+    );
+    expect(result.rows[0]).toEqual({
+      fit: null,
+      want: 73,
+      fit_reason: "Different profession.",
+      want_reason: "Wanted work.",
+      state: "new",
+      title: "Staff Engineer"
+    });
   });
 
   it("stores and reads back a 768-dimension posting embedding", async () => {

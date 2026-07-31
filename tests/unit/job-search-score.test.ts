@@ -13,6 +13,8 @@ import type {
 } from "../../external-modules/job-search/src/domain/records.js";
 import {
   buildScorePrompt,
+  FIT_BAND_MINIMUMS,
+  normalizeFitScore,
   parseScoreResult,
   SCORE_SCHEMA
 } from "../../external-modules/job-search/src/domain/score.js";
@@ -43,9 +45,10 @@ const criteria: SearchCriteria = {
 };
 
 describe("job-search SCORE_SCHEMA (#1293)", () => {
-  it("has exactly the two axes and their reasons", () => {
+  it("has exactly the two axes, their reasons, and the Fit disposition", () => {
     expect(Object.keys(SCORE_SCHEMA.properties).sort()).toEqual([
       "fit",
+      "fitDisposition",
       "fitReason",
       "want",
       "wantReason"
@@ -61,6 +64,7 @@ describe("job-search parseScoreResult (#1293)", () => {
   it("round-trips a well-formed result unchanged", () => {
     const result = parseScoreResult({
       fit: 72,
+      fitDisposition: "supported",
       want: 41,
       fitReason:
         "Ten years of payments experience directly matches the stack named in the posting.",
@@ -70,6 +74,7 @@ describe("job-search parseScoreResult (#1293)", () => {
 
     expect(result).toEqual({
       fit: 72,
+      fitDisposition: "supported",
       want: 41,
       fitReason:
         "Ten years of payments experience directly matches the stack named in the posting.",
@@ -82,6 +87,7 @@ describe("job-search parseScoreResult (#1293)", () => {
     expect(() =>
       parseScoreResult({
         fit: 140,
+        fitDisposition: "supported",
         want: 50,
         fitReason: "reason",
         wantReason: "reason"
@@ -93,6 +99,7 @@ describe("job-search parseScoreResult (#1293)", () => {
     expect(() =>
       parseScoreResult({
         fit: 82.5,
+        fitDisposition: "supported",
         want: 50,
         fitReason: "reason",
         wantReason: "reason"
@@ -104,6 +111,7 @@ describe("job-search parseScoreResult (#1293)", () => {
     expect(() =>
       parseScoreResult({
         fit: 50,
+        fitDisposition: "supported",
         want: 50,
         fitReason: "",
         wantReason: "reason"
@@ -115,12 +123,58 @@ describe("job-search parseScoreResult (#1293)", () => {
     expect(() =>
       parseScoreResult({
         fit: 80,
+        fitDisposition: "supported",
         want: 60,
         fitReason: "reason",
         wantReason: "reason",
         overall: 87
       })
     ).toThrow(/unexpected field: overall/);
+  });
+
+  it.each(["supported", "insufficient_evidence", "domain_mismatch", "dealbreaker"] as const)(
+    "accepts Fit disposition %s",
+    (fitDisposition) => {
+      expect(
+        parseScoreResult({
+          fit: 80,
+          fitDisposition,
+          want: 60,
+          fitReason: "reason",
+          wantReason: "reason"
+        }).fitDisposition
+      ).toBe(fitDisposition);
+    }
+  );
+
+  it("rejects a missing or unknown Fit disposition", () => {
+    expect(() =>
+      parseScoreResult({
+        fit: 80,
+        want: 60,
+        fitReason: "reason",
+        wantReason: "reason"
+      })
+    ).toThrow(/fitDisposition/);
+    expect(() =>
+      parseScoreResult({
+        fit: 80,
+        fitDisposition: "likely",
+        want: 60,
+        fitReason: "reason",
+        wantReason: "reason"
+      })
+    ).toThrow(/fitDisposition/);
+  });
+});
+
+describe("job-search normalizeFitScore", () => {
+  it("derives disposition caps from the shared Fit-band minimums without raising lower scores", () => {
+    expect(normalizeFitScore(99, "supported")).toBe(99);
+    expect(normalizeFitScore(99, "insufficient_evidence")).toBe(FIT_BAND_MINIMUMS.strong - 1);
+    expect(normalizeFitScore(99, "domain_mismatch")).toBe(FIT_BAND_MINIMUMS.fair - 1);
+    expect(normalizeFitScore(99, "dealbreaker")).toBe(FIT_BAND_MINIMUMS.fair - 1);
+    expect(normalizeFitScore(20, "domain_mismatch")).toBe(20);
   });
 });
 
@@ -141,6 +195,8 @@ describe("job-search buildScorePrompt (#1293)", () => {
     expect(prompt).toContain(criteria.wantNarrative);
     expect(prompt).toMatch(/do not (average|combine|blend)/i);
     expect(prompt).toContain("a year in");
+    expect(prompt).toContain("domain_mismatch");
+    expect(prompt).toContain("insufficient_evidence");
   });
 
   it("omits the Dealbreakers line entirely when there are none", () => {

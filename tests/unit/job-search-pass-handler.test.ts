@@ -172,7 +172,13 @@ function createFakeStore(input: {
   } as JobSearchStore & { __getProfileCallOrder: string[]; __setSweepCursorCalls: number[] };
 }
 
-const okResult = { fit: 80, want: 70, fitReason: "Fits.", wantReason: "Wants it." };
+const okResult = {
+  fit: 80,
+  fitDisposition: "supported",
+  want: 70,
+  fitReason: "Fits.",
+  wantReason: "Wants it."
+};
 
 function createFakeCtx(input: {
   input: Record<string, unknown>;

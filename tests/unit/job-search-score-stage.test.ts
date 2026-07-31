@@ -76,6 +76,7 @@ function makePosting(id: string): PostingWithEmbedding {
 function createFakeStore(input: {
   profile: Profile;
   candidates: PostingWithEmbedding[];
+  unfittedCandidates?: PostingWithEmbedding[];
   resume?: Resume;
 }): JobSearchStore & { __matches: Match[] } {
   const { profile, candidates, resume } = input;
@@ -109,7 +110,7 @@ function createFakeStore(input: {
     getLatestResume: vi.fn(async () => resume),
     getResumeVersion: vi.fn(notUsed("getResumeVersion")),
     setResume: vi.fn(notUsed("setResume")),
-    listUnfittedPostingsWithEmbeddings: vi.fn(notUsed("listUnfittedPostingsWithEmbeddings")),
+    listUnfittedPostingsWithEmbeddings: vi.fn(async () => input.unfittedCandidates ?? []),
     getSweepCursor: vi.fn(notUsed("getSweepCursor")),
     setSweepCursor: vi.fn(notUsed("setSweepCursor")),
     listCustomSources: vi.fn(notUsed("listCustomSources")),
@@ -144,6 +145,7 @@ function createFakeNotify(): NotifyPort & { __posted: Array<{ key: string; body:
 
 const okResult = {
   fit: 80,
+  fitDisposition: "supported",
   want: 70,
   fitReason: "Strong match on skills.",
   wantReason: "Team shape fits."
@@ -280,6 +282,92 @@ describe("runScore", () => {
     await runScore(runDeps({ store, ai, budget: 1 }));
 
     expect(store.__matches[0]?.fit).toBe(80);
+  });
+
+  it.each([
+    ["insufficient_evidence", 99, 84],
+    ["domain_mismatch", 99, 39],
+    ["dealbreaker", 99, 39],
+    ["domain_mismatch", 20, 20]
+  ] as const)(
+    "normalizes %s Fit %s to %s without changing Want or reasons",
+    async (fitDisposition, fit, expectedFit) => {
+      const store = createFakeStore({
+        profile: makeProfile(),
+        candidates: [makePosting("p-1")],
+        resume: {
+          id: "resume-1",
+          version: 1,
+          content: "Ten years building design systems.",
+          updatedAt: "2026-07-28T00:00:00.000Z"
+        }
+      });
+      const ai = scriptedAi([
+        {
+          ok: true,
+          object: {
+            ...okResult,
+            fit,
+            fitDisposition,
+            want: 73,
+            fitReason: "Specific Fit evidence.",
+            wantReason: "Specific Want evidence."
+          }
+        }
+      ]);
+
+      await runScore(runDeps({ store, ai, budget: 1 }));
+
+      expect(store.__matches[0]).toMatchObject({
+        fit: expectedFit,
+        want: 73,
+        fitReason: "Specific Fit evidence.",
+        wantReason: "Specific Want evidence."
+      });
+    }
+  );
+
+  it("rescores an invalidated row through the existing unfitted pass", async () => {
+    const posting = makePosting("p-invalidated");
+    const store = createFakeStore({
+      profile: makeProfile(),
+      candidates: [],
+      unfittedCandidates: [posting],
+      resume: {
+        id: "resume-1",
+        version: 1,
+        content: "Ten years building design systems.",
+        updatedAt: "2026-07-28T00:00:00.000Z"
+      }
+    });
+    const ai = scriptedAi([{ ok: true, object: okResult }]);
+
+    const result = await runScore({
+      ...runDeps({ store, ai, budget: 1 }),
+      candidates: "unfitted"
+    });
+
+    expect(result.scored).toBe(1);
+    expect(store.listUnfittedPostingsWithEmbeddings).toHaveBeenCalled();
+    expect(store.__matches[0]?.postingId).toBe("p-invalidated");
+    expect(store.__matches[0]?.fit).toBe(80);
+  });
+
+  it("keeps an invalidated row unscored when the profile still has no résumé", async () => {
+    const store = createFakeStore({
+      profile: makeProfile(),
+      candidates: [],
+      unfittedCandidates: [makePosting("p-no-resume")]
+    });
+    const ai = scriptedAi([{ ok: true, object: { ...okResult, fit: 99 } }]);
+
+    await runScore({
+      ...runDeps({ store, ai, budget: 1 }),
+      candidates: "unfitted"
+    });
+
+    expect(store.__matches[0]?.fit).toBeNull();
+    expect(store.__matches[0]?.want).toBe(70);
   });
 
   it("test 2b: a profile with no context summary is embedded once and yields no recall-bucket match (#1306)", async () => {

@@ -19,23 +19,53 @@ import type { Posting, SearchCriteria } from "./records.js";
 export const SCORE_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["fit", "want", "fitReason", "wantReason"],
+  required: ["fit", "fitDisposition", "want", "fitReason", "wantReason"],
   properties: {
     fit: { type: "integer", minimum: 0, maximum: 100 },
+    fitDisposition: {
+      type: "string",
+      enum: ["supported", "insufficient_evidence", "domain_mismatch", "dealbreaker"]
+    },
     want: { type: "integer", minimum: 0, maximum: 100 },
     fitReason: { type: "string", minLength: 1, maxLength: 600 },
     wantReason: { type: "string", minLength: 1, maxLength: 600 }
   }
 } as const;
 
+export const FIT_BAND_MINIMUMS = {
+  strong: 85,
+  good: 65,
+  fair: 40,
+  weak: 0
+} as const;
+
+export type FitDisposition =
+  | "supported"
+  | "insufficient_evidence"
+  | "domain_mismatch"
+  | "dealbreaker";
+
 export interface ScoreResult {
   fit: number;
+  fitDisposition: FitDisposition;
   want: number;
   fitReason: string;
   wantReason: string;
 }
 
-const ALLOWED_FIELDS = new Set<string>(["fit", "want", "fitReason", "wantReason"]);
+const ALLOWED_FIELDS = new Set<string>([
+  "fit",
+  "fitDisposition",
+  "want",
+  "fitReason",
+  "wantReason"
+]);
+const FIT_DISPOSITIONS = new Set<FitDisposition>([
+  "supported",
+  "insufficient_evidence",
+  "domain_mismatch",
+  "dealbreaker"
+]);
 
 /**
  * Builds the scoring prompt as one line-per-instruction template, joined with newlines with
@@ -63,6 +93,11 @@ export function buildScorePrompt(input: {
     "",
     "FIT (0-100): could this person do this job, and would this employer plausibly want them?",
     "Judge evidence in the résumé against what the posting asks for.",
+    "Return fitDisposition as exactly one of:",
+    "- supported: the résumé supports the Fit judgement and no condition below applies;",
+    "- insufficient_evidence: the résumé does not support a confident Fit judgement;",
+    "- domain_mismatch: title overlap hides a different profession or work domain; or",
+    "- dealbreaker: the posting conflicts with an explicit dealbreaker.",
     "",
     "WANT (0-100): would this person still want this job a year in?",
     "Judge the shape of the work — team size, autonomy, domain, process, trajectory —",
@@ -132,10 +167,30 @@ export function parseScoreResult(raw: unknown): ScoreResult {
 
   return {
     fit: parseAxis(record.fit, "fit"),
+    fitDisposition: parseFitDisposition(record.fitDisposition),
     want: parseAxis(record.want, "want"),
     fitReason: parseReason(record.fitReason, "fitReason"),
     wantReason: parseReason(record.wantReason, "wantReason")
   };
+}
+
+function parseFitDisposition(value: unknown): FitDisposition {
+  if (typeof value !== "string" || !FIT_DISPOSITIONS.has(value as FitDisposition)) {
+    throw new Error("fitDisposition must be a supported Fit disposition");
+  }
+  return value as FitDisposition;
+}
+
+export function normalizeFitScore(fit: number, disposition: FitDisposition): number {
+  switch (disposition) {
+    case "supported":
+      return fit;
+    case "insufficient_evidence":
+      return Math.min(fit, FIT_BAND_MINIMUMS.strong - 1);
+    case "domain_mismatch":
+    case "dealbreaker":
+      return Math.min(fit, FIT_BAND_MINIMUMS.fair - 1);
+  }
 }
 
 function parseAxis(value: unknown, name: "fit" | "want"): number {

@@ -492,6 +492,7 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
               ok: true,
               object: {
                 fit: 80,
+                fitDisposition: "supported",
                 want: 70,
                 fitReason: "Strong overlap",
                 wantReason: "Matches goals"
@@ -596,6 +597,7 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
               ok: true,
               object: {
                 fit: 80,
+                fitDisposition: "supported",
                 want: 70,
                 fitReason: "Strong overlap",
                 wantReason: "Matches goals"

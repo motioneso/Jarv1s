@@ -18,6 +18,7 @@ import {
   fitBand,
   type FitBand
 } from "../../external-modules/job-search/src/web/keyline";
+import { FIT_BAND_MINIMUMS } from "../../external-modules/job-search/src/domain/score";
 
 async function render(element: unknown): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
@@ -78,6 +79,14 @@ describe("job-search keyline primitives", () => {
       // Fit reads as a word, not a score, anywhere it's shown — never a raw digit in the label.
       expect(FIT_BAND_LABEL[band]).not.toMatch(/\d/);
     }
+  });
+
+  it("uses the domain's shared Fit-band minimums", () => {
+    expect(fitBand(FIT_BAND_MINIMUMS.strong)).toBe("strong");
+    expect(fitBand(FIT_BAND_MINIMUMS.strong - 1)).toBe("good");
+    expect(fitBand(FIT_BAND_MINIMUMS.good)).toBe("good");
+    expect(fitBand(FIT_BAND_MINIMUMS.fair)).toBe("fair");
+    expect(fitBand(FIT_BAND_MINIMUMS.fair - 1)).toBe("weak");
   });
 
   it("KeyRow with divided renders exactly one jds-divider; without it, none", async () => {
