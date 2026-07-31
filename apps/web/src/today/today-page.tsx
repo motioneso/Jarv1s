@@ -21,7 +21,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
-import { localDay, type MeResponse, type TaskDto } from "@jarv1s/shared";
+import { localDay, type BriefingRunDto, type MeResponse, type TaskDto } from "@jarv1s/shared";
 
 import {
   createWellnessCheckin,
@@ -47,12 +47,16 @@ import {
   buildEveningLede,
   deriveTodayMode,
   effectiveEveningTimeZone,
+  effectiveBriefingTimeZone,
   EveningPrepCard,
   EveningReviewSection,
   EveningSupportSections,
+  BriefingProse,
+  latestBriefingRunForToday,
   latestEveningRunForToday,
   scheduleTodayModeRefresh
 } from "./evening-mode";
+import { BriefingStaleBanner, parseBriefingFreshness } from "./briefing-freshness";
 import { ProactiveCards } from "./proactive-cards";
 import { SuggestedFromEmailSection } from "./today-suggested-email";
 import { TaskDetailsDialog } from "../tasks/task-details-dialog";
@@ -121,10 +125,19 @@ export function TodayPage(props: {
     briefingDefinitionsQuery.data?.definitions ?? [],
     "evening"
   );
+  const morningDefinition = findDefinition(
+    briefingDefinitionsQuery.data?.definitions ?? [],
+    "morning"
+  );
   const eveningRunsQuery = useQuery({
     queryKey: queryKeys.briefings.runs(eveningDefinition?.id ?? null),
     queryFn: () => listBriefingRuns(eveningDefinition!.id),
     enabled: eveningDefinition !== undefined
+  });
+  const morningRunsQuery = useQuery({
+    queryKey: queryKeys.briefings.runs(morningDefinition?.id ?? null),
+    queryFn: () => listBriefingRuns(morningDefinition!.id),
+    enabled: morningDefinition?.enabled === true
   });
   const now = new Date(Date.now());
   const todayMode = deriveTodayMode(eveningDefinition, locale, now);
@@ -132,6 +145,13 @@ export function TodayPage(props: {
   const latestEveningRun = latestEveningRunForToday(
     eveningRunsQuery.data?.runs ?? [],
     eveningTimeZone,
+    now
+  );
+  const morningTimeZone = effectiveBriefingTimeZone(morningDefinition, locale);
+  const latestMorningRun = latestBriefingRunForToday(
+    morningRunsQuery.data?.runs ?? [],
+    "morning",
+    morningTimeZone,
     now
   );
   useEffect(
@@ -303,6 +323,7 @@ export function TodayPage(props: {
               <EveningReviewSection
                 kind="primary"
                 run={latestEveningRun}
+                loading={eveningRunsQuery.isPending}
                 locale={locale}
                 targetTime={targetTimeFor(eveningDefinition, "evening")}
                 onFeedbackChanged={() =>
@@ -327,6 +348,17 @@ export function TodayPage(props: {
                 )}
               />
             </>
+          ) : null}
+
+          {todayMode === "day" &&
+          (briefingDefinitionsQuery.isPending || morningDefinition?.enabled) ? (
+            <MorningBriefingSection
+              run={latestMorningRun}
+              loading={
+                briefingDefinitionsQuery.isPending ||
+                (morningDefinition?.enabled === true && morningRunsQuery.isPending)
+              }
+            />
           ) : null}
 
           <section className="jds-brief">
@@ -540,6 +572,7 @@ export function TodayPage(props: {
               <EveningReviewSection
                 kind="compact"
                 run={latestEveningRun}
+                loading={eveningRunsQuery.isPending}
                 locale={locale}
                 targetTime={targetTimeFor(eveningDefinition, "evening")}
                 onFeedbackChanged={() =>
@@ -706,6 +739,31 @@ export function TodayPage(props: {
         />
       ) : null}
     </div>
+  );
+}
+
+function MorningBriefingSection(props: {
+  readonly run: BriefingRunDto | null;
+  readonly loading: boolean;
+}) {
+  const freshness = props.run ? parseBriefingFreshness(props.run.sourceMetadata) : null;
+  const hasSummary = Boolean(props.run?.summaryText.trim());
+
+  return (
+    <section className="jds-brief">
+      <div className="jds-brief__head">
+        <span className="jds-brief__kicker">Morning briefing</span>
+      </div>
+      <div className="jds-brief__title">Your day, in focus</div>
+      {freshness ? <BriefingStaleBanner freshness={freshness} /> : null}
+      {props.loading ? (
+        <div className="agenda-clear">Gathering your morning briefing…</div>
+      ) : hasSummary ? (
+        <BriefingProse summaryText={props.run?.summaryText ?? ""} />
+      ) : (
+        <div className="agenda-clear">Your morning briefing is not ready yet.</div>
+      )}
+    </section>
   );
 }
 
