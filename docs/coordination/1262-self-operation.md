@@ -5325,3 +5325,11 @@ lens the coordinate skill prefers where available, rather than a same-family Opu
 else about the security gate is unchanged: the reviewer still posts its verdict to the PR with
 `gh pr comment` (durable evidence that survives a coordinator relay), and Ben's explicit merge
 sign-off is still required. Codex panes need a second `Enter` after `herdr pane run`.
+
+**Advance merge sign-off (Ben, 2026-07-30):** _"after sol-high approval merge. this is my sign off."_
+This satisfies the security-tier requirement for #1376 / PR #1376 **conditionally**. The coordinator
+merges on a **clean** sol-high approval and on nothing less. Explicitly NOT approval: a conditional
+verdict, an approval carrying findings or nits, or a verdict the reviewer did not post to the PR
+with `gh pr comment`. Any of those returns to the build lane. The CI waiver protocol is unchanged —
+a red required check still blocks the merge regardless of this sign-off. The sign-off covers #1376
+only and does not extend to the Tasks 6-7 lane.
