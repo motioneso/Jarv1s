@@ -5598,3 +5598,13 @@ handoff `4f50d0bd` limits it to spec Tasks 6–7 and requires the live-path arti
 with bypass permissions in the shared agents tab. Status: bootstrap/planning; coordinator approval
 is required before feature code. Merge authority remains fresh sol-high approval plus coordinator
 concurrence.
+
+### 2026-07-31 — Tasks 6–7 plan approved; builder relayed
+
+Coordinator approved the seam-verified minimum plan at `430afb91` with binding Task 6 kill-gate
+and real live-path conditions; relay continuation is `0d2dc19d`. The 70% trigger fired before any
+feature code. Successor `action-row-ui-successor`, Claude session
+`c7627525-0987-4761-95cc-4e0323ab3f25`, is verified on Sonnet with bypass permissions and is
+building Task 6 test-first in the same worktree/branch. Predecessor session
+`35c02a98-aa09-4b65-9de5-cd4fecdc4bcc` was resolved fresh by session id and reaped. Next checkpoint:
+Task 6 unit plus phase gate must be green before Task 7 begins.
