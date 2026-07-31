@@ -633,7 +633,7 @@ describe("job-search web Root", () => {
       expect(text(renderer)).toMatch(/Senior Engineer/);
       expect(text(renderer)).not.toMatch(/Search status/);
       expect(text(renderer)).not.toMatch(/knows about you/);
-      expect(text(renderer)).not.toMatch(/Which job boards this search crawls/);
+      expect(text(renderer)).not.toMatch(/Checks automatically/);
 
       await act(async () => {
         findButton(renderer, /^Overview$/)!.props.onClick();
@@ -655,13 +655,13 @@ describe("job-search web Root", () => {
       });
       await flush(renderer);
       expect(text(renderer)).not.toMatch(/What it's looking for/);
-      expect(text(renderer)).toMatch(/Which job boards this search crawls/);
+      expect(text(renderer)).toMatch(/Checks automatically/);
 
       await act(async () => {
         findButton(renderer, /^Matches$/)!.props.onClick();
       });
       await flush(renderer);
-      expect(text(renderer)).not.toMatch(/Which job boards this search crawls/);
+      expect(text(renderer)).not.toMatch(/Checks automatically/);
       expect(text(renderer)).toMatch(/Senior Engineer/);
     });
 

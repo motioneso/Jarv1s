@@ -130,6 +130,44 @@ describe("SettingsScreen", () => {
     );
   });
 
+  it("labels monitoring and manual-run controls separately", async () => {
+    vi.mocked(api.invokeTool).mockResolvedValue({
+      portals: [portalRow({ sourceId: "linkedin", label: "LinkedIn", enabled: true })]
+    });
+
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    expect(text(renderer)).toContain("LinkedIn monitoring");
+    const checkbox = renderer.root.findByProps({
+      type: "checkbox",
+      "aria-label": "Enable LinkedIn monitoring"
+    });
+    expect(checkbox).toBeDefined();
+
+    const runGroup = renderer.root.findByProps({
+      role: "group",
+      "aria-label": "LinkedIn manual check"
+    });
+    expect(runGroup.findAllByType("button")).toHaveLength(1);
+    expect(runGroup.findAllByProps({ type: "checkbox" })).toHaveLength(0);
+  });
+
+  it("leads with watched-board controls and truthful automatic-check copy without a page hero", async () => {
+    vi.mocked(api.invokeTool).mockResolvedValue({
+      portals: [portalRow({ sourceId: "linkedin", label: "LinkedIn" })]
+    });
+
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    const rendered = text(renderer);
+    expect(rendered).toContain("Checks automatically");
+    expect(rendered).not.toMatch(/every morning/i);
+    expect(rendered).not.toContain("Where this search is looking");
+    expect(renderer.root.findAllByProps({ className: "jds-strap jds-strap--gold" })).toHaveLength(0);
+  });
+
   it("renders a self-disabled portal's cause verbatim, not a composed sentence", async () => {
     const summary =
       "LinkedIn asked for an account before showing postings, so I stopped. I will not sign in to a job board on your behalf.";

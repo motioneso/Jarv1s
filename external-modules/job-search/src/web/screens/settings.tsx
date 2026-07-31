@@ -237,10 +237,14 @@ function MonitorRow(props: {
           this on-off pairing everywhere else (profile.tsx's briefing-detail control included), and
           a switch reads its own state at a glance the way a button's label alone doesn't. */}
       <div className="jsm-monitor__actions">
-        <RunNowControl profileId={props.profileId} onEnqueued={props.onRunEnqueued} />
+        <div role="group" aria-label={`${row.label} manual check`}>
+          <RunNowControl profileId={props.profileId} onEnqueued={props.onRunEnqueued} />
+        </div>
         <label className="jds-switch">
+          <span className="jds-label">{row.label} monitoring</span>
           <input
             type="checkbox"
+            aria-label={`Enable ${row.label} monitoring`}
             checked={row.enabled}
             onChange={(event: { target: { checked: boolean } }) =>
               props.onToggle(row.sourceId, event.target.checked)
@@ -347,25 +351,13 @@ export function SettingsScreen(props: { profile: Profile }): ReactNodeLike {
   // has no queue behind it (this file's header). The explanation paragraph and the footer line
   // below carry what the header would otherwise have said.
   //
-  // Header redrawn (2026-07-28, mockup-alignment pass) to match Overview's/Profile's own new hero
-  // treatment (eyebrow + display headline + strap, closed by an ink rule) — reusing
-  // `.jsm-settings`/`.jsm-settings__head`'s existing flex-column layout rather than adding new
-  // CSS, since a vertical stack is all a header this short ever needed. `jds-display--sm` is the
-  // exact size components-keyline.css already names for this ("44px — profile / monitors screen
-  // title"), so this and profile.tsx's own headline are deliberately the same visual weight.
   return (
     <div className="jsm-settings">
-      <header className="jsm-settings__head">
-        <span className="jds-eyebrow jds-eyebrow--gold">Monitors</span>
-        <h1 className="jds-display jds-display--sm">Where this search is looking</h1>
-        <span className="jds-strap jds-strap--gold" aria-hidden="true" />
-        <p className="jds-hint jsm-monitor__lede">
-          Which job boards this search crawls. I check them every morning and only surface what
-          clears your bar — nothing is applied on your behalf.
-        </p>
-      </header>
-
-      <div className="jds-divider jds-divider--ink" />
+      <h2 className="jds-section-title">Monitors</h2>
+      <p className="jds-hint jsm-monitor__lede">
+        Checks automatically and only surfaces roles that clear your bar. Nothing is applied on
+        your behalf.
+      </p>
 
       <section className="jsm-settings__group">
         <SectionHead label="Watched boards">
