@@ -5326,10 +5326,15 @@ else about the security gate is unchanged: the reviewer still posts its verdict 
 `gh pr comment` (durable evidence that survives a coordinator relay), and Ben's explicit merge
 sign-off is still required. Codex panes need a second `Enter` after `herdr pane run`.
 
-**Advance merge sign-off (Ben, 2026-07-30):** _"after sol-high approval merge. this is my sign off."_
-This satisfies the security-tier requirement for #1376 / PR #1376 **conditionally**. The coordinator
-merges on a **clean** sol-high approval and on nothing less. Explicitly NOT approval: a conditional
-verdict, an approval carrying findings or nits, or a verdict the reviewer did not post to the PR
-with `gh pr comment`. Any of those returns to the build lane. The CI waiver protocol is unchanged —
-a red required check still blocks the merge regardless of this sign-off. The sign-off covers #1376
-only and does not extend to the Tasks 6-7 lane.
+**Merge authority delegated (Ben, 2026-07-30):** _"after sol-high approval merge. this is my sign
+off."_ Clarified on follow-up: _"once sol approves, not if. So my approval is delegated to it."_
+
+For PR #1376 the security-tier merge sign-off is **delegated to the `gpt-5.6-sol high` reviewer**.
+Its approval IS Ben's approval — the coordinator merges on it and does not re-adjudicate the
+verdict's shape or hold it against an added bar. Do not read this as a conditional sign-off; an
+earlier note in this manifest framed it that way and was wrong.
+
+Two things are unchanged because they are separate decisions, not merge sign-off: the reviewer still
+posts its verdict to the PR with `gh pr comment` (durable evidence that survives a coordinator
+relay), and a red required CI check still blocks — waiving one needs Ben under the standing waiver
+protocol. The delegation covers #1376 only and does not extend to the Tasks 6-7 lane.
