@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  CalendarRepository,
-  EmailRepository,
-  PreferencesRepository,
-  featureGrantsPrefKey,
   handles,
   ids,
   runGoogleSync,
