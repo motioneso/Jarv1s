@@ -3,8 +3,8 @@
 **Date:** 2026-07-26
 **Epic:** #1262 — module self-operation (Jarvis can operate Jarvis)
 **Handoff:** `docs/coordination/handoff-1262-module-self-operation.md`
-**Coordinator lock:** label `Coordinator`, **stable anchor = Claude session id
-`43e5f5e2-0deb-4ab5-9237-436e8795b611`** (match `agent_session.value` in `herdr pane list`).
+**Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id
+`019fb962-b11d-78b1-93ff-2456559d2f5b`** (match `agent_session.value` in `herdr pane list`).
 Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this
 anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every
 restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the
