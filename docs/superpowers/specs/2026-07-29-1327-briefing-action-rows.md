@@ -93,18 +93,13 @@ Add `packages/shared/src/briefing-action-rows.ts` and export it through the pack
 public barrel.
 
 ```ts
-export type BriefingActionCategory =
-  | "needs_reply"
-  | "needs_action"
-  | "time_sensitive_info";
+export type BriefingActionCategory = "needs_reply" | "needs_action" | "time_sensitive_info";
 
 export type BriefingActionPrimaryAction =
   | { readonly kind: "reply"; readonly cacheMessageId: string }
   | { readonly kind: "view"; readonly href: string };
 
-export type BriefingActionResurfaceReason =
-  | "due_tomorrow"
-  | "relevant_context";
+export type BriefingActionResurfaceReason = "due_tomorrow" | "relevant_context";
 
 export interface TaskSuggestionMetadataV1 {
   readonly version: 1;
@@ -187,14 +182,14 @@ Add connector-owned `app.email_action_suppression` in a **new** connectors-modul
 
 Fields:
 
-| Field | Contract |
-| --- | --- |
-| `owner_user_id` | actor owner; composite primary key |
-| `subject_signature` | SHA-256 hex; composite primary key |
-| `dismissal_count` | non-negative integer |
-| `last_deadline_evidence_key` | nullable bounded text |
-| `last_context_message_key` | nullable bounded text |
-| `updated_at` | timestamp |
+| Field                        | Contract                           |
+| ---------------------------- | ---------------------------------- |
+| `owner_user_id`              | actor owner; composite primary key |
+| `subject_signature`          | SHA-256 hex; composite primary key |
+| `dismissal_count`            | non-negative integer               |
+| `last_deadline_evidence_key` | nullable bounded text              |
+| `last_context_message_key`   | nullable bounded text              |
+| `updated_at`                 | timestamp                          |
 
 Classification is **owner-only**. Enable and FORCE RLS for app and worker roles using
 `owner_user_id = app.current_actor_user_id()`. Repositories take `DataContextDb` only. The table
@@ -208,13 +203,13 @@ capability extraction prompt for a short statement of what the action is about.
 
 Per persisted model-written field:
 
-| Stored/displayed field | Source and mandatory guard |
-| --- | --- |
-| `inferredSubject` | `safeSignalStr()` and `stripIfBodyReconstructed()` before `signals` JSON persistence |
-| row `title` | existing `suggestedTasks[].text`, already through `safeActionItems()`/`safeSignalStr()`; metadata creation must reject missing text |
-| row `explanation` | existing `actionability.reason`, already through `safeSignalStr()` and the cumulative reconstruction guard; use a fixed authored fallback, never snippet/body |
-| catch-up `summaryText` | deterministic composition of already body-echo-guarded `EmailMessage.summary` values only; no snippet/body fallback and no new model call |
-| `resurfaceReason` | deterministic enum-to-copy mapping; not model-written |
+| Stored/displayed field | Source and mandatory guard                                                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `inferredSubject`      | `safeSignalStr()` and `stripIfBodyReconstructed()` before `signals` JSON persistence                                                                          |
+| row `title`            | existing `suggestedTasks[].text`, already through `safeActionItems()`/`safeSignalStr()`; metadata creation must reject missing text                           |
+| row `explanation`      | existing `actionability.reason`, already through `safeSignalStr()` and the cumulative reconstruction guard; use a fixed authored fallback, never snippet/body |
+| catch-up `summaryText` | deterministic composition of already body-echo-guarded `EmailMessage.summary` values only; no snippet/body fallback and no new model call                     |
+| `resurfaceReason`      | deterministic enum-to-copy mapping; not model-written                                                                                                         |
 
 Unknown model keys remain dropped. Caps remain in force. Tests must cover exact body echo, a long
 body substring, wrapped body text, and cumulative reconstruction spread across
@@ -620,9 +615,9 @@ explanation, inferred subject, summary, body, prompt, note text, memory text, or
 9. Row freshness reflects monitor/sync computation time, not briefing creation time.
 10. Exact normalized-subject suppression holds after two dismissals; volume never resurfaces.
 11. Deadline and relevant-context evidence each resurface once, state why, and cannot replay the
-   same evidence after another dismissal.
+    same evidence after another dismissal.
 12. Catch-up is email-only, exact-counted, bounded, and contains only previously body-echo-guarded
-   summaries.
+    summaries.
 13. Body-echo/reconstruction tests cover every stored model-written field named in §5.
 14. RLS proves suppression state is owner-only for ordinary users, admins, and workers; task
     suggestion metadata follows existing owner-or-share task policy.
