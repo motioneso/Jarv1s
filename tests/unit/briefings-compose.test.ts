@@ -13,8 +13,11 @@ import {
   definition,
   fakeScopedDb,
   makeFakeDeps,
+  makeStructuredTaskDeps,
   runInput
 } from "./briefings-compose.harness.js";
+import { composeEveningBriefing } from "../../packages/briefings/src/compose-evening.js";
+import { buildEmailCatchUp, projectActionRows } from "../../packages/briefings/src/action-rows.js";
 
 describe("composeBriefing — gathering", () => {
   it("gathers sections in fixed priority order and assembles a prompt", async () => {
@@ -882,5 +885,96 @@ describe("composeBriefing — source freshness", () => {
     const deps = makeFakeDeps();
     const result = await composeBriefing(fakeScopedDb, definition(), runInput, deps);
     expect(result.sourceMetadata.sourceTimestamps).toBeUndefined();
+  });
+});
+
+describe("composeBriefing — structured action rows", () => {
+  it("returns rows beside prose and excludes their tasks and emails from prose", async () => {
+    const captured: string[] = [];
+    const deps = makeStructuredTaskDeps(
+      makeFakeDeps({
+        generateChat: async (input) => {
+          captured.push(input.messages[0]!.content);
+          return { text: "synth narrative" };
+        }
+      })
+    );
+    const result = await composeBriefing(fakeScopedDb, definition(), runInput, deps);
+
+    expect(result.structuredPayload.actionRows).toHaveLength(1);
+    expect(result.structuredPayload.actionRows[0]?.taskId).toBe("task-row");
+    expect(captured[0]).not.toContain("Reply row title");
+    expect(captured[0]).not.toContain("Row email");
+    expect(captured[0]).toContain("Prose task");
+  });
+
+  it("morning and evening use the same row projector", async () => {
+    const deps = makeStructuredTaskDeps(makeFakeDeps());
+    const morning = await composeBriefing(fakeScopedDb, definition(), runInput, deps);
+    const evening = await composeEveningBriefing(
+      fakeScopedDb,
+      definition({ briefing_type: "evening" }),
+      runInput,
+      deps
+    );
+
+    expect(evening.structuredPayload.actionRows).toEqual(morning.structuredPayload.actionRows);
+  });
+
+  it("counts only eligible linked rows and emits authored empty payload", () => {
+    const result = projectActionRows([
+      { id: "missing-source", sourceRef: null, suggestionMetadata: null },
+      {
+        id: "missing-link",
+        title: "No link",
+        description: null,
+        dueAt: null,
+        updatedAt: null,
+        source: "email",
+        sourceRef: "acct:message",
+        suggestionMetadata: {
+          version: 1,
+          category: "needs_action",
+          sourceLabel: "Gmail",
+          sourceHref: "",
+          cacheMessageId: null,
+          subjectSignature: "sig",
+          computedAt: FIXED_NOW.toISOString(),
+          resurfaceReason: null
+        }
+      }
+    ]);
+
+    expect(result.payload).toEqual({ version: 1, actionRows: [], catchUp: null });
+    expect(result.sourceRefs).toHaveLength(0);
+  });
+
+  it("builds bounded email-only catch-up from guarded summaries", async () => {
+    const asOf = new Date("2026-06-13T12:30:00.000Z");
+    const catchUp = await buildEmailCatchUp(
+      fakeScopedDb,
+      [
+        { id: "excluded", connectorAccountId: "acct", actionability: "fyi", summary: "row" },
+        { id: "one", connectorAccountId: "acct", actionability: "fyi", summary: "one" },
+        {
+          id: "two",
+          connectorAccountId: "acct",
+          actionability: "waiting_on_someone",
+          summary: "two"
+        },
+        { id: "three", connectorAccountId: "acct", actionability: "fyi", summary: "three" },
+        { id: "four", connectorAccountId: "acct", actionability: "fyi", summary: "four" },
+        { id: "noise", connectorAccountId: "acct", actionability: "noise", summary: "noise" }
+      ],
+      new Set(["acct:excluded"]),
+      async () => asOf
+    );
+
+    expect(catchUp).toEqual({
+      source: "email",
+      itemCount: 4,
+      summaryText: "one\ntwo\nthree",
+      asOf: asOf.toISOString()
+    });
   });
 });

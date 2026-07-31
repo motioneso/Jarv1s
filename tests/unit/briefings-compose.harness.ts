@@ -282,3 +282,69 @@ export function makeFakeDeps(options: FakeOptions = {}): ComposeDeps {
     })
   };
 }
+
+export function makeStructuredTaskDeps(deps: ComposeDeps): ComposeDeps {
+  const rowTask = {
+    id: "task-row",
+    title: "Reply row title",
+    description: "Reply row explanation",
+    status: "suggested",
+    source: "email",
+    sourceRef: "acct-1:mail-row",
+    dueAt: null,
+    updatedAt: "2026-06-13T11:00:00.000Z",
+    suggestionMetadata: {
+      version: 1 as const,
+      category: "needs_reply" as const,
+      sourceLabel: "Gmail",
+      sourceHref: "https://mail.example.test/thread",
+      cacheMessageId: "cache-row",
+      subjectSignature: "sig-row",
+      computedAt: "2026-06-13T10:00:00.000Z",
+      resurfaceReason: null
+    }
+  };
+  const proseTask = { id: "task-prose", title: "Prose task", status: "todo" };
+  return {
+    ...deps,
+    moduleManifests: deps.moduleManifests.map((manifest) => ({
+      ...manifest,
+      assistantTools: (manifest.assistantTools ?? []).map((tool) =>
+        tool.name === "tasks.list"
+          ? {
+              ...tool,
+              execute: async (_db, input) => ({
+                data: { items: input.status === "suggested" ? [rowTask] : [rowTask, proseTask] }
+              })
+            }
+          : tool.name === "email.listVisibleMessages"
+            ? {
+                ...tool,
+                execute: async () => ({
+                  data: {
+                    messages: [
+                      {
+                        id: "mail-row",
+                        connectorAccountId: "acct-1",
+                        sender: "sender@example.test",
+                        subject: "Row email",
+                        actionability: "needs_reply",
+                        summary: "row summary"
+                      },
+                      {
+                        id: "mail-catchup",
+                        connectorAccountId: "acct-1",
+                        sender: "sender@example.test",
+                        subject: "Catch-up email",
+                        actionability: "fyi",
+                        summary: "guarded catch-up summary"
+                      }
+                    ]
+                  }
+                })
+              }
+            : tool
+      )
+    }))
+  };
+}
