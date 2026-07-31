@@ -5065,3 +5065,41 @@ writing the spec into `docs/superpowers/specs/`. When it reports: sanity-check t
 issue's settled sections and the CLAUDE.md invariants, then **take it to Ben for approval**. Do not
 spawn a builder before he approves. Coordinator lock unchanged: session `43e5f5e2`, label
 `Coordinator`.
+
+### #1327 amendment lane — give the briefing prose a real surface (2026-07-30)
+
+Ben read the spec, approved its shape, then asked where the briefing prose actually appears. The
+answer, verified on `spec/1327-briefing-action-rows`: **almost nowhere.**
+
+- The morning briefing's `summaryText` is composed, persisted and served, and has **zero render
+  sites** in `apps/web/src`. The day/morning Today view builds "Start here" from tasks and events
+  and never reads a run's prose.
+- The only render site in the whole web app is `apps/web/src/today/evening-mode.tsx:148`, truncated
+  to 220 characters by `compactSummary()`.
+- That site is the `compact` variant, which shows in **day** mode. The `primary` evening card —
+  "What happened today" — renders a heading, a staleness banner and a feedback menu, and **no
+  prose at all** (`evening-mode.tsx:138-156`).
+
+This undercuts the issue's requirement 2 ("Prose stays. The rows sit alongside the narrative") and
+makes spec §7's contradiction/duplication guard theoretical. **Ben's ruling: fold it into #1327**
+("Yea let's add that in 1327 too") rather than splitting a separate issue.
+
+| field | value |
+| ----- | ----- |
+| issue | #1327 (scope addition posted as a comment, 2026-07-30) |
+| stage | spec amendment only — no build lane |
+| agent | `spec-1327b`, Codex `gpt-5.6-sol high`, pane `w1:p14X` (agents tab `w1:t3R`) |
+| worktree | `~/Jarv1s/.claude/worktrees/spec-1327`, branch `spec/1327-briefing-action-rows` |
+| brief | `docs/superpowers/handoffs/2026-07-30-spec-1327-amendment-prose-surface.md` (`c637da5c`) |
+| deliverable | amend `docs/superpowers/specs/2026-07-29-1327-briefing-action-rows.md` in place |
+
+Scope handed to the author: a morning prose surface, prose on the primary evening card, an explicit
+per-surface truncation ruling, empty/loading/stale states from authored patterns, and its own
+user-facing build task ordered before or alongside the row UI. Additive only — no new composition
+logic, no API field, no migration; the data is already produced and served.
+
+**Continuation note (2026-07-30):** the #1327 spec is still **awaiting Ben's approval** and the
+amendment above must land before he sees it again. When `spec-1327b` reports: sanity-check the
+amendment (bounded read — new sections and §7 only), then take the whole spec to Ben. Still parked
+for him: §13's "Accept does not clear prior subject dismissals in v1". No builder spawns before his
+approval. Coordinator lock unchanged: session `43e5f5e2`, label `Coordinator`.
