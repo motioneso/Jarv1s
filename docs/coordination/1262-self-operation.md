@@ -4,7 +4,7 @@
 **Epic:** #1262 — module self-operation (Jarvis can operate Jarvis)
 **Handoff:** `docs/coordination/handoff-1262-module-self-operation.md`
 **Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id
-`019fb9d9-8e73-7422-b7ff-67a7a5de94ec`** (match `agent_session.value` in `herdr pane list`).
+`019fba35-33aa-7a13-b6b0-f0c0cddead62`** (match `agent_session.value` in `herdr pane list`).
 Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this
 anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every
 restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the
@@ -5663,3 +5663,15 @@ then resolve and reap this old coordinator fresh from the old session id (never 
 number). Lead the next Ben report with `AWAITING-BEN.md` item 10 and offer to restart the branch
 frontend for his authenticated `/today` pass. No live-path artifact means no final sol-high QA and
 no merge.
+
+### 2026-07-31 — successor driving; authenticated live pass open
+
+Coordinator session `019fba35-33aa-7a13-b6b0-f0c0cddead62` claimed the lock and is the sole active
+pane labelled `Coordinator`. It re-adopted retained build session
+`019fba1b-72cc-7e73-a143-2be9edb4fe89`, which started Vite from
+`~/Jarv1s/.claude/worktrees/1327-action-row-ui` on `0.0.0.0:5198` with the real API proxy at
+`http://127.0.0.1:3000`. Ben's reachable pass URL is <http://192.168.50.98:5198/today> (HTTP 200;
+proxied `/api/me` returns the expected unauthenticated 401). The predecessor received the URL and
+evidence checklist, then session `019fb9d9-8e73-7422-b7ff-67a7a5de94ec` was reaped after fresh
+session-id resolution. Await Ben's authenticated screenshots/video on PR #1379; do not spawn final
+sol-high QA or merge before that artifact exists.
