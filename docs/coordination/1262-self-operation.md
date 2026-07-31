@@ -5619,3 +5619,12 @@ finish-line agent `action-row-ui-gate`, Claude session `28647b5a-b241-4f3c-9077-
 verified on Sonnet with bypass permissions. Its only scope is to run/fix the Task 6 focused tests,
 full unit/lint/format gates, commit explicit Task 6 paths, and report exit codes. Task 7 remains
 blocked on that kill gate.
+
+### 2026-07-31 — Task 6 gate runner switched to Codex
+
+Finish-line Sonnet session `28647b5a-b241-4f3c-9077-611138042bd6` froze twice before issuing a
+command and was reaped with the worktree preserved. Bounded fallback agent
+`action-row-ui-gate-codex`, Codex session `019fba1b-72cc-7e73-a143-2be9edb4fe89`, is verified on
+`gpt-5.6-sol high` with unattended full access. Scope remains Task 6 gates/repairs/commit only; Task
+7 and the final fresh sol-high security review remain unchanged. Focused Task 6 result: 2 files,
+11 tests, exit 0 with no repair needed. Full unit, lint, and format checks are running.
