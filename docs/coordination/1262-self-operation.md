@@ -5103,3 +5103,23 @@ amendment above must land before he sees it again. When `spec-1327b` reports: sa
 amendment (bounded read — new sections and §7 only), then take the whole spec to Ben. Still parked
 for him: §13's "Accept does not clear prior subject dismissals in v1". No builder spawns before his
 approval. Coordinator lock unchanged: session `43e5f5e2`, label `Coordinator`.
+
+**Amendment delivered (2026-07-30):** `0e7bf3a8` on `spec/1327-briefing-action-rows`, +99/−27, one
+file. `git diff --stat origin/main...` still shows three docs files and no code. Agent `spec-1327b`
+reaped; worktree kept.
+
+- Morning prose renders as the first `jds-brief` in the main column, immediately before "Start
+  here"; primary-evening prose renders under the "What happened today" heading and freshness banner.
+- **Truncation ruling:** morning and primary evening are never truncated; only the small day-mode
+  evening tile keeps `compactSummary()` at 220 characters.
+- Loading/empty/stale states reuse `parseBriefingFreshness()`, `BriefingStaleBanner`, `agenda-clear`
+  and the authored `jds-brief__*` patterns. A disabled definition omits its surface entirely.
+- New **Task 5 — surface existing briefing prose**, ordered before the row UI (now Task 6) and the
+  integrated proof (Task 7), so rows cannot ship onto a page with no narrative.
+- **Grounding correction the author found and I confirmed:** `today-page.tsx` queries evening runs
+  only (`eveningRunsQuery`, line 124). The morning surface reuses the existing briefing API but must
+  add a morning definition + run query. That is real work, not a render tweak.
+- The author requested no Ben ruling on the amendment.
+
+Coordinator note for whoever builds this: Task 5's tests are `.tsx`, and **no `.tsx` test file is
+typechecked** (#1335) — fixtures there drift silently. Worth an explicit note in the build handoff.
