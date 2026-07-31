@@ -5516,3 +5516,9 @@ consumed evidence can replay. This is the lane's third security rejection, excee
 failure budget. Lane status is `stopped-awaiting-Ben`; builder was told to make no further changes.
 PR, branch, and build worktree remain preserved and unmerged. The decision is parked in
 `docs/coordination/AWAITING-BEN.md` item 9.
+
+Ben explicitly authorized one final bounded fix plus fresh sol-high security-QA cycle. Item 9 was
+cleared from `AWAITING-BEN.md`. The builder may change only the lossy resurfacing-consumption path
+and its focused regressions, then must push and complete a fresh exclusive unpiped full gate. The
+current merge rule remains unchanged: sol approval plus coordinator concurrence; any RED means no
+merge.
