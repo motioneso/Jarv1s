@@ -5139,11 +5139,23 @@ Both based on `origin/main` at `d8bf5e3b`. Briefs: `docs/superpowers/handoffs/20
 Collision boundary: prose owns `apps/web/src/today/*`; core is told to stay out of it. Tasks 6–7
 (unified row UI + integrated proof) are a **third lane after both land** — not spawned.
 
-**Open ruling blocking core's Task 3:** §13's "Accept does not clear prior subject dismissals in
-v1". Ben has questioned it; the core brief tells the agent to stop and ask if it arrives there
-before a ruling does. Coordinator recommendation to Ben: flip it — an Accept should clear that
-subject's dismissal count, because the two-strike rule is meant for things you keep rejecting, not
-for a subject you rejected once and later adopted.
+**§13 ruling — CLOSED (Ben, 2026-07-30): "flip it".** An Accept clears that subject's dismissal
+count. Spec amended and merged: PR **#1373** → squashed to `main`. Accept now resets
+`dismissal_count` to 0 and clears `last_deadline_evidence_key` + `last_context_message_key` in the
+same `withDataContext()` transaction, through the same `SuggestionSuppressionPort`; an accept on a
+subject with no suppression row is a no-op. Evidence triggers still reset nothing. New Task 3 test:
+`accept clears the subject dismissal count and used evidence keys`. Relayed to the core agent and
+posted to issue #1327. Worktree `ruling-1327` reaped.
+
+**Lane state (2026-07-30):**
+
+- core `#1371` — Task 1 in progress. Migration numbers claimed: tasks `0178`, connectors `0179`
+  (0175–0177 applied and frozen); agent instructed to rescan module `sql/` immediately before the
+  migration commit.
+- prose `#1372` — plan `docs/superpowers/plans/2026-07-30-1327-briefing-prose.md` **approved**
+  (existing evening test deliberately replaced, morning prose test added, morning same-day run
+  query added). Two approval conditions attached: live dev-instance walkthrough recorded on the PR,
+  and assert against real rendered output because `.tsx` tests are not typechecked (#1335).
 
 **Continuation note (2026-07-30):** two build lanes in flight, nothing merged. `security` tier on
 #1371 means Opus adversarial QA + a posted PR verdict + Ben's explicit merge sign-off. #1372 is
