@@ -5550,3 +5550,24 @@ correct consumption path, legacy scalar evidence remains honored, and migration 
 owner-scoped `FORCE RLS`. The prior two-party delegation now authorizes squash merge after the
 session lock and exact-head checks are re-confirmed. Merge without `--delete-branch`; delete the
 remote branch separately only after the merged PR proves the work landed.
+
+### 2026-07-31 — PR #1376 merged; mandatory security relay
+
+Coordinator authority matched manifest lock session `019fb962-b11d-78b1-93ff-2456559d2f5b`
+immediately before merge. PR #1376 was squash-merged as
+`f810e45ff4a99d15cbf52b015c7ec9ce482f18c2`; `origin/main` contains the merge. Security-tier digest:
+all GitHub checks green; fresh exclusive unpiped gate exact `### FINAL rc=0` with 173 files / 1,786
+tests passed / 2 skipped; final sol-high verdict `APPROVE`, zero blockers at
+<https://github.com/motioneso/Jarv1s/pull/1376#issuecomment-5147106335>; Gmail live-link evidence
+remains recorded on the PR, while the actual unified UI/live-path lane is still Tasks 6–7.
+
+Issue #1371 auto-closed and its board item is Done. The remote `build/1327-core` branch was deleted
+only after the merge was proven on `origin/main`; build and final-QA panes/worktrees were reaped
+after both trees were confirmed clean. No #1327 fleet panes remain. `merges_since_relay = 1`; this
+was a security merge, so the relay trigger fired unconditionally.
+
+**Continuation:** spawn no Tasks 6–7 lane yet. Its merge delegation was explicitly excluded from
+the #1376 ruling. Lead with `AWAITING-BEN.md` item 9 and obtain Ben's authority choice, then create
+the tracked lane from current `origin/main`. Current coordinator session
+`019fb962-b11d-78b1-93ff-2456559d2f5b` is relaying and must be resolved fresh by session id before
+reap; never trust a written pane number.

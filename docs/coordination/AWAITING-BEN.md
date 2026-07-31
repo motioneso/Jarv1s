@@ -1,9 +1,16 @@
 # Awaiting Ben — parking lot
 
 Decisions that need Ben and must not be silently resolved by an agent. Coordinator keeps this
-current. **Item 8 gates security-tier merges**; everything else lets its lane keep building.
+current. **Items 8 and 9 gate security-tier merges**; everything else lets its lane keep building.
 
 _Last updated: 2026-07-31, during issue #1327 coordination._
+
+## 9. #1327 Tasks 6–7 needs its own merge authority
+
+PR #1376 / issue #1371 is merged. The remaining lane is spec Tasks 6–7: unified action-row UI plus
+integrated live-path proof. The delegation that authorized #1376 explicitly covered that PR only.
+Before this lane spawns, Ben must choose its merge authority: standard tier rules, or the same
+sol-high approval plus coordinator-concurrence delegation used for #1376.
 
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
