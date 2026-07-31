@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { sql } from "kysely";
 
 import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { TasksRepository } from "@jarv1s/tasks";
+import { serializeTask, TasksRepository } from "@jarv1s/tasks";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -27,7 +27,17 @@ describe("Tasks — suggested status (migration 0140, spec #729 §5)", () => {
         title: "Reply to vendor about invoice",
         status: "suggested",
         source: "email",
-        externalKey: "email:conn-1:msg-suggested-1"
+        externalKey: "email:conn-1:msg-suggested-1",
+        suggestionMetadata: {
+          version: 1,
+          category: "needs_reply",
+          sourceLabel: "Gmail",
+          sourceHref: "https://mail.google.com/mail/u/0/#inbox/msg-suggested-1",
+          cacheMessageId: "cache-msg-suggested-1",
+          subjectSignature: "a".repeat(64),
+          computedAt: "2026-07-30T12:00:00.000Z",
+          resurfaceReason: null
+        }
       })
     );
 
@@ -35,6 +45,68 @@ describe("Tasks — suggested status (migration 0140, spec #729 §5)", () => {
     expect(task.completed_at).toBeNull();
     expect(task.source).toBe("email");
     expect(task.external_key).toBe("email:conn-1:msg-suggested-1");
+    expect(serializeTask(task).suggestionMetadata).toEqual({
+      version: 1,
+      category: "needs_reply",
+      sourceLabel: "Gmail",
+      sourceHref: "https://mail.google.com/mail/u/0/#inbox/msg-suggested-1",
+      cacheMessageId: "cache-msg-suggested-1",
+      subjectSignature: "a".repeat(64),
+      computedAt: "2026-07-30T12:00:00.000Z",
+      resurfaceReason: null
+    });
+  });
+
+  it("refreshes typed metadata on a suggested idempotent task without changing status", async () => {
+    const first = await dataContext.withDataContext(ctx, (scopedDb) =>
+      repository.create(scopedDb, {
+        title: "Original suggested task",
+        status: "suggested",
+        source: "email",
+        externalKey: "email:conn-1:msg-metadata-refresh-1",
+        suggestionMetadata: {
+          version: 1,
+          category: "needs_reply",
+          sourceLabel: "Gmail",
+          sourceHref: "https://mail.google.com/mail/u/0/#inbox/old",
+          cacheMessageId: "cache-old",
+          subjectSignature: "b".repeat(64),
+          computedAt: "2026-07-30T12:00:00.000Z",
+          resurfaceReason: null
+        }
+      })
+    );
+    const refreshed = await dataContext.withDataContext(ctx, (scopedDb) =>
+      repository.create(scopedDb, {
+        title: "Ignored duplicate title",
+        status: "todo",
+        source: "email",
+        externalKey: "email:conn-1:msg-metadata-refresh-1",
+        suggestionMetadata: {
+          version: 1,
+          category: "needs_action",
+          sourceLabel: "Gmail",
+          sourceHref: "https://mail.google.com/mail/u/0/#inbox/new",
+          cacheMessageId: null,
+          subjectSignature: "b".repeat(64),
+          computedAt: "2026-07-30T12:01:00.000Z",
+          resurfaceReason: "relevant_context"
+        }
+      })
+    );
+
+    expect(refreshed.id).toBe(first.id);
+    expect(refreshed.status).toBe("suggested");
+    expect(refreshed.suggestion_metadata).toEqual({
+      version: 1,
+      category: "needs_action",
+      sourceLabel: "Gmail",
+      sourceHref: "https://mail.google.com/mail/u/0/#inbox/new",
+      cacheMessageId: null,
+      subjectSignature: "b".repeat(64),
+      computedAt: "2026-07-30T12:01:00.000Z",
+      resurfaceReason: "relevant_context"
+    });
   });
 
   it("returns the existing task when the same (source, externalKey) is created again", async () => {

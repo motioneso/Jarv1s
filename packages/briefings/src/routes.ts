@@ -590,6 +590,7 @@ function serializeRun(
     summaryText: run.summary_text,
     sourceMetadata: run.source_metadata,
     feedbackItems,
+    structuredPayload: { version: 1, actionRows: [], catchUp: null },
     createdAt: toIsoString(run.created_at)
   };
 }

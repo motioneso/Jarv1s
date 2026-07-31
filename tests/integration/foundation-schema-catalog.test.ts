@@ -311,7 +311,9 @@ describe("MVP foundation schema catalog", () => {
         // no consumer yet.
         { version: "0176", name: "0176_instance_settings_revision.sql" },
         // #1264 — widen audit outcome CHECK for settings CAS-conflict/validation-error tools.
-        { version: "0177", name: "0177_audit_outcome_widen.sql" }
+        { version: "0177", name: "0177_audit_outcome_widen.sql" },
+        { version: "0178", name: "0178_task_suggestion_metadata.sql" },
+        { version: "0179", name: "0179_email_action_suppression.sql" }
       ]);
     } finally {
       await client.end();
