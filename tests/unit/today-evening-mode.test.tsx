@@ -114,6 +114,18 @@ describe("selectActionRowsRun", () => {
 });
 
 describe("TodayPage evening mode", () => {
+  it("does not wait for runs when the morning briefing is absent", () => {
+    const html = renderToday({
+      now: new Date("2026-06-30T01:30:00.000Z"),
+      definitions: [],
+      runs: [],
+      tasks: [],
+      events: []
+    });
+
+    expect(html).not.toContain("Checking what needs you");
+  });
+
   it("leads with the readable evening review after the time gate", () => {
     const definition = briefingDefinition({ targetTime: "19:00", timezone: locale.timezone });
     const run = briefingRun({
