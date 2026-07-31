@@ -415,6 +415,11 @@ export function createMatchSetStateHandler(store: JobSearchStore) {
     }
 
     await store.setMatchState(matchId, state);
-    return { matchId, state };
+    return {
+      matchId,
+      state,
+      statusText:
+        state === "dismissed" ? "Role passed" : state === "seen" ? "Role saved" : "Role new"
+    };
   };
 }

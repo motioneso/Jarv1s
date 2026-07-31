@@ -257,7 +257,8 @@ describe("job-search custom source tools (#1309)", () => {
         host: "boards.example.com",
         label: "boards.example.com",
         url: "https://boards.example.com/jobs",
-        createdAt: new Date(0).toISOString()
+        createdAt: new Date(0).toISOString(),
+        statusText: "boards.example.com source added"
       });
     });
 

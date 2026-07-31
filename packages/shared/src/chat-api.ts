@@ -24,6 +24,8 @@ export function normalizeChatSurface(value?: unknown): ChatSurface {
 export interface ChatActivityEventDto {
   readonly kind: string;
   readonly text: string;
+  readonly toolName?: string;
+  readonly outcome?: "executed" | "denied" | "error" | "allowed";
 }
 
 export interface ChatThreadDto {

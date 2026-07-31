@@ -64,8 +64,22 @@ export function readActivity(value: unknown): ChatActivityEventDto[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
     const record = asRecord(item);
+    const outcome =
+      record.outcome === "executed" ||
+      record.outcome === "denied" ||
+      record.outcome === "error" ||
+      record.outcome === "allowed"
+        ? record.outcome
+        : undefined;
     return typeof record.kind === "string" && typeof record.text === "string"
-      ? [{ kind: record.kind, text: record.text }]
+      ? [
+          {
+            kind: record.kind,
+            text: record.text,
+            ...(typeof record.toolName === "string" ? { toolName: record.toolName } : {}),
+            ...(outcome ? { outcome } : {})
+          }
+        ]
       : [];
   });
 }

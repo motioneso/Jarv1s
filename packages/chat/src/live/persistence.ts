@@ -26,6 +26,7 @@ import type {
   SourceFreshnessEntry,
   SourceFreshnessV1
 } from "@jarv1s/shared";
+import type { ActionResultMetadata } from "./types.js";
 import type { PgBoss } from "pg-boss";
 
 import { sendJob } from "@jarv1s/jobs";
@@ -193,6 +194,7 @@ export class DataContextChatPersistence implements ChatPersistencePort {
       readonly invokedToolNames?: ReadonlySet<string>;
       readonly answerProvenance?: AnswerProvenanceMetadataV1;
       readonly attachments?: readonly ChatAttachmentDto[];
+      readonly actionResults?: readonly ActionResultMetadata[];
     },
     surface?: ChatSurface
   ): Promise<{ readonly userMessageId: string; readonly assistantMessageId: string } | undefined> {
@@ -223,7 +225,8 @@ export class DataContextChatPersistence implements ChatPersistencePort {
             {
               sourceFreshness,
               answerProvenance: opts?.answerProvenance,
-              attachments: opts?.attachments
+              attachments: opts?.attachments,
+              actionResults: opts?.actionResults
             },
             chatSurface
           );

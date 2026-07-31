@@ -126,7 +126,8 @@ export function createProfileCreateHandler(store: JobSearchStore) {
     return {
       profileId: profile.id,
       name: profile.name,
-      state: profile.state
+      state: profile.state,
+      statusText: "Job search created"
     };
   };
 }
@@ -288,7 +289,8 @@ export function createCriteriaSetHandler(store: JobSearchStore) {
       profileId,
       state: outcome.state,
       completedSteps: outcome.steps,
-      readyToCrawl: outcome.ready
+      readyToCrawl: outcome.ready,
+      statusText: "Search criteria updated"
     };
   };
 }
@@ -309,7 +311,7 @@ export function createSetContextHandler(store: JobSearchStore) {
 
     await store.setProfileContext(profileId, summary);
 
-    return { profileId, contextSummary: summary };
+    return { profileId, contextSummary: summary, statusText: "Search context updated" };
   };
 }
 
@@ -335,6 +337,6 @@ export function createSetBriefingDetailHandler(store: JobSearchStore) {
 
     await store.setBriefingDetail(profileId, detail);
 
-    return { profileId, briefingDetail: detail };
+    return { profileId, briefingDetail: detail, statusText: "Briefing detail updated" };
   };
 }

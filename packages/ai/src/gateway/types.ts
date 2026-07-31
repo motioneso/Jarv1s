@@ -42,6 +42,8 @@ export type GatewaySessionRecord =
       readonly outcome: "executed" | "denied" | "error" | "allowed";
       /** Structured, sanitized result for a module-owned inline artifact. Live only. */
       readonly result?: Record<string, unknown>;
+      /** Safe typed failure/denial reason; arbitrary handler output is never attached. */
+      readonly reason?: string;
       /**
        * Dot-path tokens into the frontend's `queryKeys` object, copied verbatim from the tool's
        * `affectsQueryKeys` manifest declaration when the call executed successfully. Lets the

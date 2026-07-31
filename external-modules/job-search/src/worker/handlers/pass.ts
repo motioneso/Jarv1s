@@ -250,7 +250,10 @@ export function createCrawlRunHandler(store: JobSearchStore) {
 export function createCrawlRunNowHandler(store: JobSearchStore) {
   return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
     const { profileId } = validateProfileInput(ctx.input);
-    return runSingleProfilePass(store, ctx, profileId);
+    return {
+      ...(await runSingleProfilePass(store, ctx, profileId)),
+      statusText: "Search completed"
+    };
   };
 }
 

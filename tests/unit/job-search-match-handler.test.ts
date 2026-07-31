@@ -914,7 +914,11 @@ describe("createMatchSetStateHandler", () => {
 
     const result = await handler(toolCtx({ matchId: "match-9" }));
 
-    expect(result).toEqual({ matchId: "match-9", state: "dismissed" });
+    expect(result).toEqual({
+      matchId: "match-9",
+      state: "dismissed",
+      statusText: "Role passed"
+    });
     expect(store.__setMatchStateCalls).toEqual([{ matchId: "match-9", state: "dismissed" }]);
   });
 

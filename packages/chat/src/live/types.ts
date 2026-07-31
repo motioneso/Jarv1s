@@ -32,6 +32,13 @@ export interface TranscriptRecord {
   readonly preview?: ActionRequestPreview;
 }
 
+export interface ActionResultMetadata {
+  readonly kind: "action_result";
+  readonly text: string;
+  readonly toolName?: string;
+  readonly outcome: "executed" | "denied" | "error" | "allowed";
+}
+
 export interface EngineKillOpts {
   /** Terminate the process but retain the exact neutral-dir purge marker for a later boot sweep. */
   readonly preserveNeutralDir?: boolean;

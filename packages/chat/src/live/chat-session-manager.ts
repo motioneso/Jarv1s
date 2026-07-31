@@ -15,7 +15,12 @@ import { buildEngineText } from "./engine-text.js";
 import { CliChatDeliveryUnknownError, CliChatUnavailableError } from "./errors.js";
 import { renderPersona, type PersonaFs } from "./persona.js";
 import { renderMemorySeedBlock } from "./recall-seed.js";
-import type { CliChatEngine, EngineKillOpts, TranscriptRecord } from "./types.js";
+import type {
+  ActionResultMetadata,
+  CliChatEngine,
+  EngineKillOpts,
+  TranscriptRecord
+} from "./types.js";
 import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
 import {
   DEFAULT_CHAT_SURFACE,
@@ -184,6 +189,7 @@ export class ChatSessionManager {
   private readonly turnsInFlight = new Set<string>();
   /** #456 — per-turn stop controllers, keyed by actor + surface. */
   private readonly turnControllers = new Map<string, AbortController>();
+  private readonly actionResultsBySession = new Map<string, ActionResultMetadata[]>();
   private readonly pollMs: number;
   /** #456 — idle/heartbeat watchdog window; 0 disables (tests only). */
   private readonly idleWatchdogMs: number;
@@ -422,6 +428,7 @@ export class ChatSessionManager {
     const controller = new AbortController();
     const sessionKey = surfaceSessionKey(actorUserId, surface);
     this.turnControllers.set(sessionKey, controller);
+    this.actionResultsBySession.set(sessionKey, []);
 
     try {
       const attachments = opts?.attachments ?? [];
@@ -575,7 +582,8 @@ export class ChatSessionManager {
                   mimeType: meta.mimeType,
                   sizeBytes: meta.sizeBytes
                 }))
-              : undefined
+              : undefined,
+          actionResults: this.actionResultsBySession.get(sessionKey)
         },
         surface
       );
@@ -599,6 +607,7 @@ export class ChatSessionManager {
         sourceFreshness: stored?.sourceFreshness
       };
     } finally {
+      this.actionResultsBySession.delete(sessionKey);
       this.turnControllers.delete(sessionKey);
     }
   }
@@ -770,7 +779,20 @@ export class ChatSessionManager {
    * records into the live transcript stream without going through the engine.
    */
   injectRecord(actorUserId: string, record: TranscriptRecord, surface?: string): void {
-    this.emit(actorUserId, normalizeChatSurface(surface), record);
+    const chatSurface = normalizeChatSurface(surface);
+    const sessionKey = surfaceSessionKey(actorUserId, chatSurface);
+    if (record.kind === "action_result" && record.outcome) {
+      const results = this.actionResultsBySession.get(sessionKey);
+      if (results && results.length < 20) {
+        results.push({
+          kind: "action_result",
+          text: record.text.slice(0, 200),
+          ...(record.toolName ? { toolName: record.toolName.slice(0, 120) } : {}),
+          outcome: record.outcome
+        });
+      }
+    }
+    this.emit(actorUserId, chatSurface, record);
   }
 
   /**

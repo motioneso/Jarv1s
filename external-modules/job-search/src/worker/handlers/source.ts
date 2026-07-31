@@ -162,7 +162,10 @@ export function createSourceAddHandler(store: JobSearchStore) {
     const source = await store.addCustomSource(profileId, url, label);
     await ctx.kv.set("user", FETCH_HOST_GRANTS_NAMESPACE, source.host, {});
 
-    return shapeCustomSource(profileId, source);
+    return {
+      ...shapeCustomSource(profileId, source),
+      statusText: `${source.label} source added`
+    };
   };
 }
 
@@ -195,6 +198,6 @@ export function createSourceRemoveHandler(store: JobSearchStore) {
     await ctx.kv.delete("user", FETCH_HOST_GRANTS_NAMESPACE, match.host);
     await store.removeCustomSource(profileId, sourceId);
 
-    return { profileId, sourceId };
+    return { profileId, sourceId, statusText: `${match.label} source removed` };
   };
 }

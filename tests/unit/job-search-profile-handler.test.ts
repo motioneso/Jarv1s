@@ -264,7 +264,8 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       profileId: "p1",
       state: "active",
       completedSteps: ["role", "want", "sources"],
-      readyToCrawl: true
+      readyToCrawl: true,
+      statusText: "Search criteria updated"
     });
     expect((await store.getProfile("p1"))?.state).toBe("active");
   });
@@ -308,7 +309,8 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       profileId: "p1",
       state: "in_conversation",
       completedSteps: ["role"],
-      readyToCrawl: false
+      readyToCrawl: false,
+      statusText: "Search criteria updated"
     });
   });
 
@@ -403,6 +405,7 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       version: 1,
       updatedAt: expect.any(String),
       unchanged: false,
+      statusText: "Résumé saved",
       rescore: expect.any(Object)
     });
 
@@ -412,6 +415,7 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       version: 2,
       updatedAt: expect.any(String),
       unchanged: false,
+      statusText: "Résumé saved",
       rescore: expect.any(Object)
     });
 
@@ -437,6 +441,7 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       version: 1,
       updatedAt: expect.any(String),
       unchanged: true,
+      statusText: "Résumé unchanged",
       rescore: expect.any(Object)
     });
     expect(await store.getResumeVersion("p1", 2)).toBeUndefined();
@@ -729,7 +734,8 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
     for (const detail of ["count", "top", "full"] as const) {
       await expect(handler(ctx({ profileId: "p1", detail }))).resolves.toEqual({
         profileId: "p1",
-        briefingDetail: detail
+        briefingDetail: detail,
+        statusText: "Briefing detail updated"
       });
     }
 

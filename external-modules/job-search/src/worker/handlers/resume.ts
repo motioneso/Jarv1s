@@ -171,7 +171,8 @@ async function saveResumeContent(
     version: resume.version,
     updatedAt: resume.updatedAt,
     unchanged,
-    rescore
+    rescore,
+    statusText: unchanged ? "Résumé unchanged" : "Résumé saved"
   };
 }
 

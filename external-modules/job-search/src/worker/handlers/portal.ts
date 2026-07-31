@@ -99,7 +99,8 @@ export function createPortalSetEnabledHandler(store: JobSearchStore) {
       cause: next.cause,
       state: outcome.state,
       completedSteps: outcome.steps,
-      readyToCrawl: outcome.ready
+      readyToCrawl: outcome.ready,
+      statusText: `${labelFor(next.sourceId)} monitoring ${next.enabled ? "enabled" : "paused"}`
     };
   };
 }
