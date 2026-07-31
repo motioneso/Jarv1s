@@ -5247,3 +5247,40 @@ with #1371's claimed `0178`/`0179`. No coordination needed; leaving it alone.
 **Next:** #1371 core is still building Task 3, with the `threadId` persistence fix queued behind it.
 Tasks 6-7 (unified action-row UI + integrated proof) open as a third lane only after #1371 lands —
 they collide with the files this prose lane just changed.
+
+### #1371 core — Task 4 done, PR #1376 open, BLOCKED on a self-inflicted gate red (2026-07-30)
+
+Task 3 committed `45f23a9e` (45 focused unit + 15 integration/RLS). The `threadId` follow-up
+committed `cd113d94`: sync now parses and persists thread metadata, a dev-only re-sync upserted 50
+messages with 0 failures, and all 50 cache rows now carry it. The composite-key repository probe ran
+across both live Google accounts and behaved correctly — Gmail account hit, calendar-only account
+missed on the same key. That closes both Gmail blockers at the data layer.
+
+Task 4 committed and rebased to `f47ec163`; PR **#1376** open. Action rows and catch-up compose in
+both morning and evening, prose filters row tasks/emails, and the payload persists beside
+`summaryText` without duplicating `sourceMetadata`.
+
+**Rejected the agent's waiver claim.** It reported `verify:foundation` exit 1 as a "pre-existing
+file-size failure" on `tests/integration/google-sync-orchestration.test.ts`. Verified against the
+base ref instead of trusting it: the file is **999 lines on `origin/main`** and **1006 on the
+branch** — one line under the 1000-line cap before its own sync changes pushed it over. That is a
+regression it introduced, so it is not waivable under the CI waiver protocol. Sent back to split the
+file along a real seam, explicitly barred from deleting or skipping tests or reflowing lines to
+squeeze under the cap. This is the [[verification-discipline]] trap firing exactly as recorded:
+"pre-existing" is a claim about the base ref and must be checked against it.
+
+**Gmail link verification is Ben-owned and asynchronous.** The agent's own attempt was worthless —
+its browser profile is not signed into the mailbox, so it got the Google sign-in page, which is
+evidence about the profile and not about the URL. It has written the single generated link to
+`/home/ben/jarv1s-gmail-link-check.html` (0600, bare anchor, no mail content). Ben clicks it; I own
+flipping `GMAIL_ACTION_LINKS_ENABLED` only if it resolves.
+
+**Ruling on `accountIndex`.** `buildEmailActionLink` hardcodes `accountIndex: 0`, and `/u/0` means
+"whichever account the viewer's browser signed into first" — unrelated to our data, and now
+genuinely ambiguous with two connected Google accounts. `app.connector_accounts` stores no account
+address, so the robust `/mail/u/?authuser=<address>` form is not buildable without a schema change
+plus a Google profile fetch. Ruled out of scope: keep `/u/0` for v1, comment the assumption at the
+call site, and record it as a known limitation in the PR body.
+
+**Lane risk:** the core agent is at ~10% context. If it degrades mid-fix, hand the lane to a fresh
+agent rather than let it thrash.
