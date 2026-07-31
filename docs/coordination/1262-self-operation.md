@@ -5580,3 +5580,10 @@ remains. Predecessor session `019fb962-b11d-78b1-93ff-2456559d2f5b` was resolved
 session id and reaped. No Tasks 6–7 lane has spawned; `AWAITING-BEN.md` item 9 blocks it until Ben
 chooses standard tier merge authority or the #1376 sol-high approval plus coordinator-concurrence
 delegation.
+
+### 2026-07-31 — Ben authorized the Tasks 6–7 lane
+
+Ben chose the same merge delegation used for #1376: a fresh `gpt-5.6-sol high` approval plus
+coordinator concurrence authorizes merge. `AWAITING-BEN.md` item 9 is cleared. Issue #1327 remains
+open and approved spec `docs/superpowers/specs/2026-07-29-1327-briefing-action-rows.md` is on
+`origin/main`; spawn stays gated until the latest `main` CI run is terminal green.
