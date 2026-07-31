@@ -5522,3 +5522,11 @@ cleared from `AWAITING-BEN.md`. The builder may change only the lossy resurfacin
 and its focused regressions, then must push and complete a fresh exclusive unpiped full gate. The
 current merge rule remains unchanged: sol approval plus coordinator concurrence; any RED means no
 merge.
+
+The builder implemented per-message deadline/context evidence retention in new migration `0180`,
+with multi-child and same-subject replay regressions, at clean pushed head
+`ae1f1a3fdee730f69e943e1b2bd709008f266c14`. It verified no competing migration number, rebased
+cleanly onto current `origin/main`, and passed the fresh pre-push format/lint/typecheck trio. Its
+single exclusive unpiped full-gate launch is queued behind #1375's active exclusive gate lock; no
+duplicate #1327 gate exists. Do not start QA until this queued gate owns the lock, completes exact
+`### FINAL rc=0`, and GitHub checks on `ae1f1a3f` are green.
