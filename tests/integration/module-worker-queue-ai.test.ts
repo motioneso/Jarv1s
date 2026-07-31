@@ -172,18 +172,22 @@ describe("external module queue job handler", () => {
     expect(invocations).toHaveLength(0);
   });
 
-  it("skips inactive users and disabled modules without invoking the runtime", async () => {
+  it("refuses inactive users and disabled modules without invoking the runtime", async () => {
+    // The refusal must REJECT, not resolve. A resolved refusal is recorded by pg-boss as a
+    // `completed` job with NULL output in ~20ms, which is indistinguishable from a job that
+    // really ran — a warm module child answers a full invocation including its DB write in
+    // 7-10ms. That ambiguity cost a live debugging session on 2026-07-30.
     const inactive = buildHandler({ listActiveUserIds: async () => [] });
-    await expect(inactive.handler(jobOf(validPayload))).resolves.toBeUndefined();
+    await expect(inactive.handler(jobOf(validPayload))).rejects.toThrow(/declined: not-active/);
     expect(inactive.invocations).toHaveLength(0);
 
-    // Discovery hash drift (stale on-disk module vs DB state) must also skip.
+    // Discovery hash drift (stale on-disk module vs DB state) must also refuse.
     const drifted = buildHandler({
       discoveryById: new Map([
         [moduleA.id, { ...moduleA, manifestHash: `sha256:${"b".repeat(64)}` }]
       ])
     });
-    await expect(drifted.handler(jobOf(validPayload))).resolves.toBeUndefined();
+    await expect(drifted.handler(jobOf(validPayload))).rejects.toThrow(/declined: hash-mismatch/);
     expect(drifted.invocations).toHaveLength(0);
   });
 });

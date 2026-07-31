@@ -1,0 +1,194 @@
+{
+  "type": "data",
+  "nodes": [
+    {
+      "type": "data",
+      "data": [
+        {
+          "user": null
+        },
+        null
+      ],
+      "uses": {}
+    },
+    {
+      "type": "data",
+      "data": [
+        {
+          "initial": 84
+        },
+        "Resource Manager (6696)",
+        "MetroStar",
+        "Remote",
+        "https://metrostar.com/job-post/?gh_jid=7798890003",
+        "metrostarsystems:7798890003",
+        "<p><span>As a <strong>Resource Manager</strong></span><span>, you will ensure that personnel are efficiently and effectively sourced, onboarded, and deployed to meet program requirements. You will also support program planning, financial forecasting, and periodic reporting. You will collaborate with the PMO and the customer as an integrated member of the program leadership team.</span></p>\n<p><span>We know that you c…</p>",
+        "2026-07-27T20:22:11Z",
+        {
+          "title": 1,
+          "company": 2,
+          "location": 3,
+          "url": 4,
+          "external_id": 5,
+          "description": 6,
+          "posted_at": 7
+        },
+        "Data Solutions Engineer",
+        "Standard Metrics",
+        "Remote",
+        "https://job-boards.greenhouse.io/standardmetrics/jobs/4718932005",
+        "standardmetrics:4718932005",
+        "<div><p>Standard Metrics is an AI-driven financial data platform that helps investors and their portfolio companies make more informed, forward-looking decisions with automated reporting and benchmarking tools. We’re a team of optimistic product builders on a mission to accelerate innovation in the private markets. Standard Metrics is backed by 8VC and Spark Capital, along with other leading VCs and angels, and is cu…</p>",
+        "2026-07-27T20:18:23Z",
+        {
+          "title": 9,
+          "company": 10,
+          "location": 11,
+          "url": 12,
+          "external_id": 13,
+          "description": 14,
+          "posted_at": 15
+        },
+        "Director, Marketplace",
+        "True Classic ",
+        "Remote",
+        "https://job-boards.greenhouse.io/trueclassicteesllc/jobs/5208153008",
+        "trueclassicteesllc:5208153008",
+        "<p><span>True Classic is hiring a <span><strong>Director of Marketplaces</strong></span> to own and accelerate our global Amazon business. This role leads strategy, execution, and full P&amp;L performance across our Amazon Seller Central operations in the US, Canada, and UK — and is responsible for driving scalable, profitable growth on the channel that introduces millions of new customers to the brand.</span></p>\n<p…</p>",
+        "2026-07-27T20:17:15Z",
+        {
+          "title": 17,
+          "company": 18,
+          "location": 19,
+          "url": 20,
+          "external_id": 21,
+          "description": 22,
+          "posted_at": 23
+        },
+        "Senior Backend Engineer",
+        "Acme Robotics",
+        "Remote",
+        "https://job-boards.greenhouse.io/acmerobotics/jobs/6000000001",
+        "acmerobotics:6000000001",
+        "<p>Build the services that plan and dispatch every robot in the fleet.</p>",
+        "2026-07-27T20:16:00Z",
+        {
+          "title": 25,
+          "company": 26,
+          "location": 27,
+          "url": 28,
+          "external_id": 29,
+          "description": 30,
+          "posted_at": 31
+        },
+        "Staff Product Designer",
+        "Lumen Labs",
+        "Remote",
+        "https://job-boards.greenhouse.io/lumenlabs/jobs/6000000002",
+        "lumenlabs:6000000002",
+        "<p>Own the design system across every surface of the product.</p>",
+        "2026-07-27T20:15:00Z",
+        {
+          "title": 33,
+          "company": 34,
+          "location": 35,
+          "url": 36,
+          "external_id": 37,
+          "description": 38,
+          "posted_at": 39
+        },
+        "Machine Learning Engineer",
+        "Anchor AI",
+        "Remote",
+        "https://job-boards.greenhouse.io/anchorai/jobs/6000000003",
+        "anchorai:6000000003",
+        "<p>Train and ship ranking models that run in the request path.</p>",
+        "2026-07-27T20:14:00Z",
+        {
+          "title": 41,
+          "company": 42,
+          "location": 43,
+          "url": 44,
+          "external_id": 45,
+          "description": 46,
+          "posted_at": 47
+        },
+        "DevOps Engineer",
+        "Bridgeline Systems",
+        "Remote",
+        "https://job-boards.greenhouse.io/bridgelinesystems/jobs/6000000004",
+        "bridgelinesystems:6000000004",
+        "<p>Keep the deploy pipeline green across a dozen services.</p>",
+        "2026-07-27T20:13:00Z",
+        {
+          "title": 49,
+          "company": 50,
+          "location": 51,
+          "url": 52,
+          "external_id": 53,
+          "description": 54,
+          "posted_at": 55
+        },
+        "Technical Program Manager",
+        "Northwind Analytics",
+        "Remote",
+        "https://job-boards.greenhouse.io/northwindanalytics/jobs/6000000005",
+        "northwindanalytics:6000000005",
+        "<p>Coordinate a cross-team migration to a new data warehouse.</p>",
+        "2026-07-27T20:12:00Z",
+        {
+          "title": 57,
+          "company": 58,
+          "location": 59,
+          "url": 60,
+          "external_id": 61,
+          "description": 62,
+          "posted_at": 63
+        },
+        "Frontend Engineer",
+        "Kestrel Software",
+        "Remote",
+        "https://job-boards.greenhouse.io/kestrelsoftware/jobs/6000000006",
+        "kestrelsoftware:6000000006",
+        "<p>Build the dashboard our customers live in every day.</p>",
+        "2026-07-27T20:11:00Z",
+        {
+          "title": 65,
+          "company": 66,
+          "location": 67,
+          "url": 68,
+          "external_id": 69,
+          "description": 70,
+          "posted_at": 71
+        },
+        "Data Platform Engineer",
+        "Meridian Health",
+        "Remote",
+        "https://job-boards.greenhouse.io/meridianhealth/jobs/6000000007",
+        "meridianhealth:6000000007",
+        "<p>Own the pipelines that keep clinical data fresh and correct.</p>",
+        "2026-07-27T20:10:00Z",
+        {
+          "title": 73,
+          "company": 74,
+          "location": 75,
+          "url": 76,
+          "external_id": 77,
+          "description": 78,
+          "posted_at": 79
+        },
+        [8, 16, 24, 32, 40, 48, 56, 64, 72, 80],
+        10,
+        false,
+        {
+          "items": 81,
+          "total": 82,
+          "hasMore": 83
+        }
+      ],
+      "uses": {
+        "url": 1
+      }
+    }
+  ]
+}

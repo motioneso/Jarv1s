@@ -169,6 +169,10 @@
   --weight-medium: 500;
   --weight-semibold: 600;
   --weight-bold: 700;
+  /* Job Search mockup's display headings (kit.jsx, JobsMatches/Overview) land at weight 800 —
+     between --weight-bold and --weight-black, and distinct enough from both that reusing either
+     visibly under/overshoots the mockup's Neue Haas Grotesk weight. */
+  --weight-heavy: 800;
   --weight-black: 900;
 
   --tracking-tight: -0.014em;

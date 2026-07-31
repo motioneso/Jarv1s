@@ -13,6 +13,7 @@ import type {
   SourceFreshnessV1
 } from "@jarv1s/shared";
 import type { MemoryRecallItem } from "@jarv1s/memory";
+import type { ActionResultMetadata } from "./types.js";
 
 export interface PrivateThreadState {
   readonly actorUserId: string;
@@ -45,6 +46,7 @@ export interface ChatPersistencePort {
       readonly answerProvenance?: AnswerProvenanceMetadataV1;
       /** #1133 — display metadata for files sent with this turn (user-message tool_metadata). */
       readonly attachments?: readonly ChatAttachmentDto[];
+      readonly actionResults?: readonly ActionResultMetadata[];
     },
     surface?: ChatSurface
   ): Promise<

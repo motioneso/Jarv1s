@@ -27,6 +27,19 @@ import { buildExternalModule } from "./build-external-module.js";
 export const REGISTRY_RETAINED_VERSIONS = 5;
 
 /**
+ * Generic module discovery (N47, #1307): every child directory of `external-modules/`
+ * under `repoRoot`, no per-module allowlist. Exported so a test can drive the exact
+ * discovery the CLI runs — a copy re-implemented inline in a test would pass even if an
+ * allowlist filter were added here later.
+ */
+export function discoverModuleDirs(repoRoot: string): string[] {
+  const externalModulesDir = join(repoRoot, "external-modules");
+  return readdirSync(externalModulesDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => join(externalModulesDir, e.name));
+}
+
+/**
  * Fold the previous index entry's current version into previousVersions, newest first,
  * capped so current + previous ≤ REGISTRY_RETAINED_VERSIONS. An identical same-version
  * rerun is idempotent; a changed artifact identity requires a version bump.
@@ -75,7 +88,10 @@ export async function packModuleArtifact(
   if (existsSync(join(moduleDir, "sql"))) members.push("sql");
   const file = join(outDir, artifact);
   // portable: strips uid/gid/atime metadata so identical trees pack identically.
-  await tar.create({ gzip: true, portable: true, cwd: resolve(moduleDir), file }, members);
+  await tar.create(
+    { gzip: true, portable: true, mtime: new Date(0), cwd: resolve(moduleDir), file },
+    members
+  );
   const bytes = readFileSync(file);
   return {
     version,
@@ -148,10 +164,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const outDir = argValue("--out") ?? "dist/registry";
   const previousIndexPath = argValue("--previous-index");
   const repoRoot = fileURLToPath(new URL("..", import.meta.url));
-  const externalModulesDir = join(repoRoot, "external-modules");
-  const moduleDirs = readdirSync(externalModulesDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => join(externalModulesDir, e.name));
+  const moduleDirs = discoverModuleDirs(repoRoot);
   let previousIndex: ModuleRegistryIndex | null = null;
   if (previousIndexPath && existsSync(previousIndexPath)) {
     const parsed = validateRegistryIndex(JSON.parse(readFileSync(previousIndexPath, "utf8")));

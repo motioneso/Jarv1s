@@ -37,6 +37,16 @@ export interface ModuleNavigationEntryDto {
   readonly path: string;
   readonly icon: string | null;
   readonly order: number | null;
+  /**
+   * #1285: a count badge on this nav entry, derived from a core-owned count — never
+   * module-supplied text or a number. Closed enum with one member today. Mirrors
+   * `ExternalModuleNavigationEntry.badge` (module-sdk), the manifest-facing type this is
+   * serialized from in `serializeExternalModule` (apps/api/src/server.ts). Absent for
+   * built-ins and any external entry without one.
+   */
+  readonly badge?: {
+    readonly source: "notifications";
+  };
 }
 
 export interface ModuleSettingsSurfaceDto {
@@ -140,6 +150,17 @@ const authProviderStatusSchema = {
   }
 } as const;
 
+// #1285: closed-enum badge shape. Not `required` on the entry schema below — built-ins
+// and most external entries have none.
+const moduleNavigationBadgeSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["source"],
+  properties: {
+    source: { type: "string", enum: ["notifications"] }
+  }
+} as const;
+
 const moduleNavigationEntrySchema = {
   type: "object",
   additionalProperties: false,
@@ -149,7 +170,12 @@ const moduleNavigationEntrySchema = {
     label: { type: "string" },
     path: { type: "string" },
     icon: { type: ["string", "null"] },
-    order: { type: ["number", "null"] }
+    order: { type: ["number", "null"] },
+    // #1285: declared so fast-json-stringify does not silently strip it (undeclared
+    // fields are dropped even though present on the JS object and the TS type — same
+    // trap `external`/`web` above already document). NOT in `required` — absent for
+    // built-ins and most external entries.
+    badge: moduleNavigationBadgeSchema
   }
 } as const;
 

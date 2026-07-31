@@ -24,6 +24,8 @@ export function normalizeChatSurface(value?: unknown): ChatSurface {
 export interface ChatActivityEventDto {
   readonly kind: string;
   readonly text: string;
+  readonly toolName?: string;
+  readonly outcome?: "executed" | "denied" | "error" | "allowed";
 }
 
 export interface ChatThreadDto {
@@ -167,6 +169,24 @@ export interface SendChatTurnRequest {
   readonly text: string;
   /** #1133 — ids of previously uploaded attachments to include with this turn (max 5). */
   readonly attachmentIds?: readonly string[];
+  readonly surface?: ChatSurface;
+}
+
+// #1284 — shared by the client (apps/web/src/api/client.ts's seedChat) and the server
+// (packages/chat/src/live-routes.ts's body validation) so the two never drift apart.
+export const CHAT_SEED_MAX_LENGTH = 8000;
+export const CHAT_SEED_IDEMPOTENCY_KEY_MAX_LENGTH = 128;
+
+/**
+ * #1284 — body of POST /api/chat/seed: frame a surface's thread before the user's first visible
+ * turn, with no visible user message. `idempotencyKey` (backed by the server's per-session
+ * seededContextKeys) makes a repeat call a no-op, so a component remount can never re-frame a
+ * conversation already in progress. Trust boundary: `seed` enters the model's context with exactly
+ * the authority of a user turn, no more — it is never treated as a system prompt.
+ */
+export interface SeedChatRequest {
+  readonly seed: string;
+  readonly idempotencyKey: string;
   readonly surface?: ChatSurface;
 }
 

@@ -167,7 +167,8 @@ export class AssistantToolGateway {
           kind: "action_result",
           actionRequestId: ctx.requestId,
           toolName: found.dto.name,
-          outcome: "denied"
+          outcome: "denied",
+          reason: "Rate limit exceeded for unattended runs of this tool."
         });
         const access: AccessContext = { actorUserId: ctx.actorUserId, requestId: ctx.requestId };
         void this.recordAudit(access, found, {
@@ -188,6 +189,7 @@ export class AssistantToolGateway {
         actionRequestId: ctx.requestId,
         toolName: found.dto.name,
         outcome: result.ok ? "executed" : "error",
+        ...(result.ok ? { result: result.data } : { reason: gatewayFailureReason(result) }),
         ...(result.ok && found.tool.affectsQueryKeys
           ? { affectsQueryKeys: found.tool.affectsQueryKeys }
           : {})
@@ -227,6 +229,7 @@ export class AssistantToolGateway {
           actionRequestId: ctx.requestId,
           toolName: found.dto.name,
           outcome: result.ok ? "executed" : "error",
+          ...(result.ok ? { result: result.data } : { reason: gatewayFailureReason(result) }),
           ...(result.ok && found.tool.affectsQueryKeys
             ? { affectsQueryKeys: found.tool.affectsQueryKeys }
             : {})
@@ -344,7 +347,8 @@ export class AssistantToolGateway {
         kind: "action_result",
         actionRequestId: action.id,
         toolName,
-        outcome: "denied"
+        outcome: "denied",
+        reason: outcome === "timeout" ? "Timed out awaiting confirmation." : "Denied by user."
       });
       return {
         decision: "deny",
@@ -560,7 +564,13 @@ export class AssistantToolGateway {
         kind: "action_result",
         actionRequestId: action.id,
         toolName: found.dto.name,
-        outcome: "denied"
+        outcome: "denied",
+        reason:
+          outcome === "timeout"
+            ? "Timed out awaiting confirmation."
+            : outcome === "cancelled"
+              ? "Action cancelled."
+              : "Denied by user."
       });
       const approvalMode =
         outcome === "timeout" ? "timeout" : outcome === "rejected" ? "rejected" : "cancelled";
@@ -582,6 +592,7 @@ export class AssistantToolGateway {
       actionRequestId: action.id,
       toolName: found.dto.name,
       outcome: result.ok ? "executed" : "error",
+      ...(result.ok ? { result: result.data } : { reason: gatewayFailureReason(result) }),
       ...(result.ok && found.tool.affectsQueryKeys
         ? { affectsQueryKeys: found.tool.affectsQueryKeys }
         : {})
@@ -603,8 +614,12 @@ export class AssistantToolGateway {
     if (typeof tool.summarize === "function") {
       return tool.summarize(input, ctx);
     }
-    const generic = summarizeAssistantToolInput(input);
-    return `${tool.name} (${String(generic.inputKeyCount ?? 0)} field(s))`;
+    // A person reads this card, so the fallback is the tool's own human-readable description,
+    // not its wire identifier. A module tool can never supply `summarize` — its manifest is JSON
+    // and `summarize` is a function — so every module write landed here and showed the user
+    // something like "job-search.criteria.set (2 field(s))". The durable audit row still records
+    // the key names via `inputSummary`; this string is display only.
+    return tool.description;
   }
 
   private async firstRunNotice(
@@ -743,6 +758,10 @@ export class AssistantToolGateway {
       opts
     );
   }
+}
+
+function gatewayFailureReason(result: Extract<GatewayToolResponse, { ok: false }>): string {
+  return "reason" in result ? result.reason : result.error;
 }
 
 function safeNativeToolName(toolName: string): string {

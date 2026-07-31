@@ -68,7 +68,8 @@ import {
   createBriefingsFeedbackTargetVerifier,
   registerBriefingsJobWorkers,
   registerBriefingsRoutes,
-  type ComposeDeps
+  type ComposeDeps,
+  type ExternalBriefingInvoker
 } from "@jarv1s/briefings";
 import {
   CalendarRepository,
@@ -155,6 +156,7 @@ import {
 import { createModuleLogger } from "@jarv1s/module-sdk";
 import type {
   JarvisModuleManifest,
+  JsonJarvisModuleManifest,
   RegisteredFocusSignal,
   RegisteredProactiveMonitorProvider
 } from "@jarv1s/module-sdk";
@@ -325,6 +327,14 @@ export type { ChatEngineFactory } from "@jarv1s/chat";
 export type { TerminalRpcConnectOptions, TerminalRpcHandle } from "@jarv1s/ai";
 export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 export { aggregateFocusSignals } from "@jarv1s/module-sdk";
+// Re-exported for the two external-module rpc construction sites (#1281): they
+// need the same embedder seam built-in modules use, without naming a provider.
+export { createRuntimeEmbeddingProvider } from "./built-in-module-helpers.js";
+// Re-exported for apps/worker's module AI bridge, which must supply the same CLI structured
+// adapter apps/api does or every module worker AI call fails `needs_config` against a
+// CLI-authenticated provider. The worker reaches chat internals through this package rather than
+// taking a direct @jarv1s/chat dependency, exactly as it does for the embedder above.
+export { createCliStructuredAdapterFactory } from "@jarv1s/chat";
 
 export * from "./external/validate.js";
 export * from "./external/types.js";
@@ -533,6 +543,16 @@ export interface BuiltInWorkerDependencies {
    * no `console.*` lands in production worker logs (observability spec #413).
    */
   readonly logger?: FastifyBaseLogger;
+  /**
+   * #1282 Task 2: external (JSON-manifest) module discovery, built by apps/worker (the only
+   * place holding both external-module discovery and the external worker runtime) and
+   * forwarded to the briefings module. Both fields are optional — a host with zero external
+   * modules must still boot, and neither is constructed here: packages/module-registry has
+   * no external discovery and no external worker runtime, so building them in this file
+   * would violate module isolation (J2).
+   */
+  readonly externalBriefingManifests?: readonly JsonJarvisModuleManifest[];
+  readonly invokeExternalBriefing?: ExternalBriefingInvoker;
 }
 
 export function createStructuredChatEngineFactory(options: {
@@ -1420,7 +1440,12 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
             preferencesRepository: new PreferencesRepository()
           }),
           sourceContextService: buildRuntimeSourceContextService({ logger: briefingsLogger }),
-          calendarFollowThrough: buildCalendarFollowThroughPort()
+          calendarFollowThrough: buildCalendarFollowThroughPort(),
+          // #1282: injected by apps/worker (external discovery + runtime live only there —
+          // J2). NOT read off `moduleManifests` above, which getBuiltInModuleManifests()
+          // populates and which therefore matches zero external modules forever (J1).
+          externalBriefingManifests: dependencies.externalBriefingManifests,
+          invokeExternalBriefing: dependencies.invokeExternalBriefing
         },
         notificationsRepository: new NotificationsRepository(
           quietHoursPortImpl,

@@ -236,6 +236,11 @@ class FakePersistence implements ChatPersistencePort {
     userText: string;
     assistantReply: string;
     executed: { provider: ProviderKind; model: string };
+    actionResults?: Parameters<ChatPersistencePort["recordTurn"]>[4] extends
+      | { readonly actionResults?: infer T }
+      | undefined
+      ? T
+      : never;
   }[] = [];
   newConversations = 0;
 
@@ -254,9 +259,15 @@ class FakePersistence implements ChatPersistencePort {
     _actorUserId: string,
     userText: string,
     assistantReply: string,
-    executed: { provider: ProviderKind; model: string }
+    executed: { provider: ProviderKind; model: string },
+    opts?: Parameters<ChatPersistencePort["recordTurn"]>[4]
   ): Promise<{ readonly userMessageId: string; readonly assistantMessageId: string }> {
-    this.recorded.push({ userText, assistantReply, executed });
+    this.recorded.push({
+      userText,
+      assistantReply,
+      executed,
+      ...(opts?.actionResults?.length ? { actionResults: opts.actionResults } : {})
+    });
     this.turns.push({ role: "user", content: userText });
     this.turns.push({ role: "assistant", content: assistantReply });
     return { userMessageId: "user-message-id", assistantMessageId: "assistant-message-id" };
@@ -384,6 +395,34 @@ describe("ChatSessionManager", () => {
       assistantReply: "reply to: hello",
       executed: { provider: "anthropic", model: "claude-x" }
     });
+  });
+
+  it("persists only capped terminal action outcomes from the live turn", async () => {
+    const engine = new GatedEngine("anthropic", "user-1");
+    const { manager, persistence } = makeManager({ engineFactory: () => engine });
+    const turn = manager.submitTurn("user-1", "Ben", "enable LinkedIn");
+    while (engine.submitted.length === 0) await Promise.resolve();
+
+    for (let index = 0; index < 22; index += 1) {
+      manager.injectRecord("user-1", {
+        kind: "action_result",
+        text: `LinkedIn monitoring enabled ${"x".repeat(220)}`,
+        toolName: `job-search.portal.set-enabled.${"y".repeat(140)}`,
+        outcome: "executed",
+        result: { privateStructuredResult: "live only" }
+      });
+    }
+    engine.open();
+    await turn;
+
+    expect(persistence.recorded[0]?.actionResults).toHaveLength(20);
+    expect(persistence.recorded[0]?.actionResults?.[0]).toEqual({
+      kind: "action_result",
+      text: `LinkedIn monitoring enabled ${"x".repeat(172)}`,
+      toolName: `job-search.portal.set-enabled.${"y".repeat(90)}`,
+      outcome: "executed"
+    });
+    expect(persistence.recorded[0]?.actionResults?.[0]).not.toHaveProperty("result");
   });
 
   it("sends module control only to the engine and persists the clean user turn (#1194)", async () => {

@@ -14,13 +14,9 @@ interface ActionRequestCardProps {
   readonly onFocusComplete?: () => void;
 }
 
-function humanizeToolName(toolName: string): string {
-  const last = toolName.includes(".") ? toolName.split(".").pop()! : toolName;
-  return last.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
-}
-
 export function ActionRequestCard(props: ActionRequestCardProps) {
   const [status, setStatus] = useState<"pending" | "loading" | "done" | "error">("pending");
+  const [decision, setDecision] = useState<"confirmed" | "rejected" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -37,11 +33,12 @@ export function ActionRequestCard(props: ActionRequestCardProps) {
     props.onFocusComplete?.();
   }, [props.focusRequested, props.onFocusComplete]);
 
-  const resolve = async (decision: "confirmed" | "rejected") => {
+  const resolve = async (next: "confirmed" | "rejected") => {
     setStatus("loading");
     setError(null);
     try {
-      await resolveActionRequest(props.actionRequestId, decision);
+      await resolveActionRequest(props.actionRequestId, next);
+      setDecision(next);
       setStatus("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not resolve");
@@ -60,7 +57,22 @@ export function ActionRequestCard(props: ActionRequestCardProps) {
       ref={rootRef}
       tabIndex={-1}
     >
-      <div className="action-request-preview__label">{humanizeToolName(props.toolName)}</div>
+      {/* The eyebrow used to be the tool's own name with the dots stripped, which put "SET" and
+          "SET-ENABLED" above the card — a verb with its object thrown away, and an internal
+          identifier shown to someone who never chose it. The summary underneath already says what
+          the action does in plain words, so the eyebrow's real job here is to mark the card as a
+          decision and then say how it went. `data-state` rather than a second class so the styling
+          hook and the text stay derived from one value. */}
+      <div
+        className="action-request-preview__label"
+        data-state={status === "done" ? decision : "pending"}
+      >
+        {status === "done"
+          ? decision === "rejected"
+            ? "Not approved"
+            : "Approved"
+          : "Needs your approval"}
+      </div>
       <p className="action-request-summary">{props.summary}</p>
 
       {props.preview ? (
@@ -105,9 +117,7 @@ export function ActionRequestCard(props: ActionRequestCardProps) {
         <p className="muted-text">
           <LoaderCircle className="spin" size={14} aria-hidden="true" /> Resolving…
         </p>
-      ) : (
-        <p className="muted-text">Resolved.</p>
-      )}
+      ) : null}
     </div>
   );
 }

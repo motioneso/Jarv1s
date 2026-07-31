@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AssistantSurface } from "../../apps/web/src/chat/assistant-surface/index.js";
 import { createAssistantSurfaceHandle } from "../../apps/web/src/chat/assistant-surface/handle.js";
+import { moduleChatSurface } from "../../apps/web/src/shell/chat-surface-key.js";
 
 // React/web unit tests use .tsx so root NodeNext typecheck does not reinterpret Vite imports.
 afterEach(() => vi.unstubAllGlobals());
@@ -60,19 +61,45 @@ describe("createAssistantSurfaceHandle", () => {
   });
 
   it("scopes turns and record subscription to its host-controlled chat surface", async () => {
+    // #1284 — the module never names a surface directly: setSurfaceKey takes an opaque key, and
+    // the handle derives the wire surface by combining it with the host-bound moduleId. Before any
+    // setSurfaceKey call, the handle has no claimed surface at all (see the next test).
     const fetchMock = vi.fn(async () => Response.json({ reply: "ok" }));
     vi.stubGlobal("fetch", fetchMock);
     const unsubscribe = vi.fn();
     const subscribeRecords = vi.fn(() => unsubscribe);
     const handle = createAssistantSurfaceHandle(subscribeRecords, "demo-module");
+    const expectedSurface = moduleChatSurface("demo-module", "profile-1");
 
+    handle.setSurfaceKey("profile-1");
     handle.subscribeRecords(vi.fn());
     await handle.submitTurn({ text: "hello" });
 
-    expect(subscribeRecords).toHaveBeenCalledWith(expect.any(Function), "demo-module");
+    expect(subscribeRecords).toHaveBeenCalledWith(expect.any(Function), expectedSurface);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/chat/turn",
-      expect.objectContaining({ body: JSON.stringify({ text: "hello", surface: "demo-module" }) })
+      expect.objectContaining({
+        body: JSON.stringify({ text: "hello", surface: expectedSurface })
+      })
+    );
+  });
+
+  it("releases its surface claim on setSurfaceKey(null)", async () => {
+    // #1284 — this is the "reset to drawer" half of the contract: a module that had claimed a
+    // surface and then releases it must fall back to the handle's unscoped (no-surface) behaviour,
+    // exactly as if setSurfaceKey had never been called.
+    const fetchMock = vi.fn(async () => Response.json({ reply: "ok" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const subscribeRecords = vi.fn(() => vi.fn());
+    const handle = createAssistantSurfaceHandle(subscribeRecords, "demo-module");
+
+    handle.setSurfaceKey("profile-1");
+    handle.setSurfaceKey(null);
+    await handle.submitTurn({ text: "hello" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/chat/turn",
+      expect.objectContaining({ body: JSON.stringify({ text: "hello" }) })
     );
   });
 });

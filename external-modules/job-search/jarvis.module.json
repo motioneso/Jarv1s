@@ -1,0 +1,537 @@
+{
+  "schemaVersion": 1,
+  "id": "job-search",
+  "name": "Job Search",
+  "version": "0.2.0",
+  "publisher": "Jarvis Project",
+  "lifecycle": "optional",
+  "compatibility": { "jarv1s": ">=0.1.0" },
+  "description": "Finds job postings on public boards and reads each one against what you can do and what you actually want.",
+  "auth": [],
+  "storage": [
+    { "namespace": "job-search.meta", "scopes": ["user"] },
+    { "namespace": "job-search.fetch-host-grants", "scopes": ["user"] }
+  ],
+  "database": {
+    "ownedTables": [
+      "app.job_search_profiles",
+      "app.job_search_portals",
+      "app.job_search_postings",
+      "app.job_search_matches",
+      "app.job_search_resumes",
+      "app.job_search_custom_sources"
+    ]
+  },
+  "runtime": { "workerEntrypoint": "dist/worker.js", "workerContractVersion": 1 },
+  "fetchHosts": ["www.linkedin.com", "freehire.me"],
+  "fetchHostGrantsNamespace": "job-search.fetch-host-grants",
+  "assistantActionFamilies": [
+    {
+      "id": "profile_changes",
+      "label": "Job-search changes",
+      "description": "Manage your private job searches, sources, résumés, and matches.",
+      "defaultTier": "ask_each_time",
+      "allowedTiers": ["ask_each_time", "trusted_auto", "always_confirm"]
+    }
+  ],
+  "assistantTools": [
+    {
+      "name": "job-search.profile.create",
+      "permissionId": "job-search.profile.create",
+      "description": "Start a new job search — one for each kind of role being pursued.",
+      "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": { "name": { "type": "string" } }
+      },
+      "handler": "profile.create"
+    },
+    {
+      "name": "job-search.profile.list",
+      "permissionId": "job-search.profile.list",
+      "description": "List job search profiles with their onboarding progress.",
+      "risk": "read",
+      "inputSchema": { "type": "object", "additionalProperties": false },
+      "handler": "profile.list"
+    },
+    {
+      "name": "job-search.profile.get",
+      "permissionId": "job-search.profile.get",
+      "description": "Read one profile's full search criteria (titles, seniority, locations, remote preference, pay floor, must-haves, nice-to-haves, dealbreakers, and what the user said they want) plus its saved context summary.",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId"],
+        "properties": { "profileId": { "type": "string" } }
+      },
+      "handler": "profile.get"
+    },
+    {
+      "name": "job-search.criteria.set",
+      "permissionId": "job-search.criteria.set",
+      "description": "Save what this job search is looking for — roles, places, pay, and what you actually want.",
+      "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "criteria"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "criteria": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "titles": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Job titles to search for, e.g. [\"Senior Product Designer\"]."
+              },
+              "seniority": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Seniority levels in scope, e.g. [\"senior\", \"staff\"]."
+              },
+              "locations": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Named places, e.g. [\"Boston\", \"United States\"]. Remoteness goes in `remote`, not here."
+              },
+              "remote": {
+                "type": "string",
+                "enum": ["required", "preferred", "no-preference", "onsite-ok"],
+                "description": "How much remote work is needed."
+              },
+              "compFloorCents": {
+                "type": ["integer", "null"],
+                "description": "Lowest acceptable base salary, in CENTS — $180,000 is 18000000. Null if not stated."
+              },
+              "excludeCompanies": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Companies to never surface."
+              },
+              "mustHave": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Things a posting must have to be worth showing."
+              },
+              "niceToHave": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Things that make a posting more appealing but are not required."
+              },
+              "dealbreakers": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Things that rule a posting out."
+              },
+              "wantNarrative": {
+                "type": "string",
+                "description": "The \"want\" step of onboarding, in the person's own words — the kind of company and work they're after, and what they're moving away from. Write it whenever they've said anything about it, INCLUDING when parts of it also went into mustHave or niceToHave: those are filters, this is the sentence the Want score is built from. The search cannot start while this is empty, so if they haven't said, ask."
+              }
+            }
+          }
+        }
+      },
+      "handler": "criteria.set"
+    },
+    {
+      "name": "job-search.profile.set-context",
+      "permissionId": "job-search.profile.set-context",
+      "description": "Save background about this search that isn't a hard filter — the why behind it.",
+      "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "summary"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "summary": { "type": "string" }
+        }
+      },
+      "handler": "profile.set-context"
+    },
+    {
+      "name": "job-search.profile.set-briefing-detail",
+      "permissionId": "job-search.profile.set-briefing-detail",
+      "description": "Change how much this search shows up in your daily briefing.",
+      "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "detail"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "detail": { "type": "string", "enum": ["count", "top", "full"] }
+        }
+      },
+      "handler": "profile.set-briefing-detail"
+    },
+    {
+      "name": "job-search.resume.set",
+      "permissionId": "job-search.resume.set",
+      "description": "Save a new version of your résumé to this search.",
+      "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "content"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "content": { "type": "string" }
+        }
+      },
+      "handler": "resume.set"
+    },
+    {
+      "name": "job-search.resume.get",
+      "permissionId": "job-search.resume.get",
+      "description": "Read a profile's latest résumé text.",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId"],
+        "properties": { "profileId": { "type": "string" } }
+      },
+      "handler": "resume.get"
+    },
+    {
+      "name": "job-search.portal.set-enabled",
+      "permissionId": "job-search.portal.set-enabled",
+      "description": "Turn a job board on or off for this search.",
+      "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "sourceId", "enabled"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "sourceId": {
+            "type": "string",
+            "description": "Which board. The built-in ones are \"freehire\" (freehire.me) and \"linkedin\" (LinkedIn) — use this tool, not source.add, to switch either of them on. A board the user added themselves has an id you can read from job-search.portal.list."
+          },
+          "enabled": { "type": "boolean" }
+        }
+      },
+      "handler": "portal.set-enabled"
+    },
+    {
+      "name": "job-search.portal.list",
+      "permissionId": "job-search.portal.list",
+      "description": "List a profile's job board sources and their current health.",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId"],
+        "properties": { "profileId": { "type": "string" } }
+      },
+      "handler": "portal.list"
+    },
+    {
+      "name": "job-search.source.add",
+      "permissionId": "job-search.source.add",
+      "description": "Add a job board you named as a source for this search.",
+      "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "url"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "url": {
+            "type": "string",
+            "description": "The board's URL. Only for boards that are NOT already built in — freehire.me and www.linkedin.com are built in and are rejected here; switch those on with job-search.portal.set-enabled instead."
+          },
+          "label": { "type": "string", "description": "What to call this board on screen." }
+        }
+      },
+      "handler": "source.add"
+    },
+    {
+      "name": "job-search.source.remove",
+      "permissionId": "job-search.source.remove",
+      "description": "Remove a job board you added from this search.",
+      "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profileId", "sourceId"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "sourceId": { "type": "string" }
+        }
+      },
+      "handler": "source.remove"
+    },
+    {
+      "name": "job-search.crawl.run-now",
+      "permissionId": "job-search.crawl.run-now",
+      "description": "Check this search's job boards for new postings now.",
+      "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "profileId": { "type": "string" } },
+        "required": ["profileId"]
+      },
+      "handler": "crawl.run-now"
+    },
+    {
+      "name": "job-search.matches.list",
+      "permissionId": "job-search.matches.list",
+      "description": "List scored matches for a search profile.",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "profileId": { "type": "string" },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 25 },
+          "offset": { "type": "integer", "minimum": 0 }
+        },
+        "required": ["profileId", "limit"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["items", "hasMore"],
+        "properties": {
+          "hasMore": { "type": "boolean" },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "title",
+                "company",
+                "state",
+                "url",
+                "fit",
+                "want",
+                "outsideFrame",
+                "location",
+                "source",
+                "postedAt"
+              ],
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "company": { "type": "string" },
+                "state": { "type": "string" },
+                "url": { "type": "string" },
+                "fit": { "anyOf": [{ "type": "number" }, { "type": "null" }] },
+                "want": { "anyOf": [{ "type": "number" }, { "type": "null" }] },
+                "outsideFrame": { "type": "boolean" },
+                "location": { "type": "string" },
+                "source": { "type": "string" },
+                "postedAt": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+              }
+            }
+          }
+        }
+      },
+      "handler": "matches.list"
+    },
+    {
+      "name": "job-search.matches.count",
+      "permissionId": "job-search.matches.count",
+      "description": "Count the roles on a search profile's board, without listing them.",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "profileId": { "type": "string" } },
+        "required": ["profileId"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["profileId", "active", "scored"],
+        "properties": {
+          "profileId": { "type": "string" },
+          "active": { "type": "integer" },
+          "scored": { "type": "integer" }
+        }
+      },
+      "handler": "matches.count"
+    },
+    {
+      "name": "job-search.match.get",
+      "permissionId": "job-search.match.get",
+      "description": "Read one match's full, untruncated Fit/Want detail by id.",
+      "risk": "read",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "matchId": { "type": "string" } },
+        "required": ["matchId"]
+      },
+      "handler": "match.get"
+    },
+    {
+      "name": "job-search.match.dismiss",
+      "permissionId": "job-search.match.dismiss",
+      "description": "Dismiss a job so it leaves your board.",
+      "risk": "write",
+      "actionFamilyId": "profile_changes",
+      "executionPolicy": "auto",
+      "selfOperationGrant": "granted_at_install",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "matchId": { "type": "string" } },
+        "required": ["matchId"]
+      },
+      "handler": "match.set-state"
+    }
+  ],
+  "worker": {
+    "queues": [
+      {
+        "name": "job-search.crawl-run",
+        "handler": "crawl.run",
+        "retryLimit": 2,
+        "allowManualRun": true,
+        "timeoutMs": 600000,
+        "paramsSchema": { "type": "object", "fields": { "profileId": { "type": "identifier" } } }
+      },
+      {
+        "name": "job-search.crawl-sweep",
+        "handler": "crawl.sweep",
+        "retryLimit": 1,
+        "allowManualRun": false,
+        "timeoutMs": 600000,
+        "paramsSchema": { "type": "object", "fields": {} }
+      },
+      {
+        "name": "job-search.match-state",
+        "handler": "match.set-state",
+        "retryLimit": 2,
+        "allowManualRun": true,
+        "timeoutMs": 30000,
+        "paramsSchema": {
+          "type": "object",
+          "fields": {
+            "matchId": { "type": "identifier" },
+            "state": { "type": "enum", "values": ["new", "seen", "dismissed"] }
+          }
+        }
+      },
+      {
+        "name": "job-search.portal-set-enabled",
+        "handler": "portal.set-enabled",
+        "retryLimit": 2,
+        "allowManualRun": true,
+        "timeoutMs": 30000,
+        "paramsSchema": {
+          "type": "object",
+          "fields": {
+            "profileId": { "type": "identifier" },
+            "sourceId": { "type": "identifier" },
+            "enabled": { "type": "boolean" }
+          }
+        }
+      },
+      {
+        "name": "job-search.profile-set-briefing-detail",
+        "handler": "profile.set-briefing-detail",
+        "retryLimit": 2,
+        "allowManualRun": true,
+        "timeoutMs": 30000,
+        "paramsSchema": {
+          "type": "object",
+          "fields": {
+            "profileId": { "type": "identifier" },
+            "detail": { "type": "enum", "values": ["count", "top", "full"] }
+          }
+        }
+      },
+      {
+        "name": "job-search.resume-set",
+        "handler": "resume.set-from-attachment",
+        "retryLimit": 0,
+        "allowManualRun": true,
+        "timeoutMs": 600000,
+        "paramsSchema": {
+          "type": "object",
+          "fields": {
+            "profileId": { "type": "identifier" },
+            "attachmentId": { "type": "identifier" }
+          }
+        }
+      },
+      {
+        "name": "job-search.profile-bootstrap",
+        "handler": "profile.bootstrap",
+        "retryLimit": 1,
+        "allowManualRun": true,
+        "timeoutMs": 30000,
+        "paramsSchema": { "type": "object", "fields": {} }
+      },
+      {
+        "name": "job-search.profile-new",
+        "handler": "profile.new",
+        "retryLimit": 1,
+        "allowManualRun": true,
+        "timeoutMs": 30000,
+        "paramsSchema": { "type": "object", "fields": {} }
+      }
+    ],
+    "schedules": [
+      {
+        "id": "job-search.crawl-sweep",
+        "cron": "17 */6 * * *",
+        "scope": "user",
+        "jobKind": "job-search.crawl-sweep",
+        "queue": "job-search.crawl-sweep"
+      }
+    ],
+    "reconcileJobs": []
+  },
+  "briefing": {
+    "handler": "briefing.contribute",
+    "sections": ["morning", "evening"],
+    "toolName": "job-search.briefing"
+  },
+  "web": { "entrypoint": "dist/web/index.js", "contractVersion": 1 },
+  "navigation": [
+    {
+      "id": "job-search",
+      "label": "Job Search",
+      "path": "/",
+      "icon": "compass",
+      "badge": { "source": "notifications" }
+    }
+  ]
+}

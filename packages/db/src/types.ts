@@ -308,6 +308,13 @@ export interface NotificationsTable {
   created_at: TimestampColumn;
   urgency: ColumnType<string, string | undefined, string>;
   deferred_until: NullableTimestampColumn;
+  // Task 2b (#1283): event_key drives the partial unique index that makes a
+  // re-posted ctx.notify.post key update its existing row instead of piling up
+  // a duplicate; href is a same-origin path only (validated at the RPC boundary
+  // and again here). Both null for every pre-existing, un-keyed notification.
+  event_key: string | null;
+  href: string | null;
+  updated_at: TimestampColumn;
 }
 
 export interface NotificationReadsTable {

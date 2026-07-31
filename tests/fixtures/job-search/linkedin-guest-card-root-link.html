@@ -1,0 +1,40 @@
+<!doctype html>
+<!--
+  A real LinkedIn guest-jobs card captured live 2026-07-29, tracking-scrubbed, in the SECOND of
+  the two shapes LinkedIn serves for the same result set: the card root is itself the `<a>`, there
+  is no `base-card__full-link` overlay anchor anywhere in the block, `href` precedes `class`, and
+  the company sits as plain text in the subtitle heading rather than inside a nested anchor.
+
+  This card was found interleaved with nine ordinary shape-A cards on page 4 of a two-title
+  crawl, where it discarded the whole page and reported "LinkedIn's page layout changed" on a
+  board whose search was working perfectly. Kept as a live capture rather than a synthetic block
+  because the point of it is precisely that the real markup does this.
+-->
+<li>
+  <a
+    href="https://www.linkedin.com/jobs/view/senior-product-designer-vice-president-at-intelligentsia-capital-4445430549?position=9&amp;pageNum=3&amp;trk=public_jobs_jserp-result_search-card"
+    target="_self"
+    data-tracking-will-navigate
+    class="base-card relative w-full hover:no-underline focus:no-underline base-card--link outline-offset-[4px] base-search-card base-search-card--link job-search-card"
+    data-entity-urn="urn:li:jobPosting:4445430549"
+  >
+    <!---->
+    <div class="base-search-card__info">
+      <h3 class="base-search-card__title">Senior Product Designer - Vice President</h3>
+      <h4 class="base-search-card__subtitle">Intelligentsia Capital</h4>
+      <!---->
+      <div class="base-search-card__metadata">
+        <span class="job-search-card__location">Salt Lake City, UT</span>
+        <div class="job-posting-benefits text-sm">
+          <span class="job-posting-benefits__text">
+            Be an early applicant
+            <!---->
+          </span>
+        </div>
+        <time class="job-search-card__listdate" datetime="2026-07-28">1 day ago</time>
+        <!---->
+      </div>
+    </div>
+    <!---->
+  </a>
+</li>

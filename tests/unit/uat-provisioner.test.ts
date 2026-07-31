@@ -7,6 +7,8 @@ import {
   buildUatComposeArgs,
   createUatProvisionPlan,
   expectedUatVolumeNames,
+  jobSearchFixtureBaseUrlFor,
+  jobSearchFixtureContainerName,
   findAvailablePort,
   generateUatRunId,
   UAT_DOCKER_SUBNET,
@@ -88,6 +90,61 @@ describe("writeUatEnvFile", () => {
     } finally {
       cleanup();
     }
+  });
+
+  it("omits JARVIS_RUNTIME_MODE and JARVIS_E2E_MODULE_FETCH_BASE when no fixture URL is given", () => {
+    // #1306 Task 22: these two vars may never appear in a checked-in compose file, .env.example,
+    // or dev script — provisioner-only, and only when a caller opts in.
+    const { path, cleanup } = writeUatEnvFile({ webPort: 20078 });
+    try {
+      const contents = readFileSync(path, "utf8");
+      expect(contents).not.toContain("JARVIS_RUNTIME_MODE");
+      expect(contents).not.toContain("JARVIS_E2E_MODULE_FETCH_BASE");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("writes both fetch-bypass vars together when a fixture URL is given", () => {
+    const { path, cleanup } = writeUatEnvFile({
+      webPort: 20079,
+      jobSearchFixtureBaseUrl: "http://uat-1_abcd1234-jsfixture:8080"
+    });
+    try {
+      const contents = readFileSync(path, "utf8");
+      expect(contents).toContain("JARVIS_RUNTIME_MODE=e2e");
+      expect(contents).toContain(
+        "JARVIS_E2E_MODULE_FETCH_BASE=http://uat-1_abcd1234-jsfixture:8080"
+      );
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("job-search fixture origin addressing", () => {
+  // #1306 Task 22: the fixture origin is a container on the stack's own Compose network, NOT a
+  // host process reached through the bridge gateway. The gateway route was tried live and every
+  // crawl fetch timed out — ufw drops container traffic arriving at the host's gateway address —
+  // so a host-derived address reappearing here is a regression, not a refactor.
+  it("addresses the fixture by container name, never by a host or bridge-gateway address", () => {
+    const { projectName } = generateUatRunId();
+    const url = jobSearchFixtureBaseUrlFor(projectName);
+
+    expect(url).toBe(`http://${jobSearchFixtureContainerName(projectName)}:8080`);
+    expect(url).not.toContain("127.0.0.1");
+    expect(url).not.toContain("localhost");
+    expect(url).not.toContain(UAT_DOCKER_SUBNET.split("/")[0]?.replace(/\.0$/, "") ?? "");
+  });
+
+  it("scopes the container name to the Compose project so concurrent runs never collide", () => {
+    const first = jobSearchFixtureContainerName(generateUatRunId().projectName);
+    const second = jobSearchFixtureContainerName(generateUatRunId().projectName);
+
+    expect(first).not.toBe(second);
+    // assertNoLeakedResources filters `docker ps -a` by the project name, so a leaked fixture
+    // container has to be caught by that same filter.
+    expect(first.startsWith("uat-")).toBe(true);
   });
 });
 

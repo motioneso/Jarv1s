@@ -11,6 +11,11 @@ node_modules
 tests/*.test.ts
 tests/e2e
 tests/fixtures
+# #1306 Task 22: same carve-out as tests/uat/seed above, for the same reason. The job-search
+# fixture origin (tests/uat/fixtures/fixture-server-cli.ts) runs *inside* this image as its own
+# container on the UAT Compose network, and it serves Task 11's saved job-board captures from
+# here. Must stay AFTER the `tests/fixtures` line — Docker honours the last matching pattern.
+!tests/fixtures/job-search
 tests/integration
 tests/scripts
 tests/setup-env.ts

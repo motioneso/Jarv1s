@@ -46,7 +46,12 @@ export async function buildExternalModule(moduleDir: string): Promise<void> {
     logLevel: "silent",
     jsx: "transform",
     jsxFactory: "h",
-    jsxFragment: "Fragment"
+    jsxFragment: "Fragment",
+    // Task 18 (#1302): job-search's web surface injects its layout CSS via one <style> tag
+    // (finance keeps the same string in a .ts constant instead); the `text` loader turns a
+    // `.css` import into its raw-text default export at bundle time. No-op for finance, which
+    // has no `.css` import.
+    loader: { ".css": "text" }
   });
 }
 

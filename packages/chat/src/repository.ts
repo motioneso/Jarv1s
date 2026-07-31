@@ -11,6 +11,7 @@ import {
 } from "@jarv1s/db";
 import type {
   AnswerProvenanceMetadataV1,
+  ChatActivityEventDto,
   ChatAttachmentDto,
   ChatSurface,
   SourceFreshnessV1
@@ -208,6 +209,7 @@ export class ChatRepository {
       readonly answerProvenance?: AnswerProvenanceMetadataV1;
       /** #1133 — attachment display metadata (id/name/mime/size) — never bytes. */
       readonly attachments?: readonly ChatAttachmentDto[];
+      readonly actionResults?: readonly ChatActivityEventDto[];
     },
     surface?: ChatSurface
   ): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage } | undefined> {
@@ -247,7 +249,8 @@ export class ChatRepository {
         ...(opts?.sourceFreshness ? { sourceFreshness: opts.sourceFreshness } : {}),
         ...(opts?.answerProvenance !== undefined
           ? { answerProvenanceV1: opts.answerProvenance }
-          : {})
+          : {}),
+        ...(opts?.actionResults?.length ? { activity: opts.actionResults } : {})
       },
       now
     });

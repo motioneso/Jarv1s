@@ -18,6 +18,9 @@
  *   GET  /api/chat/privacy           → { incognito } server-truth privacy state for restore-on-mount
  *   POST /api/chat/switch            → 200         re-launch on the now-active provider
  *   GET  /api/chat/stream            → SSE         live transcript records for the actor
+ *   POST /api/chat/seed    { seed, idempotencyKey, surface? } → 204  frame a surface's thread
+ *                                     with no visible user turn (#1284) — the generic seed seam
+ *                                     every surface owner uses; evening-interview is one caller.
  *
  * Rate limiting: POST /api/chat/turn is throttled per session principal (per user on a
  * LAN multi-user deployment). Limit: JARVIS_RL_CHAT_MAX requests per minute
@@ -32,6 +35,8 @@ import { sessionRateLimitKey } from "@jarv1s/module-sdk";
 import {
   type ChatSurface,
   normalizeChatSurface,
+  CHAT_SEED_IDEMPOTENCY_KEY_MAX_LENGTH,
+  CHAT_SEED_MAX_LENGTH,
   type GetChatPrivacyStateResponse,
   getChatPrivacyStateRouteSchema,
   parsePositiveIntEnv
@@ -410,6 +415,49 @@ export function registerChatLiveRoutes(
     }
   );
 
+  // #1284 — the generic seed seam every surface owner uses (evening-interview above is one
+  // caller with its own dedicated route; this one serves everybody else, e.g. an external
+  // module framing its own thread via assistantSurface.seedContext). Body validation happens
+  // BEFORE the try/catch so an illegal seed/idempotencyKey/surface is a 400 from our own
+  // parser, never a throw that would otherwise need handleLiveRouteError to catch it.
+  server.post(
+    "/api/chat/seed",
+    {
+      config: {
+        rateLimit: {
+          max: CHAT_MUTATION_MAX,
+          timeWindow: "1 minute",
+          keyGenerator: sessionRateLimitKey
+        }
+      }
+    },
+    async (request, reply) => {
+      const access = await resolveOr401(dependencies, request, reply);
+      if (!access) return reply;
+
+      const bodyResult = readSeedBody(request.body);
+      if ("error" in bodyResult) {
+        return reply.code(400).send({ error: bodyResult.error });
+      }
+
+      try {
+        const userName = await runtime.resolveUserName(access.actorUserId);
+        await runtime.manager.seedContext(
+          access.actorUserId,
+          userName,
+          bodyResult.seed,
+          bodyResult.idempotencyKey,
+          bodyResult.surface
+        );
+        // #1284 — 204 with no body is deliberate: a Fastify response schema silently drops
+        // undeclared fields (I8), and a route with no body has nothing to lose.
+        return reply.code(204).send();
+      } catch (error) {
+        return handleLiveRouteError(error, reply);
+      }
+    }
+  );
+
   // #1109 — client PUTs its current view here (debounced, on navigation/change); an AI tool
   // pulls it on demand rather than the client pushing it on every chat turn.
   server.put(
@@ -511,6 +559,46 @@ function readEveningInterviewBody(
     return { error: "briefingRunId must be a non-empty string" };
   }
   return { briefingRunId: raw.trim(), surface: surfaceResult.surface };
+}
+
+/**
+ * #1284 — parse a /chat/seed body. `seed` carries exactly the authority of a user turn
+ * entering the model's context, never a system prompt — it is capped server-side (I8: the
+ * browser is not the trust boundary) at CHAT_SEED_MAX_LENGTH. `idempotencyKey` is required
+ * (not optional, unlike the evening-interview route's own internal call) because this is the
+ * generic seam every surface owner uses, and a module remount without one would re-frame a
+ * conversation already in progress every time.
+ */
+function readSeedBody(
+  body: unknown
+): { seed: string; idempotencyKey: string; surface: ChatSurface } | { error: string } {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { error: "Expected JSON object body" };
+  }
+  const record = body as Record<string, unknown>;
+
+  const seed = record.seed;
+  if (typeof seed !== "string" || seed.length === 0) {
+    return { error: "seed must be a non-empty string" };
+  }
+  if (seed.length > CHAT_SEED_MAX_LENGTH) {
+    return { error: `seed must be ${CHAT_SEED_MAX_LENGTH} characters or fewer` };
+  }
+
+  const idempotencyKey = record.idempotencyKey;
+  if (typeof idempotencyKey !== "string" || idempotencyKey.length === 0) {
+    return { error: "idempotencyKey must be a non-empty string" };
+  }
+  if (idempotencyKey.length > CHAT_SEED_IDEMPOTENCY_KEY_MAX_LENGTH) {
+    return {
+      error: `idempotencyKey must be ${CHAT_SEED_IDEMPOTENCY_KEY_MAX_LENGTH} characters or fewer`
+    };
+  }
+
+  const surfaceResult = readOptionalSurface(record.surface);
+  if ("error" in surfaceResult) return surfaceResult;
+
+  return { seed, idempotencyKey, surface: surfaceResult.surface };
 }
 
 function readOptionalSurface(value: unknown): { surface: ChatSurface } | { error: string } {

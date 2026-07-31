@@ -2,6 +2,8 @@ import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db
 import { ChatAttachmentsService } from "@jarv1s/chat";
 import type { JarvisModuleManifest, ToolResult } from "@jarv1s/module-sdk";
 import {
+  createNotificationPreferencePort,
+  createRuntimeEmbeddingProvider,
   reconcileExternalModules,
   type ExternalModuleDiscovery,
   type ReconciledExternalModule
@@ -13,6 +15,7 @@ import {
   type ExternalModuleAiRequest,
   type ExternalModuleAiResult
 } from "@jarv1s/module-registry/node";
+import { NotificationsRepository } from "@jarv1s/notifications";
 import { createModuleCredentialSecretCipher, type SettingsRepository } from "@jarv1s/settings";
 import { getVaultBaseDir, VaultContextRunner } from "@jarv1s/vault";
 
@@ -38,6 +41,11 @@ export function createExternalModuleTools(input: {
   const runtime = new ExternalModuleWorkerRuntime({ logger: input.logger });
   const cipher = createModuleCredentialSecretCipher();
   const attachments = new ChatAttachmentsService(new VaultContextRunner(getVaultBaseDir()));
+  // ctx.notify (Task 2b, #1283): no quiet-hours port, matching
+  // registerUpgradeNotifyWorker's own NotificationsRepository construction
+  // (apps/worker/src/worker.ts) — a module-posted notification is not deferred
+  // by the recipient's quiet hours any more than the system upgrade notice is.
+  const notifications = new NotificationsRepository(undefined, createNotificationPreferencePort());
   const manifests = createExternalToolManifests(
     input.discoveries,
     async (module, tool, toolInput, context) => {
@@ -55,6 +63,15 @@ export function createExternalModuleTools(input: {
               (await input.settingsRepository.getUserById(scopedDb, context.actorUserId))
                 ?.is_instance_admin === true
           ),
+        // ctx.embed (#1281): resolved from the same runtime seam memory search
+        // uses, so the configured provider/model stays a single decision and is
+        // never named here. Lazy — only an invocation that actually embeds pays
+        // for the config read.
+        embeddingProvider: () =>
+          input.appDataContext.withDataContext(
+            { actorUserId: context.actorUserId, requestId: context.requestId },
+            (scopedDb) => createRuntimeEmbeddingProvider(scopedDb)
+          ),
         readAttachmentText: async (access, attachmentId) => {
           const content = await attachments.readContent(access, attachmentId);
           return content.kind === "text"
@@ -64,6 +81,15 @@ export function createExternalModuleTools(input: {
                 text: content.text
               }
             : null;
+        },
+        // ctx.notify (Task 2b, #1283): opens its own scoped db via appDataContext,
+        // separate from workerDataContext above — notify.post runs outside the
+        // db.query/ai.generateStructured withDataContext block in worker-rpc-host.ts,
+        // so it needs a context of its own rather than reusing one already closed.
+        postNotification: async (access, notifyInput) => {
+          await input.appDataContext.withDataContext(access, (scopedDb) =>
+            notifications.create(scopedDb, notifyInput)
+          );
         },
         // Bind the module id here so the rpc host stays module-agnostic; the host
         // still enforces risk gating, the composition guard, and the call cap.
@@ -80,7 +106,10 @@ export function createExternalModuleTools(input: {
           module,
           tool.handler,
           { ...toolInput, actorUserId: context.actorUserId },
-          rpc
+          rpc,
+          // #1286 Task 2e: an assistant tool call gets its own child process,
+          // separate from this module's queue jobs and briefing invocations.
+          { lane: "tool" }
         )
       );
     }

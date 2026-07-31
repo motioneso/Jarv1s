@@ -157,6 +157,22 @@ function recordsFromMessages(messages: readonly ChatMessageDto[]): TranscriptRec
         }
       ];
     }
+    const actionResults: TranscriptRecord[] = message.activity.flatMap((activity) =>
+      activity.kind === "action_result" &&
+      (activity.outcome === "executed" ||
+        activity.outcome === "denied" ||
+        activity.outcome === "error" ||
+        activity.outcome === "allowed")
+        ? [
+            {
+              kind: "action_result",
+              text: activity.text,
+              toolName: activity.toolName,
+              outcome: activity.outcome
+            }
+          ]
+        : []
+    );
     return [
       {
         kind: "reply",
@@ -165,7 +181,8 @@ function recordsFromMessages(messages: readonly ChatMessageDto[]): TranscriptRec
         sourceFreshness: message.sourceFreshness,
         answerProvenance: message.answerProvenance,
         answerProvenanceCitedIds: message.answerProvenanceCitedIds
-      }
+      },
+      ...actionResults
     ];
   });
 }

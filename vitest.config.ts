@@ -127,6 +127,19 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("./packages/email/src/index.ts", import.meta.url))
       },
       {
+        // Subpath export; must precede the bare "@jarv1s/host-fetch" alias below — used by
+        // module-registry's validate.ts (assertValidFetchHosts).
+        find: "@jarv1s/host-fetch/policy",
+        replacement: fileURLToPath(new URL("./packages/host-fetch/src/policy.ts", import.meta.url))
+      },
+      {
+        // #1309: job-search's worker-rpc-host.ts fetch.request test coverage imports
+        // HostPinningViolationError directly; host-fetch had no alias entry at all before this
+        // (it was only reached transitively via module-registry's own workspace dependency).
+        find: "@jarv1s/host-fetch",
+        replacement: fileURLToPath(new URL("./packages/host-fetch/src/index.ts", import.meta.url))
+      },
+      {
         find: "@jarv1s/jobs",
         replacement: fileURLToPath(new URL("./packages/jobs/src/index.ts", import.meta.url))
       },

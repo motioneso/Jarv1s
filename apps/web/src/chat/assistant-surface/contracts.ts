@@ -37,4 +37,25 @@ export interface AssistantSurfaceHandleV1 {
     listener: (records: readonly AssistantRecordV1[]) => void,
     surface?: string
   ): () => void;
+  /**
+   * #1284 — switch which thread this module owns right now (e.g. the user picked a different
+   * profile). `null` releases the claim and returns the shell to the drawer. Call this BEFORE any
+   * seedContext/submitTurn on the new key: the shell derives "the active surface" from the most
+   * recent setSurfaceKey call, so seeding first would frame the surface the module hasn't claimed
+   * yet (H4 — ordering is the consent boundary here, not just a nicety).
+   */
+  setSurfaceKey(key: string | null): void;
+  /**
+   * #1284 — frame this module's thread BEFORE the user's first turn, with no visible user message
+   * (contrast submitTurn, which posts one, and seedComposer/hostActions.openAssistant, which insert
+   * an editable draft the user can still change or delete). `idempotencyKey` makes a re-seed a
+   * no-op (backed by the server's per-session seededContextKeys), so a component remount can never
+   * re-frame a conversation already in progress. The surface is curried by the handle exactly as
+   * submitTurn already is — the module never names one directly.
+   *
+   * Trust boundary: this seed text enters the model's context with exactly the authority of a user
+   * turn, no more. It must never be treated as, or described as, a system prompt — a module able to
+   * rewrite the assistant's own instructions would be a privilege escalation.
+   */
+  seedContext(seed: string, idempotencyKey: string): Promise<void>;
 }

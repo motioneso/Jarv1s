@@ -62,8 +62,7 @@ export function Thread(props: {
 const ACTIVITY_KINDS: ReadonlySet<ChatRecordKind> = new Set<ChatRecordKind>([
   "thinking",
   "tool",
-  "status",
-  "action_result"
+  "status"
 ]);
 
 type RenderItem =
@@ -182,6 +181,19 @@ function RecordRow(props: {
 
   if (kind === "error") {
     return <p className="form-error">{text}</p>;
+  }
+
+  if (kind === "action_result") {
+    return (
+      <div className="chatd-peek__line" role="status">
+        <span className="chatd-peek__kind">
+          {props.record.outcome === "executed" || props.record.outcome === "allowed"
+            ? "Changed"
+            : "Not changed"}
+        </span>
+        {text}
+      </div>
+    );
   }
 
   // reply (and any unforeseen non-activity kind) — assistant bubble, rendered as markdown.

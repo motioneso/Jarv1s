@@ -1,0 +1,25 @@
+<!doctype html>
+
+<!--
+  tests/fixtures/job-search/linkedin-authwall.html
+
+  A synthetic LinkedIn sign-in interstitial, not a live capture (the real adapter's own header
+  comment says the same about its unit-test fixture: re-triggering the actual wall live would mean
+  deliberately hammering LinkedIn until it blocks this IP, which is not a proportionate way to
+  verify the code path). Task 22 (#1306) UAT: the fixture server serves this at LinkedIn's guest
+  search path INSTEAD OF linkedin-guest.html's real capture, permanently, for the whole UAT run —
+  see job-search-fixture-server.ts's header comment for why. This is what makes the board's
+  degraded-portal state (Phase 8 of job-search-board.uat.spec.ts) reachable deterministically: this
+  body matches one of adapters/linkedin.ts's own AUTH_WALL_MARKERS ("sign in to linkedin"), which
+  the adapter treats as a terminal login_required failure on a 200 status.
+-->
+<html lang="en">
+  <head>
+    <title>Sign in to LinkedIn</title>
+  </head>
+  <body>
+    <div class="authwall">
+      <p>Please sign in to LinkedIn to continue viewing job postings.</p>
+    </div>
+  </body>
+</html>

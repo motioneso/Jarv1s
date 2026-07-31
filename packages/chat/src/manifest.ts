@@ -120,6 +120,13 @@ export const chatModuleManifest = {
     // message permission, so the upload shares it.
     { method: "POST", path: "/api/chat/attachments", permissionId: "chat.message" },
     { method: "POST", path: "/api/chat/evening-interview", permissionId: "chat.message" },
+    // #1284 — the generic seed seam (evening-interview above is one dedicated caller).
+    // `chat.message` because a seed carries exactly the authority of a user turn: it frames
+    // what the assistant sees before the first message, so it is a write to the conversation,
+    // not a read of it. Missing this entry does not fail a unit test — it fails
+    // assertRouteCoverage at server BOOT, taking down every integration test that stands the
+    // API up. tests/unit/chat-route-coverage.test.ts now catches it here instead.
+    { method: "POST", path: "/api/chat/seed", permissionId: "chat.message" },
     { method: "POST", path: "/api/chat/turn/cancel", permissionId: "chat.message" },
     { method: "GET", path: "/api/chat/stream", permissionId: "chat.view" },
     { method: "POST", path: "/api/chat/clear", permissionId: "chat.message" },

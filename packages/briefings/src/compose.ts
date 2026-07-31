@@ -9,6 +9,7 @@ import {
   isActionableTriage,
   sourceContextMetaFor,
   recordSourceAuthGap,
+  buildExternalModulesSection,
   ctxFor,
   type ComposeDeps,
   type ComposeRunInput,
@@ -16,6 +17,7 @@ import {
   type Section,
   type BriefingGap
 } from "./compose-shared.js";
+import { collectExternalBriefingContributions } from "./external-contributions.js";
 import { sanitizeExternal, renderExternalBlock, TRUST_BOUNDARY } from "./trust-boundary.js";
 import type { ChatTurn } from "@jarv1s/ai";
 import { rankPriorityCandidates, type PriorityResult, type PrioritySource } from "@jarv1s/priority";
@@ -436,6 +438,26 @@ export async function composeBriefing(
   }
   if (definition.selected_tool_names.includes("sports.followedFactsToday")) {
     sections.push(sports);
+  }
+
+  // #1282: external (JSON-manifest) modules cannot register an in-process assistant tool,
+  // so they never reach findExecute() above — the composition root injects a worker
+  // invoker instead. Absent everywhere else (unit tests, defaultComposeDeps in jobs.ts) →
+  // no candidates, no call, no section (J1/J3).
+  if (deps.invokeExternalBriefing) {
+    const ctx = ctxFor(definition, input);
+    const externalContributions = await collectExternalBriefingContributions({
+      manifests: deps.externalBriefingManifests ?? [],
+      selectedToolNames: definition.selected_tool_names,
+      section: "morning",
+      actorUserId: ctx.actorUserId,
+      requestId: ctx.requestId,
+      invoke: deps.invokeExternalBriefing
+    });
+    const externalModules = buildExternalModulesSection(externalContributions);
+    if (externalModules) {
+      sections.push(externalModules);
+    }
   }
 
   const hasFreshnessDeps = !!(deps.connectorSyncAt ?? deps.vaultLastWriteAt);

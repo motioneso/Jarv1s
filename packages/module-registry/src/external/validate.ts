@@ -7,9 +7,12 @@
 import type {
   JsonJarvisModuleManifest,
   ExternalModuleAssistantToolDeclaration,
+  ExternalModuleBriefingDeclaration,
   ExternalModuleDatabaseDeclaration,
   ExternalModuleNavigationEntry,
   ExternalModuleWorkerDeclaration,
+  JarvisActionPermissionTier,
+  ModuleAssistantActionFamilyManifest,
   ModuleAssistantOnboardingManifest,
   ModuleAuthDeclaration,
   ModuleLifecycle,
@@ -17,7 +20,11 @@ import type {
   ModuleWebDeclaration
 } from "@jarv1s/module-sdk";
 import { assertValidFetchHosts } from "@jarv1s/host-fetch/policy";
-import { isValidModuleParamsSchema, matchesModuleParamsSchema } from "@jarv1s/module-sdk";
+import {
+  isValidModuleParamsSchema,
+  matchesModuleParamsSchema,
+  MAX_INVOCATION_MS
+} from "@jarv1s/module-sdk";
 import { satisfiesCoreVersion } from "@jarv1s/module-sdk/core-version";
 
 export type ExternalModuleValidation =
@@ -34,6 +41,9 @@ export const MODULE_ID_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 export const MODULE_OWNED_TABLE_RE = /^app\.[a-z][a-z0-9_]{0,62}$/;
 export const ASSISTANT_ONBOARDING_GUIDANCE_MAX_BYTES = 8 * 1024;
 
+/** The briefings an external module may contribute to (#1282). */
+const BRIEFING_SECTIONS: readonly string[] = ["morning", "evening"];
+
 const LIFECYCLES: readonly ModuleLifecycle[] = [
   "required",
   "optional",
@@ -44,8 +54,8 @@ const LIFECYCLES: readonly ModuleLifecycle[] = [
 // Every field of the compiled JarvisModuleManifest that carries executable behavior
 // or a UI/data surface. Presence of ANY of these in an external manifest is a
 // rejection. `auth`/`storage`/`web` are first-class as of #918 Slice 2, `database` as
-// of #964, and `navigation` as of #1019 (each validated positively below) and are
-// deliberately absent from this list.
+// of #964, `navigation` as of #1019, and `assistantActionFamilies` as of #1246
+// (each validated positively below) and are deliberately absent from this list.
 const FORBIDDEN_FIELDS: readonly string[] = [
   "availability",
   "settings",
@@ -55,7 +65,6 @@ const FORBIDDEN_FIELDS: readonly string[] = [
   "routes",
   "jobs",
   "shareableResources",
-  "assistantActionFamilies",
   "sourceBehaviors",
   "focusSignal",
   "proactiveMonitor",
@@ -66,6 +75,161 @@ const FORBIDDEN_FIELDS: readonly string[] = [
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+const ACTION_FAMILY_ID_RE = /^[a-z][a-z0-9_-]*$/;
+const ACTION_PERMISSION_TIERS: readonly JarvisActionPermissionTier[] = [
+  "ask_each_time",
+  "trusted_auto",
+  "always_confirm"
+];
+
+function validateActionFamilies(
+  raw: unknown,
+  errors: string[]
+): readonly ModuleAssistantActionFamilyManifest[] | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    errors.push("assistantActionFamilies must be a non-empty array");
+    return undefined;
+  }
+
+  const families: ModuleAssistantActionFamilyManifest[] = [];
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      errors.push("assistantActionFamilies entries must be objects");
+      continue;
+    }
+    const family = entry as Record<string, unknown>;
+    if (!isNonEmptyString(family.id) || !ACTION_FAMILY_ID_RE.test(family.id)) {
+      errors.push("action family id must be a lowercase identifier");
+      continue;
+    }
+    if (seen.has(family.id)) {
+      errors.push(`duplicate action family id: ${family.id}`);
+      continue;
+    }
+    seen.add(family.id);
+    if (!isNonEmptyString(family.label) || !isNonEmptyString(family.description)) {
+      errors.push(`action family ${family.id} needs a label and description`);
+      continue;
+    }
+    if (
+      !Array.isArray(family.allowedTiers) ||
+      family.allowedTiers.length === 0 ||
+      !family.allowedTiers.every((tier) =>
+        ACTION_PERMISSION_TIERS.includes(tier as JarvisActionPermissionTier)
+      ) ||
+      new Set(family.allowedTiers).size !== family.allowedTiers.length
+    ) {
+      errors.push(`action family ${family.id} has invalid allowedTiers`);
+      continue;
+    }
+    if (family.defaultTier !== "ask_each_time" && family.defaultTier !== "always_confirm") {
+      errors.push(`action family ${family.id} has an invalid defaultTier`);
+      continue;
+    }
+    if (!family.allowedTiers.includes(family.defaultTier)) {
+      errors.push(`action family ${family.id} defaultTier must appear in allowedTiers`);
+      continue;
+    }
+    families.push({
+      id: family.id,
+      label: family.label,
+      description: family.description,
+      defaultTier: family.defaultTier,
+      allowedTiers: family.allowedTiers as readonly JarvisActionPermissionTier[]
+    });
+  }
+  return families.length > 0 ? families : undefined;
+}
+
+function validateAssistantToolPolicy(
+  tool: Record<string, unknown>,
+  families: readonly ModuleAssistantActionFamilyManifest[] | undefined,
+  errors: string[]
+): void {
+  const family =
+    typeof tool.actionFamilyId === "string"
+      ? families?.find((candidate) => candidate.id === tool.actionFamilyId)
+      : undefined;
+
+  if (tool.actionFamilyId !== undefined) {
+    if (!isNonEmptyString(tool.actionFamilyId)) {
+      errors.push("assistant tool actionFamilyId must be a non-empty string");
+    } else if (!family) {
+      errors.push(`assistant tool references undeclared action family: ${tool.actionFamilyId}`);
+    }
+  }
+  if (
+    tool.executionPolicy !== undefined &&
+    tool.executionPolicy !== "auto" &&
+    tool.executionPolicy !== "confirm"
+  ) {
+    errors.push('assistant tool executionPolicy must be "auto" or "confirm"');
+  }
+  if (tool.executionPolicy === "auto") {
+    if (!family) {
+      errors.push('assistant tool executionPolicy "auto" requires an actionFamilyId');
+    } else if (!family.allowedTiers.includes("trusted_auto")) {
+      errors.push(
+        `assistant tool executionPolicy "auto" requires family ${family.id} to allow trusted_auto`
+      );
+    }
+  }
+
+  if (
+    tool.selfOperationGrant !== undefined &&
+    tool.selfOperationGrant !== "granted_at_install" &&
+    tool.selfOperationGrant !== "confirm_always" &&
+    tool.selfOperationGrant !== "user_promotable"
+  ) {
+    errors.push("assistant tool selfOperationGrant is invalid");
+  }
+  if (
+    tool.selfOperationGrant === "granted_at_install" ||
+    tool.selfOperationGrant === "user_promotable"
+  ) {
+    if (tool.risk !== "write" || tool.executionPolicy !== "auto" || !family) {
+      errors.push(
+        `assistant tool ${tool.selfOperationGrant} requires risk "write", executionPolicy "auto", and an actionFamilyId`
+      );
+    } else if (!family.allowedTiers.includes("always_confirm")) {
+      errors.push(
+        `assistant tool ${tool.selfOperationGrant} requires family ${family.id} to allow always_confirm`
+      );
+    }
+  }
+  if (tool.selfOperationGrant === "confirm_always" && tool.executionPolicy === "auto") {
+    errors.push('assistant tool confirm_always cannot use executionPolicy "auto"');
+  }
+
+  if (
+    tool.confirmWhenKeys !== undefined &&
+    (!Array.isArray(tool.confirmWhenKeys) ||
+      !tool.confirmWhenKeys.every((key) => isNonEmptyString(key)))
+  ) {
+    errors.push("assistant tool confirmWhenKeys must be an array of non-empty strings");
+  }
+  if (tool.confirmWhen !== undefined) {
+    if (!Array.isArray(tool.confirmWhen)) {
+      errors.push("assistant tool confirmWhen must be an array");
+    } else {
+      for (const clause of tool.confirmWhen) {
+        if (!clause || typeof clause !== "object" || Array.isArray(clause)) {
+          errors.push("assistant tool confirmWhen entries must be objects");
+          continue;
+        }
+        const { key, equals } = clause as Record<string, unknown>;
+        if (!isNonEmptyString(key) || !["string", "number", "boolean"].includes(typeof equals)) {
+          errors.push(
+            "assistant tool confirmWhen entries need key:string and equals:string|number|boolean"
+          );
+        }
+      }
+    }
+  }
 }
 
 function hasDeadLetterCycle(queues: readonly Record<string, unknown>[]): boolean {
@@ -130,10 +294,27 @@ function validateWorker(
     ) {
       errors.push("worker queue retryLimit must be a non-negative integer");
     }
+    // #1286 Task 2e: timeoutMs is the per-queue override of the worker's hard
+    // invocation ceiling. Reject anything that isn't a positive integer (0, negative,
+    // fractional, NaN, a string, or null all fail Number.isInteger or the <= 0 check)
+    // rather than silently coercing — a bad ceiling is a security-relevant
+    // misconfiguration, not a typo to paper over.
+    if (
+      queue.timeoutMs !== undefined &&
+      (!Number.isInteger(queue.timeoutMs) || (queue.timeoutMs as number) <= 0)
+    ) {
+      errors.push("worker queue timeoutMs must be a positive integer");
+    }
     normalizedQueues.push({
       ...queue,
       ...(typeof queue.retryLimit === "number"
         ? { retryLimit: Math.min(queue.retryLimit, 10) }
+        : {}),
+      // Clamp rather than reject above the ceiling: MAX_INVOCATION_MS protects the
+      // host (worker-runtime.ts's resolveHardTimeout re-clamps defensively too), but a
+      // module declaring an oversized timeout is not itself a validation failure.
+      ...(typeof queue.timeoutMs === "number"
+        ? { timeoutMs: Math.min(queue.timeoutMs, MAX_INVOCATION_MS) }
         : {})
     });
   }
@@ -381,6 +562,33 @@ export function validateExternalModuleManifest(
       }
     }
   }
+  // #1309 (Task 24): fetchHostGrantsNamespace must point at one of the module's own declared
+  // storage namespaces, and that namespace must include the "user" scope — a module cannot grant
+  // runtime fetch hosts through a namespace it never declared, or through an instance-only one.
+  if (obj.fetchHostGrantsNamespace !== undefined) {
+    if (typeof obj.fetchHostGrantsNamespace !== "string") {
+      errors.push("fetchHostGrantsNamespace must be a string");
+    } else {
+      const declared = Array.isArray(obj.storage)
+        ? (obj.storage as Record<string, unknown>[]).find(
+            (entry) =>
+              entry !== null &&
+              typeof entry === "object" &&
+              entry.namespace === obj.fetchHostGrantsNamespace
+          )
+        : undefined;
+      if (!declared) {
+        errors.push("fetchHostGrantsNamespace does not match a declared storage namespace");
+      } else if (
+        !Array.isArray(declared.scopes) ||
+        !(declared.scopes as unknown[]).includes("user")
+      ) {
+        errors.push(
+          'fetchHostGrantsNamespace\'s storage declaration must include the "user" scope'
+        );
+      }
+    }
+  }
   if (obj.web !== undefined) {
     if (typeof obj.web !== "object" || obj.web === null) {
       errors.push("web must be an object");
@@ -418,6 +626,7 @@ export function validateExternalModuleManifest(
       }
     }
   }
+  const assistantActionFamilies = validateActionFamilies(obj.assistantActionFamilies, errors);
   if (obj.assistantTools !== undefined) {
     if (!Array.isArray(obj.assistantTools)) {
       errors.push("assistantTools must be an array");
@@ -446,6 +655,7 @@ export function validateExternalModuleManifest(
         if (tool.risk !== "read" && tool.risk !== "write" && tool.risk !== "destructive") {
           errors.push('assistant tool risk must be "read", "write", or "destructive"');
         }
+        validateAssistantToolPolicy(tool, assistantActionFamilies, errors);
         if (!isNonEmptyString(tool.handler)) errors.push("assistant tool handler is required");
         else handlers.push(tool.handler);
       }
@@ -568,12 +778,12 @@ export function validateExternalModuleManifest(
         }
         const navEntry = entry as Record<string, unknown>;
         const unknownKeys = Object.keys(navEntry).filter(
-          (key) => !["id", "label", "path", "icon", "order"].includes(key)
+          (key) => !["id", "label", "path", "icon", "order", "badge"].includes(key)
         );
         if (unknownKeys.length > 0) {
           errors.push(`navigation entry contains unknown fields: ${unknownKeys.join(", ")}`);
         }
-        const { id, label, path, icon, order } = navEntry;
+        const { id, label, path, icon, order, badge } = navEntry;
         let entryValid = unknownKeys.length === 0;
 
         // #1019 (D5): anti-spoof — a nav entry id must be prefixed with this module's own
@@ -635,18 +845,100 @@ export function validateExternalModuleManifest(
           entryValid = false;
         }
 
+        // #1285: badge is a closed enum with one member today — an object containing
+        // EXACTLY the key `source`, valued strictly "notifications". Rejecting any other
+        // shape outright (rather than normalizing it away) is deliberate: a future badge
+        // source must be an explicit validator change, not something a manifest can opt
+        // into by accident. See ExternalModuleNavigationEntry.badge (module-sdk) for why
+        // this can never carry a module-supplied number.
+        if (badge !== undefined) {
+          if (typeof badge !== "object" || badge === null || Array.isArray(badge)) {
+            errors.push("navigation entry badge must be an object");
+            entryValid = false;
+          } else {
+            const badgeObj = badge as Record<string, unknown>;
+            const badgeUnknownKeys = Object.keys(badgeObj).filter((key) => key !== "source");
+            if (badgeUnknownKeys.length > 0 || badgeObj.source !== "notifications") {
+              errors.push('navigation entry badge must be exactly {"source": "notifications"}');
+              entryValid = false;
+            }
+          }
+        }
+
         if (entryValid) {
           validated.push({
             id: id as string,
             label: label as string,
             path: path as string,
             ...(icon !== undefined ? { icon: icon as string } : {}),
-            ...(order !== undefined ? { order: order as number } : {})
+            ...(order !== undefined ? { order: order as number } : {}),
+            // #1285: the validator reconstructs from an allow-list — a field validated but
+            // not re-emitted here vanishes with `ok: true` and nothing to say why (F1, the
+            // exact bug class the #1282 briefing block hit). badge is safe to re-emit as-is
+            // here because entryValid being true means the shape check above already passed.
+            ...(badge !== undefined ? { badge: badge as { source: "notifications" } } : {})
           });
         }
       }
       if (errors.length === 0) {
         navigation = validated;
+      }
+    }
+  }
+
+  // #1282: positive validation of the briefing contribution declaration. Same shape as
+  // every other allow-listed surface above: unknown keys rejected outright rather than
+  // ignored, bounded strings, and a cross-check that the handler has a worker to run in.
+  let briefing: ExternalModuleBriefingDeclaration | undefined;
+  if (obj.briefing !== undefined) {
+    if (typeof obj.briefing !== "object" || obj.briefing === null || Array.isArray(obj.briefing)) {
+      errors.push("briefing must be an object");
+    } else {
+      const block = obj.briefing as Record<string, unknown>;
+      const unknownKeys = Object.keys(block).filter(
+        (key) => !["handler", "sections", "toolName"].includes(key)
+      );
+      if (unknownKeys.length > 0) {
+        errors.push(`briefing contains unknown fields: ${unknownKeys.join(", ")}`);
+      }
+      // A briefing handler with no worker entrypoint is the real error case: the
+      // manifest promises a section the host has no process to produce it from.
+      if (obj.runtime === undefined) {
+        errors.push("runtime is required when briefing is declared");
+      }
+      if (
+        typeof block.handler !== "string" ||
+        block.handler.length > 64 ||
+        !/^[a-z][a-zA-Z0-9]*(?:\.[a-z][a-zA-Z0-9]*)*$/.test(block.handler)
+      ) {
+        errors.push("briefing.handler must be a dotted handler name (max 64 chars)");
+      }
+      if (
+        !Array.isArray(block.sections) ||
+        block.sections.length === 0 ||
+        block.sections.length > BRIEFING_SECTIONS.length ||
+        block.sections.some((section) => !BRIEFING_SECTIONS.includes(section as never)) ||
+        new Set(block.sections).size !== block.sections.length
+      ) {
+        errors.push(
+          `briefing.sections must be a non-empty unique subset of ${JSON.stringify(BRIEFING_SECTIONS)}`
+        );
+      }
+      // The name the user selects in briefing settings, so it shares the namespaced
+      // shape core briefing tools use — never a bare word that could collide.
+      if (
+        typeof block.toolName !== "string" ||
+        block.toolName.length > 64 ||
+        !/^[a-z][a-z0-9-]*\.[a-z][a-zA-Z0-9]*$/.test(block.toolName)
+      ) {
+        errors.push("briefing.toolName must look like <module-id>.<name>");
+      }
+      if (errors.length === 0) {
+        briefing = {
+          handler: block.handler as string,
+          sections: block.sections as readonly ("morning" | "evening")[],
+          toolName: block.toolName as string
+        };
       }
     }
   }
@@ -675,10 +967,19 @@ export function validateExternalModuleManifest(
     ...(obj.assistantTools !== undefined
       ? { assistantTools: obj.assistantTools as readonly ExternalModuleAssistantToolDeclaration[] }
       : {}),
+    ...(assistantActionFamilies !== undefined ? { assistantActionFamilies } : {}),
     ...(worker !== undefined ? { worker } : {}),
     ...(obj.fetchHosts !== undefined ? { fetchHosts: obj.fetchHosts as readonly string[] } : {}),
+    ...(obj.fetchHostGrantsNamespace !== undefined
+      ? { fetchHostGrantsNamespace: obj.fetchHostGrantsNamespace as string }
+      : {}),
     ...(database !== undefined ? { database } : {}),
     ...(navigation !== undefined ? { navigation } : {}),
+    // #1282: this literal is an allow-list — a validated field that is not re-emitted
+    // here vanishes from the manifest with validation still returning ok. Omitting this
+    // line is silent, and only tests/unit/external-module-briefing-manifest.test.ts
+    // case 9 catches it.
+    ...(briefing !== undefined ? { briefing } : {}),
     ...(assistantOnboarding !== undefined ? { assistantOnboarding } : {})
   };
   return { ok: true, manifest };

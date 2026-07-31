@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { lazy, Suspense, useMemo, type ComponentType, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, type ComponentType, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router";
 import { MODULE_WEB_CONTRIBUTIONS, MODULE_WEB_ROUTES } from "virtual:jarvis-module-web";
 
@@ -347,12 +347,19 @@ function ExternalModuleMount(props: {
     () => createModuleHostActions(props.moduleId, openAssistantWithDraft, props.actorScopeKey),
     [props.moduleId, props.actorScopeKey, openAssistantWithDraft]
   );
-  // #1196 — same host-controlled binding as hostActions: the surface name comes from the host
-  // mount, never from module code.
+  // #1196/#1284 — same host-controlled binding as hostActions: the module id is host-bound at this
+  // mount site; the module itself only ever supplies an opaque key via setSurfaceKey (never a raw
+  // surface — see chat-surface-key.ts for why concatenation can't be trusted).
   const assistantSurface = useMemo(
     () => createAssistantSurfaceHandle(subscribeRecords, props.moduleId, seedComposer),
     [props.moduleId, seedComposer, subscribeRecords]
   );
+  // #1284 — a module's claim on the shell's one chat stream must not outlive its own mount:
+  // without this, navigating away from the module's route would leave the drawer permanently
+  // reading a now-orphaned surface (the "reset to drawer" half of the setSurfaceKey contract).
+  useEffect(() => {
+    return () => assistantSurface.setSurfaceKey(null);
+  }, [assistantSurface]);
   const Component = props.Component;
   return <Component hostActions={hostActions} assistantSurface={assistantSurface} />;
 }

@@ -314,7 +314,13 @@ describe("MVP foundation schema catalog", () => {
         { version: "0177", name: "0177_audit_outcome_widen.sql" },
         { version: "0178", name: "0178_task_suggestion_metadata.sql" },
         { version: "0179", name: "0179_email_action_suppression.sql" },
-        { version: "0180", name: "0180_email_action_suppression_evidence.sql" }
+        { version: "0180", name: "0180_email_action_suppression_evidence.sql" },
+        // Task 2b #1283 — ctx.notify keyed upsert: event_key/href/updated_at columns, the
+        // partial unique index that makes a re-fired key update its row in place, and the
+        // UPDATE-on-notifications + DELETE-on-notification_reads grant/policy pairs (both
+        // runtime roles) the keyed upsert and its return-to-unread clear actually need.
+        // Never applied under either earlier branch-local number.
+        { version: "0181", name: "0181_notification_event_keys.sql" }
       ]);
     } finally {
       await client.end();

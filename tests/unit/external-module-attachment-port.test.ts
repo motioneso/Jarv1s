@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { DataContextRunner } from "@jarv1s/db";
+import { StubEmbeddingProvider } from "@jarv1s/memory";
 import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
 import { createExternalModuleRpcHandler } from "@jarv1s/module-registry/node";
 import { VaultContextRunner } from "@jarv1s/vault";
@@ -63,6 +64,8 @@ describe("external worker attachments.readText port (#1194)", () => {
       workerDataContext: null as unknown as DataContextRunner,
       cipher: null as never,
       isActorAdmin: async () => false,
+      // Required dep (#1281); these tests never reach an embed.* method.
+      embeddingProvider: async () => new StubEmbeddingProvider(),
       readAttachmentText
     });
 
@@ -103,7 +106,9 @@ describe("external worker attachments.readText port (#1194)", () => {
       requestId: randomUUID(),
       workerDataContext: null as unknown as DataContextRunner,
       cipher: null as never,
-      isActorAdmin: async () => false
+      isActorAdmin: async () => false,
+      // Required dep (#1281); these tests never reach an embed.* method.
+      embeddingProvider: async () => new StubEmbeddingProvider()
     });
 
     await expect(call(unavailable, image.id)).resolves.toBeNull();

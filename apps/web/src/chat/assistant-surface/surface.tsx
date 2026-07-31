@@ -45,8 +45,22 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
     setDraft("");
   };
 
+  // Nothing said yet, by anyone — no records, no locally-injected rows, nobody typing, no control
+  // card. The composer draws a rule along its top edge to separate itself from the transcript, and
+  // on a thread this empty that rule separates the composer from nothing: it renders as a stray
+  // line floating above the input. Surfaced by the job-search onboarding screen, where an empty
+  // conversation IS the first screen, but it is the same stray line in a brand-new drawer chat.
+  const threadIsEmpty =
+    visibleRecords.length === 0 &&
+    !props.localRows?.length &&
+    !props.typing &&
+    !props.activeControl;
+
   return (
-    <section className="assistant-surface" aria-label="Jarvis conversation">
+    <section
+      className={`assistant-surface${threadIsEmpty ? " assistant-surface--empty" : ""}`}
+      aria-label="Jarvis conversation"
+    >
       <div className="assistant-surface__thread">
         {props.localRows?.map((row) => (
           <div

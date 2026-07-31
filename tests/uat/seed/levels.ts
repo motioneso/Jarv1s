@@ -3,6 +3,7 @@ import { createAppRuntimeRunner, createMigrationOwnerDb } from "./connections.js
 import { seedSecondOwner, seedSoloAdmin } from "./admin.js";
 import { seedOnboardingChunk } from "./chunks/onboarding.js";
 import { seedAiProviderChunk } from "./chunks/ai.js";
+import { seedJobSearchAiProviderChunk } from "./chunks/job-search-ai.js";
 import { seedNewsChunk } from "./chunks/news.js";
 import { seedSportsChunk } from "./chunks/sports.js";
 import { seedTasksChunk } from "./chunks/tasks.js";
@@ -21,6 +22,10 @@ import type { SeedOptions, UatSeedChunk } from "./types.js";
 // OPEN (silently installs) the moment any caller forgets to pass it. Data-only
 // chunks are safe here; module-installing ones must be called explicitly by the
 // one level composition that needs them.
+//
+// #1306/N33: job-search is the concrete instance of this rule — it gets NO chunk
+// here, deliberately, not even a no-op. See the longer rationale beside
+// UAT_SEED_CHUNKS in ./types.ts and rulings-ledger.md#n33.
 const ADMIN_DATA_CHUNKS: ReadonlyArray<{
   key: UatSeedChunk;
   run: (runner: ReturnType<typeof createAppRuntimeRunner>, actorUserId: string) => Promise<void>;
@@ -84,6 +89,13 @@ export async function seedLevel(options: SeedOptions): Promise<void> {
     await seedAiProviderChunk(runner, adminUserId, {
       bindNews: options.withoutNewsJsonBinding !== true
     });
+    // N42/#57: opt-in, absent by default — see SeedOptions.jobSearchAiProviderBaseUrl's doc
+    // comment and ./chunks/job-search-ai.ts's header. Ordered with the other AI-binding call
+    // above for the same reason (no downstream chunk depends on it either way today, but a
+    // service binding should exist before anything that might check it).
+    if (options.jobSearchAiProviderBaseUrl) {
+      await seedJobSearchAiProviderChunk(runner, adminUserId, options.jobSearchAiProviderBaseUrl);
+    }
     await seedDataChunks(runner, adminUserId, exclude);
 
     if (options.level === "multi-user") {

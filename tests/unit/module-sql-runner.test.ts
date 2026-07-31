@@ -22,6 +22,13 @@ describe("validateModuleMigrationSql", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("accepts one data-only UPDATE for an idempotent module-owned migration", () => {
+    const result = validateModuleMigrationSql(
+      "UPDATE app.acme_widgets SET qty = 0 WHERE qty IS NULL;"
+    );
+    expect(result).toEqual({ ok: true, errors: [] });
+  });
+
   it("rejects two statements", () => {
     const result = validateModuleMigrationSql(
       "CREATE TABLE app.a (id uuid); CREATE TABLE app.b (id uuid);"
