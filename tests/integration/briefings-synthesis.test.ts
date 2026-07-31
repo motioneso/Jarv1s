@@ -98,7 +98,7 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
       id: "structured-row-synthesis-test",
       title: "STRUCTURED-ROW-CONTENT",
       category: "needs_action",
-      cacheMessageId: null
+      cacheMessageId: "opaque-cache-message"
     });
     const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
       repository.createDefinition(scopedDb, {
@@ -145,6 +145,31 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
     )![1]!;
     expect(trusted).not.toContain("STRUCTURED-ROW-CONTENT");
     expect(composed.structuredPayload.actionRows[0]?.title).toBe("STRUCTURED-ROW-CONTENT");
+  });
+
+  it("omits a structured row and count when its cache message id is missing", async () => {
+    const taskManifest = structuredRowManifest({
+      id: "structured-row-missing-cache-test",
+      title: "MISSING-CACHE-ROW",
+      category: "time_sensitive_info",
+      cacheMessageId: null
+    });
+    const definition = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      repository.createDefinition(scopedDb, {
+        title: "Missing cache row",
+        selectedToolNames: ["tasks.list"]
+      })
+    );
+    const composed = await dataContext.withDataContext(userAContext(), (scopedDb) =>
+      composeBriefing(
+        scopedDb,
+        definition,
+        { runKind: "manual", runId: "structured-row-missing-cache", now: new Date() },
+        { ...makeComposeDeps(undefined, [taskManifest]), sourceBehaviorPolicy: undefined }
+      )
+    );
+
+    expect(composed.structuredPayload.actionRows).toEqual([]);
   });
 
   it("persists and serializes structured payload without sourceMetadata duplication", async () => {

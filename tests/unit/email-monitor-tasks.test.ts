@@ -4,6 +4,7 @@ import type { DataContextDb } from "@jarv1s/db";
 import {
   DEFAULT_EMAIL_TASK_MODE,
   createEmailActionSubjectSignature,
+  emailActionResurfaceKey,
   resetAcceptedSuppression,
   emailSourceRef,
   emailTaskExternalKey,
@@ -11,6 +12,7 @@ import {
   parseEmailTaskMode,
   planEmailTasks,
   runEmailMonitor,
+  MONITOR_STATUS_PREF_KEY,
   type MonitorPreferencesPort,
   type RunEmailMonitorDeps,
   type EmailContextItem,
@@ -159,7 +161,7 @@ describe("planEmailTasks — candidate selection", () => {
     const highWithDue = item({
       actionability: "time_sensitive_info",
       confidence: 0.8,
-      suggestedTasks: [],
+      suggestedTasks: [{ title: "Check in for the flight", dueDate: null }],
       dueDate: "2026-07-05T00:00:00.000Z",
       subject: "Flight check-in closes tomorrow"
     });
@@ -171,7 +173,7 @@ describe("planEmailTasks — candidate selection", () => {
     });
     const planned = plan([highWithDue, lowConfidence], "suggest");
     expect(planned).toHaveLength(1);
-    expect(planned[0]?.title).toBe("Flight check-in closes tomorrow");
+    expect(planned[0]?.title).toBe("Check in for the flight");
   });
 
   it("skips candidates without a suggested task or due date, and confidence below 0.4", () => {
@@ -260,7 +262,7 @@ describe("planEmailTasks — subject suppression", () => {
           lastContextMessageKey: null
         }
       ],
-      resurfaceReasons: new Map([[signature, "due_tomorrow"]])
+      resurfaceReasons: new Map([[emailActionResurfaceKey(signature, "msg-1"), "due_tomorrow"]])
     });
     expect(planned).toHaveLength(1);
     expect(planned[0]?.suggestionMetadata.resurfaceReason).toBe("due_tomorrow");
@@ -277,7 +279,9 @@ describe("planEmailTasks — subject suppression", () => {
           lastContextMessageKey: null
         }
       ],
-      resurfaceReasons: new Map([[signature, "relevant_context"]])
+      resurfaceReasons: new Map([
+        [emailActionResurfaceKey(signature, "new-message"), "relevant_context"]
+      ])
     });
     expect(planned[0]?.suggestionMetadata.resurfaceReason).toBe("relevant_context");
   });
@@ -503,13 +507,12 @@ describe("planEmailTasks — output shape", () => {
     ]);
   });
 
-  it("uses the subject as the title when only a due date qualifies the item", () => {
+  it("rejects an item with only a due date and no guarded title", () => {
     const planned = plan(
       [item({ suggestedTasks: [], dueDate: "2026-07-06T00:00:00.000Z" })],
       "suggest"
     );
-    expect(planned).toHaveLength(1);
-    expect(planned[0]?.title).toBe("Budget approval needed");
+    expect(planned).toEqual([]);
   });
 
   it("bounds the description at 600 chars and never emits a planted body", () => {
@@ -523,8 +526,106 @@ describe("planEmailTasks — output shape", () => {
     expect(planned[0]?.description?.includes("FULL PRIVATE BODY")).toBe(false);
   });
 
-  it("falls back to the summary when there is no reason", () => {
+  it("uses fixed authored copy when there is no guarded reason", () => {
     const planned = plan([item({ reason: null })], "suggest");
-    expect(planned[0]?.description).toBe("Approve the Q3 budget by Friday");
+    expect(planned[0]?.description).toBe("This email may need your attention.");
+    expect(planned[0]?.description).not.toBe(item().summary);
+  });
+});
+
+describe("runEmailMonitor — suppression read failures and message-scoped evidence", () => {
+  it("fails closed and persists degraded status when suppression read fails", async () => {
+    const prefs = new Map<string, unknown>();
+    let createCalls = 0;
+    const deps: RunEmailMonitorDeps = {
+      sourceContext: {
+        listEmailContext: async () => ({ items: [item()], accounts: [], gaps: [] })
+      },
+      taskPort: {
+        create: async () => {
+          createCalls += 1;
+          return { id: "unexpected" };
+        }
+      },
+      preferencesRepository: {
+        get: async () => null,
+        upsert: async (_db, key, value) => {
+          prefs.set(key, value);
+        }
+      },
+      suppressionRepository: {
+        list: async () => {
+          throw new Error("private subject content");
+        },
+        recordContextEvidence: async () => undefined,
+        recordDeadlineEvidence: async () => undefined
+      },
+      now: () => new Date(NOW)
+    };
+
+    await expect(runEmailMonitor(DB, "acct-1", deps)).resolves.toEqual({
+      planned: 0,
+      created: 0,
+      degraded: true
+    });
+    expect(createCalls).toBe(0);
+    expect(prefs.get(MONITOR_STATUS_PREF_KEY("acct-1"))).toMatchObject({
+      status: "degraded",
+      planned: 0,
+      created: 0
+    });
+  });
+
+  it("resurfaces only the due message when same-subject siblings share a signature", async () => {
+    let lastDeadlineEvidenceKey: string | null = null;
+    const createdTitles: string[] = [];
+    const suppression: EmailActionSuppressionSnapshot = {
+      subjectSignature: createEmailActionSubjectSignature("Budget approval"),
+      dismissalCount: 2,
+      lastDeadlineEvidenceKey: null,
+      lastContextMessageKey: null
+    };
+    const deps: RunEmailMonitorDeps = {
+      sourceContext: {
+        listEmailContext: async () => ({
+          items: [
+            item({
+              messageKey: "due-message",
+              dueDate: "2026-07-05T12:00:00.000Z",
+              suggestedTasks: [{ title: "Approve due budget", dueDate: null }]
+            }),
+            item({
+              messageKey: "no-due-message",
+              suggestedTasks: [{ title: "Review related budget", dueDate: null }]
+            })
+          ],
+          accounts: [],
+          gaps: []
+        })
+      },
+      taskPort: {
+        create: async (_db, input) => {
+          createdTitles.push(input.title);
+          return { id: input.externalKey };
+        }
+      },
+      preferencesRepository: { get: async () => null, upsert: async () => undefined },
+      suppressionRepository: {
+        list: async () => [{ ...suppression, lastDeadlineEvidenceKey }],
+        recordContextEvidence: async () => undefined,
+        recordDeadlineEvidence: async (_db, _signature, key) => {
+          lastDeadlineEvidenceKey = key;
+        }
+      },
+      now: () => new Date(NOW)
+    };
+
+    expect(await runEmailMonitor(DB, "acct-1", deps)).toMatchObject({ planned: 1, created: 1 });
+    expect(createdTitles).toEqual(["Approve due budget"]);
+    expect(lastDeadlineEvidenceKey).toBe("deadline:2026-07-05T12:00:00.000Z");
+    createdTitles.length = 0;
+
+    expect(await runEmailMonitor(DB, "acct-1", deps)).toMatchObject({ planned: 0, created: 0 });
+    expect(createdTitles).toEqual([]);
   });
 });

@@ -9,6 +9,7 @@ import { localDay } from "@jarv1s/shared";
 import { EmailActionSuppressionRepository } from "./action-suppression-repository.js";
 import {
   createEmailActionSubjectSignature,
+  emailActionResurfaceKey,
   type EmailActionSuppressionState
 } from "./source-context/email-tasks.js";
 import type { ActionRowRelevancePort } from "./action-row-relevance.js";
@@ -188,7 +189,7 @@ export async function runEmailMonitor(
   const accountResult = result.accounts.find(
     (a) => a.account.connectorAccountId === connectorAccountId
   );
-  const degraded = accountResult
+  const sourceDegraded = accountResult
     ? accountResult.source === "cache" || accountResult.degradedReason !== null
     : false;
 
@@ -203,10 +204,19 @@ export async function runEmailMonitor(
       actionItems.map(subjectSignatureFor).filter((value): value is string => value !== undefined)
     )
   ];
-  const suppressionRows = deps.suppressionRepository
-    ? await deps.suppressionRepository.list(scopedDb, subjectSignatures)
-    : [];
-  const suppressionStates: EmailActionSuppressionState[] = [...suppressionRows];
+  let suppressionReadFailed = false;
+  let suppressionStates: EmailActionSuppressionState[] = [];
+  if (deps.suppressionRepository) {
+    try {
+      suppressionStates = await deps.suppressionRepository.list(scopedDb, subjectSignatures);
+    } catch (error) {
+      suppressionReadFailed = true;
+      logger.warn(
+        { stage: "suppression-read", name: error instanceof Error ? error.name : "UnknownError" },
+        "email monitor suppression read failed"
+      );
+    }
+  }
   const suppressionBySignature = new Map(
     suppressionStates.map((state) => [state.subjectSignature, state])
   );
@@ -215,14 +225,14 @@ export async function runEmailMonitor(
     await deps.preferencesRepository.get(scopedDb, "locale")
   );
 
-  for (const item of actionItems) {
+  for (const item of suppressionReadFailed ? [] : actionItems) {
     const signature = subjectSignatureFor(item);
     const state = signature ? suppressionBySignature.get(signature) : undefined;
     if (!signature || !state || state.dismissalCount < 2) continue;
 
     const deadlineKey = hasDueTomorrow(item, nowIso, actorTimeZone);
     if (deadlineKey !== null && deadlineKey !== state.lastDeadlineEvidenceKey) {
-      resurfaceReasons.set(signature, "due_tomorrow");
+      resurfaceReasons.set(emailActionResurfaceKey(signature, item.messageKey), "due_tomorrow");
       continue;
     }
 
@@ -246,11 +256,13 @@ export async function runEmailMonitor(
     if (deps.suppressionRepository) {
       await deps.suppressionRepository.recordContextEvidence(scopedDb, signature, contextKey);
     }
-    if (relevant) resurfaceReasons.set(signature, "relevant_context");
+    if (relevant) {
+      resurfaceReasons.set(emailActionResurfaceKey(signature, item.messageKey), "relevant_context");
+    }
   }
 
   const planned = planEmailTasks({
-    items: actionItems,
+    items: suppressionReadFailed ? [] : actionItems,
     mode,
     suppressionStates,
     resurfaceReasons,
@@ -258,7 +270,7 @@ export async function runEmailMonitor(
   });
 
   let created = 0;
-  const deadlineEvidenceToRecord = new Set<string>();
+  const deadlineEvidenceToRecord = new Map<string, string>();
   for (const task of planned) {
     try {
       await deps.taskPort.create(scopedDb, {
@@ -274,9 +286,7 @@ export async function runEmailMonitor(
       });
       created += 1;
       if (task.suggestionMetadata.resurfaceReason === "due_tomorrow") {
-        deadlineEvidenceToRecord.add(
-          `${task.suggestionMetadata.subjectSignature}:${task.dueAt ?? ""}`
-        );
+        deadlineEvidenceToRecord.set(task.suggestionMetadata.subjectSignature, task.dueAt ?? "");
       }
     } catch (error) {
       // Sanitized: never the task title or error message (may echo subject lines).
@@ -288,10 +298,7 @@ export async function runEmailMonitor(
   }
 
   if (deps.suppressionRepository) {
-    for (const evidence of deadlineEvidenceToRecord) {
-      const separator = evidence.indexOf(":");
-      const signature = evidence.slice(0, separator);
-      const dueAt = evidence.slice(separator + 1);
+    for (const [signature, dueAt] of deadlineEvidenceToRecord) {
       await deps.suppressionRepository.recordDeadlineEvidence(
         scopedDb,
         signature,
@@ -304,11 +311,15 @@ export async function runEmailMonitor(
     scopedDb,
     deps.preferencesRepository,
     connectorAccountId,
-    degraded ? "degraded" : "ok",
+    sourceDegraded || suppressionReadFailed ? "degraded" : "ok",
     nowIso,
     { planned: planned.length, created }
   );
-  return { planned: planned.length, created, degraded };
+  return {
+    planned: planned.length,
+    created,
+    degraded: sourceDegraded || suppressionReadFailed
+  };
 }
 
 export interface RunCalendarMonitorDeps {

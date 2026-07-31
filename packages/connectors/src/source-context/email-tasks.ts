@@ -29,6 +29,7 @@ const TIME_SENSITIVE_CONFIDENCE_FLOOR = 0.7;
 const AUTO_SAFE_TODO_CONFIDENCE = 0.75;
 const AUTO_TODO_CONFIDENCE = 0.6;
 const DUE_SOON_WINDOW_MS = 48 * 60 * 60 * 1000;
+const DEFAULT_EMAIL_TASK_DESCRIPTION = "This email may need your attention.";
 
 export interface EmailTaskCreationPort {
   create(
@@ -60,6 +61,11 @@ export type EmailActionResurfaceReason = "due_tomorrow" | "relevant_context";
 export function createEmailActionSubjectSignature(inferredSubject: string): string {
   const normalized = inferredSubject.trim().toLowerCase().replace(/\s+/g, " ");
   return createHash("sha256").update(`email-action-subject::${normalized}`).digest("hex");
+}
+
+/** Resurfacing is evidence for one cached message, never every message sharing a subject. */
+export function emailActionResurfaceKey(subjectSignature: string, messageKey: string): string {
+  return `${subjectSignature}:${messageKey}`;
 }
 
 /**
@@ -111,6 +117,7 @@ export interface PlanEmailTasksInput {
     accepted: number;
   }[];
   readonly suppressionStates?: readonly EmailActionSuppressionState[];
+  /** Keys are emailActionResurfaceKey(subjectSignature, messageKey). */
   readonly resurfaceReasons?: ReadonlyMap<string, EmailActionResurfaceReason>;
   /** Injected clock (ISO) — keeps the planner pure and the due-soon priority testable. */
   readonly now: string;
@@ -144,7 +151,7 @@ export function planEmailTasks(input: PlanEmailTasksInput): PlannedEmailTask[] {
 
   for (const item of input.items) {
     if (!isCandidateActionability(item)) continue;
-    if (item.suggestedTasks.length === 0 && item.dueDate === null) continue;
+    if (item.suggestedTasks.length === 0) continue;
 
     const confidence = item.confidence;
     if (confidence < CONFIDENCE_FLOOR) continue;
@@ -156,17 +163,13 @@ export function planEmailTasks(input: PlanEmailTasksInput): PlannedEmailTask[] {
     if (subjectSignature === undefined) continue;
     const suppression = subjectSignature ? suppressions.get(subjectSignature) : undefined;
     const resurfaceReason = subjectSignature
-      ? input.resurfaceReasons?.get(subjectSignature)
+      ? input.resurfaceReasons?.get(emailActionResurfaceKey(subjectSignature, item.messageKey))
       : undefined;
     if ((suppression?.dismissalCount ?? 0) >= 2 && !resurfaceReason) continue;
     if (item.cacheMessageId === null) continue;
     const description = boundedDescription(item);
     if (description === null) continue;
-
-    const candidates =
-      item.suggestedTasks.length > 0
-        ? item.suggestedTasks
-        : [{ title: item.subject, dueDate: null }];
+    const candidates = item.suggestedTasks;
 
     for (const candidate of candidates) {
       if (candidate.title.trim().length === 0) continue;
@@ -240,6 +243,6 @@ function priorityFor(item: EmailContextItem, dueAt: string | null, nowMs: number
 }
 
 function boundedDescription(item: EmailContextItem): string | null {
-  const text = item.reason ?? item.summary;
-  return text === null ? null : text.slice(0, MAX_DESCRIPTION_CHARS);
+  const text = item.reason?.trim();
+  return text ? text.slice(0, MAX_DESCRIPTION_CHARS) : DEFAULT_EMAIL_TASK_DESCRIPTION;
 }

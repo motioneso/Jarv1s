@@ -102,6 +102,9 @@ export function projectActionRows(tasks: readonly unknown[]): ActionRowCollectio
       const task = taskShape(item);
       if (!task || task.sourceRef === null || task.sourceRef.length === 0) return [];
       const metadata = task.suggestionMetadata;
+      if (metadata.cacheMessageId === null || metadata.cacheMessageId.trim().length === 0) {
+        return [];
+      }
       const action = primaryAction(metadata);
       if (!action && metadata.category === "needs_reply") return [];
       return [
@@ -170,10 +173,8 @@ export async function gatherActionRows(
   } catch (error) {
     deps.logger?.error(
       {
-        event: "briefing_tool_failed",
-        tool: "tasks.list",
-        error: error instanceof Error ? error.name : "UnknownError",
-        message: error instanceof Error ? error.message.slice(0, 200) : "task list failed"
+        stage: "action-row-gather",
+        name: error instanceof Error ? error.name : "UnknownError"
       },
       "briefing action-row gather failed"
     );

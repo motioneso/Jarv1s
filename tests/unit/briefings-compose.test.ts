@@ -17,7 +17,11 @@ import {
   runInput
 } from "./briefings-compose.harness.js";
 import { composeEveningBriefing } from "../../packages/briefings/src/compose-evening.js";
-import { buildEmailCatchUp, projectActionRows } from "../../packages/briefings/src/action-rows.js";
+import {
+  buildEmailCatchUp,
+  gatherActionRows,
+  projectActionRows
+} from "../../packages/briefings/src/action-rows.js";
 
 describe("composeBriefing — gathering", () => {
   it("gathers sections in fixed priority order and assembles a prompt", async () => {
@@ -925,6 +929,25 @@ describe("composeBriefing — structured action rows", () => {
     const result = projectActionRows([
       { id: "missing-source", sourceRef: null, suggestionMetadata: null },
       {
+        id: "missing-cache",
+        title: "No cache",
+        description: null,
+        dueAt: null,
+        updatedAt: null,
+        source: "email",
+        sourceRef: "acct:missing-cache",
+        suggestionMetadata: {
+          version: 1,
+          category: "time_sensitive_info",
+          sourceLabel: "Gmail",
+          sourceHref: "https://mail.example.test/thread",
+          cacheMessageId: null,
+          subjectSignature: "sig-missing-cache",
+          computedAt: FIXED_NOW.toISOString(),
+          resurfaceReason: null
+        }
+      },
+      {
         id: "missing-link",
         title: "No link",
         description: null,
@@ -952,6 +975,23 @@ describe("composeBriefing — structured action rows", () => {
       sourceHref: null
     });
     expect(result.sourceRefs).toEqual(new Set(["acct:message"]));
+  });
+
+  it("logs only the action-row stage and error class when tasks.list fails", async () => {
+    const logs: unknown[][] = [];
+    const deps = {
+      ...makeFakeDeps({ failTool: "tasks.list" }),
+      logger: { error: (...args: unknown[]) => logs.push(args) }
+    } as unknown as ComposeDeps;
+    const gaps: Parameters<typeof gatherActionRows>[4] = [];
+
+    const result = await gatherActionRows(fakeScopedDb, definition(), runInput, deps, gaps);
+
+    expect(result.payload.actionRows).toEqual([]);
+    expect(gaps).toEqual([{ source: "action_rows", reason: "tool_failed" }]);
+    expect(logs[0]?.[0]).toEqual({ stage: "action-row-gather", name: "Error" });
+    expect(JSON.stringify(logs)).not.toContain("message");
+    expect(JSON.stringify(logs)).not.toContain("private");
   });
 
   it("builds bounded email-only catch-up from guarded summaries", async () => {
