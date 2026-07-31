@@ -200,16 +200,13 @@ HTML description to plain text and stores it. Two gaps are corrected:
 
 1. `job-search.match.get` returns the stored body with the existing one-match detail response.
 2. LinkedIn search cards contain no description, so the adapter fetches the public job-detail
-   fragment for each posting selected for full scoring, converts its description HTML to plain text
-   with the existing adapter logic, and stores it before scoring.
+   fragment when an inspector requests an empty-body LinkedIn posting, converts its description HTML
+   to plain text with the existing adapter logic, and stores it.
 
-Existing LinkedIn rows with an empty body are handled lazily: opening `match.get` performs one
-bounded public-detail enrichment and persists the body on success. The next read reuses the stored
-text. The fetch remains subject to the existing deadline, host allowlist, auth-wall stop, and
-structured failure rules; it never signs in or works around a login wall.
-
-The scoring pass uses the enriched body when it is available. This improves both the displayed
-description and the evidence used for Fit/Want without creating a second copy of the posting.
+This lazy path covers both existing and future LinkedIn rows without adding one detail request for
+every search result during a crawl. The next read reuses the stored text. The fetch remains subject
+to the existing deadline, host allowlist, auth-wall stop, and structured failure rules; it never
+signs in or works around a login wall.
 
 The inspector becomes one readable column:
 
