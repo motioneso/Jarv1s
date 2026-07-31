@@ -33,6 +33,8 @@ sign-off, and the user-facing live-path proof below.
   lowercasing, and collapsing whitespace, then SHA-256 hash it with a fixed namespace, matching
   the `createMemoryFactSignature()` pattern. No embeddings or similarity suppression.
 - Two dismissals suppress the subject. Volume never resurfaces it.
+- Accepting a row clears that subject's dismissal count back to zero. A subject the actor has
+  demonstrably chosen must never sit one dismissal away from permanent suppression.
 - A suppressed subject may return only for:
   1. a deadline newly entering “due tomorrow” in the actor's timezone; or
   2. a new message on the thread whose inferred subject matches relevant ingested Obsidian notes
@@ -258,7 +260,12 @@ Dismiss must update task status and increment the matching subject state in the 
 `withDataContext()` transaction through a structural `SuggestionSuppressionPort` supplied by the
 composition root. The tasks module knows only that public port; it never imports connector
 repositories. Repeating a request against an already archived task must not increment again.
-Accept does not change suppression state in v1.
+
+Accept must reset the matching subject state in that same `withDataContext()` transaction, through
+the same `SuggestionSuppressionPort`: set `dismissal_count` to `0` and clear
+`last_deadline_evidence_key` and `last_context_message_key` so the subject starts clean. An accept
+on a subject with no suppression row is a no-op, never an insert. Repeating accept against an
+already accepted task must not reset again.
 
 Deadline trigger:
 
@@ -288,8 +295,8 @@ Context trigger:
 
 Resurfacing is an explicit task-port operation: it may transition the matching archived task back
 to `suggested` or create the new-message task as `suggested`, refresh typed metadata, and set the
-deterministic reason. It may not reset `dismissal_count`. The same evidence therefore cannot beat a
-second dismissal.
+deterministic reason. It may not reset `dismissal_count` — the same evidence therefore cannot beat a
+second dismissal. An explicit Accept is the only thing that resets the counter.
 
 ## 7. Structured payload beside prose
 
@@ -486,6 +493,8 @@ Tests:
 - `tests/unit/email-monitor-tasks.test.ts` —
   `suppresses exact subject after two dismissals and ignores volume`
 - `tests/unit/email-monitor-tasks.test.ts` —
+  `accept clears the subject dismissal count and used evidence keys`
+- `tests/unit/email-monitor-tasks.test.ts` —
   `resurfaces once for new due-tomorrow evidence`
 - `tests/unit/email-monitor-tasks.test.ts` —
   `evaluates relevance only for a new message and fails closed`
@@ -614,6 +623,7 @@ explanation, inferred subject, summary, body, prompt, note text, memory text, or
 8. Counts include only emitted, confidence-cleared, currently outstanding rows.
 9. Row freshness reflects monitor/sync computation time, not briefing creation time.
 10. Exact normalized-subject suppression holds after two dismissals; volume never resurfaces.
+    Accepting a row resets that subject's dismissal count and used evidence keys to a clean state.
 11. Deadline and relevant-context evidence each resurface once, state why, and cannot replay the
     same evidence after another dismissal.
 12. Catch-up is email-only, exact-counted, bounded, and contains only previously body-echo-guarded
@@ -650,7 +660,11 @@ explanation, inferred subject, summary, body, prompt, note text, memory text, or
 
 - Reply uses `openChatWith`, not editable `openAssistantWithDraft`, because the existing downstream
   confirmation card remains the user review gate and this avoids a second compose UX.
-- Accept does not clear prior subject dismissals in v1.
+- Accept clears prior subject dismissals (Ben's ruling, 2026-07-30). A dismiss is a mute, and a
+  suppressed subject can legitimately come back through the deadline or relevant-context triggers —
+  so an actor really can see and accept something they previously muted. If the counter survived
+  that accept, a subject they have just demonstrably chosen would be one dismissal away from
+  permanent deletion. Accept therefore resets the count; the evidence triggers still do not.
 - Catch-up is deterministic over guarded per-message summaries rather than a second LLM call.
 - A relevance error keeps the mute instead of guessing.
 - Email providers without a stable source link do not contribute rows in v1.
