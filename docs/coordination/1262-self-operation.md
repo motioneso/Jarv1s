@@ -5456,3 +5456,32 @@ Ben's failure-budget ruling.
 **Failure budget reopened by Ben.** The build lane is authorized to fix blockers 2–5 only; the
 spec-aligned Reply behavior remains unchanged. It must push narrow commits, run a fresh unpiped
 exclusive full gate, update PR #1376, and return to fresh `gpt-5.6-sol high` review before merge.
+
+### 2026-07-31 — continuation relay while final fix gate is running
+
+The build lane implemented blockers 2–5 only and kept the coordinator's spec-aligned Reply ruling
+unchanged. PR #1376 / `build/1327-core` is pushed clean at
+`4249b98013ad21395ae77a12667049820cc4c3e3`; origin matched when the builder reported. The PR has
+final implementation evidence at
+<https://github.com/motioneso/Jarv1s/pull/1376#issuecomment-5146010115>.
+
+The required fresh unpiped exclusive gate is still running. Its log is
+`/tmp/jarv1s-gate/build_1327_core-20260731-110424.log`; PID was `601091`; the latest bounded pane
+read still showed `RUNNING`. Do not accept the lane as green until
+`scripts/run-gate.sh wait --timeout 60` returns the exact terminal sentinel `### FINAL rc=0`.
+Do not start another gate and do not pipe its output.
+
+After terminal green: independently confirm head/tree/required PR checks and the four fixes, then
+create a fresh detached QA worktree at `4249b980` and launch a fresh lowercase Codex pane using
+`codex -s danger-full-access -a never -m gpt-5.6-sol -c model_reasoning_effort=high`. Reuse
+`docs/coordination/1327-qa-security-brief.md` verbatim while preserving the durable blocker-1
+ruling. Sol approval plus coordinator concurrence authorizes squash-merge without returning to
+Ben. Re-confirm the coordinator session lock immediately before merge; merge without
+`--delete-branch`, then delete the remote branch separately.
+
+**Relay reason:** the incoming coordinator context contained a compaction summary, firing the
+`coordinate` skill's mandatory tripwire before gate monitoring could continue. At relay time there
+was exactly one active `Coordinator`: Codex session
+`019fb8fb-32b8-7d41-9156-d9d5c2883d30`, pane label `Coordinator`. The build lane resolved fresh as
+Codex session `019fb5b0-47b2-7bf2-88a3-c7f15767d17e`, worktree
+`~/Jarv1s/.claude/worktrees/build-1327-core`, status `working`.
