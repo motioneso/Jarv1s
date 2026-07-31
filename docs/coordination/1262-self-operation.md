@@ -5349,3 +5349,44 @@ Unchanged because they are separate decisions rather than merge sign-off: sol st
 to the PR with `gh pr comment` (durable evidence that survives a coordinator relay), and a red
 required CI check still blocks — waiving one needs Ben under the standing waiver protocol. This
 ruling covers #1376 only and does not extend to the Tasks 6-7 lane.
+
+### 2026-07-31 — PR #1376 REJECTED by security review
+
+Reviewer: `gpt-5.6-sol high`, Codex pane `w1:p151`, isolated worktree
+`.claude/worktrees/qa-1327-core` detached at `d4c7d734`. Verdict posted to the PR
+(`gh pr view 1376 --json comments -q '.comments[-1].body'`). **CI was fully green** — every finding
+is substance, not mechanics. The coordinator concurs with all six, so under the two-party consensus
+rule the PR does not merge.
+
+Five code defects, relayed to `w1:p14Y`:
+
+1. `source-context/email-tasks.ts:166-169,242-244` — falls back to raw `item.subject` as the
+   displayed title and to the model summary as the explanation, bypassing the locked guarded-field
+   rule (spec §5). `tests/unit/email-monitor-tasks.test.ts:506-528` encodes the wrong behaviour.
+2. `briefings/action-rows.ts:46-57,98-107` — emits and counts a `needs_action`/`time_sensitive_info`
+   row with `cacheMessageId: null`. The rule is category-independent; `no cache ID → no row, no
+   count`. `tests/integration/briefings-synthesis.test.ts:95-147` protects the wrong behaviour.
+3. `monitor-jobs.ts:206-208` — a `suppressionRepository.list()` failure rejects the whole monitor
+   run; §10 requires failing closed for suppressed candidates while the monitor **continues**.
+4. `monitor-jobs.ts:213-225,249-258,276-299` — resurfacing keyed on subject signature alone, so one
+   due-tomorrow message resurfaces every unrelated same-subject message, and a no-due sibling can
+   rewrite the deadline evidence key and replay it next run.
+5. `briefings/action-rows.ts:170-177` — writes arbitrary tool `error.message` to the structured
+   logger, violating the private-data-never-in-logs invariant.
+
+The sixth finding is an **evidence gap, not a code defect, and the coordinator ruled against
+reverting the flag.** `GMAIL_ACTION_LINKS_ENABLED` stays `true`: Ben verified the generated link
+against his real account on 2026-07-30 and it opened the correct conversation. That verification is
+real; it was simply never recorded on the PR, and the PR body still claims the flag is off pending
+his confirmation. The lane fixes the stale body and posts the verification plus the `/u/0`
+limitation — conclusion only, no mailbox content.
+
+Sol's non-blocking notes confirmed three things are correct and need no rework: account-scoped cache
+keying with its two-account collision proof, linkless rows emitting `primaryAction: null` with the
+link builder unweakened, and `inferredSubject` passing `safeSignalStr()` and the cumulative
+reconstruction guard.
+
+**Continuation:** lane is fixing all six. On its next report, re-verify then re-review — sol's pane
+was at 27% context when it posted, so the re-review likely needs a fresh pane on the same brief
+(`scratchpad/qa-1376-brief.md`, reproduce it if the scratchpad is gone). Merge gate is unchanged:
+sol approves **and** the coordinator concurs.
