@@ -5608,3 +5608,14 @@ feature code. Successor `action-row-ui-successor`, Claude session
 building Task 6 test-first in the same worktree/branch. Predecessor session
 `35c02a98-aa09-4b65-9de5-cd4fecdc4bcc` was resolved fresh by session id and reaped. Next checkpoint:
 Task 6 unit plus phase gate must be green before Task 7 begins.
+
+### 2026-07-31 — Task 6 finish-line re-dispatch
+
+Two focused relay contexts exhausted themselves on orientation before code; a third background
+successor then wrote the Task 6 tests and implementation into the worktree. Parent session
+`c7627525-0987-4761-95cc-4e0323ab3f25` ended on a background-wait/compaction loop after its gate
+subprocess stopped, so the coordinator preserved the dirty tree and reaped that spent pane. Fresh
+finish-line agent `action-row-ui-gate`, Claude session `28647b5a-b241-4f3c-9077-611138042bd6`, is
+verified on Sonnet with bypass permissions. Its only scope is to run/fix the Task 6 focused tests,
+full unit/lint/format gates, commit explicit Task 6 paths, and report exit codes. Task 7 remains
+blocked on that kill gate.
