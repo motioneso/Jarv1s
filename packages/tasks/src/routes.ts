@@ -314,15 +314,16 @@ export function registerTasksRoutes(
                   title: row.title
                 });
               } catch (feedbackError) {
-                // Failure-isolated, but when it succeeds status and suppression share this transaction.
-                if (subjectSignature !== null) throw feedbackError;
-                request.log.warn(
-                  {
-                    stage: "email-triage-feedback",
-                    name: feedbackError instanceof Error ? feedbackError.name : "UnknownError"
-                  },
-                  "email triage feedback recording failed"
-                );
+                // Signed feedback failures must abort the transaction, but never expose raw
+                // email/error content through the shared route-error logger.
+                const failure = {
+                  stage: "email-triage-feedback",
+                  name: feedbackError instanceof Error ? feedbackError.name : "UnknownError"
+                };
+                request.log.warn(failure, "email triage feedback recording failed");
+                if (subjectSignature !== null) {
+                  throw new HttpError(500, "Internal server error");
+                }
               }
             }
             return {
