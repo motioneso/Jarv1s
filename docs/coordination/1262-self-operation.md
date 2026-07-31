@@ -5508,3 +5508,11 @@ worktree `~/Jarv1s/.claude/worktrees/qa-1327-core` at exact head `3747c626`, usi
 high`, Codex session `019fb993-5679-72a2-a173-e4dd0a2f6cee`. It was instructed to execute
 `docs/coordination/1327-qa-security-brief.md` verbatim, preserve the durable blocker-1 ruling, post
 its verdict to PR #1376, and return only the compact verdict pointer to `Coordinator`.
+
+QA returned `RED` at exact head `3747c626`; durable verdict:
+<https://github.com/motioneso/Jarv1s/pull/1376#issuecomment-5146607695>. The coordinator concurs: one
+scalar deadline key and one scalar context-message key per subject lose sibling consumption, so
+consumed evidence can replay. This is the lane's third security rejection, exceeding the two-cycle
+failure budget. Lane status is `stopped-awaiting-Ben`; builder was told to make no further changes.
+PR, branch, and build worktree remain preserved and unmerged. The decision is parked in
+`docs/coordination/AWAITING-BEN.md` item 9.

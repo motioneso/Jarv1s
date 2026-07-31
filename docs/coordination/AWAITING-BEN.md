@@ -1,10 +1,21 @@
 # Awaiting Ben — parking lot
 
 Decisions that need Ben and must not be silently resolved by an agent. Coordinator keeps this
-current. **Item 8 blocks the merge of both #1264 and #1265** — it is the only item here that gates a
-merge, and it arrived late; everything else lets its lane keep building.
+current. **Items 8 and 9 gate security-tier merges**; everything else lets its lane keep building.
 
-_Last updated: 2026-07-27, during epic #1262 (module self-operation)._
+_Last updated: 2026-07-31, during issue #1327 coordination._
+
+## 9. #1371 / PR #1376 exhausted its security-QA failure budget
+
+Fresh `gpt-5.6-sol high` QA rejected exact head `3747c626` after green CI and an exclusive green
+local gate. Durable verdict: <https://github.com/motioneso/Jarv1s/pull/1376#issuecomment-5146607695>.
+The monitor records one scalar deadline key and one scalar context-message key per subject, so
+multiple same-subject children overwrite consumed evidence and can replay it on a later run.
+
+This is the lane's third security rejection, past the coordinator's two-cycle failure budget. The
+lane is stopped; PR, branch `build/1327-core`, and worktree `~/Jarv1s/.claude/worktrees/build-1327-core`
+are preserved. Ben's explicit decision is required: authorize one more bounded fix + fresh security
+QA cycle, or stop/split the lane. No merge is permitted on the current head.
 
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
