@@ -101,6 +101,13 @@ environment hold is released now that terminal aggregates are captured; the reta
 constructing a deterministic integration repro for the gap between green `e34edca6` coverage and
 the live zero-projection result. No further sync, QA, or merge before a root-cause fix and new proof.
 
+The deterministic integration RED now matches the live symptom: sync succeeds with one upsert and
+no errors, but genuine task count is 0 when the model router falls back from requested `economy` to
+an available `interactive` model. The older green test hard-coded an `economy` selection and missed
+this production composition. H1 is being tested first: the shared extractor appears to reject the
+router's valid fallback solely because its selected tier differs. No live retry, QA, or merge before
+RED→GREEN and corrected-worker proof.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged

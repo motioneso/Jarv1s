@@ -5921,3 +5921,13 @@ is constructing a deterministic integration repro that explains why `e34edca6` i
 post-migration live path still projects nothing; fixtures and sanitized aggregates only, no private
 content. No further sync, QA, or merge before root cause, RED→GREEN, corrected environment restart,
 and authenticated proof.
+
+Deterministic RED now matches the live symptom in
+`tests/integration/email-sync-monitor-pipeline.test.ts`: sync succeeds with one upsert, zero
+failures/errors, `truncated=false`, but genuine email task count is 0 instead of 1. The single
+fixture change from the old green test is router-selected tier `interactive` instead of hard-coded
+`economy`. Ranked H1: production economy capability falls back to an available non-economy model,
+then the shared extractor rejects the valid selection on strict tier equality and returns metadata-
+only. Builder is probing H1 with actor-scoped tier/aggregate evidence only; if confirmed, fix once
+at the shared extractor and prove both economy and fallback paths. No private content, live sync,
+QA, or merge.
