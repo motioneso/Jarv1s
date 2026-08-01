@@ -5912,3 +5912,12 @@ Ben re-authenticated and the retry returned 202 with `enqueued=true`, `deduped=f
 retained builder is monitoring sanitized aggregate sync/projection outcomes only. Ben should keep
 `/today` open and not refresh until the coordinator says **refresh now**. QA and merge remain
 blocked on the genuine row interaction artifact.
+
+Authenticated job `0dc25817-6f06-4691-84e0-fddaac7dc488` completed after 365 seconds: calendar
+upserts 14, email upserts 1,450, email failures 0, `truncated=false`, errors empty. Live projection
+is RED: suggested rows created during sync 0 and genuine suggested rows now 0. Ben must not refresh.
+The unrelated environment HOLD may clear because terminal aggregates are captured. Retained builder
+is constructing a deterministic integration repro that explains why `e34edca6` is green while the
+post-migration live path still projects nothing; fixtures and sanitized aggregates only, no private
+content. No further sync, QA, or merge before root cause, RED→GREEN, corrected environment restart,
+and authenticated proof.

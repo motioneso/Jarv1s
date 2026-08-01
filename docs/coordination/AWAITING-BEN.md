@@ -94,6 +94,13 @@ Ben re-authenticated and the retry returned 202 with `enqueued=true`, `deduped=f
 retained builder is monitoring sanitized aggregate status and genuine suggested-row count only.
 Keep `/today` open and do not refresh until the coordinator says **refresh now**.
 
+That job completed after 365 seconds with calendar upserts 14, email upserts 1,450, email failures
+0, `truncated=false`, and no job errors. The live claim is still RED: projection created zero
+suggested rows and no genuine suggested row exists. Ben should **not refresh**. The unrelated
+environment hold is released now that terminal aggregates are captured; the retained builder is
+constructing a deterministic integration repro for the gap between green `e34edca6` coverage and
+the live zero-projection result. No further sync, QA, or merge before a root-cause fix and new proof.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged
