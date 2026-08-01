@@ -5757,3 +5757,31 @@ separate Job Search lane. The sole live worker is now rooted at
 must not be published without explicit authorization. Before any further #1327 connector enqueue,
 coordinate that worker's pause and restart the #1327 worker at `6d9c50f4` so stale/cross-branch code
 cannot consume the job. The #1327 action-row live gate remains open.
+
+### 2026-08-01 — recent-email triage root cause fixed; coordinator relaying
+
+Ben clarified the product contract: starring is irrelevant; every recent email loaded by sync must
+be evaluated automatically for actionability. The retained builder pushed `08916cf8`
+(`fix(connectors): re-evaluate incomplete email triage`) to PR #1379. A focused sync→monitor
+integration reproduced the bug RED (expected exit 1): an upserted recent actionable email reused a
+cached summary and produced planned 0 / created 0 because actionable extraction never ran. The fix
+reuses the summary but re-runs extraction when triage fields/tasks remain incomplete. The focused
+pipeline is GREEN (exit 0), as are related source-context/monitor units, Google sync/source-context
+integrations, targeted ESLint, and targeted Prettier.
+
+Live topology still needs isolation before the next authenticated enqueue: #1327 worker process
+group `131437` is rooted at `~/Jarv1s/.claude/worktrees/1327-action-row-ui` on exact HEAD
+`08916cf8`; an unrelated Job Search worker group `3698191` was also running and can race for jobs.
+Stop only group `3698191` (do not stop the Job Search API), verify #1327 is the sole worker, then
+have Ben repeat authenticated `POST /api/connectors/google/sync`. Monitor only sanitized aggregate
+sync and next email-monitor evidence; inspect no email content, identities, tokens, or credentials.
+Reload <http://100.64.98.99:5198/today> and capture the genuine row plus
+Accept/Dismiss/View/Reply→existing-confirmation, catch-up, and resurfacing evidence on PR #1379.
+No final sol-high security QA or merge before that live proof; merge remains explicitly Ben-gated.
+
+Compaction tripwire fired in coordinator session `019fba35-33aa-7a13-b6b0-f0c0cddead62`, so it is
+relaying immediately with no further live operation, QA, or merge. Successor: claim the
+`Coordinator` label with your own immutable session id, replace the top lock, verify exactly one
+active Coordinator, re-adopt retained builder session `019fba1b-72cc-7e73-a143-2be9edb4fe89`, and
+reap this old coordinator only after confirming you are driving. Resolve every pane fresh by
+label+session id; never trust a written pane number.

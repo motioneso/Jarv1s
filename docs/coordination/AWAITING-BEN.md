@@ -24,11 +24,9 @@ actionable inbound email; chat and ordinary task creation cannot manufacture the
 The full Accept/Dismiss/View/Reply proof remains blocked on that live-data precondition.
 
 Task 7 follow-up `6d9c50f4` removes the real Google/IMAP 50-message caps and Gmail's default
-10-page ceiling while retaining `newer_than:30d`; focused integration is 64/64 green, typecheck is
-green, and the worker was reloaded. Ben starred a genuine email. The unauthenticated terminal sync
-correctly returned 401, so Ben must enqueue `POST /api/connectors/google/sync` from his authenticated
-browser session, then allow the 15-minute email-monitor schedule to produce the real suggested row.
-No authenticated sync/row artifact means no final sol-high QA and no merge.
+10-page ceiling while retaining `newer_than:30d`; focused integration is 64/64 green and typecheck
+is green. Ben correctly clarified that starring is irrelevant: every recent email loaded by sync
+must be evaluated automatically for actionability.
 
 Ben's first authenticated enqueue returned 202, but the #1327 worker had exited SIGTERM and an
 orphaned build-1375 worker consumed both sync and monitor jobs with older capped code. Sanitized
@@ -38,10 +36,15 @@ once; that second enqueue is the valid live attempt.
 
 The second authenticated sync was consumed by the sole #1327 worker and **live-proves the cap
 removal**: success, 1,463 email upserts, 0 failures, `truncated=false`, retry 0. The first post-sync
-21:45 monitor also completed cleanly, but planned 0 / created 0 / genuine suggested rows 0. Gmail's
-starred label is persisted as source metadata but is not itself an actionability trigger. The full
-PR live gate still needs a genuinely actionable inbound request that the monitor projects into a
-row, followed by the Accept/Dismiss/View/Reply interaction artifact.
+21:45 monitor completed cleanly but produced planned 0 / created 0 / genuine suggested rows 0.
+Diagnosis found a real pipeline bug: cached sync summaries suppressed actionable extraction for
+recent emails whose triage fields/tasks were incomplete. Commit `08916cf8` (`fix(connectors):
+re-evaluate incomplete email triage`) reuses the cached summary while re-running actionable
+extraction for incomplete triage. The focused sync→monitor integration reproduced the failure RED
+(expected exit 1) and is GREEN after the fix (exit 0); related source-context/monitor units,
+Google-sync integrations, ESLint, and Prettier are green. The full PR live gate now needs one more
+authenticated sync under the sole corrected #1327 worker, then the real row plus
+Accept/Dismiss/View/Reply interaction artifact. No final sol-high QA or merge before that proof.
 
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
