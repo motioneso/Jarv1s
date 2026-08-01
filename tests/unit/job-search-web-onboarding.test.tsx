@@ -4,12 +4,16 @@
 // hardcoded local list) so a future step added there is exercised here for free, and so this
 // suite would fail if the screen ever hardcoded its own step list.
 import "./helpers/install-module-runtime";
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 
 import { ONBOARDING_STEPS } from "../../external-modules/job-search/src/domain/criteria";
-import type { AssistantSurfaceHandleV1 } from "../../external-modules/job-search/src/domain/seed-prompt";
+import {
+  buildSeedPrompt,
+  type AssistantSurfaceHandleV1
+} from "../../external-modules/job-search/src/domain/seed-prompt";
 import { OnboardingScreen } from "../../external-modules/job-search/src/web/screens/onboarding";
 import type { Profile } from "../../external-modules/job-search/src/web/use-profiles";
 
@@ -154,6 +158,43 @@ describe("OnboardingScreen", () => {
     // AssistantSurface (surface.tsx) renders no input box at all when `composer` is absent, so a
     // truthy `composer` prop is what makes this an actual chat rather than a read-only transcript.
     expect(rendered[0].props.composer).toBeTruthy();
+  });
+
+  it("sends every onboarding answer with profile guidance after a host restart", async () => {
+    let composer:
+      | { onSubmitText?: (text: string) => "handled" | "send"; placeholder?: string }
+      | undefined;
+    function SurfaceSpy(props: { composer?: typeof composer }) {
+      composer = props.composer;
+      return createElement("div");
+    }
+    const surface: AssistantSurfaceHandleV1 = {
+      setSurfaceKey: vi.fn(),
+      seedContext: vi.fn().mockResolvedValue(undefined),
+      seedComposer: vi.fn(),
+      Surface: SurfaceSpy,
+      submitTurn: vi.fn().mockResolvedValue(undefined)
+    };
+    const profileValue = profile({ completedSteps: ["role"] });
+    await renderScreen(profileValue, surface);
+
+    expect(composer?.onSubmitText?.("I want hands-on platform work")).toBe("handled");
+    expect(surface.submitTurn).toHaveBeenCalledWith({
+      text: "I want hands-on platform work",
+      controlContext: {
+        action: "continue-job-search-onboarding",
+        values: {
+          profileName: profileValue.name,
+          completedSteps: profileValue.completedSteps,
+          instructions: buildSeedPrompt(profileValue)
+        }
+      }
+    });
+  });
+
+  it("uses the same wide content cap as Profile", () => {
+    const css = readFileSync("external-modules/job-search/src/web/styles.css", "utf8");
+    expect(css).toMatch(/\.jsm-onb\s*{[^}]*max-width:\s*72rem/s);
   });
 
   it("with no assistantSurface, still renders chips and copy, and says the conversation is unavailable rather than throwing", async () => {

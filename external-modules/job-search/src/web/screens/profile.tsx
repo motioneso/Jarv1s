@@ -32,7 +32,6 @@ import { invokeTool, runQueue } from "../api";
 import type { Profile } from "../use-profiles";
 import type { BriefingDetail } from "../../domain/store-port.js";
 import type { SearchCriteria } from "../../domain/records.js";
-import type { AssistantSurfaceHandleV1 } from "../../domain/seed-prompt.js";
 import { FieldPair, SectionHead } from "../keyline";
 import { RESUME_GET_TOOL, ResumeSection, fetchResume, type ResumeState } from "./resume-editor";
 
@@ -267,7 +266,7 @@ function BriefingDetailSection(props: {
 // -------------------------------------------------------------------------------------------
 export interface ProfileScreenProps {
   profile: Profile;
-  assistantSurface?: AssistantSurfaceHandleV1;
+  onChangeInChat?: () => void;
   // A counter, bumped by the board's "Add résumé" button as it switches to this tab. Passed
   // straight down to the résumé editor, which opens itself whenever the value changes. Optional
   // because arriving here by clicking the Profile tab has no such intent.
@@ -346,18 +345,7 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
   return (
     <div className="jsm-settings jsm-settings--profile">
       <h2 className="jds-section-title">Profile</h2>
-      <LookingForSection
-        profile={profile}
-        state={criteria}
-        onChangeInChat={
-          props.assistantSurface
-            ? () =>
-                props.assistantSurface?.seedComposer(
-                  `I want to change the criteria for the "${profile.name}" job search.`
-                )
-            : undefined
-        }
-      />
+      <LookingForSection profile={profile} state={criteria} onChangeInChat={props.onChangeInChat} />
       <ContextSummarySection state={criteria} />
       <ResumeSection
         profileId={profile.profileId}

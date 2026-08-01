@@ -350,6 +350,8 @@ describe("job-search web Root", () => {
     const renderer = await renderRoot(hostActions(), surface);
 
     expect(renderer.root.findAllByType(SurfaceSpy)).toHaveLength(1);
+    expect(surface.setSurfaceKey).toHaveBeenCalledWith("surf-1");
+    expect(surface.seedContext).not.toHaveBeenCalled();
   });
 
   it("renders the real board screen for a profile with criteria", async () => {
@@ -668,10 +670,11 @@ describe("job-search web Root", () => {
       expect(text(renderer)).toMatch(/Senior Engineer/);
     });
 
-    it("threads the profile-scoped composer into Change in chat without submitting", async () => {
+    it("opens a visible profile-scoped draft from Change in chat without submitting", async () => {
       mockUseProfiles.mockReturnValue(ready([profile({ state: "active" })]));
       const surface = assistantSurface();
-      const renderer = await renderRoot(hostActions(), surface);
+      const actions = hostActions();
+      const renderer = await renderRoot(actions, surface);
       await flush(renderer);
 
       await act(async () => {
@@ -682,7 +685,10 @@ describe("job-search web Root", () => {
         findButton(renderer, /^Change in chat$/)!.props.onClick();
       });
 
-      expect(surface.seedComposer).toHaveBeenCalledOnce();
+      expect(actions.openAssistant).toHaveBeenCalledWith({
+        starterPrompt: 'I want to change the criteria for the "Acme SWE search" job search.'
+      });
+      expect(surface.seedComposer).not.toHaveBeenCalled();
       expect(surface.submitTurn).not.toHaveBeenCalled();
     });
 

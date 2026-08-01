@@ -34,7 +34,7 @@
 // binding — only what surrounds it. Card chrome is gone; colour and type come from the host's
 // jds-* primitives (jds-eyebrow, jds-display, jds-rail, jds-strap), matching Root's other
 // panels — styles-screens.css stays layout-only.
-import type { AssistantSurfaceHandleV1 } from "../../domain/seed-prompt.js";
+import { buildSeedPrompt, type AssistantSurfaceHandleV1 } from "../../domain/seed-prompt.js";
 import { ONBOARDING_STEPS } from "../../domain/criteria.js";
 import { h, type ReactNodeLike } from "../runtime";
 import type { Profile } from "../use-profiles";
@@ -159,7 +159,25 @@ export function OnboardingScreen(props: {
           // this screen the user has just been told five things are needed and handed an empty
           // box, with nothing anywhere saying what a first message looks like. Naming the first
           // step in the box is the cheapest possible answer to "what do I type".
-          h(Surface, { composer: { placeholder: "Tell me the kind of role you're after…" } })
+          h(Surface, {
+            composer: {
+              placeholder: "Tell me the kind of role you're after…",
+              onSubmitText: (text: string) => {
+                void props.assistantSurface?.submitTurn({
+                  text,
+                  controlContext: {
+                    action: "continue-job-search-onboarding",
+                    values: {
+                      profileName: props.profile.name,
+                      completedSteps: props.profile.completedSteps,
+                      instructions: buildSeedPrompt(props.profile)
+                    }
+                  }
+                });
+                return "handled";
+              }
+            }
+          })
         ) : (
           <p className="jds-hint jsm-onb-unavailable">
             The conversation isn&rsquo;t available right now.

@@ -121,11 +121,8 @@
   font-weight: 600;
 }
 
-/* The onboarding card, centred in the 72rem root. It has been three widths: 62ch (a prose reading
-   measure, wrong for a card holding a chat transcript), then 52rem (830px holding a paragraph
-   capped at 46ch — the prose ran out halfway across and left the right half empty, which reads as a
-   layout that didn't finish rather than as deliberate space), and now 38rem, which sits near the
-   card's own measure so the heading, the paragraph and the composer share one edge.
+/* The onboarding conversation uses the same 72rem working width as Profile. Its prose retains its
+   own readable measure while the transcript and composer get the horizontal room chat needs.
 
    `width: 100%` is load-bearing, not belt-and-braces. `.jsm-root` is a column flex container, and
    an `auto` margin on a flex item's cross axis cancels `align-items: stretch` — the card stopped
@@ -138,7 +135,7 @@
    the file header). */
 .jsm-onb {
   width: 100%;
-  max-width: 38rem;
+  max-width: 72rem;
   margin-inline: auto;
   margin-block: auto;
 }

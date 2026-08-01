@@ -36,7 +36,6 @@ import {
 import * as api from "../../external-modules/job-search/src/web/api";
 import type { Profile } from "../../external-modules/job-search/src/web/use-profiles";
 import type { SearchCriteria } from "../../external-modules/job-search/src/domain/records";
-import type { AssistantSurfaceHandleV1 } from "../../external-modules/job-search/src/domain/seed-prompt";
 
 function profile(overrides: Partial<Profile> = {}): Profile {
   return {
@@ -90,11 +89,11 @@ function mockInvoke(
 
 async function renderScreen(
   profileValue: Profile,
-  assistantSurface?: AssistantSurfaceHandleV1
+  onChangeInChat?: () => void
 ): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
-    renderer = create(createElement(ProfileScreen, { profile: profileValue, assistantSurface }));
+    renderer = create(createElement(ProfileScreen, { profile: profileValue, onChangeInChat }));
   });
   return renderer;
 }
@@ -234,19 +233,11 @@ describe("ProfileScreen", () => {
     );
   });
 
-  it("seeds an editable criteria-change draft without submitting it", async () => {
+  it("hands Change in chat to the visible host action", async () => {
     mockInvoke({ criteria: criteria({ titles: ["Staff Engineer"] }) });
-    const seedComposer = vi.fn();
-    const submitTurn = vi.fn().mockResolvedValue(undefined);
-    const surface = {
-      setSurfaceKey: vi.fn(),
-      seedContext: vi.fn().mockResolvedValue(undefined),
-      seedComposer,
-      Surface: vi.fn(),
-      submitTurn
-    } as unknown as AssistantSurfaceHandleV1;
+    const onChangeInChat = vi.fn();
 
-    const renderer = await renderScreen(profile(), surface);
+    const renderer = await renderScreen(profile(), onChangeInChat);
     await flush();
 
     const changeButton = renderer.root
@@ -258,9 +249,7 @@ describe("ProfileScreen", () => {
       changeButton!.props.onClick();
     });
 
-    expect(seedComposer).toHaveBeenCalledOnce();
-    expect(seedComposer.mock.calls[0]?.[0]).toMatch(/change.*criteria/i);
-    expect(submitTurn).not.toHaveBeenCalled();
+    expect(onChangeInChat).toHaveBeenCalledOnce();
   });
 
   it("renders a graceful empty state for a brand-new profile's empty criteria, not a wall of empty headings (K6)", async () => {
