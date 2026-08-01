@@ -97,6 +97,7 @@ export interface JobSearchStore {
   listProfiles(): Promise<Profile[]>;
   getProfile(id: string): Promise<Profile | null>;
   createProfile(name: string): Promise<Profile>;
+  renameProfile(id: string, name: string): Promise<void>;
   updateCriteria(id: string, criteria: SearchCriteria): Promise<void>;
   setProfileState(profileId: string, state: ProfileState): Promise<void>;
   setProfileContext(profileId: string, context: ProfileContext): Promise<void>;

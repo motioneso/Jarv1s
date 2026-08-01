@@ -511,13 +511,16 @@ describe("createExternalModuleJobHandler invoke-call wiring (#1286 Task 2e)", ()
     await handler(job(module));
     // toMatchObject, not toEqual: the real call always carries an own `timeoutMs` key
     // (undefined when the queue declares none) — see case 14's undefined-timeoutMs call.
-    expect(invoke.mock.calls[0]?.[4]).toMatchObject({ lane: "queue", timeoutMs: 600_000 });
+    expect(invoke.mock.calls[0]?.[4]).toMatchObject({
+      lane: "queue:acme.crawl",
+      timeoutMs: 600_000
+    });
   });
 
   it("invokes with the default ceiling when a queue declares no timeoutMs", async () => {
     const { handler, invoke, module } = jobFixture({ name: "acme.crawl", handler: "crawl" });
     await handler(job(module));
-    expect(invoke.mock.calls[0]?.[4]).toMatchObject({ lane: "queue" });
+    expect(invoke.mock.calls[0]?.[4]).toMatchObject({ lane: "queue:acme.crawl" });
     expect((invoke.mock.calls[0]?.[4] as { lane: string }).lane).not.toBe("briefing");
   });
 });

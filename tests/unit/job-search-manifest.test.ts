@@ -198,6 +198,7 @@ describe("job-search manifest: worker queues, schedule, and risk levels (#1299)"
     const queuesByName = new Map((manifest.worker?.queues ?? []).map((q) => [q.name, q]));
     expect(queuesByName.get("job-search.portal-set-enabled")?.allowManualRun).toBe(true);
     expect(queuesByName.get("job-search.profile-set-briefing-detail")?.allowManualRun).toBe(true);
+    expect(queuesByName.get("job-search.criteria-set")?.allowManualRun).toBe(true);
   });
 
   it("job-search.matches.list is risk: read and job-search.match.dismiss is risk: write", () => {

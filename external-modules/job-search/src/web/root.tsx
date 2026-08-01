@@ -65,82 +65,6 @@ export interface RootProps {
   assistantSurface?: AssistantSurfaceHandleV1;
 }
 
-// K8 (2026-07-28 keyline-restructure plan): the module masthead. Renders unconditionally —
-// during loading, bootstrap and onboarding as well as once a profile is active — because it is
-// the module's own identity chrome (name, not state), the same reason an app keeps its own
-// header up while a page underneath it loads. `profile` is `null` in every one of those earlier
-// phases; the status line (see `mastheadStatus` below) is simply omitted then rather than shown
-// empty or guessed at.
-//
-// No icon glyph: the design source's masthead puts a 52px accent-filled square with a briefcase
-// icon on the left of the eyebrow/title stack. Modules cannot import Lucide (no bundled icon
-// library — bundle-hygiene precedent, this file's own header), and `runtime.ts`'s
-// `__JARVIS_MODULE_RUNTIME__` global — the only host surface this bundle can reach — exposes
-// React and nothing else; `apps/web/src/shell/app-shell.tsx`'s `iconMap` that turns
-// `jarvis.module.json`'s `navigation[0].icon: "compass"` into an actual `<Compass/>` is private
-// to that host file and is never handed to a module. There is no legal way to render the glyph
-// (inlining SVG path data or an image was ruled out by the K8 brief), so it is dropped rather
-// than faked.
-function ModuleMasthead(props: { profile: Profile | null }): ReactNodeLike {
-  const status = mastheadStatus(props.profile);
-  return (
-    <div className="jsm-masthead">
-      <div className="jsm-masthead__ident">
-        <span className="jds-eyebrow">Jarvis · Module</span>
-        <h1 className="jds-section-title">Job Search</h1>
-      </div>
-      {status ? (
-        // `--live` adds the host's slow pulse behind the dot, and it is claimed only for "ready":
-        // that is the one state where the search really is watching between visits, so the motion
-        // reports something true rather than decorating every state equally. The other modifiers
-        // (paused, setup incomplete) are static on purpose — a pulsing dot next to "Paused" would
-        // be the status line contradicting itself.
-        <span
-          className={`jds-indicator jds-indicator--${status.modifier}${
-            status.modifier === "ready" ? " jds-indicator--live" : ""
-          }`}
-        >
-          <span className="jds-indicator__dot" />
-          <span className="jds-eyebrow">{status.text}</span>
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
-type MastheadIndicatorModifier = "ready" | "idle" | "drift";
-
-interface MastheadStatus {
-  text: string;
-  modifier: MastheadIndicatorModifier;
-}
-
-// The status line has to be TRUE, not decorative. The design source's own copy is invented data
-// — "Monitoring on · next run 7:00 AM" — and there is no per-profile run schedule anywhere in
-// this module to make that second half honest: `jarvis.module.json`'s `crawl-sweep` cron is one
-// fixed 6-hourly worker schedule shared by every profile, not a "next run" a browser read could
-// name, so a time here would be a fabricated fact wearing a real-looking clock face. This
-// derives the one thing that IS knowable — whether the search is actually watching — from
-// fields Root already has in hand on the selected `Profile` (`state`, `readyToCrawl`; see
-// use-profiles.ts). No new fetch, per the K8 brief: portal enablement would need
-// `job-search.portal.list`, which Root does not call, so it plays no part here. Three words cover
-// every reachable state; a fourth for "portal trouble" was considered and dropped, because
-// nothing on `Profile` distinguishes "a portal is disabled" from "no portals configured yet"
-// without that same disallowed read.
-function mastheadStatus(profile: Profile | null): MastheadStatus | null {
-  if (profile === null) return null;
-  if (profile.state === "paused") return { text: "Paused", modifier: "idle" };
-  if (profile.state === "in_conversation") {
-    return { text: "Setup incomplete", modifier: "drift" };
-  }
-  // state === "active": readyToCrawl still guards against an active record whose criteria
-  // somehow didn't clear every onboarding step (K4/K6's honest-until-earned stance for the same
-  // field) — "active" alone is not proof the search is actually watching anything.
-  return profile.readyToCrawl
-    ? { text: "Monitoring on", modifier: "ready" }
-    : { text: "Setup incomplete", modifier: "drift" };
-}
-
 function LoadingPanel(): ReactNodeLike {
   return (
     <div className="jds-card jds-card--sunken jsm-state" role="status">
@@ -255,6 +179,7 @@ function ActiveProfilePanel(props: {
   /** Passed straight to ProfileScreen — Root uses it to re-read profiles, which re-runs the
    *  résumé-gated crawl effect so the first crawl fires as soon as a résumé lands. */
   onResumeSaved?: () => void;
+  onProfileChanged?: () => void;
 }): ReactNodeLike {
   const [view, setView] = useState<ActiveView>("matches");
   // Bumped by the board's "Add résumé" button, which also switches to the Profile tab. A counter,
@@ -331,6 +256,7 @@ function ActiveProfilePanel(props: {
         onChangeInChat={props.onChangeInChat}
         openResumeSignal={resumeIntent}
         onResumeSaved={props.onResumeSaved}
+        onProfileChanged={props.onProfileChanged}
       />
     );
   } else {
@@ -430,7 +356,14 @@ export function Root(props: RootProps): ReactNodeLike {
   // Bumped whenever a résumé save lands — see the crawl effect below and ActiveProfilePanel's
   // onResumeSaved for why the value itself is never read.
   const [resumeSavedTick, setResumeSavedTick] = useState(0);
+  const onboardingSeenRef = useRef(new Set<string>());
+  const [onboardingAcknowledged, setOnboardingAcknowledged] = useState<ReadonlySet<string>>(
+    () => new Set()
+  );
   const interviewing = selectedProfile?.state === "in_conversation";
+  if (interviewing && selectedProfile) {
+    onboardingSeenRef.current.add(selectedProfile.profileId);
+  }
   useEffect(() => {
     if (!interviewing) return;
     const timer = setInterval(() => {
@@ -548,6 +481,10 @@ export function Root(props: RootProps): ReactNodeLike {
     handleStart();
   }
 
+  useEffect(() => {
+    if (profiles.status === "empty" && phase === "idle") handleStart();
+  }, [profiles.status, phase]);
+
   // "Start another search" — the same queue-not-tool path as handleStart above, for the same
   // un-bypassable reason (the browser cannot invoke a write tool), but a DIFFERENT queue.
   // `profile.bootstrap` is idempotent on purpose: it hands back the actor's existing profile, which
@@ -629,8 +566,19 @@ export function Root(props: RootProps): ReactNodeLike {
         onNewSearch={handleNewSearch}
         creating={creating}
       />,
-      selected.state === "in_conversation" ? (
-        <OnboardingScreen profile={selected} assistantSurface={props.assistantSurface} />
+      selected.state === "in_conversation" ||
+        (onboardingSeenRef.current.has(selected.profileId) &&
+          !onboardingAcknowledged.has(selected.profileId)) ? (
+        <OnboardingScreen
+          profile={selected}
+          assistantSurface={props.assistantSurface}
+          onComplete={
+            selected.state === "active"
+              ? () =>
+                  setOnboardingAcknowledged((current) => new Set([...current, selected.profileId]))
+              : undefined
+          }
+        />
       ) : (
         <ActiveProfilePanel
           selected={selected}
@@ -651,6 +599,7 @@ export function Root(props: RootProps): ReactNodeLike {
             // deps precisely so the save itself, not the shape of the response, retriggers it.
             setResumeSavedTick((tick) => tick + 1);
           }}
+          onProfileChanged={() => refetchRef.current()}
         />
       )
     );
@@ -663,14 +612,6 @@ export function Root(props: RootProps): ReactNodeLike {
     null,
     <style>{`${styles}\n${boardStyles}\n${screenStyles}`}</style>,
     <div className="jsm-root">
-      {/* K8: above ProfileBar (and everything else), not below it. ProfileBar is a per-search
-          switcher — it names which of possibly several searches you're looking at, which only
-          means anything once you know what module you're in. The masthead answers the "what
-          module" question and doesn't change when you switch searches, so it sits outside and
-          above that machinery, the same way ProfileBar itself sits outside and above the
-          per-search tab bar for the analogous reason (comment above ProfileBar's own
-          definition). */}
-      <ModuleMasthead profile={selectedProfile} />
       {queueNotice ? <QueueNotice outcome={queueNotice} /> : null}
       {body}
     </div>

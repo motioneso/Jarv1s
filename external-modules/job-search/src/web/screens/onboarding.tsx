@@ -111,6 +111,7 @@ export function OnboardingScreen(props: {
   // renders its rows and copy and says the conversation is unavailable rather than throwing
   // (plan case 5).
   assistantSurface?: AssistantSurfaceHandleV1;
+  onComplete?: () => void;
 }): ReactNodeLike {
   const done = new Set(props.profile.completedSteps);
   const steps = buildSteps(done);
@@ -160,6 +161,14 @@ export function OnboardingScreen(props: {
           // box, with nothing anywhere saying what a first message looks like. Naming the first
           // step in the box is the cheapest possible answer to "what do I type".
           h(Surface, {
+            localRows: [
+              {
+                id: `job-search-welcome-${props.profile.profileId}`,
+                role: "assistant",
+                content:
+                  "Tell me what kind of work you want next, or attach your résumé and we’ll start there."
+              }
+            ],
             composer: {
               placeholder: "Tell me the kind of role you're after…",
               attachmentLabel: "Attach résumé",
@@ -187,6 +196,13 @@ export function OnboardingScreen(props: {
           </p>
         )}
       </div>
+      {props.profile.state === "active" && props.onComplete ? (
+        <div className="jsm-onb-complete">
+          <button type="button" className="jds-btn jds-btn--primary" onClick={props.onComplete}>
+            View matches
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

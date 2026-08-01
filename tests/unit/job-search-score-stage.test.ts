@@ -90,6 +90,7 @@ function createFakeStore(input: {
     listProfiles: vi.fn(notUsed("listProfiles")),
     getProfile: vi.fn(async (id: string) => (id === profile.id ? profile : null)),
     createProfile: vi.fn(notUsed("createProfile")),
+    renameProfile: vi.fn(notUsed("renameProfile")),
     updateCriteria: vi.fn(notUsed("updateCriteria")),
     setProfileState: vi.fn(notUsed("setProfileState")),
     setProfileContext: vi.fn(notUsed("setProfileContext")),

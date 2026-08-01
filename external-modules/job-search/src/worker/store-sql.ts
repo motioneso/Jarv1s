@@ -322,9 +322,26 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
       return mapProfile(row);
     },
 
+    async renameProfile(id: string, name: string): Promise<void> {
+      await db.query(
+        `UPDATE app.job_search_profiles SET name = $2, updated_at = now() WHERE id = $1`,
+        [id, name]
+      );
+    },
+
     async updateCriteria(id: string, criteria: SearchCriteria): Promise<void> {
       await db.query(
-        "UPDATE app.job_search_profiles SET criteria = $2::jsonb, updated_at = now() WHERE id = $1",
+        `WITH updated_profile AS (
+           UPDATE app.job_search_profiles
+              SET criteria = $2::jsonb, updated_at = now()
+            WHERE id = $1
+            RETURNING id
+         )
+         UPDATE app.job_search_matches
+            SET fit = NULL, want = NULL, fit_reason = NULL, want_reason = NULL,
+                outside_frame = false, state = 'unscored', scored_at = NULL
+          WHERE profile_id IN (SELECT id FROM updated_profile)
+            AND state IN ('unscored', 'new', 'seen')`,
         [id, JSON.stringify(criteria)]
       );
     },
@@ -439,7 +456,10 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
                 p.posted_at
            FROM app.job_search_postings p
           WHERE p.profile_id = $1
-            AND NOT EXISTS (SELECT 1 FROM app.job_search_matches m WHERE m.posting_id = p.id)
+            AND NOT EXISTS (
+              SELECT 1 FROM app.job_search_matches m
+               WHERE m.posting_id = p.id AND m.state <> 'unscored'
+            )
           ORDER BY p.first_seen_at DESC
           LIMIT $2`,
         [profileId, limit]
@@ -459,7 +479,10 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
            FROM app.job_search_postings p
           WHERE p.profile_id = $1
             AND p.embedding IS NOT NULL
-            AND NOT EXISTS (SELECT 1 FROM app.job_search_matches m WHERE m.posting_id = p.id)
+            AND NOT EXISTS (
+              SELECT 1 FROM app.job_search_matches m
+               WHERE m.posting_id = p.id AND m.state <> 'unscored'
+            )
           ORDER BY p.first_seen_at DESC
           LIMIT $2`,
         [profileId, limit]

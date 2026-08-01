@@ -160,11 +160,11 @@ describe("OverviewScreen", () => {
         typeof node.type === "string" &&
         (node.props as { className?: string }).className === "jds-hero-figure"
     );
-    expect(figures.map((f) => flatten(f.props.children))).toEqual(["0", "0", "0", "0"]);
+    expect(figures).toHaveLength(0);
     expect(text(renderer)).toMatch(
       /Unreviewed.*Scored.*Queued.*Last successful check.*Source issues/i
     );
-    expect(text(renderer)).toMatch(/Checks automatically/i);
+    expect(text(renderer)).toMatch(/Search status Ready/i);
 
     mockInvoke({
       matches: [

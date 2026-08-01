@@ -35,6 +35,7 @@ import {
   createProfileCreateHandler,
   createProfileGetHandler,
   createProfileListHandler,
+  createProfileRenameHandler,
   createSetBriefingDetailHandler,
   createSetContextHandler
 } from "../../external-modules/job-search/src/worker/handlers/profile.js";
@@ -97,6 +98,10 @@ function createFakeStore(seedProfiles: Profile[] = []) {
       const profile = makeProfile({ id: `p${profiles.size + 1}`, name });
       profiles.set(profile.id, profile);
       return profile;
+    },
+    renameProfile: async (id, name) => {
+      const profile = profiles.get(id);
+      if (profile) profiles.set(id, { ...profile, name });
     },
     updateCriteria: async (id, criteria) => {
       const profile = profiles.get(id);
@@ -334,6 +339,25 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
     const stored = await store.getProfile("p1");
     expect(stored?.criteria.wantNarrative).toBe("Small team, real ownership");
     expect(stored?.criteria.titles).toEqual(["Staff Engineer"]);
+  });
+
+  it("2bb. criteria.set accepts the manual queue envelope used by the profile editor", async () => {
+    const { store } = createFakeStore([makeProfile({ id: "p1" })]);
+    const handler = createCriteriaSetHandler(store);
+
+    await expect(
+      handler(
+        ctx({
+          actorUserId: "u1",
+          jobKind: "criteria.set",
+          idempotencyKey: "criteria-1",
+          params: {
+            profileId: "p1",
+            criteriaJson: JSON.stringify({ titles: ["Platform Architect"] })
+          }
+        })
+      )
+    ).resolves.toMatchObject({ profileId: "p1", statusText: "Search criteria updated" });
   });
 
   it("2c. a criteria.set that sets nothing fails instead of reporting success", async () => {
@@ -835,7 +859,7 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
   // `briefing.handler` as well as `assistantTools[].handler` (this case only ever read the last
   // of the three), and carries its own vacuous-pass floor.
 
-  it("12. profile.get returns exactly {profileId, criteria, contextSummary} for a real profile", async () => {
+  it("12. profile.get returns exactly the profile fields used by the direct editor", async () => {
     const { store } = createFakeStore([
       makeProfile({
         id: "p1",
@@ -846,14 +870,13 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
 
     const result = await createProfileGetHandler(store)(ctx({ profileId: "p1" }));
 
-    // Exact key set, not just "contains" — a whole-record return (name/state/schedule/
-    // surfaceKey riding along unnoticed) is the more common way a handler leaks more than it
-    // means to, not a wrong criteria field.
+    // Exact key set, not just "contains" — state/schedule/surfaceKey must not ride along.
     expect(Object.keys(result as Record<string, unknown>).sort()).toEqual(
-      ["contextSummary", "criteria", "profileId"].sort()
+      ["contextSummary", "criteria", "name", "profileId"].sort()
     );
     expect(result).toEqual({
       profileId: "p1",
+      name: "Test Profile",
       criteria: { ...EMPTY_CRITERIA, titles: ["Staff Engineer"] },
       contextSummary: "Wants a remote staff role."
     });
@@ -865,5 +888,23 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
     await expect(createProfileGetHandler(store)(ctx({ profileId: "missing" }))).rejects.toThrow(
       /profileId not found/
     );
+  });
+
+  it("renames a profile from the queue envelope", async () => {
+    const { store } = createFakeStore([makeProfile({ id: "p1", name: "Old name" })]);
+
+    const result = await createProfileRenameHandler(store)(
+      ctx({
+        actorUserId: "user-1",
+        jobKind: "profile.rename",
+        idempotencyKey: "rename-1",
+        params: { profileId: "p1", name: "Platform architecture" }
+      })
+    );
+
+    expect(result).toMatchObject({ profileId: "p1", name: "Platform architecture" });
+    await expect(store.getProfile("p1")).resolves.toMatchObject({
+      name: "Platform architecture"
+    });
   });
 });

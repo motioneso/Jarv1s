@@ -28,7 +28,9 @@ vi.mock("../../external-modules/job-search/src/web/api", () => ({
 }));
 
 import {
+  CRITERIA_SET_QUEUE,
   PROFILE_GET_TOOL,
+  PROFILE_RENAME_QUEUE,
   PROFILE_SET_BRIEFING_DETAIL_QUEUE,
   ProfileScreen,
   RESUME_GET_TOOL
@@ -72,13 +74,19 @@ function criteria(overrides: Partial<SearchCriteria> = {}): SearchCriteria {
 // would answer the criteria call with résumé-shaped data and vice versa. Defaults to "nothing on
 // file" for both, matching the pre-K6 tests' implicit assumption.
 function mockInvoke(
-  opts: { resume?: unknown; criteria?: SearchCriteria; contextSummary?: string | null } = {}
+  opts: {
+    resume?: unknown;
+    criteria?: SearchCriteria;
+    contextSummary?: string | null;
+    name?: string;
+  } = {}
 ): void {
   vi.mocked(api.invokeTool).mockImplementation(async (tool: string) => {
     if (tool === RESUME_GET_TOOL) return { resume: opts.resume ?? null };
     if (tool === PROFILE_GET_TOOL) {
       return {
         profileId: "p1",
+        name: opts.name ?? "Acme SWE search",
         criteria: opts.criteria ?? EMPTY_CRITERIA,
         contextSummary: opts.contextSummary ?? null
       };
@@ -89,11 +97,14 @@ function mockInvoke(
 
 async function renderScreen(
   profileValue: Profile,
-  onChangeInChat?: () => void
+  onChangeInChat?: () => void,
+  onProfileChanged?: () => void
 ): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
-    renderer = create(createElement(ProfileScreen, { profile: profileValue, onChangeInChat }));
+    renderer = create(
+      createElement(ProfileScreen, { profile: profileValue, onChangeInChat, onProfileChanged })
+    );
   });
   return renderer;
 }
@@ -207,15 +218,14 @@ describe("ProfileScreen", () => {
     const chips = renderer.root.findAll(
       (node) =>
         typeof node.type === "string" &&
-        node.type === "span" &&
+        node.type === "button" &&
         typeof node.props.className === "string" &&
-        node.props.className.includes("jds-badge--pill")
+        node.props.className.includes("jds-chip")
     );
     // Two titles + one seniority + one location + one must-have + one nice-to-have + one
     // dealbreaker = 7 tags; not an exact count this test depends on beyond "more than zero" for
     // any single group, but the full set confirms every group actually rendered its tags.
-    // `jds-badge--pill`, not `jds-chip`: chip reserves asymmetric padding for a remove button these
-    // read-only tags do not have, which rendered them visibly off-centre (2026-07-29).
+    // Directly removable criteria use the design system's chip-with-remove primitive.
     expect(chips).toHaveLength(7);
   });
 
@@ -233,23 +243,64 @@ describe("ProfileScreen", () => {
     );
   });
 
-  it("hands Change in chat to the visible host action", async () => {
+  it("opens a direct criteria editor instead of requiring chat", async () => {
     mockInvoke({ criteria: criteria({ titles: ["Staff Engineer"] }) });
-    const onChangeInChat = vi.fn();
-
-    const renderer = await renderScreen(profile(), onChangeInChat);
+    const renderer = await renderScreen(profile());
     await flush();
 
-    const changeButton = renderer.root
+    const editButton = renderer.root
       .findAllByType("button")
-      .find((node) => flatten(node.props.children) === "Change in chat");
-    expect(changeButton).toBeDefined();
+      .find((node) => flatten(node.props.children) === "Edit");
+    expect(editButton).toBeDefined();
 
     await act(async () => {
-      changeButton!.props.onClick();
+      editButton!.props.onClick();
     });
 
-    expect(onChangeInChat).toHaveBeenCalledOnce();
+    expect(text(renderer)).toContain("Save changes");
+    expect(renderer.root.findAllByType("input").length).toBeGreaterThan(0);
+  });
+
+  it("renames the search directly and reports the confirmed name", async () => {
+    mockInvoke({ name: "Platform architecture" });
+    const changed = vi.fn();
+    const renderer = await renderScreen(profile(), undefined, changed);
+    await flush();
+
+    const input = renderer.root.findByProps({ "aria-label": "Search name" });
+    await act(async () => {
+      input.props.onChange({ target: { value: "Platform architecture" } });
+    });
+    const form = renderer.root.findByProps({ className: "jsm-profile-name" });
+    await act(async () => {
+      form.props.onSubmit({ preventDefault: vi.fn() });
+    });
+    await flush();
+
+    expect(api.runQueue).toHaveBeenCalledWith(PROFILE_RENAME_QUEUE, "profile.rename", {
+      profileId: "p1",
+      name: "Platform architecture"
+    });
+    expect(changed).toHaveBeenCalledOnce();
+    expect(text(renderer)).toContain("Saved.");
+  });
+
+  it("removes a criterion directly and enqueues the complete updated criteria", async () => {
+    mockInvoke({ criteria: criteria({ titles: ["Staff Engineer", "Principal Engineer"] }) });
+    vi.mocked(api.runQueue).mockReturnValue(new Promise(() => undefined));
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    const remove = renderer.root.findByProps({ "aria-label": "Remove Staff Engineer" });
+    await act(async () => {
+      remove.props.onClick();
+    });
+
+    expect(api.runQueue).toHaveBeenCalledWith(CRITERIA_SET_QUEUE, "criteria.set", {
+      profileId: "p1",
+      criteriaJson: JSON.stringify(criteria({ titles: ["Principal Engineer"] }))
+    });
+    expect(text(renderer)).not.toContain("Staff Engineer");
   });
 
   it("renders a graceful empty state for a brand-new profile's empty criteria, not a wall of empty headings (K6)", async () => {

@@ -252,7 +252,7 @@ describe("external module manifest types (#917)", () => {
       "cycle"
     ],
     [
-      "free-form string schema",
+      "unbounded string schema",
       {
         ...base,
         worker: {
@@ -272,6 +272,29 @@ describe("external module manifest types (#917)", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.errors.join("; ")).toContain(expected);
+  });
+
+  it("accepts bounded string queue params", () => {
+    const result = validateExternalModuleManifest(
+      {
+        ...base,
+        worker: {
+          queues: [
+            {
+              name: "fixture.sync",
+              handler: "sync",
+              paramsSchema: {
+                type: "object",
+                fields: { content: { type: "string", maxLength: 2048 } }
+              }
+            }
+          ]
+        }
+      },
+      "fixture",
+      "0.1.0"
+    );
+    expect(result.ok).toBe(true);
   });
 
   it.each([

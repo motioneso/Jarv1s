@@ -16,6 +16,7 @@ import { JOB_SEARCH_STATIC_FETCH_HOSTS } from "../../external-modules/job-search
 import type {
   CustomSource,
   JobSearchStore,
+  PortalState,
   Profile
 } from "../../external-modules/job-search/src/domain/store-port.js";
 import {
@@ -67,6 +68,7 @@ function notImplemented(name: string) {
 function createFakeStore(seedProfiles: Profile[] = []) {
   const profiles = new Map<string, Profile>(seedProfiles.map((profile) => [profile.id, profile]));
   const sources = new Map<string, CustomSource[]>();
+  const portals = new Map<string, PortalState[]>();
   const calls: string[] = [];
   let nextId = 1;
 
@@ -74,12 +76,23 @@ function createFakeStore(seedProfiles: Profile[] = []) {
     listProfiles: notImplemented("listProfiles"),
     getProfile: async (id) => profiles.get(id) ?? null,
     createProfile: notImplemented("createProfile"),
+    renameProfile: notImplemented("renameProfile"),
     updateCriteria: notImplemented("updateCriteria"),
-    setProfileState: notImplemented("setProfileState"),
+    setProfileState: async (profileId, state) => {
+      calls.push("store.setProfileState");
+      const current = profiles.get(profileId);
+      if (current) profiles.set(profileId, { ...current, state });
+    },
     setProfileContext: notImplemented("setProfileContext"),
     setBriefingDetail: notImplemented("setBriefingDetail"),
-    listPortals: notImplemented("listPortals"),
-    setPortalState: notImplemented("setPortalState"),
+    listPortals: async (profileId) => portals.get(profileId) ?? [],
+    setPortalState: async (profileId, state) => {
+      calls.push("store.setPortalState");
+      portals.set(profileId, [
+        ...(portals.get(profileId) ?? []).filter((portal) => portal.sourceId !== state.sourceId),
+        state
+      ]);
+    },
     upsertPostings: notImplemented("upsertPostings"),
     setEmbedding: notImplemented("setEmbedding"),
     listUnscored: notImplemented("listUnscored"),
@@ -258,7 +271,8 @@ describe("job-search custom source tools (#1309)", () => {
         label: "boards.example.com",
         url: "https://boards.example.com/jobs",
         createdAt: new Date(0).toISOString(),
-        statusText: "boards.example.com source added"
+        enabled: true,
+        statusText: "boards.example.com source added and enabled"
       });
     });
 
@@ -350,7 +364,8 @@ describe("job-search custom source tools (#1309)", () => {
 
       expect(calls).toEqual([
         "store.addCustomSource",
-        `kv.set user ${FETCH_HOST_GRANTS_NAMESPACE} boards.example.com`
+        `kv.set user ${FETCH_HOST_GRANTS_NAMESPACE} boards.example.com`,
+        "store.setPortalState"
       ]);
     });
 
@@ -382,6 +397,24 @@ describe("job-search custom source tools (#1309)", () => {
       ).rejects.toThrow(/duplicate row/);
       expect(calls).toEqual(["store.addCustomSource"]);
     });
+  });
+
+  it("activates an onboarding profile when the new enabled source completes setup", async () => {
+    const { store, calls } = createFakeStore([
+      makeProfile({
+        id: "p1",
+        state: "in_conversation",
+        criteria: { ...EMPTY_CRITERIA, titles: ["Staff Engineer"], wantNarrative: "Hands-on work" }
+      })
+    ]);
+    const kv = createFakeKv(calls);
+
+    const result = await createSourceAddHandler(store)(
+      ctx({ profileId: "p1", url: "https://boards.example.com/jobs" }, kv)
+    );
+
+    expect(result).toMatchObject({ enabled: true, state: "active", ready: true });
+    expect(calls).toContain("store.setProfileState");
   });
 
   describe("8. source.remove revokes the platform grant before deleting the store row, in that order", () => {

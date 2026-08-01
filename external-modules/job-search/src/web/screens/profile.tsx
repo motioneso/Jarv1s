@@ -27,7 +27,7 @@
 //   - The mockup's "Work mode" field (remote/hybrid/onsite preference framed as a lifestyle
 //     choice) doesn't exist on SearchCriteria; the closest real field is `criteria.remote`, kept
 //     below as "Remote" with its real four values (required/preferred/no-preference/onsite-ok).
-import { h, useEffect, useState, type ReactNodeLike } from "../runtime";
+import { h, useEffect, useRef, useState, type ReactNodeLike } from "../runtime";
 import { invokeTool, runQueue } from "../api";
 import type { Profile } from "../use-profiles";
 import type { BriefingDetail } from "../../domain/store-port.js";
@@ -38,6 +38,8 @@ import { RESUME_GET_TOOL, ResumeSection, fetchResume, type ResumeState } from ".
 export { RESUME_GET_TOOL };
 export const PROFILE_GET_TOOL = "job-search.profile.get";
 export const PROFILE_SET_BRIEFING_DETAIL_QUEUE = "job-search.profile-set-briefing-detail";
+export const CRITERIA_SET_QUEUE = "job-search.criteria-set";
+export const PROFILE_RENAME_QUEUE = "job-search.profile-rename";
 
 // -------------------------------------------------------------------------------------------
 // Search profile (context summary + criteria)
@@ -104,7 +106,11 @@ function formatCompFloor(cents: number): string {
   return `${cents < 0 ? "-" : ""}$${grouped}`;
 }
 
-function ChipGroup(props: { items: string[]; emptyLabel: string }): ReactNodeLike {
+function ChipGroup(props: {
+  items: string[];
+  emptyLabel: string;
+  onRemove?: (item: string) => void;
+}): ReactNodeLike {
   if (props.items.length === 0) {
     return <p className="jds-hint">{props.emptyLabel}</p>;
   }
@@ -119,21 +125,160 @@ function ChipGroup(props: { items: string[]; emptyLabel: string }): ReactNodeLik
         correct." `jds-badge --pill` is the design system's own symmetric static-tag primitive, so
         this is a swap to the right primitive rather than an override of the wrong one.
       */}
-      {props.items.map((item, index) => (
-        <span key={`${item}-${index}`} className="jds-badge jds-badge--pill jds-badge--neutral">
-          {item}
-        </span>
-      ))}
+      {props.items.map((item, index) =>
+        props.onRemove ? (
+          <button
+            key={`${item}-${index}`}
+            type="button"
+            className="jds-chip"
+            aria-label={`Remove ${item}`}
+            onClick={() => props.onRemove?.(item)}
+          >
+            {item}
+            <span className="jds-chip__x" aria-hidden="true">
+              ×
+            </span>
+          </button>
+        ) : (
+          <span key={`${item}-${index}`} className="jds-badge jds-badge--pill jds-badge--neutral">
+            {item}
+          </span>
+        )
+      )}
     </div>
   );
 }
 
-function LookingForSection(props: {
-  profile: Profile;
-  state: CriteriaState;
-  onChangeInChat?: () => void;
+function splitList(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+const LIST_FIELDS = [
+  ["titles", "Titles"],
+  ["seniority", "Seniority"],
+  ["locations", "Locations"],
+  ["mustHave", "Must have"],
+  ["niceToHave", "Nice to have"],
+  ["dealbreakers", "Dealbreakers"],
+  ["excludeCompanies", "Excluded companies"]
+] as const;
+
+function CriteriaEditor(props: {
+  criteria: SearchCriteria;
+  saving: boolean;
+  onCancel(): void;
+  onSave(criteria: SearchCriteria): void;
 }): ReactNodeLike {
-  const { profile, state } = props;
+  const [draft, setDraft] = useState(() => ({
+    titles: props.criteria.titles.join(", "),
+    seniority: props.criteria.seniority.join(", "),
+    locations: props.criteria.locations.join(", "),
+    remote: props.criteria.remote,
+    payFloor:
+      props.criteria.compFloorCents === null
+        ? ""
+        : String(Math.trunc(props.criteria.compFloorCents / 100)),
+    mustHave: props.criteria.mustHave.join(", "),
+    niceToHave: props.criteria.niceToHave.join(", "),
+    dealbreakers: props.criteria.dealbreakers.join(", "),
+    excludeCompanies: props.criteria.excludeCompanies.join(", "),
+    wantNarrative: props.criteria.wantNarrative
+  }));
+
+  const set = (field: keyof typeof draft, value: string) =>
+    setDraft((current) => ({ ...current, [field]: value }));
+
+  return (
+    <form
+      className="jsm-criteria-editor"
+      onSubmit={(event: { preventDefault(): void }) => {
+        event.preventDefault();
+        const dollars = draft.payFloor.trim() === "" ? null : Number(draft.payFloor);
+        props.onSave({
+          titles: splitList(draft.titles),
+          seniority: splitList(draft.seniority),
+          locations: splitList(draft.locations),
+          remote: draft.remote,
+          compFloorCents: dollars !== null && Number.isFinite(dollars) ? dollars * 100 : null,
+          mustHave: splitList(draft.mustHave),
+          niceToHave: splitList(draft.niceToHave),
+          dealbreakers: splitList(draft.dealbreakers),
+          excludeCompanies: splitList(draft.excludeCompanies),
+          wantNarrative: draft.wantNarrative
+        });
+      }}
+    >
+      {LIST_FIELDS.map(([field, label]) => (
+        <label key={field} className="jsm-criteria-editor__field">
+          <span className="jds-label">{label}</span>
+          <input
+            className="jds-input"
+            value={draft[field]}
+            onChange={(event: { target: { value: string } }) => set(field, event.target.value)}
+          />
+        </label>
+      ))}
+      <label className="jsm-criteria-editor__field">
+        <span className="jds-label">Remote</span>
+        <select
+          className="jds-select"
+          value={draft.remote}
+          onChange={(event: { target: { value: string } }) => set("remote", event.target.value)}
+        >
+          {Object.entries(REMOTE_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="jsm-criteria-editor__field">
+        <span className="jds-label">Pay floor</span>
+        <input
+          className="jds-input"
+          type="number"
+          min="0"
+          step="1000"
+          value={draft.payFloor}
+          onChange={(event: { target: { value: string } }) => set("payFloor", event.target.value)}
+        />
+      </label>
+      <label className="jsm-criteria-editor__field jsm-criteria-editor__field--wide">
+        <span className="jds-label">What you want</span>
+        <textarea
+          className="jds-textarea"
+          rows={5}
+          value={draft.wantNarrative}
+          onChange={(event: { target: { value: string } }) =>
+            set("wantNarrative", event.target.value)
+          }
+        />
+      </label>
+      <div className="jsm-criteria-editor__actions">
+        <button type="submit" className="jds-btn jds-btn--primary" disabled={props.saving}>
+          {props.saving ? "Saving…" : "Save changes"}
+        </button>
+        <button type="button" className="jds-btn jds-btn--quiet" onClick={props.onCancel}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function LookingForSection(props: {
+  state: CriteriaState;
+  editing: boolean;
+  saveStatus: "idle" | "saving" | "saved" | "error";
+  onEdit(): void;
+  onCancel(): void;
+  onSave(criteria: SearchCriteria): void;
+  onRemove(field: keyof SearchCriteria, item: string): void;
+}): ReactNodeLike {
+  const { state } = props;
   if (state.status === "loading") {
     return (
       <section className="jsm-settings__group">
@@ -155,29 +300,48 @@ function LookingForSection(props: {
     );
   }
   const { criteria } = state;
+  if (props.editing) {
+    return (
+      <section className="jsm-settings__group">
+        <SectionHead label="What it's looking for" />
+        <CriteriaEditor
+          criteria={criteria}
+          saving={props.saveStatus === "saving"}
+          onCancel={props.onCancel}
+          onSave={props.onSave}
+        />
+      </section>
+    );
+  }
   const wantNarrative = criteria.wantNarrative?.trim();
   return (
     <section className="jsm-settings__group">
       <SectionHead label="What it's looking for">
-        {props.onChangeInChat ? (
-          <button
-            type="button"
-            className="jds-btn jds-btn--quiet jds-btn--sm"
-            onClick={props.onChangeInChat}
-          >
-            Change in chat
-          </button>
-        ) : null}
+        <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={props.onEdit}>
+          Edit
+        </button>
       </SectionHead>
       <div className="jsm-fields">
         <FieldPair label="Titles">
-          <ChipGroup items={criteria.titles} emptyLabel="No titles yet." />
+          <ChipGroup
+            items={criteria.titles}
+            emptyLabel="No titles yet."
+            onRemove={(item) => props.onRemove("titles", item)}
+          />
         </FieldPair>
         <FieldPair label="Seniority">
-          <ChipGroup items={criteria.seniority} emptyLabel="No seniority level yet." />
+          <ChipGroup
+            items={criteria.seniority}
+            emptyLabel="No seniority level yet."
+            onRemove={(item) => props.onRemove("seniority", item)}
+          />
         </FieldPair>
         <FieldPair label="Locations">
-          <ChipGroup items={criteria.locations} emptyLabel="No locations yet." />
+          <ChipGroup
+            items={criteria.locations}
+            emptyLabel="No locations yet."
+            onRemove={(item) => props.onRemove("locations", item)}
+          />
         </FieldPair>
         <FieldPair label="Remote">{REMOTE_LABELS[criteria.remote]}</FieldPair>
         <FieldPair label="Pay floor">
@@ -188,13 +352,25 @@ function LookingForSection(props: {
       </div>
       <div className="jsm-fields">
         <FieldPair label="Must have">
-          <ChipGroup items={criteria.mustHave} emptyLabel="Nothing marked must-have yet." />
+          <ChipGroup
+            items={criteria.mustHave}
+            emptyLabel="Nothing marked must-have yet."
+            onRemove={(item) => props.onRemove("mustHave", item)}
+          />
         </FieldPair>
         <FieldPair label="Nice to have">
-          <ChipGroup items={criteria.niceToHave} emptyLabel="Nothing marked nice-to-have yet." />
+          <ChipGroup
+            items={criteria.niceToHave}
+            emptyLabel="Nothing marked nice-to-have yet."
+            onRemove={(item) => props.onRemove("niceToHave", item)}
+          />
         </FieldPair>
         <FieldPair label="Dealbreakers">
-          <ChipGroup items={criteria.dealbreakers} emptyLabel="No dealbreakers marked yet." />
+          <ChipGroup
+            items={criteria.dealbreakers}
+            emptyLabel="No dealbreakers marked yet."
+            onRemove={(item) => props.onRemove("dealbreakers", item)}
+          />
         </FieldPair>
       </div>
       <p className="jds-hint">
@@ -202,11 +378,16 @@ function LookingForSection(props: {
           ? wantNarrative
           : "Nothing said yet about what you actually want out of this search."}
       </p>
-      <p className="jds-hint">
-        {profile.readyToCrawl
-          ? "Ready to search — every step above is answered."
-          : "Still finishing setup. Answer what's left in chat and this search will start crawling."}
-      </p>
+      {props.saveStatus === "saved" ? (
+        <p className="jds-hint" role="status">
+          Saved. Existing matches will be reread.
+        </p>
+      ) : null}
+      {props.saveStatus === "error" ? (
+        <p className="jds-hint jds-hint--error" role="alert">
+          Couldn&rsquo;t save these changes.
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -275,6 +456,7 @@ export interface ProfileScreenProps {
    *  (see the crawl effect in root.tsx for why the ordering is load-bearing), and nothing else
    *  in this screen's lifecycle tells it. Optional so the unit renderer can omit it. */
   onResumeSaved?: () => void;
+  onProfileChanged?: () => void;
 }
 
 export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
@@ -284,6 +466,18 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
   const [briefingDetail, setBriefingDetail] = useState<BriefingDetail>(
     isBriefingDetail(profile.briefingDetail) ? profile.briefingDetail : "top"
   );
+  const [editingCriteria, setEditingCriteria] = useState(false);
+  const [criteriaSaveStatus, setCriteriaSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const criteriaSaveRevision = useRef(0);
+  const [nameDraft, setNameDraft] = useState(profile.name);
+  const [nameStatus, setNameStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  useEffect(() => {
+    setNameDraft(profile.name);
+    setNameStatus("idle");
+  }, [profile.profileId, profile.name]);
 
   useEffect(() => {
     let cancelled = false;
@@ -342,10 +536,135 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
     }).catch(() => {});
   }
 
+  function saveCriteria(next: SearchCriteria): void {
+    const revision = ++criteriaSaveRevision.current;
+    setCriteriaSaveStatus("saving");
+    setCriteria((current) =>
+      current.status === "ready" ? { ...current, criteria: next } : current
+    );
+    runQueue(CRITERIA_SET_QUEUE, "criteria.set", {
+      profileId: profile.profileId,
+      criteriaJson: JSON.stringify(next)
+    })
+      .then((outcome) => {
+        if (outcome.kind === "disabled" || outcome.kind === "error") {
+          if (criteriaSaveRevision.current === revision) setCriteriaSaveStatus("error");
+          return;
+        }
+        const confirm = (attempt: number): void => {
+          fetchCriteria(profile.profileId)
+            .then((actual) => {
+              if (criteriaSaveRevision.current !== revision) return;
+              if (JSON.stringify(actual.criteria) === JSON.stringify(next)) {
+                setCriteria({ status: "ready", ...actual });
+                setCriteriaSaveStatus("saved");
+                setEditingCriteria(false);
+              } else if (attempt < 20) {
+                setTimeout(() => confirm(attempt + 1), 500);
+              } else {
+                setCriteriaSaveStatus("error");
+              }
+            })
+            .catch(() => {
+              if (criteriaSaveRevision.current === revision) setCriteriaSaveStatus("error");
+            });
+        };
+        confirm(0);
+      })
+      .catch(() => {
+        if (criteriaSaveRevision.current === revision) setCriteriaSaveStatus("error");
+      });
+  }
+
+  function removeCriteriaItem(field: keyof SearchCriteria, item: string): void {
+    if (criteria.status !== "ready") return;
+    const current = criteria.criteria[field];
+    if (!Array.isArray(current)) return;
+    saveCriteria({ ...criteria.criteria, [field]: current.filter((value) => value !== item) });
+  }
+
+  function saveName(): void {
+    const name = nameDraft.trim();
+    if (name.length === 0 || name.length > 80) {
+      setNameStatus("error");
+      return;
+    }
+    setNameStatus("saving");
+    runQueue(PROFILE_RENAME_QUEUE, "profile.rename", { profileId: profile.profileId, name })
+      .then((outcome) => {
+        if (outcome.kind === "disabled" || outcome.kind === "error") {
+          setNameStatus("error");
+          return;
+        }
+        const confirm = (attempt: number): void => {
+          invokeTool(PROFILE_GET_TOOL, { profileId: profile.profileId })
+            .then((result) => {
+              if ((result as { name?: unknown } | null)?.name === name) {
+                setNameStatus("saved");
+                props.onProfileChanged?.();
+              } else if (attempt < 10) {
+                setTimeout(() => confirm(attempt + 1), 500);
+              } else {
+                setNameStatus("error");
+              }
+            })
+            .catch(() => setNameStatus("error"));
+        };
+        confirm(0);
+      })
+      .catch(() => setNameStatus("error"));
+  }
+
   return (
     <div className="jsm-settings jsm-settings--profile">
       <h2 className="jds-section-title">Profile</h2>
-      <LookingForSection profile={profile} state={criteria} onChangeInChat={props.onChangeInChat} />
+      <section className="jsm-settings__group">
+        <SectionHead label="Search name" />
+        <form
+          className="jsm-profile-name"
+          onSubmit={(event: { preventDefault(): void }) => {
+            event.preventDefault();
+            saveName();
+          }}
+        >
+          <input
+            className="jds-input"
+            aria-label="Search name"
+            maxLength={80}
+            value={nameDraft}
+            onChange={(event: { target: { value: string } }) => setNameDraft(event.target.value)}
+          />
+          <button
+            type="submit"
+            className="jds-btn jds-btn--secondary"
+            disabled={nameStatus === "saving" || nameDraft.trim() === profile.name}
+          >
+            {nameStatus === "saving" ? "Saving…" : "Save name"}
+          </button>
+        </form>
+        {nameStatus === "saved" ? (
+          <p className="jds-hint" role="status">
+            Saved.
+          </p>
+        ) : null}
+        {nameStatus === "error" ? (
+          <p className="jds-hint jds-hint--error" role="alert">
+            Couldn&rsquo;t rename this search.
+          </p>
+        ) : null}
+      </section>
+      <LookingForSection
+        state={criteria}
+        editing={editingCriteria}
+        saveStatus={criteriaSaveStatus}
+        onEdit={() => {
+          setCriteriaSaveStatus("idle");
+          setEditingCriteria(true);
+        }}
+        onCancel={() => setEditingCriteria(false)}
+        onSave={saveCriteria}
+        onRemove={removeCriteriaItem}
+      />
       <ContextSummarySection state={criteria} />
       <ResumeSection
         profileId={profile.profileId}

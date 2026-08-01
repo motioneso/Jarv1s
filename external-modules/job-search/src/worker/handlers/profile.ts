@@ -64,6 +64,7 @@ export function requireString(input: Record<string, unknown>, field: string): st
 const PROFILE_CREATE_FIELDS = new Set(["name"]);
 const NO_FIELDS = new Set<string>();
 const PROFILE_GET_FIELDS = new Set(["profileId"]);
+const PROFILE_RENAME_FIELDS = new Set(["profileId", "name"]);
 const CRITERIA_SET_FIELDS = new Set(["profileId", "criteria"]);
 const SET_CONTEXT_FIELDS = new Set(["profileId", "summary"]);
 const SET_BRIEFING_DETAIL_FIELDS = new Set(["profileId", "detail"]);
@@ -147,9 +148,8 @@ export function createProfileCreateHandler(store: JobSearchStore) {
  * second one. The queue's 5s manual singleton (apps/api/src/external-module-jobs.ts) covers a
  * double-click but not the panel's "Try again", nor a pg-boss retry, and a duplicate empty
  * profile would leave the user staring at a switcher they never asked for. Takes no params: the
- * empty state has no name field, and the manifest's params vocabulary has no free-text type
- * (module-params.ts — `identifier` forbids spaces), so the name is fixed here and renameable
- * later in settings. */
+ * empty state has no name field, so the first name is fixed here and can be changed later in
+ * Profile. */
 const BOOTSTRAP_PROFILE_NAME = "My job search";
 
 export function createProfileBootstrapHandler(store: JobSearchStore) {
@@ -179,12 +179,10 @@ export function createProfileBootstrapHandler(store: JobSearchStore) {
  * `profile.bootstrap` above cannot serve this: it is deliberately idempotent and hands back the
  * actor's existing first profile, which is exactly right for a first-run button clicked twice and
  * exactly wrong for a button whose whole meaning is "another one". Two queues rather than one
- * queue with a flag, because the manifest's params vocabulary (module-params.ts) has no boolean
- * and no free text — the intent has to be carried by which queue was called.
+ * queue with a flag because bootstrap and "new" have different idempotency rules.
  *
- * The name is generated rather than asked for, for the same reason the bootstrap name is fixed:
- * there is no free-text param type to carry one, and a profile is renameable afterwards. Numbered
- * off the current count, so the second search is "Job search 2" and reads as a sibling of the
+ * The name is generated and can be changed directly from Profile. Numbered off the current count,
+ * so the second search is "Job search 2" and reads as a sibling of the
  * first rather than as a duplicate of it. The count can collide after a delete ("Job search 2"
  * twice) — nothing keys on the name and the switcher shows both, so a duplicate label is a
  * cosmetic annoyance the user can rename away, not a broken state worth a uniqueness loop over. */
@@ -236,8 +234,8 @@ export function createProfileListHandler(store: JobSearchStore) {
  * documents for `match.get` in matches.ts). Nothing here truncates `contextSummary` or any
  * criteria field for that reason.
  *
- * Returns exactly `{profileId, criteria, contextSummary}` — never the rest of the `Profile`
- * record (name, state, schedule, surfaceKey, ...). Secrets never escape a handler by accident,
+ * Returns exactly `{profileId, name, criteria, contextSummary}` — never the rest of the `Profile`
+ * record (state, schedule, surfaceKey, ...). Secrets never escape a handler by accident,
  * but the more common leak is a whole-record return where a field nobody meant to expose rides
  * along; naming every returned key here is what test `10` in
  * job-search-profile-handler.test.ts checks for. */
@@ -257,15 +255,46 @@ export function createProfileGetHandler(store: JobSearchStore) {
 
     return {
       profileId,
+      name: profile.name,
       criteria: profile.criteria,
       contextSummary: profile.contextSummary
     };
   };
 }
 
+export function createProfileRenameHandler(store: JobSearchStore) {
+  return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
+    const input = parseJobEnvelope(ctx.input).params;
+    requireNoUnknownKeys(input, PROFILE_RENAME_FIELDS);
+    const profileId = requireProfileId(input);
+    const name = requireString(input, "name").trim();
+    if (name.length === 0 || name.length > 80) {
+      throw new InputError("name must be between 1 and 80 characters");
+    }
+    if (!(await store.getProfile(profileId))) throw new InputError("profileId not found");
+    await store.renameProfile(profileId, name);
+    return { profileId, name, statusText: "Search renamed" };
+  };
+}
+
 export function createCriteriaSetHandler(store: JobSearchStore) {
   return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
-    const input = stripEnvelope(ctx.input);
+    const input = looksLikeJobEnvelope(ctx.input)
+      ? (() => {
+          const params = parseJobEnvelope(ctx.input).params;
+          requireNoUnknownKeys(params, new Set(["profileId", "criteriaJson"]));
+          if (typeof params.criteriaJson !== "string") {
+            throw new InputError("criteriaJson is required");
+          }
+          let criteria: unknown;
+          try {
+            criteria = JSON.parse(params.criteriaJson);
+          } catch {
+            throw new InputError("criteriaJson must contain valid JSON");
+          }
+          return { profileId: params.profileId, criteria };
+        })()
+      : stripEnvelope(ctx.input);
     requireNoUnknownKeys(input, CRITERIA_SET_FIELDS);
     const profileId = requireProfileId(input);
     // Validate before the profile lookup so a malformed patch fails on its own terms rather than

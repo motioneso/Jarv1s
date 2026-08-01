@@ -137,6 +137,7 @@ function createFakeStore(input: {
       return byId.get(id) ?? null;
     }),
     createProfile: vi.fn(notUsed("createProfile")),
+    renameProfile: vi.fn(notUsed("renameProfile")),
     updateCriteria: vi.fn(notUsed("updateCriteria")),
     setProfileState: vi.fn(notUsed("setProfileState")),
     setProfileContext: vi.fn(notUsed("setProfileContext")),

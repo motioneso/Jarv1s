@@ -357,32 +357,89 @@ describe("job-search store (#1297)", () => {
     expect(dims.rows[0]!.dims).toBe(768);
   });
 
-  it("excludes a posting once it has a match row, but keeps one that has none (case 4)", async () => {
+  it("re-offers an invalidated match for scoring while excluding a scored match (case 4)", async () => {
     await install();
     await seedUser(ownerA);
     const store = storeFor(ownerA);
     const profile = await store.createProfile("Staff Engineer search");
 
-    const [withMatch] = await store.upsertPostings(profile.id, [
+    const [invalidated] = await store.upsertPostings(profile.id, [
       posting({ sourceId: "linkedin", externalId: "ext-scored" })
+    ]);
+    const [scored] = await store.upsertPostings(profile.id, [
+      posting({ sourceId: "linkedin", externalId: "ext-still-scored" })
     ]);
     const [withoutMatch] = await store.upsertPostings(profile.id, [
       posting({ sourceId: "linkedin", externalId: "ext-unscored" })
     ]);
     const vector = Array.from({ length: 768 }, () => 0.001);
-    await store.setEmbedding(withMatch!.id, vector);
+    await store.setEmbedding(invalidated!.id, vector);
+    await store.setEmbedding(scored!.id, vector);
     await store.setEmbedding(withoutMatch!.id, vector);
 
     await asRuntime(ownerA, (client) =>
       client.query(
         `INSERT INTO app.job_search_matches (owner_user_id, profile_id, posting_id, state)
          VALUES ($1, $2, $3, 'unscored')`,
-        [ownerA, profile.id, withMatch!.id]
+        [ownerA, profile.id, invalidated!.id]
       )
     );
+    await store.upsertMatch(profile.id, {
+      profileId: profile.id,
+      postingId: scored!.id,
+      fit: 80,
+      want: 70,
+      fitReason: "Current fit reason",
+      wantReason: "Current want reason",
+      outsideFrame: false,
+      state: "new",
+      scoredAt: null
+    });
 
     const unscored = await store.listUnscoredPostingsWithEmbeddings(profile.id, 10);
-    expect(unscored.map((row) => row.id)).toEqual([withoutMatch!.id]);
+    expect(new Set(unscored.map((row) => row.id))).toEqual(
+      new Set([invalidated!.id, withoutMatch!.id])
+    );
+  });
+
+  it("invalidates both axes when criteria change so stale prose and scores cannot remain", async () => {
+    await install();
+    await seedUser(ownerA);
+    const store = storeFor(ownerA);
+    const profile = await store.createProfile("Staff Engineer search");
+    const [created] = await store.upsertPostings(profile.id, [
+      posting({ sourceId: "linkedin", externalId: "criteria-stale" })
+    ]);
+    const vector = Array.from({ length: 768 }, () => 0.001);
+    await store.setEmbedding(created!.id, vector);
+    await store.upsertMatch(profile.id, {
+      profileId: profile.id,
+      postingId: created!.id,
+      fit: 91,
+      want: 88,
+      fitReason: "Old fit reason",
+      wantReason: "Old want reason",
+      outsideFrame: false,
+      state: "new",
+      scoredAt: null
+    });
+
+    await store.updateCriteria(profile.id, {
+      titles: ["ServiceNow Architect"],
+      seniority: [],
+      locations: ["San Diego"],
+      remote: "no-preference",
+      compFloorCents: null,
+      excludeCompanies: [],
+      mustHave: ["ServiceNow"],
+      niceToHave: [],
+      dealbreakers: ["No ServiceNow involvement"],
+      wantNarrative: "Hands-on platform architecture"
+    });
+
+    const [match] = await store.listMatches(profile.id, 10, 0);
+    expect(match).toMatchObject({ fit: null, want: null, state: "unscored" });
+    expect(await store.listUnscoredPostingsWithEmbeddings(profile.id, 10)).toHaveLength(1);
   });
 
   it("allocates versions 1 and 2 for two concurrent setResume calls, and fails fast for a nonexistent profile (case 5)", async () => {

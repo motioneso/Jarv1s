@@ -87,6 +87,18 @@
   flex: none;
 }
 
+.jsm-row__scores {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  white-space: nowrap;
+}
+
+.jsm-row__scores strong {
+  color: var(--jds-text);
+  font-variant-numeric: tabular-nums;
+}
+
 .jsm-row__chevron {
   display: inline-flex;
   align-items: center;

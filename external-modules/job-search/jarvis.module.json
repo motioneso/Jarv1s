@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "job-search",
   "name": "Job Search",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publisher": "Jarvis Project",
   "lifecycle": "optional",
   "compatibility": { "jarv1s": ">=0.1.0" },
@@ -478,6 +478,20 @@
         }
       },
       {
+        "name": "job-search.criteria-set",
+        "handler": "criteria.set",
+        "retryLimit": 2,
+        "allowManualRun": true,
+        "timeoutMs": 30000,
+        "paramsSchema": {
+          "type": "object",
+          "fields": {
+            "profileId": { "type": "identifier" },
+            "criteriaJson": { "type": "string", "maxLength": 2048 }
+          }
+        }
+      },
+      {
         "name": "job-search.resume-set",
         "handler": "resume.set-from-attachment",
         "retryLimit": 0,
@@ -506,6 +520,20 @@
         "allowManualRun": true,
         "timeoutMs": 30000,
         "paramsSchema": { "type": "object", "fields": {} }
+      },
+      {
+        "name": "job-search.profile-rename",
+        "handler": "profile.rename",
+        "retryLimit": 2,
+        "allowManualRun": true,
+        "timeoutMs": 30000,
+        "paramsSchema": {
+          "type": "object",
+          "fields": {
+            "profileId": { "type": "identifier" },
+            "name": { "type": "string", "maxLength": 80 }
+          }
+        }
       }
     ],
     "schedules": [
