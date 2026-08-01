@@ -5726,3 +5726,14 @@ real email, but terminal `POST /api/connectors/google/sync` correctly returned 4
 session. He must enqueue that route from the authenticated browser; the scheduled email monitor can
 then project the real suggested row. No final sol-high QA or merge before the row interactions and
 evidence artifact are complete.
+
+### 2026-07-31 — first authenticated sync consumed by stale worker
+
+Ben's authenticated browser sync returned 202, but #1327 worker session 42948 had exited SIGTERM.
+An orphaned worker rooted at `~/Jarv1s/.claude/worktrees/build-1375-job-search` consumed the manual
+Google sync and 21:00 email monitor with older capped code. Sanitized outcome: sync retry 0,
+`last_sync_status=partial`, 50 email upserts, 0 failures, `truncated=true`; monitor ok, planned 0,
+created 0; genuine suggested rows 0. No private email data or credentials were inspected. The
+orphaned process group was terminated after confirming it had no live Herdr owner. The sole worker
+is now #1327 at `6d9c50f4`; Ben must repeat the authenticated browser enqueue before the live pass
+can continue. Final QA and merge remain blocked.

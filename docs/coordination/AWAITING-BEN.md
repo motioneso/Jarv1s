@@ -30,6 +30,12 @@ correctly returned 401, so Ben must enqueue `POST /api/connectors/google/sync` f
 browser session, then allow the 15-minute email-monitor schedule to produce the real suggested row.
 No authenticated sync/row artifact means no final sol-high QA and no merge.
 
+Ben's first authenticated enqueue returned 202, but the #1327 worker had exited SIGTERM and an
+orphaned build-1375 worker consumed both sync and monitor jobs with older capped code. Sanitized
+result: partial sync, 50 upserts, truncated, monitor planned/created 0. The orphaned worker is now
+stopped and the sole worker is #1327 at `6d9c50f4`. Ben must repeat the authenticated browser sync
+once; that second enqueue is the valid live attempt.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged
