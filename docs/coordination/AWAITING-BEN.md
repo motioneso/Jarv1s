@@ -36,6 +36,13 @@ result: partial sync, 50 upserts, truncated, monitor planned/created 0. The orph
 stopped and the sole worker is #1327 at `6d9c50f4`. Ben must repeat the authenticated browser sync
 once; that second enqueue is the valid live attempt.
 
+The second authenticated sync was consumed by the sole #1327 worker and **live-proves the cap
+removal**: success, 1,463 email upserts, 0 failures, `truncated=false`, retry 0. The first post-sync
+21:45 monitor also completed cleanly, but planned 0 / created 0 / genuine suggested rows 0. Gmail's
+starred label is persisted as source metadata but is not itself an actionability trigger. The full
+PR live gate still needs a genuinely actionable inbound request that the monitor projects into a
+row, followed by the Accept/Dismiss/View/Reply interaction artifact.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged

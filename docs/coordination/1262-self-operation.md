@@ -5737,3 +5737,14 @@ created 0; genuine suggested rows 0. No private email data or credentials were i
 orphaned process group was terminated after confirming it had no live Herdr owner. The sole worker
 is now #1327 at `6d9c50f4`; Ben must repeat the authenticated browser enqueue before the live pass
 can continue. Final QA and merge remain blocked.
+
+### 2026-07-31 — uncapped sync live-proven; action row still absent
+
+Ben's second authenticated enqueue was consumed by the sole #1327 worker at `6d9c50f4`. Manual
+Google sync ran 21:30:35–21:36:39 PDT, retry 0. Sanitized account result: success, error null, 1,463
+email upserts, 0 failures, `truncated=false`, 14 calendar upserts. The first post-sync email monitor
+ran 21:45:06–21:45:17, retry 0, status ok, planned 0, created 0, genuine suggested rows 0. This
+live-proves the cap-removal follow-up but not the action-row interactions. Gmail label IDs are synced
+as source metadata; the monitor does not treat the starred marker alone as an actionability signal.
+A genuine actionable inbound request is still required. Do not spawn final sol-high QA or merge
+before the row and interaction artifact exist.
