@@ -50,6 +50,14 @@ Worker isolation is now GREEN: the Job Search worker group is stopped, #1327 at 
 `08916cf8` is the sole worker consumer, and <http://100.64.98.99:5198/today> returns HTTP 200.
 Ben can now repeat the authenticated sync.
 
+The end-to-end pipeline fix is pushed as `e34edca6`, and the final authenticated sync completed
+under that exact sole worker with 1,449 email upserts and zero errors. It still produced no row
+because the shared DEV database has not applied the branch's additive
+`packages/tasks/sql/0178_task_suggestion_metadata.sql`; without `suggestion_metadata`, suggested
+tasks cannot persist. Ben explicitly approved applying only `0178` and restarting the exact worker.
+After that, Ben's next action will be one browser-console sync when the coordinator says **run sync
+now**. No final QA or merge before a genuine row and the interaction artifact.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged

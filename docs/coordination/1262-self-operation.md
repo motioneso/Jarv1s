@@ -5837,3 +5837,29 @@ The live #1327 worker is now isolated on exact `e34edca6`, with healthy listener
 frontend still serving `/today`. Ben enqueued the final authenticated sync successfully. The
 retained lane is monitoring sanitized aggregates for end-to-end task projection and will report
 when the genuine Today row is ready to refresh. No QA or merge before that interaction artifact.
+
+### 2026-08-01 — final sync blocked on authorized migration; coordinator relaying
+
+Authenticated job `0df002b6-f1ff-43f2-a1c6-035cc136b87a` completed under the sole #1327 worker on
+exact `e34edca6`: calendar upserts 15, email upserts 1,449, errors 0. End-to-end projection produced
+zero suggested email rows because the shared DEV `app.tasks` table lacks the additive
+`suggestion_metadata` column required by HEAD. The unapplied branch migration is
+`packages/tasks/sql/0178_task_suggestion_metadata.sql`. No content, identity, or credentials were
+inspected; no extra sync, QA, merge, or migration has run.
+
+Ben explicitly approved applying this one migration and restarting the worker. Before any write,
+run the required agentmemory recall `jarv1s migration hash placement` and have retained builder
+session `019fba1b-72cc-7e73-a143-2be9edb4fe89` inspect pending migrations read-only. Apply only
+`0178`; do not edit it, and stop if the available runner would also apply any unrelated pending
+migration. Then restart the #1327 worker on exact `e34edca6`, prove it is the sole worker consumer,
+and keep `/today` at HTTP 200. Tell Ben **run sync now** with the browser-console command; monitor
+sanitized aggregates only. When a genuine row exists, tell Ben **refresh now** and guide
+View/Reply/Accept/Dismiss proof. No final sol-high security QA or merge before the artifact is
+posted to PR #1379; merge remains Ben-gated.
+
+The compaction tripwire fired in coordinator session
+`019fbc41-80c1-7800-a69a-815cca2837ef`, so it must relay before the authorized migration. The
+successor must claim the `Coordinator` label with its own immutable session id, replace the top
+lock, verify exactly one active Coordinator, re-adopt the retained builder, confirm it is driving,
+then resolve and reap this coordinator fresh by label plus session id — never by a written pane
+number.
