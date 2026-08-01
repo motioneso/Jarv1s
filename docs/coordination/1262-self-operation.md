@@ -5887,3 +5887,12 @@ Read-only simulation found the narrow ledger-safe resolution: rename the unappli
 scoped runner. The simulated apply set is exactly that file; connector `0179`/`0180` are excluded,
 and repo plus DEV ledger currently have no `0181`. No edit or write was made because changing the
 previously approved migration version requires Ben's explicit ruling.
+
+Ben approved. Retained builder commit `b55878e9` renames the migration to `0181` and updates only
+the foundation migration-catalog expectation; the focused integration passed and PR #1379 points
+at the commit. The immediate pre-write audit reported apply set exactly `0181`, no checksum
+mismatch; the task-scoped ledger-aware runner applied only that migration. DEV now records the
+`0181_task_suggestion_metadata.sql` ledger row and `app.tasks.suggestion_metadata` is present. The
+sole #1327 worker is healthy on exact `b55878e9`, with schedule and queue listeners active; the
+branch `/today` returns HTTP 200. No sync, content inspection, QA, or merge ran. Next: tell Ben
+**run sync now**, monitor sanitized aggregates, then wait for the genuine row interaction artifact.

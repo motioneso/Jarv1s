@@ -73,6 +73,14 @@ the existing task-directory-scoped ledger-aware runner. Its simulated apply set 
 file; connector `0179`/`0180` are excluded, and both repo and DEV ledger currently have no `0181`.
 This needs Ben's explicit approval because it changes the previously approved migration version.
 
+Ben approved that resolution. Commit `b55878e9` renames the migration to `0181` and updates only
+the migration-catalog expectation; its focused integration is green and the PR head matches. The
+immediate pre-write audit was safe, the scoped runner applied exactly `0181`, the ledger row and
+`app.tasks.suggestion_metadata` are present, and the sole #1327 worker is healthy on exact
+`b55878e9`. The branch `/today` remains HTTP 200. Item 10 now waits on Ben's authenticated browser
+sync, then the genuine row and View/Reply/Accept/Dismiss evidence artifact. QA and merge remain
+stopped until that proof.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged
