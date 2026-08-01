@@ -150,7 +150,10 @@ export function useProfileThread(
     if (!assistantSurface || !surfaceKey || !idempotencyKey) return;
     assistantSurface.setSurfaceKey(surfaceKey);
     const current = profileRef.current;
-    if (current) {
+    // Onboarding carries this guidance on every submitted answer instead. That keeps the first
+    // answer framed after an API restart and avoids racing a hidden seed turn against the user's
+    // visible turn on a freshly mounted screen.
+    if (current && current.state !== "in_conversation") {
       void assistantSurface.seedContext(buildSeedPrompt(current), idempotencyKey);
     }
     return () => {

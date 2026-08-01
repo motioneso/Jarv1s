@@ -8,12 +8,9 @@
 // N32: root.tsx stays one agent's file for the whole task, so chat-surface wires in criteria's
 // settings.tsx too rather than criteria touching this file directly).
 //
-// No chat button lives here (variant-flow.tsx:145's drawer button is prototype-only and must not
-// be ported). The assistant reaches this surface one way only: the onboarding screen renders the
-// host's own Surface, bound and framed by useProfileThread. `hostActions.openAssistant` stays on
-// the props contract (the host always passes it, and ledger H5's editable-unsent-draft consent
-// boundary still governs anything that uses it) but nothing in this module calls it any more —
-// the empty state now writes its own first record through the module's queue, see handleStart.
+// No duplicate chat button lives here: onboarding renders the host's own Surface, while Profile's
+// explicit “Change in chat” action uses hostActions.openAssistant so its editable draft is visible.
+// The empty state writes its own first record through the module's queue; see handleStart.
 import {
   Fragment,
   h,
@@ -254,6 +251,7 @@ function ActiveProfilePanel(props: {
   // else this handle travels — a v1.1 bundle on an older host still renders the board, just
   // without Discuss offered (discuss.tsx's own no-op-when-absent stance).
   assistantSurface?: AssistantSurfaceHandleV1;
+  onChangeInChat(): void;
   /** Passed straight to ProfileScreen — Root uses it to re-read profiles, which re-runs the
    *  résumé-gated crawl effect so the first crawl fires as soon as a résumé lands. */
   onResumeSaved?: () => void;
@@ -330,7 +328,7 @@ function ActiveProfilePanel(props: {
     screen = (
       <ProfileScreen
         profile={props.selected}
-        assistantSurface={props.assistantSurface}
+        onChangeInChat={props.onChangeInChat}
         openResumeSignal={resumeIntent}
         onResumeSaved={props.onResumeSaved}
       />
@@ -637,6 +635,11 @@ export function Root(props: RootProps): ReactNodeLike {
         <ActiveProfilePanel
           selected={selected}
           assistantSurface={props.assistantSurface}
+          onChangeInChat={() =>
+            hostActions.openAssistant({
+              starterPrompt: `I want to change the criteria for the "${selected.name}" job search.`
+            })
+          }
           // Saving a résumé is the event the crawl effect above is waiting on. Re-reading
           // profiles gives that effect a fresh object to run against, and the profile it now
           // finds has a résumé, so the first crawl.run finally goes out.
