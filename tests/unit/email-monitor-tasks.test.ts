@@ -311,7 +311,7 @@ describe("runEmailMonitor — relevance evidence", () => {
   it("counts a cached IMAP candidate without a source link", async () => {
     const created: string[] = [];
     const deps: RunEmailMonitorDeps = {
-      sourceContext: {
+      savedContext: {
         listEmailContext: async () => ({
           items: [
             item({
@@ -357,7 +357,7 @@ describe("runEmailMonitor — relevance evidence", () => {
       upsert: async () => undefined
     };
     const deps: RunEmailMonitorDeps = {
-      sourceContext: {
+      savedContext: {
         listEmailContext: async () => ({
           items: [
             item({
@@ -410,7 +410,7 @@ describe("runEmailMonitor — relevance evidence", () => {
       upsert: async () => undefined
     };
     const deps: RunEmailMonitorDeps = {
-      sourceContext: {
+      savedContext: {
         listEmailContext: async () => ({ items: [item()], accounts: [], gaps: [] })
       },
       taskPort: { create: async () => ({ id: "task" }) },
@@ -455,7 +455,7 @@ describe("runEmailMonitor — relevance evidence", () => {
     const contextMessageKeys: string[] = [];
     let createCalls = 0;
     const deps: RunEmailMonitorDeps = {
-      sourceContext: {
+      savedContext: {
         listEmailContext: async () => ({ items: [item()], accounts: [], gaps: [] })
       },
       taskPort: {
@@ -611,7 +611,7 @@ describe("runEmailMonitor — suppression read failures and message-scoped evide
     const prefs = new Map<string, unknown>();
     let createCalls = 0;
     const deps: RunEmailMonitorDeps = {
-      sourceContext: {
+      savedContext: {
         listEmailContext: async () => ({ items: [item()], accounts: [], gaps: [] })
       },
       taskPort: {
@@ -662,7 +662,7 @@ describe("runEmailMonitor — suppression read failures and message-scoped evide
       contextMessageKeys: []
     };
     const deps: RunEmailMonitorDeps = {
-      sourceContext: {
+      savedContext: {
         listEmailContext: async () => ({
           items: [
             item({
@@ -719,7 +719,7 @@ describe("runEmailMonitor — suppression read failures and message-scoped evide
       contextMessageKeys: []
     };
     const deps: RunEmailMonitorDeps = {
-      sourceContext: {
+      savedContext: {
         listEmailContext: async () => ({
           items: [
             item({
@@ -779,7 +779,7 @@ describe("runEmailMonitor — suppression read failures and message-scoped evide
       contextMessageKeys
     };
     const deps: RunEmailMonitorDeps = {
-      sourceContext: {
+      savedContext: {
         listEmailContext: async () => ({
           items: [
             item({ messageKey: "context-1", source: "live", dueDate: null }),

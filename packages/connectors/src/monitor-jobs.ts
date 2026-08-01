@@ -3,6 +3,7 @@ import type { PgBoss, WorkOptions } from "pg-boss";
 import type { ActorScopedJobPayload, QueueDefinition } from "@jarv1s/jobs";
 import { registerDataContextWorker } from "@jarv1s/jobs";
 import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
+import { EmailRepository } from "@jarv1s/email";
 import { PreferencesRepository } from "@jarv1s/structured-state";
 import { localDay } from "@jarv1s/shared";
 
@@ -20,9 +21,11 @@ import {
   type EmailTaskCreationPort
 } from "./source-context/email-tasks.js";
 import type { EmailContextItem } from "./source-context/types.js";
+import { listSavedEmailContext } from "./source-context/email.js";
 import { buildRuntimeSourceContextService } from "./source-context/runtime.js";
 import type { SourceContextService } from "./source-context/types.js";
 import type { SyncLogger } from "./sync-jobs.js";
+import { ConnectorsRepository } from "./repository.js";
 
 export const EMAIL_MONITOR_QUEUE = "connectors.email-monitor";
 export const CALENDAR_MONITOR_QUEUE = "connectors.calendar-monitor";
@@ -94,8 +97,7 @@ async function persistMonitorStatus(
   });
 }
 
-export interface RunEmailMonitorDeps {
-  readonly sourceContext: Pick<SourceContextService, "listEmailContext">;
+export interface ProjectEmailActionsDeps {
   readonly taskPort: EmailTaskCreationPort;
   readonly preferencesRepository: MonitorPreferencesPort;
   readonly suppressionRepository?: Pick<
@@ -106,6 +108,12 @@ export interface RunEmailMonitorDeps {
   readonly actorUserId?: string;
   readonly now?: () => Date;
   readonly logger?: SyncLogger;
+}
+
+export interface RunEmailMonitorDeps extends ProjectEmailActionsDeps {
+  readonly savedContext?: Pick<SourceContextService, "listEmailContext">;
+  readonly connectorsRepository?: Pick<ConnectorsRepository, "listAccounts">;
+  readonly emailRepository?: Pick<EmailRepository, "listVisibleForBriefing">;
 }
 
 function subjectSignatureFor(item: EmailContextItem): string | undefined {
@@ -148,53 +156,17 @@ function hasDueTomorrow(item: EmailContextItem, now: string, timeZone: string): 
   return dueAt ? `deadline:${dueAt}` : null;
 }
 
-/**
- * One proactive email monitor pass for a single account (#729 §5): live-first read → triage →
- * deterministic task planning → idempotent creation (tasks.create dedupes on
- * (source, external_key), so a 15-minute cadence can never duplicate a task).
- *
- * An account gap (auth/revoked/grant) plans nothing — a broken account must surface as a gap
- * the user fixes, not as tasks derived from stale context. A degraded (cache-fallback) read
- * still plans: the items passed triage and dedupe holds; only the status word changes.
- */
-export async function runEmailMonitor(
+export async function projectEmailActions(
   scopedDb: DataContextDb,
-  connectorAccountId: string,
-  deps: RunEmailMonitorDeps
+  items: readonly EmailContextItem[],
+  deps: ProjectEmailActionsDeps
 ): Promise<MonitorRunResult> {
   const now = deps.now ?? (() => new Date());
   const logger = deps.logger ?? NOOP_LOGGER;
   const nowIso = now().toISOString();
 
-  const result = await deps.sourceContext.listEmailContext(scopedDb, {});
-  const gap = result.gaps.find((g) => g.account?.connectorAccountId === connectorAccountId);
-  if (gap) {
-    await persistMonitorStatus(
-      scopedDb,
-      deps.preferencesRepository,
-      connectorAccountId,
-      "gap",
-      nowIso,
-      {
-        planned: 0,
-        created: 0
-      }
-    );
-    return { planned: 0, created: 0, degraded: true };
-  }
-
   const mode = parseEmailTaskMode(
     await deps.preferencesRepository.get(scopedDb, EMAIL_TASK_MODE_PREF_KEY)
-  );
-  const accountResult = result.accounts.find(
-    (a) => a.account.connectorAccountId === connectorAccountId
-  );
-  const sourceDegraded = accountResult
-    ? accountResult.source === "cache" || accountResult.degradedReason !== null
-    : false;
-
-  const items = result.items.filter(
-    (item) => item.account.connectorAccountId === connectorAccountId
   );
   const actionItems = items.filter(
     (item) => item.cacheMessageId !== null && item.inferredSubject?.trim().length
@@ -245,11 +217,7 @@ export async function runEmailMonitor(
     }
 
     const contextKey = `${item.account.connectorAccountId}:${item.messageKey}`;
-    if (
-      item.source !== "live" ||
-      state.contextMessageKeys.includes(contextKey) ||
-      contextKey === state.lastContextMessageKey
-    )
+    if (state.contextMessageKeys.includes(contextKey) || contextKey === state.lastContextMessageKey)
       continue;
     let relevant = false;
     try {
@@ -338,19 +306,71 @@ export async function runEmailMonitor(
     }
   }
 
+  return {
+    planned: planned.length,
+    created,
+    degraded: suppressionReadFailed
+  };
+}
+
+/**
+ * Re-evaluate canonical saved triage for suppression resurfacing. Ordinary action projection
+ * happens inside sync; this scheduled pass never reads an email provider or reclassifies mail.
+ */
+export async function runEmailMonitor(
+  scopedDb: DataContextDb,
+  connectorAccountId: string,
+  deps: RunEmailMonitorDeps
+): Promise<MonitorRunResult> {
+  const nowIso = (deps.now ?? (() => new Date()))().toISOString();
+  const result = deps.savedContext
+    ? await deps.savedContext.listEmailContext(scopedDb, {})
+    : await listSavedEmailContext(
+        scopedDb,
+        {
+          connectorsRepository: deps.connectorsRepository ?? new ConnectorsRepository(),
+          preferencesRepository: deps.preferencesRepository,
+          emailRepository: deps.emailRepository ?? new EmailRepository()
+        },
+        connectorAccountId
+      );
+  const gap = result.gaps.find(
+    (candidate) => candidate.account?.connectorAccountId === connectorAccountId
+  );
+  if (gap) {
+    await persistMonitorStatus(
+      scopedDb,
+      deps.preferencesRepository,
+      connectorAccountId,
+      "gap",
+      nowIso,
+      { planned: 0, created: 0 }
+    );
+    return { planned: 0, created: 0, degraded: true };
+  }
+
+  const accountResult = result.accounts.find(
+    (account) => account.account.connectorAccountId === connectorAccountId
+  );
+  const sourceDegraded = accountResult ? accountResult.degradedReason !== null : false;
+  const projected = await projectEmailActions(
+    scopedDb,
+    result.items.filter((item) => item.account.connectorAccountId === connectorAccountId),
+    deps
+  );
+  const monitorResult = {
+    ...projected,
+    degraded: projected.degraded || sourceDegraded
+  };
   await persistMonitorStatus(
     scopedDb,
     deps.preferencesRepository,
     connectorAccountId,
-    sourceDegraded || suppressionReadFailed ? "degraded" : "ok",
+    monitorResult.degraded ? "degraded" : "ok",
     nowIso,
-    { planned: planned.length, created }
+    monitorResult
   );
-  return {
-    planned: planned.length,
-    created,
-    degraded: sourceDegraded || suppressionReadFailed
-  };
+  return monitorResult;
 }
 
 export interface RunCalendarMonitorDeps {
@@ -416,7 +436,6 @@ export async function registerSourceMonitorWorkers(
     deps.dataContext,
     (job, scopedDb) =>
       runEmailMonitor(scopedDb, job.data.connectorAccountId, {
-        sourceContext,
         taskPort: deps.taskPort,
         preferencesRepository,
         suppressionRepository,

@@ -22,6 +22,9 @@ import { ConnectorsRepository } from "./repository.js";
 import { extractEmailSignals, type EmailExtractDeps } from "./email-extract.js";
 import { buildEmailExtractDeps } from "./extract-deps.js";
 import { GoogleEmailReadProvider, GMAIL_READ_FOLDER } from "./email-read-provider.js";
+import { EmailActionSuppressionRepository } from "./action-suppression-repository.js";
+import { projectEmailActions, type ProjectEmailActionsDeps } from "./monitor-jobs.js";
+import { listSavedEmailContext } from "./source-context/email.js";
 
 export const GOOGLE_SYNC_QUEUE = "connectors.google-sync";
 
@@ -91,6 +94,7 @@ export interface GoogleSyncDeps {
   readonly preferencesRepository?: PreferencesRepository;
   /** Structured, sanitized sync logger (never token/body content). Defaults to a console shim. */
   readonly logger?: SyncLogger;
+  readonly actionProjection?: ProjectEmailActionsDeps;
 }
 
 /** Sanitized structured logging for partial-failure observability (never secrets/body). */
@@ -401,7 +405,14 @@ export async function runGoogleSync(
       // message cached before a model was configured is still summarized on a later sync.
       const existing = await emailRepo.listSyncMarkers(scopedDb, account.id);
       const seen = new Map(
-        existing.map((r) => [r.externalId, { historyId: r.historyId, hasSummary: r.hasSummary }])
+        existing.map((r) => [
+          r.externalId,
+          {
+            historyId: r.historyId,
+            hasSummary: r.hasSummary,
+            hasCompleteTriage: r.hasCompleteTriage
+          }
+        ])
       );
 
       for (const key of keys) {
@@ -414,7 +425,12 @@ export async function runGoogleSync(
           // at first sync, or a failed extraction) is intentionally NOT skipped, so it gets a
           // summary once a model is configured.
           const prior = seen.get(parsed.externalId);
-          if (parsed.historyId && prior?.historyId === parsed.historyId && prior.hasSummary) {
+          if (
+            parsed.historyId &&
+            prior?.historyId === parsed.historyId &&
+            prior.hasSummary &&
+            prior.hasCompleteTriage
+          ) {
             continue;
           }
           const extracted = await extractEmailSignals(parsed, deps.emailExtractDeps);
@@ -471,6 +487,27 @@ export async function runGoogleSync(
       );
       errors.push("email-error");
     }
+
+    if (deps.actionProjection) {
+      const projection = deps.actionProjection;
+      const saved = await listSavedEmailContext(
+        scopedDb,
+        {
+          connectorsRepository: connectorsRepo,
+          preferencesRepository: preferencesRepo,
+          emailRepository: emailRepo
+        },
+        account.id
+      );
+      await projectEmailActions(scopedDb, saved.items, {
+        ...projection,
+        taskPort: {
+          create: (db, input) =>
+            withSavepoint(db, (savepointDb) => projection.taskPort.create(savepointDb, input))
+        },
+        now: projection.now ?? now
+      });
+    }
   }
 
   logger.info(
@@ -519,6 +556,8 @@ export async function runGoogleSync(
 
 export interface RegisterConnectorsJobWorkersDeps {
   readonly dataContext: DataContextRunner;
+  readonly taskPort: ProjectEmailActionsDeps["taskPort"];
+  readonly actionRowRelevance?: ProjectEmailActionsDeps["actionRowRelevance"];
   readonly workOptions?: WorkOptions;
   readonly onResult?: (job: Job<GoogleSyncPayload>, result: GoogleSyncResult) => void;
   readonly logger?: SyncLogger;
@@ -538,6 +577,8 @@ export async function registerConnectorsJobWorkers(
     oauthClient: new GoogleOAuthClient()
   });
   const googleClient = new GoogleApiClient();
+  const preferencesRepository = new PreferencesRepository();
+  const suppressionRepository = new EmailActionSuppressionRepository();
 
   const workId = await registerDataContextWorker<GoogleSyncPayload, GoogleSyncResult>(
     boss,
@@ -558,6 +599,14 @@ export async function registerConnectorsJobWorkers(
         getFreshAccessToken: (db, opts) => googleService.getFreshAccessToken(db, opts),
         googleClient,
         emailExtractDeps,
+        actionProjection: {
+          taskPort: deps.taskPort,
+          preferencesRepository,
+          suppressionRepository,
+          actionRowRelevance: deps.actionRowRelevance,
+          actorUserId: job.data.actorUserId,
+          logger: deps.logger
+        },
         logger: deps.logger
       });
 

@@ -125,7 +125,13 @@ describe("runGoogleSync email orchestration", () => {
       selectModel: async () => ({ tier: "economy" }),
       runChat: async () => {
         llmCalls += 1;
-        return { text: JSON.stringify({ summary: "ok", confidence: 0.9 }) };
+        return {
+          text: JSON.stringify({
+            summary: "ok",
+            confidence: 0.9,
+            actionability: { category: "fyi", reason: "Informational." }
+          })
+        };
       }
     };
     const run = () =>

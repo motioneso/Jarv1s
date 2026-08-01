@@ -139,10 +139,10 @@ function cacheKey(connectorAccountId: string, externalId: string): string {
   return JSON.stringify([connectorAccountId, externalId]);
 }
 
-function cacheItem(
+export function emailContextItemFromCache(
   row: EmailMessage,
   meta: SourceAccountMeta,
-  degradedReason: DegradedReason
+  degradedReason: DegradedReason | null
 ): EmailContextItem {
   const triage = triageFromSignals(row.summary, cachedSignals(row));
   return {
@@ -162,6 +162,44 @@ function cacheItem(
     source: "cache",
     degradedReason,
     cacheMessageId: row.id
+  };
+}
+
+export async function listSavedEmailContext(
+  scopedDb: DataContextDb,
+  deps: Pick<
+    EmailSourceContextDeps,
+    "connectorsRepository" | "preferencesRepository" | "emailRepository"
+  >,
+  connectorAccountId: string
+): Promise<EmailContextResult> {
+  const account = (await deps.connectorsRepository.listAccounts(scopedDb)).find(
+    (candidate) => candidate.id === connectorAccountId
+  );
+  if (!account) return { items: [], accounts: [], gaps: [] };
+
+  const meta = accountMeta(account);
+  if (account.status === "revoked") {
+    return { items: [], accounts: [], gaps: [{ account: meta, reason: "connector_revoked" }] };
+  }
+  const stored = await deps.preferencesRepository.get(
+    scopedDb,
+    featureGrantsPrefKey(connectorAccountId)
+  );
+  if (!isFeatureGranted(stored, "email")) {
+    return { items: [], accounts: [], gaps: [{ account: meta, reason: "feature_grant_disabled" }] };
+  }
+  if (account.status !== "active") {
+    return { items: [], accounts: [], gaps: [{ account: meta, reason: "auth_error" }] };
+  }
+
+  const items = (await deps.emailRepository.listVisibleForBriefing(scopedDb))
+    .filter((row) => row.connector_account_id === connectorAccountId)
+    .map((row) => emailContextItemFromCache(row, meta, null));
+  return {
+    items,
+    accounts: [{ account: meta, source: "cache", degradedReason: null }],
+    gaps: []
   };
 }
 
@@ -358,7 +396,7 @@ export async function listEmailContext(
       const fallback = cachedRows
         .filter((row) => row.connector_account_id === account.id)
         .slice(0, input.limitPerAccount !== undefined ? limit : cachedRows.length)
-        .map((row) => cacheItem(row, meta, classified.degradedReason));
+        .map((row) => emailContextItemFromCache(row, meta, classified.degradedReason));
       items.push(...fallback);
       accounts.push({ account: meta, source: "cache", degradedReason: classified.degradedReason });
     }

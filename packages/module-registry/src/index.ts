@@ -1160,16 +1160,6 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         boss: deps.boss
       }),
     registerWorkers: async (boss, deps) => {
-      const googleWorkIds = await registerConnectorsJobWorkers(boss, {
-        dataContext: deps.dataContext
-      });
-      // #792: self-healing periodic sweep, additive to the connect/manual-sync triggers
-      // above. Needs the raw root Kysely handle (not DataContextDb) because it must
-      // enumerate connected accounts across ALL actors via a bounded SECURITY DEFINER
-      // function (sql/0143) — each subsequent GOOGLE_SYNC_QUEUE job it sends stays scoped
-      // to that job's own actorUserId exactly as it does today.
-      const googleSweepWorkId = await registerGoogleSyncSweepWorker(boss, deps.rootDb);
-      const imapWorkIds = await registerImapSyncWorker(boss, { dataContext: deps.dataContext });
       // Structural task-creation port: connectors never imports the tasks module — the
       // composition root hands it a two-method adapter over TasksRepository (module isolation).
       const tasksRepositoryForEmail = new TasksRepository();
@@ -1189,10 +1179,23 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
           return { id: task.id };
         }
       };
+      const actionRowRelevance = createActionRowRelevancePort();
+      const googleWorkIds = await registerConnectorsJobWorkers(boss, {
+        dataContext: deps.dataContext,
+        taskPort: emailTaskPort,
+        actionRowRelevance
+      });
+      // #792: self-healing periodic sweep, additive to the connect/manual-sync triggers
+      // above. Needs the raw root Kysely handle (not DataContextDb) because it must
+      // enumerate connected accounts across ALL actors via a bounded SECURITY DEFINER
+      // function (sql/0143) — each subsequent GOOGLE_SYNC_QUEUE job it sends stays scoped
+      // to that job's own actorUserId exactly as it does today.
+      const googleSweepWorkId = await registerGoogleSyncSweepWorker(boss, deps.rootDb);
+      const imapWorkIds = await registerImapSyncWorker(boss, { dataContext: deps.dataContext });
       const monitorWorkIds = await registerSourceMonitorWorkers(boss, {
         dataContext: deps.dataContext,
         taskPort: emailTaskPort,
-        actionRowRelevance: createActionRowRelevancePort()
+        actionRowRelevance
       });
       return [...googleWorkIds, googleSweepWorkId, ...imapWorkIds, ...monitorWorkIds];
     }

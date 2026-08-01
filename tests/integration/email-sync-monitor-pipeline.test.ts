@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   runEmailMonitor,
@@ -6,7 +6,7 @@ import {
   type EmailTaskCreationPort
 } from "@jarv1s/connectors";
 import { PreferencesRepository } from "@jarv1s/structured-state";
-import { TasksRepository } from "@jarv1s/tasks";
+import { TaskListsRepository, TasksRepository } from "@jarv1s/tasks";
 
 import {
   handles,
@@ -14,11 +14,6 @@ import {
   runGoogleSync,
   seedGoogleAccount
 } from "./helpers/google-sync-orchestration.js";
-import {
-  buildTestSourceContextService,
-  fakeEmailProvider,
-  parsedEmail
-} from "./source-context-helpers.js";
 
 const NOW = new Date("2026-08-01T04:00:00.000Z");
 const MESSAGE_ID = "sync-monitor-actionable-1";
@@ -65,91 +60,182 @@ const actionableExtractDeps: EmailExtractDeps = {
   })
 };
 
+function googleClientFor(messageId: string) {
+  const listMessageIds = vi.fn(async () => [{ id: messageId }]);
+  const getMessage = vi.fn(async () => ({
+    id: messageId,
+    threadId: `thread-${messageId}`,
+    historyId: `history-${messageId}`,
+    labelIds: ["INBOX"],
+    internalDate: String(NOW.getTime() - 60_000),
+    payload: {
+      mimeType: "text/plain",
+      headers: [
+        { name: "Subject", value: SUBJECT },
+        { name: "From", value: "colleague@example.test" },
+        { name: "To", value: "owner@example.test" }
+      ],
+      body: { data: Buffer.from(BODY).toString("base64") }
+    }
+  }));
+  return { listCalendarEvents: async () => [], listMessageIds, getMessage };
+}
+
+function createTaskPort(
+  tasksRepository: TasksRepository,
+  afterCreate: () => void = () => undefined
+): EmailTaskCreationPort {
+  return {
+    async create(scopedDb, input) {
+      const task = await tasksRepository.create(scopedDb, {
+        title: input.title,
+        description: input.description ?? undefined,
+        status: input.status,
+        dueAt: input.dueAt ?? undefined,
+        priority: input.priority ?? undefined,
+        source: input.source,
+        sourceRef: input.sourceRef,
+        externalKey: input.externalKey,
+        suggestionMetadata: input.suggestionMetadata
+      });
+      afterCreate();
+      return { id: task.id };
+    }
+  };
+}
+
+async function setupAccount(requestId: string) {
+  const accountId = await seedGoogleAccount(handles.dataContext, [
+    "https://www.googleapis.com/auth/gmail.modify"
+  ]);
+  const context = { actorUserId: ids.userA, requestId };
+  await handles.dataContext.withDataContext(context, (scopedDb) =>
+    new TaskListsRepository().getOrCreateDefault(scopedDb)
+  );
+  return { accountId, context };
+}
+
+async function emailTaskCount(
+  tasksRepository: TasksRepository,
+  context: { actorUserId: string; requestId: string },
+  messageId: string
+) {
+  const tasks = await handles.dataContext.withDataContext(context, (scopedDb) =>
+    tasksRepository.listVisible(scopedDb)
+  );
+  return tasks.filter((task) => task.source === "email" && task.external_key?.includes(messageId))
+    .length;
+}
+
 describe("Google sync → source context → email monitor", () => {
   it("evaluates a recently synced actionable inbound email into one suggested task", async () => {
-    const accountId = await seedGoogleAccount(handles.dataContext, [
-      "https://www.googleapis.com/auth/gmail.modify"
-    ]);
-    const context = { actorUserId: ids.userA, requestId: "test:sync-monitor-pipeline" };
+    const { accountId, context } = await setupAccount("test:sync-monitor-pipeline");
+    const googleClient = googleClientFor(MESSAGE_ID);
+    const tasksRepository = new TasksRepository();
+    const taskPort = createTaskPort(tasksRepository);
+    const preferencesRepository = new PreferencesRepository();
 
     const sync = await handles.workerDataContext.withDataContext(context, (scopedDb) =>
       runGoogleSync(scopedDb, {
         getFreshAccessToken: async () => "fixture-token",
         getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
-        googleClient: {
-          listCalendarEvents: async () => [],
-          listMessageIds: async () => [{ id: MESSAGE_ID }],
-          getMessage: async () => ({
-            id: MESSAGE_ID,
-            threadId: "fixture-thread",
-            historyId: "fixture-history-1",
-            labelIds: ["INBOX"],
-            internalDate: String(NOW.getTime() - 60_000),
-            payload: {
-              mimeType: "text/plain",
-              headers: [
-                { name: "Subject", value: SUBJECT },
-                { name: "From", value: "colleague@example.test" },
-                { name: "To", value: "owner@example.test" }
-              ],
-              body: { data: Buffer.from(BODY).toString("base64") }
-            }
-          })
+        googleClient,
+        emailExtractDeps: actionableExtractDeps,
+        actionProjection: {
+          taskPort,
+          preferencesRepository,
+          actorUserId: ids.userA
         },
-        emailExtractDeps: summaryOnlyExtractDeps,
         now: () => NOW
       })
     );
     expect(sync.emailUpserted).toBe(1);
-
-    const sourceContext = buildTestSourceContextService({
-      googleProvider: fakeEmailProvider<string>([
-        parsedEmail({
-          externalId: MESSAGE_ID,
-          threadId: "fixture-thread",
-          historyId: "fixture-history-1",
-          subject: SUBJECT,
-          from: "colleague@example.test",
-          receivedAt: new Date(NOW.getTime() - 60_000).toISOString(),
-          snippet: BODY,
-          body: BODY
-        })
-      ]),
-      makeEmailExtractDeps: () => actionableExtractDeps
-    });
-    const tasksRepository = new TasksRepository();
-    const taskPort: EmailTaskCreationPort = {
-      async create(scopedDb, input) {
-        const task = await tasksRepository.create(scopedDb, {
-          title: input.title,
-          description: input.description ?? undefined,
-          status: input.status,
-          dueAt: input.dueAt ?? undefined,
-          priority: input.priority ?? undefined,
-          source: input.source,
-          sourceRef: input.sourceRef,
-          externalKey: input.externalKey,
-          suggestionMetadata: input.suggestionMetadata
-        });
-        return { id: task.id };
-      }
-    };
+    expect(await emailTaskCount(tasksRepository, context, MESSAGE_ID)).toBe(1);
 
     const monitor = await handles.dataContext.withDataContext(context, (scopedDb) =>
       runEmailMonitor(scopedDb, accountId, {
-        sourceContext,
         taskPort,
-        preferencesRepository: new PreferencesRepository(),
+        preferencesRepository,
         now: () => NOW
       })
     );
 
-    expect(monitor).toMatchObject({ planned: 1, created: 1 });
-    const tasks = await handles.dataContext.withDataContext(context, (scopedDb) =>
-      tasksRepository.listVisible(scopedDb)
-    );
+    expect(monitor).toMatchObject({ degraded: false });
+    expect(googleClient.listMessageIds).toHaveBeenCalledTimes(1);
+    expect(googleClient.getMessage).toHaveBeenCalledTimes(1);
+    expect(await emailTaskCount(tasksRepository, context, MESSAGE_ID)).toBe(1);
+  });
+
+  it("recovers saved action projection on the next unchanged sync", async () => {
+    const messageId = "sync-monitor-projection-recovery";
+    const { accountId, context } = await setupAccount("test:sync-monitor-projection-recovery");
+    const googleClient = googleClientFor(messageId);
+    const tasksRepository = new TasksRepository();
+    const preferencesRepository = new PreferencesRepository();
+    let projectionFails = true;
+    const taskPort = createTaskPort(tasksRepository, () => {
+      if (projectionFails) throw new Error("fixture projection failure");
+    });
+    const sync = () =>
+      handles.workerDataContext.withDataContext(context, (scopedDb) =>
+        runGoogleSync(scopedDb, {
+          getFreshAccessToken: async () => "fixture-token",
+          getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
+          googleClient,
+          emailExtractDeps: actionableExtractDeps,
+          actionProjection: {
+            taskPort,
+            preferencesRepository,
+            actorUserId: ids.userA
+          },
+          now: () => NOW
+        })
+      );
+
+    expect((await sync()).emailUpserted).toBe(1);
+    expect(await emailTaskCount(tasksRepository, context, messageId)).toBe(0);
+
+    projectionFails = false;
+    expect((await sync()).emailUpserted).toBe(0);
+    expect(await emailTaskCount(tasksRepository, context, messageId)).toBe(1);
+  });
+
+  it("re-extracts unchanged incomplete actionable triage before projecting once", async () => {
+    const messageId = "sync-monitor-incomplete-triage";
+    const { accountId, context } = await setupAccount("test:sync-monitor-incomplete-triage");
+    const googleClient = googleClientFor(messageId);
+    const tasksRepository = new TasksRepository();
+    const preferencesRepository = new PreferencesRepository();
+    const taskPort = createTaskPort(tasksRepository);
+    const runSync = (emailExtractDeps: EmailExtractDeps) =>
+      handles.workerDataContext.withDataContext(context, (scopedDb) =>
+        runGoogleSync(scopedDb, {
+          getFreshAccessToken: async () => "fixture-token",
+          getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
+          googleClient,
+          emailExtractDeps,
+          actionProjection: {
+            taskPort,
+            preferencesRepository,
+            actorUserId: ids.userA
+          },
+          now: () => NOW
+        })
+      );
+
+    expect((await runSync(summaryOnlyExtractDeps)).emailUpserted).toBe(1);
+    expect(await emailTaskCount(tasksRepository, context, messageId)).toBe(0);
+
+    const runChat = vi.fn(actionableExtractDeps.runChat);
     expect(
-      tasks.filter((task) => task.source === "email" && task.status === "suggested")
-    ).toHaveLength(1);
+      (
+        await runSync({
+          ...actionableExtractDeps,
+          runChat
+        })
+      ).emailUpserted
+    ).toBe(1);
+    expect(runChat).toHaveBeenCalledTimes(1);
+    expect(await emailTaskCount(tasksRepository, context, messageId)).toBe(1);
   });
 });
