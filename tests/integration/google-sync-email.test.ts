@@ -10,6 +10,43 @@ import {
 } from "./helpers/google-sync-orchestration.js";
 
 describe("runGoogleSync email orchestration", () => {
+  it("processes every message returned by Gmail", async () => {
+    const accountId = await seedGoogleAccount(handles.dataContext, [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ]);
+    const ctx = { actorUserId: ids.userA, requestId: "pgboss:test-uncapped-google-email" };
+    const messages = Array.from({ length: 51 }, (_, index) => ({ id: `uncapped-${index}` }));
+
+    const result = await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
+      runGoogleSync(scopedDb, {
+        getFreshAccessToken: async () => "tok",
+        getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
+        googleClient: {
+          listCalendarEvents: async () => [],
+          listMessageIds: async () => messages,
+          getMessage: async ({ id }) => ({
+            id,
+            payload: {
+              mimeType: "text/plain",
+              headers: [
+                { name: "Subject", value: id },
+                { name: "From", value: "sender@example.com" }
+              ],
+              body: { data: Buffer.from("body").toString("base64") }
+            }
+          })
+        },
+        emailExtractDeps: {
+          selectModel: async () => undefined,
+          runChat: async () => ({ text: "" })
+        }
+      })
+    );
+
+    expect(result.emailUpserted).toBe(51);
+    expect(result.truncated).toBe(false);
+  });
+
   it("skips email sync when the account email grant is off", async () => {
     const accountId = await seedGoogleAccount(handles.dataContext, [
       "https://www.googleapis.com/auth/calendar",

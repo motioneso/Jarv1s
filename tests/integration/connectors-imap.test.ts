@@ -207,6 +207,64 @@ describe("runImapSync", () => {
     expect(result.errors).toEqual([]);
   });
 
+  it("processes every message returned by IMAP", async () => {
+    const repo = new ConnectorsRepository();
+    const cipher = createConnectorSecretCipher();
+    const accessContext = { actorUserId: ids.userA, requestId: "req:imap-sync-uncapped" };
+    const account = await dataContext.withDataContext(accessContext, (scopedDb) =>
+      repo.upsertImapAccount(scopedDb, {
+        providerId: "imap-proton",
+        encryptedSecret: cipher.encryptJson({
+          kind: "imap-password",
+          providerId: "imap-proton",
+          username: "user@proton.local",
+          password: "secret",
+          imapHost: "127.0.0.1",
+          imapPort: 1143,
+          imapTls: false,
+          smtpHost: "127.0.0.1",
+          smtpPort: 1025,
+          smtpSecurity: "none"
+        })
+      })
+    );
+    const keys = Array.from({ length: 51 }, (_, index) => ({
+      folder: "INBOX",
+      id: `imap:INBOX:uncapped:${index}`
+    }));
+    const fakeProvider = {
+      listFolders: async () => ["INBOX"],
+      listMessageKeys: async () => keys,
+      getMessage: async (_secret: unknown, key: (typeof keys)[number]) => ({
+        externalId: key.id,
+        historyId: null,
+        subject: key.id,
+        from: "friend@example.com",
+        recipients: [],
+        receivedAt: new Date().toISOString(),
+        labelIds: [],
+        snippet: null,
+        body: "body",
+        bodyTruncated: false
+      })
+    };
+
+    const result = await dataContext.withDataContext(accessContext, (scopedDb) =>
+      runImapSync(scopedDb, account.id, {
+        repository: repo,
+        cipher,
+        emailReadProvider: fakeProvider,
+        emailExtractDeps: {
+          selectModel: async () => undefined,
+          runChat: async () => ({ text: "" })
+        }
+      })
+    );
+
+    expect(result.emailUpserted).toBe(51);
+    expect(result.truncated).toBe(false);
+  });
+
   it("records no-active-connection when the account is not found", async () => {
     const repo = new ConnectorsRepository();
     const cipher = createConnectorSecretCipher();

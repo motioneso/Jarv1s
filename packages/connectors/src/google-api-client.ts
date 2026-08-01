@@ -129,10 +129,9 @@ export class GoogleApiClient {
     query?: string;
     maxPages?: number;
   }): Promise<GmailMessageStub[]> {
-    const maxPages = input.maxPages ?? 10;
     const stubs: GmailMessageStub[] = [];
     let pageToken: string | undefined;
-    for (let page = 0; page < maxPages; page += 1) {
+    for (let page = 0; input.maxPages === undefined || page < input.maxPages; page += 1) {
       const url = new URL(`${GMAIL_BASE}/users/me/messages`);
       if (input.query) url.searchParams.set("q", input.query);
       if (pageToken) url.searchParams.set("pageToken", pageToken);
