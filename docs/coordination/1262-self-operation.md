@@ -5896,3 +5896,13 @@ mismatch; the task-scoped ledger-aware runner applied only that migration. DEV n
 sole #1327 worker is healthy on exact `b55878e9`, with schedule and queue listeners active; the
 branch `/today` returns HTTP 200. No sync, content inspection, QA, or merge ran. Next: tell Ben
 **run sync now**, monitor sanitized aggregates, then wait for the genuine row interaction artifact.
+
+Ben's first post-migration browser sync attempt returned 500 twice; unrelated chat and sports API
+routes also returned 500. A tight boundary loop reproduced the exact class: port 3000 had no
+listener, direct status was 000, proxied APIs were 500, while static `/today` stayed 200. Vite's
+target was correct; the worker replacement had not killed the separate healthy Job Search API on
+3097. The retained builder preserved that API and Vite, then started the #1327 API from exact
+`b55878e9` on port 3000. Boundary loop is GREEN: direct health 200, unrelated auth-required route
+401 direct and through tailnet instead of 500, `/today` 200. Startup used an ephemeral auth signing
+secret, so the prior browser session may require re-authentication. No sync, code change, content
+inspection, QA, or merge ran. Next: reload/sign in if prompted, then retry the authenticated sync.

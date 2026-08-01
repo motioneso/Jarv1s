@@ -81,6 +81,14 @@ immediate pre-write audit was safe, the scoped runner applied exactly `0181`, th
 sync, then the genuine row and View/Reply/Accept/Dismiss evidence artifact. QA and merge remain
 stopped until that proof.
 
+Ben's first post-migration authenticated attempt returned 500, as did unrelated API routes. The
+deterministic boundary check found Vite correctly targeting port 3000 with no listener; the worker
+restart had not killed the separate healthy Job Search API on 3097. The #1327 API is now restored
+from exact `b55878e9` on port 3000: direct health is 200, an unrelated auth-required route returns
+401 direct and through the tailnet instead of 500, and `/today` is 200. The API generated an
+ephemeral auth signing secret, so Ben may need to sign in again before retrying the browser sync.
+No sync was enqueued by the failed attempts.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged
