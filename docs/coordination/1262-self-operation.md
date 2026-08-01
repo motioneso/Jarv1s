@@ -4,7 +4,7 @@
 **Epic:** #1262 — module self-operation (Jarvis can operate Jarvis)
 **Handoff:** `docs/coordination/handoff-1262-module-self-operation.md`
 **Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id
-`019fbc41-80c1-7800-a69a-815cca2837ef`** (match `agent_session.value` in `herdr pane list`).
+`019fbf80-d92b-7940-a5ff-7541fcdda82e`** (match `agent_session.value` in `herdr pane list`).
 Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this
 anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every
 restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the
@@ -5863,3 +5863,13 @@ successor must claim the `Coordinator` label with its own immutable session id, 
 lock, verify exactly one active Coordinator, re-adopt the retained builder, confirm it is driving,
 then resolve and reap this coordinator fresh by label plus session id — never by a written pane
 number.
+
+### 2026-08-01 — successor driving; migration inspection underway
+
+Coordinator session `019fbf80-d92b-7940-a5ff-7541fcdda82e` holds the manifest lock and the sole
+active exact `Coordinator` label. Retained builder session
+`019fba1b-72cc-7e73-a143-2be9edb4fe89` is re-adopted and inspecting shared-DEV pending migrations
+read-only; predecessor coordinator session `019fbc41-80c1-7800-a69a-815cca2837ef` was resolved
+fresh by label plus session id and reaped. No migration, sync, QA, or merge has run. Item 10 remains
+the active gate: apply only `0178`, restart the sole worker on exact `e34edca6`, then obtain the
+authenticated row-interaction artifact before final QA or merge.
