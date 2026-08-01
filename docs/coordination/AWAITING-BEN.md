@@ -108,6 +108,12 @@ this production composition. H1 is being tested first: the shared extractor appe
 router's valid fallback solely because its selected tier differs. No live retry, QA, or merge before
 RED→GREEN and corrected-worker proof.
 
+H1 is falsified: the actor-scoped production resolver returns a real `economy` tier. H2 is confirmed
+at the persisted boundary: all 1,450 rows have metadata-only shape, zero summaries, zero complete
+triage, zero suggested tasks, and zero confidence, while the outer sync reports no failures. The
+builder is now testing the exact worker-composition model adapter, then static error categories and
+differential fixtures if it resolves, to distinguish provider rejection from parser degradation.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged

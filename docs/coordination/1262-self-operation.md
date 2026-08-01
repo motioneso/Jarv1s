@@ -5931,3 +5931,11 @@ then the shared extractor rejects the valid selection on strict tier equality an
 only. Builder is probing H1 with actor-scoped tier/aggregate evidence only; if confirmed, fix once
 at the shared extractor and prove both economy and fallback paths. No private content, live sync,
 QA, or merge.
+
+H1 is falsified by actor-scoped production evidence: requested tier `economy`, resolved true,
+resolved tier `economy`. H2 is confirmed at the persisted boundary: all 1,450 synced rows are
+metadata-only with zero summaries, complete triage, actionable categories, suggested tasks, or
+nonzero confidence; outer sync still reports zero failures/errors. Persisted metadata cannot
+distinguish provider rejection from parser degradation. Builder is tightening H2 at the exact
+worker-composition `selectModel` adapter first, then static job-window error categories and minimal
+differential fixtures if the adapter resolves. No production patch yet.
