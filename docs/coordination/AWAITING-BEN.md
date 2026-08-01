@@ -67,6 +67,12 @@ exact-file `runSqlFiles` invocation would bypass the migration ledger and leave 
 unresolved, so nothing was applied. Ben must choose a ledger-safe resolution before item 10 can
 continue; worker restart, sync, final QA, and merge remain stopped.
 
+Read-only simulation proves one narrow ledger-safe path: rename the unapplied branch migration to
+the next free global version, `0181_task_suggestion_metadata.sql`, then immediately re-audit and run
+the existing task-directory-scoped ledger-aware runner. Its simulated apply set is exactly that
+file; connector `0179`/`0180` are excluded, and both repo and DEV ledger currently have no `0181`.
+This needs Ben's explicit approval because it changes the previously approved migration version.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged

@@ -5881,3 +5881,9 @@ only true pending migrations are unrelated connector versions `0179` and `0180`;
 runner has no target flag and aborts on the checksum mismatch even when scoped to task SQL. The
 exact-file primitive bypasses the ledger, so it was not used. No migration, worker restart, sync,
 QA, or merge ran. Item 10 is parked in `AWAITING-BEN.md` pending a ledger-safe ruling.
+
+Read-only simulation found the narrow ledger-safe resolution: rename the unapplied branch file to
+`0181_task_suggestion_metadata.sql`, re-audit immediately, then use the existing task-directory-
+scoped runner. The simulated apply set is exactly that file; connector `0179`/`0180` are excluded,
+and repo plus DEV ledger currently have no `0181`. No edit or write was made because changing the
+previously approved migration version requires Ben's explicit ruling.
