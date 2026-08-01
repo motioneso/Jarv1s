@@ -5809,3 +5809,13 @@ Ben completed that action: the authenticated Google sync returned `enqueued: tru
 builder session `019fba1b-72cc-7e73-a143-2be9edb4fe89` is monitoring only sanitized aggregate sync
 and email-monitor outcomes. Keep the Today page open; the next user action begins only after the
 builder reports that a genuine action row is ready. QA and merge remain blocked.
+
+The second authenticated sync proved uncapped ingestion under exact #1327 code, but the following
+monitor still produced no row. The retained lane now has a deterministic integration RED matching
+that live symptom. Diagnosis confirmed two linked causes: the monitor treats a successful-empty
+second provider read as authoritative over the just-synced cache, and cache fallback does not enrich
+incomplete actionable triage. Ben ruled against a fallback-only patch: the required fix is one
+end-to-end sync workflow that fetches, classifies once, persists canonical triage, and projects
+action tasks; scheduled monitoring may re-evaluate saved data for resurfacing but must not reread
+Google for ordinary action projection. Builder is preparing the exact-seam plan; no production patch,
+QA, or merge yet.
