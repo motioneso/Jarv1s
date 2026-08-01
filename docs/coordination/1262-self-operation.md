@@ -5825,3 +5825,10 @@ candidates rather than only changed-upsert return values; unchanged messages wit
 must still re-extract; and a cache-save/projection-failure must recover exactly once on the next
 unchanged sync. The builder is implementing test-first. No live retry, QA, or merge before its
 RED→GREEN report and corrected worker restart.
+
+The pipeline fix is committed and pushed as `e34edca6`. The deterministic root integration moved
+RED→GREEN and now covers immediate projection, recovery after a saved-cache/projection failure,
+single extraction for incomplete triage, single provider read, and idempotent task creation;
+focused units, neighboring integrations, typecheck, lint, and format are green. The retained lane
+is restarting the live #1327 worker on this exact commit and proving sole-worker ownership before
+Ben runs the final authenticated sync. QA and merge remain blocked on that live artifact.
