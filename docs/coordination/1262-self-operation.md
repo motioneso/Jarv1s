@@ -5906,3 +5906,9 @@ target was correct; the worker replacement had not killed the separate healthy J
 401 direct and through tailnet instead of 500, `/today` 200. Startup used an ephemeral auth signing
 secret, so the prior browser session may require re-authentication. No sync, code change, content
 inspection, QA, or merge ran. Next: reload/sign in if prompted, then retry the authenticated sync.
+
+Ben re-authenticated and the retry returned 202 with `enqueued=true`, `deduped=false`; job
+`0dc25817-6f06-4691-84e0-fddaac7dc488` is now running under the sole corrected #1327 worker. The
+retained builder is monitoring sanitized aggregate sync/projection outcomes only. Ben should keep
+`/today` open and not refresh until the coordinator says **refresh now**. QA and merge remain
+blocked on the genuine row interaction artifact.

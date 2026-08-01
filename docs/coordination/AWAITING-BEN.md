@@ -89,6 +89,11 @@ from exact `b55878e9` on port 3000: direct health is 200, an unrelated auth-requ
 ephemeral auth signing secret, so Ben may need to sign in again before retrying the browser sync.
 No sync was enqueued by the failed attempts.
 
+Ben re-authenticated and the retry returned 202 with `enqueued=true`, `deduped=false`; job
+`0dc25817-6f06-4691-84e0-fddaac7dc488` is now running under the sole corrected #1327 worker. The
+retained builder is monitoring sanitized aggregate status and genuine suggested-row count only.
+Keep `/today` open and do not refresh until the coordinator says **refresh now**.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged
