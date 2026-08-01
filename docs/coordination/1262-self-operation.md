@@ -5832,3 +5832,8 @@ single extraction for incomplete triage, single provider read, and idempotent ta
 focused units, neighboring integrations, typecheck, lint, and format are green. The retained lane
 is restarting the live #1327 worker on this exact commit and proving sole-worker ownership before
 Ben runs the final authenticated sync. QA and merge remain blocked on that live artifact.
+
+The live #1327 worker is now isolated on exact `e34edca6`, with healthy listeners and the branch
+frontend still serving `/today`. Ben enqueued the final authenticated sync successfully. The
+retained lane is monitoring sanitized aggregates for end-to-end task projection and will report
+when the genuine Today row is ready to refresh. No QA or merge before that interaction artifact.
