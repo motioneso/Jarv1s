@@ -62,22 +62,6 @@ export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
 const CALENDAR_WINDOW_PAST_MS = 7 * 24 * 60 * 60 * 1000;
 const CALENDAR_WINDOW_FUTURE_MS = 30 * 24 * 60 * 60 * 1000;
 const EMAIL_QUERY = "newer_than:30d";
-const DEFAULT_EMAIL_MESSAGE_CAP = 50;
-
-/**
- * Parse JARVIS_EMAIL_SYNC_CAP into a positive integer, falling back to the default when it is
- * unset OR misconfigured. Previously `Number(... ?? "50")` returned NaN for a non-numeric value
- * (e.g. "abc"), and `stubs.slice(0, NaN)` yields an EMPTY array — so a typo'd env var silently
- * synced ZERO emails while reporting truncated=true. Guard against NaN / <=0 / non-integer.
- */
-export function resolveEmailMessageCap(raw: string | undefined): number {
-  if (raw === undefined) return DEFAULT_EMAIL_MESSAGE_CAP;
-  const parsed = Number(raw);
-  if (!Number.isInteger(parsed) || parsed <= 0) return DEFAULT_EMAIL_MESSAGE_CAP;
-  return parsed;
-}
-
-const EMAIL_MESSAGE_CAP = resolveEmailMessageCap(process.env.JARVIS_EMAIL_SYNC_CAP);
 
 interface GoogleClientLike {
   listCalendarEvents(input: {
@@ -270,7 +254,6 @@ export async function runGoogleSync(
   let emailUpserted = 0;
   let emailFailures = 0;
   let escalations = 0;
-  let truncated = false;
 
   const account = await deps.getActiveAccount(scopedDb);
   if (!account) {
@@ -410,8 +393,6 @@ export async function runGoogleSync(
       const keys = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
         emailReadProvider.listMessageKeys(token, GMAIL_READ_FOLDER)
       );
-      const capped = keys.slice(0, EMAIL_MESSAGE_CAP);
-      if (keys.length > capped.length) truncated = true;
 
       // Skip-unchanged: external_metadata.historyId (Gmail per-message revision marker)
       // lets us avoid re-summarizing messages whose content hasn't changed since the last
@@ -423,7 +404,7 @@ export async function runGoogleSync(
         existing.map((r) => [r.externalId, { historyId: r.historyId, hasSummary: r.hasSummary }])
       );
 
-      for (const key of capped) {
+      for (const key of keys) {
         try {
           const parsed = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
             emailReadProvider.getMessage(token, key)
@@ -499,16 +480,15 @@ export async function runGoogleSync(
       emailUpserted,
       emailFailures,
       escalations,
-      truncated,
+      truncated: false,
       errorCount: errors.length
     },
     "google-sync complete"
   );
-  // Bounded item errors (calendar/email section or per-item labels) make the run `partial`;
-  // a truncated run is also partial — some items were silently dropped.
+  // Bounded item errors (calendar/email section or per-item labels) make the run `partial`.
   // A clean run is `success`. A thrown top-level failure (auth) is recorded as `failed` above.
   // The persisted error is the first bounded label only — never raw provider/error text.
-  const status: ConnectorSyncStatus = errors.length > 0 || truncated ? "partial" : "success";
+  const status: ConnectorSyncStatus = errors.length > 0 ? "partial" : "success";
   try {
     await connectorsRepo.markSyncFinished(scopedDb, account.id, {
       finishedAt: now(),
@@ -520,7 +500,7 @@ export async function runGoogleSync(
         emailUpserted,
         emailFailures,
         escalations,
-        truncated
+        truncated: false
       }
     });
   } catch (error) {
@@ -533,7 +513,7 @@ export async function runGoogleSync(
     emailFailures,
     escalations,
     errors,
-    truncated
+    truncated: false
   };
 }
 

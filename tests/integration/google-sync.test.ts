@@ -7,7 +7,6 @@ import {
   GoogleApiClient,
   extractEmailSignals,
   parseEmail,
-  resolveEmailMessageCap,
   type EmailExtractDeps
 } from "@jarv1s/connectors";
 import { CalendarRepository } from "@jarv1s/calendar";
@@ -569,28 +568,26 @@ describe("GoogleApiClient gmail", () => {
     const getUrl = new URL(calls[1]!.url);
     expect(getUrl.searchParams.get("format")).toBe("full");
   });
-});
 
-describe("resolveEmailMessageCap (JARVIS_EMAIL_SYNC_CAP guard)", () => {
-  it("returns the default (50) when unset", () => {
-    expect(resolveEmailMessageCap(undefined)).toBe(50);
-  });
+  it("paginates until Gmail has no more messages", async () => {
+    const { calls, fetchFn } = captureFetch((url) => {
+      const token = new URL(url).searchParams.get("pageToken");
+      const page = token ? Number(token.slice(1)) : 0;
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          messages: [{ id: `m${page}` }],
+          nextPageToken: page < 10 ? `p${page + 1}` : undefined
+        }
+      };
+    });
+    const client = new GoogleApiClient({ fetchFn });
 
-  it("returns a valid positive integer as-is", () => {
-    expect(resolveEmailMessageCap("100")).toBe(100);
-    expect(resolveEmailMessageCap("1")).toBe(1);
-  });
+    const ids = await client.listMessageIds({ accessToken: "tok", query: "newer_than:30d" });
 
-  it("falls back to the default for a non-numeric value (no silent zero-email sync)", () => {
-    // Number('not-a-number') is NaN → slice(0, NaN) === [] → zero emails synced silently. Guard it.
-    expect(resolveEmailMessageCap("not-a-number")).toBe(50);
-  });
-
-  it("falls back to the default for zero, negatives, and non-integers", () => {
-    expect(resolveEmailMessageCap("0")).toBe(50);
-    expect(resolveEmailMessageCap("-5")).toBe(50);
-    expect(resolveEmailMessageCap("12.5")).toBe(50);
-    expect(resolveEmailMessageCap("")).toBe(50);
+    expect(ids).toHaveLength(11);
+    expect(calls).toHaveLength(11);
   });
 });
 

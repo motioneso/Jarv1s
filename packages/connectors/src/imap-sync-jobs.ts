@@ -14,7 +14,7 @@ import type { EmailReadProvider } from "./email-read-provider.js";
 import { ImapEmailReadProvider, IMAP_DEFAULT_FOLDER } from "./imap-email-read-provider.js";
 import { decryptImapConnectionSecret, type ImapConnectionSecret } from "./imap-secret.js";
 import { ConnectorsRepository } from "./repository.js";
-import { withSavepoint, resolveEmailMessageCap, type SyncLogger } from "./sync-jobs.js";
+import { withSavepoint, type SyncLogger } from "./sync-jobs.js";
 
 export const IMAP_SYNC_QUEUE = "connectors.imap-sync";
 
@@ -46,7 +46,6 @@ export interface ImapSyncResult {
 }
 
 const NOOP_LOGGER: SyncLogger = { warn: () => undefined, info: () => undefined };
-const EMAIL_MESSAGE_CAP = resolveEmailMessageCap(process.env.JARVIS_EMAIL_SYNC_CAP);
 
 export interface RunImapSyncDeps {
   readonly repository: ConnectorsRepository;
@@ -70,7 +69,6 @@ export async function runImapSync(
   const errors: string[] = [];
   let emailUpserted = 0;
   let emailFailures = 0;
-  let truncated = false;
 
   await deps.repository.markSyncStarted(scopedDb, connectorAccountId, now());
 
@@ -108,10 +106,8 @@ export async function runImapSync(
 
   try {
     const keys = await provider.listMessageKeys(secret, IMAP_DEFAULT_FOLDER);
-    const capped = keys.slice(0, EMAIL_MESSAGE_CAP);
-    if (keys.length > capped.length) truncated = true;
 
-    for (const key of capped) {
+    for (const key of keys) {
       try {
         const parsed = await provider.getMessage(secret, key);
         const extracted = await extractEmailSignals(parsed, deps.emailExtractDeps);
@@ -144,15 +140,15 @@ export async function runImapSync(
     errors.push("email-error");
   }
 
-  const status: ConnectorSyncStatus = errors.length > 0 || truncated ? "partial" : "success";
+  const status: ConnectorSyncStatus = errors.length > 0 ? "partial" : "success";
   await deps.repository.markSyncFinished(scopedDb, connectorAccountId, {
     finishedAt: now(),
     status,
     error: errors[0] ?? null,
-    counts: { emailUpserted, emailFailures, truncated }
+    counts: { emailUpserted, emailFailures, truncated: false }
   });
 
-  return { emailUpserted, emailFailures, errors, truncated };
+  return { emailUpserted, emailFailures, errors, truncated: false };
 }
 
 export interface RegisterImapSyncWorkerDeps {
