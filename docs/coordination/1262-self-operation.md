@@ -5715,3 +5715,14 @@ connected email account, configured generation model, running workers, and a gen
 inbound email. Chat and ordinary task creation cannot create valid suggestion metadata. This is a
 live-data precondition, not another #1327 code defect. Keep PR #1379 code-complete, unverified; do
 not spawn final sol-high QA or merge until the full action-row interaction artifact is captured.
+
+### 2026-07-31 — sync caps removed; authenticated enqueue required
+
+Task 7 follow-up `6d9c50f4` is pushed to PR #1379. It removes Google and IMAP 50-message slicing and
+Gmail's default 10-page ceiling while preserving `newer_than:30d`. Evidence: expected RED Google
+50/51, IMAP 50/51, and pagination 10/11 focused exit 1; GREEN focused integration 64/64, targeted
+ESLint, targeted Prettier, full typecheck, and push exit 0. The worker reloaded cleanly. Ben starred a
+real email, but terminal `POST /api/connectors/google/sync` correctly returned 401 without his
+session. He must enqueue that route from the authenticated browser; the scheduled email monitor can
+then project the real suggested row. No final sol-high QA or merge before the row interactions and
+evidence artifact are complete.

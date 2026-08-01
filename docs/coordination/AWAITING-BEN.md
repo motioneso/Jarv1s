@@ -23,6 +23,13 @@ requires a connected email account, configured generation model, running workers
 actionable inbound email; chat and ordinary task creation cannot manufacture the required metadata.
 The full Accept/Dismiss/View/Reply proof remains blocked on that live-data precondition.
 
+Task 7 follow-up `6d9c50f4` removes the real Google/IMAP 50-message caps and Gmail's default
+10-page ceiling while retaining `newer_than:30d`; focused integration is 64/64 green, typecheck is
+green, and the worker was reloaded. Ben starred a genuine email. The unauthenticated terminal sync
+correctly returned 401, so Ben must enqueue `POST /api/connectors/google/sync` from his authenticated
+browser session, then allow the 15-minute email-monitor schedule to produce the real suggested row.
+No authenticated sync/row artifact means no final sol-high QA and no merge.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged
