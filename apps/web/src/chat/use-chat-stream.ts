@@ -94,6 +94,7 @@ export function useChatStream(
   const clearRecords = useCallback(() => setRecords([]), []);
 
   useEffect(() => {
+    setRecords([]);
     if (!enabled) return;
     const source = new EventSource(chatStreamUrl(surface), { withCredentials: true });
 

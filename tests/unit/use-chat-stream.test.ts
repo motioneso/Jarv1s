@@ -1,8 +1,58 @@
-import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ChatMessageDto, ChatSurface, ChatThreadDto } from "@jarv1s/shared";
+
+import { listChatThreadMessages, listChatThreads } from "../../apps/web/src/api/client.js";
 import {
   parseRecord,
-  shouldEndPrivateChatOnStreamDisconnect
+  shouldEndPrivateChatOnStreamDisconnect,
+  useChatStream
 } from "../../apps/web/src/chat/use-chat-stream.js";
+
+vi.mock("../../apps/web/src/api/client.js", () => ({
+  chatStreamUrl: (surface?: string) => `/api/chat/stream${surface ? `?surface=${surface}` : ""}`,
+  listChatThreadMessages: vi.fn(),
+  listChatThreads: vi.fn()
+}));
+
+afterEach(() => {
+  vi.mocked(listChatThreadMessages).mockReset();
+  vi.mocked(listChatThreads).mockReset();
+  vi.unstubAllGlobals();
+});
+
+function thread(id: string): ChatThreadDto {
+  return {
+    id,
+    ownerUserId: "user-1",
+    title: id,
+    incognito: false,
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString()
+  };
+}
+
+function message(threadId: string, body: string): ChatMessageDto {
+  return {
+    id: `${threadId}-message`,
+    threadId,
+    ownerUserId: "user-1",
+    role: "assistant",
+    status: "complete",
+    body,
+    modelRoute: null,
+    tools: [],
+    activity: [],
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString()
+  };
+}
+
+function StreamProbe(props: { surface: ChatSurface }) {
+  const { records } = useChatStream(props.surface);
+  return createElement("div", null, records.map((record) => record.text).join("|"));
+}
 
 describe("parseRecord", () => {
   it("parses a plain reply record", () => {
@@ -96,5 +146,43 @@ describe("shouldEndPrivateChatOnStreamDisconnect", () => {
         streamErrorCount: 1
       })
     ).toBe(true);
+  });
+});
+
+describe("useChatStream", () => {
+  it("replaces the previous transcript when the surface changes", async () => {
+    vi.stubGlobal(
+      "EventSource",
+      class {
+        onmessage = null;
+        onerror = null;
+        close() {}
+      }
+    );
+    const firstSurface = "m-1111111111111111" as ChatSurface;
+    const secondSurface = "m-2222222222222222" as ChatSurface;
+    vi.mocked(listChatThreads).mockImplementation(async (surface) => ({
+      threads: [thread(surface === firstSurface ? "thread-1" : "thread-2")]
+    }));
+    vi.mocked(listChatThreadMessages).mockImplementation(async (threadId) => ({
+      messages: [
+        message(threadId, threadId === "thread-1" ? "First transcript" : "Second transcript")
+      ]
+    }));
+    let renderer: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(createElement(StreamProbe, { surface: firstSurface }));
+      await Promise.resolve();
+    });
+    expect(JSON.stringify(renderer!.toJSON())).toContain("First transcript");
+
+    await act(async () => {
+      renderer!.update(createElement(StreamProbe, { surface: secondSurface }));
+      await Promise.resolve();
+    });
+    const switched = JSON.stringify(renderer!.toJSON());
+    expect(switched).toContain("Second transcript");
+    expect(switched).not.toContain("First transcript");
   });
 });
