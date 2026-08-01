@@ -5873,3 +5873,11 @@ read-only; predecessor coordinator session `019fbc41-80c1-7800-a69a-815cca2837ef
 fresh by label plus session id and reaped. No migration, sync, QA, or merge has run. Item 10 remains
 the active gate: apply only `0178`, restart the sole worker on exact `e34edca6`, then obtain the
 authenticated row-interaction artifact before final QA or merge.
+
+The read-only audit then found a global-version collision: shared DEV ledger version `0178` is
+`0178_notification_event_keys.sql` with a different checksum, while
+`packages/tasks/sql/0178_task_suggestion_metadata.sql` is unapplied and its column is absent. The
+only true pending migrations are unrelated connector versions `0179` and `0180`; the standard
+runner has no target flag and aborts on the checksum mismatch even when scoped to task SQL. The
+exact-file primitive bypasses the ledger, so it was not used. No migration, worker restart, sync,
+QA, or merge ran. Item 10 is parked in `AWAITING-BEN.md` pending a ledger-safe ruling.

@@ -58,6 +58,15 @@ tasks cannot persist. Ben explicitly approved applying only `0178` and restartin
 After that, Ben's next action will be one browser-console sync when the coordinator says **run sync
 now**. No final QA or merge before a genuine row and the interaction artifact.
 
+The required read-only audit found that shared DEV already records global version `0178` as
+`0178_notification_event_keys.sql` with a different checksum, while the branch file is
+`packages/tasks/sql/0178_task_suggestion_metadata.sql`; the required column is absent. The only
+true pending migrations are unrelated connector versions `0179` and `0180`. The standard runner
+has no target flag and aborts on the `0178` checksum mismatch even when scoped to task SQL. An
+exact-file `runSqlFiles` invocation would bypass the migration ledger and leave the collision
+unresolved, so nothing was applied. Ben must choose a ledger-safe resolution before item 10 can
+continue; worker restart, sync, final QA, and merge remain stopped.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged
