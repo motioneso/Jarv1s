@@ -4,7 +4,7 @@
 **Epic:** #1262 — module self-operation (Jarvis can operate Jarvis)
 **Handoff:** `docs/coordination/handoff-1262-module-self-operation.md`
 **Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id
-`019fba35-33aa-7a13-b6b0-f0c0cddead62`** (match `agent_session.value` in `herdr pane list`).
+`019fbc41-80c1-7800-a69a-815cca2837ef`** (match `agent_session.value` in `herdr pane list`).
 Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this
 anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every
 restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the
@@ -5785,3 +5785,14 @@ relaying immediately with no further live operation, QA, or merge. Successor: cl
 active Coordinator, re-adopt retained builder session `019fba1b-72cc-7e73-a143-2be9edb4fe89`, and
 reap this old coordinator only after confirming you are driving. Resolve every pane fresh by
 label+session id; never trust a written pane number.
+
+### 2026-08-01 — successor driving; authenticated recent-email proof remains open
+
+Coordinator session `019fbc41-80c1-7800-a69a-815cca2837ef` now holds the manifest lock and the
+sole active exact `Coordinator` label. Retained builder session
+`019fba1b-72cc-7e73-a143-2be9edb4fe89` is re-adopted in
+`~/Jarv1s/.claude/worktrees/1327-action-row-ui`; predecessor coordinator session
+`019fba35-33aa-7a13-b6b0-f0c0cddead62` was resolved fresh by label plus session id and reaped.
+`AWAITING-BEN.md` item 10 remains the active gate: verify the corrected #1327 worker is isolated,
+then obtain one authenticated recent-email sync and the genuine action-row interaction artifact on
+PR #1379. No final sol-high QA or merge before that proof.
