@@ -5819,3 +5819,9 @@ end-to-end sync workflow that fetches, classifies once, persists canonical triag
 action tasks; scheduled monitoring may re-evaluate saved data for resurfacing but must not reread
 Google for ordinary action projection. Builder is preparing the exact-seam plan; no production patch,
 QA, or merge yet.
+
+The exact-seam plan is approved with binding recovery coverage: projection consumes canonical saved
+candidates rather than only changed-upsert return values; unchanged messages with incomplete triage
+must still re-extract; and a cache-save/projection-failure must recover exactly once on the next
+unchanged sync. The builder is implementing test-first. No live retry, QA, or merge before its
+RED→GREEN report and corrected worker restart.
