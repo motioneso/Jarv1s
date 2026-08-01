@@ -5748,3 +5748,12 @@ live-proves the cap-removal follow-up but not the action-row interactions. Gmail
 as source metadata; the monitor does not treat the starred marker alone as an actionability signal.
 A genuine actionable inbound request is still required. Do not spawn final sol-high QA or merge
 before the row and interaction artifact exist.
+
+### 2026-07-31 — DEV worker released to Job Search
+
+After the #1327 uncapped-sync and 21:45 monitor evidence was captured, DEV ownership returned to the
+separate Job Search lane. The sole live worker is now rooted at
+`~/Jarv1s/.claude/worktrees/job-search-resume-attach`; its unrelated local-only live proof passed and
+must not be published without explicit authorization. Before any further #1327 connector enqueue,
+coordinate that worker's pause and restart the #1327 worker at `6d9c50f4` so stale/cross-branch code
+cannot consume the job. The #1327 action-row live gate remains open.
