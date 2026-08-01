@@ -214,13 +214,27 @@ async function readAccountLive(
   const items: EmailContextItem[] = [];
   for (const message of fetched) {
     const cachedRow = cachedByExternalId.get(cacheKey(account.id, message.externalId));
+    const cachedSignalSet = cachedRow ? cachedSignals(cachedRow) : undefined;
+    const cachedActionability = cachedSignalSet?.actionability;
+    const cachedNeedsActionDetails =
+      cachedActionability?.category === "needs_action" ||
+      cachedActionability?.category === "needs_reply" ||
+      cachedActionability?.category === "time_sensitive_info";
+    const cachedActionDetailsComplete =
+      Boolean(cachedActionability?.inferredSubject?.trim()) &&
+      (cachedActionability?.suggestedTasks?.length ?? 0) > 0;
     let triage: TriageFields;
-    if (cachedRow && (cachedRow.summary !== null || cachedSignals(cachedRow).actionability)) {
-      triage = triageFromSignals(cachedRow.summary, cachedSignals(cachedRow));
+    if (
+      cachedRow &&
+      cachedSignalSet &&
+      cachedActionability &&
+      (!cachedNeedsActionDetails || cachedActionDetailsComplete)
+    ) {
+      triage = triageFromSignals(cachedRow.summary, cachedSignalSet);
     } else if (triageBudget > 0) {
       triageBudget -= 1;
       const extracted = await extractEmailSignals(message, extractDeps);
-      triage = triageFromSignals(extracted.summary, extracted.signals);
+      triage = triageFromSignals(cachedRow?.summary ?? extracted.summary, extracted.signals);
     } else {
       triage = UNTRIAGED;
     }

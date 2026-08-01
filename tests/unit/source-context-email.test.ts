@@ -86,7 +86,12 @@ function cachedRow(overrides: Partial<EmailMessage> = {}): EmailMessage {
     signals: {
       importance: "normal",
       confidence: 0.8,
-      actionability: { category: "needs_reply", reason: "Direct question." }
+      actionability: {
+        category: "needs_reply",
+        reason: "Direct question.",
+        inferredSubject: "Quick question",
+        suggestedTasks: [{ text: "Reply to Alice" }]
+      }
     },
     created_at: new Date("2026-07-03T10:00:05.000Z"),
     updated_at: new Date("2026-07-03T10:00:05.000Z"),
