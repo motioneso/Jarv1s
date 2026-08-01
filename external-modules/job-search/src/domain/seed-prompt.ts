@@ -21,8 +21,7 @@ import type { Profile } from "../web/use-profiles.js";
  * Discuss action). Module isolation (CLAUDE.md's hard invariant) means this module never imports
  * host source paths — the host's real handle object satisfies this interface structurally, which
  * is all TypeScript needs, and a test fixture only has to fake four members instead of the full
- * chat-surface API (uploadAttachment and subscribeRecords are still omitted — nothing here calls
- * them).
+ * chat-surface API (subscribeRecords is still omitted — nothing here calls it).
  */
 export interface AssistantSurfaceHandleV1 {
   /** #1284 semantics apply unmodified here: `null` releases the claim. Call this BEFORE
@@ -60,6 +59,8 @@ export interface AssistantSurfaceHandleV1 {
     readonly controlContext?: Record<string, unknown>;
     readonly attachmentIds?: readonly string[];
   }): Promise<void>;
+  /** Uploads a file through the host's existing chat attachment boundary. */
+  uploadAttachment?(file: File): Promise<{ id: string; fileName: string; sizeBytes: number }>;
 }
 
 // v2: names the wantNarrative field and the fact that role+want+sources gate the crawl. A live run
@@ -74,7 +75,9 @@ export interface AssistantSurfaceHandleV1 {
 // "don't ask me anything else first", and the model called criteria.set with an empty object,
 // showed "Resolved.", then began "Step 1 of 5 — Role" and asked for the job titles it had just
 // been given. Nothing was saved.
-const SEED_PROMPT_VERSION = "v4";
+// v5: tells the model an attached résumé is equivalent to a pasted one now that onboarding exposes
+// the host attachment control.
+const SEED_PROMPT_VERSION = "v5";
 
 /** `job-search:${profileId}:v1` — bump the version suffix whenever the prompt text below
  * changes. The host dedupes seedContext calls on this key (chat-session-manager.ts:384), so an
@@ -102,7 +105,7 @@ export function buildSeedPrompt(profile: Profile): string {
     `down everything they have already told you with job-search.criteria.set; send only the ` +
     `fields you are setting, never an empty object. Then ask only for what is still missing, one ` +
     `at a time, saving each answer the moment it arrives rather than repeating it back. Ask them ` +
-    `to paste their resume too and save it with job-search.resume.set — Fit has nothing to judge ` +
+    `to paste or attach their resume too and save it with job-search.resume.set — Fit has nothing to judge ` +
     `against without one. ` +
     `This is a full session: job-search.resume.get, job-search.profile.set-context, ` +
     `job-search.profile.set-briefing-detail, job-search.portal.set-enabled, ` +

@@ -162,9 +162,12 @@ export function OnboardingScreen(props: {
           h(Surface, {
             composer: {
               placeholder: "Tell me the kind of role you're after…",
-              onSubmitText: (text: string) => {
+              attachmentLabel: "Attach résumé",
+              uploadAttachment: props.assistantSurface?.uploadAttachment,
+              onSubmitText: (text: string, attachmentIds?: readonly string[]) => {
                 void props.assistantSurface?.submitTurn({
                   text,
+                  attachmentIds,
                   controlContext: {
                     action: "continue-job-search-onboarding",
                     values: {

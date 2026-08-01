@@ -56,6 +56,7 @@ describe("job-search seed prompt (#1301)", () => {
     const prompt = buildSeedPrompt(profile());
     expect(prompt).toContain("job-search.criteria.set");
     expect(prompt).toContain("job-search.resume.set");
+    expect(prompt).toMatch(/attach(?:ed)? (?:their )?resume/i);
   });
 
   it("cites no tool name that isn't in the manifest's declared assistantTools", () => {
