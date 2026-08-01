@@ -3,7 +3,7 @@
 Decisions that need Ben and must not be silently resolved by an agent. Coordinator keeps this
 current.
 
-_Last updated: 2026-07-31, during issue #1327 coordination._
+_Last updated: 2026-08-01, during issue #1327 coordination._
 
 ## 10. #1327 PR #1379 needs an authenticated live-path pass
 
@@ -45,6 +45,10 @@ extraction for incomplete triage. The focused sync→monitor integration reprodu
 Google-sync integrations, ESLint, and Prettier are green. The full PR live gate now needs one more
 authenticated sync under the sole corrected #1327 worker, then the real row plus
 Accept/Dismiss/View/Reply interaction artifact. No final sol-high QA or merge before that proof.
+
+Worker isolation is now GREEN: the Job Search worker group is stopped, #1327 at exact HEAD
+`08916cf8` is the sole worker consumer, and <http://100.64.98.99:5198/today> returns HTTP 200.
+Ben can now repeat the authenticated sync.
 
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
