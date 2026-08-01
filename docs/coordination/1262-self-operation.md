@@ -5796,3 +5796,11 @@ sole active exact `Coordinator` label. Retained builder session
 `AWAITING-BEN.md` item 10 remains the active gate: verify the corrected #1327 worker is isolated,
 then obtain one authenticated recent-email sync and the genuine action-row interaction artifact on
 PR #1379. No final sol-high QA or merge before that proof.
+
+Isolation is now GREEN. The Job Search worker process group was resolved fresh from its live
+process ownership and stopped without touching its API. The only remaining worker consumer is the
+#1327 process group rooted at `~/Jarv1s/.claude/worktrees/1327-action-row-ui/apps/worker` on exact
+HEAD `08916cf8923d93f7f47898690e41f66a8ca56204`; the branch frontend still serves
+<http://100.64.98.99:5198/today> with HTTP 200. No sync was enqueued and no content was inspected.
+Next action is Ben's authenticated recent-email sync, followed by sanitized aggregate monitoring
+and the required live interaction artifact.
