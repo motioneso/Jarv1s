@@ -6337,3 +6337,8 @@ Chunk 1 `e72aab2a-f3f8-566b-8cfc-cf206c670f1b` completed cleanly at retry 0 and 
 eight emails (8 upserted, 0 failed, `truncated=true`). Deterministic chunk 2
 `8b1c2cd7-bbd1-5d36-868a-333bdbcc606f` is created behind nine older singleton continuations.
 Genuine suggested Today rows remain 0; continue monitoring with no browser interaction.
+
+Chunk 1 terminal detail: completed at `19:42:22Z` in 162.979 seconds; cumulative
+`emailUpserted=8`, failures/errors/retries 0, `truncated=true`, deterministic. Chunk 2 was created
+post-commit and remains behind nine older jobs. Actor-scoped genuine suggested rows remain 0, so
+the live-path interaction gate is not ready.
