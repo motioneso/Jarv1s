@@ -122,6 +122,21 @@ CLI-before-decrypt plus validation/repair, and injects the existing CLI adapter 
 registry composition. No chat-internal connectors import or duplicated auth logic. Builder is now
 implementing RED→GREEN; no live retry, QA, or merge yet.
 
+The root fix reached GREEN and was committed pre-rebase as `e6fbf296`: eight owned files,
+production +172/−52 and tests +191/−17; focused CLI/API-key units, sync→projection integration,
+neighboring structured/IMAP tests, package/root typecheck, lint, format, and package-dependency
+checks passed. It is not pushed yet. Rebase onto current `origin/main` correctly skipped the now-
+superseded migration rename because main owns the exact task migration at `0178`, then paused on a
+separate module-registry wiring conflict while replaying the root fix.
+
+Shared DEV now needs Ben's approval for a ledger-only repair before live restart. Its schema already
+matches both upstream migrations exactly, but its two ledger rows are swapped across versions:
+DEV records notification at `0178` and task metadata at `0181`; current main records task metadata
+at `0178` and notification at `0181`. Proposed repair: under the standard migration advisory lock,
+guard on the exact current two rows plus schema invariants, update both names/checksums to match
+main while preserving `applied_at`, assert exactly two rows, commit. No DDL or migration execution.
+No write has occurred.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged

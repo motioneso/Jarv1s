@@ -5949,3 +5949,30 @@ reuse public `generateStructured` for CLI-before-decrypt plus schema validation/
 existing CLI adapter factory from module-registry composition, matching the existing news pattern.
 Do not import chat internals into connectors or duplicate transport logic. Builder implementing
 test-first; no live retry/environment restart/QA/merge until reviewed.
+
+Root fix was GREEN and committed pre-rebase as `e6fbf296` (not pushed): eight owned files,
+production +172/−52, tests +191/−17. CLI/API-key adapter units, sync→projection root integration,
+neighboring structured and IMAP tests, package/root typecheck, lint, format, and package-dependency
+checks passed. Rebase onto current `origin/main` skipped superseded `b55878e9` because main owns the
+exact task migration at `0178`; replay of the root fix is now paused on one conflict in
+`packages/module-registry/src/index.ts` (upstream external briefing deps versus CLI source-context
+injection). Rebase HEAD `e6fbf296`, current HEAD `3db0c672`; no push. Builder context log is in
+`stash@{0}` and its unrelated untracked handoff is preserved.
+
+DEV audit found both upstream schema effects fully present. Old notification SQL and upstream
+notification SQL differ only by a version comment, so no DDL is needed. Ledger alone is swapped:
+DEV `0178_notification_event_keys` + `0181_task_suggestion_metadata`; main expects
+`0178_task_suggestion_metadata` + `0181_notification_event_keys`. Proposed repair, awaiting Ben:
+one transaction under the standard migration advisory lock, guarded on the exact two current rows
+and schema invariants, update both ledger names/checksums to main while preserving `applied_at`,
+assert exactly two rows, commit. No write has run.
+
+### 2026-08-01 — coordinator relaying at context threshold
+
+Coordinator session `019fbf80-d92b-7940-a5ff-7541fcdda82e` hit the mandatory relay threshold.
+Successor must claim the lock, re-adopt retained builder session
+`019fba1b-72cc-7e73-a143-2be9edb4fe89`, and lead with item 10. Immediate decisions: ask Ben to
+approve the guarded ledger-only two-row repair; keep builder rebase paused until the successor
+reviews/resolves the module-registry conflict; then rerun gates, push, repair DEV if approved,
+restart exact #1327 API/worker, and obtain authenticated row interactions. No QA or merge before
+proof. Reap this coordinator only by fresh label plus session id resolution.
