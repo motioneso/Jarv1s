@@ -6402,6 +6402,10 @@ Queue progress: chunk 5 remains created with nine older singleton continuations 
 Retries and timeouts remain zero, global non-overlap holds, and genuine suggested rows remain 0. No
 interaction.
 
+Unrelated Job Search commit `47a71072` requested redeploy clearance. Decision: HOLD while #1327's
+live continuation proof is active. Job Search was told not to run its redeploy script or restart any
+service; its code/evidence remain parked for an explicit later CLEAR. It received no #1327 work.
+
 Chunk 3 completed at `21:16:01Z` in 142.860 seconds. Cumulative `emailUpserted=21` (delta 7, within
 the maximum-eight bound), with failures/errors/retries 0 and `truncated=true`. Deterministic child 4
 `4d9e7334-d681-5232-9c15-518ab25e950c` was created post-commit behind 19 older jobs. Genuine
