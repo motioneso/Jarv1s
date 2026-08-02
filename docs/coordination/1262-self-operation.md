@@ -6394,6 +6394,10 @@ Chunk 4 terminal detail: completed at `22:28:21Z` in 163.014 seconds; cumulative
 post-commit and currently has one active plus 24 created jobs ahead. Genuine suggested rows remain
 0; not ready.
 
+Queue progress: chunk 5 remains created with 15 older singleton continuations ahead, down from 25.
+Retries and timeouts remain zero, and the global active count never exceeded one. Genuine suggested
+rows remain 0; no interaction.
+
 Chunk 3 completed at `21:16:01Z` in 142.860 seconds. Cumulative `emailUpserted=21` (delta 7, within
 the maximum-eight bound), with failures/errors/retries 0 and `truncated=true`. Deterministic child 4
 `4d9e7334-d681-5232-9c15-518ab25e950c` was created post-commit behind 19 older jobs. Genuine
