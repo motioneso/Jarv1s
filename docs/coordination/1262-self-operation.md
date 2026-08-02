@@ -6354,3 +6354,9 @@ no browser interaction.
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
+
+Chunk 2 completed cleanly at retry 0. Cumulative output is 14 upserted, 0 failed (delta +6), with
+`truncated=true`. Deterministic chunk 3 `5609c16f-f31e-5ed7-806f-a93a30a511c4` is created behind 13
+older singleton continuations. Queue output exposes no separate evaluated counter; do not infer one.
+The verified bound remains at most eight per page from exact-HEAD code. Genuine suggested rows
+remain 0.
