@@ -6318,3 +6318,9 @@ coordinator session `019fbfe1-d2ed-7531-b332-27c74cda6f3f` was resolved fresh by
 ID and reaped; exactly one active `Coordinator` remains. Builder monitor session `65318` is following
 the sanitized continuation chain. Browser proof reports genuine version-1 suggested Today rows
 created since this sync = 0, so no browser interaction is authorized yet.
+
+Latest sanitized monitor state: the singleton continuation queue remains FIFO and non-overlapping.
+Two previously created continuations remain ahead of this chain's chunk 1
+`e72aab2a-f3f8-566b-8cfc-cf206c670f1b`; the current active job has `retry_count=0`. This chain is
+still initial job `completed`, chunk 1 `created`, with genuine suggested Today rows = 0. Continue
+queue-only monitoring; no browser action or second sync.
