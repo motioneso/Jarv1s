@@ -6380,4 +6380,5 @@ active.
 
 Chunk 3 completed at `21:16:01Z` in 142.860 seconds. Cumulative `emailUpserted=21` (delta 7, within
 the maximum-eight bound), with failures/errors/retries 0 and `truncated=true`. Deterministic child 4
-`4d9e7334` was created post-commit behind 19 older jobs. Genuine suggested rows remain 0; not ready.
+`4d9e7334-d681-5232-9c15-518ab25e950c` was created post-commit behind 19 older jobs. Genuine
+suggested rows remain 0; not ready.
