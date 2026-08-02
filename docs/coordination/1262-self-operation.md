@@ -6383,6 +6383,12 @@ the maximum-eight bound), with `truncated=true`. Deterministic chunk 5
 `f7e26b0f-59af-5c67-bdfb-178cda619195` is created behind 25 older singleton continuations. Genuine
 suggested rows remain 0; no interaction.
 
+Sanitized queue context: the continuation backlog is 26 created, 0 active, across 26 distinct run
+IDs, with total retries 0. Existing 15-minute schedules continue to add initial sync jobs (one at
+quarter-hours and three at half/full hours); neither retained monitor enqueued or refreshed anything.
+Each continuation requeues at the singleton tail, explaining the long round-robin delay without
+breaking the per-page bound, deterministic IDs, or global non-overlap. Continue monitoring.
+
 Chunk 3 completed at `21:16:01Z` in 142.860 seconds. Cumulative `emailUpserted=21` (delta 7, within
 the maximum-eight bound), with failures/errors/retries 0 and `truncated=true`. Deterministic child 4
 `4d9e7334-d681-5232-9c15-518ab25e950c` was created post-commit behind 19 older jobs. Genuine
