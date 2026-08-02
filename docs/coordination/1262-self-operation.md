@@ -4,7 +4,7 @@
 **Epic:** #1262 — module self-operation (Jarvis can operate Jarvis)
 **Handoff:** `docs/coordination/handoff-1262-module-self-operation.md`
 **Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id
-`019fbf80-d92b-7940-a5ff-7541fcdda82e`** (match `agent_session.value` in `herdr pane list`).
+`019fbfe1-d2ed-7531-b332-27c74cda6f3f`** (match `agent_session.value` in `herdr pane list`).
 Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this
 anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every
 restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the
@@ -5976,3 +5976,325 @@ approve the guarded ledger-only two-row repair; keep builder rebase paused until
 reviews/resolves the module-registry conflict; then rerun gates, push, repair DEV if approved,
 restart exact #1327 API/worker, and obtain authenticated row interactions. No QA or merge before
 proof. Reap this coordinator only by fresh label plus session id resolution.
+
+### 2026-08-01 — successor driving; item 10 ledger repair awaits Ben
+
+Coordinator session `019fbfe1-d2ed-7531-b332-27c74cda6f3f` claimed the lock; exactly one active
+pane is labelled `Coordinator`. Retained builder session
+`019fba1b-72cc-7e73-a143-2be9edb4fe89` was re-adopted and acknowledged that the rebase remains
+paused at the module-registry conflict with no restricted action authorized. Relayed coordinator
+session `019fbf80-d92b-7940-a5ff-7541fcdda82e` was resolved fresh by label plus session id and
+reaped. Item 10 now waits on Ben's explicit approval of the guarded ledger-only two-row repair;
+no ledger write, conflict resolution, gate, push, restart, sync, QA, or merge before its recorded
+gate.
+
+Ben approved the guarded ledger-only two-row repair and authorized proceeding without further
+approval prompts for required non-deletion actions. The retained builder was released only to
+resolve the paused module-registry conflict, rerun the recorded gates, finish the rebase, and push.
+The DEV repair, restart, sync, QA, and merge remain sequenced behind that result.
+
+The retained builder resolved the module-registry conflict, completed the rebase, and pushed
+`b56395e22442ad6f5aeedd230cd5b133bdcd51a9` with force-with-lease (exit 0). Focused unit 23/23,
+sync-pipeline integration 4/4, IMAP boundary 1/1, format check, lint, root typecheck, and package
+dependency checks all exited 0. PR #1379 is open and its head matches that commit exactly. No DEV
+write, restart, sync, QA, merge, install, or deletion occurred in this slice.
+
+The approved guarded ledger-only repair completed under the standard migration advisory lock with
+the exact swapped rows and schema invariants required before and after. Exactly two ledger rows
+changed, `applied_at` was preserved, and DEV now matches main at task metadata `0178` and
+notification event keys `0181`; no DDL or migration runner ran. The prior shared API/worker groups
+were replaced with exact-HEAD `b56395e2` processes. Direct readiness and the tailnet `/today` both
+return HTTP 200, and the #1327 worker is the sole consumer with healthy queue startup. No install,
+sync, QA, merge, or deletion occurred. The next gate is Ben's single authenticated browser sync,
+followed by sanitized aggregate monitoring and genuine row interaction proof.
+
+Startup warning: `BETTER_AUTH_SECRET` is unset, so the restarted API generated an ephemeral
+session-signing secret. Health remains green, but Ben may need to re-authenticate before the sync.
+
+Ben reported that the tailnet page renders an internal error and correctly rejected the
+coordinator's unverified instruction to click a nonexistent Sync control. HTTP checks prove only
+that the Vite shell and API readiness return 200; they do not prove the authenticated UI path.
+The `perms-1246` lane is diagnosing the recurring DEV OpenAuth `invalid origin` failure and plans a
+permanent shared fix. Coordinator acknowledged the hold: do not change OpenAuth origin
+configuration or restart `:3097`/auth processes until that lane reports its tight repro and sends
+the promised pre-restart coordination message. Sync, QA, and merge remain stopped.
+
+The OpenAuth lane's first browser loop was green after fresh sign-in on `:5197`, with only the
+expected pre-session `/api/me` 401. That does not reproduce or clear Ben's exact `:5198` Internal
+Error. The coordinator corrected the target and asked the owning lane to run the same tight loop
+against `http://100.64.98.99:5198/today` without changing origin config or restarting anything.
+
+The exact auth-agnostic `:5198` browser repro is RED and matches Ben's screenshot: the React shell
+renders `Internal Server Error` with `Retry`. The ordered failed boundaries are
+`/api/bootstrap/status` → HTTP 500 with an empty body, `/api/me` → HTTP 500 with an empty body, then
+bootstrap status → 500 again. There are no console or page errors. This proves the immediate fault
+is the `:5198` API/proxy boundary; it does not implicate auth. The owning lane is inspecting that
+boundary under the existing no-config-change/no-restart hold.
+
+Root cause confirmed: the `:5198` Vite process environment lacks `JARVIS_API_PROXY_TARGET`, so
+`apps/web/vite.config.ts` defaults `/api` to dead `http://localhost:3000` while this lane's live API
+is on `:3097`. Direct `:3097` bootstrap status returns 200 and `/api/me` returns the expected 401;
+the same calls through `:5198` become empty 500s. The owning lane is restarting only the `:5198`
+frontend with `JARVIS_API_PROXY_TARGET=http://127.0.0.1:3097`, leaving `:3097` and auth untouched,
+then rerunning the exact browser repro before the live gate advances.
+
+The `:5198` proxy repair removed the React Internal Server Error in Ben's browser. The newly
+reachable API now exposes the separate recurring `invalid origin` failure at exact origin
+`http://100.64.98.99:5198`. This confirms the faults were sequential, not competing explanations:
+dead Vite proxy first, origin validation second. The OpenAuth owner is continuing its permanent
+shared config/code fix against that exact origin and will coordinate before touching `:3097`/auth.
+
+Live origin repro is now GREEN on both tailnet `:5197` and exact #1327 `:5198` after canonicalizing
+the Vite proxy target; only the expected pre-session `/api/me` 401 remains, and fresh-browser sign-in
+passes. The `:3097` API/auth process and #1327 HEAD were not changed. Permanent shared code fix
+`c502626e` is pushed on `fix/auth-dev-origin-port` with draft PR #1382; focused unit 2/2, auth
+typecheck, formatting, and diff check are green. Before the next live instruction, the retained
+#1327 builder must identify the shipped sync trigger from current code/DOM; no inferred control.
+
+Read-only sync-trigger audit confirmed there is no shipped manual Google Sync control. The
+Connections UI explicitly says “there is no manual sync anymore”; connected accounts expose
+toggles plus conditional Reconnect/Revoke. New/reconnection completion enqueues sync through
+`POST /api/connectors/google/complete`. For Ben's already-connected account, the actual
+authenticated trigger is `POST /api/connectors/google/sync`, which returns 202 and enqueues the same
+queue; the web app has zero callers of that route. Builder is now verifying the exact authenticated
+browser-console request requirements before any instruction or enqueue.
+
+Ben still observed `Invalid origin` over tailnet and LAN after the local headless green result. The
+auth owner identified route/hostname divergence with exit-node use and announced a restart of only
+the exact #1327 API process, preserving its environment while adding an explicit non-wildcard
+trusted-origin allowlist for the relevant localhost, tailnet IP/MagicDNS, and LAN web origins. The
+worker and code HEAD remain untouched; live tailnet/LAN browser proof is required afterward.
+
+Post-restart browser proof is GREEN. API remains exact #1327 HEAD `b56395e2`; worker was untouched
+and remains the sole worker for this tree. Fresh Firefox sign-in reached authenticated Today with
+zero `Invalid origin` on all four exact origins: tailnet `100.64.98.99:5197` and `:5198`, plus LAN
+`192.168.50.36:5197` and `:5198`. Each showed only the expected pre-session `/api/me` 401. Ben can
+reload/sign in on `:5198`; sync still waits for the verified request shape.
+
+The request-shape audit is complete. From an authenticated `:5198` browser session, enqueue with a
+same-origin `POST /api/connectors/google/sync`, `credentials: "include"`, and
+`Accept: application/json`; send no body, Content-Type, CSRF token/header, or manual Origin. The
+expected new-job response is HTTP 202 with `{ enqueued: true, deduped: false, jobId }`; an existing
+job returns 202 with `{ enqueued: false, deduped: true, jobId: null }`. Evidence:
+`apps/web/src/api/client.ts:1320-1338`, `apps/web/vite.config.ts:13-22`,
+`packages/shared/src/connectors-api.ts:468-480`, `packages/connectors/src/routes.ts:173-196`, and
+`packages/auth/src/index.ts:383-388`. No request has been executed yet.
+
+Ben executed the verified authenticated trigger from `:5198`: HTTP 202, `enqueued=true`,
+`deduped=false`, job `59cb2625-b4f6-49a5-8107-6d3b29d1f140`. The retained builder is monitoring only
+sanitized aggregate terminal status and genuine suggested-row count. Ben must keep `/today` open
+without refreshing; no second sync, restart, QA, or merge before the terminal result.
+
+The Job Search lane requested a shared API/worker redeploy after its `:5197` readiness check found
+the nav label missing. Coordinator replied **HOLD**: the active #1327 sync must reach terminal and
+its sanitized aggregates be captured before either shared process changes, or the live proof would
+be invalidated. That lane must wait for an explicit release.
+
+The #1327 sync job remains queued and unclaimed after repeated polls: retry 0/1, no start/result,
+and genuine suggested-row count 0. The retained builder is diagnosing the exact worker consumption
+boundary read-only (process identity, listener registration, queue/schema identity, job queue name,
+and sanitized errors). No restart or mutation until the first mismatch and minimum recovery action
+are confirmed.
+
+Read-only diagnosis confirmed the #1327 worker is live at exact `b56395e2`; producer and consumer
+share the same `jarv1s` database, `pgboss.job` schema, queue name, and live listener polling. Target
+job `59cb2625-b4f6-49a5-8107-6d3b29d1f140` is eligible in `created`, retry 0/1, queued eight seconds
+behind one earlier `active` job on the exclusive Google-sync queue. Minimum recovery is none: wait
+for the predecessor to terminate, then escalate only if the target remains unclaimed.
+
+Ben authorized canceling the predecessor, but the safety audit correctly made no mutation:
+pg-boss 12.18.2 `cancel(queue,id)` marks database state canceled without aborting the active callback;
+this connector worker ignores `job.signal` and runs inside one transaction, so canceling would
+release the exclusive lane while the old handler could still commit concurrently. The predecessor
+became terminal `failed` at `01:59:15.646Z`, retry 1/1. Target job
+`59cb2625-b4f6-49a5-8107-6d3b29d1f140` transitioned `active` at `01:59:15.651Z`, retry 0/1. The
+aggregate-only monitor now follows the target.
+
+Target first attempt reached the configured 15-minute limit; retry 1/1 became active at
+`02:14:15.663Z`. No genuine suggested row exists yet. Prior live evidence shows timed-out callbacks
+can continue and later commit, so no cancellation or mutation was performed; aggregate-only
+monitoring continues through terminal while accounting for possible overlapping callback completion.
+
+Target is terminal RED. It was claimed at `01:59:15.651Z`, timed out, retried at `02:14:15.663Z`,
+and terminal-failed at `02:29:15.666Z`, retry 1/1; both attempts hit static
+`handler_execution_timeout_900s`. No cancellation or mutation occurred. The first timed-out callback
+later committed sanitized sync aggregates: 1,443 upserts, zero failures, `truncated=false`; genuine
+suggested rows remain zero. Ben must not refresh. Next diagnosis is whether timeout prevented the
+post-sync monitor/projection stage from enqueueing or completing; no second sync before proof.
+
+Read-only root cause: no post-sync job exists. `runGoogleSync` serially fetches/extracts every
+incomplete email inside `registerDataContextWorker`'s single database transaction, then calls
+`listSavedEmailContext` → `projectEmailActions` inline and discards planned/created output. Email
+monitor jobs are independent 15-minute cron runs; `02:15` and `02:30` both completed 0/0. The queue
+omits `expireInSeconds`, so pg-boss applies `expire_seconds=900`. The target's first callback took
+19m11s for 1,443 upserts (~0.80s/item), predictably exceeding 15 minutes under serial CLI structured
+calls. No mutation or re-enqueue. Before changing the timeout, wait for the final timed-out callback
+to settle and inspect sanitized triage/projection distributions; a larger timeout alone is not enough
+if extraction still yields zero candidates.
+
+Post-commit gate: all target callbacks settled; durable callback finish `02:32:19.892Z` succeeded
+with 1,443 upserts, zero failures, `truncated=false`. Actor-scoped 30-day cache now has 1,447 rows,
+but only six nonempty summaries, six complete triage rows, six with confidence/metadata, zero
+actionable candidates, and zero genuine suggested tasks. In the 1,443 target-touched subset, only
+one row gained summary/complete metadata and none became actionable. Independent `02:15`/`02:30`
+cron projections were both 0/0 and predated the final commit. Explicit `expireInSeconds` alone is
+not sufficient: it removes false timeout while extraction remains overwhelmingly empty. Next gate
+is a fast deterministic synthetic worker-composition repro for the one-success-then-empty pattern;
+no live retry yet.
+
+Root diagnosis confirmed with a minimized three-fixture RED through
+`buildEmailExtractDeps` → `generateStructured` → `createCliStructuredAdapterFactory`. Focused test
+exits 1 in 2.89s: first valid extraction succeeds, one caller timeout abandons `runChat` without an
+`AbortSignal`, and the still-running CLI adapter retains process-global `activeCliStructuredRuns=1`,
+so the next valid email immediately degrades as `provider_busy`. Raising only the synthetic caller
+timeout makes all three summaries/complete metadata pass, falsifying permanent adapter state,
+selection, parser, and database hypotheses. Minimum fix: propagate cancellation through
+`runChat`/`generateStructured` and await CLI teardown/slot release before the next email. The RED is
+uncommitted; DEV remains untouched. After GREEN, benchmark valid sequential fixtures before setting
+an explicit queue time budget; no live retry yet.
+
+Root fix is pushed at `b95c3efbf4e89d9be8301c7318b7bbec9a6a28d0`; PR #1379 matches exact
+HEAD. Production changes are limited to connector email extraction/dependency wiring plus the
+focused regression. RED reproduced `ok → caller_timeout → provider_busy`; GREEN focused, 34
+neighboring units, four isolated sync-monitor integrations, lint, format, typecheck, and package
+dependency checks all exit 0. Synthetic valid CLI timings at a 300ms budget were 42ms/265ms/20ms.
+The production 20-second per-email cap makes 1,450 serial items a 29,000-second worst case before
+fetch/projection, so 900 seconds is not a sound queue budget and merely increasing it is rejected.
+No DEV/live action. Next: find the smallest existing pagination/continuation seam that bounds each
+transaction while eventually evaluating every recent email; no live retry until that is GREEN.
+
+After #1327 terminal evidence was captured, Coordinator released the shared-service hold. Job Search
+redeployed successfully: shared DEV now runs API PGID 1265890 (listener 1269835) and sole worker
+PGID 1267634 from `~/Jarv1s/.claude/worktrees/job-search-resume-attach` at `62c5fec1`; all five stages
+passed and its live readiness is green. The #1327 worktree/branch remains untouched, but #1327 no
+longer owns the live API/worker. Do not perform another #1327 live proof until the bounded fix is
+pushed and exact #1327 services are deliberately restored.
+
+Bounded-continuation design audit completed without edits. Smallest proposal: add a singleton
+continuation through existing sync/API/provider/OAuth/projection seams, processing eight emails per
+job. Worst-case math is 440s I/O and about 750s total, below the 900s queue expiry. Payload remains
+validated metadata cursor/counts with deterministic UUID/idempotency and post-commit enqueue; tests
+cover pagination/timeout, 8+1 eventual evaluation, sequential CLI, projection recovery, unchanged
+202 contract, and commit-before-enqueue. It is not implementation-ready until four forks are settled:
+cursor sensitivity, process-global versus distributed CLI exclusion, account-wide projection
+pagination, and complete calendar continuation.
+
+Job Search remains the shared-DEV owner and is restarting only its API/worker groups with
+`JARVIS_VAULT_ROOT=~/Jarv1s/data/vaults` after its upload repro found `EACCES mkdir /data`. #1327 has
+no live process or retry, so Coordinator reported no conflict; its worktree/branch remain untouched.
+
+Job Search upload repair is live-proven GREEN. Shared DEV now runs API PGID 1519332 (listener
+1519766) and sole worker PGID 1521249 from the Job Search tree with
+`JARVIS_VAULT_ROOT=~/Jarv1s/data/vaults`. Its unchanged Playwright repro moved from HTTP 500 /
+`ui_failed` / send disabled to HTTP 201 / `ui_failed=false` / send enabled. #1327 remains untouched
+and must resolve shared process identities fresh before any later restart.
+
+Job Search criteria-chip redeploy is GREEN from `~/Jarv1s/.claude/worktrees/job-search-resume-attach`.
+Shared API listener is PID 1702619 in PGID 1519332; the sole worker tree remains PGID 1521249 with
+fresh worker child 1702993. Module state is enabled/active without drift. Live browser proof covered
+23 populated criteria at 1280 and 320/375/414/768 widths, zero horizontal overflow, and keyboard
+focus ring. #1327 remains untouched and has no shared-process claim.
+
+Job Search follow-up redeploy/proof is GREEN. Shared API listener is now PID 1870294 in preserved
+PGID 1519332; the sole worker tree remains PGID 1521249 with fresh worker PID 1870689 and one Job
+Search module child. Module state is enabled/active without drift. Live proof covered direct Remote
+and Pay edits, Saved feedback, count persistence across Matches/Profile, restored preference, and a
+fresh-load Top matches selection; 45 focused tests plus external typecheck/format/file-size/token
+checks are green. #1327 remains untouched and has no shared-process claim.
+
+Latest Job Search scoped redeploy is GREEN: module enabled/active without drift, API PID 1928471
+listening on `:3097` with health 200, and exactly one worker tree at PGID 1521249 with fresh worker
+child PID 1928720. Tailnet Vite `:5197` returns 200. The Pay-floor spinner-arrow removal is included
+with focused/typecheck/format/token checks green. #1327 remains untouched and inactive on shared DEV.
+
+Latest Job Search Profile redeploy is GREEN: module enabled/active without drift, API PID 2116457
+on `:3097` with health 200, and exactly one worker tree at PGID 1521249 with worker child 2117127
+and Job Search module child 2117302. Tailnet `:5197` returns 200. The mass-editor Save now returns
+after queue acceptance with regression/typecheck/Prettier green. #1327 remains untouched and inactive.
+
+Ben explicitly directed #1327 implementation to resume. Retained builder is now implementing the
+approved bounded continuation: eight emails per job, validated metadata-only cursor/count payload,
+deterministic idempotency, post-commit automatic continuation, unchanged initial 202 contract,
+page-scoped canonical projection, and complete calendar traversal through existing cursor seams.
+Coordinator ruled against a new distributed CLI lock in this fix; retain the existing process-global
+guard plus the pushed AbortSignal teardown fix. Shared DEV/live remains untouched until code and
+gates are GREEN and pushed.
+
+Job Search nightly wrap-up is clean and pushed on `fix/job-search-resume-attach` through
+`aa1bc96d` (code `36bbc85d`); no PR opened. Focused 46-test/typecheck/Prettier/token/file-size/diff
+evidence is green, while the full foundation/release gate is explicitly deferred pending a fresh
+isolated gate database. Shared DEV was unchanged and remains Job Search-owned; #1327 is untouched.
+
+#1327 bounded continuation is implemented and pushed at `4ce377fe381e59f971774afd848ea637f6c6a587`;
+PR #1379 head matches. Focused tests, typecheck, lint, format, package-deps, and file-size exit 0.
+The local root unit gate is RED after 4,085 passes because unrelated Job Search tests lack `jsdom`;
+no waiver has been granted. PR compose/prod smoke checks pass, while `Verify foundation and app` is
+still running. No DEV/live, QA, or merge action until CI resolves and live proof is repeated.
+
+Continuous CI monitor caught `Verify foundation and app` RED on run `30737318432`. The actual
+failures are branch regressions: `ai-tools.test.ts` repository/DataContext allowlist expected 29 but
+the new continuation repository makes 30, and `google-sync-calendar.test.ts` stale/cancelled cleanup
+expected two deletes but got zero after continuation. Retained builder was reopened to reproduce and
+fix both without weakening assertions, then gate and force-with-lease push. No DEV/live action.
+
+Both CI regressions are fixed and pushed at `9cd537f59e73c9e5d6226299a1af7f5682b7c873`; PR head
+matches. Focused 19 tests, neighboring 124 tests, lint, format, typecheck, package-deps, and file-size
+exit 0. Local full unit still exits 1 only on the unchanged missing-jsdom environment after 511 files
+and 4,085 tests pass. Replacement foundation/compose CI run `30738319912` is in progress under a
+continuous monitor. No DEV/live action until required CI is GREEN.
+
+Replacement CI is fully GREEN on exact head `9cd537f5`: foundation plus compose and production
+compose smokes all succeeded. Coordinator requested CLEAR/HOLD from the current Job Search shared-
+DEV owner before replacing `:3097` API/sole worker with exact #1327 processes and restoring `:5198`
+for authenticated reproof. No shared-process change until collision clearance returns.
+
+Job Search returned CLEAR. Exact #1327 API/frontend are live at `9cd537f5` with direct readiness and
+tailnet `/today` 200, proxy/origins/vault settings preserved; fresh Firefox reaches Sign in without
+`Invalid origin`. Worker startup correctly failed closed because required pg-boss queue
+`connectors.google-sync-continuation` is absent; failed watcher was stopped and worker consumers are
+zero. With CI GREEN, builder is performing a read-only ledger/apply-set audit and may run the standard
+ledger-aware migration only if the exact sole pending file creates that queue with no collision or
+unrelated migration, then restart and verify the exact worker. No sync before worker proof.
+
+Migration audit stopped safely with no write: repo SQL catalog 172 versus DEV ledger 170, no
+checksum mismatch/collision/ledger-only rows, but pending SQL is unrelated
+`0179_email_action_suppression.sql` plus `0180_email_action_suppression_evidence.sql`. The continuation
+queue has no versioned migration; it is declared in `packages/connectors/src/sync-jobs.ts` and absent
+from `pgboss.queue`. Standard migration is forbidden because it would apply 0179/0180. Builder is now
+auditing the existing queue-only pg-boss reconciliation/bootstrap path and may run it only if its sole
+delta is the continuation queue plus standard grants, with no SQL ledger or unrelated changes.
+
+Queue reconciliation is GREEN via supported `@jarv1s/jobs` `migratePgBoss` with the single filtered
+continuation definition under the standard advisory lock; no top-level SQL runner or grant file ran.
+Exactly `connectors.google-sync-continuation` was created (`singleton`, retry 1, expiry 840s,
+retention 600s, deletion 300s); SQL ledger stayed at 170 rows and all 43 existing queue configs were
+unchanged. Standard grants verify true. Exact #1327 worker `9cd537f5` is the sole healthy consumer
+(PID 816109/PGID 816036), API and tailnet `/today` return 200, and no sync/continuation job is queued.
+Next gate is Ben's authenticated browser enqueue.
+
+### LATEST continuation — 2026-08-02 dedicated #1327 proof active; coordinator relaying
+
+The authenticated browser proof enqueued exactly one new Google sync at exact PR #1379 HEAD
+`9cd537f59e73c9e5d6226299a1af7f5682b7c873`: HTTP 202, `enqueued=true`, `deduped=false`, job
+`6e7701fd-1b2d-4cfc-bc79-1d69ea835349`. Sanitized artifacts are under
+`/tmp/webwright-1327-live-9cd537f5/final_runs/run_2/`. The retained `1327 Builder` session
+`019fba1b-72cc-7e73-a143-2be9edb4fe89` is actively monitoring the initial job and every continuation
+child using sanitized aggregates only. Do not enqueue a second sync, restart shared processes, run
+QA, or merge until that chain settles and the live-path interaction proof is complete.
+
+Ben corrected the execution boundary: the paused Job Search session
+`019fb171-a527-7d73-b301-186620f8b3f2` must receive no further #1327 tasks. A fresh dedicated Codex
+browser executor is active in `~/Jarv1s/.claude/worktrees/1327-browser-proof` on branch
+`proof/1327-browser`, immutable session `019fc3e6-f656-7232-8960-939f997f3ec1`; its committed handoff
+is `docs/coordination/handoff-1327-browser-proof.md` at coordinator commit `3d4aba75`. It owns only
+remaining #1327 browser proof/monitoring: follow all continuation children, verify eight-email bounds
+and no overlap/timeouts/retries, then exercise View/Reply/Accept/Dismiss if a genuine row appears.
+It must not source the credential exposed in Job Search scrollback. Authentication without a secure
+existing state is a reportable blocker, not permission to recover the exposed value.
+
+Security item 11 remains open: rotate the DEV login password after proof. Scrollback cleanup is
+destructive and still requires Ben's explicit approval. The coordinator saw a compaction summary,
+so the mandatory relay gate fired: flush this note, spawn a fresh Coordinator in the same tab, have
+it claim the lock with its own `agent_session.value`, re-adopt the two active #1327 sessions, confirm
+it is driving, and only then reap coordinator session `019fbfe1-d2ed-7531-b332-27c74cda6f3f` by
+fresh label-plus-session resolution. No merge before relay.

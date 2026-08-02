@@ -17,3 +17,14 @@ linked doc **in full** and follow it.
 ## Documentation Standards
 
 - Always use `~/Jarv1s` instead of absolute paths (like `/home/<user>/Jarv1s`) in all documentation, specs, and handoff files to prevent exposing local usernames and system architecture.
+
+## Grounding gate
+
+Before giving the user an actionable instruction:
+
+1. Verify it against current code, live DOM, command output, or official documentation.
+2. Cite the evidence: file/line, visible UI label, endpoint response, or command result.
+3. Never invent or infer buttons, routes, commands, state, or workflow steps.
+4. If verification is unavailable, say `unverified` and investigate before instructing.
+5. Distinguish observed facts from hypotheses explicitly.
+6. For UI instructions, confirm the exact control exists in the current running build.

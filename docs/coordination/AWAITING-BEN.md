@@ -3,7 +3,16 @@
 Decisions that need Ben and must not be silently resolved by an agent. Coordinator keeps this
 current.
 
-_Last updated: 2026-08-01, during issue #1327 coordination._
+_Last updated: 2026-08-02, during issue #1327 coordination._
+
+## 11. Rotate the DEV login password and clear one pane's scrollback
+
+During automated #1327 browser proof, the Job Search Codex pane echoed the DEV login credential in
+terminal scrollback/tool output after invoking unavailable `python` instead of `python3`. The value
+was not written to scripts, logs, screenshots, or another artifact. Rotate the DEV password after
+the proof run. Scrollback cleanup is destructive and awaits Ben's explicit approval; affected
+session is the Job Search Codex pane session `019fb171-a527-7d73-b301-186620f8b3f2`, failed unified
+exec session 67967, immediately after the first `/tmp/webwright-1327-live-9cd537f5` exploration.
 
 ## 10. #1327 PR #1379 needs an authenticated live-path pass
 
@@ -129,13 +138,32 @@ checks passed. It is not pushed yet. Rebase onto current `origin/main` correctly
 superseded migration rename because main owns the exact task migration at `0178`, then paused on a
 separate module-registry wiring conflict while replaying the root fix.
 
-Shared DEV now needs Ben's approval for a ledger-only repair before live restart. Its schema already
-matches both upstream migrations exactly, but its two ledger rows are swapped across versions:
-DEV records notification at `0178` and task metadata at `0181`; current main records task metadata
-at `0178` and notification at `0181`. Proposed repair: under the standard migration advisory lock,
-guard on the exact current two rows plus schema invariants, update both names/checksums to match
-main while preserving `applied_at`, assert exactly two rows, commit. No DDL or migration execution.
-No write has occurred.
+Ben approved the ledger-only repair. It completed under the standard migration advisory lock with
+the exact swapped rows and schema invariants guarded before and after: exactly two rows changed,
+`applied_at` was preserved, and DEV now matches main at task metadata `0178` and notification event
+keys `0181`. No DDL or migration runner executed. The exact-HEAD #1327 API and sole worker are
+healthy, direct readiness and the tailnet `/today` both return HTTP 200. Ben should run one
+authenticated browser sync now and not refresh until the coordinator reports the sanitized result.
+The restarted API generated an ephemeral session-signing secret, so re-authentication may be
+required first.
+
+Ben completed the verified authenticated trigger from `:5198`: HTTP 202, `enqueued=true`,
+`deduped=false`, job `59cb2625-b4f6-49a5-8107-6d3b29d1f140`. Keep `/today` open without refreshing
+until the coordinator reports the sanitized terminal aggregates and whether a genuine row exists.
+
+That job is terminal RED. It was claimed at `01:59:15.651Z`, timed out, retried at
+`02:14:15.663Z`, and failed at `02:29:15.666Z`; both attempts hit the static 900-second handler
+timeout. The first timed-out callback later committed 1,443 upserts, zero failures, and
+`truncated=false`, but genuine suggested rows remain zero. Do not refresh. The coordinator is
+tracing whether timeout prevented the monitor/projection stage; no second sync yet.
+
+The bounded continuation/root fix is now pushed at exact PR head
+`9cd537f59e73c9e5d6226299a1af7f5682b7c873`, required GitHub CI is green, the continuation queue is
+reconciled without applying unrelated SQL migrations, and exact #1327 services are healthy. The
+fresh authenticated proof enqueued job `6e7701fd-1b2d-4cfc-bc79-1d69ea835349` with HTTP 202,
+`enqueued=true`, `deduped=false`. A dedicated #1327 browser executor and the retained builder are
+monitoring the complete continuation chain. Ben has no interaction step yet; wait for either a
+genuine Today row and explicit refresh instruction or a sanitized terminal failure report.
 
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
