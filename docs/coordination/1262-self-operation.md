@@ -6346,3 +6346,7 @@ the live-path interaction gate is not ready.
 Queue progress: chunk 2 remains created with two older continuations ahead. The global singleton
 still has at most one active job, and every observed `retry_count` is 0. This chain remains 8
 evaluated, 8 upserted, 0 failed; genuine suggested rows remain 0. No interaction.
+
+State change: deterministic chunk 2 `8b1c2cd7-bbd1-5d36-868a-333bdbcc606f` is active at
+`retry_count=0` with no older jobs ahead. Genuine suggested rows remain 0; monitor to terminal with
+no browser interaction.
