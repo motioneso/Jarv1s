@@ -6332,3 +6332,8 @@ remain 0. Continue queue-only monitoring; Ben has no interaction step yet.
 Chunk 1 was claimed at `19:39:39Z` with an 840-second expiry. The root remains clean
 (`calendarUpserted=14`, errors 0, `truncated=true`). It is the sole serialized active lane with no
 overlap; builder monitor session `65318` remains active.
+
+Chunk 1 `e72aab2a-f3f8-566b-8cfc-cf206c670f1b` completed cleanly at retry 0 and evaluated exactly
+eight emails (8 upserted, 0 failed, `truncated=true`). Deterministic chunk 2
+`8b1c2cd7-bbd1-5d36-868a-333bdbcc606f` is created behind nine older singleton continuations.
+Genuine suggested Today rows remain 0; continue monitoring with no browser interaction.
