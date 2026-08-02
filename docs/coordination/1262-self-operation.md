@@ -6377,3 +6377,7 @@ with no browser interaction.
 Chunk 3 was claimed at `21:13:38Z` with an 840-second expiry. Prior chunks remain clean and within
 the maximum-eight bound. This is the sole serialized lane; builder monitor session `65318` remains
 active.
+
+Chunk 3 completed at `21:16:01Z` in 142.860 seconds. Cumulative `emailUpserted=21` (delta 7, within
+the maximum-eight bound), with failures/errors/retries 0 and `truncated=true`. Deterministic child 4
+`4d9e7334` was created post-commit behind 19 older jobs. Genuine suggested rows remain 0; not ready.
