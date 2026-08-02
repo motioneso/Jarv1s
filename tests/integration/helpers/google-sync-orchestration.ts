@@ -1,5 +1,5 @@
 import { afterAll, beforeAll } from "vitest";
-import { featureGrantsPrefKey, runGoogleSync } from "@jarv1s/connectors";
+import { featureGrantsPrefKey, runGoogleSync, runGoogleSyncChunk } from "@jarv1s/connectors";
 import { CalendarRepository, isCalendarFollowThroughEvent } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
 import { PreferencesRepository } from "@jarv1s/structured-state";
@@ -29,5 +29,6 @@ export {
   ids,
   isCalendarFollowThroughEvent,
   runGoogleSync,
+  runGoogleSyncChunk,
   seedGoogleAccount
 };

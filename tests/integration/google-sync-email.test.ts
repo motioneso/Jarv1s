@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   EmailRepository,
   PreferencesRepository,
@@ -6,10 +6,85 @@ import {
   handles,
   ids,
   runGoogleSync,
+  runGoogleSyncChunk,
   seedGoogleAccount
 } from "./helpers/google-sync-orchestration.js";
 
 describe("runGoogleSync email orchestration", () => {
+  it("evaluates nine recent messages as sequential 8+1 continuation chunks", async () => {
+    const accountId = await seedGoogleAccount(handles.dataContext, [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ]);
+    const ctx = { actorUserId: ids.userA, requestId: "pgboss:test-google-email-continuation" };
+    const pages = {
+      first: Array.from({ length: 8 }, (_, index) => ({ id: `bounded-${index}` })),
+      second: [{ id: "bounded-8" }]
+    };
+    let activeExtractions = 0;
+    let maxActiveExtractions = 0;
+    const listMessageIdsPage = vi.fn(async ({ pageToken }: { pageToken?: string }) =>
+      pageToken === "MAIL_PAGE_2"
+        ? { messages: pages.second }
+        : { messages: pages.first, nextPageToken: "MAIL_PAGE_2" }
+    );
+    const deps = {
+      getFreshAccessToken: async () => "tok",
+      getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
+      googleClient: {
+        listCalendarEvents: async () => [],
+        listMessageIds: async () => [...pages.first, ...pages.second],
+        listMessageIdsPage,
+        getMessage: async ({ id }: { id: string }) => ({
+          id,
+          historyId: `history-${id}`,
+          payload: {
+            mimeType: "text/plain",
+            headers: [
+              { name: "Subject", value: id },
+              { name: "From", value: "sender@example.test" }
+            ],
+            body: { data: Buffer.from("Please review this.").toString("base64") }
+          }
+        })
+      },
+      emailExtractDeps: {
+        selectModel: async () => ({ tier: "economy" }),
+        runChat: async () => {
+          activeExtractions += 1;
+          maxActiveExtractions = Math.max(maxActiveExtractions, activeExtractions);
+          await Promise.resolve();
+          activeExtractions -= 1;
+          return {
+            text: JSON.stringify({
+              summary: "Review requested.",
+              billsDue: [],
+              actionItems: [],
+              deadlines: [],
+              actionability: { category: "fyi" },
+              mayGetLostInShuffle: false,
+              importance: "normal",
+              confidence: 0.9
+            })
+          };
+        }
+      }
+    };
+
+    const first = await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
+      runGoogleSyncChunk(scopedDb, deps)
+    );
+    expect(first.result.emailUpserted).toBe(8);
+    expect(first.continuation).toMatchObject({ phase: "email", cursor: "MAIL_PAGE_2" });
+
+    const second = await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
+      runGoogleSyncChunk(scopedDb, deps, first.continuation)
+    );
+    expect(second.result.emailUpserted).toBe(9);
+    expect(second.continuation).toBeUndefined();
+    expect(listMessageIdsPage).toHaveBeenCalledTimes(2);
+    expect(maxActiveExtractions).toBe(1);
+  });
+
   it("processes every message returned by Gmail", async () => {
     const accountId = await seedGoogleAccount(handles.dataContext, [
       "https://www.googleapis.com/auth/gmail.modify"

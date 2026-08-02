@@ -14,7 +14,10 @@ const NOOP_GOOGLE_API_LOGGER: GoogleApiLogger = {
 export interface GoogleApiClientDeps {
   readonly fetchFn?: typeof fetch;
   readonly logger?: GoogleApiLogger;
+  readonly requestTimeoutMs?: number;
 }
+
+export const GOOGLE_API_REQUEST_TIMEOUT_MS = 10_000;
 
 export class GoogleApiError extends Error {
   constructor(
@@ -66,6 +69,16 @@ export interface GmailMessageStub {
   readonly threadId?: string;
 }
 
+export interface GoogleCalendarEventsPage {
+  readonly items: GoogleCalendarEvent[];
+  readonly nextPageToken?: string;
+}
+
+export interface GmailMessagePage {
+  readonly messages: GmailMessageStub[];
+  readonly nextPageToken?: string;
+}
+
 export interface GmailMessageFull {
   readonly id: string;
   readonly threadId?: string;
@@ -89,10 +102,12 @@ const GMAIL_BASE = "https://gmail.googleapis.com/gmail/v1";
 export class GoogleApiClient {
   private readonly fetchFn: typeof fetch;
   private readonly logger: GoogleApiLogger;
+  private readonly requestTimeoutMs: number;
 
   constructor(deps: GoogleApiClientDeps = {}) {
     this.fetchFn = deps.fetchFn ?? globalThis.fetch;
     this.logger = deps.logger ?? NOOP_GOOGLE_API_LOGGER;
+    this.requestTimeoutMs = deps.requestTimeoutMs ?? GOOGLE_API_REQUEST_TIMEOUT_MS;
   }
 
   async listCalendarEvents(input: {
@@ -102,26 +117,41 @@ export class GoogleApiClient {
     timeMax: string;
     maxPages?: number;
   }): Promise<GoogleCalendarEvent[]> {
-    const calendarId = input.calendarId ?? "primary";
     const maxPages = input.maxPages ?? 20;
     const events: GoogleCalendarEvent[] = [];
     let pageToken: string | undefined;
     for (let page = 0; page < maxPages; page += 1) {
-      const url = new URL(`${CALENDAR_BASE}/calendars/${encodeURIComponent(calendarId)}/events`);
-      url.searchParams.set("singleEvents", "true");
-      url.searchParams.set("orderBy", "startTime");
-      url.searchParams.set("timeMin", input.timeMin);
-      url.searchParams.set("timeMax", input.timeMax);
-      if (pageToken) url.searchParams.set("pageToken", pageToken);
-      const json = await this.getJson<{
-        items?: GoogleCalendarEvent[];
-        nextPageToken?: string;
-      }>(url.toString(), input.accessToken, "calendar");
-      events.push(...(json.items ?? []));
-      if (!json.nextPageToken) break;
-      pageToken = json.nextPageToken;
+      const result = await this.listCalendarEventsPage({ ...input, pageToken });
+      events.push(...result.items);
+      if (!result.nextPageToken) break;
+      pageToken = result.nextPageToken;
     }
     return events;
+  }
+
+  async listCalendarEventsPage(input: {
+    accessToken: string;
+    calendarId?: string;
+    timeMin: string;
+    timeMax: string;
+    pageToken?: string;
+    maxResults?: number;
+  }): Promise<GoogleCalendarEventsPage> {
+    const calendarId = input.calendarId ?? "primary";
+    const url = new URL(`${CALENDAR_BASE}/calendars/${encodeURIComponent(calendarId)}/events`);
+    url.searchParams.set("singleEvents", "true");
+    url.searchParams.set("orderBy", "startTime");
+    url.searchParams.set("timeMin", input.timeMin);
+    url.searchParams.set("timeMax", input.timeMax);
+    if (input.pageToken) url.searchParams.set("pageToken", input.pageToken);
+    if (input.maxResults !== undefined) {
+      url.searchParams.set("maxResults", String(input.maxResults));
+    }
+    const json = await this.getJson<{
+      items?: GoogleCalendarEvent[];
+      nextPageToken?: string;
+    }>(url.toString(), input.accessToken, "calendar");
+    return { items: json.items ?? [], nextPageToken: json.nextPageToken };
   }
 
   async listMessageIds(input: {
@@ -132,18 +162,31 @@ export class GoogleApiClient {
     const stubs: GmailMessageStub[] = [];
     let pageToken: string | undefined;
     for (let page = 0; input.maxPages === undefined || page < input.maxPages; page += 1) {
-      const url = new URL(`${GMAIL_BASE}/users/me/messages`);
-      if (input.query) url.searchParams.set("q", input.query);
-      if (pageToken) url.searchParams.set("pageToken", pageToken);
-      const json = await this.getJson<{
-        messages?: GmailMessageStub[];
-        nextPageToken?: string;
-      }>(url.toString(), input.accessToken, "gmail");
-      stubs.push(...(json.messages ?? []));
-      if (!json.nextPageToken) break;
-      pageToken = json.nextPageToken;
+      const result = await this.listMessageIdsPage({ ...input, pageToken });
+      stubs.push(...result.messages);
+      if (!result.nextPageToken) break;
+      pageToken = result.nextPageToken;
     }
     return stubs;
+  }
+
+  async listMessageIdsPage(input: {
+    accessToken: string;
+    query?: string;
+    pageToken?: string;
+    maxResults?: number;
+  }): Promise<GmailMessagePage> {
+    const url = new URL(`${GMAIL_BASE}/users/me/messages`);
+    if (input.query) url.searchParams.set("q", input.query);
+    if (input.pageToken) url.searchParams.set("pageToken", input.pageToken);
+    if (input.maxResults !== undefined) {
+      url.searchParams.set("maxResults", String(input.maxResults));
+    }
+    const json = await this.getJson<{
+      messages?: GmailMessageStub[];
+      nextPageToken?: string;
+    }>(url.toString(), input.accessToken, "gmail");
+    return { messages: json.messages ?? [], nextPageToken: json.nextPageToken };
   }
 
   async getMessage(input: { accessToken: string; id: string }): Promise<GmailMessageFull> {
@@ -312,7 +355,8 @@ export class GoogleApiClient {
   private async deleteVoid(url: string, accessToken: string, api: string): Promise<void> {
     const response = await this.fetchFn(url, {
       method: "DELETE",
-      headers: { authorization: `Bearer ${accessToken}` }
+      headers: { authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(this.requestTimeoutMs)
     });
     if (response.ok) return;
     // Log status only; NEVER embed the response body in Error.message —
@@ -324,7 +368,8 @@ export class GoogleApiClient {
   private async getJson<T>(url: string, accessToken: string, api: string): Promise<T> {
     const response = await this.fetchFn(url, {
       method: "GET",
-      headers: { authorization: `Bearer ${accessToken}` }
+      headers: { authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(this.requestTimeoutMs)
     });
     if (!response.ok) {
       // Log status server-side only; NEVER embed the response body in Error.message —
@@ -347,7 +392,8 @@ export class GoogleApiClient {
         authorization: `Bearer ${accessToken}`,
         "content-type": "application/json"
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(this.requestTimeoutMs)
     });
     if (!response.ok) {
       // Log status server-side only; NEVER embed the response body in Error.message —
