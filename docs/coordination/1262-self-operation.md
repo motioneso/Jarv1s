@@ -4,7 +4,7 @@
 **Epic:** #1262 — module self-operation (Jarvis can operate Jarvis)
 **Handoff:** `docs/coordination/handoff-1262-module-self-operation.md`
 **Coordinator lock:** label `Coordinator`, **stable anchor = Codex session id
-`019fbfe1-d2ed-7531-b332-27c74cda6f3f`** (match `agent_session.value` in `herdr pane list`).
+`019fc3e9-68a0-7ad3-9d8d-e0da1be152cd`** (match `agent_session.value` in `herdr pane list`).
 Single-coordinator lock — exactly one pane labelled `Coordinator` whose session id matches this
 anchor holds authority for the life of the run. ⚠️ **Pane numbers (`w…-N`) reflow on every
 restart/split/reap — do NOT trust any pane number written in this file as an identifier; resolve the
@@ -6272,7 +6272,7 @@ unchanged. Standard grants verify true. Exact #1327 worker `9cd537f5` is the sol
 (PID 816109/PGID 816036), API and tailnet `/today` return 200, and no sync/continuation job is queued.
 Next gate is Ben's authenticated browser enqueue.
 
-### LATEST continuation — 2026-08-02 dedicated #1327 proof active; coordinator relaying
+### Continuation — 2026-08-02 dedicated #1327 proof active; coordinator relaying
 
 The authenticated browser proof enqueued exactly one new Google sync at exact PR #1379 HEAD
 `9cd537f59e73c9e5d6226299a1af7f5682b7c873`: HTTP 202, `enqueued=true`, `deduped=false`, job
@@ -6298,3 +6298,23 @@ so the mandatory relay gate fired: flush this note, spawn a fresh Coordinator in
 it claim the lock with its own `agent_session.value`, re-adopt the two active #1327 sessions, confirm
 it is driving, and only then reap coordinator session `019fbfe1-d2ed-7531-b332-27c74cda6f3f` by
 fresh label-plus-session resolution. No merge before relay.
+
+### LATEST continuation — 2026-08-02 continuation chain active under new coordinator
+
+Coordinator authority is Codex session `019fc3e9-68a0-7ad3-9d8d-e0da1be152cd`; exactly one active
+pane is labelled `Coordinator`. Exact services remain on PR #1379 HEAD `9cd537f5`. Initial job
+`6e7701fd-1b2d-4cfc-bc79-1d69ea835349` completed cleanly at retry 0/1 with zero output errors and
+`truncated=true`. Deterministic continuation `e72aab2a-f3f8-566b-8cfc-cf206c670f1b` (email chunk 1)
+exists and is queued behind singleton continuation work. Current global sanitized aggregate: 1
+active, 7 created, 15 completed, zero retries.
+
+The retained builder session `019fba1b-72cc-7e73-a143-2be9edb4fe89` and dedicated browser executor
+session `019fc3e6-f656-7232-8960-939f997f3ec1` own monitoring and proof. Job Search remains paused
+and must receive no #1327 work. Monitor sanitized metadata only until the continuation chain is
+terminal. Ben has no action yet. Do not enqueue another sync, refresh `/today`, run QA, or merge.
+
+Both retained sessions explicitly confirmed they are driving under the new authority. The superseded
+coordinator session `019fbfe1-d2ed-7531-b332-27c74cda6f3f` was resolved fresh by label plus session
+ID and reaped; exactly one active `Coordinator` remains. Builder monitor session `65318` is following
+the sanitized continuation chain. Browser proof reports genuine version-1 suggested Today rows
+created since this sync = 0, so no browser interaction is authorized yet.
