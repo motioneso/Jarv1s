@@ -406,7 +406,8 @@ export async function runGoogleSyncChunk(
   const phase: GoogleSyncPhase | undefined =
     continuation?.phase ?? (calendarEnabled ? "calendar" : emailEnabled ? "email" : undefined);
   const startedAt = continuation?.startedAt ?? now().toISOString();
-  const calendarSeenSince = continuation?.calendarSeenSince ?? startedAt;
+  // Match CalendarRepository's wall-clock updated_at; `now` may be an injected scheduling clock.
+  const calendarSeenSince = continuation?.calendarSeenSince ?? new Date().toISOString();
   const runId = continuation?.idempotencyKey ?? deps.runId ?? randomUUID();
   const chunkIndex = continuation?.chunkIndex ?? 0;
 

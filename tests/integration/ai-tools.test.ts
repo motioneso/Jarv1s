@@ -463,6 +463,7 @@ describe("AI read-only assistant tool execution foundation", () => {
       "export.build",
       "export.cleanup",
       "connectors.google-sync",
+      "connectors.google-sync-continuation",
       "connectors.google-sync-sweep",
       "connectors.imap-sync",
       "connectors.email-monitor",
