@@ -6373,3 +6373,7 @@ no interaction.
 State change: deterministic chunk 3 `5609c16f-f31e-5ed7-806f-a93a30a511c4` is active at retry 0
 after the FIFO queue fully drained ahead of it. Genuine suggested rows remain 0; monitor to terminal
 with no browser interaction.
+
+Chunk 3 was claimed at `21:13:38Z` with an 840-second expiry. Prior chunks remain clean and within
+the maximum-eight bound. This is the sole serialized lane; builder monitor session `65318` remains
+active.
