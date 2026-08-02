@@ -20,7 +20,7 @@ import { decryptGoogleConnectionSecret, GoogleConnectionService } from "./google
 import { GoogleOAuthClient } from "./oauth.js";
 import { ConnectorsRepository } from "./repository.js";
 import { extractEmailSignals, type EmailExtractDeps } from "./email-extract.js";
-import { buildEmailExtractDeps } from "./extract-deps.js";
+import { buildEmailExtractDeps, type BuildEmailExtractDepsOptions } from "./extract-deps.js";
 import { GoogleEmailReadProvider, GMAIL_READ_FOLDER } from "./email-read-provider.js";
 import { EmailActionSuppressionRepository } from "./action-suppression-repository.js";
 import { projectEmailActions, type ProjectEmailActionsDeps } from "./monitor-jobs.js";
@@ -558,6 +558,7 @@ export interface RegisterConnectorsJobWorkersDeps {
   readonly dataContext: DataContextRunner;
   readonly taskPort: ProjectEmailActionsDeps["taskPort"];
   readonly actionRowRelevance?: ProjectEmailActionsDeps["actionRowRelevance"];
+  readonly createCliStructuredAdapter?: BuildEmailExtractDepsOptions["createCliStructuredAdapter"];
   readonly workOptions?: WorkOptions;
   readonly onResult?: (job: Job<GoogleSyncPayload>, result: GoogleSyncResult) => void;
   readonly logger?: SyncLogger;
@@ -585,7 +586,10 @@ export async function registerConnectorsJobWorkers(
     GOOGLE_SYNC_QUEUE,
     deps.dataContext,
     async (job, scopedDb) => {
-      const emailExtractDeps = buildEmailExtractDeps(scopedDb, aiRepo, aiCipher);
+      const emailExtractDeps = buildEmailExtractDeps(scopedDb, aiRepo, aiCipher, {
+        createCliStructuredAdapter: deps.createCliStructuredAdapter,
+        logger: deps.logger
+      });
 
       const result = await runGoogleSync(scopedDb, {
         getActiveAccount: async (db) => {

@@ -5,7 +5,7 @@ import { PreferencesRepository } from "@jarv1s/structured-state";
 
 import { createConnectorSecretCipher } from "../crypto.js";
 import { GoogleEmailReadProvider } from "../email-read-provider.js";
-import { buildEmailExtractDeps } from "../extract-deps.js";
+import { buildEmailExtractDeps, type BuildEmailExtractDepsOptions } from "../extract-deps.js";
 import { GoogleApiClient } from "../google-api-client.js";
 import { GoogleConnectionService } from "../google-connection.js";
 import { ImapEmailReadProvider } from "../imap-email-read-provider.js";
@@ -29,7 +29,10 @@ const LIVE_EMAIL_QUERY = "newer_than:30d";
  * secrets never leave this service.
  */
 export function buildRuntimeSourceContextService(
-  options: { readonly logger?: SyncLogger } = {}
+  options: {
+    readonly logger?: SyncLogger;
+    readonly createCliStructuredAdapter?: BuildEmailExtractDepsOptions["createCliStructuredAdapter"];
+  } = {}
 ): SourceContextService {
   const connectorsRepository = new ConnectorsRepository();
   const connectorCipher = createConnectorSecretCipher();
@@ -58,7 +61,11 @@ export function buildRuntimeSourceContextService(
     googleClient,
     emailRepository: new EmailRepository(),
     calendarRepository: new CalendarRepository(),
-    makeEmailExtractDeps: (scopedDb) => buildEmailExtractDeps(scopedDb, aiRepo, aiCipher),
+    makeEmailExtractDeps: (scopedDb) =>
+      buildEmailExtractDeps(scopedDb, aiRepo, aiCipher, {
+        createCliStructuredAdapter: options.createCliStructuredAdapter,
+        logger: options.logger
+      }),
     logger: options.logger
   });
 }

@@ -23,6 +23,7 @@ import {
 import type { EmailContextItem } from "./source-context/types.js";
 import { listSavedEmailContext } from "./source-context/email.js";
 import { buildRuntimeSourceContextService } from "./source-context/runtime.js";
+import type { BuildEmailExtractDepsOptions } from "./extract-deps.js";
 import type { SourceContextService } from "./source-context/types.js";
 import type { SyncLogger } from "./sync-jobs.js";
 import { ConnectorsRepository } from "./repository.js";
@@ -418,6 +419,7 @@ export interface RegisterSourceMonitorWorkersDeps {
   /** Structural task-creation port — connectors never imports the tasks module. */
   readonly taskPort: EmailTaskCreationPort;
   readonly actionRowRelevance?: ActionRowRelevancePort;
+  readonly createCliStructuredAdapter?: BuildEmailExtractDepsOptions["createCliStructuredAdapter"];
   readonly workOptions?: WorkOptions;
   readonly logger?: SyncLogger;
 }
@@ -428,7 +430,10 @@ export async function registerSourceMonitorWorkers(
 ): Promise<string[]> {
   const suppressionRepository = new EmailActionSuppressionRepository();
   const preferencesRepository = new PreferencesRepository();
-  const sourceContext = buildRuntimeSourceContextService({ logger: deps.logger });
+  const sourceContext = buildRuntimeSourceContextService({
+    logger: deps.logger,
+    createCliStructuredAdapter: deps.createCliStructuredAdapter
+  });
 
   const emailWorkId = await registerDataContextWorker<MonitorPayload, MonitorRunResult>(
     boss,

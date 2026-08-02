@@ -1160,6 +1160,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         boss: deps.boss
       }),
     registerWorkers: async (boss, deps) => {
+      const createCliStructuredAdapter = createCliStructuredAdapterFactory();
       // Structural task-creation port: connectors never imports the tasks module — the
       // composition root hands it a two-method adapter over TasksRepository (module isolation).
       const tasksRepositoryForEmail = new TasksRepository();
@@ -1183,7 +1184,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       const googleWorkIds = await registerConnectorsJobWorkers(boss, {
         dataContext: deps.dataContext,
         taskPort: emailTaskPort,
-        actionRowRelevance
+        actionRowRelevance,
+        createCliStructuredAdapter
       });
       // #792: self-healing periodic sweep, additive to the connect/manual-sync triggers
       // above. Needs the raw root Kysely handle (not DataContextDb) because it must
@@ -1191,11 +1193,15 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       // function (sql/0143) — each subsequent GOOGLE_SYNC_QUEUE job it sends stays scoped
       // to that job's own actorUserId exactly as it does today.
       const googleSweepWorkId = await registerGoogleSyncSweepWorker(boss, deps.rootDb);
-      const imapWorkIds = await registerImapSyncWorker(boss, { dataContext: deps.dataContext });
+      const imapWorkIds = await registerImapSyncWorker(boss, {
+        dataContext: deps.dataContext,
+        createCliStructuredAdapter
+      });
       const monitorWorkIds = await registerSourceMonitorWorkers(boss, {
         dataContext: deps.dataContext,
         taskPort: emailTaskPort,
-        actionRowRelevance
+        actionRowRelevance,
+        createCliStructuredAdapter
       });
       return [...googleWorkIds, googleSweepWorkId, ...imapWorkIds, ...monitorWorkIds];
     }
@@ -1314,7 +1320,9 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
                   connectorsRepository: deps.connectorsRepository,
                   preferencesRepository: new PreferencesRepository()
                 }),
-                sourceContext: buildRuntimeSourceContextService()
+                sourceContext: buildRuntimeSourceContextService({
+                  createCliStructuredAdapter: deps.createCliStructuredAdapter
+                })
               }
             : {}),
           appMap: deps.appMapService!
@@ -1368,7 +1376,9 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
             })
           : undefined,
         sourceContextService: deps.connectorsRepository
-          ? buildRuntimeSourceContextService()
+          ? buildRuntimeSourceContextService({
+              createCliStructuredAdapter: deps.createCliStructuredAdapter
+            })
           : undefined,
         appMapService: deps.appMapService,
         listModuleManifests: deps.listModuleManifests
@@ -1442,7 +1452,10 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
             connectorsRepository: new ConnectorsRepository(),
             preferencesRepository: new PreferencesRepository()
           }),
-          sourceContextService: buildRuntimeSourceContextService({ logger: briefingsLogger }),
+          sourceContextService: buildRuntimeSourceContextService({
+            logger: briefingsLogger,
+            createCliStructuredAdapter: createCliStructuredAdapterFactory()
+          }),
           calendarFollowThrough: buildCalendarFollowThroughPort(),
           // #1282: injected by apps/worker (external discovery + runtime live only there —
           // J2). NOT read off `moduleManifests` above, which getBuiltInModuleManifests()

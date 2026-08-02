@@ -9,7 +9,7 @@ import { EmailRepository } from "@jarv1s/email";
 import { createConnectorSecretCipher, type ConnectorSecretCipher } from "./crypto.js";
 import type { EmailExtractDeps } from "./email-extract.js";
 import { extractEmailSignals } from "./email-extract.js";
-import { buildEmailExtractDeps } from "./extract-deps.js";
+import { buildEmailExtractDeps, type BuildEmailExtractDepsOptions } from "./extract-deps.js";
 import type { EmailReadProvider } from "./email-read-provider.js";
 import { ImapEmailReadProvider, IMAP_DEFAULT_FOLDER } from "./imap-email-read-provider.js";
 import { decryptImapConnectionSecret, type ImapConnectionSecret } from "./imap-secret.js";
@@ -153,6 +153,7 @@ export async function runImapSync(
 
 export interface RegisterImapSyncWorkerDeps {
   readonly dataContext: DataContextRunner;
+  readonly createCliStructuredAdapter?: BuildEmailExtractDepsOptions["createCliStructuredAdapter"];
   readonly workOptions?: WorkOptions;
   readonly onResult?: (job: Job<ImapSyncPayload>, result: ImapSyncResult) => void;
   readonly logger?: SyncLogger;
@@ -172,7 +173,10 @@ export async function registerImapSyncWorker(
     IMAP_SYNC_QUEUE,
     deps.dataContext,
     async (job, scopedDb) => {
-      const emailExtractDeps = buildEmailExtractDeps(scopedDb, aiRepo, aiCipher);
+      const emailExtractDeps = buildEmailExtractDeps(scopedDb, aiRepo, aiCipher, {
+        createCliStructuredAdapter: deps.createCliStructuredAdapter,
+        logger: deps.logger
+      });
 
       const result = await runImapSync(scopedDb, job.data.connectorAccountId, {
         repository,

@@ -1,55 +1,142 @@
 import type { createAiSecretCipher } from "@jarv1s/ai";
-import {
-  HttpApiAdapter,
-  parseAiApiKeyCredential,
-  type AiConfiguredModelSafeRow,
-  type AiRepository,
-  type ProviderKind
-} from "@jarv1s/ai";
+import { generateStructured, type AiRepository, type GenerateStructuredDeps } from "@jarv1s/ai";
 import type { DataContextDb } from "@jarv1s/db";
+import type { AiModelTier } from "@jarv1s/shared";
 
 import type { EmailExtractDeps } from "./email-extract.js";
 
 type AiSecretCipher = ReturnType<typeof createAiSecretCipher>;
 
-/**
- * Build the model-selection + chat-call deps for extractEmailSignals against the actor's
- * configured AI providers. Shared by the Google/IMAP sync workers and the live-first
- * source-context triage path so the credential handling exists in exactly one place.
- */
+export type BuildEmailExtractDepsOptions = Pick<
+  GenerateStructuredDeps,
+  "createAdapter" | "createCliStructuredAdapter"
+> & {
+  readonly logger?: {
+    info(data: Record<string, unknown>, message: string): void;
+    warn(data: Record<string, unknown>, message: string): void;
+  };
+};
+
+const EMAIL_SIGNALS_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "summary",
+    "billsDue",
+    "actionItems",
+    "deadlines",
+    "actionability",
+    "mayGetLostInShuffle",
+    "importance",
+    "confidence"
+  ],
+  properties: {
+    summary: { type: "string" },
+    billsDue: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["description"],
+        properties: {
+          description: { type: "string" },
+          amount: { type: "number" },
+          currency: { type: "string" },
+          dueDate: { type: "string" }
+        }
+      }
+    },
+    actionItems: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["text"],
+        properties: { text: { type: "string" }, dueDate: { type: "string" } }
+      }
+    },
+    deadlines: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["text"],
+        properties: { text: { type: "string" }, date: { type: "string" } }
+      }
+    },
+    actionability: {
+      type: "object",
+      additionalProperties: false,
+      required: ["category"],
+      properties: {
+        category: {
+          enum: [
+            "needs_reply",
+            "needs_action",
+            "time_sensitive_info",
+            "waiting_on_someone",
+            "fyi",
+            "noise",
+            "unknown"
+          ]
+        },
+        reason: { type: "string" },
+        dueDate: { type: "string" },
+        inferredSubject: { type: "string" },
+        suggestedTasks: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["text"],
+            properties: { text: { type: "string" }, dueDate: { type: "string" } }
+          }
+        }
+      }
+    },
+    mayGetLostInShuffle: { type: "boolean" },
+    importance: { enum: ["low", "normal", "high"] },
+    confidence: { type: "number", minimum: 0, maximum: 1 }
+  }
+} as const;
+
+const EMAIL_EXTRACT_SERVICE = "module.connectors.email-extract";
+
+/** Shared production composition for Google/IMAP sync and live source-context triage. */
 export function buildEmailExtractDeps(
   scopedDb: DataContextDb,
   aiRepo: AiRepository,
-  aiCipher: AiSecretCipher
+  aiCipher: AiSecretCipher,
+  options: BuildEmailExtractDepsOptions = {}
 ): EmailExtractDeps {
   return {
-    selectModel: (tier) => aiRepo.selectModelForCapability(scopedDb, "summarization", tier),
+    selectModel: async (tier) =>
+      (
+        await aiRepo.resolveModelForService(scopedDb, EMAIL_EXTRACT_SERVICE, {
+          capability: "json",
+          tierHint: tier
+        })
+      ).model ?? undefined,
     runChat: async (model, prompt) => {
-      // `model` is the AiConfiguredModelSafeRow returned by selectModelForCapability:
-      // it carries provider_config_id, provider_kind, and provider_model_id directly.
-      // Load + decrypt the provider credential in-process (never logged/forwarded), then
-      // call the adapter.
-      const row = model as AiConfiguredModelSafeRow;
-      const provider = await aiRepo.selectProviderWithCredential(scopedDb, row.provider_config_id);
-      if (!provider) return { text: "" };
-      const credential = parseAiApiKeyCredential(
-        aiCipher.decryptJson(provider.encrypted_credential)
-      );
-      if (!credential) return { text: "" };
-      // HttpApiAdapter supports anthropic/openai-compatible/google (ProviderKind); narrow
-      // the wider AiProviderKind at this boundary — the router already selected the model.
-      const adapter = new HttpApiAdapter(
-        row.provider_kind as ProviderKind,
-        credential.apiKey,
-        provider.base_url ? { baseUrl: provider.base_url } : {}
-      );
-      return adapter.generateChat({
-        model: {
-          provider_kind: row.provider_kind,
-          provider_model_id: row.provider_model_id
+      const result = await generateStructured(
+        scopedDb,
+        {
+          service: EMAIL_EXTRACT_SERVICE,
+          schema: EMAIL_SIGNALS_SCHEMA,
+          prompt,
+          tierHint: model.tier as AiModelTier
         },
-        messages: [{ role: "user", content: prompt }]
-      });
+        {
+          repository: aiRepo,
+          cipher: aiCipher,
+          createAdapter: options.createAdapter,
+          createCliStructuredAdapter: options.createCliStructuredAdapter,
+          // generateStructured uses only the two-argument structured logger form above.
+          logger: options.logger as GenerateStructuredDeps["logger"]
+        }
+      );
+      if (!result.ok) throw new Error(`email-extract-structured-${result.error}`);
+      return { text: JSON.stringify(result.object) };
     }
   };
 }
