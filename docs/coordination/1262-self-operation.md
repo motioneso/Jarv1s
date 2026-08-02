@@ -6365,3 +6365,7 @@ Chunk 2 terminal detail: completed at `20:20:23Z` in 122.709 seconds; cumulative
 `emailUpserted=14` (delta 6, within the maximum-eight bound), failures/errors/retries 0, and
 `truncated=true`. Chunk 3 was created post-commit behind 13 older jobs. Genuine suggested rows
 remain 0; not ready.
+
+Queue progress: chunk 3 remains created with six older singleton continuations ahead, down from 13.
+All observed jobs remain at retry 0 and globally non-overlapping. Genuine suggested rows remain 0;
+no interaction.
