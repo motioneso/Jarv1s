@@ -6389,6 +6389,11 @@ quarter-hours and three at half/full hours); neither retained monitor enqueued o
 Each continuation requeues at the singleton tail, explaining the long round-robin delay without
 breaking the per-page bound, deterministic IDs, or global non-overlap. Continue monitoring.
 
+Chunk 4 terminal detail: completed at `22:28:21Z` in 163.014 seconds; cumulative
+`emailUpserted=29` (delta 8), failures/errors/retries 0, and `truncated=true`. Chunk 5 was created
+post-commit and currently has one active plus 24 created jobs ahead. Genuine suggested rows remain
+0; not ready.
+
 Chunk 3 completed at `21:16:01Z` in 142.860 seconds. Cumulative `emailUpserted=21` (delta 7, within
 the maximum-eight bound), with failures/errors/retries 0 and `truncated=true`. Deterministic child 4
 `4d9e7334-d681-5232-9c15-518ab25e950c` was created post-commit behind 19 older jobs. Genuine
