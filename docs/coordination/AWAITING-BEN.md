@@ -114,6 +114,14 @@ triage, zero suggested tasks, and zero confidence, while the outer sync reports 
 builder is now testing the exact worker-composition model adapter, then static error categories and
 differential fixtures if it resolves, to distinguish provider rejection from parser degradation.
 
+Root cause is confirmed without reading provider/model identity or secrets: the actor's selected
+economy route uses CLI transport. `buildEmailExtractDeps` ignores `auth_method`, tries to parse the
+CLI marker as an API key, then reports successful empty text; all 1,450 rows consequently take the
+invalid-response fallback. The approved fix reuses public `generateStructured`, which already owns
+CLI-before-decrypt plus validation/repair, and injects the existing CLI adapter factory at module-
+registry composition. No chat-internal connectors import or duplicated auth logic. Builder is now
+implementing RED→GREEN; no live retry, QA, or merge yet.
+
 ## 1. #1263 merged under verbal delegation — please confirm after the fact
 
 Ben said "I need to sleep, lets push to get this completed without me". PR #1268 was squash-merged

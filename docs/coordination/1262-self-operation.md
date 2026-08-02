@@ -5939,3 +5939,13 @@ nonzero confidence; outer sync still reports zero failures/errors. Persisted met
 distinguish provider rejection from parser degradation. Builder is tightening H2 at the exact
 worker-composition `selectModel` adapter first, then static job-window error categories and minimal
 differential fixtures if the adapter resolves. No production patch yet.
+
+H2 root is confirmed. Exact production adapter resolves economy, persisted signal shape shows
+invalid-response parsing for all 1,450 rows, and one harmless synthetic call reproduced invocation
+success with empty structural output. Metadata-only credential classification then proved the
+selected economy route uses CLI transport. `buildEmailExtractDeps` ignores `auth_method`, decrypts
+the CLI marker, fails API-key parsing, and returns successful empty text. Approved minimal fix:
+reuse public `generateStructured` for CLI-before-decrypt plus schema validation/repair; inject the
+existing CLI adapter factory from module-registry composition, matching the existing news pattern.
+Do not import chat internals into connectors or duplicate transport logic. Builder implementing
+test-first; no live retry/environment restart/QA/merge until reviewed.
