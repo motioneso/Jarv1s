@@ -6324,3 +6324,11 @@ Two previously created continuations remain ahead of this chain's chunk 1
 `e72aab2a-f3f8-566b-8cfc-cf206c670f1b`; the current active job has `retry_count=0`. This chain is
 still initial job `completed`, chunk 1 `created`, with genuine suggested Today rows = 0. Continue
 queue-only monitoring; no browser action or second sync.
+
+State change: deterministic chunk 1 `e72aab2a-f3f8-566b-8cfc-cf206c670f1b` is now active at
+`retry_count=0` after the FIFO singleton queue drained ahead of it. Genuine suggested Today rows
+remain 0. Continue queue-only monitoring; Ben has no interaction step yet.
+
+Chunk 1 was claimed at `19:39:39Z` with an 840-second expiry. The root remains clean
+(`calendarUpserted=14`, errors 0, `truncated=true`). It is the sole serialized active lane with no
+overlap; builder monitor session `65318` remains active.
