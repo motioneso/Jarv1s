@@ -79,6 +79,7 @@ function mockInvoke(
     criteria?: SearchCriteria;
     contextSummary?: string | null;
     name?: string;
+    briefingDetail?: "count" | "top" | "full";
   } = {}
 ): void {
   vi.mocked(api.invokeTool).mockImplementation(async (tool: string) => {
@@ -88,7 +89,8 @@ function mockInvoke(
         profileId: "p1",
         name: opts.name ?? "Acme SWE search",
         criteria: opts.criteria ?? EMPTY_CRITERIA,
-        contextSummary: opts.contextSummary ?? null
+        contextSummary: opts.contextSummary ?? null,
+        briefingDetail: opts.briefingDetail ?? "top"
       };
     }
     throw new Error(`unexpected invokeTool call: ${tool}`);
@@ -208,8 +210,13 @@ describe("ProfileScreen", () => {
     expect(rendered).toContain("Staff Engineer");
     expect(rendered).toContain("Principal Engineer");
     expect(rendered).toContain("Remote required");
-    // 18,000,000 cents = $180,000 — integer/string arithmetic, no Intl.NumberFormat.
-    expect(rendered).toContain("$180,000");
+    expect(renderer.root.findByProps({ "aria-label": "Remote preference" }).props.value).toBe(
+      "required"
+    );
+    // 18,000,000 cents = $180,000 in the direct dollar input.
+    const payFloor = renderer.root.findByProps({ "aria-label": "Pay floor" });
+    expect(payFloor.props.value).toBe("180000");
+    expect(payFloor.props.className).toContain("jsm-pay-floor-input");
     expect(rendered).toContain("Equity");
     expect(rendered).toContain("4-day week");
     expect(rendered).toContain("On-call rotation");
@@ -225,8 +232,47 @@ describe("ProfileScreen", () => {
     // Two titles + one seniority + one location + one must-have + one nice-to-have + one
     // dealbreaker = 7 tags; not an exact count this test depends on beyond "more than zero" for
     // any single group, but the full set confirms every group actually rendered its tags.
-    // Directly removable criteria use the design system's chip-with-remove primitive.
+    // Long removable values use the criteria variant rather than the generic rounded pill.
     expect(chips).toHaveLength(7);
+    expect(chips.every((chip) => chip.props.className.includes("jds-chip--criteria"))).toBe(true);
+  });
+
+  it("saves a direct remote-preference change through the criteria queue", async () => {
+    mockInvoke({ criteria: criteria({ remote: "preferred" }) });
+    vi.mocked(api.runQueue).mockReturnValue(new Promise(() => undefined));
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    await act(async () => {
+      renderer.root
+        .findByProps({ "aria-label": "Remote preference" })
+        .props.onChange({ target: { value: "required" } });
+    });
+
+    expect(api.runQueue).toHaveBeenCalledWith(CRITERIA_SET_QUEUE, "criteria.set", {
+      profileId: "p1",
+      criteriaJson: JSON.stringify(criteria({ remote: "required" }))
+    });
+  });
+
+  it("saves a direct pay-floor edit as cents when the field blurs", async () => {
+    mockInvoke({ criteria: criteria({ compFloorCents: 20_000_000 }) });
+    vi.mocked(api.runQueue).mockReturnValue(new Promise(() => undefined));
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    const input = renderer.root.findByProps({ "aria-label": "Pay floor" });
+    await act(async () => {
+      input.props.onChange({ target: { value: "225000" } });
+    });
+    await act(async () => {
+      input.props.onBlur();
+    });
+
+    expect(api.runQueue).toHaveBeenCalledWith(CRITERIA_SET_QUEUE, "criteria.set", {
+      profileId: "p1",
+      criteriaJson: JSON.stringify(criteria({ compFloorCents: 22_500_000 }))
+    });
   });
 
   it("leads with criteria and résumé fields without repeating the ceremonial page hero", async () => {
@@ -259,6 +305,36 @@ describe("ProfileScreen", () => {
 
     expect(text(renderer)).toContain("Save changes");
     expect(renderer.root.findAllByType("input").length).toBeGreaterThan(0);
+  });
+
+  it("returns to the criteria view as soon as an editor save is queued", async () => {
+    let profileReads = 0;
+    vi.mocked(api.invokeTool).mockImplementation(async (tool: string) => {
+      if (tool === RESUME_GET_TOOL) return { resume: null };
+      if (tool === PROFILE_GET_TOOL && profileReads++ === 0) {
+        return {
+          profileId: "p1",
+          name: "Acme SWE search",
+          criteria: criteria({ titles: ["Staff Engineer"] }),
+          contextSummary: null,
+          briefingDetail: "top"
+        };
+      }
+      return new Promise(() => undefined);
+    });
+    const renderer = await renderScreen(profile());
+    await flush();
+
+    const editButton = renderer.root
+      .findAllByType("button")
+      .find((node) => flatten(node.props.children) === "Edit");
+    await act(async () => editButton!.props.onClick());
+    const editor = renderer.root.findByProps({ className: "jsm-criteria-editor" });
+    await act(async () => editor.props.onSubmit({ preventDefault: vi.fn() }));
+    await flush();
+
+    expect(text(renderer)).not.toContain("Save changes");
+    expect(text(renderer)).toContain("Staff Engineer");
   });
 
   it("renames the search directly and reports the confirmed name", async () => {
@@ -313,8 +389,10 @@ describe("ProfileScreen", () => {
     expect(rendered).toContain("No titles yet.");
     expect(rendered).toContain("No seniority level yet.");
     expect(rendered).toContain("No locations yet.");
-    expect(rendered).toContain("No preference");
-    expect(rendered).toContain("No minimum set.");
+    expect(renderer.root.findByProps({ "aria-label": "Remote preference" }).props.value).toBe(
+      "no-preference"
+    );
+    expect(renderer.root.findByProps({ "aria-label": "Pay floor" }).props.value).toBe("");
     expect(rendered).toContain("Nothing marked must-have yet.");
     expect(rendered).toContain("Nothing marked nice-to-have yet.");
     expect(rendered).toContain("No dealbreakers marked yet.");
@@ -358,10 +436,11 @@ describe("ProfileScreen", () => {
     expect(text(renderer)).not.toContain("What I understand you’re after");
   });
 
-  it("changing briefing detail calls runQueue with job-search.profile-set-briefing-detail and the selected level", async () => {
-    mockInvoke();
+  it("confirms a briefing-detail save and refreshes the parent profile", async () => {
+    mockInvoke({ briefingDetail: "full" });
+    const changed = vi.fn();
 
-    const renderer = await renderScreen(profile({ briefingDetail: "top" }));
+    const renderer = await renderScreen(profile({ briefingDetail: "top" }), undefined, changed);
     await flush();
 
     const options = renderer.root.findAll(
@@ -382,5 +461,17 @@ describe("ProfileScreen", () => {
       "profile.set-briefing-detail",
       { profileId: "p1", detail: "full" }
     );
+    expect(changed).toHaveBeenCalledOnce();
+    expect(text(renderer)).toContain("Saved.");
+
+    await act(async () => {
+      renderer.update(
+        createElement(ProfileScreen, {
+          profile: profile({ briefingDetail: "full" }),
+          onProfileChanged: changed
+        })
+      );
+    });
+    expect(text(renderer)).toContain("Saved.");
   });
 });

@@ -92,20 +92,6 @@ const REMOTE_LABELS: Record<SearchCriteria["remote"], string> = {
   "onsite-ok": "Onsite OK"
 };
 
-// Pure integer/string comma-grouping — no Intl.NumberFormat (banned by check:no-ambient-dates'
-// sibling rule against ambient formatting APIs in web display layers).
-function formatCompFloor(cents: number): string {
-  const dollars = Math.trunc(Math.abs(cents) / 100);
-  const digits = String(dollars);
-  let grouped = "";
-  for (let i = 0; i < digits.length; i++) {
-    const fromEnd = digits.length - i;
-    if (i > 0 && fromEnd % 3 === 0) grouped += ",";
-    grouped += digits[i];
-  }
-  return `${cents < 0 ? "-" : ""}$${grouped}`;
-}
-
 function ChipGroup(props: {
   items: string[];
   emptyLabel: string;
@@ -116,21 +102,12 @@ function ChipGroup(props: {
   }
   return (
     <div className="jsm-chips">
-      {/*
-        jds-badge, not jds-chip. `.jds-chip`'s padding is deliberately lopsided —
-        `space-1 space-1 space-1 space-3` — because it is built to carry a `jds-chip__x` remove
-        button in the gap on the right. These titles and seniority levels are read-only, there is
-        no remove button, and the reserved gap renders as a pill whose text sits visibly
-        off-centre. Ben, looking at exactly these rows: "internal margins are the pills are not
-        correct." `jds-badge --pill` is the design system's own symmetric static-tag primitive, so
-        this is a swap to the right primitive rather than an override of the wrong one.
-      */}
       {props.items.map((item, index) =>
         props.onRemove ? (
           <button
             key={`${item}-${index}`}
             type="button"
-            className="jds-chip"
+            className="jds-chip jds-chip--criteria"
             aria-label={`Remove ${item}`}
             onClick={() => props.onRemove?.(item)}
           >
@@ -154,6 +131,47 @@ function splitList(value: string): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
+}
+
+function PayFloorControl(props: {
+  cents: number | null;
+  saving: boolean;
+  onSave(cents: number | null): void;
+}): ReactNodeLike {
+  const [draft, setDraft] = useState(
+    props.cents === null ? "" : String(Math.trunc(props.cents / 100))
+  );
+  useEffect(() => {
+    setDraft(props.cents === null ? "" : String(Math.trunc(props.cents / 100)));
+  }, [props.cents]);
+
+  function save(): void {
+    const dollars = draft.trim() === "" ? null : Number(draft);
+    if (dollars !== null && (!Number.isFinite(dollars) || dollars < 0)) return;
+    const cents = dollars === null ? null : dollars * 100;
+    if (cents !== props.cents) props.onSave(cents);
+  }
+
+  return (
+    <form
+      onSubmit={(event: { preventDefault(): void }) => {
+        event.preventDefault();
+        save();
+      }}
+    >
+      <input
+        className="jds-input jsm-pay-floor-input"
+        aria-label="Pay floor"
+        type="number"
+        min="0"
+        step="1000"
+        value={draft}
+        disabled={props.saving}
+        onChange={(event: { target: { value: string } }) => setDraft(event.target.value)}
+        onBlur={save}
+      />
+    </form>
+  );
 }
 
 const LIST_FIELDS = [
@@ -343,11 +361,32 @@ function LookingForSection(props: {
             onRemove={(item) => props.onRemove("locations", item)}
           />
         </FieldPair>
-        <FieldPair label="Remote">{REMOTE_LABELS[criteria.remote]}</FieldPair>
+        <FieldPair label="Remote">
+          <select
+            className="jds-select"
+            aria-label="Remote preference"
+            value={criteria.remote}
+            disabled={props.saveStatus === "saving"}
+            onChange={(event: { target: { value: string } }) =>
+              props.onSave({
+                ...criteria,
+                remote: event.target.value as SearchCriteria["remote"]
+              })
+            }
+          >
+            {Object.entries(REMOTE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </FieldPair>
         <FieldPair label="Pay floor">
-          {criteria.compFloorCents === null
-            ? "No minimum set."
-            : formatCompFloor(criteria.compFloorCents)}
+          <PayFloorControl
+            cents={criteria.compFloorCents}
+            saving={props.saveStatus === "saving"}
+            onSave={(compFloorCents) => props.onSave({ ...criteria, compFloorCents })}
+          />
         </FieldPair>
       </div>
       <div className="jsm-fields">
@@ -409,9 +448,10 @@ function isBriefingDetail(value: string | null): value is BriefingDetail {
 
 function BriefingDetailSection(props: {
   briefingDetail: BriefingDetail;
+  saveStatus: "idle" | "saving" | "saved" | "error";
   onChange: (next: BriefingDetail) => void;
 }): ReactNodeLike {
-  const { briefingDetail, onChange } = props;
+  const { briefingDetail, onChange, saveStatus } = props;
   return (
     <section className="jsm-settings__group">
       <SectionHead label="Briefing detail" />
@@ -429,6 +469,7 @@ function BriefingDetailSection(props: {
                   type="button"
                   className="jds-segmented__opt"
                   aria-pressed={briefingDetail === level}
+                  disabled={saveStatus === "saving"}
                   onClick={() => onChange(level)}
                 >
                   {BRIEFING_DETAIL_LEVELS[level].label}
@@ -438,6 +479,21 @@ function BriefingDetailSection(props: {
           </div>
         </div>
       </div>
+      {saveStatus === "saving" ? (
+        <p className="jds-hint" role="status">
+          Saving…
+        </p>
+      ) : null}
+      {saveStatus === "saved" ? (
+        <p className="jds-hint" role="status">
+          Saved.
+        </p>
+      ) : null}
+      {saveStatus === "error" ? (
+        <p className="jds-hint jds-hint--error" role="alert">
+          Couldn&rsquo;t save this preference.
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -466,6 +522,10 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
   const [briefingDetail, setBriefingDetail] = useState<BriefingDetail>(
     isBriefingDetail(profile.briefingDetail) ? profile.briefingDetail : "top"
   );
+  const [briefingSaveStatus, setBriefingSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const briefingSaveRevision = useRef(0);
   const [editingCriteria, setEditingCriteria] = useState(false);
   const [criteriaSaveStatus, setCriteriaSaveStatus] = useState<
     "idle" | "saving" | "saved" | "error"
@@ -478,6 +538,14 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
     setNameDraft(profile.name);
     setNameStatus("idle");
   }, [profile.profileId, profile.name]);
+
+  useEffect(() => {
+    setBriefingDetail(isBriefingDetail(profile.briefingDetail) ? profile.briefingDetail : "top");
+  }, [profile.profileId, profile.briefingDetail]);
+
+  useEffect(() => {
+    setBriefingSaveStatus("idle");
+  }, [profile.profileId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -524,16 +592,41 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
     };
   }, [profile.profileId]);
 
-  // Writes apply optimistically and reconcile via the next profile read (ruling I5 — runQueue
-  // never resolves "done"); a failed enqueue is swallowed rather than rolled back visually, same
-  // as settings.tsx's own portal toggle does on success, because there is nothing meaningful to
-  // show inline for a control this small.
   function handleBriefingDetail(next: BriefingDetail): void {
+    const revision = ++briefingSaveRevision.current;
     setBriefingDetail(next);
+    setBriefingSaveStatus("saving");
     runQueue(PROFILE_SET_BRIEFING_DETAIL_QUEUE, "profile.set-briefing-detail", {
       profileId: profile.profileId,
       detail: next
-    }).catch(() => {});
+    })
+      .then((outcome) => {
+        if (outcome.kind === "disabled" || outcome.kind === "error") {
+          if (briefingSaveRevision.current === revision) setBriefingSaveStatus("error");
+          return;
+        }
+        const confirm = (attempt: number): void => {
+          invokeTool(PROFILE_GET_TOOL, { profileId: profile.profileId })
+            .then((result) => {
+              if (briefingSaveRevision.current !== revision) return;
+              if ((result as { briefingDetail?: unknown } | null)?.briefingDetail === next) {
+                setBriefingSaveStatus("saved");
+                props.onProfileChanged?.();
+              } else if (attempt < 20) {
+                setTimeout(() => confirm(attempt + 1), 500);
+              } else {
+                setBriefingSaveStatus("error");
+              }
+            })
+            .catch(() => {
+              if (briefingSaveRevision.current === revision) setBriefingSaveStatus("error");
+            });
+        };
+        confirm(0);
+      })
+      .catch(() => {
+        if (briefingSaveRevision.current === revision) setBriefingSaveStatus("error");
+      });
   }
 
   function saveCriteria(next: SearchCriteria): void {
@@ -551,6 +644,7 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
           if (criteriaSaveRevision.current === revision) setCriteriaSaveStatus("error");
           return;
         }
+        setEditingCriteria(false);
         const confirm = (attempt: number): void => {
           fetchCriteria(profile.profileId)
             .then((actual) => {
@@ -558,7 +652,6 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
               if (JSON.stringify(actual.criteria) === JSON.stringify(next)) {
                 setCriteria({ status: "ready", ...actual });
                 setCriteriaSaveStatus("saved");
-                setEditingCriteria(false);
               } else if (attempt < 20) {
                 setTimeout(() => confirm(attempt + 1), 500);
               } else {
@@ -672,7 +765,11 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
         onSaved={reloadResume}
         openSignal={props.openResumeSignal}
       />
-      <BriefingDetailSection briefingDetail={briefingDetail} onChange={handleBriefingDetail} />
+      <BriefingDetailSection
+        briefingDetail={briefingDetail}
+        saveStatus={briefingSaveStatus}
+        onChange={handleBriefingDetail}
+      />
     </div>
   );
 }

@@ -257,7 +257,8 @@ export function createProfileGetHandler(store: JobSearchStore) {
       profileId,
       name: profile.name,
       criteria: profile.criteria,
-      contextSummary: profile.contextSummary
+      contextSummary: profile.contextSummary,
+      briefingDetail: profile.briefingDetail
     };
   };
 }

@@ -864,7 +864,8 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       makeProfile({
         id: "p1",
         criteria: { ...EMPTY_CRITERIA, titles: ["Staff Engineer"] },
-        contextSummary: "Wants a remote staff role."
+        contextSummary: "Wants a remote staff role.",
+        briefingDetail: "full"
       })
     ]);
 
@@ -872,13 +873,14 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
 
     // Exact key set, not just "contains" — state/schedule/surfaceKey must not ride along.
     expect(Object.keys(result as Record<string, unknown>).sort()).toEqual(
-      ["contextSummary", "criteria", "name", "profileId"].sort()
+      ["briefingDetail", "contextSummary", "criteria", "name", "profileId"].sort()
     );
     expect(result).toEqual({
       profileId: "p1",
       name: "Test Profile",
       criteria: { ...EMPTY_CRITERIA, titles: ["Staff Engineer"] },
-      contextSummary: "Wants a remote staff role."
+      contextSummary: "Wants a remote staff role.",
+      briefingDetail: "full"
     });
   });
 

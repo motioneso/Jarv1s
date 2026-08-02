@@ -375,6 +375,27 @@
   height: 13px;
 }
 
+/* Long, user-authored removable values. Keep these left-aligned and tag-like instead of letting
+   wrapped criteria turn the pill primitive into a centred mini-card. */
+.jds-chip--criteria {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  line-height: var(--leading-snug);
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.jds-chip--criteria .jds-chip__x {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-xs);
+}
+
 /* Toggle chip (#1196): same primitive, native pressed state. */
 .jds-chip--toggle {
   padding: var(--space-2) var(--space-3);
