@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
+import { createCliStructuredAdapterFactory, type ChatEngineFactory } from "@jarv1s/chat";
 import {
+  buildEmailExtractDeps,
   runEmailMonitor,
   type EmailExtractDeps,
   type EmailTaskCreationPort
@@ -19,6 +22,21 @@ const NOW = new Date("2026-08-01T04:00:00.000Z");
 const MESSAGE_ID = "sync-monitor-actionable-1";
 const SUBJECT = "Approval needed for the launch plan";
 const BODY = "Please approve the launch plan today and reply when it is done.";
+const ACTIONABLE_SIGNALS = {
+  summary: "A colleague needs launch-plan approval today.",
+  billsDue: [],
+  actionItems: [],
+  deadlines: [],
+  mayGetLostInShuffle: true,
+  importance: "high",
+  confidence: 0.95,
+  actionability: {
+    category: "needs_action",
+    reason: "The sender explicitly requests approval today.",
+    inferredSubject: "Launch plan approval",
+    suggestedTasks: [{ text: "Approve the launch plan" }]
+  }
+};
 
 const summaryOnlyExtractDeps: EmailExtractDeps = {
   selectModel: async () => ({ tier: "economy" }),
@@ -41,23 +59,7 @@ const summaryOnlyExtractDeps: EmailExtractDeps = {
 
 const actionableExtractDeps: EmailExtractDeps = {
   selectModel: async () => ({ tier: "economy" }),
-  runChat: async () => ({
-    text: JSON.stringify({
-      summary: "A colleague needs launch-plan approval today.",
-      billsDue: [],
-      actionItems: [],
-      deadlines: [],
-      mayGetLostInShuffle: true,
-      importance: "high",
-      confidence: 0.95,
-      actionability: {
-        category: "needs_action",
-        reason: "The sender explicitly requests approval today.",
-        inferredSubject: "Launch plan approval",
-        suggestedTasks: [{ text: "Approve the launch plan" }]
-      }
-    })
-  })
+  runChat: async () => ({ text: JSON.stringify(ACTIONABLE_SIGNALS) })
 };
 
 function googleClientFor(messageId: string) {
@@ -128,6 +130,72 @@ async function emailTaskCount(
 }
 
 describe("Google sync → source context → email monitor", () => {
+  it("projects actionable mail through the production CLI structured composition", async () => {
+    const messageId = "sync-monitor-cli-structured";
+    const { accountId, context } = await setupAccount("test:sync-monitor-cli-structured");
+    const tasksRepository = new TasksRepository();
+    const preferencesRepository = new PreferencesRepository();
+    const aiRepository = new AiRepository();
+    const aiCipher = createAiSecretCipher();
+    await handles.dataContext.withDataContext(
+      { actorUserId: ids.adminUser, requestId: "test:sync-monitor-cli-ai-config" },
+      async (scopedDb) => {
+        const provider = await aiRepository.createProvider(scopedDb, {
+          providerKind: "anthropic",
+          displayName: "CLI structured fixture",
+          authMethod: "cli",
+          encryptedCredential: aiCipher.encryptJson({ cli: true })
+        });
+        await aiRepository.createModel(scopedDb, {
+          providerConfigId: provider.id,
+          providerModelId: "cli-structured-fixture",
+          displayName: "CLI structured fixture",
+          capabilities: ["summarization", "json"],
+          tier: "economy"
+        });
+      }
+    );
+    const engineFactory: ChatEngineFactory = vi.fn(() => ({
+      provider: "anthropic" as const,
+      launch: vi.fn(async () => ({ offset: 0 })),
+      submit: vi.fn(async () => undefined),
+      readNew: vi.fn(async () => ({
+        records: [{ kind: "reply" as const, text: JSON.stringify(ACTIONABLE_SIGNALS) }],
+        offset: 1,
+        complete: true
+      })),
+      interrupt: vi.fn(async () => undefined),
+      isAlive: vi.fn(async () => false),
+      kill: vi.fn(async () => undefined)
+    }));
+
+    const sync = await handles.workerDataContext.withDataContext(context, (scopedDb) =>
+      runGoogleSync(scopedDb, {
+        getFreshAccessToken: async () => "fixture-token",
+        getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
+        googleClient: googleClientFor(messageId),
+        emailExtractDeps: buildEmailExtractDeps(scopedDb, aiRepository, aiCipher, {
+          createCliStructuredAdapter: createCliStructuredAdapterFactory(engineFactory)
+        }),
+        actionProjection: {
+          taskPort: createTaskPort(tasksRepository),
+          preferencesRepository,
+          actorUserId: ids.userA
+        },
+        now: () => NOW
+      })
+    );
+
+    expect(sync).toMatchObject({
+      emailUpserted: 1,
+      emailFailures: 0,
+      errors: [],
+      truncated: false
+    });
+    expect(await emailTaskCount(tasksRepository, context, messageId)).toBe(1);
+    expect(engineFactory).toHaveBeenCalledTimes(1);
+  });
+
   it("evaluates a recently synced actionable inbound email into one suggested task", async () => {
     const { accountId, context } = await setupAccount("test:sync-monitor-pipeline");
     const googleClient = googleClientFor(MESSAGE_ID);
