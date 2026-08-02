@@ -6360,3 +6360,8 @@ Chunk 2 completed cleanly at retry 0. Cumulative output is 14 upserted, 0 failed
 older singleton continuations. Queue output exposes no separate evaluated counter; do not infer one.
 The verified bound remains at most eight per page from exact-HEAD code. Genuine suggested rows
 remain 0.
+
+Chunk 2 terminal detail: completed at `20:20:23Z` in 122.709 seconds; cumulative
+`emailUpserted=14` (delta 6, within the maximum-eight bound), failures/errors/retries 0, and
+`truncated=true`. Chunk 3 was created post-commit behind 13 older jobs. Genuine suggested rows
+remain 0; not ready.
