@@ -39,7 +39,10 @@ const NOOP_OAUTH_LOGGER: OAuthLogger = {
 export interface GoogleOAuthClientDeps {
   readonly fetchFn?: typeof fetch;
   readonly logger?: OAuthLogger;
+  readonly requestTimeoutMs?: number;
 }
+
+export const GOOGLE_OAUTH_REQUEST_TIMEOUT_MS = 10_000;
 
 export function parseRedirectUrl(redirectUrl: string): { code: string; state: string } {
   let url: URL;
@@ -63,10 +66,12 @@ export function parseRedirectUrl(redirectUrl: string): { code: string; state: st
 export class GoogleOAuthClient {
   private readonly fetchFn: typeof fetch;
   private readonly logger: OAuthLogger;
+  private readonly requestTimeoutMs: number;
 
   constructor(deps: GoogleOAuthClientDeps = {}) {
     this.fetchFn = deps.fetchFn ?? globalThis.fetch;
     this.logger = deps.logger ?? NOOP_OAUTH_LOGGER;
+    this.requestTimeoutMs = deps.requestTimeoutMs ?? GOOGLE_OAUTH_REQUEST_TIMEOUT_MS;
   }
 
   buildAuthUrl(input: {
@@ -119,7 +124,8 @@ export class GoogleOAuthClient {
     const response = await this.fetchFn(GOOGLE_TOKEN_ENDPOINT, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams(params).toString()
+      body: new URLSearchParams(params).toString(),
+      signal: AbortSignal.timeout(this.requestTimeoutMs)
     });
     if (!response.ok) {
       // Log the STATUS only. The token-endpoint error body is {error, error_description} (an

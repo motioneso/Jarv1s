@@ -32,6 +32,12 @@ export interface EmailReadProvider<TCredential = string> {
 /** The subset of GoogleApiClient this provider needs (matches sync-jobs.ts's GoogleClientLike). */
 export interface GmailReadClient {
   listMessageIds(input: { accessToken: string; query?: string }): Promise<Array<{ id: string }>>;
+  listMessageIdsPage?(input: {
+    accessToken: string;
+    query?: string;
+    pageToken?: string;
+    maxResults?: number;
+  }): Promise<{ messages: Array<{ id: string }>; nextPageToken?: string }>;
   getMessage(input: { accessToken: string; id: string }): Promise<GmailMessageFull>;
 }
 
@@ -51,6 +57,26 @@ export class GoogleEmailReadProvider implements EmailReadProvider {
   async listMessageKeys(accessToken: string, folder: string): Promise<MailMessageKey[]> {
     const stubs = await this.client.listMessageIds({ accessToken, query: this.query });
     return stubs.map((stub) => ({ folder, id: stub.id }));
+  }
+
+  async listMessageKeyPage(
+    accessToken: string,
+    folder: string,
+    input: { readonly cursor?: string; readonly limit: number }
+  ): Promise<{ keys: MailMessageKey[]; nextCursor?: string }> {
+    if (!this.client.listMessageIdsPage) {
+      return { keys: await this.listMessageKeys(accessToken, folder) };
+    }
+    const page = await this.client.listMessageIdsPage({
+      accessToken,
+      query: this.query,
+      pageToken: input.cursor,
+      maxResults: input.limit
+    });
+    return {
+      keys: page.messages.map((stub) => ({ folder, id: stub.id })),
+      nextCursor: page.nextPageToken
+    };
   }
 
   async getMessage(accessToken: string, key: MailMessageKey): Promise<ParsedEmail> {

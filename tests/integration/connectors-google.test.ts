@@ -153,6 +153,33 @@ describe("GoogleOAuthClient.exchangeCode", () => {
 });
 
 describe("GoogleOAuthClient.refreshAccessToken", () => {
+  it("bounds token refresh with an abort signal", async () => {
+    let signal: AbortSignal | null | undefined;
+    const client = new GoogleOAuthClient({
+      fetchFn: (async (_url: string, init?: RequestInit) => {
+        signal = init?.signal;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            access_token: "at",
+            expires_in: 3600,
+            scope: "",
+            token_type: "Bearer"
+          })
+        } as Response;
+      }) as typeof fetch
+    });
+
+    await client.refreshAccessToken({
+      clientId: "cid",
+      clientSecret: "secret",
+      refreshToken: "rt"
+    });
+
+    expect(signal).toBeInstanceOf(AbortSignal);
+  });
+
   it("POSTs the refresh token and returns a fresh access token", async () => {
     const captured: { body?: string } = {};
     const client = new GoogleOAuthClient({

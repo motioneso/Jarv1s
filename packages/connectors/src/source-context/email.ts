@@ -61,6 +61,11 @@ export interface EmailSourceContextDeps {
   readonly imapProvider: EmailReadProvider<ImapConnectionSecret>;
   readonly emailRepository: {
     listVisibleForBriefing(scopedDb: DataContextDb): Promise<EmailMessage[]>;
+    getByConnectorAccountAndExternalId?(
+      scopedDb: DataContextDb,
+      connectorAccountId: string,
+      externalId: string
+    ): Promise<EmailMessage | undefined>;
   };
   readonly makeEmailExtractDeps: (scopedDb: DataContextDb) => EmailExtractDeps;
   readonly now?: () => Date;
@@ -171,7 +176,8 @@ export async function listSavedEmailContext(
     EmailSourceContextDeps,
     "connectorsRepository" | "preferencesRepository" | "emailRepository"
   >,
-  connectorAccountId: string
+  connectorAccountId: string,
+  messageKeys?: readonly string[]
 ): Promise<EmailContextResult> {
   const account = (await deps.connectorsRepository.listAccounts(scopedDb)).find(
     (candidate) => candidate.id === connectorAccountId
@@ -193,7 +199,21 @@ export async function listSavedEmailContext(
     return { items: [], accounts: [], gaps: [{ account: meta, reason: "auth_error" }] };
   }
 
-  const items = (await deps.emailRepository.listVisibleForBriefing(scopedDb))
+  const rows =
+    messageKeys && deps.emailRepository.getByConnectorAccountAndExternalId
+      ? (
+          await Promise.all(
+            messageKeys.map((key) =>
+              deps.emailRepository.getByConnectorAccountAndExternalId!(
+                scopedDb,
+                connectorAccountId,
+                key
+              )
+            )
+          )
+        ).filter((row): row is EmailMessage => row !== undefined)
+      : await deps.emailRepository.listVisibleForBriefing(scopedDb);
+  const items = rows
     .filter((row) => row.connector_account_id === connectorAccountId)
     .map((row) => emailContextItemFromCache(row, meta, null));
   return {

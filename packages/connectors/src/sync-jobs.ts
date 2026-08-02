@@ -1,9 +1,11 @@
+import { createHash, randomUUID } from "node:crypto";
+
 import type { Job, PgBoss, WorkOptions } from "pg-boss";
 import { sql } from "kysely";
 
 import type { ActorScopedJobPayload, QueueDefinition } from "@jarv1s/jobs";
 import type { ConnectorSyncStatus, DataContextDb, DataContextRunner } from "@jarv1s/db";
-import { registerDataContextWorker } from "@jarv1s/jobs";
+import { sendJob, toAccessContext } from "@jarv1s/jobs";
 import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
 import { CalendarRepository } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
@@ -27,6 +29,10 @@ import { projectEmailActions, type ProjectEmailActionsDeps } from "./monitor-job
 import { listSavedEmailContext } from "./source-context/email.js";
 
 export const GOOGLE_SYNC_QUEUE = "connectors.google-sync";
+export const GOOGLE_SYNC_CONTINUATION_QUEUE = "connectors.google-sync-continuation";
+export const GOOGLE_EMAIL_CHUNK_SIZE = 8;
+export const GOOGLE_CALENDAR_CHUNK_SIZE = 100;
+export const GOOGLE_SYNC_EXPIRE_SECONDS = 840;
 
 export const GOOGLE_SYNC_QUEUE_DEFINITIONS: readonly QueueDefinition[] = [
   {
@@ -37,6 +43,19 @@ export const GOOGLE_SYNC_QUEUE_DEFINITIONS: readonly QueueDefinition[] = [
       // sync-on-connect collapses to one job (spec §error handling; briefings precedent).
       policy: "exclusive",
       retryLimit: 1,
+      expireInSeconds: GOOGLE_SYNC_EXPIRE_SECONDS,
+      deleteAfterSeconds: 300,
+      retentionSeconds: 600
+    }
+  },
+  {
+    name: GOOGLE_SYNC_CONTINUATION_QUEUE,
+    options: {
+      // One active continuation globally keeps CLI structured extraction sequential. The adapter's
+      // existing process-global guard remains the final safety net for other structured callers.
+      policy: "singleton",
+      retryLimit: 1,
+      expireInSeconds: GOOGLE_SYNC_EXPIRE_SECONDS,
       deleteAfterSeconds: 300,
       retentionSeconds: 600
     }
@@ -46,6 +65,35 @@ export const GOOGLE_SYNC_QUEUE_DEFINITIONS: readonly QueueDefinition[] = [
 export interface GoogleSyncPayload extends ActorScopedJobPayload {
   readonly kind: "google-sync";
   readonly idempotencyKey?: string;
+}
+
+type GoogleSyncPhase = "calendar" | "email";
+
+export interface GoogleSyncContinuationPayload extends ActorScopedJobPayload {
+  readonly kind: "google-sync-continuation";
+  readonly idempotencyKey: string;
+  readonly connectorAccountId: string;
+  readonly phase: GoogleSyncPhase;
+  readonly cursor?: string;
+  readonly chunkIndex: number;
+  readonly startedAt: string;
+  readonly calendarSeenSince: string;
+  readonly calendarUpserted: number;
+  readonly calendarReconciled: number;
+  readonly emailUpserted: number;
+  readonly emailFailures: number;
+  readonly escalations: number;
+  readonly errors: readonly string[];
+}
+
+export type GoogleSyncContinuationState = Omit<
+  GoogleSyncContinuationPayload,
+  "actorUserId" | "kind"
+>;
+
+export interface GoogleSyncChunkOutcome {
+  readonly result: GoogleSyncResult;
+  readonly continuation?: GoogleSyncContinuationState;
 }
 
 export interface GoogleSyncResult {
@@ -73,7 +121,21 @@ interface GoogleClientLike {
     timeMin: string;
     timeMax: string;
   }): Promise<GoogleCalendarEvent[]>;
+  listCalendarEventsPage?(input: {
+    accessToken: string;
+    calendarId?: string;
+    timeMin: string;
+    timeMax: string;
+    pageToken?: string;
+    maxResults?: number;
+  }): Promise<{ items: GoogleCalendarEvent[]; nextPageToken?: string }>;
   listMessageIds(input: { accessToken: string; query?: string }): Promise<Array<{ id: string }>>;
+  listMessageIdsPage?(input: {
+    accessToken: string;
+    query?: string;
+    pageToken?: string;
+    maxResults?: number;
+  }): Promise<{ messages: Array<{ id: string }>; nextPageToken?: string }>;
   getMessage(input: { accessToken: string; id: string }): Promise<GmailMessageFull>;
 }
 
@@ -95,6 +157,8 @@ export interface GoogleSyncDeps {
   /** Structured, sanitized sync logger (never token/body content). Defaults to a console shim. */
   readonly logger?: SyncLogger;
   readonly actionProjection?: ProjectEmailActionsDeps;
+  /** Stable root job id used to derive deterministic continuation job ids. */
+  readonly runId?: string;
 }
 
 /** Sanitized structured logging for partial-failure observability (never secrets/body). */
@@ -242,35 +306,54 @@ function mapEventInstants(
   return null;
 }
 
-export async function runGoogleSync(
+export async function runGoogleSyncChunk(
   scopedDb: DataContextDb,
-  deps: GoogleSyncDeps
-): Promise<GoogleSyncResult> {
+  deps: GoogleSyncDeps,
+  continuation?: GoogleSyncContinuationState
+): Promise<GoogleSyncChunkOutcome> {
   const now = deps.now ?? (() => new Date());
   const logger = deps.logger ?? NOOP_SYNC_LOGGER;
   const calendarRepo = deps.calendarRepository ?? new CalendarRepository();
   const emailRepo = deps.emailRepository ?? new EmailRepository();
   const connectorsRepo = deps.connectorsRepository ?? new ConnectorsRepository();
   const preferencesRepo = deps.preferencesRepository ?? new PreferencesRepository();
-  const errors: string[] = [];
-  let calendarUpserted = 0;
-  let calendarReconciled = 0;
-  let emailUpserted = 0;
-  let emailFailures = 0;
-  let escalations = 0;
+  const errors: string[] = [...(continuation?.errors ?? [])];
+  let calendarUpserted = continuation?.calendarUpserted ?? 0;
+  let calendarReconciled = continuation?.calendarReconciled ?? 0;
+  let emailUpserted = continuation?.emailUpserted ?? 0;
+  let emailFailures = continuation?.emailFailures ?? 0;
+  let escalations = continuation?.escalations ?? 0;
 
   const account = await deps.getActiveAccount(scopedDb);
   if (!account) {
     return {
-      calendarUpserted: 0,
-      calendarReconciled: 0,
-      emailUpserted: 0,
-      errors: ["no-active-connection"]
+      result: {
+        calendarUpserted,
+        calendarReconciled,
+        emailUpserted,
+        emailFailures,
+        escalations,
+        errors: [...errors, "no-active-connection"],
+        truncated: false
+      }
+    };
+  }
+  if (continuation && continuation.connectorAccountId !== account.id) {
+    return {
+      result: {
+        calendarUpserted,
+        calendarReconciled,
+        emailUpserted,
+        emailFailures,
+        escalations,
+        errors: [...errors, "no-active-connection"],
+        truncated: false
+      }
     };
   }
 
   // Stamp the start of the run on the account row (health metadata only — never status).
-  await connectorsRepo.markSyncStarted(scopedDb, account.id, now());
+  if (!continuation) await connectorsRepo.markSyncStarted(scopedDb, account.id, now());
 
   // Single shared token holder for the whole run: withTokenRetry writes a refreshed token back
   // here the instant it refreshes (even if the retried op then fails), so every later call —
@@ -300,31 +383,89 @@ export async function runGoogleSync(
     } catch (persistErr) {
       logger.warn({ err: persistErr }, "google-sync: failed to persist auth-failure outcome");
     }
-    return { calendarUpserted: 0, calendarReconciled: 0, emailUpserted: 0, errors: ["auth-error"] };
+    return {
+      result: {
+        calendarUpserted,
+        calendarReconciled,
+        emailUpserted,
+        emailFailures,
+        escalations,
+        errors: ["auth-error"],
+        truncated: false
+      }
+    };
   }
 
   const featureGrants = await preferencesRepo.get(scopedDb, featureGrantsPrefKey(account.id));
+  const calendarEnabled =
+    (account.scopes.includes(CALENDAR_SCOPE) || account.scopes.includes("calendar")) &&
+    isFeatureGranted(featureGrants, "calendar");
+  const emailEnabled =
+    (account.scopes.includes(GMAIL_SCOPE) || account.scopes.includes("gmail")) &&
+    isFeatureGranted(featureGrants, "email");
+  const phase: GoogleSyncPhase | undefined =
+    continuation?.phase ?? (calendarEnabled ? "calendar" : emailEnabled ? "email" : undefined);
+  const startedAt = continuation?.startedAt ?? now().toISOString();
+  const calendarSeenSince = continuation?.calendarSeenSince ?? startedAt;
+  const runId = continuation?.idempotencyKey ?? deps.runId ?? randomUUID();
+  const chunkIndex = continuation?.chunkIndex ?? 0;
+
+  const next = (nextPhase: GoogleSyncPhase, cursor?: string): GoogleSyncChunkOutcome => ({
+    result: {
+      calendarUpserted,
+      calendarReconciled,
+      emailUpserted,
+      emailFailures,
+      escalations,
+      errors,
+      truncated: true
+    },
+    continuation: {
+      idempotencyKey: runId,
+      connectorAccountId: account.id,
+      phase: nextPhase,
+      cursor,
+      chunkIndex: chunkIndex + 1,
+      startedAt,
+      calendarSeenSince,
+      calendarUpserted,
+      calendarReconciled,
+      emailUpserted,
+      emailFailures,
+      escalations,
+      errors
+    }
+  });
 
   // --- Calendar (independent of email; one failing does not abort the other) ---
-  if (
-    (account.scopes.includes(CALENDAR_SCOPE) || account.scopes.includes("calendar")) &&
-    isFeatureGranted(featureGrants, "calendar")
-  ) {
+  if (phase === "calendar" && calendarEnabled) {
+    let nextCalendarCursor: string | undefined;
     try {
-      const ref = now().getTime();
-      const events = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
-        deps.googleClient.listCalendarEvents({
-          accessToken: token,
-          calendarId: "primary",
-          timeMin: new Date(ref - CALENDAR_WINDOW_PAST_MS).toISOString(),
-          timeMax: new Date(ref + CALENDAR_WINDOW_FUTURE_MS).toISOString()
-        })
+      const ref = new Date(startedAt).getTime();
+      const page: { items: GoogleCalendarEvent[]; nextPageToken?: string } = await withTokenRetry(
+        scopedDb,
+        deps,
+        tokenHolder,
+        async (token) => {
+          const input = {
+            accessToken: token,
+            calendarId: "primary",
+            timeMin: new Date(ref - CALENDAR_WINDOW_PAST_MS).toISOString(),
+            timeMax: new Date(ref + CALENDAR_WINDOW_FUTURE_MS).toISOString()
+          };
+          return deps.googleClient.listCalendarEventsPage
+            ? deps.googleClient.listCalendarEventsPage({
+                ...input,
+                pageToken: continuation?.cursor,
+                maxResults: GOOGLE_CALENDAR_CHUNK_SIZE
+              })
+            : { items: await deps.googleClient.listCalendarEvents(input) };
+        }
       );
-      const keepExternalIds = new Set<string>();
-      for (const event of events) {
+      nextCalendarCursor = page.nextPageToken;
+      for (const event of page.items) {
         if (!event.id) continue;
         if (event.status === "cancelled") continue;
-        keepExternalIds.add(event.id);
         const instants = mapEventInstants(event);
         if (!instants) {
           // Unusable/missing start or end — skip rather than fabricate a 1970-epoch instant
@@ -370,10 +511,12 @@ export async function runGoogleSync(
           );
         }
       }
-      calendarReconciled = await calendarRepo.deleteStaleCachedEvents(scopedDb, {
-        connectorAccountId: account.id,
-        keepExternalIds: [...keepExternalIds]
-      });
+      if (!nextCalendarCursor) {
+        calendarReconciled = await calendarRepo.deleteCachedEventsNotSeenSince(scopedDb, {
+          connectorAccountId: account.id,
+          seenSince: new Date(calendarSeenSince)
+        });
+      }
     } catch (error) {
       logger.warn(
         {
@@ -385,18 +528,25 @@ export async function runGoogleSync(
       );
       errors.push("calendar-error");
     }
+    if (nextCalendarCursor) return next("calendar", nextCalendarCursor);
+    if (emailEnabled) return next("email");
   }
 
   // --- Email (independent) ---
-  if (
-    (account.scopes.includes(GMAIL_SCOPE) || account.scopes.includes("gmail")) &&
-    isFeatureGranted(featureGrants, "email")
-  ) {
+  if (phase === "email" && emailEnabled) {
+    let nextEmailCursor: string | undefined;
+    let pageMessageKeys: string[] = [];
     try {
       const emailReadProvider = new GoogleEmailReadProvider(deps.googleClient, EMAIL_QUERY);
-      const keys = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
-        emailReadProvider.listMessageKeys(token, GMAIL_READ_FOLDER)
+      const page = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
+        emailReadProvider.listMessageKeyPage(token, GMAIL_READ_FOLDER, {
+          cursor: continuation?.cursor,
+          limit: GOOGLE_EMAIL_CHUNK_SIZE
+        })
       );
+      const keys = page.keys;
+      pageMessageKeys = keys.map((key) => key.id);
+      nextEmailCursor = page.nextCursor;
 
       // Skip-unchanged: external_metadata.historyId (Gmail per-message revision marker)
       // lets us avoid re-summarizing messages whose content hasn't changed since the last
@@ -497,7 +647,8 @@ export async function runGoogleSync(
           preferencesRepository: preferencesRepo,
           emailRepository: emailRepo
         },
-        account.id
+        account.id,
+        pageMessageKeys
       );
       await projectEmailActions(scopedDb, saved.items, {
         ...projection,
@@ -508,6 +659,7 @@ export async function runGoogleSync(
         now: projection.now ?? now
       });
     }
+    if (nextEmailCursor) return next("email", nextEmailCursor);
   }
 
   logger.info(
@@ -544,14 +696,114 @@ export async function runGoogleSync(
     logger.warn({ err: error }, "google-sync: failed to persist sync outcome; not retrying job");
   }
   return {
-    calendarUpserted,
-    calendarReconciled,
-    emailUpserted,
-    emailFailures,
-    escalations,
-    errors,
-    truncated: false
+    result: {
+      calendarUpserted,
+      calendarReconciled,
+      emailUpserted,
+      emailFailures,
+      escalations,
+      errors,
+      truncated: false
+    }
   };
+}
+
+/** Compatibility runner for direct callers; production workers persist one bounded chunk/job. */
+export async function runGoogleSync(
+  scopedDb: DataContextDb,
+  deps: GoogleSyncDeps
+): Promise<GoogleSyncResult> {
+  let continuation: GoogleSyncContinuationState | undefined;
+  let outcome: GoogleSyncChunkOutcome;
+  do {
+    outcome = await runGoogleSyncChunk(scopedDb, deps, continuation);
+    continuation = outcome.continuation;
+  } while (continuation);
+  return outcome.result;
+}
+
+const GOOGLE_SYNC_ERROR_LABELS = new Set([
+  "auth-error",
+  "calendar-error",
+  "calendar-item-error",
+  "email-error",
+  "email-message-error",
+  "no-active-connection"
+]);
+
+function assertGoogleSyncContinuationPayload(payload: GoogleSyncContinuationPayload): void {
+  if (payload.kind !== "google-sync-continuation") throw new Error("invalid continuation kind");
+  if (payload.phase !== "calendar" && payload.phase !== "email") {
+    throw new Error("invalid continuation phase");
+  }
+  if (
+    payload.cursor !== undefined &&
+    (payload.cursor.length === 0 || payload.cursor.length > 2048)
+  ) {
+    throw new Error("invalid continuation cursor");
+  }
+  if (payload.idempotencyKey.length === 0 || payload.idempotencyKey.length > 128) {
+    throw new Error("invalid continuation idempotency key");
+  }
+  if (!Number.isFinite(Date.parse(payload.startedAt))) throw new Error("invalid continuation time");
+  if (!Number.isFinite(Date.parse(payload.calendarSeenSince))) {
+    throw new Error("invalid calendar continuation time");
+  }
+  const counts = [
+    payload.chunkIndex,
+    payload.calendarUpserted,
+    payload.calendarReconciled,
+    payload.emailUpserted,
+    payload.emailFailures,
+    payload.escalations
+  ];
+  if (counts.some((value) => !Number.isSafeInteger(value) || value < 0 || value > 1_000_000)) {
+    throw new Error("invalid continuation count");
+  }
+  if (
+    payload.errors.length > GOOGLE_SYNC_ERROR_LABELS.size ||
+    payload.errors.some((error) => !GOOGLE_SYNC_ERROR_LABELS.has(error))
+  ) {
+    throw new Error("invalid continuation error label");
+  }
+}
+
+function continuationJobId(runId: string, chunkIndex: number): string {
+  const bytes = createHash("sha256").update(`${runId}:${chunkIndex}`).digest().subarray(0, 16);
+  bytes[6] = (bytes[6]! & 0x0f) | 0x50;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+export async function handleGoogleSyncJob(
+  boss: PgBoss,
+  dataContext: DataContextRunner,
+  job: Job<GoogleSyncPayload | GoogleSyncContinuationPayload>,
+  runChunk: (
+    scopedDb: DataContextDb,
+    continuation?: GoogleSyncContinuationState
+  ) => Promise<GoogleSyncChunkOutcome>
+): Promise<GoogleSyncResult> {
+  const continuation =
+    job.data.kind === "google-sync-continuation"
+      ? ((assertGoogleSyncContinuationPayload(job.data), job.data) as GoogleSyncContinuationState)
+      : undefined;
+  const outcome = await dataContext.withDataContext(toAccessContext(job), (scopedDb) =>
+    runChunk(scopedDb, continuation)
+  );
+  if (outcome.continuation) {
+    const payload: GoogleSyncContinuationPayload = {
+      actorUserId: job.data.actorUserId,
+      kind: "google-sync-continuation",
+      ...outcome.continuation
+    };
+    assertGoogleSyncContinuationPayload(payload);
+    await sendJob(boss, GOOGLE_SYNC_CONTINUATION_QUEUE, payload, {
+      id: continuationJobId(payload.idempotencyKey, payload.chunkIndex)
+    });
+  }
+  return outcome.result;
 }
 
 export interface RegisterConnectorsJobWorkersDeps {
@@ -560,7 +812,10 @@ export interface RegisterConnectorsJobWorkersDeps {
   readonly actionRowRelevance?: ProjectEmailActionsDeps["actionRowRelevance"];
   readonly createCliStructuredAdapter?: BuildEmailExtractDepsOptions["createCliStructuredAdapter"];
   readonly workOptions?: WorkOptions;
-  readonly onResult?: (job: Job<GoogleSyncPayload>, result: GoogleSyncResult) => void;
+  readonly onResult?: (
+    job: Job<GoogleSyncPayload | GoogleSyncContinuationPayload>,
+    result: GoogleSyncResult
+  ) => void;
   readonly logger?: SyncLogger;
 }
 
@@ -581,44 +836,59 @@ export async function registerConnectorsJobWorkers(
   const preferencesRepository = new PreferencesRepository();
   const suppressionRepository = new EmailActionSuppressionRepository();
 
-  const workId = await registerDataContextWorker<GoogleSyncPayload, GoogleSyncResult>(
-    boss,
-    GOOGLE_SYNC_QUEUE,
-    deps.dataContext,
-    async (job, scopedDb) => {
+  const processJob = async (
+    job: Job<GoogleSyncPayload | GoogleSyncContinuationPayload>
+  ): Promise<GoogleSyncResult> => {
+    const result = await handleGoogleSyncJob(boss, deps.dataContext, job, (scopedDb, state) => {
       const emailExtractDeps = buildEmailExtractDeps(scopedDb, aiRepo, aiCipher, {
         createCliStructuredAdapter: deps.createCliStructuredAdapter,
         logger: deps.logger
       });
-
-      const result = await runGoogleSync(scopedDb, {
-        getActiveAccount: async (db) => {
-          return loadGoogleSyncActiveAccount(
-            connectorsRepo,
-            connectorCipher,
-            db,
-            deps.logger ?? NOOP_SYNC_LOGGER
-          );
+      return runGoogleSyncChunk(
+        scopedDb,
+        {
+          getActiveAccount: (db) =>
+            loadGoogleSyncActiveAccount(
+              connectorsRepo,
+              connectorCipher,
+              db,
+              deps.logger ?? NOOP_SYNC_LOGGER
+            ),
+          getFreshAccessToken: (db, opts) => googleService.getFreshAccessToken(db, opts),
+          googleClient,
+          emailExtractDeps,
+          actionProjection: {
+            taskPort: deps.taskPort,
+            preferencesRepository,
+            suppressionRepository,
+            actionRowRelevance: deps.actionRowRelevance,
+            actorUserId: job.data.actorUserId,
+            logger: deps.logger
+          },
+          logger: deps.logger,
+          runId: job.data.kind === "google-sync" ? job.id : job.data.idempotencyKey
         },
-        getFreshAccessToken: (db, opts) => googleService.getFreshAccessToken(db, opts),
-        googleClient,
-        emailExtractDeps,
-        actionProjection: {
-          taskPort: deps.taskPort,
-          preferencesRepository,
-          suppressionRepository,
-          actionRowRelevance: deps.actionRowRelevance,
-          actorUserId: job.data.actorUserId,
-          logger: deps.logger
-        },
-        logger: deps.logger
-      });
+        state
+      );
+    });
+    if (!result.truncated) deps.onResult?.(job, result);
+    return result;
+  };
 
-      deps.onResult?.(job, result);
-      return result;
-    },
-    deps.workOptions
-  );
+  const register = <TPayload extends GoogleSyncPayload | GoogleSyncContinuationPayload>(
+    queue: string
+  ) =>
+    boss.work<TPayload, GoogleSyncResult>(
+      queue,
+      deps.workOptions ?? { pollingIntervalSeconds: 2 },
+      async ([job]) => {
+        if (!job) throw new Error(`pg-boss invoked ${queue} without a job`);
+        return processJob(job);
+      }
+    );
 
-  return [workId];
+  return Promise.all([
+    register<GoogleSyncPayload>(GOOGLE_SYNC_QUEUE),
+    register<GoogleSyncContinuationPayload>(GOOGLE_SYNC_CONTINUATION_QUEUE)
+  ]);
 }
