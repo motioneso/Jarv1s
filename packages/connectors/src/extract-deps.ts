@@ -117,14 +117,15 @@ export function buildEmailExtractDeps(
           tierHint: tier
         })
       ).model ?? undefined,
-    runChat: async (model, prompt) => {
+    runChat: async (model, prompt, signal) => {
       const result = await generateStructured(
         scopedDb,
         {
           service: EMAIL_EXTRACT_SERVICE,
           schema: EMAIL_SIGNALS_SCHEMA,
           prompt,
-          tierHint: model.tier as AiModelTier
+          tierHint: model.tier as AiModelTier,
+          signal
         },
         {
           repository: aiRepo,

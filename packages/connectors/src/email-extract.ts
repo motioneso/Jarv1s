@@ -201,7 +201,8 @@ export interface EmailExtractDeps {
   /** Run one chat generation against the resolved model; returns { text }. */
   readonly runChat: (
     model: { readonly tier: string },
-    prompt: string
+    prompt: string,
+    signal?: AbortSignal
   ) => Promise<{ readonly text: string }>;
 }
 
@@ -211,15 +212,21 @@ export interface EmailExtractOptions {
 }
 
 /** Reject a chat call that exceeds the budget so one slow model can't stall the whole sync. */
-async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
+  const controller = new AbortController();
+  const request = run(controller.signal);
   let timer: ReturnType<typeof setTimeout>;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error("llm-timeout")), ms);
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error("llm-timeout"));
+    }, ms);
   });
   try {
-    return await Promise.race([p, timeout]);
+    return await Promise.race([request, timeout]);
   } finally {
     clearTimeout(timer!);
+    if (controller.signal.aborted) await request.catch(() => undefined);
   }
 }
 
@@ -487,7 +494,10 @@ export async function extractEmailSignals(
   const prompt = buildPrompt(parsed);
   let result: EmailExtractResult;
   try {
-    const reply = await withTimeout(deps.runChat(economyModel, prompt), timeoutMs);
+    const reply = await withTimeout(
+      (signal) => deps.runChat(economyModel, prompt, signal),
+      timeoutMs
+    );
     result = safeParseSignals(reply.text, parsed.body);
   } catch {
     // Timeout or model error — degrade to metadata-only, never throw (spec §error handling).
