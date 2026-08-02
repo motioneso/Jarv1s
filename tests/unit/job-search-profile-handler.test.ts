@@ -5,12 +5,11 @@
 // job-search.profile.set-briefing-detail, job-search.resume.set, job-search.resume.get,
 // job-search.portal.set-enabled, job-search.portal.list.
 //
-// Drives the nine handler factories directly against a small in-memory fake of Task 13's
-// `JobSearchStore` — never the SDK runtime, never a real Postgres connection. `ctx()` below is
-// a Proxy that throws on any access to a `ModuleWorkerContext` field other than `input`: every
-// handler in this task is documented as "the same four steps: validate, call the store, shape
-// a record, return it", and this proxy is what makes "a handler never enqueues, notifies, or
-// reaches an adapter" a structural guarantee rather than an assertion about absence of a field.
+// Drives the handler factories directly against a small in-memory fake of Task 13's
+// `JobSearchStore` — never the SDK runtime, never a real Postgres connection. `ctx()` below keeps
+// non-scoring handlers restricted to input; `scoringCtxWith()` exposes the existing bounded score
+// ports only to queued criteria saves and résumé writes. A direct criteria tool call defers the
+// score pass because its host deadline is shorter than the Profile editor's manual queue deadline.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -77,9 +76,8 @@ function makeProfile(overrides: Partial<Profile> = {}): Profile {
   };
 }
 
-/** A handler that reaches for a capability this fake does not implement is a handler that has
- * drifted outside the nine tools' declared job (store read/write, never a crawl or a score) —
- * `notImplemented` turns that drift into a thrown error rather than a silent `undefined`. */
+/** Store operations irrelevant to these handler seams fail loudly rather than returning a
+ * misleading `undefined`; scoring tests override the candidate and match methods they exercise. */
 function notImplemented(name: string) {
   return (): never => {
     throw new Error(`fake store: ${name} is not part of Task 16's contract`);
@@ -130,7 +128,7 @@ function createFakeStore(seedProfiles: Profile[] = []) {
     upsertPostings: notImplemented("upsertPostings"),
     setEmbedding: notImplemented("setEmbedding"),
     listUnscored: notImplemented("listUnscored"),
-    listUnscoredPostingsWithEmbeddings: notImplemented("listUnscoredPostingsWithEmbeddings"),
+    listUnscoredPostingsWithEmbeddings: async () => [],
     listMatches: notImplemented("listMatches"),
     countMatches: notImplemented("countMatches"),
     upsertMatch: notImplemented("upsertMatch"),
@@ -172,10 +170,8 @@ function createFakeStore(seedProfiles: Profile[] = []) {
   return { store, profiles, portals, resumes };
 }
 
-/** Every handler under test touches only `ctx.input` — reaching for `fetch`, `kv`, `notify`,
- * `ai`, `db`, or `auth` is out of scope for these nine tools by design (validate → store →
- * shape → return, nothing else). Throwing on any other property access makes that a structural
- * fact the test suite enforces rather than a claim in a comment. */
+/** Non-scoring and direct criteria-tool handlers touch only `ctx.input`. Queued criteria saves and
+ * résumé writes use `scoringCtxWith()` because they immediately run the bounded scorer. */
 function ctx(input: Record<string, unknown>): ModuleWorkerContext {
   return new Proxy(
     { input },
@@ -183,19 +179,16 @@ function ctx(input: Record<string, unknown>): ModuleWorkerContext {
       get(target, prop) {
         if (prop === "input") return target.input;
         throw new Error(
-          `handler touched ctx.${String(prop)} — Task 16 handlers only read ctx.input`
+          `non-scoring handler touched ctx.${String(prop)} — only ctx.input is available`
         );
       }
     }
   ) as ModuleWorkerContext;
 }
 
-/** `resume.set` is the one tool here that legitimately reaches past `ctx.input`. Task #110 made it
- * run scoring inline, because `ModuleWorkerContext` has no way to enqueue a follow-up pass — so
- * without an inline rescore, saving a résumé leaves every Fit empty until the next 6-hourly sweep.
- * That means it needs `embed`/`ai`/`notify`/`deadlineAt`.
- * Rather than loosen `ctx()` for all nine tools and lose the structural guarantee it enforces,
- * this widens the allowed set for that one handler and keeps everything else strict.
+/** Queued criteria saves and résumé writes legitimately reach past `ctx.input`: ModuleWorkerContext
+ * has no enqueue port, so they use the scorer inline and need `embed`/`ai`/`notify`/`deadlineAt`.
+ * Rather than loosen `ctx()` for every tool, this widens the allowed set for those paths.
  *
  * Ports below are shaped to match the real contracts (`EmbedPort`/`AiPort`/`NotifyPort` in
  * `worker/stages/score.ts`, `ModuleNotifyPort` in `module-sdk/src/worker.ts`) — `embedQuery`/
@@ -242,7 +235,7 @@ function scoringCtxWith(
   return new Proxy(allowed, {
     get(target, prop) {
       if (prop in target) return target[String(prop)];
-      throw new Error(`handler touched ctx.${String(prop)} — not part of resume.set's contract`);
+      throw new Error(`handler touched ctx.${String(prop)} — not part of inline scoring`);
     }
   }) as unknown as ModuleWorkerContext;
 }
@@ -250,7 +243,7 @@ function scoringCtxWith(
 // --- tests ---------------------------------------------------------------------------------
 
 describe("job-search conversation/profile/résumé/settings tools (#1300)", () => {
-  it("1. flips an in_conversation profile to active once criteria completes it, enqueuing nothing", async () => {
+  it("1. a direct assistant-tool save activates the profile but defers its rescore", async () => {
     const { store, portals } = createFakeStore([makeProfile({ id: "p1" })]);
     portals.set("p1", [{ sourceId: "freehire", enabled: true, lastOkAt: null, cause: null }]);
     const handler = createCriteriaSetHandler(store);
@@ -263,13 +256,16 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       })
     );
 
-    // The ctx proxy above already proves no queue/notify capability was touched; this checks
-    // the other half — the returned record itself carries no "queued"/"jobId"-shaped field.
+    // The direct tool lane has only the host's default 120-second ceiling. Starting the bounded
+    // score pass here risks a hard kill after this save has committed, so only the manual queue
+    // lane (used by the Profile editor) runs it inline.
     expect(result).toEqual({
       profileId: "p1",
       state: "active",
       completedSteps: ["role", "want", "sources"],
       readyToCrawl: true,
+      unchanged: false,
+      rescore: { ok: true, attempted: false },
       statusText: "Search criteria updated"
     });
     expect((await store.getProfile("p1"))?.state).toBe("active");
@@ -315,6 +311,8 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       state: "in_conversation",
       completedSteps: ["role"],
       readyToCrawl: false,
+      unchanged: false,
+      rescore: { ok: true, attempted: false },
       statusText: "Search criteria updated"
     });
   });
@@ -329,7 +327,10 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
     const handler = createCriteriaSetHandler(store);
 
     await handler(
-      ctx({ profileId: "p1", criteria: { wantNarrative: "Small team, real ownership" } })
+      ctx({
+        profileId: "p1",
+        criteria: { wantNarrative: "Small team, real ownership" }
+      })
     );
     const second = await handler(
       ctx({ profileId: "p1", criteria: { titles: ["Staff Engineer"] } })
@@ -347,7 +348,7 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
 
     await expect(
       handler(
-        ctx({
+        scoringCtx({
           actorUserId: "u1",
           jobKind: "criteria.set",
           idempotencyKey: "criteria-1",
@@ -534,6 +535,7 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       listUnscoredPostingsWithEmbeddings: async () => (upserted.length > 0 ? [] : [posting]),
       upsertMatch: async (_profileId, match) => {
         upserted.push(match);
+        return true;
       }
     };
     const setHandler = createResumeSetHandler(scorableStore);
@@ -575,15 +577,20 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
   });
 
   it("4c. a scoring failure still reports the save as succeeded, with a structured cause", async () => {
-    // The default fake store's scoring-related methods are all `notImplemented` (they're out of
-    // scope for these nine tools by design), so `runScore` throws almost immediately here. The
-    // point isn't which method threw — it's that the throw never reaches the caller: the save
+    // Force the score read to fail. The point isn't which method threw — it's that the throw never
+    // reaches the caller: the save
     // above it already committed, and `saveResumeContent`'s try/catch turns the throw into a
     // structured `{ok: false, cause}` field rather than failing the whole handler (which would
     // make pg-boss's retryLimit re-run the write and bump the version again for an unrelated
     // reason — see the doc comment on `saveResumeContent` in worker/handlers/resume.ts).
     const { store } = createFakeStore([makeProfile({ id: "p1" })]);
-    const setHandler = createResumeSetHandler(store);
+    const failingStore: JobSearchStore = {
+      ...store,
+      listUnscoredPostingsWithEmbeddings: async () => {
+        throw new Error("scoring unavailable");
+      }
+    };
+    const setHandler = createResumeSetHandler(failingStore);
 
     const result = await setHandler(scoringCtx({ profileId: "p1", content: "résumé text" }));
 
@@ -592,7 +599,7 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       version: 1,
       rescore: {
         ok: false,
-        cause: expect.stringContaining("listUnscoredPostingsWithEmbeddings")
+        cause: "scoring unavailable"
       }
     });
     // The save itself is unaffected: the résumé is on file at the version the handler reported.
@@ -639,6 +646,7 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       upsertMatch: async (_profileId, match) => {
         upserted.push(match);
         scored.add(match.postingId);
+        return true;
       }
     };
 
@@ -696,10 +704,8 @@ describe("job-search conversation/profile/résumé/settings tools (#1300)", () =
       name: string;
       build: (store: JobSearchStore) => (input: ModuleWorkerContext) => Promise<unknown>;
       valid: Record<string, unknown>;
-      /** `resume.set` is the one handler here that legitimately reads past `ctx.input` — #110
-       * made it run a scoring pass inline, which needs the invocation deadline and the ports. It
-       * gets the looser context builder; every other tool keeps the strict one, so the
-       * "handlers only read ctx.input" guard still has teeth where it applies. */
+      /** Résumé writes run the scorer inline. A direct criteria tool call keeps the strict
+       * input-only proxy and truthfully reports that scoring was not attempted. */
       makeCtx?: (input: Record<string, unknown>) => ModuleWorkerContext;
     }> = [
       { name: "profile.create", build: createProfileCreateHandler, valid: { name: "New Profile" } },

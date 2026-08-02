@@ -480,14 +480,15 @@
       {
         "name": "job-search.criteria-set",
         "handler": "criteria.set",
-        "retryLimit": 2,
+        "retryLimit": 0,
         "allowManualRun": true,
-        "timeoutMs": 30000,
+        "timeoutMs": 600000,
         "paramsSchema": {
           "type": "object",
           "fields": {
             "profileId": { "type": "identifier" },
-            "criteriaJson": { "type": "string", "maxLength": 2048 }
+            "criteriaJson": { "type": "string", "maxLength": 2048 },
+            "rescoreOnly": { "type": "boolean" }
           }
         }
       },

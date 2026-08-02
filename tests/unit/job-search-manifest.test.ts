@@ -201,6 +201,25 @@ describe("job-search manifest: worker queues, schedule, and risk levels (#1299)"
     expect(queuesByName.get("job-search.criteria-set")?.allowManualRun).toBe(true);
   });
 
+  it("gives criteria-set ten minutes for inline scoring and never retries its committed write", () => {
+    const manifest = loadValidatedManifest();
+    const queue = (manifest.worker?.queues ?? []).find(
+      (candidate) => candidate.name === "job-search.criteria-set"
+    );
+    expect(queue).toMatchObject({ timeoutMs: 600000, retryLimit: 0 });
+  });
+
+  it("retains the optional rescoreOnly boolean in criteria-set's normalized params schema", () => {
+    const manifest = loadValidatedManifest();
+    const queue = (manifest.worker?.queues ?? []).find(
+      (candidate) => candidate.name === "job-search.criteria-set"
+    );
+    expect(queue?.paramsSchema).toMatchObject({
+      type: "object",
+      fields: { rescoreOnly: { type: "boolean" } }
+    });
+  });
+
   it("job-search.matches.list is risk: read and job-search.match.dismiss is risk: write", () => {
     const manifest = loadValidatedManifest();
     const toolsByName = new Map((manifest.assistantTools ?? []).map((t) => [t.name, t]));

@@ -50,6 +50,18 @@ const RESUME_ON_FILE = {
   content: "Staff engineer. TypeScript, Postgres, React.",
   updatedAt: "2026-07-29T10:35:44.701Z"
 };
+const CURRENT_CRITERIA = {
+  titles: ["Staff Engineer"],
+  seniority: [],
+  locations: [],
+  remote: "no-preference",
+  compFloorCents: null,
+  excludeCompanies: [],
+  mustHave: [],
+  niceToHave: [],
+  dealbreakers: [],
+  wantNarrative: ""
+};
 
 import { Root, type HostActions } from "../../external-modules/job-search/src/web/root";
 import * as api from "../../external-modules/job-search/src/web/api";
@@ -110,17 +122,46 @@ async function renderRoot(
   return renderer;
 }
 
-// setSurfaceKey/seedContext are the two methods Root's useProfileThread actually calls; every
-// test in this file uses an "active" profile (the board branch), so Surface itself is never
-// rendered here (that's job-search-web-onboarding.test.tsx's job) and submitTurn/seedComposer are
-// exercised by their owning screens.
-function assistantSurface(): AssistantSurfaceHandleV1 {
+interface TestAssistantRecordV1 {
+  readonly kind: string;
+  readonly text: string;
+  readonly actionRequestId?: string;
+  readonly toolName?: string;
+  readonly outcome?: "executed" | "denied" | "error" | "allowed";
+  readonly result?: Record<string, unknown>;
+}
+
+function deferredCriteriaRecord(actionRequestId: string): TestAssistantRecordV1 {
+  return {
+    kind: "action_result",
+    text: "Search criteria updated",
+    actionRequestId,
+    toolName: "job-search.criteria.set",
+    outcome: "executed",
+    result: { profileId: "p1", rescore: { ok: true, attempted: false } }
+  };
+}
+
+// Root binds, frames, and subscribes through this surface. The fixture keeps the live-record
+// boundary faithful to the host: subscribers receive cumulative arrays, and unsubscription stops
+// later emissions without exposing any of the host's internal store.
+function assistantSurface() {
+  let listener: ((records: readonly TestAssistantRecordV1[]) => void) | undefined;
   return {
     setSurfaceKey: vi.fn(),
     seedContext: vi.fn().mockResolvedValue(undefined),
     seedComposer: vi.fn(),
     Surface: vi.fn(),
-    submitTurn: vi.fn().mockResolvedValue(undefined)
+    submitTurn: vi.fn().mockResolvedValue(undefined),
+    subscribeRecords: vi.fn((next: (records: readonly TestAssistantRecordV1[]) => void) => {
+      listener = next;
+      return () => {
+        if (listener === next) listener = undefined;
+      };
+    }),
+    emitRecords(records: readonly TestAssistantRecordV1[]) {
+      listener?.(records);
+    }
   };
 }
 
@@ -224,18 +265,7 @@ describe("job-search web Root", () => {
       if (name === "job-search.resume.get") return { resume: resumeFixture };
       if (name === "job-search.profile.get") {
         return {
-          criteria: {
-            titles: ["Staff Engineer"],
-            seniority: [],
-            locations: [],
-            remote: "no-preference",
-            compFloorCents: null,
-            excludeCompanies: [],
-            mustHave: [],
-            niceToHave: [],
-            dealbreakers: [],
-            wantNarrative: ""
-          },
+          criteria: CURRENT_CRITERIA,
           contextSummary: null
         };
       }
@@ -247,6 +277,7 @@ describe("job-search web Root", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
@@ -334,7 +365,8 @@ describe("job-search web Root", () => {
       seedContext: vi.fn().mockResolvedValue(undefined),
       seedComposer: vi.fn(),
       Surface: SurfaceSpy,
-      submitTurn: vi.fn().mockResolvedValue(undefined)
+      submitTurn: vi.fn().mockResolvedValue(undefined),
+      subscribeRecords: vi.fn(() => () => undefined)
     };
 
     const renderer = await renderRoot(hostActions(), surface);
@@ -553,6 +585,195 @@ describe("job-search web Root", () => {
     });
     await flush(renderer);
     expect(surface.seedContext).toHaveBeenCalledTimes(1);
+  });
+
+  it("continues a direct chat criteria save through the scoring queue exactly once", async () => {
+    mockUseProfiles.mockReturnValue(
+      ready([profile({ profileId: "p1", surfaceKey: "surf-p1", state: "active" })])
+    );
+    const surface = assistantSurface();
+    const renderer = await renderRoot(hostActions(), surface);
+    await flush(renderer);
+
+    const record = deferredCriteriaRecord("action-criteria-1");
+
+    await act(async () => {
+      surface.emitRecords([record]);
+    });
+    await flush(renderer);
+
+    expect(api.invokeTool).toHaveBeenCalledWith("job-search.profile.get", { profileId: "p1" });
+    expect(api.runQueue).toHaveBeenCalledWith("job-search.criteria-set", "criteria.set", {
+      profileId: "p1",
+      criteriaJson: JSON.stringify(CURRENT_CRITERIA),
+      rescoreOnly: true
+    });
+
+    // The host publishes a cumulative transcript, so the same record appears in every later
+    // snapshot. Replaying it must not enqueue a second scoring pass.
+    await act(async () => {
+      surface.emitRecords([record]);
+    });
+    await flush(renderer);
+    expect(api.runQueue).toHaveBeenCalledTimes(1);
+
+    // useProfileThread's binding effect is declared first. Since subscribeRecords is curried to
+    // the currently bound surface, reversing this order would subscribe to the drawer instead.
+    expect(vi.mocked(surface.setSurfaceKey).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(surface.subscribeRecords).mock.invocationCallOrder[0]
+    );
+  });
+
+  it("ignores historical, foreign, failed, and already-scored criteria records", async () => {
+    mockUseProfiles.mockReturnValue(ready([profile({ profileId: "p1", state: "active" })]));
+    const surface = assistantSurface();
+    const renderer = await renderRoot(hostActions(), surface);
+    await flush(renderer);
+
+    const deferredResult = {
+      profileId: "p1",
+      rescore: { ok: true, attempted: false }
+    };
+    await act(async () => {
+      surface.emitRecords([
+        // Historical transcript rows omit both live-only fields.
+        {
+          kind: "action_result",
+          text: "Search criteria updated",
+          toolName: "job-search.criteria.set",
+          outcome: "executed"
+        },
+        {
+          kind: "action_result",
+          text: "Missing action id",
+          toolName: "job-search.criteria.set",
+          outcome: "executed",
+          result: deferredResult
+        },
+        {
+          kind: "action_result",
+          text: "Different profile",
+          actionRequestId: "action-wrong-profile",
+          toolName: "job-search.criteria.set",
+          outcome: "executed",
+          result: { ...deferredResult, profileId: "p2" }
+        },
+        {
+          kind: "action_result",
+          text: "Different tool",
+          actionRequestId: "action-wrong-tool",
+          toolName: "job-search.resume.set",
+          outcome: "executed",
+          result: deferredResult
+        },
+        {
+          kind: "action_result",
+          text: "Tool failed",
+          actionRequestId: "action-error",
+          toolName: "job-search.criteria.set",
+          outcome: "error",
+          result: deferredResult
+        },
+        {
+          kind: "action_result",
+          text: "Already scored",
+          actionRequestId: "action-already-scored",
+          toolName: "job-search.criteria.set",
+          outcome: "executed",
+          result: { profileId: "p1", rescore: { ok: true, attempted: true } }
+        },
+        {
+          kind: "tool",
+          text: "Not an action result",
+          actionRequestId: "action-wrong-kind",
+          toolName: "job-search.criteria.set",
+          outcome: "executed",
+          result: deferredResult
+        }
+      ]);
+    });
+    await flush(renderer);
+
+    expect(
+      vi.mocked(api.invokeTool).mock.calls.filter(([name]) => name === "job-search.profile.get")
+    ).toHaveLength(0);
+    expect(api.runQueue).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["another payload is already queued", "already-queued"],
+    ["the profile read fails", "read-error"],
+    ["the queue returns an error", "queue-error"]
+  ] as const)("self-retries when %s without another records emission", async (_label, mode) => {
+    mockUseProfiles.mockReturnValue(ready([profile({ profileId: "p1", state: "active" })]));
+    const surface = assistantSurface();
+    const renderer = await renderRoot(hostActions(), surface);
+    await flush(renderer);
+    vi.useFakeTimers();
+
+    let profileReads = 0;
+    vi.mocked(api.invokeTool).mockImplementation(async (name: string) => {
+      if (name !== "job-search.profile.get") throw new Error(`unexpected invokeTool ${name}`);
+      profileReads++;
+      if (mode === "read-error" && profileReads === 1) throw new Error("profile read failed");
+      return { criteria: CURRENT_CRITERIA };
+    });
+    if (mode === "already-queued") {
+      vi.mocked(api.runQueue).mockResolvedValueOnce({ kind: "already-queued" });
+    } else if (mode === "queue-error") {
+      vi.mocked(api.runQueue).mockResolvedValueOnce({
+        kind: "error",
+        message: "queue unavailable"
+      });
+    }
+
+    await act(async () => {
+      surface.emitRecords([deferredCriteriaRecord(`action-${mode}`)]);
+    });
+    await flush(renderer);
+    if (mode !== "already-queued")
+      expect(text(renderer)).toMatch(/Network error|queue unavailable/);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000);
+    });
+    await flush(renderer);
+    expect(profileReads).toBe(2);
+    expect(api.runQueue).toHaveBeenCalledTimes(mode === "read-error" ? 1 : 2);
+    expect(api.runQueue).toHaveBeenLastCalledWith("job-search.criteria-set", "criteria.set", {
+      profileId: "p1",
+      criteriaJson: JSON.stringify(CURRENT_CRITERIA),
+      rescoreOnly: true
+    });
+  });
+
+  it("caps continuation attempts and cancels a pending retry on profile switch", async () => {
+    mockUseProfiles.mockReturnValue(ready([profile({ profileId: "p1", state: "active" })]));
+    vi.mocked(api.runQueue).mockResolvedValue({ kind: "already-queued" });
+    const surface = assistantSurface();
+    const actions = hostActions();
+    const renderer = await renderRoot(actions, surface);
+    await flush(renderer);
+    vi.useFakeTimers();
+
+    await act(async () => surface.emitRecords([deferredCriteriaRecord("action-capped")]));
+    await flush(renderer);
+    await act(async () => void (await vi.advanceTimersByTimeAsync(18_000)));
+    expect(api.runQueue).toHaveBeenCalledTimes(3);
+    await act(async () => void (await vi.advanceTimersByTimeAsync(60_000)));
+    expect(api.runQueue).toHaveBeenCalledTimes(3);
+
+    await act(async () => surface.emitRecords([deferredCriteriaRecord("action-cleanup")]));
+    await flush(renderer);
+    expect(api.runQueue).toHaveBeenCalledTimes(4);
+    mockUseProfiles.mockReturnValue(
+      ready([profile({ profileId: "p2", surfaceKey: "surf-p2", state: "active" })])
+    );
+    await act(async () =>
+      renderer.update(createElement(Root, { hostActions: actions, assistantSurface: surface }))
+    );
+    await act(async () => void (await vi.advanceTimersByTimeAsync(6_000)));
+    expect(api.runQueue).toHaveBeenCalledTimes(4);
   });
 
   // Ruling N46: the surface key is what the drawer's own backfill path (packages/chat's

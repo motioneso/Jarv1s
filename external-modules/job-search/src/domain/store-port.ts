@@ -136,11 +136,15 @@ export interface JobSearchStore {
    *  first (`scored_at DESC NULLS LAST`), so a freshly crawled, not-yet-scored posting lands on
    *  the LAST page. Watching page one would miss precisely the rows a running search adds. */
   countMatches(profileId: string): Promise<BoardCounts>;
+  /** Whether the write applied; false means the criteria-snapshot CAS rejected a stale score. */
   upsertMatch(
     profileId: string,
     match: Omit<Match, "id">,
-    options?: { readonly preserveWant?: boolean }
-  ): Promise<void>;
+    options?: {
+      readonly preserveWant?: boolean;
+      readonly criteriaSnapshot?: SearchCriteria;
+    }
+  ): Promise<boolean>;
   setMatchState(matchId: string, state: Match["state"]): Promise<void>;
   /** #1330: the detail read behind `job-search.match.get`. `listMatches`'s row is a capped
    * summary (render-cap arithmetic, N38); this is the one place the AI's full, untruncated

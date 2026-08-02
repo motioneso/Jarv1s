@@ -22,7 +22,9 @@ import { createSqlStore } from "../../external-modules/job-search/src/worker/sto
 import { BODY_MAX_CHARS } from "../../external-modules/job-search/src/domain/records.js";
 import type {
   FailureCause,
-  Posting
+  Match,
+  Posting,
+  SearchCriteria
 } from "../../external-modules/job-search/src/domain/records.js";
 import { resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -440,6 +442,106 @@ describe("job-search store (#1297)", () => {
     const [match] = await store.listMatches(profile.id, 10, 0);
     expect(match).toMatchObject({ fit: null, want: null, state: "unscored" });
     expect(await store.listUnscoredPostingsWithEmbeddings(profile.id, 10)).toHaveLength(1);
+  });
+
+  it("applies match writes only while their criteria snapshot is current", async () => {
+    await install();
+    await seedUser(ownerA);
+    const store = storeFor(ownerA);
+    const profile = await store.createProfile("Staff Engineer search");
+    const oldCriteria: SearchCriteria = {
+      titles: ["Staff Engineer"],
+      seniority: ["staff"],
+      locations: ["Remote"],
+      remote: "preferred",
+      compFloorCents: null,
+      excludeCompanies: [],
+      mustHave: ["TypeScript"],
+      niceToHave: [],
+      dealbreakers: [],
+      wantNarrative: "Small team with ownership"
+    };
+    const currentCriteria: SearchCriteria = {
+      ...oldCriteria,
+      titles: ["Platform Architect"],
+      mustHave: ["Postgres"],
+      wantNarrative: "Platform strategy and mentoring"
+    };
+    await store.updateCriteria(profile.id, oldCriteria);
+    const [existingPosting, newPosting] = await store.upsertPostings(profile.id, [
+      posting({ sourceId: "linkedin", externalId: "snapshot-existing" }),
+      posting({ sourceId: "linkedin", externalId: "snapshot-new" })
+    ]);
+    const scoredMatch = (
+      postingId: string,
+      fit: number,
+      want: number,
+      reason: string
+    ): Omit<Match, "id"> => ({
+      profileId: profile.id,
+      postingId,
+      fit,
+      want,
+      fitReason: reason,
+      wantReason: reason,
+      outsideFrame: false,
+      state: "new",
+      scoredAt: null
+    });
+    await store.upsertMatch(profile.id, scoredMatch(existingPosting!.id, 40, 30, "Old score"));
+
+    await store.updateCriteria(profile.id, currentCriteria);
+    const staleUpdate = await store.upsertMatch(
+      profile.id,
+      scoredMatch(existingPosting!.id, 99, 98, "Stale update"),
+      { criteriaSnapshot: oldCriteria }
+    );
+    const staleInsert = await store.upsertMatch(
+      profile.id,
+      scoredMatch(newPosting!.id, 97, 96, "Stale insert"),
+      {
+        criteriaSnapshot: oldCriteria
+      }
+    );
+    expect([staleUpdate, staleInsert]).toEqual([false, false]);
+
+    const staleRows = await store.listMatches(profile.id, 10, 0);
+    expect(staleRows.find((row) => row.postingId === existingPosting!.id)).toMatchObject({
+      fit: null,
+      want: null,
+      state: "unscored"
+    });
+    expect(staleRows.find((row) => row.postingId === newPosting!.id)).toMatchObject({
+      fit: null,
+      want: null,
+      state: "unscored"
+    });
+
+    const currentUpdate = await store.upsertMatch(
+      profile.id,
+      scoredMatch(existingPosting!.id, 81, 61, "Current update"),
+      { criteriaSnapshot: currentCriteria }
+    );
+    const currentInsert = await store.upsertMatch(
+      profile.id,
+      scoredMatch(newPosting!.id, 72, 52, "Current insert"),
+      {
+        criteriaSnapshot: currentCriteria
+      }
+    );
+    expect([currentUpdate, currentInsert]).toEqual([true, true]);
+
+    const currentRows = await store.listMatches(profile.id, 10, 0);
+    expect(currentRows.find((row) => row.postingId === existingPosting!.id)).toMatchObject({
+      fit: 81,
+      want: 61,
+      state: "new"
+    });
+    expect(currentRows.find((row) => row.postingId === newPosting!.id)).toMatchObject({
+      fit: 72,
+      want: 52,
+      state: "new"
+    });
   });
 
   it("allocates versions 1 and 2 for two concurrent setResume calls, and fails fast for a nonexistent profile (case 5)", async () => {

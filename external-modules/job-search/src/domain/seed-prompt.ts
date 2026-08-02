@@ -15,14 +15,21 @@ import type { Profile } from "../web/use-profiles.js";
 
 /**
  * A narrow, LOCAL mirror of the host's real `AssistantSurfaceHandleV1`
- * (apps/web/src/chat/assistant-surface/contracts.ts), holding only the five members this module
- * uses: the two thread-binding methods below, the `Surface` view component onboarding.tsx
- * (Task 19/#1303, widened for #1331) renders, and `submitTurn` (widened for Task 20/#1304's
- * Discuss action). Module isolation (CLAUDE.md's hard invariant) means this module never imports
- * host source paths — the host's real handle object satisfies this interface structurally, which
- * is all TypeScript needs, and a test fixture only has to fake four members instead of the full
- * chat-surface API (subscribeRecords is still omitted — nothing here calls it).
+ * (apps/web/src/chat/assistant-surface/contracts.ts), holding only the members this module uses.
+ * Module isolation (CLAUDE.md's hard invariant) means this module never imports host source paths
+ * — the host's real handle object satisfies this interface structurally, which is all TypeScript
+ * needs.
  */
+export interface AssistantRecordV1 {
+  readonly kind: string;
+  readonly text: string;
+  readonly actionRequestId?: string;
+  readonly toolName?: string;
+  readonly outcome?: "executed" | "denied" | "error" | "allowed";
+  /** Live-only structured result. Historical records intentionally omit it. */
+  readonly result?: Record<string, unknown>;
+}
+
 export interface AssistantSurfaceHandleV1 {
   /** #1284 semantics apply unmodified here: `null` releases the claim. Call this BEFORE
    * `seedContext` — seeding first frames the drawer instead of this module's own thread, which
@@ -59,6 +66,11 @@ export interface AssistantSurfaceHandleV1 {
     readonly controlContext?: Record<string, unknown>;
     readonly attachmentIds?: readonly string[];
   }): Promise<void>;
+  /** Subscribes to the cumulative records for the surface most recently bound above. */
+  subscribeRecords(
+    listener: (records: readonly AssistantRecordV1[]) => void,
+    surface?: string
+  ): () => void;
   /** Uploads a file through the host's existing chat attachment boundary. */
   uploadAttachment?(file: File): Promise<{ id: string; fileName: string; sizeBytes: number }>;
 }

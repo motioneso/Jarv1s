@@ -4,9 +4,9 @@
 // job-search.profile.list, job-search.criteria.set, job-search.profile.set-context, and
 // job-search.profile.set-briefing-detail.
 //
-// Every handler here is the same four steps: validate the input, call the store, shape a
-// record, return it. No handler builds a sentence and no handler decides policy —
-// `completedSteps`/`isReadyToCrawl` (Task 10) are called, never reimplemented.
+// Handlers validate input, use existing domain/store operations, and return records rather than
+// prose. The queued `criteria.set` path also runs the existing bounded scorer inline:
+// ModuleWorkerContext has no enqueue port, and invalidated rows should not wait for the next pass.
 //
 // `validateProfileInput` (Task 13) only accepts an input whose ONLY field is `profileId` — it
 // throws `unknown key` on anything else, so it is used verbatim only by the profileId-only
@@ -26,6 +26,7 @@ import {
 import type { SearchCriteria } from "../../domain/records.js";
 import type { BriefingDetail, JobSearchStore, ProfileState } from "../../domain/store-port.js";
 import { looksLikeJobEnvelope, parseJobEnvelope } from "../job-input.js";
+import { AI_CALL_BUDGET, runScore } from "../stages/score.js";
 import { InputError, stripEnvelope } from "../validate.js";
 
 /** Shared by every handler in this module (profile.ts, resume.ts, portal.ts): rejects any key
@@ -66,9 +67,34 @@ const NO_FIELDS = new Set<string>();
 const PROFILE_GET_FIELDS = new Set(["profileId"]);
 const PROFILE_RENAME_FIELDS = new Set(["profileId", "name"]);
 const CRITERIA_SET_FIELDS = new Set(["profileId", "criteria"]);
+const QUEUED_CRITERIA_SET_FIELDS = new Set(["profileId", "criteria", "rescoreOnly"]);
 const SET_CONTEXT_FIELDS = new Set(["profileId", "summary"]);
 const SET_BRIEFING_DETAIL_FIELDS = new Set(["profileId", "detail"]);
 const BRIEFING_DETAIL_VALUES = new Set<BriefingDetail>(["count", "top", "full"]);
+const SET_LIKE_CRITERIA_FIELDS = [
+  "titles",
+  "seniority",
+  "locations",
+  "excludeCompanies",
+  "mustHave",
+  "niceToHave",
+  "dealbreakers"
+] as const;
+
+function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  return leftSet.size === rightSet.size && [...leftSet].every((value) => rightSet.has(value));
+}
+
+function sameCriteria(left: SearchCriteria, right: SearchCriteria): boolean {
+  return (
+    left.remote === right.remote &&
+    left.compFloorCents === right.compFloorCents &&
+    left.wantNarrative === right.wantNarrative &&
+    SET_LIKE_CRITERIA_FIELDS.every((field) => sameStringSet(left[field], right[field]))
+  );
+}
 
 function requireBriefingDetail(input: Record<string, unknown>): BriefingDetail {
   const value = input.detail;
@@ -280,12 +306,16 @@ export function createProfileRenameHandler(store: JobSearchStore) {
 
 export function createCriteriaSetHandler(store: JobSearchStore) {
   return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
-    const input = looksLikeJobEnvelope(ctx.input)
+    const queueInvocation = looksLikeJobEnvelope(ctx.input);
+    const input = queueInvocation
       ? (() => {
           const params = parseJobEnvelope(ctx.input).params;
-          requireNoUnknownKeys(params, new Set(["profileId", "criteriaJson"]));
+          requireNoUnknownKeys(params, new Set(["profileId", "criteriaJson", "rescoreOnly"]));
           if (typeof params.criteriaJson !== "string") {
             throw new InputError("criteriaJson is required");
+          }
+          if (params.rescoreOnly !== undefined && typeof params.rescoreOnly !== "boolean") {
+            throw new InputError("rescoreOnly must be a boolean");
           }
           let criteria: unknown;
           try {
@@ -293,11 +323,12 @@ export function createCriteriaSetHandler(store: JobSearchStore) {
           } catch {
             throw new InputError("criteriaJson must contain valid JSON");
           }
-          return { profileId: params.profileId, criteria };
+          return { profileId: params.profileId, criteria, rescoreOnly: params.rescoreOnly };
         })()
       : stripEnvelope(ctx.input);
-    requireNoUnknownKeys(input, CRITERIA_SET_FIELDS);
+    requireNoUnknownKeys(input, queueInvocation ? QUEUED_CRITERIA_SET_FIELDS : CRITERIA_SET_FIELDS);
     const profileId = requireProfileId(input);
+    const rescoreOnly = queueInvocation && input.rescoreOnly === true;
     // Validate before the profile lookup so a malformed patch fails on its own terms rather than
     // as "profileId not found".
     const patch = parseCriteriaPatch(input.criteria);
@@ -310,16 +341,63 @@ export function createCriteriaSetHandler(store: JobSearchStore) {
     // Merge, don't replace. See `parseCriteriaPatch` for why: the interview records one answer at
     // a time, and a replacing write meant each answer erased the last.
     const criteria: SearchCriteria = { ...profile.criteria, ...patch };
+    const unchanged = sameCriteria(criteria, profile.criteria);
 
-    await store.updateCriteria(profileId, criteria);
+    // The browser fetched this criteria snapshot immediately before enqueueing a deferred direct
+    // chat rescore. If it is already stale, never let the continuation overwrite a newer edit;
+    // fail the queue invocation before updateCriteria performs its match invalidation.
+    if (rescoreOnly && !unchanged) {
+      throw new InputError("rescoreOnly criteria must match the current profile criteria");
+    }
+
+    if (!unchanged) {
+      await store.updateCriteria(profileId, criteria);
+    }
 
     const outcome = await activateIfReady(store, profile, criteria);
+    let rescore: Record<string, unknown> | null = null;
+    if (!unchanged || rescoreOnly) {
+      if (!queueInvocation) {
+        // Direct assistant-tool invocations have only the host's default 120-second ceiling. The
+        // Profile editor uses the ten-minute manual queue, which is the only safe place to run the
+        // bounded score pass after this already-committed write.
+        rescore = { ok: true, attempted: false };
+      } else {
+        try {
+          rescore = {
+            ok: true,
+            attempted: true,
+            ...(await runScore({
+              store,
+              embed: ctx.embed,
+              ai: ctx.ai,
+              notify: ctx.notify,
+              profileId,
+              budget: AI_CALL_BUDGET,
+              now: new Date().toISOString(),
+              deadlineAt: ctx.deadlineAt,
+              clock: () => Date.now(),
+              notifyOnMatches: false,
+              candidates: "unscored"
+            }))
+          };
+        } catch (error) {
+          rescore = {
+            ok: false,
+            attempted: true,
+            cause: error instanceof Error ? error.message : String(error)
+          };
+        }
+      }
+    }
 
     return {
       profileId,
       state: outcome.state,
       completedSteps: outcome.steps,
       readyToCrawl: outcome.ready,
+      unchanged,
+      rescore,
       statusText: "Search criteria updated"
     };
   };

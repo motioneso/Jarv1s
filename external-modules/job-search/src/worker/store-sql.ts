@@ -564,22 +564,37 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
     async upsertMatch(
       profileId: string,
       match: Omit<Match, "id">,
-      options?: { readonly preserveWant?: boolean }
-    ): Promise<void> {
+      options?: {
+        readonly preserveWant?: boolean;
+        readonly criteriaSnapshot?: SearchCriteria;
+      }
+    ): Promise<boolean> {
       // Idempotent on (profile, posting) so re-scoring updates rather than duplicating.
       // Re-scoring returns the row to 'new' deliberately: a changed score is news.
-      await db.query(
-        `INSERT INTO app.job_search_matches AS existing
+      // Every score pass carries the profile snapshot it scored against. Locking and checking that
+      // row in this SAME statement makes the match write a CAS: an older scorer can neither
+      // recreate nor overwrite scores after a newer criteria update invalidated them.
+      const result = await db.query(
+        `WITH criteria_guard AS (
+           SELECT 1
+             FROM app.job_search_profiles
+            WHERE id = $1 AND criteria = $9::jsonb
+            FOR SHARE
+         )
+         INSERT INTO app.job_search_matches AS existing
            (owner_user_id, profile_id, posting_id, fit, want, fit_reason, want_reason,
             outside_frame, state, scored_at)
-         VALUES (app.current_actor_user_id(), $1, $2, $3, $4, $5, $6, $7, 'new', now())
+         SELECT app.current_actor_user_id(), $1, $2, $3, $4, $5, $6, $7, 'new', now()
+          WHERE $9::jsonb IS NULL OR EXISTS (SELECT 1 FROM criteria_guard)
          ON CONFLICT (owner_user_id, profile_id, posting_id) DO UPDATE
            SET fit = excluded.fit,
                want = CASE WHEN $8 THEN existing.want ELSE excluded.want END,
                fit_reason = excluded.fit_reason,
                want_reason = CASE WHEN $8 THEN existing.want_reason ELSE excluded.want_reason END,
                outside_frame = excluded.outside_frame,
-               state = 'new', scored_at = now()`,
+               state = 'new', scored_at = now()
+         WHERE $9::jsonb IS NULL OR EXISTS (SELECT 1 FROM criteria_guard)
+         RETURNING 1 AS applied`,
         [
           profileId,
           match.postingId,
@@ -588,9 +603,11 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
           match.fitReason,
           match.wantReason,
           match.outsideFrame,
-          options?.preserveWant ?? false
+          options?.preserveWant ?? false,
+          options?.criteriaSnapshot ? JSON.stringify(options.criteriaSnapshot) : null
         ]
       );
+      return result.rows.length > 0;
     },
 
     async setMatchState(matchId: string, state: Match["state"]): Promise<void> {

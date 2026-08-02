@@ -49,6 +49,8 @@ const ONBOARDING_REFRESH_MS = 3_000;
  * past that the job is dead and polling on would just be a spinner that never stops. */
 const NEW_SEARCH_POLL_MS = 2_000;
 const NEW_SEARCH_MAX_ATTEMPTS = 15;
+const CRITERIA_CONTINUATION_RETRY_MS = 6_000;
+const CRITERIA_CONTINUATION_MAX_ATTEMPTS = 3;
 
 export interface HostActions {
   actorScopeKey: string;
@@ -297,6 +299,10 @@ function QueueNotice(props: { outcome: RunOutcome }): ReactNodeLike {
   );
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export function Root(props: RootProps): ReactNodeLike {
   const { hostActions } = props;
   const [phase, setPhase] = useState<BootstrapPhase>("idle");
@@ -334,6 +340,111 @@ export function Root(props: RootProps): ReactNodeLike {
   // seed prompt (Task 17). A no-op whenever the host gave no assistantSurface, or there's no
   // profile yet to bind.
   useProfileThread(props.assistantSurface, selectedProfile);
+
+  // A direct assistant-tool criteria save commits inside the host's short tool deadline, then
+  // truthfully reports that it deferred scoring. Continue that one live result through the
+  // module's ten-minute criteria queue, whose scorer is bounded for the longer deadline. The host
+  // publishes cumulative record arrays, so actionRequestId is the idempotency boundary here. An
+  // in-flight set closes the race between snapshots, while a bounded delayed retry gets past the
+  // queue's five-second singleton without depending on another transcript emission.
+  const completedCriteriaActionsRef = useRef(new Set<string>());
+  const inFlightCriteriaActionsRef = useRef(new Set<string>());
+  const selectedProfileId = selectedProfile?.profileId ?? null;
+  const selectedSurfaceKey = selectedProfile?.surfaceKey ?? null;
+  useEffect(() => {
+    const assistantSurface = props.assistantSurface;
+    if (!assistantSurface || !selectedProfileId) return;
+
+    let active = true;
+    const attempts = new Map<string, number>();
+    const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+    const continueCriteria = (actionRequestId: string): void => {
+      const attemptsMade = attempts.get(actionRequestId) ?? 0;
+      if (
+        !active ||
+        completedCriteriaActionsRef.current.has(actionRequestId) ||
+        inFlightCriteriaActionsRef.current.has(actionRequestId) ||
+        retryTimers.has(actionRequestId) ||
+        attemptsMade >= CRITERIA_CONTINUATION_MAX_ATTEMPTS
+      ) {
+        return;
+      }
+
+      attempts.set(actionRequestId, attemptsMade + 1);
+      inFlightCriteriaActionsRef.current.add(actionRequestId);
+      void (async () => {
+        let retry = false;
+        try {
+          const current = await invokeTool("job-search.profile.get", {
+            profileId: selectedProfileId
+          });
+          if (!isRecord(current) || !isRecord(current.criteria)) {
+            throw new Error("profile.get returned no criteria");
+          }
+          const outcome = await runQueue("job-search.criteria-set", "criteria.set", {
+            profileId: selectedProfileId,
+            criteriaJson: JSON.stringify(current.criteria),
+            rescoreOnly: true
+          });
+          if (outcome.kind === "queued") {
+            completedCriteriaActionsRef.current.add(actionRequestId);
+          } else if (outcome.kind === "disabled") {
+            completedCriteriaActionsRef.current.add(actionRequestId);
+            if (active) setQueueNotice(outcome);
+          } else {
+            retry = true;
+            if (outcome.kind === "error" && active) setQueueNotice(outcome);
+          }
+        } catch {
+          retry = true;
+          if (active) setQueueNotice({ kind: "error", message: "Network error" });
+        } finally {
+          inFlightCriteriaActionsRef.current.delete(actionRequestId);
+          if (
+            retry &&
+            active &&
+            (attempts.get(actionRequestId) ?? 0) < CRITERIA_CONTINUATION_MAX_ATTEMPTS
+          ) {
+            retryTimers.set(
+              actionRequestId,
+              setTimeout(() => {
+                retryTimers.delete(actionRequestId);
+                continueCriteria(actionRequestId);
+              }, CRITERIA_CONTINUATION_RETRY_MS)
+            );
+          }
+        }
+      })();
+    };
+
+    const unsubscribe = assistantSurface.subscribeRecords((records) => {
+      for (const record of records) {
+        const result = record.result;
+        const rescore = isRecord(result?.rescore) ? result.rescore : null;
+        const actionRequestId = record.actionRequestId;
+        if (
+          record.kind !== "action_result" ||
+          record.outcome !== "executed" ||
+          record.toolName !== "job-search.criteria.set" ||
+          !result ||
+          result.profileId !== selectedProfileId ||
+          rescore?.attempted !== false ||
+          !actionRequestId
+        ) {
+          continue;
+        }
+        continueCriteria(actionRequestId);
+      }
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+      for (const timer of retryTimers.values()) clearTimeout(timer);
+      retryTimers.clear();
+    };
+  }, [props.assistantSurface, selectedProfileId, selectedSurfaceKey]);
 
   // Keep the profile record fresh while the interview is still running.
   //
