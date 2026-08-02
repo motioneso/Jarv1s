@@ -6378,6 +6378,11 @@ Chunk 3 was claimed at `21:13:38Z` with an 840-second expiry. Prior chunks remai
 the maximum-eight bound. This is the sole serialized lane; builder monitor session `65318` remains
 active.
 
+Chunk 4 completed cleanly at retry 0. Cumulative output is 29 upserted, 0 failed (delta +8, exactly
+the maximum-eight bound), with `truncated=true`. Deterministic chunk 5
+`f7e26b0f-59af-5c67-bdfb-178cda619195` is created behind 25 older singleton continuations. Genuine
+suggested rows remain 0; no interaction.
+
 Chunk 3 completed at `21:16:01Z` in 142.860 seconds. Cumulative `emailUpserted=21` (delta 7, within
 the maximum-eight bound), with failures/errors/retries 0 and `truncated=true`. Deterministic child 4
 `4d9e7334-d681-5232-9c15-518ab25e950c` was created post-commit behind 19 older jobs. Genuine
