@@ -6351,6 +6351,10 @@ State change: deterministic chunk 2 `8b1c2cd7-bbd1-5d36-868a-333bdbcc606f` is ac
 `retry_count=0` with no older jobs ahead. Genuine suggested rows remain 0; monitor to terminal with
 no browser interaction.
 
+Chunk 5 was claimed at `23:57:39Z` with an 840-second expiry. Prior chunks remain clean and within
+the maximum-eight bound. This is the sole serialized lane; builder monitor session `65318` remains
+active.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
