@@ -6342,3 +6342,7 @@ Chunk 1 terminal detail: completed at `19:42:22Z` in 162.979 seconds; cumulative
 `emailUpserted=8`, failures/errors/retries 0, `truncated=true`, deterministic. Chunk 2 was created
 post-commit and remains behind nine older jobs. Actor-scoped genuine suggested rows remain 0, so
 the live-path interaction gate is not ready.
+
+Queue progress: chunk 2 remains created with two older continuations ahead. The global singleton
+still has at most one active job, and every observed `retry_count` is 0. This chain remains 8
+evaluated, 8 upserted, 0 failed; genuine suggested rows remain 0. No interaction.
