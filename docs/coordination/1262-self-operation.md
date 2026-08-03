@@ -6475,6 +6475,19 @@ unusable binding must be observable as needs-configuration, not silent CLI/defau
 success. Preserve privacy/security guards; do not invent another configuration surface unless the
 existing service binding cannot express the required behavior.
 
+Four deterministic REDs confirm independent load-bearing defects: missing email binding silently
+falls back to CLI; CLI teardown can expose a valid late transcript after the adapter times out;
+concurrent same-revision fallback overwrites complete triage; and explicit non-economy bindings are
+discarded by the extractor's hard-coded economy rule.
+
+Approved fix covers all four plus performance: strict explicit service binding with observable
+`needs_config`; final transcript read after real CLI teardown while retaining the global slot; atomic
+same-historyId complete-triage preservation; and whole-current-day foreground fetch/persist followed
+by byte/item-bounded batched structured extraction/projection, with 30-day history left to background
+continuations. Bodies remain memory-only and job payloads/logs metadata-only. Acceptance is ≤5 seconds
+for deterministic representative-day fetch/persist and ≤30 seconds from live root claim to a genuine
+Today row using an explicit non-CLI binding. No per-email model calls or silent truncation.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
