@@ -6507,6 +6507,18 @@ tailnet `/today` return 200. No sync was enqueued. The API restart generated its
 auth secret and invalidated prior sessions; Ben must sign in again before configuring the explicit
 non-CLI email-extraction binding.
 
+Ben signed in, but the binding gate is not usable yet. Grounding found that the backend lists and
+stores module service bindings while the Settings AI pane renders only Chat; there is no Email
+extraction control. The PUT route also appears to validate nested key
+`module.connectors.email-extract` as module ID `connectors.email-extract`, rather than ownership by
+installed module `connectors`, so a legitimate UI save would be rejected.
+
+Builder owns the minimum completion: add a clear Settings Email extraction row backed by the
+existing service-binding API, show needs-configuration, restrict choices to active JSON-capable
+models, and fix installed-module namespace validation without admitting foreign keys. Add route and
+UI RED→GREEN proving selection persists and different configured models require no code change.
+Do not bypass this with an internal API or database edit; no sync/restart/QA/merge yet.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
