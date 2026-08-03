@@ -97,6 +97,8 @@ function createFakeStore(
     createProfile: vi.fn(notUsed("createProfile")),
     renameProfile: vi.fn(notUsed("renameProfile")),
     updateCriteria: vi.fn(notUsed("updateCriteria")),
+    claimCriteriaRescore: vi.fn(async () => []),
+    finishCriteriaRescore: vi.fn(async () => undefined),
     setProfileState: vi.fn(notUsed("setProfileState")),
     setProfileContext: vi.fn(notUsed("setProfileContext")),
     setBriefingDetail: vi.fn(notUsed("setBriefingDetail")),

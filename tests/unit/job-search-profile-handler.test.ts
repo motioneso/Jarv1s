@@ -105,6 +105,12 @@ function createFakeStore(seedProfiles: Profile[] = []) {
       const profile = profiles.get(id);
       if (profile) profiles.set(id, { ...profile, criteria });
     },
+    claimCriteriaRescore: async () =>
+      [...profiles.values()].map((profile) => ({
+        profileId: profile.id,
+        criteria: profile.criteria
+      })),
+    finishCriteriaRescore: async () => undefined,
     setProfileState: async (profileId, state) => {
       const profile = profiles.get(profileId);
       if (profile) profiles.set(profileId, { ...profile, state });

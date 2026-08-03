@@ -25,8 +25,8 @@ import {
 } from "../../domain/criteria.js";
 import type { SearchCriteria } from "../../domain/records.js";
 import type { BriefingDetail, JobSearchStore, ProfileState } from "../../domain/store-port.js";
+import { runCriteriaRescore } from "./pass.js";
 import { looksLikeJobEnvelope, parseJobEnvelope } from "../job-input.js";
-import { AI_CALL_BUDGET, runScore } from "../stages/score.js";
 import { InputError, stripEnvelope } from "../validate.js";
 
 /** Shared by every handler in this module (profile.ts, resume.ts, portal.ts): rejects any key
@@ -364,23 +364,28 @@ export function createCriteriaSetHandler(store: JobSearchStore) {
         rescore = { ok: true, attempted: false };
       } else {
         try {
-          rescore = {
-            ok: true,
-            attempted: true,
-            ...(await runScore({
-              store,
-              embed: ctx.embed,
-              ai: ctx.ai,
-              notify: ctx.notify,
-              profileId,
-              budget: AI_CALL_BUDGET,
-              now: new Date().toISOString(),
-              deadlineAt: ctx.deadlineAt,
-              clock: () => Date.now(),
-              notifyOnMatches: false,
-              candidates: "unscored"
-            }))
-          };
+          const envelope = parseJobEnvelope(ctx.input);
+          const continuation = await runCriteriaRescore(
+            store,
+            ctx,
+            envelope.idempotencyKey,
+            profileId
+          );
+          const profileResult = continuation.processed[0];
+          rescore =
+            profileResult?.ok === false
+              ? { ok: false, attempted: true, cause: profileResult.error ?? "scoring failed" }
+              : {
+                  ok: true,
+                  attempted: continuation.claimed,
+                  ...(profileResult?.score ?? {
+                    scored: 0,
+                    deferred: 0,
+                    failed: 0,
+                    aiCallsUsed: 0,
+                    halted: null
+                  })
+                };
         } catch (error) {
           rescore = {
             ok: false,

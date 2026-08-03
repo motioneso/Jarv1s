@@ -1,11 +1,5 @@
 // tests/integration/job-search-store.test.ts
-// Task 13 (#1297): the store against a real database, before any handler depends on it. Mirrors
-// tests/integration/job-search-tables-install.test.ts's fresh-install-per-`it` discipline (each
-// case reinstalls, afterEach tears everything down), but adds a SECOND kind of fixture: cases 7-8
-// exercise the sweep cursor, which `store-sql.ts` deliberately keeps in `ctx.kv`, not a job_search_*
-// column (see store-port.ts's comment on getSweepCursor). `ctx.kv` is backed by app.module_kv — a
-// CORE platform table (packages/settings/sql/0154, 0157), not a job-search-owned one — so it needs
-// a different connection recipe than the job_search_* tables below (see asWorkerKv's comment).
+// Task 13 (#1297): real-DB store tests; sweep cursors use the worker-KV fixture below.
 import { randomUUID } from "node:crypto";
 
 import { Client } from "pg";
@@ -542,6 +536,22 @@ describe("job-search store (#1297)", () => {
       want: 52,
       state: "new"
     });
+
+    const currentMatch = currentRows.find((row) => row.postingId === existingPosting!.id)!;
+    await store.setMatchState(currentMatch.id, "dismissed");
+    const lateScore = scoredMatch(existingPosting!.id, 100, 100, "Late score");
+    expect(
+      await store.upsertMatch(profile.id, lateScore, { criteriaSnapshot: currentCriteria })
+    ).toBe(false);
+    const entry = (criteria: SearchCriteria) => [{ profileId: profile.id, criteria }];
+    expect(await store.claimCriteriaRescore("lease-a")).toEqual(entry(currentCriteria));
+    expect(await store.claimCriteriaRescore("lease-b")).toBeNull();
+    await store.updateCriteria(profile.id, oldCriteria);
+    await store.finishCriteriaRescore("lease-a", entry(currentCriteria));
+    expect(await store.claimCriteriaRescore("lease-b")).toEqual(entry(oldCriteria));
+    await store.finishCriteriaRescore("lease-b", entry(oldCriteria));
+    expect(await store.claimCriteriaRescore("lease-c")).toEqual([]);
+    await store.finishCriteriaRescore("lease-c", []);
   });
 
   it("allocates versions 1 and 2 for two concurrent setResume calls, and fails fast for a nonexistent profile (case 5)", async () => {

@@ -78,6 +78,8 @@ function createFakeStore(seedProfiles: Profile[] = []) {
     createProfile: notImplemented("createProfile"),
     renameProfile: notImplemented("renameProfile"),
     updateCriteria: notImplemented("updateCriteria"),
+    claimCriteriaRescore: async () => [],
+    finishCriteriaRescore: async () => undefined,
     setProfileState: async (profileId, state) => {
       calls.push("store.setProfileState");
       const current = profiles.get(profileId);

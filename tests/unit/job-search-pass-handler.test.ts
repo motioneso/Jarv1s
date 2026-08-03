@@ -110,7 +110,12 @@ function createFakeStore(input: {
    * on. It used to be able to stay silent, because an absent row read as enabled, which is the
    * defect that let a live run crawl a board the user had never mentioned. */
   portalsByProfile?: ReadonlyMap<string, PortalState[]>;
-}): JobSearchStore & { __getProfileCallOrder: string[]; __setSweepCursorCalls: number[] } {
+}): JobSearchStore & {
+  __getProfileCallOrder: string[];
+  __setSweepCursorCalls: number[];
+  claimCriteriaRescore: ReturnType<typeof vi.fn>;
+  finishCriteriaRescore: ReturnType<typeof vi.fn>;
+} {
   const {
     profiles,
     unscoredByProfile = new Map(),
@@ -168,9 +173,18 @@ function createFakeStore(input: {
     addCustomSource: vi.fn(notUsed("addCustomSource")),
     removeCustomSource: vi.fn(notUsed("removeCustomSource")),
     getPostings: vi.fn(notUsed("getPostings")),
+    claimCriteriaRescore: vi.fn(async () =>
+      profiles.map((profile) => ({ profileId: profile.id, criteria: profile.criteria }))
+    ),
+    finishCriteriaRescore: vi.fn(async () => undefined),
     __getProfileCallOrder: getProfileCallOrder,
     __setSweepCursorCalls: setSweepCursorCalls
-  } as JobSearchStore & { __getProfileCallOrder: string[]; __setSweepCursorCalls: number[] };
+  } as JobSearchStore & {
+    __getProfileCallOrder: string[];
+    __setSweepCursorCalls: number[];
+    claimCriteriaRescore: ReturnType<typeof vi.fn>;
+    finishCriteriaRescore: ReturnType<typeof vi.fn>;
+  };
 }
 
 const okResult = {
@@ -226,10 +240,13 @@ function createFakeCtx(input: {
   } as ModuleWorkerContext;
 }
 
-function queueEnvelope(params: Record<string, unknown>): Record<string, unknown> {
+function queueEnvelope(
+  params: Record<string, unknown>,
+  jobKind = "job-search.crawl-run"
+): Record<string, unknown> {
   return {
     actorUserId: "user-1",
-    jobKind: "job-search.crawl-run",
+    jobKind,
     idempotencyKey: "idem-1",
     params
   };
@@ -387,9 +404,113 @@ describe("createCrawlRunHandler", () => {
 });
 
 describe("createCrawlSweepHandler", () => {
-  function sweepCtx(deadlineAt: number, ai?: AiPort, notify?: NotifyPort): ModuleWorkerContext {
-    return createFakeCtx({ input: queueEnvelope({}), deadlineAt, ai, notify });
+  function sweepCtx(
+    deadlineAt: number,
+    ai?: AiPort,
+    notify?: NotifyPort,
+    jobKind = "job-search.crawl-sweep"
+  ): ModuleWorkerContext {
+    return createFakeCtx({ input: queueEnvelope({}, jobKind), deadlineAt, ai, notify });
   }
+
+  it("skips a criteria continuation while another invocation owns the lease", async () => {
+    const store = createFakeStore({ profiles: [makeProfile("p-rescore")] });
+    store.claimCriteriaRescore.mockResolvedValueOnce(null);
+    const ctx = sweepCtx(Date.now() + 60_000, undefined, undefined, "job-search.rescore-sweep");
+
+    await expect(createCrawlSweepHandler(store)(ctx)).resolves.toEqual({
+      mode: "rescore",
+      claimed: false,
+      processed: [],
+      aiCallsUsed: 0
+    });
+    expect(ctx.ai.generateStructured).not.toHaveBeenCalled();
+    expect(store.finishCriteriaRescore).not.toHaveBeenCalled();
+    expect(store.upsertPostings).not.toHaveBeenCalled();
+    expect(store.getSweepCursor).not.toHaveBeenCalled();
+    expect(store.setSweepCursor).not.toHaveBeenCalled();
+  });
+
+  it("scores only the exact criteria snapshot claimed by this continuation", async () => {
+    const claimedCriteria = makeCriteria();
+    const profile = {
+      ...makeProfile("p-rescore"),
+      criteria: { ...makeCriteria(), titles: ["Platform Architect"] }
+    };
+    const store = createFakeStore({
+      profiles: [profile],
+      unscoredByProfile: new Map([[profile.id, [makePosting("post-1")]]])
+    });
+    store.claimCriteriaRescore.mockResolvedValueOnce([
+      { profileId: profile.id, criteria: claimedCriteria }
+    ]);
+    const writeOptions: unknown[] = [];
+    store.upsertMatch = vi.fn(async (_profileId, _match, options) => {
+      writeOptions.push(options);
+      return false;
+    });
+
+    await createCrawlSweepHandler(store)(
+      sweepCtx(Date.now() + 60_000, undefined, undefined, "job-search.rescore-sweep")
+    );
+
+    expect(store.upsertMatch).toHaveBeenCalledTimes(1);
+    expect(writeOptions).toEqual([{ criteriaSnapshot: claimedCriteria }]);
+  });
+
+  it("continues deferred criteria scoring without crawling or rescoring completed rows", async () => {
+    const profile = makeProfile("p-rescore");
+    const pending = Array.from({ length: AI_CALL_BUDGET + 1 }, (_, index) =>
+      makePosting(`post-${index}`)
+    );
+    const store = createFakeStore({ profiles: [profile] });
+    store.listUnscoredPostingsWithEmbeddings = vi.fn(async () => [...pending]);
+    store.listUnfittedPostingsWithEmbeddings = vi.fn(async () => {
+      throw new Error("criteria continuation must not use the résumé-refit candidate set");
+    });
+    store.upsertMatch = vi.fn(async (_profileId, match, options) => {
+      expect(options).toEqual({ criteriaSnapshot: profile.criteria });
+      const index = pending.findIndex((posting) => posting.id === match.postingId);
+      if (index >= 0) pending.splice(index, 1);
+      return true;
+    });
+    const notify: NotifyPort = { post: vi.fn(async () => undefined) };
+    const firstCtx = sweepCtx(Date.now() + 60_000, undefined, notify, "job-search.rescore-sweep");
+    const secondCtx = sweepCtx(Date.now() + 60_000, undefined, notify, "job-search.rescore-sweep");
+    const thirdCtx = sweepCtx(Date.now() + 60_000, undefined, notify, "job-search.rescore-sweep");
+
+    const first = (await createCrawlSweepHandler(store)(firstCtx)) as {
+      mode: string;
+      processed: Array<{ profileId: string; score: { scored: number; deferred: number } }>;
+    };
+    const second = (await createCrawlSweepHandler(store)(secondCtx)) as typeof first;
+    const third = (await createCrawlSweepHandler(store)(thirdCtx)) as typeof first;
+
+    expect(first).toMatchObject({
+      mode: "rescore",
+      processed: [{ profileId: "p-rescore", score: { scored: AI_CALL_BUDGET, deferred: 1 } }]
+    });
+    expect(second).toMatchObject({
+      mode: "rescore",
+      processed: [{ profileId: "p-rescore", score: { scored: 1, deferred: 0 } }]
+    });
+    expect(third).toMatchObject({
+      mode: "rescore",
+      processed: [{ profileId: "p-rescore", score: { scored: 0, deferred: 0 } }]
+    });
+    expect(store.upsertPostings).not.toHaveBeenCalled();
+    expect(store.listCustomSources).not.toHaveBeenCalled();
+    expect(store.listPortals).not.toHaveBeenCalled();
+    expect(firstCtx.fetch).not.toHaveBeenCalled();
+    expect(secondCtx.fetch).not.toHaveBeenCalled();
+    expect(thirdCtx.fetch).not.toHaveBeenCalled();
+    expect(store.upsertMatch).toHaveBeenCalledTimes(AI_CALL_BUDGET + 1);
+    expect(notify.post).not.toHaveBeenCalled();
+    expect(store.claimCriteriaRescore).toHaveBeenCalledTimes(3);
+    expect(store.finishCriteriaRescore).toHaveBeenCalledTimes(3);
+    expect(store.getSweepCursor).not.toHaveBeenCalled();
+    expect(store.setSweepCursor).not.toHaveBeenCalled();
+  });
 
   it("test 5: takes no params, lists the actor's own active profiles, and runs each", async () => {
     const store = createFakeStore({ profiles: [makeProfile("p-a"), makeProfile("p-b")] });

@@ -54,7 +54,11 @@ function createCriteriaStore(initialProfile: Profile) {
     },
     listUnscoredPostingsWithEmbeddings: async () => [],
     getLatestResume: async () => undefined,
-    upsertMatch: async () => true
+    upsertMatch: async () => true,
+    claimCriteriaRescore: async () => [
+      { profileId: state.profile.id, criteria: state.profile.criteria }
+    ],
+    finishCriteriaRescore: async () => undefined
   } as unknown as JobSearchStore;
 
   return { state, store };

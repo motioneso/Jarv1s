@@ -68,11 +68,11 @@ describe("job-search manifest scaffold (#1287)", () => {
     );
   });
 
-  it("names six tables", () => {
+  it("names seven tables", () => {
     // Pinned separately so that "fixing" the case above by editing both lists at once still
     // fails and forces the spec conversation, rather than silently accepting a drifted count.
-    // Six, not five, as of Task 24 (#1309): job_search_custom_sources joined the list.
-    expect(JOB_SEARCH_TABLES).toHaveLength(6);
+    // Seven as of #1398: job_search_rescore_state serializes bounded continuation passes.
+    expect(JOB_SEARCH_TABLES).toHaveLength(7);
   });
 
   it("survives reconstruction with its briefing block and nav badge intact", () => {
@@ -255,6 +255,21 @@ describe("job-search manifest: worker queues, schedule, and risk levels (#1299)"
     for (const schedule of manifest.worker?.schedules ?? []) {
       expect(queueNames.has(schedule.queue)).toBe(true);
     }
+  });
+
+  it("continues criteria rescoring through the existing metadata-only sweep queue", () => {
+    const manifest = loadValidatedManifest();
+    const schedule = manifest.worker?.schedules?.find(
+      (item) => item.id === "job-search.rescore-sweep"
+    );
+
+    expect(schedule).toMatchObject({
+      cron: "*/10 * * * *",
+      scope: "user",
+      jobKind: "job-search.rescore-sweep",
+      queue: "job-search.crawl-sweep"
+    });
+    expect(schedule).not.toHaveProperty("params");
   });
 });
 

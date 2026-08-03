@@ -93,12 +93,25 @@ export interface CustomSource {
   readonly createdAt: string;
 }
 
+export interface CriteriaRescoreEntry {
+  readonly profileId: string;
+  readonly criteria: SearchCriteria;
+}
+
 export interface JobSearchStore {
   listProfiles(): Promise<Profile[]>;
   getProfile(id: string): Promise<Profile | null>;
   createProfile(name: string): Promise<Profile>;
   renameProfile(id: string, name: string): Promise<void>;
   updateCriteria(id: string, criteria: SearchCriteria): Promise<void>;
+  /** Claims this actor's pending criteria rescoring as one serialized lease. `null` means another
+   * invocation owns the lease; an empty array means there is no pending work. */
+  claimCriteriaRescore(leaseToken: string): Promise<CriteriaRescoreEntry[] | null>;
+  /** Removes only entries whose criteria snapshot still matches, then releases this lease. */
+  finishCriteriaRescore(
+    leaseToken: string,
+    completed: readonly CriteriaRescoreEntry[]
+  ): Promise<void>;
   setProfileState(profileId: string, state: ProfileState): Promise<void>;
   setProfileContext(profileId: string, context: ProfileContext): Promise<void>;
   setBriefingDetail(profileId: string, detail: BriefingDetail): Promise<void>;

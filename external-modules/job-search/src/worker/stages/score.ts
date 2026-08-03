@@ -162,6 +162,8 @@ export async function runScore(deps: {
   clock: () => number;
   /** Criteria edits re-score existing board rows; they are not newly added matches. */
   notifyOnMatches?: boolean;
+  /** Exact claimed criteria for a continuation. The write CAS rejects it if a newer edit wins. */
+  criteriaSnapshot?: SearchCriteria;
   /** Which postings to score. "unscored" (the default) is the ordinary pass: postings with no
    *  match row at all. "unfitted" is the repair pass: postings whose match row exists but whose
    *  Fit is empty, because they were scored before the profile had a résumé. The repair is a
@@ -199,9 +201,10 @@ export async function runScore(deps: {
   if (profile === null) {
     throw new Error(`runScore: profile ${profileId} not found`);
   }
+  const criteria = deps.criteriaSnapshot ?? profile.criteria;
   const matchWriteOptions = {
     ...(candidateSet === "unfitted" ? { preserveWant: true } : {}),
-    criteriaSnapshot: profile.criteria
+    criteriaSnapshot: criteria
   };
 
   const candidates =
@@ -225,7 +228,7 @@ export async function runScore(deps: {
   const hasResume = resumeText.trim().length > 0;
   const contextText = profile.contextSummary ?? "";
 
-  const criteriaText = criteriaEmbeddingText(profile.criteria);
+  const criteriaText = criteriaEmbeddingText(criteria);
   if (criteriaText.length === 0) {
     // Unreachable through the product — `isReadyToCrawl` will not activate a profile whose
     // criteria are empty, so nothing can have been crawled for one either. Loud rather than
@@ -313,7 +316,7 @@ export async function runScore(deps: {
 
     const prompt = buildScorePrompt({
       posting,
-      criteria: profile.criteria,
+      criteria,
       resume: resumeText,
       context: contextText
     });
