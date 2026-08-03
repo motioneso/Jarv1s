@@ -55,6 +55,7 @@ const PLATFORM_PACKAGES = new Set([
   "@jarv1s/shared",
   "@jarv1s/source-behaviors", // cross-cutting input-signal weighting for briefings/settings
   "@jarv1s/structured-state", // generic preferences/state store used across features
+  "@jarv1s/ui", // authored jds-* component library (#1388), no independent product domain
   "@jarv1s/usefulness-feedback", // cross-cutting feedback-loop signal, no product page of its own
   "@jarv1s/vault"
 ]);

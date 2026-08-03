@@ -177,6 +177,9 @@ importers:
       '@jarv1s/tasks':
         specifier: workspace:*
         version: link:../../packages/tasks
+      '@jarv1s/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@jarv1s/wellness':
         specifier: workspace:*
         version: link:../../packages/wellness
@@ -1138,6 +1141,22 @@ importers:
       react:
         specifier: ^19.0.0
         version: 19.2.7
+
+  packages/ui:
+    dependencies:
+      lucide-react:
+        specifier: ^0.468.0
+        version: 0.468.0(react@19.2.7)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.7
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+    devDependencies:
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.17
 
   packages/usefulness-feedback:
     dependencies:
