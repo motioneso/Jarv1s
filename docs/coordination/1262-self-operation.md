@@ -6488,6 +6488,18 @@ continuations. Bodies remain memory-only and job payloads/logs metadata-only. Ac
 for deterministic representative-day fetch/persist and ≤30 seconds from live root claim to a genuine
 Today row using an explicit non-CLI binding. No per-email model calls or silent truncation.
 
+Root fix is pushed at PR #1379 HEAD `4b715ec91f83d2854c65df4496fede5077689cc4`; origin matches.
+Focused unit is 41/41, focused integration 45/45, neighboring integration 30/30, schedule unit 2/2,
+and typecheck/lint/format/package-deps are green. Full unit reached 4,090 passing tests before only
+two unrelated Job Search jsdom worker-start failures; no install was run. Required GitHub CI is
+pending, not red. No migration was added.
+
+Builder is cleared to redeploy exact HEAD through the mandatory DEV path while preserving process
+isolation and environment; it must not change Settings or enqueue sync. After restart, Ben must
+re-authenticate and configure an explicit non-CLI `module.connectors.email-extract` binding before
+the ≤30-second live proof. Current DEV has no explicit binding and no actor-owned non-CLI configured
+model, so this is a real configuration gate rather than something the worker may silently infer.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
