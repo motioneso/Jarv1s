@@ -6387,6 +6387,18 @@ Prefer existing pg-boss/native mechanisms and the smallest change that prevents 
 waiting behind unrelated scheduled continuations. No DEV mutation, package install, QA, or merge yet.
 The browser executor is observation-only until given a corrected exact HEAD and focused proof steps.
 
+Regression RED is established in `tests/integration/google-sync-routes.test.ts`: the interactive root
+projects zero emails because `runGoogleSyncChunk` finishes calendar and immediately emits an email
+continuation. Confirmed contributors are the global continuation singleton, additive 15-minute actor
+schedule plus 30-minute sweep, and an invalid scheduled payload missing `kind`/`idempotencyKey`.
+
+Approved smallest fix: keep queue definitions and the bounded global continuation lane, but process
+and project the first at-most-eight newest emails inside the actor-scoped root job before enqueueing
+page 2. Repair the scheduled payload and native per-actor coalescing; root job IDs retain unique chain
+lineage. No migration or priority framework. Focused live acceptance: a prepared genuine actionable
+email in the newest page produces a Today row within three minutes of root claim while historical
+backfill continues. No QA or merge before that proof.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
