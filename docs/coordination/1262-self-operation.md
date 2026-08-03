@@ -6629,3 +6629,11 @@ CLI/non-interactive; the only API-key/non-CLI entries are three explicitly fake 
 must not be used for genuine live proof. No credentials or content were read and no state changed.
 Item 10 is blocked on configuring one real API-backed JSON-capable model through Settings, then
 binding Email extraction to that specific model. Do not sync before that configuration is explicit.
+
+Ben corrected that constraint: Email extraction must use the authenticated provider's CLI
+`-print`-style transport, not an API key. The earlier non-CLI-only live-proof requirement is
+superseded. This remains Settings-driven: Ben will explicitly bind `Email extraction` to the
+existing `Claude Haiku 4.5` specific model, whose provider metadata is Anthropic CLI/non-interactive;
+the implementation must use the fixed structured CLI adapter and current-day batching, never a
+hard-coded provider/model/tier/transport. After the selection is confirmed read-only, run exactly
+one timed sync. No API credential configuration is requested.
