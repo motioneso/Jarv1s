@@ -6500,6 +6500,13 @@ re-authenticate and configure an explicit non-CLI `module.connectors.email-extra
 the ≤30-second live proof. Current DEV has no explicit binding and no actor-owned non-CLI configured
 model, so this is a real configuration gate rather than something the worker may silently infer.
 
+`READY_FOR_BINDING`: exact DEV HEAD/upstream is `4b715ec91f83d2854c65df4496fede5077689cc4`.
+API, sole queue-ready worker, and frontend process groups all resolve to the #1327 worktree. Vault
+root, 12 trusted origins, and the exact 3097 proxy were preserved. Direct health/readiness and
+tailnet `/today` return 200. No sync was enqueued. The API restart generated its standard ephemeral
+auth secret and invalidated prior sessions; Ben must sign in again before configuring the explicit
+non-CLI email-extraction binding.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
