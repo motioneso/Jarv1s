@@ -6744,6 +6744,14 @@ categories and safe shape/count metadata. If it reproduces, freeze that observed
 deterministic RED and fix only the parser/validator seam. No mailbox sync or DEV mutation for this
 diagnostic.
 
+Ben flagged that #1327 was blocking Job Search. Shared DEV is now explicitly released: Job Search
+session `019fb171-a527-7d73-b301-186620f8b3f2` received CLEAR to redeploy its pushed commit
+`47a71072` through its mandatory path and run its own proof. #1327's last job is terminal; Luna's
+current synthetic/telemetry diagnosis is isolated and must not touch shared services. From this
+point, do not assume DEV remains on #1327 HEAD `1609cef8`; after the final #1327 fix is pushed and
+Job Search finishes its live work, #1327 will require one fresh exact-HEAD redeploy for its final
+proof. The lanes remain code/worktree isolated and Job Search receives no #1327 work.
+
 Sanitized persistence addendum: the actor has four messages received on the current UTC day
 (`01:46:36Z`–`02:49:51Z`). Since root creation, no new email-message rows were inserted but 212 were
 updated; the first persisted update was `05:20:59.225Z` (about 1.16 seconds after root creation),
