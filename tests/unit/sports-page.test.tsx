@@ -7,6 +7,7 @@ import type {
   FollowedTeamCard,
   GameSummary,
   Headline,
+  OverviewHero,
   SportsOverviewResponse,
   StandingsGroup
 } from "@jarv1s/shared";
@@ -123,15 +124,22 @@ function headline(
   };
 }
 
+// The hero carries every followed game in the window, not just the lead one (#1386), so each
+// fixture spells out its slides.
+function gamedayHero(...games: GameSummary[]): Extract<OverviewHero, { mode: "gameday" }> {
+  return {
+    mode: "gameday",
+    games: games.map((game) => ({
+      game,
+      competitionLabel: TEST_COMPETITION_LABELS[game.competitionKey] ?? "NFL",
+      rationale: `You follow ${game.home.name}.`
+    }))
+  };
+}
+
 function makeOverview(overrides: Partial<SportsOverviewResponse> = {}): SportsOverviewResponse {
   return {
-    hero: {
-      mode: "gameday",
-      game: liveGame(),
-      competitionLabel: "NFL",
-      rationale: "You follow the Vikings — they are on now",
-      alsoToday: "2 other followed games today"
-    },
+    hero: gamedayHero(liveGame()),
     followed: [followedCard()],
     scoreboard: [
       {
@@ -174,7 +182,8 @@ describe("SportsPage", () => {
 
   it("renders the gameday hero without rationale text, with both teams and scores", () => {
     const html = render(makeOverview());
-    expect(html).not.toContain("You follow the Vikings — they are on now");
+    // The rationale is why the game is on the page, not something to print at the reader.
+    expect(html).not.toContain("You follow Minnesota Vikings");
     expect(html).toContain("Minnesota Vikings");
     expect(html).toContain("Dallas Cowboys");
     expect(html).toContain("21");
@@ -188,16 +197,37 @@ describe("SportsPage", () => {
     expect(html).toContain('<span class="sp-scorebar__comp">NFL</span>');
   });
 
+  // #1386. The single-game case must be byte-for-byte what shipped before the carousel existed:
+  // no tablist, no arrows, nothing extra around the bar.
+  it("renders a lone gameday game with no carousel chrome", () => {
+    const html = render(makeOverview());
+    expect(html).toContain("sp-scorebar");
+    expect(html).not.toContain("sp-gameday__tabs");
+    expect(html).not.toContain('role="tablist"');
+  });
+
+  it("carousels two followed games as tabs, showing the lead game and hiding the rest", () => {
+    const second: GameSummary = {
+      ...liveGame(),
+      id: "g-live-2",
+      home: { ...liveGame().home, teamKey: "phi", name: "Philadelphia Eagles", shortName: "PHI" },
+      away: { ...liveGame().away, teamKey: "was", name: "Washington", shortName: "WAS" }
+    };
+    const html = render(makeOverview({ hero: gamedayHero(liveGame(), second) }));
+    expect(html).toContain('role="tablist"');
+    // A tab names the matchup and its score — the whole reason tabs beat dots here.
+    expect(html).toContain("WAS at PHI");
+    // Both slides are in the DOM (the stage sizes to the tallest), but only the lead is active
+    // and only the lead is reachable.
+    expect(html).toContain('data-active="true"');
+    expect(html).toContain('data-active="false"');
+    expect(html).toContain('aria-hidden="true"');
+  });
+
   it("does not announce the hero score via aria-live when the game is not live", () => {
     const html = render(
       makeOverview({
-        hero: {
-          mode: "gameday",
-          game: { ...liveGame(), state: "final", statusDetail: "Final" },
-          competitionLabel: "NFL",
-          rationale: "You follow the Vikings — they are on now",
-          alsoToday: "2 other followed games today"
-        }
+        hero: gamedayHero({ ...liveGame(), state: "final", statusDetail: "Final" })
       })
     );
     expect(html).not.toContain("aria-live");
@@ -216,13 +246,7 @@ describe("SportsPage", () => {
     };
     const html = render(
       makeOverview({
-        hero: {
-          mode: "gameday",
-          game: preGame,
-          competitionLabel: "NFL",
-          rationale: "You follow the Vikings — they play today",
-          alsoToday: null
-        },
+        hero: gamedayHero(preGame),
         scoreboard: [{ competitionKey: "nfl", competitionLabel: "NFL", games: [preGame] }]
       })
     );

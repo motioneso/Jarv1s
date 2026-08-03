@@ -6,7 +6,7 @@ import {
   type FollowedLeagueCard,
   type FollowedLeagueRef,
   type FollowedTeamCard,
-  type GameSide,
+  type GamedayGame,
   type GameSummary,
   type Headline,
   type IsoDate,
@@ -105,6 +105,9 @@ const DAY_MS = 86_400_000;
 // wider window then needs a "near now" cut (currentTeamGame, followed-card.ts) so last night's
 // finals and tomorrow's matchups don't read as today's game.
 const TOP_STORIES_CAP = 6; // Ben 2026-07-01
+// How many hero slides get their teams' own ESPN feeds pulled for a matchup story band (#1386).
+// Two feed reads per game; beyond this the later slides render bar-only.
+const HERO_STORY_FEED_GAMES = 3;
 const EMPTY_STANDINGS: StandingsTable = { sections: [] };
 
 // A brand-new user with zero follows (no teams, no whole-league follows) would otherwise drive
@@ -368,39 +371,45 @@ export class SportsService {
     // the scorebar's photo+blurb band (findFeaturedStory on the client) usually comes up
     // empty. Pull each hero team's own ESPN feed into the pool so a real story about the
     // matchup is available — still honest data, just fetched where ESPN actually files it.
+    // Every hero slide needs its own story band, so this runs per game, not just for the lead
+    // one (#1386). Capped: each game costs two ESPN feed reads, and past a handful of
+    // simultaneous games the reads stop paying for themselves — later slides simply show the
+    // score bar with no band, which is already the normal no-matching-story outcome.
     if (hero.mode === "gameday") {
-      const { game } = hero;
-      const heroTeams = teamsByComp.get(game.competitionKey) ?? [];
-      // Resolve each hero side's numeric id from the same catalog the followed cards use — the
-      // news endpoint 400s on a soccer abbreviation slug (EspnHeadlinesParams.sourceTeamId), which
-      // would leave a soccer gameday hero with no matchup story at all.
-      const teamFeeds = await Promise.all(
-        [game.home.teamKey, game.away.teamKey].map((teamKey) =>
-          this.cached<SourceHeadline[]>(
-            "headlines",
-            {
-              competitionKey: game.competitionKey,
-              teamKey,
-              sourceTeamId: heroTeams.find((t) => t.teamKey === teamKey)?.sourceTeamId ?? null
-            },
-            [],
-            state
+      for (const { game } of hero.games.slice(0, HERO_STORY_FEED_GAMES)) {
+        const heroTeams = teamsByComp.get(game.competitionKey) ?? [];
+        // Resolve each hero side's numeric id from the same catalog the followed cards use — the
+        // news endpoint 400s on a soccer abbreviation slug (EspnHeadlinesParams.sourceTeamId),
+        // which would leave a soccer gameday hero with no matchup story at all.
+        const teamFeeds = await Promise.all(
+          [game.home.teamKey, game.away.teamKey].map((teamKey) =>
+            this.cached<SourceHeadline[]>(
+              "headlines",
+              {
+                competitionKey: game.competitionKey,
+                teamKey,
+                sourceTeamId: heroTeams.find((t) => t.teamKey === teamKey)?.sourceTeamId ?? null
+              },
+              [],
+              state
+            )
           )
-        )
-      );
-      const existing = headlinesByComp.get(game.competitionKey) ?? [];
-      // Dedup by url, not id: the same story arrives from the league feed and a hero team's own
-      // feed under DIFFERENT ids (ESPN ids are feed-scoped — see the toTeamStories/followedStoryUrls
-      // dedup, which key on url for the same reason). Keying on id here let a matchup story render
-      // twice in the NewsBand (Fable M1). url is the story's stable cross-feed identity.
-      const seen = new Set(existing.map((h) => h.url));
-      const merged = [...existing];
-      for (const headline of resolveHeadlineTeamKeys(teamFeeds.flat(), heroTeams)) {
-        if (seen.has(headline.url)) continue;
-        seen.add(headline.url);
-        merged.push(headline);
+        );
+        const existing = headlinesByComp.get(game.competitionKey) ?? [];
+        // Dedup by url, not id: the same story arrives from the league feed and a hero team's own
+        // feed under DIFFERENT ids (ESPN ids are feed-scoped — see the
+        // toTeamStories/followedStoryUrls dedup, which key on url for the same reason). Keying on
+        // id here let a matchup story render twice in the NewsBand (Fable M1). url is the story's
+        // stable cross-feed identity.
+        const seen = new Set(existing.map((h) => h.url));
+        const merged = [...existing];
+        for (const headline of resolveHeadlineTeamKeys(teamFeeds.flat(), heroTeams)) {
+          if (seen.has(headline.url)) continue;
+          seen.add(headline.url);
+          merged.push(headline);
+        }
+        headlinesByComp.set(game.competitionKey, merged);
       }
-      headlinesByComp.set(game.competitionKey, merged);
     }
 
     const leagueNews: LeagueNewsGroup[] = competitionKeys
@@ -677,39 +686,46 @@ export class SportsService {
     topStories: readonly SourceHeadline[],
     now: Date
   ): OverviewHero {
-    let hero: { game: GameSummary; side: GameSide; competitionKey: string } | undefined;
-    let todayCount = 0;
+    // Every followed game in the window becomes a hero slide (#1386), not just the best one.
+    const inWindow: GamedayGame[] = [];
+    const seenGameIds = new Set<string>();
     for (const follow of followedTeams) {
       // currentTeamGame (not findTeamGame): the two-day scoreboard also holds last night's
-      // final and, past Eastern midnight, tomorrow's matchup — neither may count toward
-      // "N more followed games today" nor be offered to the gameday window below.
+      // final and, past Eastern midnight, tomorrow's matchup — neither belongs in the hero.
       const game = currentTeamGame(
         scoreboardByComp.get(follow.competitionKey) ?? [],
         follow.teamKey,
         now
       );
       if (!game) continue;
-      todayCount += 1;
       const teamSide = sideFor(game, follow.teamKey);
       if (!teamSide) continue;
       // The gameday masthead+scorebar only leads the page from T−15min through the final
       // whistle; a morning "Today: X at Y" all day pushes real news below the fold (live
       // feedback mra4kqpf). Outside the window the top story leads instead.
       if (!inGamedayWindow(game, now)) continue;
-      if (!hero || (game.state === "live" && hero.game.state !== "live")) {
-        hero = { game, side: teamSide, competitionKey: follow.competitionKey };
-      }
+      // Follow both clubs in one derby and it's still ONE game — without this it would slide
+      // twice, and the count line this replaced had exactly that bug.
+      if (seenGameIds.has(game.id)) continue;
+      seenGameIds.add(game.id);
+      inWindow.push({
+        game,
+        // Editorial UI shows the human label, never the raw key (#765 M4).
+        competitionLabel: catalogEntry(follow.competitionKey)?.label ?? follow.competitionKey,
+        rationale: `You follow ${teamSide.name}.`
+      });
     }
-    if (hero) {
-      const others = todayCount - 1;
+    if (inWindow.length > 0) {
+      // Live games lead; within each group the user's own follow order decides. Two passes over
+      // the array rather than a comparator so the ordering is stable by construction — a sort
+      // whose comparator ties would be free to reshuffle equal games between polls, and the
+      // client tracks the active slide by game id precisely so it never moves under a reader.
       return {
         mode: "gameday",
-        game: hero.game,
-        // Editorial UI shows the human label, never the raw key (#765 M4).
-        competitionLabel: catalogEntry(hero.competitionKey)?.label ?? hero.competitionKey,
-        rationale: `You follow ${hero.side.name}.`,
-        alsoToday:
-          others > 0 ? `${others} more followed game${others === 1 ? "" : "s"} today` : null
+        games: [
+          ...inWindow.filter((entry) => entry.game.state === "live"),
+          ...inWindow.filter((entry) => entry.game.state !== "live")
+        ]
       };
     }
     const top = topStories[0];
