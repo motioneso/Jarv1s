@@ -6637,3 +6637,11 @@ existing `Claude Haiku 4.5` specific model, whose provider metadata is Anthropic
 the implementation must use the fixed structured CLI adapter and current-day batching, never a
 hard-coded provider/model/tier/transport. After the selection is confirmed read-only, run exactly
 one timed sync. No API credential configuration is requested.
+
+Ben selected the binding. Read-only DEV verification confirms
+`ai.service_bindings["module.connectors.email-extract"]` is a specific-model binding to configured
+model `d0d2a294-9f8e-4f6d-aae6-bcecd7a70204`: Claude Haiku 4.5
+(`claude-haiku-4-5-20251001`) on Anthropic `cli` / `non_interactive`. PR #1379 required CI is fully
+green. No sync has been enqueued yet. Arm sanitized root-claim/current-day-ingest/genuine-row
+timing monitors, then authorize exactly one authenticated Sync action; no refresh or interaction
+until the row verdict.
