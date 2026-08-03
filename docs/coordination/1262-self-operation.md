@@ -6419,6 +6419,14 @@ Browser executor has the corrected exact HEAD and is waiting. Ben's next action:
 newest messages, and confirm it has arrived. Only then may the executor trigger one authenticated
 sync and time root claim to genuine Today-row appearance.
 
+Ben added a blocking performance requirement: the newest eight emails should be read/ingested in
+about 0.5 seconds, not held behind eight serial CLI model calls for 2–3 minutes. Separate the
+boundaries: immediate provider fetch/persist versus AI classification/projection. The imminent live
+run is baseline evidence. Builder must leave a deterministic performance RED proving the current
+N-call coupling, then propose the smallest batch or asynchronous classification path using existing
+jobs. Email bodies must remain out of job payloads/logs; preserve DataContextDb, deterministic IDs,
+and module isolation. Do not claim a 500ms external-model SLO without measured proof.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
