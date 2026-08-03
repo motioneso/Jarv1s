@@ -6366,6 +6366,10 @@ Chunk 5 terminal detail: completed at `00:00:02Z` in 143.098 seconds; cumulative
 `truncated=true`. Chunk 6 was created post-commit behind 34 older jobs. Genuine suggested rows
 remain 0; not ready.
 
+Queue progress: chunk 6 remains created with 26 older singleton continuations ahead, down from 34.
+Retries and timeouts remain zero, global non-overlap holds, and genuine suggested rows remain 0.
+Neither retained monitor performed a browser interaction or enqueued another sync.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
