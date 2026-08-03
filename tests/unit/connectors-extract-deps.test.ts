@@ -11,18 +11,9 @@ import {
 } from "../../packages/connectors/src/email-extract.js";
 
 const ACTIONABLE_SIGNALS = {
-  summary: "A launch plan needs approval today.",
-  billsDue: [],
-  actionItems: [],
-  deadlines: [],
-  actionability: {
-    category: "needs_action",
-    reason: "The sender requests approval.",
-    inferredSubject: "Launch plan approval",
-    suggestedTasks: [{ text: "Approve the launch plan" }]
-  },
-  mayGetLostInShuffle: true,
-  importance: "high",
+  category: "needs_action",
+  reason: "The sender requests approval.",
+  action: "Approve the launch plan",
   confidence: 0.95
 };
 
@@ -133,13 +124,19 @@ describe("buildEmailExtractDeps", () => {
       { ...FIXTURE, externalId: "synthetic-binding-cli" },
       deps
     );
+    const scope = {
+      actorUserId: "actor-1",
+      connectorAccountId: "account-1",
+      lineageId: "run-1"
+    };
+    await deps.runChat("synthetic scoped call", undefined, 1, undefined, "foreground", scope, true);
 
-    expect([apiResult.summary, cliResult.summary]).toEqual([
-      ACTIONABLE_SIGNALS.summary,
-      ACTIONABLE_SIGNALS.summary
-    ]);
+    expect([apiResult.summary, cliResult.summary]).toEqual([FIXTURE.snippet, FIXTURE.snippet]);
     expect(createAdapter).toHaveBeenCalledTimes(1);
-    expect(createCliStructuredAdapter).toHaveBeenCalledTimes(1);
+    expect(createCliStructuredAdapter).toHaveBeenCalledTimes(2);
+    expect(cliGenerate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope, closeScope: true })
+    );
   });
 
   it("recovers a valid final CLI reply before releasing the slot after a caller timeout", async () => {

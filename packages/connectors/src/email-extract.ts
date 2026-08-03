@@ -1,5 +1,5 @@
 import type { GmailMessageFull, GmailPayloadPart } from "./google-api-client.js";
-import type { StructuredRunPriority, StructuredTelemetry } from "@jarv1s/ai";
+import type { StructuredRunPriority, StructuredRunScope, StructuredTelemetry } from "@jarv1s/ai";
 
 /** Max decoded body length sent to the LLM (bounded to protect prompt limits, spec risk #6). */
 export const MAX_BODY_CHARS = 20_000;
@@ -215,7 +215,9 @@ export interface EmailExtractDeps {
     signal?: AbortSignal,
     batchSize?: number,
     telemetry?: StructuredTelemetry,
-    priority?: StructuredRunPriority
+    priority?: StructuredRunPriority,
+    scope?: StructuredRunScope,
+    closeScope?: boolean
   ) => Promise<{ readonly text: string }>;
 }
 
@@ -225,6 +227,8 @@ export interface EmailExtractOptions {
   /** Metadata-only telemetry factory; the worker supplies job and batch attribution. */
   readonly telemetry?: (batchIndex: number, batchSize: number) => StructuredTelemetry;
   readonly priority?: StructuredRunPriority;
+  readonly scope?: StructuredRunScope;
+  readonly closeScope?: boolean;
 }
 
 export const EMAIL_EXTRACT_BATCH_MAX_ITEMS = 48;
@@ -261,19 +265,15 @@ async function withTimeout<T>(
 }
 
 const EMAIL_TRIAGE_INSTRUCTIONS = [
-  "You are an email triage assistant. Read the email and reply with a single JSON object only,",
-  "no prose, matching this TypeScript type:",
-  "{ summary: string, billsDue: {description:string, amount?:number, currency?:string, dueDate?:string}[],",
-  " actionItems: {text:string, dueDate?:string}[], deadlines: {text:string, date?:string}[],",
-  ' actionability: { category: "needs_reply"|"needs_action"|"time_sensitive_info"|"waiting_on_someone"|"fyi"|"noise"|"unknown",',
-  "   reason?: string, dueDate?: string, inferredSubject?: string, suggestedTasks?: {text:string, dueDate?:string}[] },",
-  ' mayGetLostInShuffle: boolean, importance: "low"|"normal"|"high", confidence: number }',
-  "Use ISO dates. confidence is 0..1.",
+  "You are an email triage assistant. Read the email and reply with one JSON object only:",
+  '{ category: "needs_reply"|"needs_action"|"time_sensitive_info"|"waiting_on_someone"|"fyi"|"noise"|"unknown",',
+  "  confidence: number, reason?: string, action?: string, dueDate?: string }",
+  "confidence is 0..1. Use ISO dates. Keep reason and action concise.",
   "Actionability rules:",
   "- needs_reply: a real person is waiting on the user's answer. NEVER use it for marketing,",
   "  newsletters, receipts, or automated notifications, whatever the subject line claims.",
-  "- needs_action: the user must do something (pay a bill, submit, book, review) — include the",
-  "  due date and a short suggestedTasks entry when the action is concrete.",
+  "- needs_action: the user must do something (pay a bill, submit, book, review). Include a",
+  "  short action and due date when concrete.",
   "- time_sensitive_info: no action required but it expires (flight change, outage window).",
   "- waiting_on_someone: the user is owed a response or delivery by someone else.",
   "- fyi: informational, no urgency (receipts, confirmations, status updates).",
@@ -366,18 +366,35 @@ function safeDeadlines(value: unknown, body: string): EmailDeadline[] {
     .filter((d): d is EmailDeadline => d !== undefined);
 }
 
-function safeActionability(value: unknown, body: string): EmailActionabilitySignal | undefined {
+function safeActionability(
+  value: unknown,
+  body: string,
+  subject: string,
+  compact: boolean
+): EmailActionabilitySignal | undefined {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
   const o = value as Record<string, unknown>;
   const category = ACTIONABILITY_CATEGORIES.includes(o.category as EmailActionabilityCategory)
     ? (o.category as EmailActionabilityCategory)
     : "unknown";
-  const suggestedTasks = category === "noise" ? [] : safeActionItems(o.suggestedTasks, body);
+  const action = compact ? safeSignalStr(o.action, body) : undefined;
+  const suggestedTasks = compact
+    ? category === "noise" || action === undefined
+      ? []
+      : [{ text: action, dueDate: safeSignalStr(o.dueDate, body) }]
+    : category === "noise"
+      ? []
+      : safeActionItems(o.suggestedTasks, body);
+  const inferredSubject = compact
+    ? ["needs_reply", "needs_action", "time_sensitive_info"].includes(category)
+      ? safeSignalStr(subject, body)
+      : undefined
+    : safeSignalStr(o.inferredSubject, body);
   return {
     category,
     reason: safeSignalStr(o.reason, body),
     dueDate: safeSignalStr(o.dueDate, body),
-    inferredSubject: safeSignalStr(o.inferredSubject, body),
+    inferredSubject,
     ...(suggestedTasks.length > 0 ? { suggestedTasks } : {})
   };
 }
@@ -388,19 +405,25 @@ function safeActionability(value: unknown, body: string): EmailActionabilitySign
  * coerce every value to a bounded type, and drop any string that echoes the email body. This is
  * the single chokepoint that keeps the model from leaking the body into a persisted column.
  */
-function safeParseSignals(text: string, parsedBody: string): EmailExtractResult {
-  const normalizedBody = parsedBody.replace(/\s+/g, " ").trim().toLowerCase();
+function safeParseSignals(
+  text: string,
+  parsed: Pick<ParsedEmail, "body" | "subject">
+): EmailExtractResult {
+  const normalizedBody = parsed.body.replace(/\s+/g, " ").trim().toLowerCase();
   try {
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
     if (start < 0 || end < start) throw new Error("no json object");
     const obj = JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
+    const compact = !Object.prototype.hasOwnProperty.call(obj, "summary") && "category" in obj;
     const importance =
       obj.importance === "low" || obj.importance === "high" ? obj.importance : "normal";
     const confidence =
       typeof obj.confidence === "number" && obj.confidence >= 0 && obj.confidence <= 1
         ? obj.confidence
         : 0;
+    // Keep a legacy summary when present. Compact output deliberately has no model summary;
+    // sanitizeExtractResult supplies the deterministic existing snippet/subject fallback.
     // Keep the RAW (untruncated) summary here. Truncation to MAX_SUMMARY_CHARS happens only AFTER
     // the body-containment guard in extractEmailSignals — truncating first would let a model that
     // returns the first MAX_SUMMARY_CHARS of a longer body slip a near-complete body prefix past a
@@ -409,10 +432,15 @@ function safeParseSignals(text: string, parsedBody: string): EmailExtractResult 
     return {
       summary,
       signals: {
-        billsDue: safeBills(obj.billsDue, normalizedBody),
-        actionItems: safeActionItems(obj.actionItems, normalizedBody),
-        deadlines: safeDeadlines(obj.deadlines, normalizedBody),
-        actionability: safeActionability(obj.actionability, normalizedBody),
+        billsDue: compact ? [] : safeBills(obj.billsDue, normalizedBody),
+        actionItems: compact ? [] : safeActionItems(obj.actionItems, normalizedBody),
+        deadlines: compact ? [] : safeDeadlines(obj.deadlines, normalizedBody),
+        actionability: safeActionability(
+          compact ? obj : obj.actionability,
+          normalizedBody,
+          parsed.subject,
+          compact
+        ),
         mayGetLostInShuffle: obj.mayGetLostInShuffle === true,
         importance,
         confidence
@@ -499,6 +527,14 @@ function sanitizeExtractResult(
   initial: EmailExtractResult
 ): EmailExtractResult {
   let result = initial;
+  if (result.summary === null && (result.signals.confidence ?? 0) > 0) {
+    const deterministicSummary = parsed.snippet?.trim() || parsed.subject.trim();
+    result = {
+      ...result,
+      summary:
+        deterministicSummary.length > 0 ? deterministicSummary.slice(0, MAX_SUMMARY_CHARS) : null
+    };
+  }
   const normalize = (s: string): string => s.replace(/\s+/g, " ").trim().toLowerCase();
   const normalizedBody = normalize(parsed.body);
   if (result.summary !== null) {
@@ -573,9 +609,9 @@ function retryableReason(error: unknown): EmailExtractRetryableReason {
   return "structured-output";
 }
 
-function parseBatchSignals(text: string, parsedBody: string): EmailExtractResult {
-  const result = safeParseSignals(text, parsedBody);
-  if (result.summary === null || result.signals.confidence === 0) {
+function parseBatchSignals(text: string, parsed: ParsedEmail): EmailExtractResult {
+  const result = safeParseSignals(text, parsed);
+  if (result.signals.confidence === 0) {
     throw new Error("email-extract-batch-structured-output");
   }
   return result;
@@ -596,16 +632,33 @@ export async function extractEmailSignalsBatch(
       if (batch.length === 1) {
         const message = batch[0]!;
         const reply = await withTimeout(
-          (signal) => deps.runChat(buildPrompt(message), signal, 1, telemetry, options.priority),
+          (signal) =>
+            deps.runChat(
+              buildPrompt(message),
+              signal,
+              1,
+              telemetry,
+              options.priority,
+              options.scope,
+              options.closeScope
+            ),
           timeoutMs,
           () => telemetry?.emit({ kind: "timeout", priority: options.priority })
         );
-        extracted.push(sanitizeExtractResult(message, parseBatchSignals(reply.text, message.body)));
+        extracted.push(sanitizeExtractResult(message, parseBatchSignals(reply.text, message)));
         continue;
       }
       const reply = await withTimeout(
         (signal) =>
-          deps.runChat(buildBatchPrompt(batch), signal, batch.length, telemetry, options.priority),
+          deps.runChat(
+            buildBatchPrompt(batch),
+            signal,
+            batch.length,
+            telemetry,
+            options.priority,
+            options.scope,
+            options.closeScope
+          ),
         timeoutMs,
         () => telemetry?.emit({ kind: "timeout", priority: options.priority })
       );
@@ -634,7 +687,7 @@ export async function extractEmailSignalsBatch(
         extracted.push(
           sanitizeExtractResult(
             batch[index]!,
-            parseBatchSignals(JSON.stringify(byIndex.get(index)), batch[index]!.body)
+            parseBatchSignals(JSON.stringify(byIndex.get(index)), batch[index]!)
           )
         );
       }
@@ -658,7 +711,7 @@ export async function extractEmailSignals(
   let result: EmailExtractResult;
   try {
     const reply = await withTimeout((signal) => deps.runChat(prompt, signal), timeoutMs);
-    result = safeParseSignals(reply.text, parsed.body);
+    result = safeParseSignals(reply.text, parsed);
   } catch (error) {
     if (error instanceof EmailExtractNeedsConfigurationError) throw error;
     // Timeout or model error — degrade to metadata-only, never throw (spec §error handling).

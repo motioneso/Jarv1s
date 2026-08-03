@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PassThrough } from "node:stream";
 
 import type { Multiplexer, MuxHandle, TmuxIo } from "@jarv1s/ai";
 
@@ -13,6 +14,9 @@ vi.mock("node:child_process", async () => ({
 
 function fakeChild() {
   const listeners = new Map<string, Array<() => void>>();
+  const stdin = new PassThrough();
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
   const child = {
     exitCode: null,
     signalCode: null,
@@ -28,7 +32,10 @@ function fakeChild() {
       listeners.set(event, [...(listeners.get(event) ?? []), callback]);
       return child;
     }),
-    unref: vi.fn()
+    unref: vi.fn(),
+    stdin,
+    stdout,
+    stderr
   };
   return child;
 }
@@ -220,6 +227,43 @@ describe("ClaudePrintChatEngine", () => {
     expect(result.records).toEqual([{ kind: "reply", text: "claude print ok" }]);
     expect(result.complete).toBe(true);
     expect(result.offset).toBe(`${transcript}\n`.length);
+  });
+
+  it("launches the authenticated native stream-json contract and reads one structured result", async () => {
+    const engine = new ClaudePrintChatEngine("structured-scope", fakeIo(), {
+      mux: fakeMux(),
+      homeBase: "/home/test"
+    });
+
+    await engine.launchStructured({
+      neutralDir: "/tmp/jarvis-neutral",
+      personaPath: "/tmp/jarvis-neutral/persona.md",
+      personaText: "persona",
+      model: "claude-haiku-4-5-20251001",
+      schema: { type: "object", required: ["ok"] }
+    });
+    await engine.submitStructured("Return a synthetic structured result.");
+    const output = `${JSON.stringify({ type: "result", structured_output: { ok: true } })}\n`;
+    currentChild.stdout.write(output);
+
+    const result = await engine.readStructured(0);
+    expect(result).toEqual({ text: '{"ok":true}', offset: output.length, complete: true });
+    expect(launchLineAt()).toContain("--input-format stream-json");
+    expect(launchLineAt()).toContain("--output-format stream-json");
+    expect(launchLineAt()).toContain("--include-partial-messages");
+    expect(launchLineAt()).toContain("--verbose");
+    expect(launchLineAt()).toContain("--no-session-persistence");
+    expect(launchLineAt()).toContain("--json-schema");
+    expect(spawnMock).toHaveBeenCalledWith(
+      "bash",
+      ["-lc", expect.stringContaining("--input-format stream-json")],
+      expect.objectContaining({
+        cwd: "/tmp/jarvis-neutral",
+        detached: true,
+        stdio: ["pipe", "pipe", "pipe"]
+      })
+    );
+    await engine.kill();
   });
 
   it("#1353 reads the transcript when the neutral dir contains a surface suffix", async () => {

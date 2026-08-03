@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -37,6 +37,9 @@ export class ClaudePrintChatEngine implements CliChatEngine {
   private personaPath: string | null = null;
   private transcriptPathValue: string | null = null;
   private currentProcess: ChildProcess | null = null;
+  private structuredProcess: ChildProcessWithoutNullStreams | null = null;
+  private structuredOutput = "";
+  private structuredExited = false;
   private hasSubmitted = false;
   /** #1353 — one warning per unreadable-transcript streak, not one per 25ms poll. */
   private warnedUnreadable = false;
@@ -76,6 +79,66 @@ export class ClaudePrintChatEngine implements CliChatEngine {
     this.currentProcess.on("error", () => undefined);
     this.currentProcess.unref();
     this.hasSubmitted = true;
+  }
+
+  async launchStructured(
+    opts: EngineLaunchOpts & { readonly schema: Record<string, unknown> }
+  ): Promise<{ readonly offset: number }> {
+    this.launchOpts = opts;
+    this.personaPath = await this.resolvePersonaPath(opts);
+    const command = await this.buildStructuredCommand(opts);
+    const child = spawn("bash", ["-lc", command], {
+      cwd: opts.neutralDir,
+      detached: true,
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+    this.structuredProcess = child;
+    this.structuredExited = false;
+    this.structuredOutput = "";
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      this.structuredOutput += chunk;
+    });
+    child.stderr.resume();
+    child.once("exit", () => {
+      this.structuredExited = true;
+    });
+    child.once("error", () => {
+      this.structuredExited = true;
+    });
+    return { offset: 0 };
+  }
+
+  async submitStructured(text: string): Promise<void> {
+    const child = this.structuredProcess;
+    if (child === null || child.stdin.destroyed) {
+      throw new Error("ClaudePrintChatEngine structured stream is unavailable");
+    }
+    const frame = `${JSON.stringify({
+      type: "user",
+      message: { role: "user", content: text }
+    })}\n`;
+    await new Promise<void>((resolve, reject) => {
+      child.stdin.write(frame, "utf8", (error) => (error ? reject(error) : resolve()));
+    });
+  }
+
+  async readStructured(afterOffset: number): Promise<{
+    readonly text?: string;
+    readonly offset: number;
+    readonly complete: boolean;
+  }> {
+    const slice = this.structuredOutput.slice(afterOffset);
+    const lines = slice.split("\n");
+    const completeLines = lines.slice(0, -1);
+    const offset = this.structuredOutput.length - (lines.at(-1)?.length ?? 0);
+    for (const line of completeLines) {
+      const record = parseStructuredRecord(line);
+      if (record.text !== undefined) return { ...record, offset, complete: true };
+      if (record.complete) return { offset, complete: true };
+    }
+    if (this.structuredExited) return { offset: this.structuredOutput.length, complete: true };
+    return { offset, complete: false };
   }
 
   async readNew(
@@ -121,6 +184,9 @@ export class ClaudePrintChatEngine implements CliChatEngine {
   }
 
   async isAlive(): Promise<boolean> {
+    if (this.structuredProcess !== null) {
+      return this.structuredProcess.exitCode === null && this.structuredProcess.signalCode === null;
+    }
     return (
       this.currentProcess !== null &&
       this.currentProcess.exitCode === null &&
@@ -129,12 +195,19 @@ export class ClaudePrintChatEngine implements CliChatEngine {
   }
 
   async interrupt(): Promise<void> {
+    if (this.structuredProcess !== null) {
+      this.structuredProcess.kill("SIGINT");
+      return;
+    }
     if (this.currentProcess !== null) this.currentProcess.kill("SIGINT");
   }
 
   async kill(): Promise<void> {
-    const child = this.currentProcess;
+    const child = this.structuredProcess ?? this.currentProcess;
+    this.structuredProcess = null;
     this.currentProcess = null;
+    this.structuredOutput = "";
+    this.structuredExited = true;
     if (child === null || child.exitCode !== null || child.signalCode !== null) return;
 
     const exited = new Promise<void>((resolve) => {
@@ -209,6 +282,33 @@ export class ClaudePrintChatEngine implements CliChatEngine {
     return parts.join(" ");
   }
 
+  private async buildStructuredCommand(
+    opts: EngineLaunchOpts & { readonly schema: Record<string, unknown> }
+  ): Promise<string> {
+    const claudeCmd =
+      this.credentialFile && existsSync(this.credentialFile)
+        ? `CLAUDE_CODE_OAUTH_TOKEN="$(cat ${shellQuote(this.credentialFile)})" claude`
+        : "claude";
+    const parts = [
+      `cd ${shellQuote(opts.neutralDir)} &&`,
+      claudeCmd,
+      "--print",
+      "--input-format stream-json",
+      "--output-format stream-json",
+      "--include-partial-messages",
+      "--verbose",
+      "--no-session-persistence",
+      "--permission-mode dontAsk",
+      '--tools ""',
+      "--strict-mcp-config",
+      `--json-schema ${shellQuote(JSON.stringify(opts.schema))}`,
+      `--append-system-prompt-file ${shellQuote(this.personaPath ?? opts.personaPath)}`
+    ];
+    const modelFlag = modelOverrideFlag(opts);
+    if (modelFlag) parts.push(modelFlag);
+    return parts.join(" ");
+  }
+
   private async writeClaudeMcpConfig(opts: EngineLaunchOpts): Promise<string> {
     const path = join(opts.neutralDir, CLAUDE_MCP_FILENAME);
     const mcpConfig = JSON.stringify({
@@ -229,6 +329,32 @@ export class ClaudePrintChatEngine implements CliChatEngine {
     }
     return path;
   }
+}
+
+function parseStructuredRecord(line: string): {
+  readonly text?: string;
+  readonly complete?: boolean;
+} {
+  let record: Record<string, unknown>;
+  try {
+    record = JSON.parse(line) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+  if (record.type !== "result") return {};
+  const candidate = record.structured_output ?? record.result;
+  if (typeof candidate === "object" && candidate !== null) {
+    return { text: JSON.stringify(candidate) };
+  }
+  if (typeof candidate === "string") {
+    try {
+      JSON.parse(candidate);
+      return { text: candidate };
+    } catch {
+      return { complete: true };
+    }
+  }
+  return { complete: true };
 }
 
 function sanitizeInput(text: string): string {

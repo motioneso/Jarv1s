@@ -3,6 +3,7 @@ import {
   generateStructured,
   type AiRepository,
   type GenerateStructuredDeps,
+  type StructuredRunScope,
   type StructuredRunPriority,
   type StructuredTelemetry
 } from "@jarv1s/ai";
@@ -24,82 +25,22 @@ export type BuildEmailExtractDepsOptions = Pick<
 const EMAIL_SIGNALS_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: [
-    "summary",
-    "billsDue",
-    "actionItems",
-    "deadlines",
-    "actionability",
-    "mayGetLostInShuffle",
-    "importance",
-    "confidence"
-  ],
+  required: ["category", "confidence"],
   properties: {
-    summary: { type: "string" },
-    billsDue: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["description"],
-        properties: {
-          description: { type: "string" },
-          amount: { type: "number" },
-          currency: { type: "string" },
-          dueDate: { type: "string" }
-        }
-      }
+    category: {
+      enum: [
+        "needs_reply",
+        "needs_action",
+        "time_sensitive_info",
+        "waiting_on_someone",
+        "fyi",
+        "noise",
+        "unknown"
+      ]
     },
-    actionItems: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["text"],
-        properties: { text: { type: "string" }, dueDate: { type: "string" } }
-      }
-    },
-    deadlines: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["text"],
-        properties: { text: { type: "string" }, date: { type: "string" } }
-      }
-    },
-    actionability: {
-      type: "object",
-      additionalProperties: false,
-      required: ["category"],
-      properties: {
-        category: {
-          enum: [
-            "needs_reply",
-            "needs_action",
-            "time_sensitive_info",
-            "waiting_on_someone",
-            "fyi",
-            "noise",
-            "unknown"
-          ]
-        },
-        reason: { type: "string" },
-        dueDate: { type: "string" },
-        inferredSubject: { type: "string" },
-        suggestedTasks: {
-          type: "array",
-          items: {
-            type: "object",
-            additionalProperties: false,
-            required: ["text"],
-            properties: { text: { type: "string" }, dueDate: { type: "string" } }
-          }
-        }
-      }
-    },
-    mayGetLostInShuffle: { type: "boolean" },
-    importance: { enum: ["low", "normal", "high"] },
+    reason: { type: "string" },
+    action: { type: "string" },
+    dueDate: { type: "string" },
     confidence: { type: "number", minimum: 0, maximum: 1 }
   }
 } as const;
@@ -119,7 +60,9 @@ export function buildEmailExtractDeps(
       signal,
       batchSize = 1,
       telemetry?: StructuredTelemetry,
-      priority?: StructuredRunPriority
+      priority?: StructuredRunPriority,
+      scope?: StructuredRunScope,
+      closeScope?: boolean
     ) => {
       const schema =
         batchSize === 1
@@ -154,7 +97,9 @@ export function buildEmailExtractDeps(
           requireExplicitBinding: true,
           signal,
           telemetry,
-          priority
+          priority,
+          scope,
+          closeScope
         },
         {
           repository: aiRepo,

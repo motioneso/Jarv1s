@@ -25,7 +25,6 @@ import {
   EmailExtractNeedsConfigurationError,
   EmailExtractRetryableError,
   extractEmailSignalsBatch,
-  partitionEmailExtractionBatches,
   type EmailExtractDeps,
   type EmailExtractResult,
   type ParsedEmail
@@ -48,9 +47,7 @@ export const GOOGLE_SYNC_QUEUE_DEFINITIONS: readonly QueueDefinition[] = [
   {
     name: GOOGLE_SYNC_QUEUE,
     options: {
-      // exclusive: at most one job per (queue, singletonKey) across created+active.
-      // The route sets singletonKey to the actor id so a manual sync racing
-      // sync-on-connect collapses to one job (spec §error handling; briefings precedent).
+      // exclusive collapses racing actor-scoped manual and connect sync jobs.
       policy: "exclusive",
       retryLimit: 1,
       expireInSeconds: GOOGLE_SYNC_EXPIRE_SECONDS,
@@ -61,8 +58,7 @@ export const GOOGLE_SYNC_QUEUE_DEFINITIONS: readonly QueueDefinition[] = [
   {
     name: GOOGLE_SYNC_CONTINUATION_QUEUE,
     options: {
-      // One active continuation globally keeps CLI structured extraction sequential. The adapter's
-      // existing process-global guard remains the final safety net for other structured callers.
+      // One active continuation keeps structured extraction sequential; the adapter also guards it.
       policy: "singleton",
       retryLimit: 1,
       expireInSeconds: GOOGLE_SYNC_EXPIRE_SECONDS,
@@ -151,12 +147,9 @@ interface GoogleClientLike {
 }
 
 export interface GoogleSyncDeps {
+  readonly actorUserId?: string;
   getActiveAccount(scopedDb: DataContextDb): Promise<{ id: string; scopes: string[] } | undefined>;
-  /**
-   * Return a usable access token. When `force` is true, bypass the cached-token fast path and
-   * force a network refresh (used for the single 401 retry). The production impl is
-   * GoogleConnectionService.getFreshAccessToken with its optional `{ force }` arg.
-   */
+  /** Return a usable token; `force` bypasses cache for the single 401 retry. */
   getFreshAccessToken(scopedDb: DataContextDb, opts?: { force?: boolean }): Promise<string>;
   readonly googleClient: GoogleClientLike;
   readonly emailExtractDeps: EmailExtractDeps;
@@ -179,9 +172,7 @@ export interface SyncLogger {
 }
 
 const NOOP_SYNC_LOGGER: SyncLogger = {
-  // Silent — production always injects a real logger (server.log adapter) at the
-  // composition root. Noop (not console) so a forgotten injection degrades quietly
-  // instead of spamming unstructured console output (observability spec).
+  // Silent fallback; production injects the structured server logger at composition.
   warn: () => undefined,
   info: () => undefined
 };
@@ -426,10 +417,12 @@ export async function runGoogleSyncChunk(
     (calendarEnabled ? "calendar" : emailEnabled ? "email-current-day" : undefined);
   let phaseCursor = continuation?.cursor;
   const startedAt = continuation?.startedAt ?? now().toISOString();
-  // Match CalendarRepository's wall-clock updated_at; `now` may be an injected scheduling clock.
   const calendarSeenSince = continuation?.calendarSeenSince ?? new Date().toISOString();
   const runId = continuation?.idempotencyKey ?? deps.runId ?? randomUUID();
   const chunkIndex = continuation?.chunkIndex ?? 0;
+  const extractionScope = deps.actorUserId
+    ? { actorUserId: deps.actorUserId, connectorAccountId: account.id, lineageId: runId }
+    : undefined;
 
   const next = (nextPhase: GoogleSyncPhase, cursor?: string): GoogleSyncChunkOutcome => ({
     result: {
@@ -675,11 +668,19 @@ export async function runGoogleSyncChunk(
         }
       }
 
+      pending.sort(
+        (left, right) =>
+          right.receivedAt.localeCompare(left.receivedAt) ||
+          left.externalId.localeCompare(right.externalId)
+      );
+
       let processed = 0;
-      const batches = partitionEmailExtractionBatches(pending);
+      const batches = pending.map((message) => [message]);
       for (const [batchIndex, batch] of batches.entries()) {
         const batchResults = await extractEmailSignalsBatch(batch, deps.emailExtractDeps, {
           priority: phase === "email-current-day" ? "foreground" : "background",
+          scope: extractionScope,
+          closeScope: batchIndex === batches.length - 1,
           telemetry: (telemetryBatchIndex, telemetryBatchSize) => ({
             emit: (event) =>
               logger.info(
@@ -730,11 +731,14 @@ export async function runGoogleSyncChunk(
       await projectKeys(unchangedKeys);
     } catch (error) {
       if (error instanceof EmailExtractRetryableError) {
+        if (!extractionScope) throw error;
+        emailFailures += 1;
+        if (!errors.includes("email-message-error")) errors.push("email-message-error");
         logger.warn(
-          { stage: "email", name: error.name, reason: error.reason },
-          "google-sync email extraction retryable failure"
+          { stage: "email-extraction", name: error.name, reason: error.reason },
+          "google-sync email unit deferred for retry"
         );
-        throw error;
+        return next(phase, phaseCursor);
       }
       emailSectionFailed = true;
       const errorLabel =
@@ -946,6 +950,7 @@ export async function registerConnectorsJobWorkers(
       return runGoogleSyncChunk(
         scopedDb,
         {
+          actorUserId: job.data.actorUserId,
           getActiveAccount: (db) =>
             loadGoogleSyncActiveAccount(
               connectorsRepo,

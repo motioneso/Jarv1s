@@ -37,6 +37,13 @@ export type StructuredTelemetry = {
   readonly emit: (event: StructuredTelemetryEvent) => void;
 };
 
+/** Metadata-only identity for a transient structured CLI conversation. */
+export type StructuredRunScope = {
+  readonly actorUserId: string;
+  readonly connectorAccountId: string;
+  readonly lineageId: string;
+};
+
 export type GenerateStructuredProviderInput = {
   readonly model: { readonly provider_kind: ProviderKind; readonly provider_model_id: string };
   readonly messages: readonly StructuredChatTurn[];
@@ -45,6 +52,8 @@ export type GenerateStructuredProviderInput = {
   readonly signal?: AbortSignal;
   readonly telemetry?: StructuredTelemetry;
   readonly priority?: StructuredRunPriority;
+  readonly scope?: StructuredRunScope;
+  readonly closeScope?: boolean;
 };
 
 export type StructuredProviderResult =

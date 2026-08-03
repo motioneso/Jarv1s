@@ -3,13 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import { buildEmailExtractDeps } from "../../packages/connectors/src/extract-deps.js";
 
 const value = {
-  summary: "Synthetic summary",
-  billsDue: [],
-  actionItems: [],
-  deadlines: [],
-  actionability: { category: "needs_action" },
-  mayGetLostInShuffle: false,
-  importance: "normal",
+  category: "needs_action",
+  reason: "A synthetic action is required.",
+  action: "Complete the synthetic action",
   confidence: 0.5
 };
 
