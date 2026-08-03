@@ -6453,6 +6453,16 @@ continuation jobs were enqueued from `03:02:09.755072Z` onward, while this run's
 claimed count remained 0 through root terminal. Projection therefore failed before page-2 claim
 despite the bounded root. No refresh, retry, or mutation occurred.
 
+Correctness diagnosis after Ben explicitly authorized inspection of only the newest email and its
+model output: Gmail fetch succeeded, and a Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) Anthropic
+CLI/non-interactive transcript contains a valid high-confidence `needs_reply` result with a suggested
+task and due date. A sibling transcript for the same message contains no assistant response, while
+worker logs repeatedly report `claude-print` transcript-not-readable/timeout-empty warnings. The
+persisted row ended as summary null, confidence 0, and no action items. Therefore the failure is not
+email retrieval or model understanding; valid model output is lost or overwritten by the CLI
+transcript/duplicate-run fallback path. Builder must isolate late-read versus concurrent overwrite
+with a deterministic RED and prevent empty fallback from replacing valid triage.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
