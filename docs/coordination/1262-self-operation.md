@@ -6407,6 +6407,18 @@ DEV script while preserving vault root, trusted origins, tailnet, and sole-worke
 not enqueue sync. Next proof requires a prepared genuine actionable email in the newest page, then
 one authenticated Sync-now trigger timed from root claim to Today-row appearance.
 
+Exact-HEAD DEV redeploy is READY at `b44e23ad50f79015ff692aa008b2f31cbdd4030a` using existing
+package paths only. API listens on 3097, the sole exact worker is queue-ready, the tailnet frontend
+listens on 5198, all process members resolve to the #1327 worktree, direct health is 200, and tailnet
+`/today` is 200. Vault root, 12 trusted origins, and the exact Vite proxy were preserved. No install,
+migration, SQL, sync, QA, or merge ran. The API restart used its standard ephemeral signing secret,
+so Ben must re-authenticate before proof.
+
+Browser executor has the corrected exact HEAD and is waiting. Ben's next action: re-authenticate at
+`http://100.64.98.99:5198/today`, place one genuine actionable email among the connected inbox's
+newest messages, and confirm it has arrived. Only then may the executor trigger one authenticated
+sync and time root claim to genuine Today-row appearance.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
