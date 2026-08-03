@@ -6652,3 +6652,22 @@ returned `enqueued=true`, `deduped=false`, job
 boundary. Keep Today open without refresh; measure root create/claim to current-day ingest and first
 genuine version-1 row, with the live target at 30 seconds. No second enqueue, browser interaction,
 QA, restart, or merge until the verdict.
+
+Live result is RED on projection but GREEN on the new throughput boundary. Job
+`7e8212ce-b63b-4c55-b730-e4317e4e68c7` was created at `05:20:56.360440Z`, claimed at
+`05:20:58.067240Z`, and completed at `05:21:20.627682Z`: 24.267 seconds create-to-terminal and
+22.560 seconds claim-to-terminal, retry 0/1. Sanitized output is 21 email upserts, 0 email failures,
+0 errors, 14 calendar upserts, `truncated=true`. Genuine actor-scoped version-1 Today rows remained
+0 after the 30-second boundary. Ben must not refresh or enqueue again. Luna owns a read-only,
+sanitized boundary diagnosis (triage completeness/categories, CLI batch/parse/timeout metadata, and
+projection counts) and must report a ranked hypothesis plus deterministic RED plan before any code
+or DEV mutation.
+
+Sanitized persistence addendum: the actor has four messages received on the current UTC day
+(`01:46:36Z`–`02:49:51Z`). Since root creation, no new email-message rows were inserted but 212 were
+updated; the first persisted update was `05:20:59.225Z` (about 1.16 seconds after root creation),
+and the latest observed update was `05:22:27.058Z`. Twenty-six email-phase continuations were
+created from `05:20:59.236865Z`; 24 completed, none failed, retry sum 0, through
+`05:22:04.724325Z`, spanning chunk indexes 1–78. Job metadata exposes no safe CLI-specific timing.
+No content/prompt/model output was read. This clears provider fetch/persist and continuation
+throughput as the immediate blocker; classification/triage/projection remains under diagnosis.
