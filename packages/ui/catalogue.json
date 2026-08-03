@@ -1,0 +1,206 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "jarv1s-ui",
+  "items": [
+    {
+      "name": "avatar",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/avatar.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Avatar"],
+      "options": [
+        {
+          "prop": "size",
+          "kind": "enum",
+          "values": ["xs", "sm", "md", "lg"],
+          "optional": true,
+          "default": null
+        }
+      ],
+      "flags": [{ "prop": "square", "optional": true }]
+    },
+    {
+      "name": "badge",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/badge.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Badge", "ComingSoon"],
+      "options": [
+        {
+          "prop": "tone",
+          "kind": "enum",
+          "values": ["neutral", "forest", "amber", "red", "steel", "solid-pine", "solid-amber"],
+          "optional": true,
+          "default": "neutral"
+        }
+      ],
+      "flags": [
+        { "prop": "outline", "optional": true },
+        { "prop": "pill", "optional": true },
+        { "prop": "dot", "optional": true }
+      ]
+    },
+    {
+      "name": "button",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/button.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Button"],
+      "options": [
+        {
+          "prop": "variant",
+          "kind": "enum",
+          "values": ["primary", "secondary", "quiet", "accentSoft", "danger"],
+          "optional": true,
+          "default": "primary"
+        },
+        {
+          "prop": "size",
+          "kind": "enum",
+          "values": ["sm", "md", "lg"],
+          "optional": true,
+          "default": "md"
+        }
+      ],
+      "flags": [{ "prop": "block", "optional": true }]
+    },
+    {
+      "name": "card",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/card.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Card"],
+      "options": [
+        {
+          "prop": "padding",
+          "kind": "enum",
+          "values": ["sm", "md", "lg"],
+          "optional": true,
+          "default": null
+        }
+      ],
+      "flags": [
+        { "prop": "sunken", "optional": true },
+        { "prop": "flush", "optional": true },
+        { "prop": "raised", "optional": true },
+        { "prop": "interactive", "optional": true }
+      ]
+    },
+    {
+      "name": "chip",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/chip.tsx", "type": "registry:ui" }],
+      "dependencies": ["lucide-react"],
+      "exports": ["Chip"],
+      "options": [],
+      "flags": [
+        { "prop": "toggle", "optional": true },
+        { "prop": "selected", "optional": true }
+      ]
+    },
+    {
+      "name": "dialog",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/dialog.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Dialog"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "divider",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/divider.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Divider"],
+      "options": [
+        {
+          "prop": "orientation",
+          "kind": "enum",
+          "values": ["horizontal", "vertical"],
+          "optional": true,
+          "default": "horizontal"
+        },
+        {
+          "prop": "weight",
+          "kind": "enum",
+          "values": ["default", "strong", "ink"],
+          "optional": true,
+          "default": "default"
+        }
+      ],
+      "flags": []
+    },
+    {
+      "name": "icon-button",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/icon-button.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["IconButton"],
+      "options": [
+        {
+          "prop": "variant",
+          "kind": "enum",
+          "values": ["default", "secondary"],
+          "optional": true,
+          "default": "default"
+        },
+        {
+          "prop": "size",
+          "kind": "enum",
+          "values": ["sm", "md", "lg"],
+          "optional": true,
+          "default": "md"
+        }
+      ],
+      "flags": [{ "prop": "active", "optional": true }]
+    },
+    {
+      "name": "indicator",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/indicator.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Indicator"],
+      "options": [
+        {
+          "prop": "status",
+          "kind": "enum",
+          "values": ["ready", "drift", "error", "idle"],
+          "optional": false,
+          "default": null
+        }
+      ],
+      "flags": [{ "prop": "live", "optional": true }]
+    },
+    {
+      "name": "segmented",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/segmented.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Segmented"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "select",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/select.tsx", "type": "registry:ui" }],
+      "dependencies": ["lucide-react"],
+      "exports": ["Select"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "switch",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/switch.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Switch"],
+      "options": [],
+      "flags": [
+        { "prop": "checked", "optional": false },
+        { "prop": "disabled", "optional": true }
+      ]
+    }
+  ]
+}
