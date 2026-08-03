@@ -6439,6 +6439,13 @@ gate is a sign-in form with `Email`, `Password`, and `Sign in`; no Today heading
 was enqueued and no other mutation occurred. Ben must sign in, then confirm before the executor
 triggers the single timed sync.
 
+Focused live acceptance is RED for job `d224792c-fc21-497e-b8b4-8a801bf27d5d`. It was created at
+`03:00:43.611408Z`, claimed at `03:00:43.819674Z`, and still active at retry 0 after the three-minute
+boundary. Actor-scoped genuine suggested rows remained 0 at `03:03:44.923274Z` and
+`03:03:54.146755Z`. Page-2 continuation chunk index 2 was enqueued at `03:02:09.755072Z` but was not
+claimed by the boundary. No refresh, retry, or mutation occurred. Preserve terminal/at-most-eight
+evidence read-only, but do not repeat this proof until the whole-day performance fix is ready.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
