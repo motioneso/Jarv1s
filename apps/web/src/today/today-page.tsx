@@ -864,7 +864,7 @@ function BriefTaskRow(props: {
 
 // ---- editorial feed sections (demo data; no backend yet) ----
 const FEED_BADGE: Record<FeedTone, string> = {
-  pine: "jds-badge--pine",
+  pine: "jds-badge--forest",
   amber: "jds-badge--amber",
   steel: "jds-badge--steel",
   red: "jds-badge--red",

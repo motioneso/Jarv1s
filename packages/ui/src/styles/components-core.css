@@ -126,6 +126,11 @@
   background: var(--surface-3);
 }
 
+.jds-btn--active {
+  background: var(--accent-soft);
+  color: var(--accent-soft-fg);
+}
+
 .jds-btn--accentSoft {
   background: var(--accent-soft);
   color: var(--accent-soft-fg);
@@ -514,6 +519,15 @@
    eyebrow size (--text-2xs already matches its 11px override), just accent-toned. */
 .jds-eyebrow--accent {
   color: var(--accent);
+}
+
+/* Small muted secondary text — a note under a heading, an inline aside label. Normal case/weight,
+   unlike the eyebrow above which is a caps section label. */
+.jds-caption {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
 }
 
 /* Section heading utility. The eyebrow above is a LABEL, not a title — surfaces that used it as

@@ -269,7 +269,7 @@ export function BudgetScreen(): ReactNodeLike {
         <div className="fnm-chips" role="group" aria-label="Month">
           <button
             type="button"
-            className="jds-btn jds-btn--ghost jds-btn--sm"
+            className="jds-btn jds-btn--quiet jds-btn--sm"
             aria-label="Previous month"
             onClick={() => setMonth(shiftMonth(month, -1))}
           >
@@ -278,7 +278,7 @@ export function BudgetScreen(): ReactNodeLike {
           <span className="jds-eyebrow">{monthLabel(month)}</span>
           <button
             type="button"
-            className="jds-btn jds-btn--ghost jds-btn--sm"
+            className="jds-btn jds-btn--quiet jds-btn--sm"
             aria-label="Next month"
             onClick={() => setMonth(shiftMonth(month, 1))}
           >

@@ -46,7 +46,7 @@ export function Root(props: { hostActions: HostActions }): ReactNodeLike {
           <ModuleLink
             key={tab.to}
             to={tab.to}
-            className={`jds-btn jds-btn--sm ${path === tab.to ? "jds-btn--secondary" : "jds-btn--ghost"}`}
+            className={`jds-btn jds-btn--sm ${path === tab.to ? "jds-btn--secondary" : "jds-btn--quiet"}`}
             aria-current={path === tab.to ? "page" : undefined}
           >
             {tab.label}
