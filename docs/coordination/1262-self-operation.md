@@ -6463,6 +6463,18 @@ email retrieval or model understanding; valid model output is lost or overwritte
 transcript/duplicate-run fallback path. Builder must isolate late-read versus concurrent overwrite
 with a deterministic RED and prevent empty fallback from replacing valid triage.
 
+Ben ruled that model/provider/transport/tier choices must come from Settings, never hard-coded.
+Current code violates this: `email-extract.ts` always requests `economy`, rejects any non-economy
+resolution, and defaults its timeout from `JARVIS_EMAIL_LLM_TIMEOUT_MS`/20 seconds. Meanwhile
+`module.connectors.email-extract` has no service binding, so the repository silently falls back to
+the instance-default assistant provider, which DEV stores as Anthropic CLI/non-interactive.
+
+Required fix: resolve email extraction through the existing Settings service-binding contract;
+different bindings must select different configured paths without code changes. A missing or
+unusable binding must be observable as needs-configuration, not silent CLI/default or confidence-0
+success. Preserve privacy/security guards; do not invent another configuration surface unless the
+existing service binding cannot express the required behavior.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
