@@ -6376,6 +6376,17 @@ singleton tail. Observed jobs-ahead counts grew 9 → 13 → 19 → 24 → 34; c
 active plus 25 created jobs ahead. Genuine suggested rows remain 0. Builder monitor session `65318`
 continues; do not mutate schedules or the queue without an explicit ruling.
 
+Ben ruled the throughput behavior a blocking product defect. Required behavior: when a user connects
+an email account or invokes Sync now, recent actionable mail must be evaluated and genuine Today
+rows must begin appearing within minutes; historical backfill may continue afterward. Draining the
+existing giant shared-tail chain is no longer an acceptable proof strategy.
+
+The retained #1327 builder owns the fix. It must first leave a fast deterministic red regression at
+the real scheduling/continuation seam, then report a compact root-cause/fix plan before implementation.
+Prefer existing pg-boss/native mechanisms and the smallest change that prevents interactive work from
+waiting behind unrelated scheduled continuations. No DEV mutation, package install, QA, or merge yet.
+The browser executor is observation-only until given a corrected exact HEAD and focused proof steps.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
