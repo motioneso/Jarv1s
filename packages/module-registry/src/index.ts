@@ -1185,7 +1185,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         dataContext: deps.dataContext,
         taskPort: emailTaskPort,
         actionRowRelevance,
-        createCliStructuredAdapter
+        createCliStructuredAdapter,
+        logger: deps.logger
       });
       // #792: self-healing periodic sweep, additive to the connect/manual-sync triggers
       // above. Needs the raw root Kysely handle (not DataContextDb) because it must
