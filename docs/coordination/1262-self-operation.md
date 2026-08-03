@@ -6399,6 +6399,14 @@ lineage. No migration or priority framework. Focused live acceptance: a prepared
 email in the newest page produces a Today row within three minutes of root claim while historical
 backfill continues. No QA or merge before that proof.
 
+Fix is pushed at PR #1379 HEAD `b44e23ad50f79015ff692aa008b2f31cbdd4030a`; origin matches.
+The RED integration and scheduled-payload unit are GREEN, neighboring route/email/calendar
+integration is 22/22, and lint/typecheck/format are green. Required GitHub CI is pending, not red.
+No migration was added. The builder is cleared to redeploy exact HEAD through the existing mandatory
+DEV script while preserving vault root, trusted origins, tailnet, and sole-worker isolation. It must
+not enqueue sync. Next proof requires a prepared genuine actionable email in the newest page, then
+one authenticated Sync-now trigger timed from root claim to Today-row appearance.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
