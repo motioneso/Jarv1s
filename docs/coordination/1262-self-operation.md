@@ -6663,6 +6663,20 @@ sanitized boundary diagnosis (triage completeness/categories, CLI batch/parse/ti
 projection counts) and must report a ranked hypothesis plus deterministic RED plan before any code
 or DEV mutation.
 
+Read-only diagnosis: all 21 current-day rows were pre-existing and rewritten during the root window;
+all 21 ended with summary null, `confidence=0`, missing actionability/category, incomplete fallback
+triage, zero projection candidates, and zero email tasks. No same-history preservation decision is
+observable from persisted state. Exact-job CLI telemetry is missing. The root overlapped a prior
+historical continuation holding the process-global CLI slot until `05:20:59.245Z`; the structured
+CLI adapter hard-rejects when that slot is occupied, while email extraction masks busy/timeout/no-
+transcript failures by persisting confidence-zero fallback. A 20-second unreadable-transcript timeout
+also remains possible because root duration was 22.56 seconds. Approved next step: a narrow
+21-message worker-seam RED that independently reproduces busy and timeout outcomes, plus bounded
+metadata-only counters for invocation/busy/elapsed/exit/readable/late-read/timeout/parse/repair/
+fallback. No content logging or schema/framework. Only after the confirmed seam may the builder
+replace silent fallback with the smallest priority/wait/retry behavior that keeps current-day work
+interactive and historical work background.
+
 Sanitized persistence addendum: the actor has four messages received on the current UTC day
 (`01:46:36Z`–`02:49:51Z`). Since root creation, no new email-message rows were inserted but 212 were
 updated; the first persisted update was `05:20:59.225Z` (about 1.16 seconds after root creation),
