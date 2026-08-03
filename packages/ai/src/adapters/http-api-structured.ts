@@ -13,12 +13,34 @@ export type StructuredUsage = {
   readonly outputTokens: number;
 };
 
+export type StructuredTelemetryEvent = {
+  readonly kind:
+    | "invoked"
+    | "busy"
+    | "elapsed"
+    | "exit"
+    | "first-readable"
+    | "late-read"
+    | "timeout"
+    | "parse"
+    | "repair"
+    | "fallback";
+  readonly elapsedMs?: number;
+  readonly exit?: "complete" | "busy" | "timeout" | "no-reply" | "error";
+  readonly count?: number;
+};
+
+export type StructuredTelemetry = {
+  readonly emit: (event: StructuredTelemetryEvent) => void;
+};
+
 export type GenerateStructuredProviderInput = {
   readonly model: { readonly provider_kind: ProviderKind; readonly provider_model_id: string };
   readonly messages: readonly StructuredChatTurn[];
   readonly schema: Record<string, unknown>;
   readonly maxOutputTokens: number;
   readonly signal?: AbortSignal;
+  readonly telemetry?: StructuredTelemetry;
 };
 
 export type StructuredProviderResult =

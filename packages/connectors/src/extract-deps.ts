@@ -1,5 +1,10 @@
 import type { createAiSecretCipher } from "@jarv1s/ai";
-import { generateStructured, type AiRepository, type GenerateStructuredDeps } from "@jarv1s/ai";
+import {
+  generateStructured,
+  type AiRepository,
+  type GenerateStructuredDeps,
+  type StructuredTelemetry
+} from "@jarv1s/ai";
 import type { DataContextDb } from "@jarv1s/db";
 import { EmailExtractNeedsConfigurationError, type EmailExtractDeps } from "./email-extract.js";
 
@@ -108,7 +113,7 @@ export function buildEmailExtractDeps(
   options: BuildEmailExtractDepsOptions = {}
 ): EmailExtractDeps {
   return {
-    runChat: async (prompt, signal, batchSize = 1) => {
+    runChat: async (prompt, signal, batchSize = 1, telemetry?: StructuredTelemetry) => {
       const schema =
         batchSize === 1
           ? EMAIL_SIGNALS_SCHEMA
@@ -140,7 +145,8 @@ export function buildEmailExtractDeps(
           schema,
           prompt,
           requireExplicitBinding: true,
-          signal
+          signal,
+          telemetry
         },
         {
           repository: aiRepo,

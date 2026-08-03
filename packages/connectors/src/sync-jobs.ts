@@ -677,7 +677,21 @@ export async function runGoogleSyncChunk(
       let processed = 0;
       const batches = partitionEmailExtractionBatches(pending);
       for (const [batchIndex, batch] of batches.entries()) {
-        const batchResults = await extractEmailSignalsBatch(batch, deps.emailExtractDeps);
+        const batchResults = await extractEmailSignalsBatch(batch, deps.emailExtractDeps, {
+          telemetry: (telemetryBatchIndex, telemetryBatchSize) => ({
+            emit: (event) =>
+              logger.info(
+                {
+                  stage: "email-extraction",
+                  jobId: runId,
+                  batchIndex: telemetryBatchIndex,
+                  batchSize: telemetryBatchSize,
+                  ...event
+                },
+                "google-sync email extraction telemetry"
+              )
+          })
+        });
         const projectedKeys: string[] = [];
         for (let index = 0; index < batch.length; index += 1) {
           try {
