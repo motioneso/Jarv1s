@@ -316,6 +316,34 @@ describe("module service binding routes", () => {
     expect(del.statusCode).toBe(200);
   });
 
+  it("accepts a namespaced service owned by an installed module", async () => {
+    const put = await server.inject({
+      method: "PUT",
+      url: "/api/ai/services/module.connectors.email-extract/binding",
+      headers: auth,
+      payload: { binding: { kind: "model", modelId: modelEconomyJsonId } }
+    });
+    expect(put.statusCode, put.body).toBe(200);
+
+    const list = await server.inject({
+      method: "GET",
+      url: "/api/ai/service-bindings",
+      headers: auth
+    });
+    expect(list.statusCode, list.body).toBe(200);
+    expect(list.json().bindings["module.connectors.email-extract"]).toEqual({
+      kind: "model",
+      modelId: modelEconomyJsonId
+    });
+
+    const del = await server.inject({
+      method: "DELETE",
+      url: "/api/ai/services/module.connectors.email-extract/binding",
+      headers: auth
+    });
+    expect(del.statusCode).toBe(200);
+  });
+
   it("rejects a model binding whose model lacks the json capability", async () => {
     const chatOnlyModelId = await seedModel(providerId, "chat-only", ["chat"], "interactive");
     const put = await server.inject({
