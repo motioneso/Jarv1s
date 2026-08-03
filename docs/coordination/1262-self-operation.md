@@ -6677,6 +6677,20 @@ fallback. No content logging or schema/framework. Only after the confirmed seam 
 replace silent fallback with the smallest priority/wait/retry behavior that keeps current-day work
 interactive and historical work background.
 
+Instrumentation-only RED is pushed at PR #1379 HEAD `5d20c9a1` (exactly seven owned paths). The
+isolated 21-message repro independently attributes busy and unreadable/timeout outcomes and proves
+both still persist 21 confidence-zero fallbacks with zero projection candidates; metadata-only
+events now distinguish invoked/busy/timeout/exit/elapsed/fallback. Focused repro, 11 CLI/email units,
+lint/typecheck/format/file-size/design-token/diff checks are green. Remediation policy: reuse a
+single process-local structured-CLI slot but replace hard rejection with a tiny priority waiter;
+current-day root extraction is foreground, historical continuation extraction is background, FIFO
+within priority. Do not preempt the active call or add a durable queue/schema. Busy, timeout,
+no-reply, and structured-output failure must not persist confidence-zero success: keep triage
+incomplete and throw a retryable error so the existing job retry records the failure durably. Retain
+the current 20-second extraction deadline for this proof. Tests must show foreground goes next after
+the active call, a 21-message busy overlap produces real projection rather than fallback, and a
+timeout leaves no fallback triage and fails retryably.
+
 Sanitized persistence addendum: the actor has four messages received on the current UTC day
 (`01:46:36Z`–`02:49:51Z`). Since root creation, no new email-message rows were inserted but 212 were
 updated; the first persisted update was `05:20:59.225Z` (about 1.16 seconds after root creation),
