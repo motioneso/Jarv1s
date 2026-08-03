@@ -6370,6 +6370,12 @@ Queue progress: chunk 6 remains created with 26 older singleton continuations ah
 Retries and timeouts remain zero, global non-overlap holds, and genuine suggested rows remain 0.
 Neither retained monitor performed a browser interaction or enqueued another sync.
 
+Throughput blocker: since `19:13Z`, the target completed five clean chunks (36 cumulative upserts,
+0 failures/errors/retries, every delta within eight), but each child re-enters a growing shared
+singleton tail. Observed jobs-ahead counts grew 9 → 13 → 19 → 24 → 34; chunk 6 currently has one
+active plus 25 created jobs ahead. Genuine suggested rows remain 0. Builder monitor session `65318`
+continues; do not mutate schedules or the queue without an explicit ruling.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
