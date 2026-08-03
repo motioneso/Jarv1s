@@ -6619,3 +6619,13 @@ routes return 200 with no fatal startup markers. No install, migration, SQL, Set
 browser QA, or merge ran. The API generated an ephemeral signing secret, invalidating the prior
 session. Next: Ben signs in once; then use the new Settings Email extraction row to select an active
 non-CLI JSON-capable model before exactly one timed sync.
+
+Ben re-authenticated, but the automation proof context cannot attach to his signed-in browser, so
+all UI mutation remains manual and no replacement browser session was created. Exact source grounds
+the control under Settings mode `Admin / Setup` → `AI & extensions` → `Assistant & AI` → `Email
+extraction` (`Binding for Email extraction`). A read-only, active-admin-scoped DEV audit found no
+usable real non-CLI model: Claude Sonnet 4.6, Claude Haiku 4.5, and Claude Opus 4.8 are all Anthropic
+CLI/non-interactive; the only API-key/non-CLI entries are three explicitly fake UAT JSON models and
+must not be used for genuine live proof. No credentials or content were read and no state changed.
+Item 10 is blocked on configuring one real API-backed JSON-capable model through Settings, then
+binding Email extraction to that specific model. Do not sync before that configuration is explicit.
