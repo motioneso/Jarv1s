@@ -6355,6 +6355,12 @@ Chunk 5 was claimed at `23:57:39Z` with an 840-second expiry. Prior chunks remai
 the maximum-eight bound. This is the sole serialized lane; builder monitor session `65318` remains
 active.
 
+Chunk 5 completed cleanly at retry 0. Cumulative output is 36 upserted, 0 failed (delta +7, within
+the maximum-eight bound), with `truncated=true`. Deterministic chunk 6
+`d0c2caac-2a7d-57cd-85a3-451c866920eb` is created behind 34 older singleton continuations; the
+global queue has 37 created runs total and retries remain 0. Genuine suggested rows remain 0; no
+interaction.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
