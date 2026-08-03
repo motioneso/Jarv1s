@@ -274,6 +274,28 @@ describe("EspnDatasetAdapter", () => {
     expect(urls[1]).toContain("/teams/dal/schedule"); // no id → abbreviation fallback
   });
 
+  // The same slug trap on the NEWS endpoint, which went unfixed when the schedule one was found:
+  // /soccer/eng.1/news?team=ars answers HTTP 400 (verified live 2026-08-01) while ?team=359 returns
+  // that club's stories, so every soccer card fell back to an empty team feed and read "No recent
+  // news" mid-season (Ben /sports feedback 2026-08-01). US leagues take either form.
+  it("prefers sourceTeamId over teamKey in the news query when present", async () => {
+    const urls: string[] = [];
+    const spyFetch = (async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      return new Response(JSON.stringify({ articles: [] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    await fetchDataset(
+      "headlines",
+      { teamKey: "ars", competitionKey: "eng.1", sourceTeamId: "359" },
+      spyFetch
+    );
+    await fetchDataset("headlines", { teamKey: "sf", competitionKey: "mlb" }, spyFetch);
+    await fetchDataset("headlines", { competitionKey: "nfl" }, spyFetch);
+    expect(urls[0]).toContain("/news?team=359");
+    expect(urls[1]).toContain("/news?team=sf"); // no id → abbreviation fallback
+    expect(urls[2]).not.toContain("?team="); // league-wide feed keeps no filter at all
+  });
+
   // #1265 security QA BLOCKING-1(c): the schedule path segment is the outbound sink for a team
   // key that originates in an assistant tool call. Two earlier belts (roster validation in
   // SportsService.followTeam, length+pattern bounds on the tool input schema) should mean nothing

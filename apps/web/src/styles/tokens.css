@@ -1,8 +1,12 @@
 /*
- * Webfonts — the three-role type system (open-license, swappable for self-hosted woff2).
- * @import MUST stay first in the cascade entry file.
+ * Webfonts — none. The last remaining @import pulled IBM Plex Mono from fonts.googleapis.com,
+ * left behind when --font-mono was retired 2026-07-08 (see the note at --font-display below):
+ * no rule in the app has referenced that face since, so it downloaded nothing anyone used. It
+ * was also the only stylesheet the app requested off-origin, so every page load logged a CSP
+ * `style-src-elem` violation against `style-src 'self' 'unsafe-inline'` (Ben 2026-08-01 console
+ * report). Deleting it removes the violation and the request together — nothing to allowlist.
+ * If a self-hosted woff2 lands later it belongs in this slot, served from our own origin.
  */
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 
 /*
  * Jarv1s token layer — PARK PRESS (epic #726): a warm OAT-paper canvas with

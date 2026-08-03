@@ -309,7 +309,7 @@ export class SportsService {
           ),
           this.cached<SourceHeadline[]>(
             "headlines",
-            { competitionKey: follow.competitionKey, teamKey: follow.teamKey },
+            { competitionKey: follow.competitionKey, teamKey: follow.teamKey, sourceTeamId },
             [],
             state
           )
@@ -371,11 +371,18 @@ export class SportsService {
     if (hero.mode === "gameday") {
       const { game } = hero;
       const heroTeams = teamsByComp.get(game.competitionKey) ?? [];
+      // Resolve each hero side's numeric id from the same catalog the followed cards use — the
+      // news endpoint 400s on a soccer abbreviation slug (EspnHeadlinesParams.sourceTeamId), which
+      // would leave a soccer gameday hero with no matchup story at all.
       const teamFeeds = await Promise.all(
         [game.home.teamKey, game.away.teamKey].map((teamKey) =>
           this.cached<SourceHeadline[]>(
             "headlines",
-            { competitionKey: game.competitionKey, teamKey },
+            {
+              competitionKey: game.competitionKey,
+              teamKey,
+              sourceTeamId: heroTeams.find((t) => t.teamKey === teamKey)?.sourceTeamId ?? null
+            },
             [],
             state
           )
