@@ -6361,6 +6361,11 @@ the maximum-eight bound), with `truncated=true`. Deterministic chunk 6
 global queue has 37 created runs total and retries remain 0. Genuine suggested rows remain 0; no
 interaction.
 
+Chunk 5 terminal detail: completed at `00:00:02Z` in 143.098 seconds; cumulative
+`emailUpserted=36` (delta 7, within the maximum-eight bound), failures/errors/retries 0, and
+`truncated=true`. Chunk 6 was created post-commit behind 34 older jobs. Genuine suggested rows
+remain 0; not ready.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
