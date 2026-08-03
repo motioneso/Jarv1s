@@ -126,4 +126,31 @@ describe("CliStructuredAdapter (#982/#869/#981)", () => {
 
     expect(started).toEqual(["active", "foreground", "background-one", "background-two"]);
   });
+
+  it("reports a print child exit when no transcript reply becomes readable", async () => {
+    const events: Array<{ kind: string; exit?: string }> = [];
+    const factory: ChatEngineFactory = () => ({
+      provider: "anthropic",
+      launch: vi.fn(async () => ({ offset: 0 })),
+      submit: vi.fn(async () => undefined),
+      readNew: vi.fn(async () => ({ records: [], offset: 0, complete: false })),
+      interrupt: vi.fn(async () => undefined),
+      isAlive: vi.fn(async () => false),
+      kill: vi.fn(async () => undefined)
+    });
+    const adapter = new CliStructuredAdapter("anthropic", factory, 50, 0);
+
+    await expect(
+      adapter.generateStructured({
+        model: { provider_kind: "anthropic", provider_model_id: "configured-model" },
+        messages: [{ role: "user", content: "Return one JSON object." }],
+        schema: { type: "object" },
+        maxOutputTokens: 100,
+        telemetry: { emit: (event) => events.push({ kind: event.kind, exit: event.exit }) }
+      })
+    ).rejects.toMatchObject({ name: "CliChatUnavailableError" });
+
+    expect(events.map((event) => event.kind)).toEqual(["invoked", "exit", "elapsed"]);
+    expect(events[1]).toMatchObject({ kind: "exit", exit: "no-reply" });
+  });
 });

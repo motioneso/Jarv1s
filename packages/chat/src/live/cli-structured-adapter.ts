@@ -200,6 +200,9 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
         if (reply !== undefined) return reply;
         throw new CliChatUnavailableError("CLI structured generation completed without a reply");
       }
+      if (!(await engine.isAlive())) {
+        throw new CliChatUnavailableError("CLI structured generation exited without a reply");
+      }
       await new Promise((resolve) => setTimeout(resolve, this.pollMs));
     }
   }
