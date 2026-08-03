@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  EMAIL_EXTRACT_BATCH_MAX_ITEMS,
+  EMAIL_EXTRACT_BATCH_MAX_PROMPT_BYTES,
   extractEmailSignals,
+  extractEmailSignalsBatch,
   MAX_SIGNAL_STR_CHARS,
   type EmailExtractDeps,
   type ParsedEmail
@@ -26,7 +29,6 @@ function parsedEmail(overrides: Partial<ParsedEmail> = {}): ParsedEmail {
 
 function depsReturning(json: Record<string, unknown>): EmailExtractDeps {
   return {
-    selectModel: async () => ({ tier: "economy" }),
     runChat: async () => ({ text: JSON.stringify(json) })
   };
 }
@@ -42,6 +44,37 @@ const BASE_REPLY = {
 };
 
 describe("email actionability triage", () => {
+  it("continues every message through byte- and item-bounded structured batches", async () => {
+    const messages = Array.from({ length: 49 }, (_, index) =>
+      parsedEmail({ externalId: `batch-${index}`, body: `Request ${index}. ${"x".repeat(1_000)}` })
+    );
+    const calls: Array<{ batchSize: number; promptBytes: number }> = [];
+    const results = await extractEmailSignalsBatch(messages, {
+      runChat: async (prompt, _signal, batchSize = 1) => {
+        calls.push({ batchSize, promptBytes: Buffer.byteLength(prompt, "utf8") });
+        return {
+          text: JSON.stringify({
+            results: Array.from({ length: batchSize }, (_, index) => ({
+              index,
+              value: { ...BASE_REPLY, summary: "A request needs review." }
+            }))
+          })
+        };
+      }
+    });
+
+    expect(results).toHaveLength(messages.length);
+    expect(results.every((result) => result.summary === "A request needs review.")).toBe(true);
+    expect(calls.length).toBeGreaterThan(1);
+    expect(calls.length).toBeLessThan(messages.length);
+    expect(Math.max(...calls.map((call) => call.batchSize))).toBeLessThanOrEqual(
+      EMAIL_EXTRACT_BATCH_MAX_ITEMS
+    );
+    expect(Math.max(...calls.map((call) => call.promptBytes))).toBeLessThanOrEqual(
+      EMAIL_EXTRACT_BATCH_MAX_PROMPT_BYTES
+    );
+  });
+
   it("carries a needs_reply classification through", async () => {
     const result = await extractEmailSignals(
       parsedEmail(),

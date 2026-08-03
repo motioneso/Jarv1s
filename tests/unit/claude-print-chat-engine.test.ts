@@ -12,14 +12,24 @@ vi.mock("node:child_process", async () => ({
 }));
 
 function fakeChild() {
+  const listeners = new Map<string, Array<() => void>>();
   const child = {
     exitCode: null,
     signalCode: null,
-    kill: vi.fn(() => true),
-    on: vi.fn(),
+    kill: vi.fn(() => {
+      queueMicrotask(() => listeners.get("exit")?.forEach((listener) => listener()));
+      return true;
+    }),
+    on: vi.fn((event: string, callback: () => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), callback]);
+      return child;
+    }),
+    once: vi.fn((event: string, callback: () => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), callback]);
+      return child;
+    }),
     unref: vi.fn()
   };
-  child.on.mockReturnValue(child);
   return child;
 }
 
@@ -122,7 +132,7 @@ describe("ClaudePrintChatEngine", () => {
     await engine.interrupt();
     expect(currentChild.kill).toHaveBeenCalledWith("SIGINT");
     await engine.kill();
-    expect(currentChild.kill).toHaveBeenCalledWith();
+    expect(currentChild.kill).toHaveBeenCalledWith("SIGTERM");
     expect(await engine.isAlive()).toBe(false);
   });
 
@@ -144,6 +154,40 @@ describe("ClaudePrintChatEngine", () => {
     await engine.submit("second");
 
     expect(launchLineAt(1)).toContain("--resume 00000000-0000-4000-8000-000000000001");
+  });
+
+  it("does not finish teardown until the detached CLI process exits", async () => {
+    let exit!: () => void;
+    const child = fakeChild();
+    Object.assign(child, {
+      kill: vi.fn(() => true),
+      once: vi.fn((event: string, callback: () => void) => {
+        if (event === "exit") exit = callback;
+        return child;
+      })
+    });
+    spawnMock.mockReturnValue(child);
+    const engine = new ClaudePrintChatEngine("user-1", fakeIo(), {
+      mux: fakeMux(),
+      homeBase: "/home/test",
+      sessionId: "00000000-0000-4000-8000-000000000010"
+    });
+    await engine.launch({
+      neutralDir: "/tmp/jarvis-neutral",
+      personaPath: "/tmp/jarvis-neutral/persona.md",
+      personaText: "persona"
+    });
+    await engine.submit("hello");
+
+    let settled = false;
+    const teardown = engine.kill().then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    exit();
+    await teardown;
+    expect(settled).toBe(true);
   });
 
   it("reads Claude transcript JSONL through the existing parser", async () => {

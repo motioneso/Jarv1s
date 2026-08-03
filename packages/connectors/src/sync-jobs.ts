@@ -21,7 +21,14 @@ import {
 import { decryptGoogleConnectionSecret, GoogleConnectionService } from "./google-connection.js";
 import { GoogleOAuthClient } from "./oauth.js";
 import { ConnectorsRepository } from "./repository.js";
-import { extractEmailSignals, type EmailExtractDeps } from "./email-extract.js";
+import {
+  EmailExtractNeedsConfigurationError,
+  extractEmailSignalsBatch,
+  partitionEmailExtractionBatches,
+  type EmailExtractDeps,
+  type EmailExtractResult,
+  type ParsedEmail
+} from "./email-extract.js";
 import { buildEmailExtractDeps, type BuildEmailExtractDepsOptions } from "./extract-deps.js";
 import { GoogleEmailReadProvider, GMAIL_READ_FOLDER } from "./email-read-provider.js";
 import { EmailActionSuppressionRepository } from "./action-suppression-repository.js";
@@ -31,6 +38,8 @@ import { listSavedEmailContext } from "./source-context/email.js";
 export const GOOGLE_SYNC_QUEUE = "connectors.google-sync";
 export const GOOGLE_SYNC_CONTINUATION_QUEUE = "connectors.google-sync-continuation";
 export const GOOGLE_EMAIL_CHUNK_SIZE = 8;
+export const GOOGLE_CURRENT_DAY_EMAIL_PAGE_SIZE = 500;
+export const GOOGLE_EMAIL_FETCH_CONCURRENCY = 8;
 export const GOOGLE_CALENDAR_CHUNK_SIZE = 100;
 export const GOOGLE_SYNC_EXPIRE_SECONDS = 840;
 
@@ -67,7 +76,7 @@ export interface GoogleSyncPayload extends ActorScopedJobPayload {
   readonly idempotencyKey?: string;
 }
 
-type GoogleSyncPhase = "calendar" | "email";
+type GoogleSyncPhase = "calendar" | "email-current-day" | "email";
 
 export interface GoogleSyncContinuationPayload extends ActorScopedJobPayload {
   readonly kind: "google-sync-continuation";
@@ -112,7 +121,8 @@ export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
 export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
 const CALENDAR_WINDOW_PAST_MS = 7 * 24 * 60 * 60 * 1000;
 const CALENDAR_WINDOW_FUTURE_MS = 30 * 24 * 60 * 60 * 1000;
-const EMAIL_QUERY = "newer_than:30d";
+const EMAIL_QUERY = "newer_than:30d older_than:1d";
+const CURRENT_DAY_EMAIL_QUERY = "newer_than:1d";
 
 interface GoogleClientLike {
   listCalendarEvents(input: {
@@ -195,6 +205,7 @@ export async function loadGoogleSyncActiveAccount(
 /** Mutable holder for the current access token, shared across the whole sync run. */
 interface TokenHolder {
   token: string;
+  refreshing?: Promise<string>;
 }
 
 /**
@@ -215,14 +226,20 @@ async function withTokenRetry<T>(
   holder: TokenHolder,
   op: (token: string) => Promise<T>
 ): Promise<T> {
+  const attemptedToken = holder.token;
   try {
-    return await op(holder.token);
+    return await op(attemptedToken);
   } catch (error) {
     const status = (error as { statusCode?: number }).statusCode;
     if (status !== 401) throw error;
-    // Capture the refreshed token into the shared holder immediately, so it survives even if
-    // the retried op below throws.
-    holder.token = await deps.getFreshAccessToken(scopedDb, { force: true });
+    if (holder.token === attemptedToken) {
+      holder.refreshing ??= deps.getFreshAccessToken(scopedDb, { force: true });
+      try {
+        holder.token = await holder.refreshing;
+      } finally {
+        holder.refreshing = undefined;
+      }
+    }
     return op(holder.token);
   }
 }
@@ -404,7 +421,8 @@ export async function runGoogleSyncChunk(
     (account.scopes.includes(GMAIL_SCOPE) || account.scopes.includes("gmail")) &&
     isFeatureGranted(featureGrants, "email");
   let phase: GoogleSyncPhase | undefined =
-    continuation?.phase ?? (calendarEnabled ? "calendar" : emailEnabled ? "email" : undefined);
+    continuation?.phase ??
+    (calendarEnabled ? "calendar" : emailEnabled ? "email-current-day" : undefined);
   let phaseCursor = continuation?.cursor;
   const startedAt = continuation?.startedAt ?? now().toISOString();
   // Match CalendarRepository's wall-clock updated_at; `now` may be an injected scheduling clock.
@@ -532,118 +550,41 @@ export async function runGoogleSyncChunk(
     }
     if (nextCalendarCursor) return next("calendar", nextCalendarCursor);
     if (emailEnabled) {
-      phase = "email";
+      phase = "email-current-day";
       phaseCursor = undefined;
     }
   }
 
   // --- Email (independent) ---
-  if (phase === "email" && emailEnabled) {
+  if ((phase === "email-current-day" || phase === "email") && emailEnabled) {
     let nextEmailCursor: string | undefined;
-    let pageMessageKeys: string[] = [];
-    try {
-      const emailReadProvider = new GoogleEmailReadProvider(deps.googleClient, EMAIL_QUERY);
-      const page = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
-        emailReadProvider.listMessageKeyPage(token, GMAIL_READ_FOLDER, {
-          cursor: phaseCursor,
-          limit: GOOGLE_EMAIL_CHUNK_SIZE
+    let emailSectionFailed = false;
+    const query = phase === "email-current-day" ? CURRENT_DAY_EMAIL_QUERY : EMAIL_QUERY;
+    const pageLimit =
+      phase === "email-current-day" ? GOOGLE_CURRENT_DAY_EMAIL_PAGE_SIZE : GOOGLE_EMAIL_CHUNK_SIZE;
+
+    const persistEmail = (parsed: ParsedEmail, extracted: EmailExtractResult) =>
+      withSavepoint(scopedDb, (savepointDb) =>
+        emailRepo.upsertCachedMessage(savepointDb, {
+          connectorAccountId: account.id,
+          externalId: parsed.externalId,
+          sender: parsed.from,
+          recipients: parsed.recipients,
+          subject: parsed.subject,
+          snippet: parsed.snippet,
+          receivedAt: parsed.receivedAt,
+          externalMetadata: {
+            labelIds: parsed.labelIds,
+            historyId: parsed.historyId ?? null,
+            threadId: parsed.threadId ?? null
+          },
+          summary: extracted.summary,
+          signals: extracted.signals as Record<string, unknown>
         })
       );
-      const keys = page.keys;
-      pageMessageKeys = keys.map((key) => key.id);
-      nextEmailCursor = page.nextCursor;
 
-      // Skip-unchanged: external_metadata.historyId (Gmail per-message revision marker)
-      // lets us avoid re-summarizing messages whose content hasn't changed since the last
-      // sync — bounding LLM cost/latency without a separate revision store (spec risk #6).
-      // We track BOTH the prior historyId and whether a usable summary already exists, so a
-      // message cached before a model was configured is still summarized on a later sync.
-      const existing = await emailRepo.listSyncMarkers(scopedDb, account.id);
-      const seen = new Map(
-        existing.map((r) => [
-          r.externalId,
-          {
-            historyId: r.historyId,
-            hasSummary: r.hasSummary,
-            hasCompleteTriage: r.hasCompleteTriage
-          }
-        ])
-      );
-
-      for (const key of keys) {
-        try {
-          const parsed = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
-            emailReadProvider.getMessage(token, key)
-          );
-          // Skip the (costly) LLM pass + re-upsert ONLY when this message's historyId is
-          // unchanged AND a usable summary is already stored. A null-summary prior row (no model
-          // at first sync, or a failed extraction) is intentionally NOT skipped, so it gets a
-          // summary once a model is configured.
-          const prior = seen.get(parsed.externalId);
-          if (
-            parsed.historyId &&
-            prior?.historyId === parsed.historyId &&
-            prior.hasSummary &&
-            prior.hasCompleteTriage
-          ) {
-            continue;
-          }
-          const extracted = await extractEmailSignals(parsed, deps.emailExtractDeps);
-          if (extracted.escalated) escalations += 1;
-          const { summary, signals } = extracted;
-          // The full body lives only in `parsed.body` here; it is NEVER persisted — only the
-          // model-derived summary + signals (+ snippet) are written, and body_excerpt is NOT
-          // passed (stays null), so no body fragment lands in a column (privacy posture §6).
-          // SAVEPOINT-wrap the upsert: a single DB-level failure must NOT abort the whole sync
-          // transaction (which would silently discard every other upsert under a fabricated count).
-          await withSavepoint(scopedDb, (savepointDb) =>
-            emailRepo.upsertCachedMessage(savepointDb, {
-              connectorAccountId: account.id,
-              externalId: parsed.externalId,
-              sender: parsed.from,
-              recipients: parsed.recipients,
-              subject: parsed.subject,
-              snippet: parsed.snippet,
-              receivedAt: parsed.receivedAt,
-              externalMetadata: {
-                labelIds: parsed.labelIds,
-                historyId: parsed.historyId ?? null,
-                threadId: parsed.threadId ?? null
-              },
-              summary,
-              // EmailSignals is a structured interface (no index signature); the repository column
-              // is a jsonb object, so widen to Record<string, unknown> at this boundary.
-              signals: signals as Record<string, unknown>
-            })
-          );
-          emailUpserted += 1;
-        } catch (error) {
-          emailFailures += 1;
-          logger.warn(
-            {
-              stage: "email-message",
-              name: (error as Error).name,
-              status: (error as { statusCode?: number }).statusCode ?? null
-            },
-            "google-sync email message failed"
-          );
-          // Bounded error labels: record once, not one per message (keeps result metadata small).
-          if (!errors.includes("email-message-error")) errors.push("email-message-error");
-        }
-      }
-    } catch (error) {
-      logger.warn(
-        {
-          stage: "email",
-          name: (error as Error).name,
-          status: (error as { statusCode?: number }).statusCode ?? null
-        },
-        "google-sync email failed"
-      );
-      errors.push("email-error");
-    }
-
-    if (deps.actionProjection) {
+    const projectKeys = async (keys: readonly string[]) => {
+      if (!deps.actionProjection || keys.length === 0) return;
       const projection = deps.actionProjection;
       const saved = await listSavedEmailContext(
         scopedDb,
@@ -653,7 +594,7 @@ export async function runGoogleSyncChunk(
           emailRepository: emailRepo
         },
         account.id,
-        pageMessageKeys
+        keys
       );
       await projectEmailActions(scopedDb, saved.items, {
         ...projection,
@@ -663,8 +604,133 @@ export async function runGoogleSyncChunk(
         },
         now: projection.now ?? now
       });
+    };
+
+    try {
+      const emailReadProvider = new GoogleEmailReadProvider(deps.googleClient, query);
+      const page = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
+        emailReadProvider.listMessageKeyPage(token, GMAIL_READ_FOLDER, {
+          cursor: phaseCursor,
+          limit: pageLimit
+        })
+      );
+      nextEmailCursor = page.nextCursor;
+      const existing = await emailRepo.listSyncMarkers(scopedDb, account.id);
+      const seen = new Map(existing.map((marker) => [marker.externalId, marker]));
+      const parsedMessages: ParsedEmail[] = [];
+
+      for (let start = 0; start < page.keys.length; start += GOOGLE_EMAIL_FETCH_CONCURRENCY) {
+        const keys = page.keys.slice(start, start + GOOGLE_EMAIL_FETCH_CONCURRENCY);
+        const fetched = await Promise.allSettled(
+          keys.map((key) =>
+            withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
+              emailReadProvider.getMessage(token, key)
+            )
+          )
+        );
+        for (const result of fetched) {
+          if (result.status === "fulfilled") {
+            parsedMessages.push(result.value);
+          } else {
+            emailFailures += 1;
+            if (!errors.includes("email-message-error")) errors.push("email-message-error");
+            logger.warn(
+              { stage: "email-message", name: "ProviderReadError", status: null },
+              "google-sync email message failed"
+            );
+          }
+        }
+      }
+
+      const pending: ParsedEmail[] = [];
+      const unchangedKeys: string[] = [];
+      for (const parsed of parsedMessages) {
+        const prior = seen.get(parsed.externalId);
+        if (
+          parsed.historyId &&
+          prior?.historyId === parsed.historyId &&
+          prior.hasSummary &&
+          prior.hasCompleteTriage
+        ) {
+          unchangedKeys.push(parsed.externalId);
+          continue;
+        }
+        try {
+          // Persist provider metadata before model work. The body remains only in `parsed` memory.
+          await persistEmail(parsed, { summary: null, signals: {} });
+          emailUpserted += 1;
+          pending.push(parsed);
+        } catch (error) {
+          emailFailures += 1;
+          if (!errors.includes("email-message-error")) errors.push("email-message-error");
+          logger.warn(
+            {
+              stage: "email-message",
+              name: (error as Error).name,
+              status: (error as { statusCode?: number }).statusCode ?? null
+            },
+            "google-sync email message failed"
+          );
+        }
+      }
+
+      let processed = 0;
+      const batches = partitionEmailExtractionBatches(pending);
+      for (const [batchIndex, batch] of batches.entries()) {
+        const batchResults = await extractEmailSignalsBatch(batch, deps.emailExtractDeps);
+        const projectedKeys: string[] = [];
+        for (let index = 0; index < batch.length; index += 1) {
+          try {
+            const extracted = batchResults[index]!;
+            if (extracted.escalated) escalations += 1;
+            await persistEmail(batch[index]!, extracted);
+            projectedKeys.push(batch[index]!.externalId);
+          } catch (error) {
+            emailFailures += 1;
+            if (!errors.includes("email-message-error")) errors.push("email-message-error");
+            logger.warn(
+              {
+                stage: "email-message",
+                name: (error as Error).name,
+                status: (error as { statusCode?: number }).statusCode ?? null
+              },
+              "google-sync email message failed"
+            );
+          }
+        }
+        await projectKeys(projectedKeys);
+        processed += batch.length;
+        logger.info(
+          {
+            stage: phase,
+            batchIndex,
+            batchSize: batch.length,
+            processed,
+            total: pending.length
+          },
+          "google-sync email extraction progress"
+        );
+      }
+      await projectKeys(unchangedKeys);
+    } catch (error) {
+      emailSectionFailed = true;
+      const errorLabel =
+        error instanceof EmailExtractNeedsConfigurationError ? "email-needs-config" : "email-error";
+      logger.warn(
+        {
+          stage: "email",
+          name: (error as Error).name,
+          status: (error as { statusCode?: number }).statusCode ?? null
+        },
+        "google-sync email failed"
+      );
+      if (!errors.includes(errorLabel)) errors.push(errorLabel);
     }
-    if (nextEmailCursor) return next("email", nextEmailCursor);
+
+    if (!emailSectionFailed) {
+      if (nextEmailCursor) return next(phase, nextEmailCursor);
+      if (phase === "email-current-day") return next("email");
+    }
   }
 
   logger.info(
@@ -732,13 +798,18 @@ const GOOGLE_SYNC_ERROR_LABELS = new Set([
   "calendar-error",
   "calendar-item-error",
   "email-error",
+  "email-needs-config",
   "email-message-error",
   "no-active-connection"
 ]);
 
 function assertGoogleSyncContinuationPayload(payload: GoogleSyncContinuationPayload): void {
   if (payload.kind !== "google-sync-continuation") throw new Error("invalid continuation kind");
-  if (payload.phase !== "calendar" && payload.phase !== "email") {
+  if (
+    payload.phase !== "calendar" &&
+    payload.phase !== "email-current-day" &&
+    payload.phase !== "email"
+  ) {
     throw new Error("invalid continuation phase");
   }
   if (

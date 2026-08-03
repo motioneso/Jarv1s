@@ -736,12 +736,9 @@ const PARSED = {
 
 function fakeDeps(opts: {
   replies: string[]; // one per generateChat call, in order
-  models: Array<{ tier: string } | undefined>; // per selectModelForCapability call
 }): EmailExtractDeps {
   let replyIdx = 0;
-  let modelIdx = 0;
   return {
-    selectModel: async () => opts.models[modelIdx++] as never,
     runChat: async () => ({ text: opts.replies[replyIdx++] ?? "" })
   };
 }
@@ -761,8 +758,7 @@ describe("extractEmailSignals", () => {
           importance: "normal",
           confidence: 0.9
         })
-      ],
-      models: [{ tier: "economy" }]
+      ]
     });
     const result = await extractEmailSignals(PARSED, deps);
     expect(result.summary).toContain("84.20");
@@ -771,30 +767,11 @@ describe("extractEmailSignals", () => {
   });
 
   it("degrades to null summary / empty signals on a garbage reply (never throws)", async () => {
-    const deps = fakeDeps({ replies: ["not json at all"], models: [{ tier: "economy" }] });
+    const deps = fakeDeps({ replies: ["not json at all"] });
     const result = await extractEmailSignals(PARSED, deps);
     expect(result.summary).toBeNull();
     expect(result.signals.confidence).toBe(0);
     expect(result.signals.billsDue ?? []).toEqual([]);
-  });
-
-  it("stays economy-tier only — never escalates to a pricier tier", async () => {
-    // Even on high importance + low confidence, the sync pass must NOT request a second
-    // (interactive/reasoning) model: the plan pins inbox triage to the user's economy tier.
-    const tiers: string[] = [];
-    const deps: EmailExtractDeps = {
-      selectModel: async (tier) => {
-        tiers.push(tier);
-        return { tier };
-      },
-      runChat: async () => ({
-        text: JSON.stringify({ summary: "x", importance: "high", confidence: 0.2 })
-      })
-    };
-    const result = await extractEmailSignals(PARSED, deps);
-    expect(tiers).toEqual(["economy"]);
-    expect(result.escalated).toBe(false);
-    expect(result.summary).toBe("x");
   });
 
   it("drops signal text that echoes the email body and strips unknown keys (privacy)", async () => {
@@ -808,8 +785,7 @@ describe("extractEmailSignals", () => {
           rawBody: PARSED.body,
           confidence: 0.9
         })
-      ],
-      models: [{ tier: "economy" }]
+      ]
     });
     const result = await extractEmailSignals(PARSED, deps);
     // The body-echoing action item is dropped; the legitimate one survives.
@@ -828,8 +804,7 @@ describe("extractEmailSignals", () => {
     const parsed = { ...PARSED, body, snippet: null };
     const chunks = body.split(" ").map((text) => ({ text }));
     const deps = fakeDeps({
-      replies: [JSON.stringify({ summary: "Logistics for Friday meeting", actionItems: chunks })],
-      models: [{ tier: "economy" }]
+      replies: [JSON.stringify({ summary: "Logistics for Friday meeting", actionItems: chunks })]
     });
     const result = await extractEmailSignals(parsed, deps);
     expect(result.signals.actionItems).toEqual([]);
@@ -845,8 +820,7 @@ describe("extractEmailSignals", () => {
           actionItems: [{ text: "Pay the electric bill" }],
           confidence: 0.8
         })
-      ],
-      models: [{ tier: "economy" }]
+      ]
     });
     const result = await extractEmailSignals(PARSED, deps);
     expect(result.signals.billsDue?.[0]?.description).toBe("Electric");
@@ -858,26 +832,29 @@ describe("extractEmailSignals", () => {
     const deps = fakeDeps({
       replies: [
         JSON.stringify({ summary: "s", billsDue: [{ description: huge }], confidence: 0.5 })
-      ],
-      models: [{ tier: "economy" }]
+      ]
     });
     const result = await extractEmailSignals(PARSED, deps);
     expect((result.signals.billsDue?.[0]?.description.length ?? 0) <= 280).toBe(true);
   });
 
-  it("skips the LLM pass and returns metadata-only when no model is configured", async () => {
-    const deps = fakeDeps({ replies: [], models: [undefined] });
+  it("returns metadata-only when the structured response is empty", async () => {
+    const deps = fakeDeps({ replies: [] });
     const result = await extractEmailSignals(PARSED, deps);
     expect(result.summary).toBeNull();
-    expect(result.signals).toEqual({});
+    expect(result.signals).toEqual({
+      billsDue: [],
+      actionItems: [],
+      deadlines: [],
+      confidence: 0
+    });
   });
 
   it("nulls the summary when a short-body model echoes the body verbatim", async () => {
     // The model summary is byte-for-byte the parsed body (whitespace aside) — no summarization.
     // The exact-echo guard must drop it so the raw body is never persisted as summary.
     const deps = fakeDeps({
-      replies: [JSON.stringify({ summary: `  ${PARSED.body}  `, confidence: 0.9 })],
-      models: [{ tier: "economy" }]
+      replies: [JSON.stringify({ summary: `  ${PARSED.body}  `, confidence: 0.9 })]
     });
     const result = await extractEmailSignals(PARSED, deps);
     expect(result.summary).toBeNull();
@@ -887,8 +864,7 @@ describe("extractEmailSignals", () => {
     // A bad/jailbroken model prefixes the body to slip past exact-equality; the containment
     // guard must still drop it so the full body is never persisted as summary (privacy).
     const deps = fakeDeps({
-      replies: [JSON.stringify({ summary: `Summary: ${PARSED.body} -- regards`, confidence: 0.9 })],
-      models: [{ tier: "economy" }]
+      replies: [JSON.stringify({ summary: `Summary: ${PARSED.body} -- regards`, confidence: 0.9 })]
     });
     const result = await extractEmailSignals(PARSED, deps);
     expect(result.summary).toBeNull();
@@ -902,8 +878,7 @@ describe("extractEmailSignals", () => {
     const parsed = { ...PARSED, body, snippet: null };
     const prefix = body.slice(0, 600); // first 600 chars — a near-complete body prefix
     const deps = fakeDeps({
-      replies: [JSON.stringify({ summary: prefix, confidence: 0.9 })],
-      models: [{ tier: "economy" }]
+      replies: [JSON.stringify({ summary: prefix, confidence: 0.9 })]
     });
     const result = await extractEmailSignals(parsed, deps);
     expect(result.summary).toBeNull();
@@ -917,8 +892,7 @@ describe("extractEmailSignals", () => {
     const parsed = { ...PARSED, body, snippet: null };
     const prefix = body.slice(0, 250); // ~7.6% of the body — well below 50%
     const deps = fakeDeps({
-      replies: [JSON.stringify({ summary: prefix, confidence: 0.9 })],
-      models: [{ tier: "economy" }]
+      replies: [JSON.stringify({ summary: prefix, confidence: 0.9 })]
     });
     const result = await extractEmailSignals(parsed, deps);
     expect(result.summary).toBeNull();
@@ -933,8 +907,7 @@ describe("extractEmailSignals", () => {
     const parsed = { ...PARSED, body, snippet: null };
     const wrapped = `Summary: ${body.slice(0, 250)} -- regards`; // wrapper + ~7.6% verbatim run
     const deps = fakeDeps({
-      replies: [JSON.stringify({ summary: wrapped, confidence: 0.9 })],
-      models: [{ tier: "economy" }]
+      replies: [JSON.stringify({ summary: wrapped, confidence: 0.9 })]
     });
     const result = await extractEmailSignals(parsed, deps);
     expect(result.summary).toBeNull();
@@ -945,29 +918,9 @@ describe("extractEmailSignals", () => {
     const body = "Sensitive paragraph. ".repeat(40);
     const parsed = { ...PARSED, body, snippet: null };
     const deps = fakeDeps({
-      replies: [JSON.stringify({ summary: "Repeated sensitive paragraph; no action needed." })],
-      models: [{ tier: "economy" }]
+      replies: [JSON.stringify({ summary: "Repeated sensitive paragraph; no action needed." })]
     });
     const result = await extractEmailSignals(parsed, deps);
     expect(result.summary).toBe("Repeated sensitive paragraph; no action needed.");
-  });
-
-  it("degrades to metadata-only when the router resolves a NON-economy model", async () => {
-    // selectModelForCapability can fall through the tier ladder (or final any-model fallback) and
-    // return an interactive/reasoning model for an "economy" request. The strict tier gate must
-    // reject it and persist a metadata-only row rather than run a pricier tier (cost posture) —
-    // and crucially never call the model, so no body is ever sent.
-    let chatCalls = 0;
-    const deps: EmailExtractDeps = {
-      selectModel: async () => ({ tier: "reasoning" }),
-      runChat: async () => {
-        chatCalls += 1;
-        return { text: JSON.stringify({ summary: "should never run" }) };
-      }
-    };
-    const result = await extractEmailSignals(PARSED, deps);
-    expect(result.summary).toBeNull();
-    expect(result.signals).toEqual({});
-    expect(chatCalls).toBe(0);
   });
 });

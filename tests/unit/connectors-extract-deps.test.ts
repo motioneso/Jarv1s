@@ -34,8 +34,115 @@ const MODEL = {
   tier: "economy"
 };
 
+const FIXTURE: ParsedEmail = {
+  externalId: "synthetic-binding",
+  historyId: "history-binding",
+  subject: "Synthetic request",
+  from: "sender@example.invalid",
+  recipients: ["recipient@example.invalid"],
+  receivedAt: "2026-08-01T12:00:00.000Z",
+  labelIds: ["INBOX"],
+  snippet: "A harmless synthetic request.",
+  body: "Please complete this harmless synthetic request.",
+  bodyTruncated: false
+};
+
 describe("buildEmailExtractDeps", () => {
-  it("releases the CLI slot before the extraction after a caller timeout", async () => {
+  it("does not silently inherit the instance-default CLI when email extraction is unbound", async () => {
+    const repository = {
+      getModuleServiceBinding: vi.fn(async () => null),
+      resolveModelForService: vi.fn(async (_db, _service, options) =>
+        options.requireExplicitBinding
+          ? { model: null, reason: "needs-config" as const }
+          : { model: MODEL, reason: "matched-active-model" as const }
+      ),
+      selectProviderWithCredential: vi.fn(async () => ({
+        auth_method: "cli",
+        encrypted_credential: { marker: "sealed" },
+        base_url: null
+      }))
+    } as unknown as AiRepository;
+    const createCliStructuredAdapter = vi.fn(() => ({
+      generateStructured: vi.fn(async () => ({
+        rawObject: ACTIONABLE_SIGNALS,
+        usage: { inputTokens: 1, outputTokens: 1 }
+      }))
+    }));
+    const deps = buildEmailExtractDeps(
+      {} as DataContextDb,
+      repository,
+      { decryptJson: vi.fn() } as never,
+      { createCliStructuredAdapter }
+    );
+
+    await expect(extractEmailSignals(FIXTURE, deps)).rejects.toThrow(/needs.?config/i);
+    expect(createCliStructuredAdapter).not.toHaveBeenCalled();
+  });
+
+  it("follows two explicit Settings bindings without an extractor-owned tier or transport choice", async () => {
+    const apiModel = {
+      ...MODEL,
+      id: "api-model",
+      provider_config_id: "api-provider",
+      provider_kind: "openai-compatible",
+      tier: "reasoning"
+    };
+    const cliModel = {
+      ...MODEL,
+      id: "cli-model",
+      provider_config_id: "cli-provider",
+      tier: "interactive"
+    };
+    let selected = apiModel;
+    const repository = {
+      getModuleServiceBinding: vi.fn(async () => ({ kind: "model", modelId: selected.id })),
+      resolveModelForService: vi.fn(async () => ({
+        model: selected,
+        reason: "manual-route" as const
+      })),
+      selectProviderWithCredential: vi.fn(async (_db, providerId: string) =>
+        providerId === "cli-provider"
+          ? { auth_method: "cli", encrypted_credential: { marker: "sealed" }, base_url: null }
+          : {
+              auth_method: "api_key",
+              encrypted_credential: { ciphertext: "sealed" },
+              base_url: null
+            }
+      )
+    } as unknown as AiRepository;
+    const apiGenerate = vi.fn(async () => ({
+      rawObject: ACTIONABLE_SIGNALS,
+      usage: { inputTokens: 1, outputTokens: 1 }
+    }));
+    const cliGenerate = vi.fn(async () => ({
+      rawObject: ACTIONABLE_SIGNALS,
+      usage: { inputTokens: 1, outputTokens: 1 }
+    }));
+    const createAdapter = vi.fn(() => ({ generateStructured: apiGenerate }));
+    const createCliStructuredAdapter = vi.fn(() => ({ generateStructured: cliGenerate }));
+    const deps = buildEmailExtractDeps(
+      {} as DataContextDb,
+      repository,
+      { decryptJson: vi.fn(() => ({ apiKey: "fixture-key" })) } as never,
+      { createAdapter, createCliStructuredAdapter }
+    );
+
+    const apiResult = await extractEmailSignals(FIXTURE, deps);
+    selected = cliModel;
+    const cliResult = await extractEmailSignals(
+      { ...FIXTURE, externalId: "synthetic-binding-cli" },
+      deps
+    );
+
+    expect([apiResult.summary, cliResult.summary]).toEqual([
+      ACTIONABLE_SIGNALS.summary,
+      ACTIONABLE_SIGNALS.summary
+    ]);
+    expect(createAdapter).toHaveBeenCalledTimes(1);
+    expect(createCliStructuredAdapter).toHaveBeenCalledTimes(1);
+  });
+
+  it("recovers a valid final CLI reply before releasing the slot after a caller timeout", async () => {
     const repository = {
       resolveModelForService: vi.fn(async () => ({
         model: MODEL,
@@ -112,7 +219,7 @@ describe("buildEmailExtractDeps", () => {
       `sanitized outcomes: ${JSON.stringify(outcomes)}`
     ).toEqual([
       { summary: true, complete: true, category: "ok" },
-      { summary: false, complete: false, category: "caller_timeout" },
+      { summary: true, complete: true, category: "ok" },
       { summary: true, complete: true, category: "ok" }
     ]);
     expect(warn).not.toHaveBeenCalledWith(
@@ -152,9 +259,7 @@ describe("buildEmailExtractDeps", () => {
       createCliStructuredAdapter: createCliStructuredAdapterFactory(engineFactory)
     });
 
-    const model = await deps.selectModel("economy");
-    expect(model).toBeDefined();
-    const reply = await deps.runChat(model!, "Extract actionable email signals.");
+    const reply = await deps.runChat("Extract actionable email signals.");
 
     expect(JSON.parse(reply.text)).toEqual(ACTIONABLE_SIGNALS);
     expect(engineFactory).toHaveBeenCalledTimes(1);
@@ -185,9 +290,8 @@ describe("buildEmailExtractDeps", () => {
       createCliStructuredAdapter
     });
 
-    const model = await deps.selectModel("economy");
     const signal = new AbortController().signal;
-    const reply = await deps.runChat(model!, "Extract actionable email signals.", signal);
+    const reply = await deps.runChat("Extract actionable email signals.", signal);
 
     expect(JSON.parse(reply.text)).toEqual(ACTIONABLE_SIGNALS);
     expect(createAdapter).toHaveBeenCalledTimes(1);

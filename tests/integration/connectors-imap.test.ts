@@ -197,7 +197,6 @@ describe("runImapSync", () => {
         cipher,
         emailReadProvider: fakeProvider,
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         }
       })
@@ -255,7 +254,6 @@ describe("runImapSync", () => {
         cipher,
         emailReadProvider: fakeProvider,
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         }
       })
@@ -275,7 +273,6 @@ describe("runImapSync", () => {
         repository: repo,
         cipher,
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         }
       })

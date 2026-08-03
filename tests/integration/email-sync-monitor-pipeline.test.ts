@@ -39,7 +39,6 @@ const ACTIONABLE_SIGNALS = {
 };
 
 const summaryOnlyExtractDeps: EmailExtractDeps = {
-  selectModel: async () => ({ tier: "economy" }),
   runChat: async () => ({
     text: JSON.stringify({
       summary: "A colleague requested launch-plan approval.",
@@ -58,12 +57,13 @@ const summaryOnlyExtractDeps: EmailExtractDeps = {
 };
 
 const actionableExtractDeps: EmailExtractDeps = {
-  selectModel: async () => ({ tier: "economy" }),
   runChat: async () => ({ text: JSON.stringify(ACTIONABLE_SIGNALS) })
 };
 
 function googleClientFor(messageId: string) {
-  const listMessageIds = vi.fn(async () => [{ id: messageId }]);
+  const listMessageIds = vi.fn(async ({ query }: { query?: string }) =>
+    query?.includes("older_than:1d") ? [] : [{ id: messageId }]
+  );
   const getMessage = vi.fn(async () => ({
     id: messageId,
     threadId: `thread-${messageId}`,
@@ -146,13 +146,19 @@ describe("Google sync → source context → email monitor", () => {
           authMethod: "cli",
           encryptedCredential: aiCipher.encryptJson({ cli: true })
         });
-        await aiRepository.createModel(scopedDb, {
+        const model = await aiRepository.createModel(scopedDb, {
           providerConfigId: provider.id,
           providerModelId: "cli-structured-fixture",
           displayName: "CLI structured fixture",
           capabilities: ["summarization", "json"],
           tier: "economy"
         });
+        await aiRepository.setServiceBinding(
+          scopedDb,
+          "module.connectors.email-extract",
+          { kind: "model", modelId: model.id },
+          ids.adminUser
+        );
       }
     );
     const engineFactory: ChatEngineFactory = vi.fn(() => ({
@@ -229,7 +235,7 @@ describe("Google sync → source context → email monitor", () => {
     );
 
     expect(monitor).toMatchObject({ degraded: false });
-    expect(googleClient.listMessageIds).toHaveBeenCalledTimes(1);
+    expect(googleClient.listMessageIds).toHaveBeenCalledTimes(2);
     expect(googleClient.getMessage).toHaveBeenCalledTimes(1);
     expect(await emailTaskCount(tasksRepository, context, MESSAGE_ID)).toBe(1);
   });

@@ -165,7 +165,6 @@ function makeDeps(overrides: Partial<EmailSourceContextDeps> = {}): EmailSourceC
     imapProvider: fakeProvider<ImapConnectionSecret>([]),
     emailRepository: { listVisibleForBriefing: async () => [cachedRow()] },
     makeEmailExtractDeps: () => ({
-      selectModel: async () => ({ tier: "economy" }),
       runChat
     }),
     now: () => new Date("2026-07-03T12:00:00.000Z"),

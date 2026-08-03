@@ -172,7 +172,6 @@ describe("runEmailMonitor", () => {
         ]
       },
       makeEmailExtractDeps: () => ({
-        selectModel: async () => ({ tier: "economy" }),
         runChat: async () => ({ text: "{}" })
       })
     };
