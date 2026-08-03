@@ -6434,6 +6434,11 @@ classification/projection separately while optimizing the end-to-end user outcom
 existing provider's native pagination/batch surface, bounded concurrent fetch, and bounded batched
 structured extraction before adding any dependency or framework.
 
+Focused browser proof is `AUTH_REQUIRED`. At `http://100.64.98.99:5198/today`, the exact visible
+gate is a sign-in form with `Email`, `Password`, and `Sign in`; no Today heading is visible. No sync
+was enqueued and no other mutation occurred. Ben must sign in, then confirm before the executor
+triggers the single timed sync.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
