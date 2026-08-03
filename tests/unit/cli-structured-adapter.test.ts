@@ -38,4 +38,37 @@ describe("CliStructuredAdapter (#982/#869/#981)", () => {
     );
     expect(submit.mock.calls[0]?.[0]).toContain("Respond with ONLY a JSON object");
   });
+
+  it("keeps a valid reply that becomes readable during bounded CLI teardown", async () => {
+    let tornDown = false;
+    const factory: ChatEngineFactory = () => ({
+      provider: "anthropic",
+      launch: vi.fn(async () => ({ offset: 0 })),
+      submit: vi.fn(async () => undefined),
+      readNew: vi.fn(async () =>
+        tornDown
+          ? {
+              records: [{ kind: "reply" as const, text: '{"ok":true}' }],
+              offset: 12,
+              complete: true
+            }
+          : { records: [], offset: 0, complete: false }
+      ),
+      interrupt: vi.fn(async () => undefined),
+      isAlive: vi.fn(async () => !tornDown),
+      kill: vi.fn(async () => {
+        tornDown = true;
+      })
+    });
+    const adapter = new CliStructuredAdapter("anthropic", factory, 5, 0);
+
+    await expect(
+      adapter.generateStructured({
+        model: { provider_kind: "anthropic", provider_model_id: "configured-model" },
+        messages: [{ role: "user", content: "Extract a value" }],
+        schema: { type: "object", required: ["ok"] },
+        maxOutputTokens: 100
+      })
+    ).resolves.toMatchObject({ rawText: '{"ok":true}' });
+  });
 });

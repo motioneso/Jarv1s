@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { EmailExtractNeedsConfigurationError } from "@jarv1s/connectors";
 import {
   EmailRepository,
   PreferencesRepository,
@@ -11,6 +12,170 @@ import {
 } from "./helpers/google-sync-orchestration.js";
 
 describe("runGoogleSync email orchestration", () => {
+  it("surfaces a strict email-extract binding miss as needs-config", async () => {
+    const accountId = await seedGoogleAccount(handles.dataContext, [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ]);
+    const ctx = { actorUserId: ids.userA, requestId: "pgboss:email-needs-config" };
+    const result = await handles.workerDataContext.withDataContext(ctx, (db) =>
+      runGoogleSync(db, {
+        getFreshAccessToken: async () => "tok",
+        getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
+        googleClient: {
+          listCalendarEvents: async () => [],
+          listMessageIds: async () => [{ id: "needs-config" }],
+          getMessage: async () => ({
+            id: "needs-config",
+            historyId: "needs-config-history",
+            payload: {
+              mimeType: "text/plain",
+              headers: [
+                { name: "Subject", value: "Synthetic request" },
+                { name: "From", value: "sender@example.test" }
+              ],
+              body: { data: Buffer.from("Please review this request.").toString("base64") }
+            }
+          })
+        },
+        emailExtractDeps: {
+          runChat: async () => {
+            throw new EmailExtractNeedsConfigurationError();
+          }
+        }
+      })
+    );
+
+    expect(result).toMatchObject({
+      emailUpserted: 1,
+      errors: ["email-needs-config"],
+      truncated: false
+    });
+  });
+
+  it("ingests a representative current-day mailbox before one batched classification pass", async () => {
+    const accountId = await seedGoogleAccount(handles.dataContext, [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ]);
+    const ctx = { actorUserId: ids.userA, requestId: "pgboss:test-google-email-fast-page" };
+    const preferencesRepository = new PreferencesRepository();
+    await handles.dataContext.withDataContext(ctx, (db) =>
+      preferencesRepository.upsert(db, featureGrantsPrefKey(accountId), { email: true })
+    );
+
+    const messages = Array.from({ length: 48 }, (_, index) => ({ id: `today-${index}` }));
+    const modelCostMs = 1_000;
+    let virtualMs = 0;
+    const providerReadAt: number[] = [];
+    const listLimits: number[] = [];
+    const classificationCompletedAt: number[] = [];
+    const firstPersistAt = new Map<string, number>();
+    const projectionAt: number[] = [];
+    const emailRepository = new EmailRepository();
+    const persist = emailRepository.upsertCachedMessage.bind(emailRepository);
+    vi.spyOn(emailRepository, "upsertCachedMessage").mockImplementation(async (db, input) => {
+      const saved = await persist(db, input);
+      if (!firstPersistAt.has(input.externalId)) firstPersistAt.set(input.externalId, virtualMs);
+      return saved;
+    });
+    const runChat = vi.fn(async () => {
+      virtualMs += modelCostMs;
+      classificationCompletedAt.push(virtualMs);
+      return {
+        text: JSON.stringify({
+          results: messages.map((_, index) => ({
+            index,
+            value: {
+              summary: "Approval is required.",
+              billsDue: [],
+              actionItems: [],
+              deadlines: [],
+              mayGetLostInShuffle: true,
+              importance: "high",
+              confidence: 0.95,
+              actionability: {
+                category: "needs_action",
+                reason: "The sender requested approval.",
+                inferredSubject: "Approval",
+                suggestedTasks: [{ text: "Approve the request" }]
+              }
+            }
+          }))
+        })
+      };
+    });
+
+    await handles.workerDataContext.withDataContext(ctx, (db) =>
+      runGoogleSyncChunk(db, {
+        getFreshAccessToken: async () => "tok",
+        getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
+        googleClient: {
+          listCalendarEvents: async () => [],
+          listMessageIds: async () => messages,
+          listMessageIdsPage: async ({ pageToken, maxResults = 100 }) => {
+            listLimits.push(maxResults);
+            const start = pageToken ? Number(pageToken) : 0;
+            const end = Math.min(start + maxResults, messages.length);
+            return {
+              messages: messages.slice(start, end),
+              ...(end < messages.length ? { nextPageToken: String(end) } : {})
+            };
+          },
+          getMessage: async ({ id }) => {
+            providerReadAt.push(virtualMs);
+            return {
+              id,
+              historyId: `history-${id}`,
+              internalDate: String(Date.parse("2026-08-02T16:00:00.000Z")),
+              payload: {
+                mimeType: "text/plain",
+                headers: [
+                  { name: "Subject", value: "Approval needed" },
+                  { name: "From", value: "sender@example.test" }
+                ],
+                body: { data: Buffer.from("Please approve this today.").toString("base64") }
+              }
+            };
+          }
+        },
+        emailExtractDeps: {
+          runChat
+        },
+        emailRepository,
+        actionProjection: {
+          taskPort: {
+            create: async () => {
+              projectionAt.push(virtualMs);
+              return { id: `task-${projectionAt.length}` };
+            }
+          },
+          preferencesRepository,
+          actorUserId: ids.userA
+        },
+        now: () => new Date("2026-08-02T18:00:00.000Z")
+      })
+    );
+
+    expect({
+      requestedListLimit: listLimits[0],
+      providerFetched: providerReadAt.length,
+      providerFetchBoundaryMs: Math.max(...providerReadAt),
+      persisted: firstPersistAt.size,
+      persistBoundaryMs: Math.max(...firstPersistAt.values()),
+      modelCalls: runChat.mock.calls.length,
+      classificationBoundaryMs: Math.max(...classificationCompletedAt),
+      projectionBoundaryMs: projectionAt[0] ?? null
+    }).toEqual({
+      requestedListLimit: 500,
+      providerFetched: messages.length,
+      providerFetchBoundaryMs: 0,
+      persisted: messages.length,
+      persistBoundaryMs: 0,
+      modelCalls: 1,
+      classificationBoundaryMs: modelCostMs,
+      projectionBoundaryMs: modelCostMs
+    });
+  });
+
   it("evaluates nine recent messages as sequential 8+1 continuation chunks", async () => {
     const accountId = await seedGoogleAccount(handles.dataContext, [
       "https://www.googleapis.com/auth/gmail.modify"
@@ -22,10 +187,13 @@ describe("runGoogleSync email orchestration", () => {
     };
     let activeExtractions = 0;
     let maxActiveExtractions = 0;
-    const listMessageIdsPage = vi.fn(async ({ pageToken }: { pageToken?: string }) =>
-      pageToken === "MAIL_PAGE_2"
-        ? { messages: pages.second }
-        : { messages: pages.first, nextPageToken: "MAIL_PAGE_2" }
+    const listMessageIdsPage = vi.fn(
+      async ({ query, pageToken }: { query?: string; pageToken?: string }) => {
+        if (query?.includes("older_than:1d")) return { messages: [] };
+        return pageToken === "MAIL_PAGE_2"
+          ? { messages: pages.second }
+          : { messages: pages.first, nextPageToken: "MAIL_PAGE_2" };
+      }
     );
     const deps = {
       getFreshAccessToken: async () => "tok",
@@ -48,23 +216,29 @@ describe("runGoogleSync email orchestration", () => {
         })
       },
       emailExtractDeps: {
-        selectModel: async () => ({ tier: "economy" }),
-        runChat: async () => {
+        runChat: async (_prompt: string, _signal?: AbortSignal, batchSize?: number) => {
           activeExtractions += 1;
           maxActiveExtractions = Math.max(maxActiveExtractions, activeExtractions);
           await Promise.resolve();
           activeExtractions -= 1;
+          const value = {
+            summary: "Review requested.",
+            billsDue: [],
+            actionItems: [],
+            deadlines: [],
+            actionability: { category: "fyi" },
+            mayGetLostInShuffle: false,
+            importance: "normal",
+            confidence: 0.9
+          };
           return {
-            text: JSON.stringify({
-              summary: "Review requested.",
-              billsDue: [],
-              actionItems: [],
-              deadlines: [],
-              actionability: { category: "fyi" },
-              mayGetLostInShuffle: false,
-              importance: "normal",
-              confidence: 0.9
-            })
+            text: JSON.stringify(
+              batchSize
+                ? {
+                    results: Array.from({ length: batchSize }, (_, index) => ({ index, value }))
+                  }
+                : value
+            )
           };
         }
       }
@@ -74,14 +248,21 @@ describe("runGoogleSync email orchestration", () => {
       runGoogleSyncChunk(scopedDb, deps)
     );
     expect(first.result.emailUpserted).toBe(8);
-    expect(first.continuation).toMatchObject({ phase: "email", cursor: "MAIL_PAGE_2" });
+    expect(first.continuation).toMatchObject({
+      phase: "email-current-day",
+      cursor: "MAIL_PAGE_2"
+    });
 
     const second = await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
       runGoogleSyncChunk(scopedDb, deps, first.continuation)
     );
     expect(second.result.emailUpserted).toBe(9);
-    expect(second.continuation).toBeUndefined();
-    expect(listMessageIdsPage).toHaveBeenCalledTimes(2);
+    expect(second.continuation).toMatchObject({ phase: "email", cursor: undefined });
+    const third = await handles.workerDataContext.withDataContext(ctx, (scopedDb) =>
+      runGoogleSyncChunk(scopedDb, deps, second.continuation)
+    );
+    expect(third.continuation).toBeUndefined();
+    expect(listMessageIdsPage).toHaveBeenCalledTimes(3);
     expect(maxActiveExtractions).toBe(1);
   });
 
@@ -98,7 +279,7 @@ describe("runGoogleSync email orchestration", () => {
         getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
         googleClient: {
           listCalendarEvents: async () => [],
-          listMessageIds: async () => messages,
+          listMessageIds: async ({ query }) => (query?.includes("older_than:1d") ? [] : messages),
           getMessage: async ({ id }) => ({
             id,
             payload: {
@@ -112,7 +293,6 @@ describe("runGoogleSync email orchestration", () => {
           })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         }
       })
@@ -153,7 +333,6 @@ describe("runGoogleSync email orchestration", () => {
           getMessage: async () => ({ id: "x" })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
@@ -181,7 +360,8 @@ describe("runGoogleSync email orchestration", () => {
     let llmCalls = 0;
     const client = {
       listCalendarEvents: async () => [],
-      listMessageIds: async () => [{ id: "hist-1" }],
+      listMessageIds: async ({ query }: { query?: string }) =>
+        query?.includes("older_than:1d") ? [] : [{ id: "hist-1" }],
       getMessage: async () => ({
         id: "hist-1",
         threadId: "thread-1",
@@ -197,7 +377,6 @@ describe("runGoogleSync email orchestration", () => {
       })
     };
     const extractDeps = {
-      selectModel: async () => ({ tier: "economy" }),
       runChat: async () => {
         llmCalls += 1;
         return {
@@ -236,7 +415,8 @@ describe("runGoogleSync email orchestration", () => {
     const ctx = { actorUserId: ids.userA, requestId: "pgboss:test" };
     const client = {
       listCalendarEvents: async () => [],
-      listMessageIds: async () => [{ id: "hist-2" }],
+      listMessageIds: async ({ query }: { query?: string }) =>
+        query?.includes("older_than:1d") ? [] : [{ id: "hist-2" }],
       getMessage: async () => ({
         id: "hist-2",
         historyId: "H200",
@@ -257,7 +437,6 @@ describe("runGoogleSync email orchestration", () => {
         getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
         googleClient: client,
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
@@ -272,7 +451,6 @@ describe("runGoogleSync email orchestration", () => {
         getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
         googleClient: client,
         emailExtractDeps: {
-          selectModel: async () => ({ tier: "economy" }),
           runChat: async () => {
             llmCalls += 1;
             return { text: JSON.stringify({ summary: "now summarized", confidence: 0.8 }) };
@@ -283,6 +461,157 @@ describe("runGoogleSync email orchestration", () => {
     );
     expect(llmCalls).toBe(1);
     expect(result.emailUpserted).toBe(1);
+  });
+
+  it("retries incomplete triage after a changed history revision", async () => {
+    const accountId = await seedGoogleAccount(handles.dataContext, [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ]);
+    const ctx = { actorUserId: ids.userA, requestId: "pgboss:changed-revision-retry" };
+    let historyId = "H1";
+    let extraction = 0;
+    const deps = {
+      getFreshAccessToken: async () => "tok",
+      getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
+      googleClient: {
+        listCalendarEvents: async () => [],
+        listMessageIds: async ({ query }: { query?: string }) =>
+          query?.includes("older_than:1d") ? [] : [{ id: "changed-revision" }],
+        getMessage: async () => ({
+          id: "changed-revision",
+          historyId,
+          payload: {
+            mimeType: "text/plain",
+            headers: [
+              { name: "Subject", value: "Changed request" },
+              { name: "From", value: "sender@example.test" }
+            ],
+            body: { data: Buffer.from("Please review the changed request.").toString("base64") }
+          }
+        })
+      },
+      emailExtractDeps: {
+        runChat: async () => {
+          extraction += 1;
+          if (extraction === 2) throw new Error("synthetic-fallback");
+          return {
+            text: JSON.stringify({
+              summary: `Complete ${historyId}`,
+              confidence: 0.9,
+              actionability: { category: "fyi", reason: "Informational update." }
+            })
+          };
+        }
+      },
+      now: () => new Date("2026-08-02T18:00:00.000Z")
+    };
+
+    await handles.workerDataContext.withDataContext(ctx, (db) => runGoogleSync(db, deps));
+    historyId = "H2";
+    await handles.workerDataContext.withDataContext(ctx, (db) => runGoogleSync(db, deps));
+    const incomplete = await handles.dataContext.withDataContext(ctx, (db) =>
+      new EmailRepository().getByConnectorAccountAndExternalId(db, accountId, "changed-revision")
+    );
+    expect(incomplete).toMatchObject({ summary: null, external_metadata: { historyId: "H2" } });
+
+    await handles.workerDataContext.withDataContext(ctx, (db) => runGoogleSync(db, deps));
+    const recovered = await handles.dataContext.withDataContext(ctx, (db) =>
+      new EmailRepository().getByConnectorAccountAndExternalId(db, accountId, "changed-revision")
+    );
+    expect(extraction).toBe(3);
+    expect(recovered).toMatchObject({ summary: "Complete H2" });
+  });
+
+  it("does not let a concurrent fallback overwrite complete triage for the same message", async () => {
+    const accountId = await seedGoogleAccount(handles.dataContext, [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ]);
+    const emailRepository = new EmailRepository();
+    const base = {
+      connectorAccountId: accountId,
+      externalId: "duplicate-message",
+      sender: "sender@example.test",
+      recipients: [],
+      subject: "Synthetic reservation",
+      receivedAt: "2026-08-02T18:00:00.000Z",
+      externalMetadata: { historyId: "same-history" }
+    };
+    await handles.dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "seed:duplicate-triage" },
+      (db) =>
+        emailRepository.createCachedMessageForTest(db, {
+          ...base,
+          summary: null,
+          signals: { confidence: 0 }
+        })
+    );
+
+    let releaseFallbackRead!: () => void;
+    const fallbackRead = new Promise<void>((resolve) => {
+      releaseFallbackRead = resolve;
+    });
+    let releaseValidCommit!: () => void;
+    const validCommitted = new Promise<void>((resolve) => {
+      releaseValidCommit = resolve;
+    });
+
+    await Promise.all([
+      handles.workerDataContext
+        .withDataContext(
+          { actorUserId: ids.userA, requestId: "pgboss:duplicate-valid" },
+          async (db) => {
+            await fallbackRead;
+            return emailRepository.upsertCachedMessage(db, {
+              ...base,
+              summary: "A reservation needs confirmation.",
+              signals: {
+                confidence: 0.95,
+                actionability: {
+                  category: "needs_reply",
+                  reason: "Confirmation was requested.",
+                  inferredSubject: "Reservation confirmation",
+                  suggestedTasks: [{ text: "Confirm the reservation" }]
+                }
+              }
+            });
+          }
+        )
+        .then((result) => {
+          releaseValidCommit();
+          return result;
+        }),
+      handles.workerDataContext.withDataContext(
+        { actorUserId: ids.userA, requestId: "pgboss:duplicate-fallback" },
+        async (db) => {
+          const staleMarker = (await emailRepository.listSyncMarkers(db, accountId)).find(
+            (marker) => marker.externalId === base.externalId
+          );
+          expect(staleMarker?.hasCompleteTriage).toBe(false);
+          releaseFallbackRead();
+          await validCommitted;
+          return emailRepository.upsertCachedMessage(db, {
+            ...base,
+            summary: null,
+            signals: { confidence: 0 }
+          });
+        }
+      )
+    ]);
+
+    const saved = await handles.dataContext.withDataContext(
+      { actorUserId: ids.userA, requestId: "assert:duplicate-triage" },
+      (db) => emailRepository.getByConnectorAccountAndExternalId(db, accountId, "duplicate-message")
+    );
+    expect(saved).toMatchObject({
+      summary: "A reservation needs confirmation.",
+      signals: {
+        confidence: 0.95,
+        actionability: {
+          category: "needs_reply",
+          inferredSubject: "Reservation confirmation"
+        }
+      }
+    });
   });
 
   it("NEVER persists the full email body in any email_messages column (privacy posture)", async () => {
@@ -302,7 +631,8 @@ describe("runGoogleSync email orchestration", () => {
         getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
         googleClient: {
           listCalendarEvents: async () => [],
-          listMessageIds: async () => [{ id: "sentinel-1" }],
+          listMessageIds: async ({ query }) =>
+            query?.includes("older_than:1d") ? [] : [{ id: "sentinel-1" }],
           getMessage: async () => ({
             id: "sentinel-1",
             payload: {
@@ -317,7 +647,6 @@ describe("runGoogleSync email orchestration", () => {
         },
         // Misbehaving model: echoes the WHOLE body back as the summary.
         emailExtractDeps: {
-          selectModel: async () => ({ tier: "economy" }),
           runChat: async () => ({ text: JSON.stringify({ summary: FULL_BODY, confidence: 0.9 }) })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")

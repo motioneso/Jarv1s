@@ -21,7 +21,6 @@ describe("runGoogleSync auth and health", () => {
           getMessage: async () => ({ id: "x" })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date()
@@ -65,7 +64,6 @@ describe("runGoogleSync auth and health", () => {
           getMessage: async () => ({ id: "x" })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
@@ -108,7 +106,10 @@ describe("runGoogleSync auth and health", () => {
         getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
         googleClient: {
           listCalendarEvents: async () => [],
-          listMessageIds: async () => [{ id: "loop-1" }, { id: "loop-2" }, { id: "loop-3" }],
+          listMessageIds: async ({ query }) =>
+            query?.includes("older_than:1d")
+              ? []
+              : [{ id: "loop-1" }, { id: "loop-2" }, { id: "loop-3" }],
           getMessage: async ({ accessToken, id }) => {
             if (accessToken === "stale-tok") {
               staleHits += 1;
@@ -120,16 +121,15 @@ describe("runGoogleSync auth and health", () => {
           }
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
       })
     );
-    // Exactly one refresh (the first 401), and the stale token is hit exactly once — later messages
-    // reuse the fresh token instead of re-401ing per message.
+    // The concurrent page shares one refresh; every in-flight read may observe the stale token,
+    // but none launches a second refresh.
     expect(refreshes).toBe(1);
-    expect(staleHits).toBe(1);
+    expect(staleHits).toBe(3);
     expect(result.emailUpserted).toBe(3);
     expect(result.errors).toEqual([]);
   });
@@ -153,7 +153,8 @@ describe("runGoogleSync auth and health", () => {
               end: { dateTime: "2026-06-13T09:15:00Z" }
             }
           ],
-          listMessageIds: async () => [{ id: "health-ok-msg" }],
+          listMessageIds: async ({ query }) =>
+            query?.includes("older_than:1d") ? [] : [{ id: "health-ok-msg" }],
           getMessage: async () => ({
             id: "health-ok-msg",
             payload: {
@@ -167,7 +168,6 @@ describe("runGoogleSync auth and health", () => {
           })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
@@ -216,7 +216,6 @@ describe("runGoogleSync auth and health", () => {
           })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
@@ -247,7 +246,6 @@ describe("runGoogleSync auth and health", () => {
           getMessage: async () => ({ id: "x" })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")

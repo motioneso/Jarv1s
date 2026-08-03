@@ -39,7 +39,8 @@ describe("runGoogleSync persistence orchestration", () => {
               end: { dateTime: "2026-06-13T11:30:00Z" }
             }
           ],
-          listMessageIds: async () => [{ id: "txn-msg-1" }],
+          listMessageIds: async ({ query }) =>
+            query?.includes("older_than:1d") ? [] : [{ id: "txn-msg-1" }],
           getMessage: async () => ({
             id: "txn-msg-1",
             payload: {
@@ -53,7 +54,6 @@ describe("runGoogleSync persistence orchestration", () => {
           })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")

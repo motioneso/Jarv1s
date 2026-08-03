@@ -133,8 +133,31 @@ export class ClaudePrintChatEngine implements CliChatEngine {
   }
 
   async kill(): Promise<void> {
-    if (this.currentProcess !== null) this.currentProcess.kill();
+    const child = this.currentProcess;
     this.currentProcess = null;
+    if (child === null || child.exitCode !== null || child.signalCode !== null) return;
+
+    const exited = new Promise<void>((resolve) => {
+      child.once("exit", () => resolve());
+      child.once("error", () => resolve());
+    });
+    const signal = (kind: NodeJS.Signals) => {
+      try {
+        if (child.pid) process.kill(-child.pid, kind);
+        else child.kill(kind);
+      } catch {
+        child.kill(kind);
+      }
+    };
+    signal("SIGTERM");
+    const graceful = await Promise.race([
+      exited.then(() => true),
+      new Promise<false>((resolve) => setTimeout(() => resolve(false), 1_000))
+    ]);
+    if (!graceful) {
+      signal("SIGKILL");
+      await exited;
+    }
   }
 
   private async resolvePersonaPath(opts: EngineLaunchOpts): Promise<string> {

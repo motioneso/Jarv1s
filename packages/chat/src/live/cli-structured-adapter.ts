@@ -67,8 +67,21 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
         input.signal?.addEventListener("abort", abort, { once: true });
       });
       const generated = this.run(activeEngine, neutralDir, personaPath, input);
-      const rawText = await Promise.race([generated, stopped]);
-      return { rawText, usage: { inputTokens: 0, outputTokens: 0 } };
+      try {
+        const rawText = await Promise.race([generated, stopped]);
+        return { rawText, usage: { inputTokens: 0, outputTokens: 0 } };
+      } catch (error) {
+        await activeEngine.kill().catch(() => undefined);
+        const final = await activeEngine.readNew(0).catch(() => null);
+        const reply = final?.records
+          .slice()
+          .reverse()
+          .find((record) => record.kind === "reply")?.text;
+        if (reply !== undefined) {
+          return { rawText: reply, usage: { inputTokens: 0, outputTokens: 0 } };
+        }
+        throw error;
+      }
     } finally {
       if (timer) clearTimeout(timer);
       if (abort) input.signal?.removeEventListener("abort", abort);

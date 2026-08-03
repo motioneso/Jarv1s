@@ -1,9 +1,7 @@
 import type { createAiSecretCipher } from "@jarv1s/ai";
 import { generateStructured, type AiRepository, type GenerateStructuredDeps } from "@jarv1s/ai";
 import type { DataContextDb } from "@jarv1s/db";
-import type { AiModelTier } from "@jarv1s/shared";
-
-import type { EmailExtractDeps } from "./email-extract.js";
+import { EmailExtractNeedsConfigurationError, type EmailExtractDeps } from "./email-extract.js";
 
 type AiSecretCipher = ReturnType<typeof createAiSecretCipher>;
 
@@ -110,21 +108,38 @@ export function buildEmailExtractDeps(
   options: BuildEmailExtractDepsOptions = {}
 ): EmailExtractDeps {
   return {
-    selectModel: async (tier) =>
-      (
-        await aiRepo.resolveModelForService(scopedDb, EMAIL_EXTRACT_SERVICE, {
-          capability: "json",
-          tierHint: tier
-        })
-      ).model ?? undefined,
-    runChat: async (model, prompt, signal) => {
+    runChat: async (prompt, signal, batchSize = 1) => {
+      const schema =
+        batchSize === 1
+          ? EMAIL_SIGNALS_SCHEMA
+          : {
+              type: "object",
+              additionalProperties: false,
+              required: ["results"],
+              properties: {
+                results: {
+                  type: "array",
+                  minItems: batchSize,
+                  maxItems: batchSize,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["index", "value"],
+                    properties: {
+                      index: { type: "integer", minimum: 0, maximum: batchSize - 1 },
+                      value: EMAIL_SIGNALS_SCHEMA
+                    }
+                  }
+                }
+              }
+            };
       const result = await generateStructured(
         scopedDb,
         {
           service: EMAIL_EXTRACT_SERVICE,
-          schema: EMAIL_SIGNALS_SCHEMA,
+          schema,
           prompt,
-          tierHint: model.tier as AiModelTier,
+          requireExplicitBinding: true,
           signal
         },
         {
@@ -136,7 +151,10 @@ export function buildEmailExtractDeps(
           logger: options.logger as GenerateStructuredDeps["logger"]
         }
       );
-      if (!result.ok) throw new Error(`email-extract-structured-${result.error}`);
+      if (!result.ok) {
+        if (result.error === "needs_config") throw new EmailExtractNeedsConfigurationError();
+        throw new Error(`email-extract-structured-${result.error}`);
+      }
       return { text: JSON.stringify(result.object) };
     }
   };

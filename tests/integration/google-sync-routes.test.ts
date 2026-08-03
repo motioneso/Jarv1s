@@ -207,22 +207,26 @@ describe("google-sync continuation handoff", () => {
             })
           },
           emailExtractDeps: {
-            selectModel: async () => ({ tier: "economy" }),
-            runChat: async () => ({
+            runChat: async (_prompt, _signal, batchSize = 1) => ({
               text: JSON.stringify({
-                summary: "Approval is needed today.",
-                billsDue: [],
-                actionItems: [],
-                deadlines: [],
-                mayGetLostInShuffle: true,
-                importance: "high",
-                confidence: 0.95,
-                actionability: {
-                  category: "needs_action",
-                  reason: "The sender requested approval.",
-                  inferredSubject: "Approval",
-                  suggestedTasks: [{ text: "Approve the request" }]
-                }
+                results: Array.from({ length: batchSize }, (_, index) => ({
+                  index,
+                  value: {
+                    summary: "Approval is needed today.",
+                    billsDue: [],
+                    actionItems: [],
+                    deadlines: [],
+                    mayGetLostInShuffle: true,
+                    importance: "high",
+                    confidence: 0.95,
+                    actionability: {
+                      category: "needs_action",
+                      reason: "The sender requested approval.",
+                      inferredSubject: "Approval",
+                      suggestedTasks: [{ text: "Approve the request" }]
+                    }
+                  }
+                }))
               })
             })
           },

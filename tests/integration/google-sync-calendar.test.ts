@@ -44,7 +44,7 @@ describe("runGoogleSync calendar orchestration", () => {
         listMessageIds: async () => [],
         getMessage: async () => ({ id: "x" })
       },
-      emailExtractDeps: { selectModel: async () => undefined, runChat: async () => ({ text: "" }) },
+      emailExtractDeps: { runChat: async () => ({ text: "" }) },
       now: () => new Date("2026-08-01T12:00:00.000Z")
     };
 
@@ -98,7 +98,6 @@ describe("runGoogleSync calendar orchestration", () => {
           getMessage: async () => ({ id: "x" })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
@@ -112,7 +111,7 @@ describe("runGoogleSync calendar orchestration", () => {
     );
 
     expect(calendarCalls).toBe(0);
-    expect(emailCalls).toBe(1);
+    expect(emailCalls).toBe(2);
     expect(result.calendarUpserted).toBe(0);
     expect(result.emailUpserted).toBe(0);
     expect(result.errors).toEqual([]);
@@ -137,7 +136,8 @@ describe("runGoogleSync calendar orchestration", () => {
               end: { dateTime: "2026-06-13T09:15:00Z" }
             }
           ],
-          listMessageIds: async () => [{ id: "m1" }],
+          listMessageIds: async ({ query }) =>
+            query?.includes("older_than:1d") ? [] : [{ id: "m1" }],
           getMessage: async () => ({
             id: "m1",
             payload: {
@@ -151,7 +151,6 @@ describe("runGoogleSync calendar orchestration", () => {
           })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
@@ -194,7 +193,6 @@ describe("runGoogleSync calendar orchestration", () => {
           getMessage: async () => ({ id: "x" })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
@@ -284,7 +282,6 @@ describe("runGoogleSync calendar orchestration", () => {
           getMessage: async () => ({ id: "x" })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
@@ -342,7 +339,6 @@ describe("runGoogleSync calendar orchestration", () => {
           getMessage: async () => ({ id: "x" })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")

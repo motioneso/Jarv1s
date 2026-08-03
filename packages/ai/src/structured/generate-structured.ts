@@ -50,6 +50,7 @@ export type GenerateStructuredInput = {
   readonly schema: Record<string, unknown>;
   readonly prompt: string;
   readonly tierHint?: AiModelTier;
+  readonly requireExplicitBinding?: boolean;
   readonly maxOutputTokens?: number;
   readonly signal?: AbortSignal;
 };
@@ -71,7 +72,8 @@ export async function generateStructured(
 
   const route = await deps.repository.resolveModelForService(scopedDb, input.service, {
     capability: "json",
-    tierHint: input.tierHint
+    tierHint: input.tierHint,
+    requireExplicitBinding: input.requireExplicitBinding
   });
   if (!route.model) return { ok: false, error: "needs_config" };
   const model = route.model;

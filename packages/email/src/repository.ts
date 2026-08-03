@@ -166,6 +166,30 @@ export class EmailRepository {
       input.bodyExcerpt != null
         ? input.bodyExcerpt.slice(0, EmailRepository.MAX_BODY_EXCERPT_CHARS)
         : null;
+    const incomingHistoryId =
+      typeof input.externalMetadata?.historyId === "string"
+        ? input.externalMetadata.historyId
+        : null;
+    const preserveSameRevisionTriage =
+      incomingHistoryId !== null && (input.summary == null || !hasCompleteTriage(input.signals));
+    const storedTriageIsComplete = sql<boolean>`
+      app.email_messages.summary is not null
+      and case
+        when app.email_messages.signals->'actionability'->>'category'
+          in ('needs_action', 'needs_reply', 'time_sensitive_info')
+        then nullif(trim(app.email_messages.signals->'actionability'->>'inferredSubject'), '')
+          is not null
+          and jsonb_array_length(
+            coalesce(app.email_messages.signals->'actionability'->'suggestedTasks', '[]'::jsonb)
+          ) > 0
+        else coalesce(app.email_messages.signals->'actionability'->>'category', 'unknown')
+          <> 'unknown'
+      end
+    `;
+    const keepStoredTriage = sql<boolean>`
+      app.email_messages.external_metadata->>'historyId' = ${incomingHistoryId}
+      and ${storedTriageIsComplete}
+    `;
 
     return scopedDb.db
       .insertInto("app.email_messages")
@@ -195,8 +219,16 @@ export class EmailRepository {
           body_excerpt: bodyExcerpt,
           received_at: input.receivedAt,
           external_metadata: input.externalMetadata ?? {},
-          summary: input.summary ?? null,
-          signals: input.signals ?? {},
+          summary: preserveSameRevisionTriage
+            ? sql<
+                string | null
+              >`case when ${keepStoredTriage} then app.email_messages.summary else ${input.summary ?? null} end`
+            : (input.summary ?? null),
+          signals: preserveSameRevisionTriage
+            ? sql<
+                Record<string, unknown>
+              >`case when ${keepStoredTriage} then app.email_messages.signals else ${JSON.stringify(input.signals ?? {})}::jsonb end`
+            : (input.signals ?? {}),
           updated_at: now
         })
       )
