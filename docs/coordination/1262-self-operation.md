@@ -6519,6 +6519,13 @@ models, and fix installed-module namespace validation without admitting foreign 
 UI RED→GREEN proving selection persists and different configured models require no code change.
 Do not bypass this with an internal API or database edit; no sync/restart/QA/merge yet.
 
+Ben corrected the builder model requirement to Luna xhigh. The Sol builder session
+`019fba1b-72cc-7e73-a143-2be9edb4fe89` stopped after preserving its uncommitted seven-file Settings
+binding/route-validation WIP and compact handoff, then was reaped. Successor session
+`019fc5dc-b5c6-7b32-803d-6704515901ea` is the sole `1327 Builder` in the same worktree, verified
+running `gpt-5.6-luna xhigh`. It owns diff review, interrupted focused checks, static gates, commit,
+and push. No install, DEV mutation, restart, sync, QA, or merge.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
