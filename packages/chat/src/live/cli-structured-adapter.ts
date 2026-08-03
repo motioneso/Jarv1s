@@ -14,6 +14,7 @@ import type {
 
 import { CliChatUnavailableError } from "./errors.js";
 import { selectEngineFactory, type ChatEngineFactory } from "./runtime.js";
+import type { CliChatEngine } from "./types.js";
 
 const CLI_STRUCTURED_TIMEOUT_MS = 120_000;
 const CLI_STRUCTURED_POLL_MS = 100;
@@ -76,6 +77,8 @@ function acquireCliStructuredSlot(
  * raw assistant text, and leaves parsing/Ajv repair to `generateStructured`.
  */
 export class CliStructuredAdapter implements StructuredProviderAdapter {
+  private readonly scopedSessions = new Map<string, ScopedStructuredSession>();
+
   constructor(
     private readonly provider: ProviderKind,
     private readonly engineFactory: ChatEngineFactory,
@@ -84,6 +87,13 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
   ) {}
 
   async generateStructured(
+    input: GenerateStructuredProviderInput
+  ): Promise<StructuredProviderResult> {
+    if (input.scope) return this.generateScopedStructured(input);
+    return this.generateOneShotStructured(input);
+  }
+
+  private async generateOneShotStructured(
     input: GenerateStructuredProviderInput
   ): Promise<StructuredProviderResult> {
     const startedAt = Date.now();
@@ -171,6 +181,140 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
     }
   }
 
+  private async generateScopedStructured(
+    input: GenerateStructuredProviderInput
+  ): Promise<StructuredProviderResult> {
+    const startedAt = Date.now();
+    const priority = input.priority ?? "foreground";
+    const emit = (event: StructuredTelemetryEvent) => input.telemetry?.emit({ ...event, priority });
+    const key = structuredScopeKey(input.scope!);
+    let exit: "complete" | "busy" | "timeout" | "no-reply" | "error" = "error";
+    let release: (() => void) | undefined;
+    let session: ScopedStructuredSession | undefined;
+    let succeeded = false;
+    emit({ kind: "invoked" });
+    try {
+      if (activeCliStructuredRuns >= 1) emit({ kind: "busy", exit: "busy" });
+      release = await acquireCliStructuredSlot(priority, input.signal);
+      session = this.scopedSessions.get(key);
+      if (!session) {
+        const engine = this.engineFactory(this.provider, `structured-${randomUUID()}`, {
+          executionMode: "non_interactive"
+        });
+        if (!isCliStructuredEngine(engine)) {
+          await engine.kill().catch(() => undefined);
+          throw new CliChatUnavailableError("CLI structured stream is unavailable");
+        }
+        const neutralDir = await mkdtemp(join(tmpdir(), "jarv1s-structured-"));
+        const personaPath = join(neutralDir, "persona.md");
+        try {
+          await writeFile(personaPath, "You produce structured JSON only.\n", { mode: 0o600 });
+          const candidate: ScopedStructuredSession = { engine, neutralDir, offset: 0 };
+          session = candidate;
+          this.scopedSessions.set(key, session);
+          const launched = await engine.launchStructured({
+            neutralDir,
+            personaPath,
+            personaText: "You produce structured JSON only.",
+            model: input.model.provider_model_id,
+            schema: input.schema
+          });
+          session.offset = launched.offset;
+        } catch (error) {
+          if (session) await this.closeScopedSession(key, session);
+          else {
+            await engine.kill().catch(() => undefined);
+            await rm(neutralDir, { recursive: true, force: true });
+          }
+          session = undefined;
+          throw error;
+        }
+      }
+
+      if (!(await session.engine.isAlive())) {
+        throw new CliChatUnavailableError("CLI structured stream exited without a reply");
+      }
+      await session.engine.submitStructured(buildCliStructuredPrompt(input));
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      input.signal?.addEventListener("abort", abort, { once: true });
+      let timedOut = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const stopped = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          timedOut = true;
+          emit({ kind: "timeout" });
+          controller.abort();
+          reject(new CliChatUnavailableError("CLI structured generation timed out"));
+        }, this.timeoutMs);
+      });
+      try {
+        const rawText = await Promise.race([
+          this.readScopedTurn(session, input, controller.signal),
+          stopped
+        ]);
+        exit = "complete";
+        succeeded = true;
+        return { rawText, usage: { inputTokens: 0, outputTokens: 0 } };
+      } catch (error) {
+        exit = timedOut || input.signal?.aborted ? "timeout" : "no-reply";
+        throw error;
+      } finally {
+        if (timer) clearTimeout(timer);
+        input.signal?.removeEventListener("abort", abort);
+      }
+    } catch (error) {
+      if (input.signal?.aborted) exit = "timeout";
+      throw error;
+    } finally {
+      if (session && (!succeeded || input.closeScope)) {
+        await this.closeScopedSession(key, session);
+      }
+      release?.();
+      emit({ kind: "exit", exit });
+      emit({ kind: "elapsed", elapsedMs: Date.now() - startedAt });
+    }
+  }
+
+  private async readScopedTurn(
+    session: ScopedStructuredSession,
+    input: GenerateStructuredProviderInput,
+    signal: AbortSignal
+  ): Promise<string> {
+    let firstReadable = false;
+    for (;;) {
+      if (signal.aborted) {
+        const error = new Error("aborted");
+        error.name = "AbortError";
+        throw error;
+      }
+      const next = await session.engine.readStructured(session.offset);
+      session.offset = next.offset;
+      if (next.text !== undefined) {
+        if (!firstReadable) {
+          firstReadable = true;
+          input.telemetry?.emit({
+            kind: "first-readable",
+            priority: input.priority ?? "foreground"
+          });
+        }
+        if (next.complete) return next.text;
+      }
+      if (next.complete || !(await session.engine.isAlive())) {
+        throw new CliChatUnavailableError("CLI structured stream exited without a reply");
+      }
+      await new Promise((resolve) => setTimeout(resolve, this.pollMs));
+    }
+  }
+
+  private async closeScopedSession(key: string, session: ScopedStructuredSession): Promise<void> {
+    if (this.scopedSessions.get(key) === session) this.scopedSessions.delete(key);
+    await session.engine.kill().catch(() => undefined);
+    await session.engine.purgeTranscripts?.().catch(() => undefined);
+    session.offset = 0;
+    await rm(session.neutralDir, { recursive: true, force: true });
+  }
+
   private async run(
     engine: ReturnType<ChatEngineFactory>,
     neutralDir: string,
@@ -208,11 +352,54 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
   }
 }
 
+type ScopedStructuredSession = {
+  readonly engine: CliChatEngine & CliStructuredEngine;
+  readonly neutralDir: string;
+  offset: number;
+};
+
+type CliStructuredEngine = {
+  launchStructured(opts: {
+    readonly neutralDir: string;
+    readonly personaPath: string;
+    readonly personaText?: string;
+    readonly model?: string;
+    readonly schema: Record<string, unknown>;
+  }): Promise<{ readonly offset: number }>;
+  submitStructured(text: string): Promise<void>;
+  readStructured(afterOffset: number): Promise<{
+    readonly text?: string;
+    readonly offset: number;
+    readonly complete: boolean;
+  }>;
+};
+
+function isCliStructuredEngine(
+  engine: CliChatEngine
+): engine is CliChatEngine & CliStructuredEngine {
+  return (
+    typeof (engine as Partial<CliStructuredEngine>).launchStructured === "function" &&
+    typeof (engine as Partial<CliStructuredEngine>).submitStructured === "function" &&
+    typeof (engine as Partial<CliStructuredEngine>).readStructured === "function"
+  );
+}
+
+function structuredScopeKey(scope: NonNullable<GenerateStructuredProviderInput["scope"]>): string {
+  return [scope.actorUserId, scope.connectorAccountId, scope.lineageId].join("\u0000");
+}
+
 /** #982 composition helper: resolve the transport once, then create provider-specific adapters. */
 export function createCliStructuredAdapterFactory(
   engineFactory: ChatEngineFactory = selectEngineFactory().factory
 ): (kind: ProviderKind) => CliStructuredAdapter {
-  return (kind) => new CliStructuredAdapter(kind, engineFactory);
+  const adapters = new Map<ProviderKind, CliStructuredAdapter>();
+  return (kind) => {
+    const existing = adapters.get(kind);
+    if (existing) return existing;
+    const adapter = new CliStructuredAdapter(kind, engineFactory);
+    adapters.set(kind, adapter);
+    return adapter;
+  };
 }
 
 function buildCliStructuredPrompt(input: GenerateStructuredProviderInput): string {
