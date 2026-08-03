@@ -6446,6 +6446,13 @@ boundary. Actor-scoped genuine suggested rows remained 0 at `03:03:44.923274Z` a
 claimed by the boundary. No refresh, retry, or mutation occurred. Preserve terminal/at-most-eight
 evidence read-only, but do not repeat this proof until the whole-day performance fix is ready.
 
+RED terminal addendum: the root completed at `03:04:12.074111Z`, 208.254 seconds after claim and
+208.463 seconds after creation, retry 0. Sanitized output was 8 email upserts, 0 failures/errors, and
+`truncated=true`, so the at-most-eight bound held. Genuine suggested rows remained 0. Fourteen
+continuation jobs were enqueued from `03:02:09.755072Z` onward, while this run's page-2/continuation
+claimed count remained 0 through root terminal. Projection therefore failed before page-2 claim
+despite the bounded root. No refresh, retry, or mutation occurred.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
