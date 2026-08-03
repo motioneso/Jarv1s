@@ -6733,6 +6733,17 @@ Sanitized output fields are `name=EmailExtractRetryableError`, `reason=structure
 tracing metadata-only structured telemetry for both attempts and must leave a deterministic RED
 before any code/DEV mutation.
 
+Post-RED audit found the exact-job structured telemetry is currently unobservable because module
+registry composition omits the logger and sync falls back to `NOOP_SYNC_LOGGER`; adapter events exist
+but never reach a durable/visible sink. Do not add another test that merely proves retry behavior—it
+is already green and does not identify the live rejection. Approved next diagnostic: wire the
+existing metadata-only logger with a focused composition test, then exercise the exact 21-message
+batch contract through the configured Haiku CLI using synthetic email fixtures only (no mailbox,
+credentials, prompts, or real model content). Capture only parse/schema/result-count/index/repair
+categories and safe shape/count metadata. If it reproduces, freeze that observed contract as the
+deterministic RED and fix only the parser/validator seam. No mailbox sync or DEV mutation for this
+diagnostic.
+
 Sanitized persistence addendum: the actor has four messages received on the current UTC day
 (`01:46:36Z`–`02:49:51Z`). Since root creation, no new email-message rows were inserted but 212 were
 updated; the first persisted update was `05:20:59.225Z` (about 1.16 seconds after root creation),
