@@ -6723,6 +6723,16 @@ monitoring. Luna builder session `019fc5dc-b5c6-7b32-803d-6704515901ea` now owns
 timing only. Ben's signed-in browser remains untouched. Wait for `MONITOR_ARMED`, then authorize one
 sync.
 
+Remediation live proof is RED. After re-authentication and re-verifying the Haiku CLI binding, Ben
+triggered exactly one sync: HTTP 202, `enqueued=true`, `deduped=false`, job
+`bb8eab05-d468-41a6-b3b5-c93f1b1dec04`. It was created at `19:41:18.167514Z`, claimed at
+`19:41:21.999136Z`, and failed after retry 1/1 at `19:41:23.912706Z`; genuine actor-scoped version-1
+row count remained 0. The corrected behavior is durable failure rather than confidence-zero success.
+Sanitized output fields are `name=EmailExtractRetryableError`, `reason=structured-output`,
+`retryable=true`; it is not classified as busy or timeout. Do not refresh or enqueue again. Luna is
+tracing metadata-only structured telemetry for both attempts and must leave a deterministic RED
+before any code/DEV mutation.
+
 Sanitized persistence addendum: the actor has four messages received on the current UTC day
 (`01:46:36Z`–`02:49:51Z`). Since root creation, no new email-message rows were inserted but 212 were
 updated; the first persisted update was `05:20:59.225Z` (about 1.16 seconds after root creation),
