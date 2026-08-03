@@ -403,8 +403,9 @@ export async function runGoogleSyncChunk(
   const emailEnabled =
     (account.scopes.includes(GMAIL_SCOPE) || account.scopes.includes("gmail")) &&
     isFeatureGranted(featureGrants, "email");
-  const phase: GoogleSyncPhase | undefined =
+  let phase: GoogleSyncPhase | undefined =
     continuation?.phase ?? (calendarEnabled ? "calendar" : emailEnabled ? "email" : undefined);
+  let phaseCursor = continuation?.cursor;
   const startedAt = continuation?.startedAt ?? now().toISOString();
   // Match CalendarRepository's wall-clock updated_at; `now` may be an injected scheduling clock.
   const calendarSeenSince = continuation?.calendarSeenSince ?? new Date().toISOString();
@@ -530,7 +531,10 @@ export async function runGoogleSyncChunk(
       errors.push("calendar-error");
     }
     if (nextCalendarCursor) return next("calendar", nextCalendarCursor);
-    if (emailEnabled) return next("email");
+    if (emailEnabled) {
+      phase = "email";
+      phaseCursor = undefined;
+    }
   }
 
   // --- Email (independent) ---
@@ -541,7 +545,7 @@ export async function runGoogleSyncChunk(
       const emailReadProvider = new GoogleEmailReadProvider(deps.googleClient, EMAIL_QUERY);
       const page = await withTokenRetry(scopedDb, deps, tokenHolder, (token) =>
         emailReadProvider.listMessageKeyPage(token, GMAIL_READ_FOLDER, {
-          cursor: continuation?.cursor,
+          cursor: phaseCursor,
           limit: GOOGLE_EMAIL_CHUNK_SIZE
         })
       );

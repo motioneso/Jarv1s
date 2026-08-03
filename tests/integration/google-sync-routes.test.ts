@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import Fastify from "fastify";
 import {
+  CALENDAR_SCOPE,
+  GMAIL_SCOPE,
   GOOGLE_EMAIL_CHUNK_SIZE,
   GOOGLE_SYNC_CONTINUATION_QUEUE,
   GOOGLE_SYNC_EXPIRE_SECONDS,
@@ -8,6 +10,7 @@ import {
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
   handleGoogleSyncJob,
   registerConnectorsRoutes,
+  runGoogleSyncChunk,
   type GoogleSyncChunkOutcome,
   type GoogleSyncContinuationPayload,
   type GoogleSyncPayload
@@ -15,8 +18,13 @@ import {
 import { ALLOWED_PAYLOAD_KEYS } from "@jarv1s/jobs";
 import { getAllQueueDefinitions } from "@jarv1s/module-registry";
 import { googleSyncRouteSchema, type GoogleSyncResponse } from "@jarv1s/shared";
+import { PreferencesRepository } from "@jarv1s/structured-state";
 import { ids } from "./test-database.js";
-import { handles } from "./helpers/google-sync-orchestration.js";
+import {
+  featureGrantsPrefKey,
+  handles,
+  seedGoogleAccount
+} from "./helpers/google-sync-orchestration.js";
 
 describe("google-sync queue contract", () => {
   it("uses an exclusive queue named connectors.google-sync", () => {
@@ -128,6 +136,125 @@ describe("google-sync continuation handoff", () => {
     });
     expect(sends[0]!.options?.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(sends[1]!.options?.id).toBe(sends[0]!.options?.id);
+  });
+
+  it("projects the interactive first email page before queuing historical backfill", async () => {
+    const accountId = await seedGoogleAccount(handles.dataContext, [CALENDAR_SCOPE, GMAIL_SCOPE]);
+    const context = { actorUserId: ids.userA, requestId: "test:interactive-sync-first-page" };
+    const preferencesRepository = new PreferencesRepository();
+    await handles.dataContext.withDataContext(context, (scopedDb) =>
+      preferencesRepository.upsert(scopedDb, featureGrantsPrefKey(accountId), {
+        calendar: true,
+        email: true
+      })
+    );
+
+    const events: string[] = [];
+    const sends: Array<{
+      payload: GoogleSyncContinuationPayload;
+      options: { id: string };
+    }> = [];
+    const taskCreate = vi.fn(async () => {
+      events.push("project");
+      return { id: "task-1" };
+    });
+    const firstPage = Array.from({ length: 8 }, (_, index) => ({ id: `interactive-${index}` }));
+    const scheduledData: GoogleSyncPayload = {
+      actorUserId: ids.userA,
+      kind: "google-sync",
+      idempotencyKey: `schedule:${ids.userA}`
+    };
+    const job: { id: string; data: GoogleSyncPayload } = {
+      id: "00000000-0000-0000-0000-000000000327",
+      data: scheduledData
+    };
+    const boss = {
+      send: async (
+        _queue: string,
+        payload: GoogleSyncContinuationPayload,
+        options: { id: string }
+      ) => {
+        events.push("enqueue-backfill");
+        sends.push({ payload, options });
+        return "continuation";
+      }
+    } as never;
+
+    const runJob = (currentJob: typeof job) =>
+      handleGoogleSyncJob(boss, handles.workerDataContext, currentJob as never, (scopedDb) =>
+        runGoogleSyncChunk(scopedDb, {
+          getFreshAccessToken: async () => "fixture-token",
+          getActiveAccount: async () => ({ id: accountId, scopes: [CALENDAR_SCOPE, GMAIL_SCOPE] }),
+          googleClient: {
+            listCalendarEvents: async () => [],
+            listMessageIds: async () => firstPage,
+            listMessageIdsPage: async () => ({
+              messages: firstPage,
+              nextPageToken: "HISTORICAL_PAGE_2"
+            }),
+            getMessage: async ({ id }) => ({
+              id,
+              historyId: `history-${id}`,
+              internalDate: String(Date.parse("2026-08-01T04:00:00.000Z")),
+              payload: {
+                mimeType: "text/plain",
+                headers: [
+                  { name: "Subject", value: "Approval needed" },
+                  { name: "From", value: "sender@example.test" }
+                ],
+                body: { data: Buffer.from("Please approve this today.").toString("base64") }
+              }
+            })
+          },
+          emailExtractDeps: {
+            selectModel: async () => ({ tier: "economy" }),
+            runChat: async () => ({
+              text: JSON.stringify({
+                summary: "Approval is needed today.",
+                billsDue: [],
+                actionItems: [],
+                deadlines: [],
+                mayGetLostInShuffle: true,
+                importance: "high",
+                confidence: 0.95,
+                actionability: {
+                  category: "needs_action",
+                  reason: "The sender requested approval.",
+                  inferredSubject: "Approval",
+                  suggestedTasks: [{ text: "Approve the request" }]
+                }
+              })
+            })
+          },
+          actionProjection: {
+            taskPort: { create: taskCreate },
+            preferencesRepository,
+            actorUserId: ids.userA
+          },
+          runId: currentJob.id,
+          now: () => new Date("2026-08-01T04:00:00.000Z")
+        })
+      );
+    const result = await runJob(job);
+
+    expect(result).toMatchObject({ emailFailures: 0, emailUpserted: 8, truncated: true });
+    expect(taskCreate).toHaveBeenCalled();
+    expect(events[0]).toBe("project");
+    expect(events.at(-1)).toBe("enqueue-backfill");
+    expect(sends[0]!.payload).toMatchObject({
+      cursor: "HISTORICAL_PAGE_2",
+      chunkIndex: 1,
+      idempotencyKey: job.id
+    });
+
+    const nextOccurrence = {
+      ...job,
+      id: "00000000-0000-0000-0000-000000000328"
+    };
+    await runJob(nextOccurrence);
+    expect(nextOccurrence.data).toEqual(job.data);
+    expect(sends[1]!.payload.idempotencyKey).toBe(nextOccurrence.id);
+    expect(sends[1]!.options.id).not.toBe(sends[0]!.options.id);
   });
 });
 
