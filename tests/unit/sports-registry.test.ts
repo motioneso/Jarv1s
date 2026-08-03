@@ -26,6 +26,7 @@ describe("sports built-in registration", () => {
     expect(MODULE_IMAGE_CSP_HOSTS).toEqual([
       "a.espncdn.com",
       "s.secure.espncdn.com",
+      "espnmedia-cdn.akamaized.net",
       "cdn.arstechnica.net",
       "i.guim.co.uk",
       "ichef.bbci.co.uk",
