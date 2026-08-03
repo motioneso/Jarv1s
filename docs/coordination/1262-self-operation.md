@@ -6427,6 +6427,13 @@ N-call coupling, then propose the smallest batch or asynchronous classification 
 jobs. Email bodies must remain out of job payloads/logs; preserve DataContextDb, deterministic IDs,
 and module isolation. Do not claim a 500ms external-model SLO without measured proof.
 
+Clarified acceptance: optimize the representative entire-current-day mailbox, not only eight
+messages. Today's email should be listed, fetched, and persisted in seconds, then made available for
+actionability without per-email serial CLI latency. Builder must measure provider fetch/persist and
+classification/projection separately while optimizing the end-to-end user outcome. Investigate the
+existing provider's native pagination/batch surface, bounded concurrent fetch, and bounded batched
+structured extraction before adding any dependency or framework.
+
 Chunk 2 was claimed at `20:18:21Z` with an 840-second expiry. Chunk 1 remains clean (8 upserted,
 0 failures/errors, 162.979 seconds). This is the sole serialized lane; builder monitor session
 `65318` remains active.
