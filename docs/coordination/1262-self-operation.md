@@ -6691,6 +6691,16 @@ the current 20-second extraction deadline for this proof. Tests must show foregr
 the active call, a 21-message busy overlap produces real projection rather than fallback, and a
 timeout leaves no fallback triage and fails retryably.
 
+Remediation is pushed at exact PR #1379 HEAD
+`1609cef89053504fb5a69f451518aa4fd7fe3cc0`; local, origin branch, and PR head match. `origin/main`
+is already an ancestor, so no rebase was needed. Commit scope is exactly 12 owned
+AI/chat/connectors/test paths; the context-meter log and pre-existing handoff remain excluded.
+Focused unit 18/18, AI/CLI neighbors 25/25, Google sync integration neighbors 18/18,
+AI-structured integration 16/16, all reported static/typecheck/pre-push gates are green. Required
+GitHub CI is pending, not red. Next: mandatory exact-HEAD DEV redeploy preserving environment and
+sole-worker isolation; no install, migration, SQL, Settings change, sync, browser QA, or merge.
+Job Search commit `47a71072` remains HOLD and must not restart shared DEV until #1327 terminal proof.
+
 Sanitized persistence addendum: the actor has four messages received on the current UTC day
 (`01:46:36Z`–`02:49:51Z`). Since root creation, no new email-message rows were inserted but 212 were
 updated; the first persisted update was `05:20:59.225Z` (about 1.16 seconds after root creation),
