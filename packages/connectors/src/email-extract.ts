@@ -1,5 +1,5 @@
 import type { GmailMessageFull, GmailPayloadPart } from "./google-api-client.js";
-import type { StructuredTelemetry } from "@jarv1s/ai";
+import type { StructuredRunPriority, StructuredTelemetry } from "@jarv1s/ai";
 
 /** Max decoded body length sent to the LLM (bounded to protect prompt limits, spec risk #6). */
 export const MAX_BODY_CHARS = 20_000;
@@ -196,6 +196,17 @@ export class EmailExtractNeedsConfigurationError extends Error {
   }
 }
 
+export type EmailExtractRetryableReason = "busy" | "timeout" | "no-reply" | "structured-output";
+
+export class EmailExtractRetryableError extends Error {
+  readonly retryable = true;
+
+  constructor(readonly reason: EmailExtractRetryableReason) {
+    super(`email extraction retryable failure: ${reason}`);
+    this.name = "EmailExtractRetryableError";
+  }
+}
+
 /** Injectable seam: the worker passes router-backed impls; tests pass fakes. */
 export interface EmailExtractDeps {
   /** Run structured extraction through the configured service binding; returns JSON text. */
@@ -203,7 +214,8 @@ export interface EmailExtractDeps {
     prompt: string,
     signal?: AbortSignal,
     batchSize?: number,
-    telemetry?: StructuredTelemetry
+    telemetry?: StructuredTelemetry,
+    priority?: StructuredRunPriority
   ) => Promise<{ readonly text: string }>;
 }
 
@@ -212,19 +224,25 @@ export interface EmailExtractOptions {
   readonly callTimeoutMs?: number;
   /** Metadata-only telemetry factory; the worker supplies job and batch attribution. */
   readonly telemetry?: (batchIndex: number, batchSize: number) => StructuredTelemetry;
+  readonly priority?: StructuredRunPriority;
 }
 
 export const EMAIL_EXTRACT_BATCH_MAX_ITEMS = 48;
 export const EMAIL_EXTRACT_BATCH_MAX_PROMPT_BYTES = 48_000;
 
 /** Reject a chat call that exceeds the budget so one slow model can't stall the whole sync. */
-async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
+async function withTimeout<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  ms: number,
+  onTimeout?: () => void
+): Promise<T> {
   const controller = new AbortController();
   const request = run(controller.signal);
   let timer: ReturnType<typeof setTimeout>;
   const timedOut = Symbol("timed-out");
   const timeout = new Promise<typeof timedOut>((resolve) => {
     timer = setTimeout(() => {
+      onTimeout?.();
       controller.abort();
       resolve(timedOut);
     }, ms);
@@ -545,6 +563,24 @@ export function partitionEmailExtractionBatches(messages: readonly ParsedEmail[]
   return batches;
 }
 
+function retryableReason(error: unknown): EmailExtractRetryableReason {
+  if (error instanceof EmailExtractRetryableError) return error.reason;
+  const name = error instanceof Error ? error.name : "";
+  const message = error instanceof Error ? error.message : "";
+  if (/timeout|timed.?out/i.test(`${name} ${message}`)) return "timeout";
+  if (/busy/i.test(`${name} ${message}`)) return "busy";
+  if (/no.?reply|without a reply/i.test(`${name} ${message}`)) return "no-reply";
+  return "structured-output";
+}
+
+function parseBatchSignals(text: string, parsedBody: string): EmailExtractResult {
+  const result = safeParseSignals(text, parsedBody);
+  if (result.summary === null || result.signals.confidence === 0) {
+    throw new Error("email-extract-batch-structured-output");
+  }
+  return result;
+}
+
 export async function extractEmailSignalsBatch(
   messages: readonly ParsedEmail[],
   deps: EmailExtractDeps,
@@ -560,15 +596,18 @@ export async function extractEmailSignalsBatch(
       if (batch.length === 1) {
         const message = batch[0]!;
         const reply = await withTimeout(
-          (signal) => deps.runChat(buildPrompt(message), signal, 1, telemetry),
-          timeoutMs
+          (signal) => deps.runChat(buildPrompt(message), signal, 1, telemetry, options.priority),
+          timeoutMs,
+          () => telemetry?.emit({ kind: "timeout", priority: options.priority })
         );
-        extracted.push(sanitizeExtractResult(message, safeParseSignals(reply.text, message.body)));
+        extracted.push(sanitizeExtractResult(message, parseBatchSignals(reply.text, message.body)));
         continue;
       }
       const reply = await withTimeout(
-        (signal) => deps.runChat(buildBatchPrompt(batch), signal, batch.length, telemetry),
-        timeoutMs
+        (signal) =>
+          deps.runChat(buildBatchPrompt(batch), signal, batch.length, telemetry, options.priority),
+        timeoutMs,
+        () => telemetry?.emit({ kind: "timeout", priority: options.priority })
       );
       const object = JSON.parse(reply.text) as { results?: unknown };
       if (!Array.isArray(object.results) || object.results.length !== batch.length) {
@@ -595,18 +634,13 @@ export async function extractEmailSignalsBatch(
         extracted.push(
           sanitizeExtractResult(
             batch[index]!,
-            safeParseSignals(JSON.stringify(byIndex.get(index)), batch[index]!.body)
+            parseBatchSignals(JSON.stringify(byIndex.get(index)), batch[index]!.body)
           )
         );
       }
     } catch (error) {
       if (error instanceof EmailExtractNeedsConfigurationError) throw error;
-      telemetry?.emit({ kind: "fallback", count: batch.length });
-      extracted.push(
-        ...batch.map((message) =>
-          sanitizeExtractResult(message, { summary: null, signals: { confidence: 0 } })
-        )
-      );
+      throw new EmailExtractRetryableError(retryableReason(error));
     }
   }
   return extracted;

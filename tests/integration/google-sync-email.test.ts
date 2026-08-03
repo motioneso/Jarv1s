@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { EmailExtractNeedsConfigurationError } from "@jarv1s/connectors";
+import {
+  EmailExtractNeedsConfigurationError,
+  EmailExtractRetryableError
+} from "@jarv1s/connectors";
 import { CliStructuredAdapter, type ChatEngineFactory } from "@jarv1s/chat";
 import type { StructuredTelemetry } from "@jarv1s/ai";
 import {
@@ -14,12 +17,13 @@ import {
 } from "./helpers/google-sync-orchestration.js";
 
 describe("runGoogleSync email orchestration", () => {
-  it("attributes a 21-message CLI failure to the worker batch without creating Today candidates", async () => {
+  it("waits through a busy CLI slot and never falls back on an unreadable reply", async () => {
     type SafeEvent = {
       readonly kind: string;
       readonly jobId: string;
       readonly batchIndex: number;
       readonly batchSize: number;
+      readonly priority?: string;
       readonly elapsedMs?: number;
       readonly exit?: string;
       readonly count?: number;
@@ -39,28 +43,67 @@ describe("runGoogleSync email orchestration", () => {
       const messages = Array.from({ length: 21 }, (_, index) => ({
         id: `cli-seam-${mode}-${index}`
       }));
+      const extraction = {
+        summary: "Synthetic actionable triage",
+        billsDue: [],
+        actionItems: [{ text: "Review the request" }],
+        deadlines: [],
+        actionability: {
+          category: "needs_action",
+          reason: "A review is required.",
+          inferredSubject: "Synthetic request",
+          suggestedTasks: [{ text: "Review the request" }]
+        },
+        mayGetLostInShuffle: false,
+        importance: "normal",
+        confidence: 0.9
+      };
       const events: SafeEvent[] = [];
       let releaseHolder = false;
       let releaseLaunched!: () => void;
       const launched = new Promise<void>((resolve) => {
         releaseLaunched = resolve;
       });
-      const engineFactory: ChatEngineFactory = () => ({
-        provider: "anthropic",
-        launch: vi.fn(async () => {
-          releaseLaunched();
-          return { offset: 0 };
-        }),
-        submit: vi.fn(async () => undefined),
-        readNew: vi.fn(async () =>
-          mode === "busy" && releaseHolder
-            ? { records: [], offset: 0, complete: true }
-            : { records: [], offset: 0, complete: false }
-        ),
-        interrupt: vi.fn(async () => undefined),
-        isAlive: vi.fn(async () => !releaseHolder),
-        kill: vi.fn(async () => undefined)
+      let extractionInvoked!: () => void;
+      const extractionStarted = new Promise<void>((resolve) => {
+        extractionInvoked = resolve;
       });
+      let factoryCalls = 0;
+      const engineFactory: ChatEngineFactory = () => {
+        const call = factoryCalls++;
+        return {
+          provider: "anthropic",
+          launch: vi.fn(async () => {
+            if (call === 0) releaseLaunched();
+            return { offset: 0 };
+          }),
+          submit: vi.fn(async () => undefined),
+          readNew: vi.fn(async () => {
+            if (mode === "busy" && call === 0 && !releaseHolder) {
+              return { records: [], offset: 0, complete: false };
+            }
+            if (mode === "unreadable") {
+              return { records: [], offset: 0, complete: false };
+            }
+            if (call === 0) return { records: [], offset: 0, complete: true };
+            return {
+              records: [
+                {
+                  kind: "reply" as const,
+                  text: JSON.stringify({
+                    results: messages.map((_, index) => ({ index, value: extraction }))
+                  })
+                }
+              ],
+              offset: 1,
+              complete: true
+            };
+          }),
+          interrupt: vi.fn(async () => undefined),
+          isAlive: vi.fn(async () => !releaseHolder),
+          kill: vi.fn(async () => undefined)
+        };
+      };
       const adapter = new CliStructuredAdapter(
         "anthropic",
         engineFactory,
@@ -79,65 +122,80 @@ describe("runGoogleSync email orchestration", () => {
         prompt: string,
         signal?: AbortSignal,
         _batchSize?: number,
-        telemetry?: Telemetry
+        telemetry?: Telemetry,
+        priority?: "foreground" | "background"
       ) => {
-        const result = await adapter.generateStructured(inputFor(prompt, telemetry));
+        extractionInvoked();
+        const result = await adapter.generateStructured({
+          ...inputFor(prompt, telemetry),
+          priority
+        });
         if (!("rawText" in result)) throw new Error("synthetic structured result shape");
         return { text: result.rawText };
       };
       let holder: Promise<unknown> | undefined;
       if (mode === "busy") {
         holder = adapter.generateStructured(inputFor("hold", { emit: () => undefined }));
+        void holder.catch(() => undefined);
         await launched;
       }
 
       const projectionCalls: unknown[] = [];
       try {
-        const outcome = await handles.workerDataContext.withDataContext(ctx, (db) =>
-          runGoogleSyncChunk(db, {
-            getFreshAccessToken: async () => "tok",
-            getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
-            googleClient: {
-              listCalendarEvents: async () => [],
-              listMessageIds: async () => messages,
-              getMessage: async ({ id }) => ({
-                id,
-                historyId: `history-${id}`,
-                internalDate: String(Date.parse("2026-08-02T16:00:00.000Z")),
-                payload: {
-                  mimeType: "text/plain",
-                  headers: [
-                    { name: "Subject", value: "Synthetic message" },
-                    { name: "From", value: "sender@example.test" }
-                  ],
-                  body: { data: Buffer.from("Synthetic body").toString("base64") }
-                }
-              })
-            },
-            emailExtractDeps: { runChat },
-            emailRepository: new EmailRepository(),
-            actionProjection: {
-              taskPort: {
-                create: async (input) => {
-                  projectionCalls.push(input);
-                  return { id: `task-${projectionCalls.length}` };
-                }
-              },
-              preferencesRepository,
-              actorUserId: ids.userA
-            },
-            logger: {
-              warn: () => undefined,
-              info: (data) => {
-                if (data.stage === "email-extraction") events.push(data as SafeEvent);
+        const deps = {
+          getFreshAccessToken: async () => "tok",
+          getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
+          googleClient: {
+            listCalendarEvents: async () => [],
+            listMessageIds: async () => messages,
+            getMessage: async ({ id }: { id: string }) => ({
+              id,
+              historyId: `history-${id}`,
+              internalDate: String(Date.parse("2026-08-02T16:00:00.000Z")),
+              payload: {
+                mimeType: "text/plain",
+                headers: [
+                  { name: "Subject", value: "Synthetic message" },
+                  { name: "From", value: "sender@example.test" }
+                ],
+                body: { data: Buffer.from("Synthetic body").toString("base64") }
+              }
+            })
+          },
+          emailExtractDeps: { runChat },
+          emailRepository: new EmailRepository(),
+          actionProjection: {
+            taskPort: {
+              create: async (input: unknown) => {
+                projectionCalls.push(input);
+                return { id: `task-${projectionCalls.length}` };
               }
             },
-            runId: `cli-seam-${mode}`,
-            now: () => new Date("2026-08-02T18:00:00.000Z")
-          })
+            preferencesRepository,
+            actorUserId: ids.userA
+          },
+          logger: {
+            warn: () => undefined,
+            info: (data: Record<string, unknown>) => {
+              if (data.stage === "email-extraction") events.push(data as SafeEvent);
+            }
+          },
+          runId: `cli-seam-${mode}`,
+          now: () => new Date("2026-08-02T18:00:00.000Z")
+        };
+        const run = handles.workerDataContext.withDataContext(ctx, (db) =>
+          runGoogleSyncChunk(db, deps)
         );
-
-        expect(outcome.result).toMatchObject({ emailUpserted: 21, errors: [], truncated: true });
+        if (mode === "busy") {
+          await extractionStarted;
+          releaseHolder = true;
+        }
+        if (mode === "busy") {
+          const outcome = await run;
+          expect(outcome.result).toMatchObject({ emailUpserted: 21, errors: [], truncated: true });
+        } else {
+          await expect(run).rejects.toBeInstanceOf(EmailExtractRetryableError);
+        }
         const rows = await handles.dataContext.withDataContext(ctx, (db) =>
           db.db
             .selectFrom("app.email_messages")
@@ -146,23 +204,22 @@ describe("runGoogleSync email orchestration", () => {
             .execute()
         );
         const caseRows = rows.filter((row) => row.external_id.startsWith(`cli-seam-${mode}-`));
-        expect(caseRows).toHaveLength(21);
-        expect(
-          caseRows.every(
-            (row) =>
-              row.summary === null && (row.signals as { confidence?: number }).confidence === 0
-          )
-        ).toBe(true);
-        expect(projectionCalls).toHaveLength(0);
+        if (mode === "busy") {
+          expect(caseRows).toHaveLength(21);
+          expect(caseRows.every((row) => row.summary === extraction.summary)).toBe(true);
+          expect(projectionCalls.length).toBeGreaterThan(0);
+        } else {
+          expect(caseRows).toHaveLength(0);
+          expect(projectionCalls).toHaveLength(0);
+        }
 
         expect(events.every((event) => event.jobId === `cli-seam-${mode}`)).toBe(true);
         expect(events.every((event) => event.batchIndex === 0 && event.batchSize === 21)).toBe(
           true
         );
         expect(events.map((event) => event.kind)).toEqual(
-          expect.arrayContaining(["invoked", "elapsed", "exit", "fallback"])
+          expect.arrayContaining(["invoked", "elapsed", "exit"])
         );
-        expect(events.find((event) => event.kind === "fallback")?.count).toBe(21);
         expect(events.find((event) => event.kind === "elapsed")?.elapsedMs).toBeGreaterThanOrEqual(
           0
         );
@@ -174,6 +231,7 @@ describe("runGoogleSync email orchestration", () => {
                 "jobId",
                 "batchIndex",
                 "batchSize",
+                "priority",
                 "kind",
                 "elapsedMs",
                 "exit",
@@ -184,7 +242,8 @@ describe("runGoogleSync email orchestration", () => {
         ).toBe(true);
         if (mode === "busy") {
           expect(events.map((event) => event.kind)).toContain("busy");
-          expect(events.map((event) => event.exit)).toContain("busy");
+          expect(events.map((event) => event.exit)).toContain("complete");
+          expect(events.every((event) => event.priority === "foreground")).toBe(true);
         } else {
           expect(events.map((event) => event.kind)).toContain("timeout");
           expect(events.map((event) => event.exit)).toContain("timeout");
@@ -420,7 +479,7 @@ describe("runGoogleSync email orchestration", () => {
           };
           return {
             text: JSON.stringify(
-              batchSize
+              batchSize && batchSize > 1
                 ? {
                     results: Array.from({ length: batchSize }, (_, index) => ({ index, value }))
                   }
@@ -480,7 +539,18 @@ describe("runGoogleSync email orchestration", () => {
           })
         },
         emailExtractDeps: {
-          runChat: async () => ({ text: "" })
+          runChat: async (_prompt, _signal, batchSize = 1) => ({
+            text: JSON.stringify(
+              batchSize === 1
+                ? { summary: "Processed", confidence: 0.5 }
+                : {
+                    results: Array.from({ length: batchSize }, (_, index) => ({
+                      index,
+                      value: { summary: "Processed", confidence: 0.5 }
+                    }))
+                  }
+            )
+          })
         }
       })
     );
@@ -624,7 +694,9 @@ describe("runGoogleSync email orchestration", () => {
         getActiveAccount: async () => ({ id: accountId, scopes: ["gmail"] }),
         googleClient: client,
         emailExtractDeps: {
-          runChat: async () => ({ text: "" })
+          runChat: async () => {
+            throw new EmailExtractNeedsConfigurationError();
+          }
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
       })
@@ -650,7 +722,7 @@ describe("runGoogleSync email orchestration", () => {
     expect(result.emailUpserted).toBe(1);
   });
 
-  it("retries incomplete triage after a changed history revision", async () => {
+  it("retries a changed history revision without writing fallback triage", async () => {
     const accountId = await seedGoogleAccount(handles.dataContext, [
       "https://www.googleapis.com/auth/gmail.modify"
     ]);
@@ -680,7 +752,7 @@ describe("runGoogleSync email orchestration", () => {
       emailExtractDeps: {
         runChat: async () => {
           extraction += 1;
-          if (extraction === 2) throw new Error("synthetic-fallback");
+          if (extraction === 2) throw new Error("synthetic-structured-failure");
           return {
             text: JSON.stringify({
               summary: `Complete ${historyId}`,
@@ -695,11 +767,16 @@ describe("runGoogleSync email orchestration", () => {
 
     await handles.workerDataContext.withDataContext(ctx, (db) => runGoogleSync(db, deps));
     historyId = "H2";
-    await handles.workerDataContext.withDataContext(ctx, (db) => runGoogleSync(db, deps));
+    await expect(
+      handles.workerDataContext.withDataContext(ctx, (db) => runGoogleSync(db, deps))
+    ).rejects.toBeInstanceOf(EmailExtractRetryableError);
     const incomplete = await handles.dataContext.withDataContext(ctx, (db) =>
       new EmailRepository().getByConnectorAccountAndExternalId(db, accountId, "changed-revision")
     );
-    expect(incomplete).toMatchObject({ summary: null, external_metadata: { historyId: "H2" } });
+    expect(incomplete).toMatchObject({
+      summary: "Complete H1",
+      external_metadata: { historyId: "H1" }
+    });
 
     await handles.workerDataContext.withDataContext(ctx, (db) => runGoogleSync(db, deps));
     const recovered = await handles.dataContext.withDataContext(ctx, (db) =>

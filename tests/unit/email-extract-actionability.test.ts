@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   EMAIL_EXTRACT_BATCH_MAX_ITEMS,
   EMAIL_EXTRACT_BATCH_MAX_PROMPT_BYTES,
+  EmailExtractRetryableError,
   extractEmailSignals,
   extractEmailSignalsBatch,
   MAX_SIGNAL_STR_CHARS,
@@ -44,6 +45,16 @@ const BASE_REPLY = {
 };
 
 describe("email actionability triage", () => {
+  it("does not turn malformed batch output into confidence-zero triage", async () => {
+    await expect(
+      extractEmailSignalsBatch([parsedEmail()], { runChat: async () => ({ text: "not json" }) })
+    ).rejects.toMatchObject({
+      constructor: EmailExtractRetryableError,
+      reason: "structured-output",
+      retryable: true
+    });
+  });
+
   it("continues every message through byte- and item-bounded structured batches", async () => {
     const messages = Array.from({ length: 49 }, (_, index) =>
       parsedEmail({ externalId: `batch-${index}`, body: `Request ${index}. ${"x".repeat(1_000)}` })

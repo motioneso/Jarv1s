@@ -9,6 +9,7 @@ import {
   StructuredOutputParseError,
   type GenerateStructuredProviderInput,
   type StructuredChatTurn,
+  type StructuredRunPriority,
   type StructuredTelemetry,
   type StructuredProviderResult,
   type StructuredUsage
@@ -55,6 +56,7 @@ export type GenerateStructuredInput = {
   readonly maxOutputTokens?: number;
   readonly signal?: AbortSignal;
   readonly telemetry?: StructuredTelemetry;
+  readonly priority?: StructuredRunPriority;
 };
 
 export type GenerateStructuredResult =
@@ -141,7 +143,8 @@ export async function generateStructured(
         schema: input.schema,
         maxOutputTokens,
         signal: input.signal,
-        telemetry: input.telemetry
+        telemetry: input.telemetry,
+        priority: input.priority
       });
       if ("rawText" in generated) {
         try {

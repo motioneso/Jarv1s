@@ -71,4 +71,59 @@ describe("CliStructuredAdapter (#982/#869/#981)", () => {
       })
     ).resolves.toMatchObject({ rawText: '{"ok":true}' });
   });
+
+  it("selects a waiting foreground call before FIFO background calls", async () => {
+    let factoryCalls = 0;
+    let releaseActive!: () => void;
+    const activeReleased = new Promise<void>((resolve) => {
+      releaseActive = resolve;
+    });
+    const started: string[] = [];
+    const factory: ChatEngineFactory = () => {
+      const call = factoryCalls++;
+      return {
+        provider: "anthropic",
+        launch: vi.fn(async () => {
+          return { offset: 0 };
+        }),
+        submit: vi.fn(async (text: string) => {
+          started.push(
+            ["active", "background-one", "background-two", "foreground"].find((marker) =>
+              text.includes(marker)
+            ) ?? "unknown"
+          );
+        }),
+        readNew: vi.fn(async () => {
+          if (call === 0) await activeReleased;
+          return {
+            records: [{ kind: "reply" as const, text: `{"call":${call}}` }],
+            offset: 1,
+            complete: true
+          };
+        }),
+        interrupt: vi.fn(async () => undefined),
+        isAlive: vi.fn(async () => false),
+        kill: vi.fn(async () => undefined)
+      };
+    };
+    const adapter = new CliStructuredAdapter("anthropic", factory, 1_000, 0);
+    const inputFor = (priority: "foreground" | "background", marker: string) => ({
+      model: { provider_kind: "anthropic" as const, provider_model_id: "configured-model" },
+      messages: [{ role: "user" as const, content: marker }],
+      schema: { type: "object" },
+      maxOutputTokens: 100,
+      priority
+    });
+
+    const active = adapter.generateStructured(inputFor("foreground", "active"));
+    await vi.waitFor(() => expect(started).toEqual(["active"]));
+    const backgroundOne = adapter.generateStructured(inputFor("background", "background-one"));
+    const backgroundTwo = adapter.generateStructured(inputFor("background", "background-two"));
+    const foreground = adapter.generateStructured(inputFor("foreground", "foreground"));
+
+    releaseActive();
+    await Promise.all([active, backgroundOne, backgroundTwo, foreground]);
+
+    expect(started).toEqual(["active", "foreground", "background-one", "background-two"]);
+  });
 });

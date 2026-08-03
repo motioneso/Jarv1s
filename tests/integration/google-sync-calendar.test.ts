@@ -98,7 +98,9 @@ describe("runGoogleSync calendar orchestration", () => {
           getMessage: async () => ({ id: "x" })
         },
         emailExtractDeps: {
-          runChat: async () => ({ text: "" })
+          runChat: async () => ({
+            text: JSON.stringify({ summary: "Processed", confidence: 0.5 })
+          })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
       })
@@ -151,7 +153,9 @@ describe("runGoogleSync calendar orchestration", () => {
           })
         },
         emailExtractDeps: {
-          runChat: async () => ({ text: "" })
+          runChat: async () => ({
+            text: JSON.stringify({ summary: "Processed", confidence: 0.5 })
+          })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
       })

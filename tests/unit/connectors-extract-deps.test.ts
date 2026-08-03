@@ -291,11 +291,19 @@ describe("buildEmailExtractDeps", () => {
     });
 
     const signal = new AbortController().signal;
-    const reply = await deps.runChat("Extract actionable email signals.", signal);
+    const reply = await deps.runChat(
+      "Extract actionable email signals.",
+      signal,
+      1,
+      undefined,
+      "background"
+    );
 
     expect(JSON.parse(reply.text)).toEqual(ACTIONABLE_SIGNALS);
     expect(createAdapter).toHaveBeenCalledTimes(1);
-    expect(generateStructured).toHaveBeenCalledWith(expect.objectContaining({ signal }));
+    expect(generateStructured).toHaveBeenCalledWith(
+      expect.objectContaining({ signal, priority: "background" })
+    );
     expect(decryptJson).toHaveBeenCalledTimes(1);
     expect(createCliStructuredAdapter).not.toHaveBeenCalled();
   });

@@ -7,7 +7,9 @@ import type {
   GenerateStructuredProviderInput,
   ProviderKind,
   StructuredProviderAdapter,
-  StructuredProviderResult
+  StructuredProviderResult,
+  StructuredRunPriority,
+  StructuredTelemetryEvent
 } from "@jarv1s/ai";
 
 import { CliChatUnavailableError } from "./errors.js";
@@ -16,6 +18,57 @@ import { selectEngineFactory, type ChatEngineFactory } from "./runtime.js";
 const CLI_STRUCTURED_TIMEOUT_MS = 120_000;
 const CLI_STRUCTURED_POLL_MS = 100;
 let activeCliStructuredRuns = 0;
+type CliStructuredWaiter = {
+  readonly priority: StructuredRunPriority;
+  readonly resolve: (release: () => void) => void;
+  readonly reject: (error: unknown) => void;
+  readonly signal?: AbortSignal;
+  abort?: () => void;
+};
+const cliStructuredWaiters: Record<StructuredRunPriority, CliStructuredWaiter[]> = {
+  foreground: [],
+  background: []
+};
+
+function releaseCliStructuredSlot(): void {
+  const next = cliStructuredWaiters.foreground.shift() ?? cliStructuredWaiters.background.shift();
+  if (!next) {
+    activeCliStructuredRuns -= 1;
+    return;
+  }
+  next.signal?.removeEventListener("abort", next.abort!);
+  activeCliStructuredRuns = 1;
+  next.resolve(releaseCliStructuredSlot);
+}
+
+function acquireCliStructuredSlot(
+  priority: StructuredRunPriority,
+  signal?: AbortSignal
+): Promise<() => void> {
+  if (signal?.aborted) {
+    const error = new Error("aborted");
+    error.name = "AbortError";
+    return Promise.reject(error);
+  }
+  if (activeCliStructuredRuns === 0 && cliStructuredWaiters.foreground.length === 0) {
+    activeCliStructuredRuns = 1;
+    return Promise.resolve(releaseCliStructuredSlot);
+  }
+  return new Promise((resolve, reject) => {
+    const waiter: CliStructuredWaiter = { priority, resolve, reject, signal };
+    waiter.abort = () => {
+      const queue = cliStructuredWaiters[priority];
+      const index = queue.indexOf(waiter);
+      if (index >= 0) queue.splice(index, 1);
+      signal?.removeEventListener("abort", waiter.abort!);
+      const error = new Error("aborted");
+      error.name = "AbortError";
+      reject(error);
+    };
+    cliStructuredWaiters[priority].push(waiter);
+    signal?.addEventListener("abort", waiter.abort, { once: true });
+  });
+}
 
 /**
  * #982/#869/#981: chat-owned implementation of ai's structured CLI port. It reuses the exact
@@ -34,17 +87,20 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
     input: GenerateStructuredProviderInput
   ): Promise<StructuredProviderResult> {
     const startedAt = Date.now();
+    const priority = input.priority ?? "foreground";
+    const emit = (event: StructuredTelemetryEvent) => input.telemetry?.emit({ ...event, priority });
     let exit: "complete" | "busy" | "timeout" | "no-reply" | "error" = "error";
-    input.telemetry?.emit({ kind: "invoked" });
-    // ponytail: process-local cap protects interactive chat; move to a shared priority queue only if
-    // measured multi-process contention warrants it.
-    if (activeCliStructuredRuns >= 1) {
-      input.telemetry?.emit({ kind: "busy", exit: "busy" });
-      input.telemetry?.emit({ kind: "exit", exit: "busy" });
-      input.telemetry?.emit({ kind: "elapsed", elapsedMs: Date.now() - startedAt });
-      throw new CliChatUnavailableError("CLI structured generation is already busy");
+    emit({ kind: "invoked" });
+    if (activeCliStructuredRuns >= 1) emit({ kind: "busy", exit: "busy" });
+    let release: (() => void) | undefined;
+    try {
+      release = await acquireCliStructuredSlot(priority, input.signal);
+    } catch (error) {
+      exit = input.signal?.aborted ? "timeout" : "error";
+      emit({ kind: "exit", exit });
+      emit({ kind: "elapsed", elapsedMs: Date.now() - startedAt });
+      throw error;
     }
-    activeCliStructuredRuns += 1;
 
     let neutralDir: string | undefined;
     let engine: ReturnType<ChatEngineFactory> | undefined;
@@ -63,7 +119,7 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
       const stopped = new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
           timedOut = true;
-          input.telemetry?.emit({ kind: "timeout" });
+          emit({ kind: "timeout" });
           void activeEngine.kill().catch(() => undefined);
           reject(new CliChatUnavailableError("CLI structured generation timed out"));
         }, this.timeoutMs);
@@ -88,15 +144,17 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
           .reverse()
           .find((record) => record.kind === "reply")?.text;
         if (reply !== undefined) {
-          input.telemetry?.emit({ kind: "late-read" });
+          emit({ kind: "late-read" });
           exit = timedOut ? "timeout" : "complete";
           return { rawText: reply, usage: { inputTokens: 0, outputTokens: 0 } };
         }
         exit = timedOut
           ? "timeout"
-          : error instanceof CliChatUnavailableError
-            ? "no-reply"
-            : "error";
+          : input.signal?.aborted
+            ? "timeout"
+            : error instanceof CliChatUnavailableError
+              ? "no-reply"
+              : "error";
         throw error;
       }
     } finally {
@@ -107,9 +165,9 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
       // one-shot surface has no transcript-retention purpose.
       await engine?.purgeTranscripts?.().catch(() => undefined);
       if (neutralDir) await rm(neutralDir, { recursive: true, force: true });
-      activeCliStructuredRuns -= 1;
-      input.telemetry?.emit({ kind: "exit", exit });
-      input.telemetry?.emit({ kind: "elapsed", elapsedMs: Date.now() - startedAt });
+      release();
+      emit({ kind: "exit", exit });
+      emit({ kind: "elapsed", elapsedMs: Date.now() - startedAt });
     }
   }
 
@@ -136,7 +194,7 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
       const reply = [...next.records].reverse().find((record) => record.kind === "reply")?.text;
       if (reply !== undefined && !firstReadable) {
         firstReadable = true;
-        input.telemetry?.emit({ kind: "first-readable" });
+        input.telemetry?.emit({ kind: "first-readable", priority: input.priority ?? "foreground" });
       }
       if (next.complete) {
         if (reply !== undefined) return reply;
