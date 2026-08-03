@@ -6609,3 +6609,13 @@ handoff remain excluded. Next: redeploy exact HEAD through the existing mandator
 preserving vault/trusted-origin/proxy/sole-worker isolation; no install, migration, SQL, sync, QA, or
 merge. Ben may need to re-authenticate after restart, then configure an explicit active non-CLI
 JSON-capable Email extraction model through Settings before the single focused live proof.
+
+`READY_FOR_BINDING`: exact DEV HEAD is
+`dbfd5dd70f49a75787b7b79bbb7c439fcba0cbd0`, deployed through the mandatory source path. API is
+healthy on port 3000, the sole #1327 worker group is queue-ready, and the frontend is healthy on
+5173; all process cwd/HEAD checks match the #1327 worktree. Vault root, trusted origins, tailnet,
+and proxy `http://localhost:3000` are preserved. Direct health/readiness and local/LAN/tailnet Today
+routes return 200 with no fatal startup markers. No install, migration, SQL, Settings mutation, sync,
+browser QA, or merge ran. The API generated an ephemeral signing secret, invalidating the prior
+session. Next: Ben signs in once; then use the new Settings Email extraction row to select an active
+non-CLI JSON-capable model before exactly one timed sync.
