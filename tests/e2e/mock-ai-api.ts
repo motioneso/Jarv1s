@@ -6,6 +6,7 @@ import type {
   AiProviderConfigDto,
   AiServiceBinding,
   AiServiceBindingMapDto,
+  AiServiceKey,
   CreateAiConfiguredModelRequest,
   CreateAiProviderConfigRequest,
   PutAiServiceBindingRequest,
@@ -306,7 +307,7 @@ async function handleAiServiceBinding(route: Route, state: MockAiApiState): Prom
   // Path: /api/ai/services/:service/binding
   const service = decodeURIComponent(
     new URL(request.url()).pathname.split("/").slice(-2, -1)[0] ?? ""
-  ) as AiModelCapability;
+  ) as AiServiceKey;
   const input = request.postDataJSON() as PutAiServiceBindingRequest;
   const binding: AiServiceBinding = input.binding;
   state.aiServiceBindings = {
