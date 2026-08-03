@@ -105,15 +105,20 @@ export interface FollowedLeagueRef {
   readonly competitionLabel: string;
 }
 
+// One followed game inside the gameday window — a single slide of the hero score bar.
+export interface GamedayGame {
+  readonly game: GameSummary;
+  readonly competitionLabel: string; // "NFL" — never render competitionKey raw (#765 M4)
+  readonly rationale: string;
+}
+
 // Composed page (GET /api/sports/overview)
 export type OverviewHero =
-  | {
-      readonly mode: "gameday";
-      readonly game: GameSummary;
-      readonly competitionLabel: string; // "NFL" — never render competitionKey raw (#765 M4)
-      readonly rationale: string;
-      readonly alsoToday: string | null;
-    }
+  // Every followed game currently in the gameday window, not just the lead one (#1386). Ordered
+  // live-first, then by follow order; `games[0]` is the lead and the array is never empty. The
+  // client carousels this when there's more than one, so a second live game is visible instead of
+  // being reduced to the "N more followed games today" count this used to carry and never render.
+  | { readonly mode: "gameday"; readonly games: readonly GamedayGame[] }
   | { readonly mode: "story"; readonly headline: Headline | null };
 
 export interface FollowedTeamNews {
@@ -653,18 +658,26 @@ const leagueNewsGroupSchema = {
   }
 } as const;
 
+const gamedayGameSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["game", "competitionLabel", "rationale"],
+  properties: {
+    game: gameSummarySchema,
+    competitionLabel: { type: "string" },
+    rationale: { type: "string" }
+  }
+} as const;
+
 const overviewHeroSchema = {
   oneOf: [
     {
       type: "object",
       additionalProperties: false,
-      required: ["mode", "game", "competitionLabel", "rationale", "alsoToday"],
+      required: ["mode", "games"],
       properties: {
         mode: { type: "string", enum: ["gameday"] },
-        game: gameSummarySchema,
-        competitionLabel: { type: "string" },
-        rationale: { type: "string" },
-        alsoToday: { type: ["string", "null"] }
+        games: { type: "array", items: gamedayGameSchema }
       }
     },
     {

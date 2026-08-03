@@ -456,6 +456,107 @@
   border-color: var(--accent);
 }
 
+/* Gameday hero carousel (#1386): when more than one followed game is inside the window, the
+   score bar carousels instead of the page picking one and burying the rest. Same stacked-grid
+   stage as .sp-carousel above — one slide carries a story band and the next doesn't, and the
+   stage must hold the tallest so a rotation never reflows the page under the reader. */
+.sp-gameday__stage {
+  display: grid;
+}
+.sp-gameday__slide {
+  grid-area: 1 / 1;
+  min-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 360ms ease,
+    visibility 0s linear 360ms;
+}
+.sp-gameday__slide[data-active="true"] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 360ms ease;
+}
+/* Tabs left, arrows right: the tabs ARE the position indicator, so the arrows are a secondary
+   affordance rather than the main control the story carousel's dots need them to be. */
+.sp-gameday__ctl {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0 var(--space-3);
+}
+.sp-gameday__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+}
+/* A tab reads as a scoreline, not a chip: hairline box, caps-tracked team names, tabular score.
+   No pill, no accent fill — the ink underline is what says "showing". */
+.sp-gameday__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  line-height: var(--leading-none);
+}
+.sp-gameday__tab:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.sp-gameday__tab[aria-selected="true"] {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  border-bottom-color: var(--ink);
+  color: var(--text);
+}
+/* Roving tabindex means only the selected tab is tabbable, so this ring is the only thing
+   telling a keyboard user which of the arrow-reachable tabs they're on. --focus-ring is a
+   colour, not a shorthand — the app's focus treatment is this box-shadow. */
+.sp-gameday__tab:focus-visible,
+.sp-gameday__nav:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.sp-gameday__tabscore {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0;
+}
+.sp-gameday__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  padding: var(--space-1);
+}
+.sp-gameday__nav:hover {
+  background: var(--surface-2);
+}
+@media (max-width: 720px) {
+  /* Narrow: the arrows are redundant once the tabs wrap to their own rows, and they were the
+     first thing to collide with the wrap. Tabs alone still reach every game. */
+  .sp-gameday__nav {
+    display: none;
+  }
+}
+
 /* Broadsheet body: around-the-leagues board + Standings (mrb4w77y; was Latest + Standings,
    #839 task 7). */
 .sp-grid {
