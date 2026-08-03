@@ -33,9 +33,15 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
   async generateStructured(
     input: GenerateStructuredProviderInput
   ): Promise<StructuredProviderResult> {
+    const startedAt = Date.now();
+    let exit: "complete" | "busy" | "timeout" | "no-reply" | "error" = "error";
+    input.telemetry?.emit({ kind: "invoked" });
     // ponytail: process-local cap protects interactive chat; move to a shared priority queue only if
     // measured multi-process contention warrants it.
     if (activeCliStructuredRuns >= 1) {
+      input.telemetry?.emit({ kind: "busy", exit: "busy" });
+      input.telemetry?.emit({ kind: "exit", exit: "busy" });
+      input.telemetry?.emit({ kind: "elapsed", elapsedMs: Date.now() - startedAt });
       throw new CliChatUnavailableError("CLI structured generation is already busy");
     }
     activeCliStructuredRuns += 1;
@@ -44,6 +50,7 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
     let engine: ReturnType<ChatEngineFactory> | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let abort: (() => void) | undefined;
+    let timedOut = false;
 
     try {
       neutralDir = await mkdtemp(join(tmpdir(), "jarv1s-structured-"));
@@ -55,6 +62,8 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
       engine = activeEngine;
       const stopped = new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
+          timedOut = true;
+          input.telemetry?.emit({ kind: "timeout" });
           void activeEngine.kill().catch(() => undefined);
           reject(new CliChatUnavailableError("CLI structured generation timed out"));
         }, this.timeoutMs);
@@ -69,6 +78,7 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
       const generated = this.run(activeEngine, neutralDir, personaPath, input);
       try {
         const rawText = await Promise.race([generated, stopped]);
+        exit = "complete";
         return { rawText, usage: { inputTokens: 0, outputTokens: 0 } };
       } catch (error) {
         await activeEngine.kill().catch(() => undefined);
@@ -78,8 +88,15 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
           .reverse()
           .find((record) => record.kind === "reply")?.text;
         if (reply !== undefined) {
+          input.telemetry?.emit({ kind: "late-read" });
+          exit = timedOut ? "timeout" : "complete";
           return { rawText: reply, usage: { inputTokens: 0, outputTokens: 0 } };
         }
+        exit = timedOut
+          ? "timeout"
+          : error instanceof CliChatUnavailableError
+            ? "no-reply"
+            : "error";
         throw error;
       }
     } finally {
@@ -91,6 +108,8 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
       await engine?.purgeTranscripts?.().catch(() => undefined);
       if (neutralDir) await rm(neutralDir, { recursive: true, force: true });
       activeCliStructuredRuns -= 1;
+      input.telemetry?.emit({ kind: "exit", exit });
+      input.telemetry?.emit({ kind: "elapsed", elapsedMs: Date.now() - startedAt });
     }
   }
 
@@ -100,6 +119,7 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
     personaPath: string,
     input: GenerateStructuredProviderInput
   ): Promise<string> {
+    let firstReadable = false;
     let offset = (
       await engine.launch({
         neutralDir,
@@ -114,6 +134,10 @@ export class CliStructuredAdapter implements StructuredProviderAdapter {
       const next = await engine.readNew(offset);
       offset = next.offset;
       const reply = [...next.records].reverse().find((record) => record.kind === "reply")?.text;
+      if (reply !== undefined && !firstReadable) {
+        firstReadable = true;
+        input.telemetry?.emit({ kind: "first-readable" });
+      }
       if (next.complete) {
         if (reply !== undefined) return reply;
         throw new CliChatUnavailableError("CLI structured generation completed without a reply");

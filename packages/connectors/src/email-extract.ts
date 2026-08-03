@@ -1,4 +1,5 @@
 import type { GmailMessageFull, GmailPayloadPart } from "./google-api-client.js";
+import type { StructuredTelemetry } from "@jarv1s/ai";
 
 /** Max decoded body length sent to the LLM (bounded to protect prompt limits, spec risk #6). */
 export const MAX_BODY_CHARS = 20_000;
@@ -201,13 +202,16 @@ export interface EmailExtractDeps {
   readonly runChat: (
     prompt: string,
     signal?: AbortSignal,
-    batchSize?: number
+    batchSize?: number,
+    telemetry?: StructuredTelemetry
   ) => Promise<{ readonly text: string }>;
 }
 
 export interface EmailExtractOptions {
   /** Per-LLM-call timeout in ms (bounds sync latency; default from env, then 20s). */
   readonly callTimeoutMs?: number;
+  /** Metadata-only telemetry factory; the worker supplies job and batch attribution. */
+  readonly telemetry?: (batchIndex: number, batchSize: number) => StructuredTelemetry;
 }
 
 export const EMAIL_EXTRACT_BATCH_MAX_ITEMS = 48;
@@ -550,19 +554,20 @@ export async function extractEmailSignalsBatch(
     options.callTimeoutMs ?? Number(process.env.JARVIS_EMAIL_LLM_TIMEOUT_MS ?? "20000");
   const extracted: EmailExtractResult[] = [];
 
-  for (const batch of partitionEmailExtractionBatches(messages)) {
+  for (const [batchIndex, batch] of partitionEmailExtractionBatches(messages).entries()) {
+    const telemetry = options.telemetry?.(batchIndex, batch.length);
     try {
       if (batch.length === 1) {
         const message = batch[0]!;
         const reply = await withTimeout(
-          (signal) => deps.runChat(buildPrompt(message), signal),
+          (signal) => deps.runChat(buildPrompt(message), signal, 1, telemetry),
           timeoutMs
         );
         extracted.push(sanitizeExtractResult(message, safeParseSignals(reply.text, message.body)));
         continue;
       }
       const reply = await withTimeout(
-        (signal) => deps.runChat(buildBatchPrompt(batch), signal, batch.length),
+        (signal) => deps.runChat(buildBatchPrompt(batch), signal, batch.length, telemetry),
         timeoutMs
       );
       const object = JSON.parse(reply.text) as { results?: unknown };
@@ -596,6 +601,7 @@ export async function extractEmailSignalsBatch(
       }
     } catch (error) {
       if (error instanceof EmailExtractNeedsConfigurationError) throw error;
+      telemetry?.emit({ kind: "fallback", count: batch.length });
       extracted.push(
         ...batch.map((message) =>
           sanitizeExtractResult(message, { summary: null, signals: { confidence: 0 } })
