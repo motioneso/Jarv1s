@@ -6712,6 +6712,17 @@ uses an ephemeral auth secret, so Ben must sign in again before proof. CI is not
 jobs passed; Luna is classifying the timed-out step read-only before any rerun or waiver. This blocks
 merge, not the focused live proof.
 
+Ben signed in again. Read-only verification confirms the persisted Email extraction binding still
+targets Claude Haiku 4.5 on Anthropic CLI/non-interactive. CI timeout classification is `HANG` with
+no code/test failure emitted: database startup completed, then `pnpm verify:foundation` ran until
+the exact 40-minute job limit; cancelled logs no longer expose the inner test. Comparable main
+integration is green (181 files, 1,841 tests). One failed-job rerun is queued as workflow attempt 2;
+a second failure is stop-the-line. The old browser-proof session
+`019fc3e6-f656-7232-8960-939f997f3ec1` is no longer present in `herdr pane list`; do not claim it is
+monitoring. Luna builder session `019fc5dc-b5c6-7b32-803d-6704515901ea` now owns sanitized DB/queue
+timing only. Ben's signed-in browser remains untouched. Wait for `MONITOR_ARMED`, then authorize one
+sync.
+
 Sanitized persistence addendum: the actor has four messages received on the current UTC day
 (`01:46:36Z`–`02:49:51Z`). Since root creation, no new email-message rows were inserted but 212 were
 updated; the first persisted update was `05:20:59.225Z` (about 1.16 seconds after root creation),
