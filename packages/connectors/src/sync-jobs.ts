@@ -23,6 +23,7 @@ import { GoogleOAuthClient } from "./oauth.js";
 import { ConnectorsRepository } from "./repository.js";
 import {
   EmailExtractNeedsConfigurationError,
+  EmailExtractRetryableError,
   extractEmailSignalsBatch,
   partitionEmailExtractionBatches,
   type EmailExtractDeps,
@@ -678,6 +679,7 @@ export async function runGoogleSyncChunk(
       const batches = partitionEmailExtractionBatches(pending);
       for (const [batchIndex, batch] of batches.entries()) {
         const batchResults = await extractEmailSignalsBatch(batch, deps.emailExtractDeps, {
+          priority: phase === "email-current-day" ? "foreground" : "background",
           telemetry: (telemetryBatchIndex, telemetryBatchSize) => ({
             emit: (event) =>
               logger.info(
@@ -727,6 +729,13 @@ export async function runGoogleSyncChunk(
       }
       await projectKeys(unchangedKeys);
     } catch (error) {
+      if (error instanceof EmailExtractRetryableError) {
+        logger.warn(
+          { stage: "email", name: error.name, reason: error.reason },
+          "google-sync email extraction retryable failure"
+        );
+        throw error;
+      }
       emailSectionFailed = true;
       const errorLabel =
         error instanceof EmailExtractNeedsConfigurationError ? "email-needs-config" : "email-error";

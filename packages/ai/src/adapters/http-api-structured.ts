@@ -3,6 +3,8 @@ import type { ProviderKind } from "./transcript-reader.js";
 // #915 D6: provider mechanics only. Routing policy and credentials stay outside feature code.
 export const STRUCTURED_TOOL_NAME = "emit_structured_output";
 
+export type StructuredRunPriority = "foreground" | "background";
+
 export type StructuredChatTurn = {
   readonly role: "user" | "assistant";
   readonly content: string;
@@ -28,6 +30,7 @@ export type StructuredTelemetryEvent = {
   readonly elapsedMs?: number;
   readonly exit?: "complete" | "busy" | "timeout" | "no-reply" | "error";
   readonly count?: number;
+  readonly priority?: StructuredRunPriority;
 };
 
 export type StructuredTelemetry = {
@@ -41,6 +44,7 @@ export type GenerateStructuredProviderInput = {
   readonly maxOutputTokens: number;
   readonly signal?: AbortSignal;
   readonly telemetry?: StructuredTelemetry;
+  readonly priority?: StructuredRunPriority;
 };
 
 export type StructuredProviderResult =

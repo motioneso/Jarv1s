@@ -3,6 +3,7 @@ import {
   generateStructured,
   type AiRepository,
   type GenerateStructuredDeps,
+  type StructuredRunPriority,
   type StructuredTelemetry
 } from "@jarv1s/ai";
 import type { DataContextDb } from "@jarv1s/db";
@@ -113,7 +114,13 @@ export function buildEmailExtractDeps(
   options: BuildEmailExtractDepsOptions = {}
 ): EmailExtractDeps {
   return {
-    runChat: async (prompt, signal, batchSize = 1, telemetry?: StructuredTelemetry) => {
+    runChat: async (
+      prompt,
+      signal,
+      batchSize = 1,
+      telemetry?: StructuredTelemetry,
+      priority?: StructuredRunPriority
+    ) => {
       const schema =
         batchSize === 1
           ? EMAIL_SIGNALS_SCHEMA
@@ -146,7 +153,8 @@ export function buildEmailExtractDeps(
           prompt,
           requireExplicitBinding: true,
           signal,
-          telemetry
+          telemetry,
+          priority
         },
         {
           repository: aiRepo,
