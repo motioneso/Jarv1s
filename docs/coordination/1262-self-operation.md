@@ -6701,6 +6701,17 @@ GitHub CI is pending, not red. Next: mandatory exact-HEAD DEV redeploy preservin
 sole-worker isolation; no install, migration, SQL, Settings change, sync, browser QA, or merge.
 Job Search commit `47a71072` remains HOLD and must not restart shared DEV until #1327 terminal proof.
 
+`READY_FOR_PROOF`: exact DEV HEAD is
+`1609cef89053504fb5a69f451518aa4fd7fe3cc0` across API, sole worker, and web. API listens on 3000,
+web on 5173, every process cwd matches the #1327 worktree, the worker is queue-ready with one
+runtime leaf, and startup fatal markers are zero. Vault root, 12 trusted origins, tailnet, and proxy
+`http://localhost:3000` are preserved. Local/LAN/tailnet readiness and Today return 200. No install,
+migration, SQL, DB/Settings mutation, sync, browser QA, merge, or Job Search activity ran. The API
+uses an ephemeral auth secret, so Ben must sign in again before proof. CI is not green: required
+`Verify foundation and app` was cancelled at its exact 40-minute limit while both deployment smoke
+jobs passed; Luna is classifying the timed-out step read-only before any rerun or waiver. This blocks
+merge, not the focused live proof.
+
 Sanitized persistence addendum: the actor has four messages received on the current UTC day
 (`01:46:36Z`–`02:49:51Z`). Since root creation, no new email-message rows were inserted but 212 were
 updated; the first persisted update was `05:20:59.225Z` (about 1.16 seconds after root creation),
