@@ -6645,3 +6645,10 @@ model `d0d2a294-9f8e-4f6d-aae6-bcecd7a70204`: Claude Haiku 4.5
 green. No sync has been enqueued yet. Arm sanitized root-claim/current-day-ingest/genuine-row
 timing monitors, then authorize exactly one authenticated Sync action; no refresh or interaction
 until the row verdict.
+
+Ben triggered exactly one authenticated Google sync through the verified POST route. HTTP 202
+returned `enqueued=true`, `deduped=false`, job
+`7e8212ce-b63b-4c55-b730-e4317e4e68c7`. The sanitized monitors are armed from the pre-trigger DB
+boundary. Keep Today open without refresh; measure root create/claim to current-day ingest and first
+genuine version-1 row, with the live target at 30 seconds. No second enqueue, browser interaction,
+QA, restart, or merge until the verdict.
