@@ -5,6 +5,21 @@
   justify-content: space-between;
   gap: var(--space-6);
 }
+@media (max-width: 720px) {
+  .jds-masthead__row {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .jds-masthead__aside {
+    align-items: flex-start;
+  }
+  .jds-masthead__dateline {
+    text-align: left;
+  }
+  .jds-masthead__clock {
+    display: none;
+  }
+}
 .jds-masthead__main {
   min-width: 0;
 }
