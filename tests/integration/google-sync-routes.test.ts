@@ -150,12 +150,15 @@ describe("google-sync continuation handoff", () => {
     );
 
     const events: string[] = [];
+    const extractionBatchSizes: number[] = [];
+    const projectedMessageIds: string[] = [];
     const sends: Array<{
       payload: GoogleSyncContinuationPayload;
       options: { id: string };
     }> = [];
-    const taskCreate = vi.fn(async () => {
+    const taskCreate = vi.fn(async (_db: unknown, input: { sourceRef: string }) => {
       events.push("project");
+      projectedMessageIds.push(input.sourceRef.split(":").at(-1)!);
       return { id: "task-1" };
     });
     const firstPage = Array.from({ length: 8 }, (_, index) => ({ id: `interactive-${index}` }));
@@ -195,7 +198,10 @@ describe("google-sync continuation handoff", () => {
             getMessage: async ({ id }) => ({
               id,
               historyId: `history-${id}`,
-              internalDate: String(Date.parse("2026-08-01T04:00:00.000Z")),
+              internalDate: String(
+                Date.parse("2026-08-01T04:00:00.000Z") +
+                  (firstPage.length - Number(id.split("-").at(-1))) * 1_000
+              ),
               payload: {
                 mimeType: "text/plain",
                 headers: [
@@ -207,28 +213,17 @@ describe("google-sync continuation handoff", () => {
             })
           },
           emailExtractDeps: {
-            runChat: async (_prompt, _signal, batchSize = 1) => ({
-              text: JSON.stringify({
-                results: Array.from({ length: batchSize }, (_, index) => ({
-                  index,
-                  value: {
-                    summary: "Approval is needed today.",
-                    billsDue: [],
-                    actionItems: [],
-                    deadlines: [],
-                    mayGetLostInShuffle: true,
-                    importance: "high",
-                    confidence: 0.95,
-                    actionability: {
-                      category: "needs_action",
-                      reason: "The sender requested approval.",
-                      inferredSubject: "Approval",
-                      suggestedTasks: [{ text: "Approve the request" }]
-                    }
-                  }
-                }))
-              })
-            })
+            runChat: async (_prompt, _signal, batchSize = 1) => {
+              extractionBatchSizes.push(batchSize);
+              return {
+                text: JSON.stringify({
+                  category: "needs_action",
+                  confidence: 0.95,
+                  reason: "The sender requested approval.",
+                  action: "Approve the request"
+                })
+              };
+            }
           },
           actionProjection: {
             taskPort: { create: taskCreate },
@@ -242,7 +237,11 @@ describe("google-sync continuation handoff", () => {
     const result = await runJob(job);
 
     expect(result).toMatchObject({ emailFailures: 0, emailUpserted: 8, truncated: true });
-    expect(taskCreate).toHaveBeenCalled();
+    expect(extractionBatchSizes).toEqual(Array.from({ length: 8 }, () => 1));
+    expect(projectedMessageIds).toHaveLength(8);
+    expect(new Set(projectedMessageIds).size).toBe(8);
+    expect(projectedMessageIds[0]).toBe(firstPage[0]!.id);
+    expect(taskCreate).toHaveBeenCalledTimes(8);
     expect(events[0]).toBe("project");
     expect(events.at(-1)).toBe("enqueue-backfill");
     expect(sends[0]!.payload).toMatchObject({
