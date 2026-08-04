@@ -15,7 +15,7 @@ import {
   Upload
 } from "lucide-react";
 import type { ChangeEvent } from "react";
-import { Button } from "@jarv1s/ui";
+import { Button, ButtonLink } from "@jarv1s/ui";
 
 import {
   connectImapConnection,
@@ -301,14 +301,15 @@ export function GoogleConnectorStep(props: {
                 Open consent screen
               </Button>
               {google.popupBlocked && google.authUrl ? (
-                <a
-                  className="jds-btn jds-btn--quiet jds-btn--sm"
+                <ButtonLink
+                  variant="quiet"
+                  size="sm"
                   href={google.authUrl}
                   target="_blank"
                   rel="noreferrer"
                 >
                   Open manually <ExternalLink size={13} aria-hidden="true" />
-                </a>
+                </ButtonLink>
               ) : null}
               <Button
                 variant="quiet"
