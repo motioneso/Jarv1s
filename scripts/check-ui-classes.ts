@@ -64,6 +64,7 @@ const SKIP_DIR_NAMES = new Set(["node_modules", "dist", ".git", "build", "covera
 const KNOWN_INTERPOLATION_SITES = new Set([
   "apps/web/src/tasks/task-list-view.tsx",
   "apps/web/src/settings/settings-feedback.tsx",
+  "apps/web/src/today/brief-task-row.tsx",
   "apps/web/src/today/today-page.tsx",
   "apps/web/src/chat/assistant-surface/surface.tsx",
   "packages/settings-ui/src/index.tsx",
