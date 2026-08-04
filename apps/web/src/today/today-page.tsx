@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { localDay, type BriefingRunDto, type MeResponse, type TaskDto } from "@jarv1s/shared";
+import { AgendaRow, Card, Masthead, MastheadClock, MastheadDateline, StatTile } from "@jarv1s/ui";
 
 import {
   createWellnessCheckin,
@@ -71,7 +72,6 @@ import {
   timeLabel
 } from "./today-labels";
 import { isAtRisk, isDoFirst, isDoneToday } from "../tasks/focus";
-import { Stat } from "./stat";
 import { BriefTaskRow } from "./brief-task-row";
 import { OvernightSection } from "./overnight-section";
 import { NewsDesk } from "./news-desk";
@@ -278,39 +278,30 @@ export function TodayPage(props: {
 
   return (
     <div className="cmd-wrap">
-      <header className="cmd-masthead">
-        <div className="cmd-masthead__row">
-          <div className="cmd-masthead__main">
-            <p className="cmd-eyebrow">
-              {greeting()}, {name}
-            </p>
-            <h1 className="cmd-title">
-              <span>{headline.top}</span>
-              <span className="cmd-title__accent">{headline.accent}</span>
-            </h1>
-            <p className="cmd-lede" dangerouslySetInnerHTML={{ __html: lede }} />
-          </div>
-          {/* Folio column (Ben 2026-07-09 /today): the dateline moved OUT of its own line above
-              the row and INTO the header row as a top-right folio, stacked over the clock — the
-              eyebrow/title/lede reclaim the vacated top band and rise slightly. Aside pins the
-              dateline to the top and the clock to the bottom (see .cmd-masthead__aside). */}
-          <div className="cmd-masthead__aside">
-            <div className="cmd-dateline">{datelineLabel(now, locale)}</div>
-            {/* PM is shown as a dot floating left of the first digit rather than an "am/pm"
-                suffix (Ben 2026-07-08). AM shows no dot; the dot marks anything past 11:59am. */}
-            <div className="cmd-clock" aria-hidden="true">
-              <span className="cmd-clock__time">
-                {ampm(now.toISOString(), locale) === "pm" ? (
-                  // Real element (not a ::before) so it can carry a native "PM" hover tooltip
-                  // (Ben 2026-07-08). title is discoverable on hover even under aria-hidden.
-                  <span className="cmd-clock__pm" title="PM" />
-                ) : null}
-                {timeLabel(now.toISOString(), locale)}
-              </span>
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* Folio column (Ben 2026-07-09 /today): dateline sits as a top-right folio stacked over
+          the clock, pinned via Masthead's aside slot, rather than its own line above the row. */}
+      <Masthead
+        eyebrow={
+          <>
+            {greeting()}, {name}
+          </>
+        }
+        title={headline.top}
+        accent={headline.accent}
+        lede={<span dangerouslySetInnerHTML={{ __html: lede }} />}
+        aside={
+          <>
+            <MastheadDateline>{datelineLabel(now, locale)}</MastheadDateline>
+            {/* PM is a dot floating left of the first digit, not an "am/pm" suffix (Ben
+                2026-07-08); AM shows no dot. MastheadClock renders it as a real element so it
+                still carries a native "PM" hover tooltip under aria-hidden. */}
+            <MastheadClock
+              time={timeLabel(now.toISOString(), locale)}
+              pm={ampm(now.toISOString(), locale) === "pm"}
+            />
+          </>
+        }
+      />
 
       <div className="cmd-grid">
         <div>
@@ -493,28 +484,28 @@ export function TodayPage(props: {
               <div className="cmd-glance">
                 <div className="cmd-glance__title">At a glance</div>
                 <div className="cmd-glance__grid">
-                  <Stat
-                    k="Priorities"
-                    v={priorities.length}
+                  <StatTile
+                    label="Priorities"
+                    value={priorities.length}
                     icon={<Target size={12} />}
                     onClick={() => navigate("/tasks?focus=priorities")}
                   />
-                  <Stat
-                    k="At risk"
-                    v={atRisk.length}
+                  <StatTile
+                    label="At risk"
+                    value={atRisk.length}
                     warn={atRisk.length > 0}
                     icon={<Clock size={12} />}
                     onClick={() => navigate("/tasks?focus=atrisk")}
                   />
-                  <Stat
-                    k="Events"
-                    v={todayEvents.length}
+                  <StatTile
+                    label="Events"
+                    value={todayEvents.length}
                     icon={<CalendarDays size={12} />}
                     onClick={() => navigate("/calendar")}
                   />
-                  <Stat
-                    k="Done today"
-                    v={doneToday}
+                  <StatTile
+                    label="Done today"
+                    value={doneToday}
                     icon={<CheckCircle2 size={12} />}
                     onClick={() => navigate("/tasks?focus=donetoday")}
                   />
@@ -522,39 +513,17 @@ export function TodayPage(props: {
               </div>
             ) : null}
 
-            <div className="inst">
-              <div className="inst__head">
-                <span className="inst__title">Today's agenda</span>
-                <span className="inst__meta">{upcoming.length} left</span>
-              </div>
+            <Card title="Today's agenda" meta={`${upcoming.length} left`}>
               {upcoming.length > 0 ? (
                 <div>
                   {upcoming.map((event, index) => (
-                    <div
-                      className={`sched-row ${index === 0 ? "sched-row--now" : ""}`}
+                    <AgendaRow
                       key={event.id}
-                    >
-                      <div className="sched-row__t">{timeLabel(event.startsAt, locale)}</div>
-                      <div className="sched-row__body">
-                        <div className="sched-row__title">{event.title}</div>
-                        {event.location ? (
-                          <div className="sched-row__sub">{event.location}</div>
-                        ) : null}
-                        {index === 0 ? (
-                          <span className="sched-now">
-                            <span
-                              style={{
-                                width: 5,
-                                height: 5,
-                                borderRadius: 9,
-                                background: "var(--accent)"
-                              }}
-                            />
-                            Next up
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
+                      time={timeLabel(event.startsAt, locale)}
+                      title={event.title}
+                      location={event.location}
+                      status={index === 0 ? "now" : "default"}
+                    />
                   ))}
                 </div>
               ) : (
@@ -562,7 +531,7 @@ export function TodayPage(props: {
                   Nothing left on the calendar today. <b>Enjoy the evening.</b>
                 </div>
               )}
-            </div>
+            </Card>
 
             {eveningDefinition?.enabled && todayMode === "day" ? (
               <EveningReviewSection
