@@ -200,7 +200,7 @@ export async function projectEmailActions(
     await deps.preferencesRepository.get(scopedDb, "locale")
   );
 
-  for (const item of suppressionReadFailed ? [] : actionItems) {
+  for (const item of actionItems) {
     const signature = subjectSignatureFor(item);
     const state = signature ? suppressionBySignature.get(signature) : undefined;
     if (!signature || !state || state.dismissalCount < 2) continue;
@@ -243,7 +243,7 @@ export async function projectEmailActions(
   }
 
   const planned = planEmailTasks({
-    items: suppressionReadFailed ? [] : actionItems,
+    items: actionItems,
     mode,
     suppressionStates,
     resurfaceReasons,

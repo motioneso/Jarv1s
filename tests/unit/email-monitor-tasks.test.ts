@@ -607,7 +607,7 @@ describe("planEmailTasks — output shape", () => {
 });
 
 describe("runEmailMonitor — suppression read failures and message-scoped evidence", () => {
-  it("fails closed and persists degraded status when suppression read fails", async () => {
+  it("preserves actionable candidates and persists degraded status when suppression read fails", async () => {
     const prefs = new Map<string, unknown>();
     let createCalls = 0;
     const deps: RunEmailMonitorDeps = {
@@ -637,15 +637,15 @@ describe("runEmailMonitor — suppression read failures and message-scoped evide
     };
 
     await expect(runEmailMonitor(DB, "acct-1", deps)).resolves.toEqual({
-      planned: 0,
-      created: 0,
+      planned: 1,
+      created: 1,
       degraded: true
     });
-    expect(createCalls).toBe(0);
+    expect(createCalls).toBe(1);
     expect(prefs.get(MONITOR_STATUS_PREF_KEY("acct-1"))).toMatchObject({
       status: "degraded",
-      planned: 0,
-      created: 0
+      planned: 1,
+      created: 1
     });
   });
 
