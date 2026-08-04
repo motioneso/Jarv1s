@@ -6,6 +6,12 @@ import {
   seedGoogleAccount
 } from "./helpers/google-sync-orchestration.js";
 
+const INFORMATIONAL_COMPACT_REPLY = {
+  category: "fyi",
+  confidence: 0.9,
+  reason: "Informational update."
+};
+
 describe("runGoogleSync auth and health", () => {
   it("records a no-active-connection error without throwing", async () => {
     const ctx = { actorUserId: ids.userB, requestId: "pgboss:test" };
@@ -121,7 +127,10 @@ describe("runGoogleSync auth and health", () => {
           }
         },
         emailExtractDeps: {
-          runChat: async () => ({ text: "" })
+          runChat: async (_prompt, _signal, batchSize = 1) => {
+            expect(batchSize).toBe(1);
+            return { text: JSON.stringify(INFORMATIONAL_COMPACT_REPLY) };
+          }
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
       })
@@ -168,7 +177,10 @@ describe("runGoogleSync auth and health", () => {
           })
         },
         emailExtractDeps: {
-          runChat: async () => ({ text: "" })
+          runChat: async (_prompt, _signal, batchSize = 1) => {
+            expect(batchSize).toBe(1);
+            return { text: JSON.stringify(INFORMATIONAL_COMPACT_REPLY) };
+          }
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
       })
@@ -216,7 +228,10 @@ describe("runGoogleSync auth and health", () => {
           })
         },
         emailExtractDeps: {
-          runChat: async () => ({ text: "" })
+          runChat: async (_prompt, _signal, batchSize = 1) => {
+            expect(batchSize).toBe(1);
+            return { text: JSON.stringify(INFORMATIONAL_COMPACT_REPLY) };
+          }
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
       })
