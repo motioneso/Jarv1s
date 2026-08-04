@@ -35,30 +35,19 @@ export function SuggestedFromEmailSection(props: {
       <div className="jds-brief__title">Waiting for your say-so</div>
       <div className="loose">
         {props.tasks.map((task) => (
-          <div className="loose-row" key={task.id} style={{ cursor: "default" }}>
-            <span className="loose-row__ic">
+          <div className="jds-task" key={task.id}>
+            <span className="jds-task__check">
               <GitCommitHorizontal size={15} aria-hidden="true" />
             </span>
-            <button
-              type="button"
-              className="loose-row__main"
-              style={{
-                background: "transparent",
-                border: "none",
-                font: "inherit",
-                color: "inherit",
-                cursor: "pointer",
-                textAlign: "left",
-                padding: 0
-              }}
-              onClick={() => props.onOpen(task.id)}
-            >
-              <div className="loose-row__title">{task.title}</div>
-              <div className="loose-row__meta">
-                {task.dueAt ? `Due ${shortDate(task.dueAt, props.locale)}` : task.source}
+            <button type="button" className="jds-task__main" onClick={() => props.onOpen(task.id)}>
+              <div className="jds-task__title">{task.title}</div>
+              <div className="jds-task__meta">
+                <span className="jds-task__source">
+                  {task.dueAt ? `Due ${shortDate(task.dueAt, props.locale)}` : task.source}
+                </span>
               </div>
             </button>
-            <div className="loose-row__act" style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, alignSelf: "center" }}>
               <button
                 type="button"
                 className="jds-btn jds-btn--sm jds-btn--secondary"

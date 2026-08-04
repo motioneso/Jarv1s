@@ -433,26 +433,25 @@ export function TodayPage(props: {
                 {looseEnds.map((task) => {
                   const drift = driftOf(task, locale.timezone);
                   return (
-                    <button
-                      type="button"
-                      className="loose-row"
-                      key={task.id}
-                      onClick={() => setDialog({ id: task.id })}
-                    >
-                      <span className="loose-row__ic">
+                    <div className="jds-task" key={task.id}>
+                      <span className="jds-task__check">
                         <Flag size={15} aria-hidden="true" />
                       </span>
-                      <div className="loose-row__main">
-                        <div className="loose-row__title">{task.title}</div>
-                        <div className="loose-row__meta">{task.source}</div>
-                      </div>
-                      <div className="loose-row__act">
-                        <span className={`jds-drift jds-drift--${drift}`}>
-                          <span className="jds-drift__dot" />
-                          {drift === "overdue" ? "Overdue" : "At risk"}
-                        </span>
-                      </div>
-                    </button>
+                      <button
+                        type="button"
+                        className="jds-task__main"
+                        onClick={() => setDialog({ id: task.id })}
+                      >
+                        <div className="jds-task__title">{task.title}</div>
+                        <div className="jds-task__meta">
+                          <span className={`jds-drift jds-drift--${drift}`}>
+                            <span className="jds-drift__dot" />
+                            {drift === "overdue" ? "Overdue" : "At risk"}
+                          </span>
+                          <span className="jds-task__source">{task.source}</span>
+                        </div>
+                      </button>
+                    </div>
                   );
                 })}
               </div>

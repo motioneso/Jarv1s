@@ -159,51 +159,6 @@
   flex-direction: column;
   margin-top: 4px;
 }
-.loose-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  padding: 12px 0;
-  border: none;
-  border-top: 1px solid var(--border-subtle);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-}
-.loose-row:first-child {
-  border-top: none;
-}
-.loose-row__ic {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--surface-2);
-  color: var(--text-subtle);
-}
-.loose-row__main {
-  flex: 1;
-  min-width: 0;
-}
-.loose-row__title {
-  font-size: 14.5px;
-  color: var(--text);
-  line-height: 1.35;
-}
-.loose-row__meta {
-  font-size: 12px;
-  color: var(--text-subtle);
-  margin-top: 1px;
-}
-.loose-row__act {
-  flex: none;
-}
 
 /* ===== Wellness widget (rail) ===== */
 .well {
