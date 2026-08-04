@@ -188,7 +188,7 @@ export function EveningReviewSection(props: {
   return props.kind === "primary" ? (
     <section className="jds-brief">{content}</section>
   ) : (
-    <Card title="Evening review" meta={metaText}>
+    <Card title="Evening review" meta={metaText} padding="sm">
       {content}
     </Card>
   );
@@ -210,7 +210,7 @@ export function EveningPrepCard(props: {
   // (Ben: "Chat with {assistantName}") rather than the generic "Prep for tomorrow".
   const assistantName = useAssistantName();
   return (
-    <Card title="Prep for tomorrow">
+    <Card title="Prep for tomorrow" padding="sm">
       <p className="cmd-empty">Close out today and set up tomorrow in a quick chat.</p>
       <button
         type="button"

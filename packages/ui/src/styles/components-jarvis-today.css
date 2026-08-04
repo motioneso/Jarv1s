@@ -201,14 +201,15 @@
   justify-content: center;
   width: 28px;
   height: 28px;
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  border: none;
-  background: transparent;
+  background: var(--surface);
   color: var(--ink-4);
   cursor: pointer;
 }
-.jds-menu__trigger:hover {
-  background: var(--surface-sunken);
+.jds-menu__trigger:hover,
+.jds-menu__trigger[aria-expanded="true"] {
+  border-color: var(--border);
   color: var(--ink);
 }
 .jds-menu__list {

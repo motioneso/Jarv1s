@@ -512,7 +512,7 @@ export function TodayPage(props: {
               </div>
             ) : null}
 
-            <Card title="Today's agenda" meta={`${upcoming.length} left`}>
+            <Card title="Today's agenda" meta={`${upcoming.length} left`} padding="sm">
               {upcoming.length > 0 ? (
                 <div>
                   {upcoming.map((event, index) => (
