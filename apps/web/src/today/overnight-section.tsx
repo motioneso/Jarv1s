@@ -1,11 +1,13 @@
+import { Badge, type BadgeTone } from "@jarv1s/ui";
+
 import type { FeedTone, TodayFeed } from "./feed-source";
 
-const FEED_BADGE: Record<FeedTone, string> = {
-  pine: "jds-badge--forest",
-  amber: "jds-badge--amber",
-  steel: "jds-badge--steel",
-  red: "jds-badge--red",
-  neutral: "jds-badge--neutral"
+const FEED_BADGE_TONE: Record<FeedTone, BadgeTone> = {
+  pine: "forest",
+  amber: "amber",
+  steel: "steel",
+  red: "red",
+  neutral: "neutral"
 };
 
 export function OvernightSection(props: { readonly items: TodayFeed["overnight"] }) {
@@ -18,7 +20,7 @@ export function OvernightSection(props: { readonly items: TodayFeed["overnight"]
       <div className="overnight">
         {props.items.map((item) => (
           <div className="overnight__row" key={item.tag + item.text}>
-            <span className={`jds-badge ${FEED_BADGE[item.tone]}`}>{item.tag}</span>
+            <Badge tone={FEED_BADGE_TONE[item.tone]}>{item.tag}</Badge>
             <span className="tx">{item.text}</span>
           </div>
         ))}

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { GitCommitHorizontal } from "lucide-react";
 
 import type { LocaleSettingsDto, TaskDto } from "@jarv1s/shared";
+import { Button } from "@jarv1s/ui";
 
 import { updateTask } from "../api/client";
 import { queryKeys } from "../api/query-keys";
@@ -48,22 +49,22 @@ export function SuggestedFromEmailSection(props: {
               </div>
             </button>
             <div style={{ display: "flex", gap: 8, alignSelf: "center" }}>
-              <button
-                type="button"
-                className="jds-btn jds-btn--sm jds-btn--secondary"
+              <Button
+                variant="secondary"
+                size="sm"
                 disabled={triageMutation.isPending}
                 onClick={() => triageMutation.mutate({ task, status: "todo" })}
               >
                 Accept
-              </button>
-              <button
-                type="button"
-                className="jds-btn jds-btn--sm jds-btn--quiet"
+              </Button>
+              <Button
+                variant="quiet"
+                size="sm"
                 disabled={triageMutation.isPending}
                 onClick={() => triageMutation.mutate({ task, status: "archived" })}
               >
                 Dismiss
-              </button>
+              </Button>
             </div>
           </div>
         ))}
