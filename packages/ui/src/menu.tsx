@@ -23,6 +23,12 @@ function isOutsideTarget(container: HTMLElement, target: EventTarget | null): bo
 export function Menu(props: MenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const close = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -30,10 +36,10 @@ export function Menu(props: MenuProps) {
     if (!container) return;
 
     function onPointerDown(event: PointerEvent) {
-      if (container && isOutsideTarget(container, event.target)) setOpen(false);
+      if (container && isOutsideTarget(container, event.target)) close();
     }
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") close();
     }
 
     document.addEventListener("pointerdown", onPointerDown);
@@ -48,6 +54,7 @@ export function Menu(props: MenuProps) {
     <div className="jds-menu" ref={ref}>
       <button
         type="button"
+        ref={triggerRef}
         className="jds-menu__trigger"
         aria-label={props.triggerLabel}
         aria-expanded={open}
@@ -64,7 +71,7 @@ export function Menu(props: MenuProps) {
               role="menuitem"
               disabled={item.disabled}
               onClick={() => {
-                setOpen(false);
+                close();
                 props.onSelect(item.id);
               }}
             >
