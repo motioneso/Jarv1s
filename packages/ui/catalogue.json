@@ -3,6 +3,23 @@
   "name": "jarv1s-ui",
   "items": [
     {
+      "name": "agenda-row",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/agenda-row.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["AgendaRow"],
+      "options": [
+        {
+          "prop": "status",
+          "kind": "enum",
+          "values": ["default", "now", "done"],
+          "optional": true,
+          "default": "default"
+        }
+      ],
+      "flags": []
+    },
+    {
       "name": "all-day-chip",
       "type": "registry:ui",
       "files": [{ "path": "packages/ui/src/all-day-chip.tsx", "type": "registry:ui" }],
@@ -246,6 +263,24 @@
       "flags": []
     },
     {
+      "name": "masthead",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/masthead.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Masthead", "MastheadClock", "MastheadDateline"],
+      "options": [],
+      "flags": [{ "prop": "pm", "optional": true }]
+    },
+    {
+      "name": "menu",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/menu.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Menu"],
+      "options": [],
+      "flags": []
+    },
+    {
       "name": "month-chip",
       "type": "registry:ui",
       "files": [{ "path": "packages/ui/src/month-chip.tsx", "type": "registry:ui" }],
@@ -300,6 +335,15 @@
       "flags": []
     },
     {
+      "name": "stat-tile",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/stat-tile.tsx", "type": "registry:ui" }],
+      "dependencies": ["lucide-react"],
+      "exports": ["StatTile"],
+      "options": [],
+      "flags": [{ "prop": "warn", "optional": true }]
+    },
+    {
       "name": "switch",
       "type": "registry:ui",
       "files": [{ "path": "packages/ui/src/switch.tsx", "type": "registry:ui" }],
@@ -326,6 +370,15 @@
           "default": null
         }
       ],
+      "flags": []
+    },
+    {
+      "name": "weather-chip",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/weather-chip.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["WeatherChip"],
+      "options": [],
       "flags": []
     }
   ]

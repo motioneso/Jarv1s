@@ -21,6 +21,7 @@ const rootDirectory = process.cwd();
 const DEFINITION_FILES = [
   "packages/ui/src/styles/components-core.css",
   "packages/ui/src/styles/components-jarvis.css",
+  "packages/ui/src/styles/components-jarvis-today.css",
   "apps/web/src/styles/command-palette.css",
   "apps/web/src/styles/components-forms.css",
   "apps/web/src/styles/components-keyline.css",
@@ -34,7 +35,6 @@ const DEFINITION_FILES = [
   "apps/web/src/styles/kit-today.css",
   "apps/web/src/styles/kit-today-feeds.css",
   "apps/web/src/styles/kit-today-misc.css",
-  "apps/web/src/styles/kit-weather.css",
   "apps/web/src/styles/onboarding-connectors.css",
   "apps/web/src/styles/onboarding.css",
   "apps/web/src/styles/onboarding-design.css",
@@ -64,6 +64,7 @@ const SKIP_DIR_NAMES = new Set(["node_modules", "dist", ".git", "build", "covera
 const KNOWN_INTERPOLATION_SITES = new Set([
   "apps/web/src/tasks/task-list-view.tsx",
   "apps/web/src/settings/settings-feedback.tsx",
+  "apps/web/src/today/brief-task-row.tsx",
   "apps/web/src/today/today-page.tsx",
   "apps/web/src/chat/assistant-surface/surface.tsx",
   "packages/settings-ui/src/index.tsx",

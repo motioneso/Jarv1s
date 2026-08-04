@@ -9,8 +9,15 @@ import { BANNED_VISUAL_PROPERTIES } from "./check-design-tokens.js";
  *
  * Guard 1 (check-ui-classes.ts) only checks that a literal `jds-*` class is DEFINED somewhere —
  * `className="jds-btn jds-btn--primary"` passes it even though the point of a section's migration
- * is to render `<Button>` from @jarv1s/ui instead of hand-typing the class. Guard 5 forbids ANY
- * raw `jds-*` string in a migrated section's TSX.
+ * is to render `<Button>` from @jarv1s/ui instead of hand-typing the class. Guard 5 flags a raw
+ * `jds-*` string in a migrated section's TSX **only when a component backing that class family is
+ * exported from packages/ui/src/index.ts** — e.g. `jds-btn`/`jds-badge` are violations because
+ * `Button`/`Badge` exist, but `jds-brief`/`jds-task`/`jds-drift`/`jds-check`/`jds-why` stay legal as
+ * raw strings because no component backs them. This is a ruling, not a guess:
+ * https://github.com/motioneso/Jarv1s/issues/1387#issuecomment-5182500821 — decided once for all
+ * nine sections, do not re-litigate it per section. The class-to-component mapping is resolved
+ * explicitly via CLASS_FAMILY_TO_COMPONENT below, never inferred from the class name by string
+ * munging, so a family with no matching component can't silently pass.
  *
  * Guard 6 covers the same section's inline styles (`style={{...}}`), which evade both guard 1 (not
  * a className) and check-design-tokens.ts (not a CSS file) — a migrated section could otherwise
@@ -29,8 +36,79 @@ export const MIGRATED_SECTION_PATHS: readonly string[] = [
   "apps/web/src/calendar/calendar-page.tsx",
   "apps/web/src/calendar/calendar-month.tsx",
   "apps/web/src/calendar/calendar-time-grid.tsx",
-  "apps/web/src/calendar/calendar-peek.tsx"
+  "apps/web/src/calendar/calendar-peek.tsx",
+  "apps/web/src/today/briefing-feedback-menu.tsx",
+  "apps/web/src/today/briefing-freshness.tsx",
+  "apps/web/src/today/brief-task-row.tsx",
+  "apps/web/src/today/evening-mode.tsx",
+  "apps/web/src/today/goals-section.tsx",
+  "apps/web/src/today/header-weather.tsx",
+  "apps/web/src/today/module-today-widgets.tsx",
+  "apps/web/src/today/news-desk.tsx",
+  "apps/web/src/today/overnight-section.tsx",
+  "apps/web/src/today/proactive-cards.tsx",
+  "apps/web/src/today/today-page.tsx",
+  "apps/web/src/today/today-suggested-email.tsx"
 ];
+
+// Explicit class-family -> component name map. Resolving this by string munging (stripping
+// "jds-" and title-casing) would make a silent mismatch pass the guard on everything — e.g. if
+// jds-iconbtn were guessed as "Iconbtn" instead of looked up as "IconButton", the guard would
+// never flag a hand-typed jds-iconbtn string. Every entry here was confirmed against the class
+// each component's own source actually renders (packages/ui/src/*.tsx).
+const CLASS_FAMILY_TO_COMPONENT: Readonly<Record<string, string>> = {
+  "jds-agenda-row": "AgendaRow",
+  "jds-avatar": "Avatar",
+  "jds-badge": "Badge",
+  "jds-btn": "Button",
+  "jds-card": "Card",
+  "jds-chip": "Chip",
+  "jds-dialog": "Dialog",
+  "jds-divider": "Divider",
+  "jds-iconbtn": "IconButton",
+  "jds-indicator": "Indicator",
+  "jds-masthead": "Masthead",
+  "jds-menu": "Menu",
+  "jds-segmented": "Segmented",
+  "jds-select": "Select",
+  "jds-selectwrap": "Select",
+  "jds-stat-tile": "StatTile",
+  "jds-switch": "Switch",
+  "jds-weather-chip": "WeatherChip"
+};
+
+// Reduces a BEM-style token to its block name: `jds-badge--forest` and `jds-dialog__head` both
+// become their leading family. Purely structural (finds the first `--`/`__`) — it does not decide
+// which component owns the family, that lookup happens against CLASS_FAMILY_TO_COMPONENT below.
+function classFamily(token: string): string {
+  const separatorIndex = Math.min(
+    ...["--", "__"]
+      .map((sep) => token.indexOf(sep))
+      .filter((index) => index !== -1)
+      .concat([token.length])
+  );
+  return token.slice(0, separatorIndex);
+}
+
+// Reads the real, fixed index.ts export list (not the per-call `root` param, which in unit tests
+// points at an isolated fixture directory with no packages/ui of its own) so the guard always
+// checks against what @jarv1s/ui actually exports today.
+async function collectExportedComponentNames(): Promise<Set<string>> {
+  const contents = await readFile(join(rootDirectory, "packages/ui/src/index.ts"), "utf8");
+  const names = new Set<string>();
+
+  for (const line of contents.split(/\r\n|\r|\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("export {")) continue;
+    const inner = trimmed.slice(trimmed.indexOf("{") + 1, trimmed.indexOf("}"));
+    for (const rawName of inner.split(",")) {
+      const name = rawName.trim();
+      if (name) names.add(name);
+    }
+  }
+
+  return names;
+}
 
 export interface RawClassViolation {
   readonly path: string;
@@ -58,6 +136,7 @@ export async function checkRawClasses(
 ): Promise<RawClassViolation[]> {
   const violations: RawClassViolation[] = [];
   const tokenPattern = /\bjds-[a-zA-Z0-9-]+/g;
+  const exportedComponents = await collectExportedComponentNames();
 
   for (const relativeFile of migratedPaths) {
     const contents = await readFileSafe(join(root, relativeFile));
@@ -69,6 +148,10 @@ export async function checkRawClasses(
       tokenPattern.lastIndex = 0;
       let match;
       while ((match = tokenPattern.exec(line)) !== null) {
+        const family = classFamily(match[0]);
+        const component = CLASS_FAMILY_TO_COMPONENT[family];
+        if (component === undefined || !exportedComponents.has(component)) continue;
+
         violations.push({
           path: normalizePath(relativeFile),
           line: index + 1,

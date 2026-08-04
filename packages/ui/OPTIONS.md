@@ -8,6 +8,10 @@ that isn't listed here, and do not add a raw `jds-*` class as a substitute for o
 component's union type in `packages/ui/src/` instead. See `packages/ui/catalogue.json` for the
 machine-readable form (also carries each component's file path and exports).
 
+## agenda-row
+
+- **status** (optional, default `default`): `default`, `now`, `done`
+
 ## all-day-chip
 
 _No enum or boolean props._
@@ -84,6 +88,14 @@ _No enum or boolean props._
 
 - **tone** (required): `hard`, `hold`
 
+## masthead
+
+- **pm** (optional boolean flag)
+
+## menu
+
+_No enum or boolean props._
+
 ## month-chip
 
 - **block** (optional boolean flag)
@@ -108,6 +120,10 @@ _No enum or boolean props._
 
 _No enum or boolean props._
 
+## stat-tile
+
+- **warn** (optional boolean flag)
+
 ## switch
 
 - **checked** (required boolean flag)
@@ -116,3 +132,7 @@ _No enum or boolean props._
 ## today-pill
 
 - **variant** (required): `month`, `grid`
+
+## weather-chip
+
+_No enum or boolean props._

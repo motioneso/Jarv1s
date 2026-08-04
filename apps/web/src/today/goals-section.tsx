@@ -24,20 +24,20 @@ export function GoalsSection() {
       <div className="jds-brief__title">Long-term goals</div>
       <div className="loose">
         {activeGoals.map((goal) => (
-          <div className="loose-row" key={goal.id}>
-            <span className="loose-row__ic">
+          <div className="jds-task" key={goal.id}>
+            <span className="jds-task__check">
               <Target size={15} aria-hidden="true" />
             </span>
-            <div className="loose-row__main">
-              <div className="loose-row__title">{goal.title}</div>
-              <div className="loose-row__meta">{goal.desiredOutcome}</div>
-            </div>
-            <div className="loose-row__act">
-              {goal.priority ? (
-                <span className="jds-drift">
-                  <span className="jds-drift__dot" />P{goal.priority}
-                </span>
-              ) : null}
+            <div className="jds-task__main">
+              <div className="jds-task__title">{goal.title}</div>
+              <div className="jds-task__meta">
+                {goal.priority ? (
+                  <span className="jds-drift">
+                    <span className="jds-drift__dot" />P{goal.priority}
+                  </span>
+                ) : null}
+                <span className="jds-task__source">{goal.desiredOutcome}</span>
+              </div>
             </div>
           </div>
         ))}

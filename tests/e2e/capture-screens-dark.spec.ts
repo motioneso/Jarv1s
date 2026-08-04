@@ -148,6 +148,20 @@ test("dark: notifications", async ({ page }) => {
   await shot(page, "07-notifications");
 });
 
+// #1390: command palette had no capture coverage — added ahead of the Today section migration.
+test("dark: command palette", async ({ page }) => {
+  await baseState(page);
+  await page.goto("/today");
+  await page.waitForTimeout(600);
+  await page.keyboard.press("Control+k");
+  await page.waitForTimeout(400);
+  await shot(page, "07a-command-palette");
+
+  await page.keyboard.type("task");
+  await page.waitForTimeout(300);
+  await shot(page, "07b-command-palette-search");
+});
+
 test("dark: settings + AI", async ({ page }) => {
   await baseState(page);
   await page.goto("/settings");

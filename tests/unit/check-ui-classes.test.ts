@@ -38,6 +38,7 @@ async function buildFixture(): Promise<string> {
   for (const relativeFile of [
     "packages/ui/src/styles/components-core.css",
     "packages/ui/src/styles/components-jarvis.css",
+    "packages/ui/src/styles/components-jarvis-today.css",
     "apps/web/src/styles/command-palette.css",
     "apps/web/src/styles/components-forms.css",
     "apps/web/src/styles/components-keyline.css",
@@ -51,7 +52,6 @@ async function buildFixture(): Promise<string> {
     "apps/web/src/styles/kit-today.css",
     "apps/web/src/styles/kit-today-feeds.css",
     "apps/web/src/styles/kit-today-misc.css",
-    "apps/web/src/styles/kit-weather.css",
     "apps/web/src/styles/onboarding-connectors.css",
     "apps/web/src/styles/onboarding.css",
     "apps/web/src/styles/onboarding-design.css",

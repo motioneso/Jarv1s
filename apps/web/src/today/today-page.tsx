@@ -1,20 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowUpRight,
-  BookOpen,
   CalendarDays,
   Check,
   CheckCircle2,
   ClipboardCheck,
   Clock,
-  Cpu,
-  FileText,
   Flag,
-  GitCommitHorizontal,
   HeartPulse,
   Info,
-  Leaf,
-  Newspaper,
   Pill,
   Target
 } from "lucide-react";
@@ -22,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { localDay, type BriefingRunDto, type MeResponse, type TaskDto } from "@jarv1s/shared";
+import { AgendaRow, Card, Masthead, MastheadClock, MastheadDateline, StatTile } from "@jarv1s/ui";
 
 import {
   createWellnessCheckin,
@@ -60,7 +54,7 @@ import { BriefingStaleBanner, parseBriefingFreshness } from "./briefing-freshnes
 import { ProactiveCards } from "./proactive-cards";
 import { SuggestedFromEmailSection } from "./today-suggested-email";
 import { TaskDetailsDialog } from "../tasks/task-details-dialog";
-import { createEmptyTodayFeed, type FeedTone, type TodayFeed } from "./feed-source";
+import { createEmptyTodayFeed, type TodayFeed } from "./feed-source";
 import { ModuleTodayWidgets } from "./module-today-widgets";
 import {
   ampm,
@@ -75,10 +69,12 @@ import {
   firstName,
   greeting,
   isToday,
-  shortDate,
   timeLabel
 } from "./today-labels";
 import { isAtRisk, isDoFirst, isDoneToday } from "../tasks/focus";
+import { BriefTaskRow } from "./brief-task-row";
+import { OvernightSection } from "./overnight-section";
+import { NewsDesk } from "./news-desk";
 import "../styles/wellness-1.css";
 import "../styles/wellness-2.css";
 import "../styles/wellness-3.css";
@@ -282,39 +278,30 @@ export function TodayPage(props: {
 
   return (
     <div className="cmd-wrap">
-      <header className="cmd-masthead">
-        <div className="cmd-masthead__row">
-          <div className="cmd-masthead__main">
-            <p className="cmd-eyebrow">
-              {greeting()}, {name}
-            </p>
-            <h1 className="cmd-title">
-              <span>{headline.top}</span>
-              <span className="cmd-title__accent">{headline.accent}</span>
-            </h1>
-            <p className="cmd-lede" dangerouslySetInnerHTML={{ __html: lede }} />
-          </div>
-          {/* Folio column (Ben 2026-07-09 /today): the dateline moved OUT of its own line above
-              the row and INTO the header row as a top-right folio, stacked over the clock — the
-              eyebrow/title/lede reclaim the vacated top band and rise slightly. Aside pins the
-              dateline to the top and the clock to the bottom (see .cmd-masthead__aside). */}
-          <div className="cmd-masthead__aside">
-            <div className="cmd-dateline">{datelineLabel(now, locale)}</div>
-            {/* PM is shown as a dot floating left of the first digit rather than an "am/pm"
-                suffix (Ben 2026-07-08). AM shows no dot; the dot marks anything past 11:59am. */}
-            <div className="cmd-clock" aria-hidden="true">
-              <span className="cmd-clock__time">
-                {ampm(now.toISOString(), locale) === "pm" ? (
-                  // Real element (not a ::before) so it can carry a native "PM" hover tooltip
-                  // (Ben 2026-07-08). title is discoverable on hover even under aria-hidden.
-                  <span className="cmd-clock__pm" title="PM" />
-                ) : null}
-                {timeLabel(now.toISOString(), locale)}
-              </span>
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* Folio column (Ben 2026-07-09 /today): dateline sits as a top-right folio stacked over
+          the clock, pinned via Masthead's aside slot, rather than its own line above the row. */}
+      <Masthead
+        eyebrow={
+          <>
+            {greeting()}, {name}
+          </>
+        }
+        title={headline.top}
+        accent={headline.accent}
+        lede={<span dangerouslySetInnerHTML={{ __html: lede }} />}
+        aside={
+          <>
+            <MastheadDateline>{datelineLabel(now, locale)}</MastheadDateline>
+            {/* PM is a dot floating left of the first digit, not an "am/pm" suffix (Ben
+                2026-07-08); AM shows no dot. MastheadClock renders it as a real element so it
+                still carries a native "PM" hover tooltip under aria-hidden. */}
+            <MastheadClock
+              time={timeLabel(now.toISOString(), locale)}
+              pm={ampm(now.toISOString(), locale) === "pm"}
+            />
+          </>
+        }
+      />
 
       <div className="cmd-grid">
         <div>
@@ -446,26 +433,25 @@ export function TodayPage(props: {
                 {looseEnds.map((task) => {
                   const drift = driftOf(task, locale.timezone);
                   return (
-                    <button
-                      type="button"
-                      className="loose-row"
-                      key={task.id}
-                      onClick={() => setDialog({ id: task.id })}
-                    >
-                      <span className="loose-row__ic">
+                    <div className="jds-task" key={task.id}>
+                      <span className="jds-task__check">
                         <Flag size={15} aria-hidden="true" />
                       </span>
-                      <div className="loose-row__main">
-                        <div className="loose-row__title">{task.title}</div>
-                        <div className="loose-row__meta">{task.source}</div>
-                      </div>
-                      <div className="loose-row__act">
-                        <span className={`jds-drift jds-drift--${drift}`}>
-                          <span className="jds-drift__dot" />
-                          {drift === "overdue" ? "Overdue" : "At risk"}
-                        </span>
-                      </div>
-                    </button>
+                      <button
+                        type="button"
+                        className="jds-task__main"
+                        onClick={() => setDialog({ id: task.id })}
+                      >
+                        <div className="jds-task__title">{task.title}</div>
+                        <div className="jds-task__meta">
+                          <span className={`jds-drift jds-drift--${drift}`}>
+                            <span className="jds-drift__dot" />
+                            {drift === "overdue" ? "Overdue" : "At risk"}
+                          </span>
+                          <span className="jds-task__source">{task.source}</span>
+                        </div>
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -497,28 +483,28 @@ export function TodayPage(props: {
               <div className="cmd-glance">
                 <div className="cmd-glance__title">At a glance</div>
                 <div className="cmd-glance__grid">
-                  <Stat
-                    k="Priorities"
-                    v={priorities.length}
+                  <StatTile
+                    label="Priorities"
+                    value={priorities.length}
                     icon={<Target size={12} />}
                     onClick={() => navigate("/tasks?focus=priorities")}
                   />
-                  <Stat
-                    k="At risk"
-                    v={atRisk.length}
+                  <StatTile
+                    label="At risk"
+                    value={atRisk.length}
                     warn={atRisk.length > 0}
                     icon={<Clock size={12} />}
                     onClick={() => navigate("/tasks?focus=atrisk")}
                   />
-                  <Stat
-                    k="Events"
-                    v={todayEvents.length}
+                  <StatTile
+                    label="Events"
+                    value={todayEvents.length}
                     icon={<CalendarDays size={12} />}
                     onClick={() => navigate("/calendar")}
                   />
-                  <Stat
-                    k="Done today"
-                    v={doneToday}
+                  <StatTile
+                    label="Done today"
+                    value={doneToday}
                     icon={<CheckCircle2 size={12} />}
                     onClick={() => navigate("/tasks?focus=donetoday")}
                   />
@@ -526,39 +512,17 @@ export function TodayPage(props: {
               </div>
             ) : null}
 
-            <div className="inst">
-              <div className="inst__head">
-                <span className="inst__title">Today's agenda</span>
-                <span className="inst__meta">{upcoming.length} left</span>
-              </div>
+            <Card title="Today's agenda" meta={`${upcoming.length} left`} padding="sm">
               {upcoming.length > 0 ? (
                 <div>
                   {upcoming.map((event, index) => (
-                    <div
-                      className={`sched-row ${index === 0 ? "sched-row--now" : ""}`}
+                    <AgendaRow
                       key={event.id}
-                    >
-                      <div className="sched-row__t">{timeLabel(event.startsAt, locale)}</div>
-                      <div className="sched-row__body">
-                        <div className="sched-row__title">{event.title}</div>
-                        {event.location ? (
-                          <div className="sched-row__sub">{event.location}</div>
-                        ) : null}
-                        {index === 0 ? (
-                          <span className="sched-now">
-                            <span
-                              style={{
-                                width: 5,
-                                height: 5,
-                                borderRadius: 9,
-                                background: "var(--accent)"
-                              }}
-                            />
-                            Next up
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
+                      time={timeLabel(event.startsAt, locale)}
+                      title={event.title}
+                      location={event.location}
+                      status={index === 0 ? "now" : "default"}
+                    />
                   ))}
                 </div>
               ) : (
@@ -566,7 +530,7 @@ export function TodayPage(props: {
                   Nothing left on the calendar today. <b>Enjoy the evening.</b>
                 </div>
               )}
-            </div>
+            </Card>
 
             {eveningDefinition?.enabled && todayMode === "day" ? (
               <EveningReviewSection
@@ -782,177 +746,3 @@ function XIcon() {
     </svg>
   );
 }
-
-function Stat(props: {
-  readonly k: string;
-  readonly v: number;
-  readonly icon: React.ReactNode;
-  readonly warn?: boolean;
-  readonly onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={`cmd-stat ${props.warn ? "cmd-stat--warn" : ""}`}
-      onClick={props.onClick}
-    >
-      <div className="k">
-        {props.icon}
-        {props.k}
-        <span className="cmd-stat__go">
-          <ArrowUpRight size={13} aria-hidden="true" />
-        </span>
-      </div>
-      <div className="v">{props.v}</div>
-    </button>
-  );
-}
-
-function BriefTaskRow(props: {
-  readonly task: TaskDto;
-  readonly onToggle: () => void;
-  readonly onOpen: () => void;
-}) {
-  const { task } = props;
-  const locale = useUserLocale();
-  const [optimisticDone, setOptimisticDone] = useState(task.status === "done");
-  const done = optimisticDone;
-  const drift = driftOf(task, locale.timezone);
-  const p1 = (task.priority ?? 0) >= 4;
-  return (
-    <div
-      className={`jds-task ${p1 ? "jds-task--p1" : "jds-task--p2"} ${done ? "jds-task--done" : ""}`}
-    >
-      <span className="jds-task__prio" />
-      <span className="jds-task__check">
-        <label className="jds-check">
-          <input
-            type="checkbox"
-            checked={done}
-            onChange={() => {
-              setOptimisticDone(!optimisticDone);
-              props.onToggle();
-            }}
-            aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
-          />
-          <span className="jds-check__box">
-            <Check size={13} aria-hidden="true" />
-          </span>
-        </label>
-      </span>
-      <button type="button" className="jds-task__main" onClick={props.onOpen}>
-        <div className="jds-task__title">{task.title}</div>
-        <div className="jds-task__meta">
-          {drift ? (
-            <span className={`jds-drift jds-drift--${drift}`}>
-              <span className="jds-drift__dot" />
-              {drift === "overdue" ? "Overdue" : "At risk"}
-            </span>
-          ) : null}
-          <span className="jds-task__source">
-            <GitCommitHorizontal size={12} aria-hidden="true" />
-            {task.source}
-          </span>
-          {task.dueAt ? (
-            <span className="jds-task__time">{shortDate(task.dueAt, locale)}</span>
-          ) : null}
-        </div>
-      </button>
-    </div>
-  );
-}
-
-// ---- editorial feed sections (demo data; no backend yet) ----
-const FEED_BADGE: Record<FeedTone, string> = {
-  pine: "jds-badge--forest",
-  amber: "jds-badge--amber",
-  steel: "jds-badge--steel",
-  red: "jds-badge--red",
-  neutral: "jds-badge--neutral"
-};
-
-function OvernightSection(props: { readonly items: TodayFeed["overnight"] }) {
-  return (
-    <section className="jds-brief">
-      <div className="jds-brief__head">
-        <span className="jds-brief__kicker">Overnight</span>
-      </div>
-      <div className="jds-brief__title">What changed since last night</div>
-      <div className="overnight">
-        {props.items.map((item) => (
-          <div className="overnight__row" key={item.tag + item.text}>
-            <span className={`jds-badge ${FEED_BADGE[item.tone]}`}>{item.tag}</span>
-            <span className="tx">{item.text}</span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-const INTEREST_ICONS = { cpu: Cpu, leaf: Leaf, book: BookOpen } as const;
-
-function NewsDesk(props: {
-  readonly news: TodayFeed["news"];
-  readonly interests: TodayFeed["interests"];
-}) {
-  const hero = props.news[0];
-  const rest = props.news.slice(1);
-  return (
-    <section className="jds-brief">
-      <div className="jds-brief__head">
-        <span className="jds-brief__kicker">The desk</span>
-      </div>
-      <div className="jds-brief__title">News &amp; your interests</div>
-      {hero ? (
-        <div className="np-hero">
-          <div className="np-photo np-photo--news">
-            <div className="np-photo__ph">
-              <Newspaper size={22} aria-hidden="true" />
-              <span className="np-photo__cap">Story image</span>
-            </div>
-          </div>
-          <div className="np-hero__body">
-            <div className="np-kicker">{hero.source}</div>
-            <h3 className="np-headline">{hero.title}</h3>
-            {hero.dek ? <p className="np-dek">{hero.dek}</p> : null}
-            <div className="np-meta">{hero.meta}</div>
-          </div>
-        </div>
-      ) : null}
-      <div className="np-list">
-        {rest.map((n) => (
-          <div className="np-row" key={n.title}>
-            <div className="np-row__lead src">
-              <FileText size={15} aria-hidden="true" />
-            </div>
-            <div className="np-row__main">
-              <div className="np-row__title">{n.title}</div>
-              <div className="np-row__sub">
-                <span className="src">{n.source}</span> · {n.meta}
-              </div>
-            </div>
-          </div>
-        ))}
-        {props.interests.map((n) => {
-          const Ico = INTEREST_ICONS[n.icon];
-          return (
-            <div className="np-row" key={n.title}>
-              <div className="np-row__lead src">
-                <Ico size={15} aria-hidden="true" />
-              </div>
-              <div className="np-row__main">
-                <div className="np-row__title">{n.title}</div>
-                <div className="np-row__sub">
-                  <span className="np-topic">Following · {n.topic}</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-// ---- helpers ----

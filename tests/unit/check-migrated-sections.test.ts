@@ -52,6 +52,26 @@ describe("check-migrated-sections guard 5: raw jds-* class ban", () => {
 
     expect(violations).toEqual([]);
   });
+
+  it("still flags a hand-written jds-badge string (Badge is exported from packages/ui)", async () => {
+    const root = await buildFixture(
+      'export const Thing = () => <span className="jds-badge jds-badge--forest">New</span>;\n'
+    );
+
+    const violations = await checkRawClasses(root, ["apps/web/src/widgets/thing.tsx"]);
+
+    expect(violations.map((v) => v.className)).toEqual(["jds-badge", "jds-badge--forest"]);
+  });
+
+  it("does not flag a class family with no backing component (ruling #1387, option 1)", async () => {
+    const root = await buildFixture(
+      'export const Thing = () => <section className="jds-brief"><div className="jds-task jds-task__title" /></section>;\n'
+    );
+
+    const violations = await checkRawClasses(root, ["apps/web/src/widgets/thing.tsx"]);
+
+    expect(violations).toEqual([]);
+  });
 });
 
 describe("check-migrated-sections guard 6: inline-style banned-property ban", () => {
