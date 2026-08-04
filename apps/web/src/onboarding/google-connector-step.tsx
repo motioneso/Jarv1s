@@ -611,12 +611,7 @@ export function GoogleConnectorStep(props: {
       <div className="onb-pickhd">
         <span className="onb-pickhd__lbl">Choose a service to connect</span>
         {mode === "adding" ? (
-          <Button
-            variant="quiet"
-            size="sm"
-            type="button"
-            onClick={() => setMode("connected")}
-          >
+          <Button variant="quiet" size="sm" type="button" onClick={() => setMode("connected")}>
             Cancel
           </Button>
         ) : null}
