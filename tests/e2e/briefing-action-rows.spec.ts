@@ -203,7 +203,11 @@ test("morning and evening prose and action rows render accept dismiss view reply
 
   const needsYou = page.locator("section.jds-brief").filter({ hasText: "Needs you" });
   await expect(needsYou.getByText("3 need you", { exact: true })).toBeVisible();
-  for (const row of morningRows) await expect(needsYou.getByText(row.title)).toBeVisible();
+  for (const row of morningRows) {
+    await expect(
+      needsYou.locator(".loose-row").filter({ hasText: row.title }).locator(".loose-row__title")
+    ).toHaveText(row.title);
+  }
   await expect(needsYou.getByRole("link", { name: "View" })).toHaveCount(2);
 
   const actionEntry = needsYou.locator(".loose-row").filter({ hasText: morningRows[0]!.title });
