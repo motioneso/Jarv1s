@@ -15,6 +15,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createElement } from "react";
 import { act, create } from "react-test-renderer";
+import type { ReactTestRenderer } from "react-test-renderer";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { buildExternalModule } from "../../scripts/build-external-module.js";
@@ -48,7 +49,7 @@ describe("module-web-sdk UI smoke (#1388 Foundation task 11)", () => {
     };
     expect(mod.default.contractVersion).toBe(2);
 
-    let renderer!: import("react-test-renderer").ReactTestRenderer;
+    let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = create(createElement(mod.default.Root));
     });

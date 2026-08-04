@@ -16,7 +16,6 @@ import { fileURLToPath } from "node:url";
  */
 
 const rootDirectory = process.cwd();
-const cssRoot = join(rootDirectory, "apps/web/src");
 const allowedColorLiteralFile = "apps/web/src/styles/tokens.css";
 const colorLiteralPattern = /#[0-9a-fA-F]{3,8}\b|\brgba?\([^)]*\)/g;
 const stockIndigoPattern = /#(?:4f46e5|6366f1|4338ca|3730a3|818cf8|c7d2fe)\b/i;
