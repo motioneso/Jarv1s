@@ -43,22 +43,15 @@ describe("runGoogleSync email orchestration", () => {
       const messages = Array.from({ length: 21 }, (_, index) => ({
         id: `cli-seam-${mode}-${index}`
       }));
-      const extraction = {
-        summary: "Synthetic actionable triage",
-        billsDue: [],
-        actionItems: [{ text: "Review the request" }],
-        deadlines: [],
-        actionability: {
-          category: "needs_action",
-          reason: "A review is required.",
-          inferredSubject: "Synthetic request",
-          suggestedTasks: [{ text: "Review the request" }]
-        },
-        mayGetLostInShuffle: false,
-        importance: "normal",
+      const compactExtraction = {
+        category: "needs_action",
+        reason: "A review is required.",
+        action: "Review the request",
         confidence: 0.9
       };
       const events: SafeEvent[] = [];
+      let extractionCalls = 0;
+      const extractionBatchSizes: number[] = [];
       let releaseHolder = false;
       let releaseLaunched!: () => void;
       const launched = new Promise<void>((resolve) => {
@@ -90,9 +83,7 @@ describe("runGoogleSync email orchestration", () => {
               records: [
                 {
                   kind: "reply" as const,
-                  text: JSON.stringify({
-                    results: messages.map((_, index) => ({ index, value: extraction }))
-                  })
+                  text: JSON.stringify(compactExtraction)
                 }
               ],
               offset: 1,
@@ -125,6 +116,8 @@ describe("runGoogleSync email orchestration", () => {
         telemetry?: Telemetry,
         priority?: "foreground" | "background"
       ) => {
+        extractionCalls += 1;
+        extractionBatchSizes.push(_batchSize ?? 1);
         extractionInvoked();
         const result = await adapter.generateStructured({
           ...inputFor(prompt, telemetry),
@@ -140,7 +133,7 @@ describe("runGoogleSync email orchestration", () => {
         await launched;
       }
 
-      const projectionCalls: unknown[] = [];
+      const projectionCalls: Array<{ sourceRef: string }> = [];
       try {
         const deps = {
           getFreshAccessToken: async () => "tok",
@@ -166,7 +159,7 @@ describe("runGoogleSync email orchestration", () => {
           emailRepository: new EmailRepository(),
           actionProjection: {
             taskPort: {
-              create: async (input: unknown) => {
+              create: async (_db: unknown, input: { sourceRef: string }) => {
                 projectionCalls.push(input);
                 return { id: `task-${projectionCalls.length}` };
               }
@@ -206,17 +199,20 @@ describe("runGoogleSync email orchestration", () => {
         const caseRows = rows.filter((row) => row.external_id.startsWith(`cli-seam-${mode}-`));
         if (mode === "busy") {
           expect(caseRows).toHaveLength(21);
-          expect(caseRows.every((row) => row.summary === extraction.summary)).toBe(true);
-          expect(projectionCalls.length).toBeGreaterThan(0);
+          expect(caseRows.every((row) => row.summary === "Synthetic message")).toBe(true);
+          expect(projectionCalls).toHaveLength(21);
+          expect(
+            new Set(projectionCalls.map((input) => input.sourceRef.split(":").at(-1)))
+          ).toEqual(new Set(messages.map(({ id }) => id)));
+          expect(extractionCalls).toBe(21);
+          expect(extractionBatchSizes).toEqual(Array.from({ length: 21 }, () => 1));
         } else {
           expect(caseRows).toHaveLength(0);
           expect(projectionCalls).toHaveLength(0);
         }
 
         expect(events.every((event) => event.jobId === `cli-seam-${mode}`)).toBe(true);
-        expect(events.every((event) => event.batchIndex === 0 && event.batchSize === 21)).toBe(
-          true
-        );
+        expect(events.every((event) => event.batchIndex === 0 && event.batchSize === 1)).toBe(true);
         expect(events.map((event) => event.kind)).toEqual(
           expect.arrayContaining(["invoked", "elapsed", "exit"])
         );
@@ -298,7 +294,7 @@ describe("runGoogleSync email orchestration", () => {
     });
   });
 
-  it("ingests a representative current-day mailbox before one batched classification pass", async () => {
+  it("ingests a representative current-day mailbox as sequential compact classifications", async () => {
     const accountId = await seedGoogleAccount(handles.dataContext, [
       "https://www.googleapis.com/auth/gmail.modify"
     ]);
@@ -323,29 +319,16 @@ describe("runGoogleSync email orchestration", () => {
       if (!firstPersistAt.has(input.externalId)) firstPersistAt.set(input.externalId, virtualMs);
       return saved;
     });
-    const runChat = vi.fn(async () => {
+    const runChat = vi.fn(async (_prompt: string, _signal?: AbortSignal, batchSize = 1) => {
+      expect(batchSize).toBe(1);
       virtualMs += modelCostMs;
       classificationCompletedAt.push(virtualMs);
       return {
         text: JSON.stringify({
-          results: messages.map((_, index) => ({
-            index,
-            value: {
-              summary: "Approval is required.",
-              billsDue: [],
-              actionItems: [],
-              deadlines: [],
-              mayGetLostInShuffle: true,
-              importance: "high",
-              confidence: 0.95,
-              actionability: {
-                category: "needs_action",
-                reason: "The sender requested approval.",
-                inferredSubject: "Approval",
-                suggestedTasks: [{ text: "Approve the request" }]
-              }
-            }
-          }))
+          category: "needs_action",
+          confidence: 0.95,
+          reason: "The sender requested approval.",
+          action: "Approve the request"
         })
       };
     });
@@ -409,16 +392,18 @@ describe("runGoogleSync email orchestration", () => {
       persistBoundaryMs: Math.max(...firstPersistAt.values()),
       modelCalls: runChat.mock.calls.length,
       classificationBoundaryMs: Math.max(...classificationCompletedAt),
-      projectionBoundaryMs: projectionAt[0] ?? null
+      firstProjectionAt: projectionAt[0] ?? null,
+      projected: projectionAt.length
     }).toEqual({
       requestedListLimit: 500,
       providerFetched: messages.length,
       providerFetchBoundaryMs: 0,
       persisted: messages.length,
       persistBoundaryMs: 0,
-      modelCalls: 1,
-      classificationBoundaryMs: modelCostMs,
-      projectionBoundaryMs: modelCostMs
+      modelCalls: messages.length,
+      classificationBoundaryMs: messages.length * modelCostMs,
+      firstProjectionAt: modelCostMs,
+      projected: messages.length
     });
   });
 
@@ -468,14 +453,9 @@ describe("runGoogleSync email orchestration", () => {
           await Promise.resolve();
           activeExtractions -= 1;
           const value = {
-            summary: "Review requested.",
-            billsDue: [],
-            actionItems: [],
-            deadlines: [],
-            actionability: { category: "fyi" },
-            mayGetLostInShuffle: false,
-            importance: "normal",
-            confidence: 0.9
+            category: "fyi",
+            confidence: 0.9,
+            reason: "Informational update."
           };
           return {
             text: JSON.stringify(
