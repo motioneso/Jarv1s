@@ -1,0 +1,491 @@
+/* =====================================================================
+   CALENDAR — Day / Week / Month  (Outlook-style)
+   Hard events read as committed; Jarvis-held blocks get the Governor
+   (provisional / movable) treatment.
+   ===================================================================== */
+
+/* ---- toolbar ---- */
+
+.cal-range {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cal-range__dow {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-fg);
+}
+
+/* Mobile: let the toolbar wrap so the day/week/month toggle drops to its own
+   row instead of overlapping the (nowrap) month/range label (#384). */
+
+@media (max-width: 560px) {
+  .cal-range {
+    font-size: 18px;
+  }
+}
+
+/* ---- legend ---- */
+
+.cal-legend__item {
+  font-size: 11.5px;
+  color: var(--text-subtle);
+}
+
+.cal-legend__sw {
+  border-radius: 3px;
+}
+
+.cal-legend__sw--hard {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--steel);
+}
+
+.cal-legend__sw--hold {
+  background: var(--forest-soft);
+  border: 1px dashed var(--accent);
+}
+
+.cal-legend__note {
+  font-size: 12px;
+  color: var(--text-subtle);
+  font-style: italic;
+}
+
+.cal-legend__note svg {
+  color: var(--accent-fg);
+}
+
+/* ---- body ---- */
+
+/* ===== time grid (day & week) ===== */
+
+.cal-tg {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.cal-tg__head {
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-tg__corner {
+  border-right: 1px solid var(--border-subtle);
+}
+
+.cal-tg__dayhd {
+  border-left: 1px solid var(--border-subtle);
+}
+
+.cal-tg__dow {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-subtle);
+}
+
+.cal-tg__dnum {
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cal-tg__dayhd.is-today .cal-tg__dow {
+  color: var(--accent-fg);
+}
+
+.cal-tg__dayhd.is-today .cal-tg__dnum {
+  color: var(--white);
+  background: var(--accent);
+  border-radius: 50%;
+  font-size: 15px;
+}
+
+/* all-day strip */
+
+.cal-tg__allday {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.cal-tg__allday-lbl {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  color: var(--text-faint);
+  border-right: 1px solid var(--border-subtle);
+}
+
+.cal-tg__allday-cell {
+  border-left: 1px solid var(--border-subtle);
+}
+
+.cal-allchip {
+  border-radius: 6px;
+  border: 0;
+  background: color-mix(in srgb, var(--ev) 13%, var(--surface));
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.cal-allchip:hover {
+  background: color-mix(in srgb, var(--ev) 22%, var(--surface));
+}
+
+.cal-allchip__dot {
+  border-radius: 50%;
+  background: var(--ev);
+}
+
+/* scroll + body */
+
+.cal-tg__gutter {
+  border-right: 1px solid var(--border-subtle);
+}
+
+.cal-tg__hr {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.cal-tg__col {
+  border-left: 1px solid var(--border-subtle);
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      var(--line) 0,
+      var(--line) 1px,
+      transparent 1px,
+      transparent var(--cal-h)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      var(--line-subtle) 0,
+      var(--line-subtle) 1px,
+      transparent 1px,
+      transparent calc(var(--cal-h) / 2)
+    );
+}
+
+.cal-tg__col.is-today {
+  background-color: color-mix(in srgb, var(--forest-soft) 32%, transparent);
+}
+
+/* event block */
+
+.cal-ev {
+  border-radius: 7px;
+  border: 1px solid transparent;
+}
+
+.cal-ev__bar {
+  border-radius: 3px;
+  background: var(--ev);
+}
+
+.cal-ev__title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cal-ev__hold {
+  color: var(--accent-fg);
+}
+
+.cal-ev__meta {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  color: var(--text-subtle);
+}
+
+.cal-ev__where {
+  font-size: 11px;
+  color: var(--text-subtle);
+}
+
+.cal-ev:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* hard event — committed/solid */
+
+.cal-ev--hard {
+  background: color-mix(in srgb, var(--ev) 9%, var(--surface));
+  border-color: color-mix(in srgb, var(--ev) 26%, var(--border));
+}
+
+/* tentative human event (needs RSVP) */
+
+.cal-ev--tentative {
+  background: var(--surface);
+  border: 1px dashed color-mix(in srgb, var(--steel) 50%, var(--border));
+}
+
+.cal-ev--tentative .cal-ev__bar {
+  background: var(--steel);
+}
+
+.cal-ev--tentative .cal-ev__title {
+  color: var(--steel-ink);
+  font-style: italic;
+}
+
+/* Jarvis-held block — governor treatment */
+
+.cal-ev--block .cal-ev__title {
+  color: var(--forest-ink);
+}
+
+.cal-ev--ghost {
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  background-color: var(--surface);
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--forest-soft) 80%, transparent) 0,
+    color-mix(in srgb, var(--forest-soft) 80%, transparent) 7px,
+    transparent 7px,
+    transparent 14px
+  );
+}
+
+.cal-ev--ghost .cal-ev__meta,
+.cal-ev--ghost .cal-ev__where {
+  color: color-mix(in srgb, var(--forest-ink) 62%, transparent);
+}
+
+/* now line */
+
+.cal-now__line {
+  background: var(--accent);
+}
+
+.cal-now__dot {
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* ===== month ===== */
+
+.cal-month {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.cal-month__head {
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-month__dow {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-subtle);
+  border-left: 1px solid var(--border-subtle);
+}
+
+.cal-month__dow:first-child {
+  border-left: 0;
+}
+
+.cal-mcell {
+  border-left: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.cal-mcell:nth-child(7n + 1) {
+  border-left: 0;
+}
+
+.cal-month__grid > .cal-mcell:nth-child(-n + 7) {
+  border-top: 0;
+}
+
+.cal-mcell.is-out {
+  background: var(--surface-2);
+}
+
+.cal-mcell__date {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+}
+
+.cal-mcell__date .n {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-mcell.is-out .cal-mcell__date {
+  color: var(--text-faint);
+}
+
+.cal-mcell__date .mo {
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  color: var(--text-faint);
+}
+
+.cal-mcell__date:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.cal-mcell.is-today .cal-mcell__date .n {
+  background: var(--accent);
+  color: var(--white);
+  border-radius: 50%;
+}
+
+.cal-mchip {
+  border: 0;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--ev) 13%, var(--surface));
+}
+
+.cal-mchip:hover {
+  background: color-mix(in srgb, var(--ev) 22%, var(--surface));
+}
+
+.cal-mchip__dot {
+  border-radius: 50%;
+  background: var(--ev);
+}
+
+.cal-mchip.is-block {
+  background: color-mix(in srgb, var(--forest-soft) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+}
+
+.cal-mchip.is-block .cal-mchip__dot {
+  background: transparent;
+  border: 1.5px solid var(--accent);
+}
+
+.cal-mchip__t {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  color: var(--text-subtle);
+}
+
+.cal-mchip__title {
+  font-size: 11.5px;
+  color: var(--text);
+}
+
+.cal-mmore {
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--text-subtle);
+}
+
+.cal-mmore:hover {
+  color: var(--accent-fg);
+}
+
+/* ===== detail peek (right flyout) ===== */
+
+.cal-peek-scrim {
+  background: transparent;
+}
+
+.cal-peek {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-xl);
+}
+
+@keyframes cal-peek-in {
+  from {
+    transform: translateX(26px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.cal-peek__kind {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--steel-ink);
+}
+
+.cal-peek__kind--block {
+  color: var(--accent-fg);
+}
+
+.cal-peek__x {
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-subtle);
+}
+
+.cal-peek__x:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.cal-peek__mark {
+  border-radius: 10px;
+  color: var(--ev);
+  background: color-mix(in srgb, var(--ev) 15%, var(--surface));
+}
+
+.cal-peek__title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cal-peek__rows {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.cal-peek__row .ic {
+  color: var(--text-subtle);
+}
+
+.cal-peek__rowmain {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.cal-peek__dur {
+  color: var(--text-subtle);
+}
+
+.cal-peek__rowsub {
+  font-size: 12.5px;
+  color: var(--text-subtle);
+}
+
+.cal-peek__catdot {
+  border-radius: 50%;
+}
+
+.cal-peek__held {
+  border-radius: 10px;
+  background: var(--forest-soft);
+  border: 1px solid var(--forest-soft-2);
+  color: var(--forest-ink);
+  font-size: 13px;
+}

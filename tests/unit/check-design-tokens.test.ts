@@ -4,10 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  checkBannedProperties,
-  MIGRATED_SECTION_CSS_FILES
-} from "../../scripts/check-design-tokens.ts";
+import { checkBannedProperties } from "../../scripts/check-design-tokens.ts";
 
 /**
  * Guard 4 regression test (#1388 Foundation, D2). The guard's own module-load self-test proves
@@ -60,9 +57,7 @@ describe("check-design-tokens banned-property guard (#1388 Foundation guard 4)",
     expect(violations).toEqual([]);
   });
 
-  it("passes against the real repo tree with the real (currently empty) migrated-sections list", async () => {
-    expect(MIGRATED_SECTION_CSS_FILES).toEqual([]);
-
+  it("passes against the real repo tree with the real migrated-sections list", async () => {
     const repoRoot = join(import.meta.dirname, "../..");
     const violations = await checkBannedProperties(repoRoot);
 

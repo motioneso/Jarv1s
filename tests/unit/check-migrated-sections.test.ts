@@ -6,8 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   checkInlineStyleProperties,
-  checkRawClasses,
-  MIGRATED_SECTION_PATHS
+  checkRawClasses
 } from "../../scripts/check-migrated-sections.ts";
 
 /**
@@ -89,9 +88,7 @@ describe("check-migrated-sections guard 6: inline-style banned-property ban", ()
 });
 
 describe("check-migrated-sections passes against the real repo tree", () => {
-  it("real (currently empty) migrated-sections list produces no violations", async () => {
-    expect(MIGRATED_SECTION_PATHS).toEqual([]);
-
+  it("real migrated-sections list produces no violations", async () => {
     const repoRoot = join(import.meta.dirname, "../..");
     const rawClassViolations = await checkRawClasses(repoRoot);
     const inlineStyleViolations = await checkInlineStyleProperties(repoRoot);
