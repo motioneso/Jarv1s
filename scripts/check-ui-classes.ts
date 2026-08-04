@@ -35,7 +35,6 @@ const DEFINITION_FILES = [
   "apps/web/src/styles/kit-today.css",
   "apps/web/src/styles/kit-today-feeds.css",
   "apps/web/src/styles/kit-today-misc.css",
-  "apps/web/src/styles/kit-weather.css",
   "apps/web/src/styles/onboarding-connectors.css",
   "apps/web/src/styles/onboarding.css",
   "apps/web/src/styles/onboarding-design.css",
