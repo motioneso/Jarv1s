@@ -265,8 +265,15 @@ test("morning and evening prose and action rows render accept dismiss view reply
     ])
   ];
   await reloadToday(page);
-  await expect(page.getByText(morningRows[2]!.title)).toHaveCount(0);
-  await expect(page.getByText(secondReply.title)).toHaveCount(0);
+  await expect(
+    page
+      .locator(".loose-row")
+      .filter({ hasText: morningRows[2]!.title })
+      .locator(".loose-row__title")
+  ).toHaveCount(0);
+  await expect(
+    page.locator(".loose-row").filter({ hasText: secondReply.title }).locator(".loose-row__title")
+  ).toHaveCount(0);
 
   const resurfacedReply = actionRow(
     "task-reply-3",
@@ -289,7 +296,12 @@ test("morning and evening prose and action rows render accept dismiss view reply
     ])
   ];
   await reloadToday(page);
-  await expect(page.getByText(resurfacedReply.title)).toBeVisible();
+  await expect(
+    page
+      .locator(".loose-row")
+      .filter({ hasText: resurfacedReply.title })
+      .locator(".loose-row__title")
+  ).toBeVisible();
 
   state.briefingRuns![morningDefinition.id] = [
     run("morning-run-empty", morningDefinition.id, "morning", "", [])
@@ -320,5 +332,12 @@ test("morning and evening prose and action rows render accept dismiss view reply
   await expect(page.getByText(compactSummary, { exact: true })).toHaveCount(0);
   const eveningNeedsYou = page.locator("section.jds-brief").filter({ hasText: "Needs you" });
   await expect(eveningNeedsYou.getByText("3 need you", { exact: true })).toBeVisible();
-  for (const row of eveningRows) await expect(eveningNeedsYou.getByText(row.title)).toBeVisible();
+  for (const row of eveningRows) {
+    await expect(
+      eveningNeedsYou
+        .locator(".loose-row")
+        .filter({ hasText: row.title })
+        .locator(".loose-row__title")
+    ).toBeVisible();
+  }
 });
