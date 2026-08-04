@@ -30,12 +30,10 @@ import { OverviewScreen } from "./screens/overview";
 import { ProfileScreen } from "./screens/profile";
 import { fetchResume } from "./screens/resume-editor";
 import { SettingsScreen } from "./screens/settings";
-import styles from "./styles.css";
-// Split into three files only because of the 1000-line file-size gate — they are one stylesheet as
-// far as the page is concerned, concatenated into the single <style> tag below. The split also
-// keeps the board and the other screens in separate files so two agents can work them in parallel.
-import boardStyles from "./styles-board.css";
-import screenStyles from "./styles-screens.css";
+// D9 (#1388): the three CSS files (split only because of the 1000-line file-size gate — they are
+// one stylesheet as far as the page is concerned) are imported and concatenated in index.ts now,
+// not here — the host owns the <style> element and its confinement, this file no longer touches
+// its own styling at all.
 
 /** How often the profile record is re-read while the interview is still going. Matched to
  * `POLL_INTERVAL_MS` in use-profiles.ts — this is the same kind of wait (a worker write the
@@ -661,7 +659,6 @@ export function Root(props: RootProps): ReactNodeLike {
   return h(
     Fragment,
     null,
-    <style>{`${styles}\n${boardStyles}\n${screenStyles}`}</style>,
     <div className="jsm-root">
       {/* K8: above ProfileBar (and everything else), not below it. ProfileBar is a per-search
           switcher — it names which of possibly several searches you're looking at, which only

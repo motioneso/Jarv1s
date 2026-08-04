@@ -7,9 +7,8 @@
  * 5. legacy task-screen compatibility styles
  */
 @import "./tokens.css";
-@import "./components-core.css";
+@import "@jarv1s/ui/styles.css";
 @import "./components-forms.css";
-@import "./components-jarvis.css";
 @import "./components-keyline.css";
 @import "./command-palette.css";
 @import "../styles.css";

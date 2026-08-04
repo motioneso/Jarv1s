@@ -80,7 +80,10 @@ separate worktree.
   `--font-display` for headings, `--font-sans` for body. **No mono** (retired 2026-07-08 — use
   `--font-sans` with `tabular-nums` for eyebrows, labels and data) and **no serif** (sports nameplate
   only). Extend the `jds-*` primitives; raw CSS colours belong in `tokens.css` alone. Empty and
-  loading states use the existing authored patterns.
+  loading states use the existing authored patterns. Before adding a variant/size/tone string to a
+  `@jarv1s/ui` component, check `packages/ui/catalogue.json` (or the human-readable
+  `packages/ui/OPTIONS.md`) for one that already covers it — both are generated from the components'
+  own types by `pnpm build:ui-catalogue` and gated by `check:ui-catalogue`, so they're always current.
 - Keep plain Fastify REST plus shared TypeScript contracts (`packages/shared/*-api.ts`) unless a
   milestone explicitly justifies a heavier contract layer.
 - Write `~/Jarv1s` rather than absolute local paths in docs, specs and handoffs.

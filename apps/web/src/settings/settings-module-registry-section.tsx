@@ -213,8 +213,8 @@ export function ModuleRegistrySection({
   };
 
   const data = registryQuery.data;
-  if (registryQuery.isPending) return <p className="jds-muted">Loading module registry…</p>;
-  if (registryQuery.isError) return <p className="jds-muted">{readError(registryQuery.error)}</p>;
+  if (registryQuery.isPending) return <p className="jds-caption">Loading module registry…</p>;
+  if (registryQuery.isError) return <p className="jds-caption">{readError(registryQuery.error)}</p>;
   if (!data || !data.enabled) return null;
 
   const canRemove = (row: ModuleRegistryRowDto) =>
@@ -233,7 +233,7 @@ export function ModuleRegistrySection({
   return (
     <>
       {data.registryUnavailable ? (
-        <p className="jds-muted">
+        <p className="jds-caption">
           The module registry is unreachable — showing installed modules only.
         </p>
       ) : null}
@@ -274,7 +274,7 @@ export function ModuleRegistrySection({
                     </div>
                   ) : null}
                   {row.description ? <div>{row.description}</div> : null}
-                  {action.reason ? <div className="jds-muted">{action.reason}</div> : null}
+                  {action.reason ? <div className="jds-caption">{action.reason}</div> : null}
                 </>
               }
               control={
@@ -289,7 +289,7 @@ export function ModuleRegistrySection({
                       {action.label}
                     </button>
                   ) : action.kind === "none" ? (
-                    <span className="jds-muted">{action.label}</span>
+                    <span className="jds-caption">{action.label}</span>
                   ) : null}
                   {showEnableSwitch(row) ? (
                     <Switch

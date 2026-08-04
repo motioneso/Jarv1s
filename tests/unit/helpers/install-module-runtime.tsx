@@ -11,7 +11,7 @@ import * as ReactDOMClient from "react-dom/client";
 const scope = globalThis as { __JARVIS_MODULE_RUNTIME__?: unknown };
 if (!scope.__JARVIS_MODULE_RUNTIME__) {
   scope.__JARVIS_MODULE_RUNTIME__ = Object.freeze({
-    contractVersion: 1,
+    contractVersion: 2,
     react: React,
     reactDomClient: ReactDOMClient
   });

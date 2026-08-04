@@ -9,7 +9,6 @@ import { BudgetScreen } from "./screens/budget";
 import { FeedScreen } from "./screens/feed";
 import { ReportsScreen } from "./screens/reports";
 import { currentLiveMessage, subscribeLive } from "./states";
-import { MODULE_STYLES } from "./styles";
 
 export type HostActions = { openAssistant: (input: { starterPrompt: string }) => void };
 
@@ -34,8 +33,7 @@ const TABS: ReadonlyArray<{ to: string; label: string }> = [
 export function Root(props: { hostActions: HostActions }): ReactNodeLike {
   const path = useModulePath();
   return (
-    <div className="fnm-root" data-module="finance">
-      <style>{MODULE_STYLES}</style>
+    <div className="fnm-root">
       <LiveRegion />
       <header className="fnm-header">
         <span className="jds-eyebrow">Module</span>
@@ -46,7 +44,7 @@ export function Root(props: { hostActions: HostActions }): ReactNodeLike {
           <ModuleLink
             key={tab.to}
             to={tab.to}
-            className={`jds-btn jds-btn--sm ${path === tab.to ? "jds-btn--secondary" : "jds-btn--ghost"}`}
+            className={`jds-btn jds-btn--sm ${path === tab.to ? "jds-btn--secondary" : "jds-btn--quiet"}`}
             aria-current={path === tab.to ? "page" : undefined}
           >
             {tab.label}
