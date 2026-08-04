@@ -55,28 +55,3 @@ export function FootNote(props: { readonly icon?: ReactNode; readonly children: 
     </div>
   );
 }
-
-export function StatusChip(props: {
-  readonly tone: "pine" | "steel" | "amber";
-  readonly icon: ReactNode;
-  readonly children: ReactNode;
-}) {
-  return (
-    <span className={`onb-stat onb-stat--${props.tone}`}>
-      <span className="ic">{props.icon}</span>
-      {props.children}
-    </span>
-  );
-}
-
-export function StatusHint(props: { readonly children?: ReactNode }) {
-  if (!props.children) return null;
-  return (
-    <div className="onb-stat__hint">
-      <span className="ic">
-        <Info size={14} aria-hidden="true" />
-      </span>
-      <span>{props.children}</span>
-    </div>
-  );
-}

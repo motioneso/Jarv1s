@@ -28,6 +28,12 @@ _No enum or boolean props._
 - **pill** (optional boolean flag)
 - **dot** (optional boolean flag)
 
+## button-link
+
+- **variant** (optional, default `primary`): `primary`, `secondary`, `quiet`, `accentSoft`, `danger`
+- **size** (optional, default `md`): `sm`, `md`, `lg`
+- **block** (optional boolean flag)
+
 ## button
 
 - **variant** (optional, default `primary`): `primary`, `secondary`, `quiet`, `accentSoft`, `danger`
