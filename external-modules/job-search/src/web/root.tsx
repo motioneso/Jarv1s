@@ -376,15 +376,8 @@ export function Root(props: RootProps): ReactNodeLike {
       void (async () => {
         let retry = false;
         try {
-          const current = await invokeTool("job-search.profile.get", {
-            profileId: selectedProfileId
-          });
-          if (!isRecord(current) || !isRecord(current.criteria)) {
-            throw new Error("profile.get returned no criteria");
-          }
           const outcome = await runQueue("job-search.criteria-set", "criteria.set", {
             profileId: selectedProfileId,
-            criteriaJson: JSON.stringify(current.criteria),
             rescoreOnly: true
           });
           if (outcome.kind === "queued") {

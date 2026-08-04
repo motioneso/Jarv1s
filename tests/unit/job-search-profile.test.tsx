@@ -144,6 +144,7 @@ describe("ProfileScreen", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
@@ -335,6 +336,51 @@ describe("ProfileScreen", () => {
 
     expect(text(renderer)).not.toContain("Save changes");
     expect(text(renderer)).toContain("Staff Engineer");
+  });
+
+  it("keeps rescoring existing matches until the board catches up", async () => {
+    vi.useFakeTimers();
+    let profileReads = 0;
+    let countReads = 0;
+    vi.mocked(api.invokeTool).mockImplementation(async (tool: string) => {
+      if (tool === RESUME_GET_TOOL) return { resume: null };
+      if (tool === PROFILE_GET_TOOL) {
+        return {
+          profileId: "p1",
+          criteria: criteria({ remote: profileReads++ === 0 ? "preferred" : "required" }),
+          contextSummary: null
+        };
+      }
+      if (tool === "job-search.matches.count") {
+        countReads++;
+        return { profileId: "p1", active: 2, scored: countReads === 1 ? 1 : 2 };
+      }
+      throw new Error("unexpected invokeTool call");
+    });
+
+    const renderer = await renderScreen(profile());
+    await flush();
+    await act(async () => {
+      renderer.root
+        .findByProps({ "aria-label": "Remote preference" })
+        .props.onChange({ target: { value: "required" } });
+    });
+    await flush();
+
+    expect(api.runQueue).toHaveBeenNthCalledWith(2, CRITERIA_SET_QUEUE, "criteria.set", {
+      profileId: "p1",
+      rescoreOnly: true
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    await flush();
+
+    expect(countReads).toBe(2);
+    expect(api.runQueue).toHaveBeenCalledTimes(2);
+    renderer.unmount();
+    vi.useRealTimers();
   });
 
   it("renames the search directly and reports the confirmed name", async () => {

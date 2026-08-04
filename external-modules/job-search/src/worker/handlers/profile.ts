@@ -311,11 +311,14 @@ export function createCriteriaSetHandler(store: JobSearchStore) {
       ? (() => {
           const params = parseJobEnvelope(ctx.input).params;
           requireNoUnknownKeys(params, new Set(["profileId", "criteriaJson", "rescoreOnly"]));
-          if (typeof params.criteriaJson !== "string") {
-            throw new InputError("criteriaJson is required");
-          }
           if (params.rescoreOnly !== undefined && typeof params.rescoreOnly !== "boolean") {
             throw new InputError("rescoreOnly must be a boolean");
+          }
+          if (params.rescoreOnly === true && params.criteriaJson === undefined) {
+            return { profileId: params.profileId, rescoreOnly: true };
+          }
+          if (typeof params.criteriaJson !== "string") {
+            throw new InputError("criteriaJson is required");
           }
           let criteria: unknown;
           try {
@@ -329,9 +332,10 @@ export function createCriteriaSetHandler(store: JobSearchStore) {
     requireNoUnknownKeys(input, queueInvocation ? QUEUED_CRITERIA_SET_FIELDS : CRITERIA_SET_FIELDS);
     const profileId = requireProfileId(input);
     const rescoreOnly = queueInvocation && input.rescoreOnly === true;
-    // Validate before the profile lookup so a malformed patch fails on its own terms rather than
-    // as "profileId not found".
-    const patch = parseCriteriaPatch(input.criteria);
+    // Metadata-only continuations resolve the current criteria from the profile; actual writes
+    // still validate before lookup so malformed patches fail on their own terms.
+    const patch =
+      rescoreOnly && input.criteria === undefined ? null : parseCriteriaPatch(input.criteria);
 
     const profile = await store.getProfile(profileId);
     if (!profile) {
@@ -340,7 +344,8 @@ export function createCriteriaSetHandler(store: JobSearchStore) {
 
     // Merge, don't replace. See `parseCriteriaPatch` for why: the interview records one answer at
     // a time, and a replacing write meant each answer erased the last.
-    const criteria: SearchCriteria = { ...profile.criteria, ...patch };
+    const criteria: SearchCriteria =
+      patch === null ? profile.criteria : { ...profile.criteria, ...patch };
     const unchanged = sameCriteria(criteria, profile.criteria);
 
     // The browser fetched this criteria snapshot immediately before enqueueing a deferred direct

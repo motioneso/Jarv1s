@@ -602,10 +602,11 @@ describe("job-search web Root", () => {
     });
     await flush(renderer);
 
-    expect(api.invokeTool).toHaveBeenCalledWith("job-search.profile.get", { profileId: "p1" });
+    expect(
+      vi.mocked(api.invokeTool).mock.calls.filter(([name]) => name === "job-search.profile.get")
+    ).toHaveLength(0);
     expect(api.runQueue).toHaveBeenCalledWith("job-search.criteria-set", "criteria.set", {
       profileId: "p1",
-      criteriaJson: JSON.stringify(CURRENT_CRITERIA),
       rescoreOnly: true
     });
 
@@ -702,7 +703,6 @@ describe("job-search web Root", () => {
 
   it.each([
     ["another payload is already queued", "already-queued"],
-    ["the profile read fails", "read-error"],
     ["the queue returns an error", "queue-error"]
   ] as const)("self-retries when %s without another records emission", async (_label, mode) => {
     mockUseProfiles.mockReturnValue(ready([profile({ profileId: "p1", state: "active" })]));
@@ -711,13 +711,6 @@ describe("job-search web Root", () => {
     await flush(renderer);
     vi.useFakeTimers();
 
-    let profileReads = 0;
-    vi.mocked(api.invokeTool).mockImplementation(async (name: string) => {
-      if (name !== "job-search.profile.get") throw new Error(`unexpected invokeTool ${name}`);
-      profileReads++;
-      if (mode === "read-error" && profileReads === 1) throw new Error("profile read failed");
-      return { criteria: CURRENT_CRITERIA };
-    });
     if (mode === "already-queued") {
       vi.mocked(api.runQueue).mockResolvedValueOnce({ kind: "already-queued" });
     } else if (mode === "queue-error") {
@@ -731,18 +724,15 @@ describe("job-search web Root", () => {
       surface.emitRecords([deferredCriteriaRecord(`action-${mode}`)]);
     });
     await flush(renderer);
-    if (mode !== "already-queued")
-      expect(text(renderer)).toMatch(/Network error|queue unavailable/);
+    if (mode === "queue-error") expect(text(renderer)).toContain("queue unavailable");
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(6_000);
     });
     await flush(renderer);
-    expect(profileReads).toBe(2);
-    expect(api.runQueue).toHaveBeenCalledTimes(mode === "read-error" ? 1 : 2);
+    expect(api.runQueue).toHaveBeenCalledTimes(2);
     expect(api.runQueue).toHaveBeenLastCalledWith("job-search.criteria-set", "criteria.set", {
       profileId: "p1",
-      criteriaJson: JSON.stringify(CURRENT_CRITERIA),
       rescoreOnly: true
     });
   });

@@ -40,6 +40,9 @@ export const PROFILE_GET_TOOL = "job-search.profile.get";
 export const PROFILE_SET_BRIEFING_DETAIL_QUEUE = "job-search.profile-set-briefing-detail";
 export const CRITERIA_SET_QUEUE = "job-search.criteria-set";
 export const PROFILE_RENAME_QUEUE = "job-search.profile-rename";
+const MATCHES_COUNT_TOOL = "job-search.matches.count";
+const CRITERIA_RESCORE_POLL_MS = 5_000;
+const CRITERIA_RESCORE_MAX_POLLS = 120;
 
 // -------------------------------------------------------------------------------------------
 // Search profile (context summary + criteria)
@@ -531,6 +534,7 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const criteriaSaveRevision = useRef(0);
+  const criteriaRescoreTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [nameDraft, setNameDraft] = useState(profile.name);
   const [nameStatus, setNameStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
@@ -592,6 +596,14 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
     };
   }, [profile.profileId]);
 
+  useEffect(() => {
+    return () => {
+      criteriaSaveRevision.current++;
+      if (criteriaRescoreTimer.current !== null) clearTimeout(criteriaRescoreTimer.current);
+      criteriaRescoreTimer.current = null;
+    };
+  }, [profile.profileId]);
+
   function handleBriefingDetail(next: BriefingDetail): void {
     const revision = ++briefingSaveRevision.current;
     setBriefingDetail(next);
@@ -629,6 +641,44 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
       });
   }
 
+  function continueCriteriaRescore(revision: number, polls = 0): void {
+    criteriaRescoreTimer.current = null;
+    if (criteriaSaveRevision.current !== revision || polls >= CRITERIA_RESCORE_MAX_POLLS) return;
+    invokeTool(MATCHES_COUNT_TOOL, { profileId: profile.profileId })
+      .then((result) => {
+        if (criteriaSaveRevision.current !== revision) return false;
+        const counts = result as { profileId?: unknown; active?: unknown; scored?: unknown } | null;
+        if (
+          counts?.profileId !== profile.profileId ||
+          typeof counts.active !== "number" ||
+          typeof counts.scored !== "number" ||
+          counts.active <= counts.scored
+        ) {
+          return false;
+        }
+        return runQueue(CRITERIA_SET_QUEUE, "criteria.set", {
+          profileId: profile.profileId,
+          rescoreOnly: true
+        }).then((outcome) => outcome.kind !== "disabled");
+      })
+      .then((retry) => {
+        if (retry !== false && criteriaSaveRevision.current === revision) {
+          criteriaRescoreTimer.current = setTimeout(
+            () => continueCriteriaRescore(revision, polls + 1),
+            CRITERIA_RESCORE_POLL_MS
+          );
+        }
+      })
+      .catch(() => {
+        if (criteriaSaveRevision.current === revision) {
+          criteriaRescoreTimer.current = setTimeout(
+            () => continueCriteriaRescore(revision, polls + 1),
+            CRITERIA_RESCORE_POLL_MS
+          );
+        }
+      });
+  }
+
   function saveCriteria(next: SearchCriteria): void {
     const revision = ++criteriaSaveRevision.current;
     setCriteriaSaveStatus("saving");
@@ -652,6 +702,7 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
               if (JSON.stringify(actual.criteria) === JSON.stringify(next)) {
                 setCriteria({ status: "ready", ...actual });
                 setCriteriaSaveStatus("saved");
+                continueCriteriaRescore(revision);
               } else if (attempt < 20) {
                 setTimeout(() => confirm(attempt + 1), 500);
               } else {

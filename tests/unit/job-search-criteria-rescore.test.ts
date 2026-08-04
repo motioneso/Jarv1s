@@ -290,7 +290,6 @@ describe("job-search queued criteria rescoring", () => {
     const result = await createCriteriaSetHandler(countingStore)(
       scoringCtx({
         profileId: "p1",
-        criteriaJson: JSON.stringify(criteria),
         rescoreOnly: true
       })
     );
