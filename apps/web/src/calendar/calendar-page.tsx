@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Inbox, LoaderCircle } from "lucide-react";
+import { Button, IconButton, LegendSwatch, Segmented } from "@jarv1s/ui";
 import { listCalendarEvents } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
 import "../styles/kit-calendar.css";
@@ -103,30 +104,16 @@ export function CalendarPage() {
     <div className="cal-wrap" style={{ "--cal-h": HOUR_H + "px" } as React.CSSProperties}>
       <div className="cal-toolbar">
         <div className="cal-toolbar__left">
-          <button
-            type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
-            onClick={() => setCursor(new Date())}
-          >
+          <Button variant="secondary" size="sm" onClick={() => setCursor(new Date())}>
             Today
-          </button>
+          </Button>
           <div className="cal-nav">
-            <button
-              type="button"
-              className="jds-iconbtn jds-iconbtn--sm"
-              aria-label="Previous"
-              onClick={() => go(-1)}
-            >
+            <IconButton size="sm" aria-label="Previous" onClick={() => go(-1)}>
               <ChevronLeft size={18} />
-            </button>
-            <button
-              type="button"
-              className="jds-iconbtn jds-iconbtn--sm"
-              aria-label="Next"
-              onClick={() => go(1)}
-            >
+            </IconButton>
+            <IconButton size="sm" aria-label="Next" onClick={() => go(1)}>
               <ChevronRight size={18} />
-            </button>
+            </IconButton>
           </div>
           <h2 className="cal-range">
             {view === "day" ? (
@@ -141,48 +128,35 @@ export function CalendarPage() {
         </div>
         <div className="cal-toolbar__right">
           {view === "week" ? (
-            <div className="jds-segmented" role="group" aria-label="Week type">
-              <button
-                type="button"
-                className={`jds-segmented__opt ${workWeek ? "is-active" : ""}`}
-                aria-pressed={workWeek}
-                onClick={() => setWorkWeek(true)}
-              >
-                Work week
-              </button>
-              <button
-                type="button"
-                className={`jds-segmented__opt ${!workWeek ? "is-active" : ""}`}
-                aria-pressed={!workWeek}
-                onClick={() => setWorkWeek(false)}
-              >
-                Full week
-              </button>
-            </div>
+            <Segmented
+              ariaLabel="Week type"
+              value={workWeek ? "work" : "full"}
+              onChange={(v) => setWorkWeek(v === "work")}
+              options={[
+                { value: "work", label: "Work week" },
+                { value: "full", label: "Full week" }
+              ]}
+            />
           ) : null}
-          <div className="jds-segmented" role="group" aria-label="View">
-            {(["day", "week", "month"] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                className={`jds-segmented__opt ${view === v ? "is-active" : ""}`}
-                aria-pressed={view === v}
-                onClick={() => setView(v)}
-              >
-                {v.charAt(0).toUpperCase() + v.slice(1)}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            ariaLabel="View"
+            value={view}
+            onChange={setView}
+            options={(["day", "week", "month"] as const).map((v) => ({
+              value: v,
+              label: v.charAt(0).toUpperCase() + v.slice(1)
+            }))}
+          />
         </div>
       </div>
       {view !== "month" ? (
         <div className="cal-legend">
           <span className="cal-legend__item">
-            <span className="cal-legend__sw cal-legend__sw--hard" />
+            <LegendSwatch tone="hard" />
             Accepted
           </span>
           <span className="cal-legend__item">
-            <span className="cal-legend__sw cal-legend__sw--hold" />
+            <LegendSwatch tone="hold" />
             Jarvis holding
           </span>
           {view === "day" && isToday(cursor) && heldToday > 0 ? (

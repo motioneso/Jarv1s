@@ -3,6 +3,15 @@
   "name": "jarv1s-ui",
   "items": [
     {
+      "name": "all-day-chip",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/all-day-chip.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["AllDayChip"],
+      "options": [],
+      "flags": []
+    },
+    {
       "name": "avatar",
       "type": "registry:ui",
       "files": [{ "path": "packages/ui/src/avatar.tsx", "type": "registry:ui" }],
@@ -87,6 +96,15 @@
       ]
     },
     {
+      "name": "category-dot",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/category-dot.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["CategoryDot"],
+      "options": [],
+      "flags": []
+    },
+    {
       "name": "chip",
       "type": "registry:ui",
       "files": [{ "path": "packages/ui/src/chip.tsx", "type": "registry:ui" }],
@@ -96,6 +114,18 @@
       "flags": [
         { "prop": "toggle", "optional": true },
         { "prop": "selected", "optional": true }
+      ]
+    },
+    {
+      "name": "day-cell",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/day-cell.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["DayCell"],
+      "options": [],
+      "flags": [
+        { "prop": "out", "optional": true },
+        { "prop": "today", "optional": true }
       ]
     },
     {
@@ -129,6 +159,32 @@
           "default": "default"
         }
       ],
+      "flags": []
+    },
+    {
+      "name": "event-chip",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/event-chip.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["EventChip"],
+      "options": [
+        {
+          "prop": "variant",
+          "kind": "enum",
+          "values": ["hard", "tentative", "block"],
+          "optional": false,
+          "default": null
+        }
+      ],
+      "flags": []
+    },
+    {
+      "name": "held-banner",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/held-banner.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["HeldBanner"],
+      "options": [],
       "flags": []
     },
     {
@@ -173,6 +229,59 @@
       "flags": [{ "prop": "live", "optional": true }]
     },
     {
+      "name": "legend-swatch",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/legend-swatch.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["LegendSwatch"],
+      "options": [
+        {
+          "prop": "tone",
+          "kind": "enum",
+          "values": ["hard", "hold"],
+          "optional": false,
+          "default": null
+        }
+      ],
+      "flags": []
+    },
+    {
+      "name": "month-chip",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/month-chip.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["MonthChip"],
+      "options": [],
+      "flags": [{ "prop": "block", "optional": true }]
+    },
+    {
+      "name": "now-line",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/now-line.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["NowLine"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "peek-close-button",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/peek-close-button.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["PeekCloseButton"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "peek-panel",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/peek-panel.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["PeekPanel"],
+      "options": [],
+      "flags": []
+    },
+    {
       "name": "segmented",
       "type": "registry:ui",
       "files": [{ "path": "packages/ui/src/segmented.tsx", "type": "registry:ui" }],
@@ -201,6 +310,23 @@
         { "prop": "checked", "optional": false },
         { "prop": "disabled", "optional": true }
       ]
+    },
+    {
+      "name": "today-pill",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/today-pill.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["TodayPill"],
+      "options": [
+        {
+          "prop": "variant",
+          "kind": "enum",
+          "values": ["month", "grid"],
+          "optional": false,
+          "default": null
+        }
+      ],
+      "flags": []
     }
   ]
 }

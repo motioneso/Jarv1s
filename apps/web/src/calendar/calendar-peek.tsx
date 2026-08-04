@@ -1,4 +1,5 @@
 import { CalendarCheck, Clock, GitCommitHorizontal, MapPin, Users, X } from "lucide-react";
+import { CategoryDot, HeldBanner, PeekCloseButton, PeekPanel } from "@jarv1s/ui";
 import { fmtDateLabel, fmtDur, fmtTime, type CalendarViewEvent } from "./calendar-model.js";
 
 interface CalendarPeekProps {
@@ -15,7 +16,7 @@ export function CalendarPeek({ event, onClose }: CalendarPeekProps) {
   return (
     <>
       <div className="cal-peek-scrim" onClick={onClose} />
-      <aside className="cal-peek" role="dialog" aria-label="Event details">
+      <PeekPanel aria-label="Event details">
         <div className="cal-peek__head">
           {isBlock ? (
             <span className="cal-peek__kind cal-peek__kind--block">
@@ -28,9 +29,9 @@ export function CalendarPeek({ event, onClose }: CalendarPeekProps) {
               {isTentative ? "Awaiting RSVP" : "On your calendar"}
             </span>
           )}
-          <button type="button" className="cal-peek__x" aria-label="Close" onClick={onClose}>
+          <PeekCloseButton aria-label="Close" onClick={onClose}>
             <X size={17} />
-          </button>
+          </PeekCloseButton>
         </div>
         <div className="cal-peek__titlewrap">
           <span className="cal-peek__mark" style={{ "--ev": evColor } as React.CSSProperties}>
@@ -73,7 +74,7 @@ export function CalendarPeek({ event, onClose }: CalendarPeekProps) {
           ) : null}
           <div className="cal-peek__row">
             <span className="ic" style={{ paddingTop: 2 }}>
-              <span className="cal-peek__catdot" style={{ background: evColor }} />
+              <CategoryDot color={evColor} />
             </span>
             <div className="cal-peek__rowmain">
               {isBlock ? "Jarvis focus block" : isTentative ? "Pending RSVP" : "Accepted"}
@@ -81,15 +82,12 @@ export function CalendarPeek({ event, onClose }: CalendarPeekProps) {
           </div>
         </div>
         {isBlock ? (
-          <div className="cal-peek__held">
-            <GitCommitHorizontal size={14} />
-            <span>
-              Jarvis can move or shorten this block when your day changes. Hard events always come
-              first.
-            </span>
-          </div>
+          <HeldBanner icon={<GitCommitHorizontal size={14} />}>
+            Jarvis can move or shorten this block when your day changes. Hard events always come
+            first.
+          </HeldBanner>
         ) : null}
-      </aside>
+      </PeekPanel>
     </>
   );
 }

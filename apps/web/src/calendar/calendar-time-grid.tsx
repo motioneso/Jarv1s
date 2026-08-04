@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { GitCommitHorizontal } from "lucide-react";
+import { AllDayChip, EventChip, NowLine, TodayPill, type EventChipVariant } from "@jarv1s/ui";
 
 import {
   DOW_SHORT,
@@ -35,43 +36,24 @@ function EventBlock({ e, hourH, dense, onPick }: EventBlockProps) {
   const showTime = height >= 34;
   const showWhere = height >= 58 && !dense && e.where;
   const isTentative = e.status === "needsAction" || e.status === "tentative";
-  const cls =
-    "cal-ev" +
-    (isBlock
-      ? " cal-ev--block cal-ev--ghost"
-      : isTentative
-        ? " cal-ev--tentative"
-        : " cal-ev--hard");
+  const variant: EventChipVariant = isBlock ? "block" : isTentative ? "tentative" : "hard";
 
   return (
-    <button
-      type="button"
-      className={cls}
+    <EventChip
+      variant={variant}
+      color={isBlock ? "var(--accent)" : "var(--steel)"}
+      title={e.title}
+      holdIcon={isBlock ? <GitCommitHorizontal size={11} /> : undefined}
+      time={showTime ? fmtTime(e.startMin) : undefined}
+      where={showWhere ? e.where : undefined}
       onClick={() => onPick(e)}
-      style={
-        {
-          top,
-          height,
-          left: `calc(${left}% + 2px)`,
-          width: `calc(${w}% - 4px)`,
-          "--ev": isBlock ? "var(--accent)" : "var(--steel)"
-        } as React.CSSProperties
-      }
-    >
-      <span className="cal-ev__bar" />
-      <span className="cal-ev__body">
-        <span className="cal-ev__title">
-          {isBlock ? (
-            <span className="cal-ev__hold">
-              <GitCommitHorizontal size={11} />
-            </span>
-          ) : null}
-          {e.title}
-        </span>
-        {showTime ? <span className="cal-ev__meta">{fmtTime(e.startMin)}</span> : null}
-        {showWhere ? <span className="cal-ev__where">{e.where}</span> : null}
-      </span>
-    </button>
+      style={{
+        top,
+        height,
+        left: `calc(${left}% + 2px)`,
+        width: `calc(${w}% - 4px)`
+      }}
+    />
   );
 }
 
@@ -105,7 +87,7 @@ export function CalendarTimeGrid({ days, hourH, onPick }: TimeGridProps) {
             className={"cal-tg__dayhd" + (isToday(d.date) ? " is-today" : "")}
           >
             <span className="cal-tg__dow">{DOW_SHORT[d.date.getDay()]}</span>
-            <span className="cal-tg__dnum">{d.date.getDate()}</span>
+            <TodayPill variant="grid">{d.date.getDate()}</TodayPill>
           </div>
         ))}
       </div>
@@ -118,20 +100,12 @@ export function CalendarTimeGrid({ days, hourH, onPick }: TimeGridProps) {
               {d.events
                 .filter((e) => e.allDay)
                 .map((e) => (
-                  <button
+                  <AllDayChip
                     key={e.id}
-                    type="button"
-                    className="cal-allchip"
-                    style={
-                      {
-                        "--ev": e.kind === "block" ? "var(--accent)" : "var(--steel)"
-                      } as React.CSSProperties
-                    }
+                    color={e.kind === "block" ? "var(--accent)" : "var(--steel)"}
+                    title={e.title}
                     onClick={() => onPick(e)}
-                  >
-                    <span className="cal-allchip__dot" />
-                    {e.title}
-                  </button>
+                  />
                 ))}
             </div>
           ))}
@@ -166,12 +140,7 @@ export function CalendarTimeGrid({ days, hourH, onPick }: TimeGridProps) {
                     onPick={onPick}
                   />
                 ))}
-                {todayCol ? (
-                  <div className="cal-now" style={{ top: todayNowMin * (hourH / 60) }}>
-                    <span className="cal-now__dot" />
-                    <span className="cal-now__line" />
-                  </div>
-                ) : null}
+                {todayCol ? <NowLine top={todayNowMin * (hourH / 60)} /> : null}
               </div>
             );
           })}

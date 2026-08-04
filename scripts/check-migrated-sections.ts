@@ -25,7 +25,12 @@ import { BANNED_VISUAL_PROPERTIES } from "./check-design-tokens.js";
 
 const rootDirectory = process.cwd();
 
-export const MIGRATED_SECTION_PATHS: readonly string[] = [];
+export const MIGRATED_SECTION_PATHS: readonly string[] = [
+  "apps/web/src/calendar/calendar-page.tsx",
+  "apps/web/src/calendar/calendar-month.tsx",
+  "apps/web/src/calendar/calendar-time-grid.tsx",
+  "apps/web/src/calendar/calendar-peek.tsx"
+];
 
 export interface RawClassViolation {
   readonly path: string;

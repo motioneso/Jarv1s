@@ -8,6 +8,10 @@ that isn't listed here, and do not add a raw `jds-*` class as a substitute for o
 component's union type in `packages/ui/src/` instead. See `packages/ui/catalogue.json` for the
 machine-readable form (also carries each component's file path and exports).
 
+## all-day-chip
+
+_No enum or boolean props._
+
 ## avatar
 
 - **size** (optional): `xs`, `sm`, `md`, `lg`
@@ -34,10 +38,19 @@ machine-readable form (also carries each component's file path and exports).
 - **raised** (optional boolean flag)
 - **interactive** (optional boolean flag)
 
+## category-dot
+
+_No enum or boolean props._
+
 ## chip
 
 - **toggle** (optional boolean flag)
 - **selected** (optional boolean flag)
+
+## day-cell
+
+- **out** (optional boolean flag)
+- **today** (optional boolean flag)
 
 ## dialog
 
@@ -47,6 +60,14 @@ _No enum or boolean props._
 
 - **orientation** (optional, default `horizontal`): `horizontal`, `vertical`
 - **weight** (optional, default `default`): `default`, `strong`, `ink`
+
+## event-chip
+
+- **variant** (required): `hard`, `tentative`, `block`
+
+## held-banner
+
+_No enum or boolean props._
 
 ## icon-button
 
@@ -58,6 +79,26 @@ _No enum or boolean props._
 
 - **status** (required): `ready`, `drift`, `error`, `idle`
 - **live** (optional boolean flag)
+
+## legend-swatch
+
+- **tone** (required): `hard`, `hold`
+
+## month-chip
+
+- **block** (optional boolean flag)
+
+## now-line
+
+_No enum or boolean props._
+
+## peek-close-button
+
+_No enum or boolean props._
+
+## peek-panel
+
+_No enum or boolean props._
 
 ## segmented
 
@@ -71,3 +112,7 @@ _No enum or boolean props._
 
 - **checked** (required boolean flag)
 - **disabled** (optional boolean flag)
+
+## today-pill
+
+- **variant** (required): `month`, `grid`
