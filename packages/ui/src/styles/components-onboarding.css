@@ -201,25 +201,10 @@
   color: var(--text);
 }
 
-.onb-status-list li,
-.onb-tour__row,
-.onb-recheck {
+.onb-tour__row {
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   background: var(--surface);
-}
-
-.onb-recheck {
-  background: var(--surface-2);
-}
-
-.onb-recheck p {
-  color: var(--text-subtle);
-  font-size: 0.82rem;
-}
-
-.onb-mini-button {
-  font-size: 0.78rem;
 }
 
 .connected-summary {
@@ -233,42 +218,6 @@
   color: var(--accent-fg);
   font-family: var(--font-sans);
   font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.onb-install-links {
-  color: var(--text-subtle);
-  font-size: 0.82rem;
-}
-
-.onb-install-links span {
-  color: var(--text-faint);
-}
-
-.onb-install-links a {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  color: var(--accent-fg);
-  font-weight: 700;
-}
-
-.onb-install-links a:hover {
-  border-color: var(--forest-soft-2);
-  background: var(--forest-soft);
-}
-
-.onb-provider-strip > span:first-child {
-  color: var(--text-faint);
-  font-size: 0.82rem;
-}
-
-.onb-provider-pill {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  color: var(--text-subtle);
-  font-size: 0.78rem;
   font-weight: 700;
 }
 
@@ -406,45 +355,6 @@
   font-size: 0.85rem;
 }
 
-.onb-stat {
-  border: 1px solid transparent;
-  border-radius: var(--radius-pill);
-  font-size: 0.78rem;
-  font-weight: 650;
-}
-
-.onb-stat--forest {
-  border-color: var(--forest-soft-2);
-  background: var(--forest-soft);
-  color: var(--forest-ink);
-}
-
-.onb-stat--steel {
-  background: var(--steel-soft);
-  color: var(--steel-ink);
-}
-
-.onb-stat--amber {
-  border-color: var(--amber-soft-2);
-  background: var(--amber-soft);
-  color: var(--amber-ink);
-}
-
-.onb-stat__hint {
-  color: var(--text-subtle);
-  font-size: 0.78rem;
-}
-
-.onb-recheck__main {
-  color: var(--text-subtle);
-  font-size: 0.82rem;
-}
-
-.onb-recheck__main b {
-  color: var(--text-muted);
-  font-weight: 650;
-}
-
 .onb-scan {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
@@ -461,11 +371,6 @@
   color: var(--text);
   font-size: 0.9rem;
   font-weight: 700;
-}
-
-.onb-scan__s {
-  color: var(--text-subtle);
-  font-size: 0.78rem;
 }
 
 .onb-cli {
@@ -501,14 +406,6 @@
   font-weight: 700;
 }
 
-.onb-cli__cmd {
-  border-radius: var(--radius-sm);
-  background: var(--surface-3);
-  color: var(--text-faint);
-  font-family: var(--font-sans);
-  font-size: 0.72rem;
-}
-
 .onb-detect {
   font-family: var(--font-sans);
   font-size: 0.65rem;
@@ -532,8 +429,7 @@
   font-weight: 650;
 }
 
-.onb-auth__note,
-.onb-cli__installhint {
+.onb-auth__note {
   color: var(--text-subtle);
   font-size: 0.75rem;
 }
@@ -554,15 +450,8 @@
   box-shadow: inset 0 0 0 1px var(--forest-soft-2);
 }
 
-.onb-auth__res--out {
-  background: var(--amber-soft);
-  color: var(--amber-ink);
-  box-shadow: inset 0 0 0 1px var(--amber-soft-2);
-}
-
 .onb-auth__re,
-.onb-acct__x,
-.onb-addpanel__cancel {
+.onb-acct__x {
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -572,8 +461,7 @@
 }
 
 .onb-auth__re:hover,
-.onb-acct__x:hover,
-.onb-addpanel__cancel:hover {
+.onb-acct__x:hover {
   background: var(--surface-2);
   color: var(--text);
 }
@@ -645,7 +533,6 @@
 }
 
 .onb-pickhd__lbl,
-.onb-provsec__lbl,
 .onb-acctlist__lbl,
 .onb-cred__hd {
   color: var(--text-faint);
@@ -694,7 +581,6 @@
   font-weight: 650;
 }
 
-.onb-provsec__note,
 .onb-provmini__soon {
   color: var(--text-faint);
   font-family: var(--font-sans);

@@ -96,33 +96,6 @@
   margin-top: 0.625rem;
 }
 
-.onb-stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.25rem 0.625rem 0.25rem 0.5rem;
-}
-
-.onb-stat .ic,
-.onb-stat__hint .ic {
-  display: inline-flex;
-  flex: none;
-}
-
-.onb-stat__hint {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.45rem;
-  margin-top: 0.5rem;
-  line-height: 1.5;
-}
-
-.onb-recheck__main {
-  flex: 1;
-  min-width: 0;
-  line-height: 1.5;
-}
-
 .onb-scan {
   display: flex;
   align-items: center;
@@ -143,11 +116,6 @@
 .onb-scan__main {
   min-width: 0;
   flex: 1;
-}
-
-.onb-scan__s {
-  margin-top: 0.125rem;
-  line-height: 1.45;
 }
 
 .onb-clis {
@@ -194,10 +162,6 @@
   gap: 0.55rem;
 }
 
-.onb-cli__cmd {
-  padding: 0.125rem 0.45rem;
-}
-
 .onb-cli__sp {
   flex: 1;
 }
@@ -238,8 +202,7 @@
 }
 
 .onb-auth__re,
-.onb-acct__x,
-.onb-addpanel__cancel {
+.onb-acct__x {
   padding: 0.35rem 0.5rem;
 }
 
@@ -275,15 +238,6 @@
   line-height: 1.5;
 }
 
-.onb-cli__install {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-top: 0.65rem;
-}
-
-.onb-cli__installhint,
 .onb-cli__guide {
   display: inline-flex;
   align-items: center;
@@ -345,7 +299,6 @@
 }
 
 .onb-pickhd__lbl,
-.onb-provsec__lbl,
 .onb-acctlist__lbl,
 .onb-cred__hd {
   letter-spacing: var(--tracking-caps);
@@ -390,18 +343,6 @@
   gap: 0.45rem;
 }
 
-.onb-provsec {
-  margin-top: 1.125rem;
-}
-
-.onb-provsec__hd {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 0.625rem;
-}
-
-.onb-provsec__note,
 .onb-provmini__soon {
   letter-spacing: 0.06em;
   text-transform: uppercase;

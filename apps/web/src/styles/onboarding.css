@@ -241,7 +241,6 @@
   padding: 0.45rem 0;
 }
 
-.onb-status-list,
 .onb-tour {
   display: grid;
   gap: 0.75rem;
@@ -250,39 +249,8 @@
   list-style: none;
 }
 
-.onb-status-list li,
-.onb-tour__row,
-.onb-recheck {
+.onb-tour__row {
   padding: 0.95rem 1rem;
-}
-
-.onb-recheck {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 0.75rem;
-}
-
-.onb-recheck p {
-  flex: 1;
-  margin: 0;
-}
-
-.onb-cli-provider {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.onb-cli-provider > div {
-  min-width: 0;
-  flex: 1;
-}
-
-.onb-mini-button {
-  min-height: 2.15rem;
-  flex: 0 0 auto;
-  padding: 0.45rem 0.65rem;
 }
 
 .connected-summary {
@@ -320,42 +288,6 @@
 
 .connected-summary p {
   margin: 0;
-}
-
-.onb-option-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.85rem;
-  margin-top: 1rem;
-}
-
-.onb-install-links {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.55rem;
-  margin-top: 0.15rem;
-}
-
-.onb-install-links a {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.55rem;
-  text-decoration: none;
-}
-
-.onb-provider-strip {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.15rem;
-}
-
-.onb-provider-pill {
-  padding: 0.25rem 0.55rem;
 }
 
 .onb-nav {
@@ -434,16 +366,6 @@
 
   .onb-nav__skipstep span {
     display: none;
-  }
-
-  .onb-cli-provider {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 0.65rem;
-  }
-
-  .onb-cli-provider .onb-mini-button {
-    width: fit-content;
   }
 }
 
