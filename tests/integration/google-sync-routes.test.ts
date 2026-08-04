@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import Fastify from "fastify";
 import {
   CALENDAR_SCOPE,
+  createEmailActionSubjectSignature,
   GMAIL_SCOPE,
   GOOGLE_EMAIL_CHUNK_SIZE,
   GOOGLE_SYNC_CONTINUATION_QUEUE,
@@ -258,6 +259,126 @@ describe("google-sync continuation handoff", () => {
     expect(nextOccurrence.data).toEqual(job.data);
     expect(sends[1]!.payload.idempotencyKey).toBe(nextOccurrence.id);
     expect(sends[1]!.options.id).not.toBe(sends[0]!.options.id);
+  });
+
+  it("continues after a bounded projection failure following current-day upserts", async () => {
+    const accountId = await seedGoogleAccount(handles.dataContext, [GMAIL_SCOPE]);
+    const context = { actorUserId: ids.userA, requestId: "test:projection-failure-continuation" };
+    const preferencesRepository = new PreferencesRepository();
+    await handles.dataContext.withDataContext(context, (scopedDb) =>
+      preferencesRepository.upsert(scopedDb, featureGrantsPrefKey(accountId), {
+        calendar: false,
+        email: true
+      })
+    );
+
+    const suppressionRepository = {
+      list: vi.fn(async () => [
+        {
+          subjectSignature: createEmailActionSubjectSignature("Approval needed"),
+          dismissalCount: 2,
+          lastDeadlineEvidenceKey: null,
+          lastContextMessageKey: null,
+          deadlineEvidenceKeys: [],
+          contextMessageKeys: []
+        }
+      ]),
+      recordContextEvidence: vi.fn(async () => {
+        throw new Error("bounded suppression projection failure");
+      }),
+      recordDeadlineEvidence: vi.fn(async () => undefined)
+    };
+    const sends: Array<{
+      queue: string;
+      payload: GoogleSyncContinuationPayload;
+      options: { id: string };
+    }> = [];
+    const taskCreate = vi.fn(async () => ({ id: "task-never-created" }));
+    const boss = {
+      send: async (
+        queue: string,
+        payload: GoogleSyncContinuationPayload,
+        options: { id: string }
+      ) => {
+        sends.push({ queue, payload, options });
+        return "continuation";
+      }
+    } as never;
+    const job: { id: string; data: GoogleSyncPayload } = {
+      id: "00000000-0000-0000-0000-000000000329",
+      data: {
+        actorUserId: ids.userA,
+        kind: "google-sync",
+        idempotencyKey: "schedule:projection-failure"
+      }
+    };
+
+    const result = await handleGoogleSyncJob(
+      boss,
+      handles.workerDataContext,
+      job as never,
+      (scopedDb) =>
+        runGoogleSyncChunk(scopedDb, {
+          getFreshAccessToken: async () => "fixture-token",
+          getActiveAccount: async () => ({ id: accountId, scopes: [GMAIL_SCOPE] }),
+          googleClient: {
+            listCalendarEvents: async () => [],
+            listMessageIds: async () => [],
+            listMessageIdsPage: async () => ({ messages: [{ id: "projection-failure-1" }] }),
+            getMessage: async () => ({
+              id: "projection-failure-1",
+              historyId: "history-projection-failure-1",
+              internalDate: String(Date.parse("2026-08-01T04:00:00.000Z")),
+              payload: {
+                mimeType: "text/plain",
+                headers: [
+                  { name: "Subject", value: "Approval needed" },
+                  { name: "From", value: "sender@example.test" }
+                ],
+                body: { data: Buffer.from("Please approve this today.").toString("base64") }
+              }
+            })
+          },
+          emailExtractDeps: {
+            runChat: async () => ({
+              text: JSON.stringify({
+                category: "needs_action",
+                confidence: 0.95,
+                reason: "The sender requested approval.",
+                action: "Approve the request"
+              })
+            })
+          },
+          actionProjection: {
+            taskPort: { create: taskCreate },
+            preferencesRepository,
+            suppressionRepository,
+            actorUserId: ids.userA
+          },
+          runId: job.id,
+          now: () => new Date("2026-08-01T04:00:00.000Z")
+        })
+    );
+
+    expect(result).toMatchObject({
+      emailUpserted: 1,
+      emailFailures: 0,
+      errors: ["email-error"],
+      truncated: true
+    });
+    expect(suppressionRepository.recordContextEvidence).toHaveBeenCalledTimes(1);
+    expect(taskCreate).not.toHaveBeenCalled();
+    expect(sends).toHaveLength(1);
+    expect(sends[0]!.queue).toBe(GOOGLE_SYNC_CONTINUATION_QUEUE);
+    expect(sends[0]!.payload).toMatchObject({
+      actorUserId: ids.userA,
+      kind: "google-sync-continuation",
+      phase: "email",
+      emailUpserted: 1,
+      emailFailures: 0,
+      errors: ["email-error"]
+    });
+    expect(sends[0]!.options.id).toMatch(/^[0-9a-f-]{36}$/);
   });
 });
 
