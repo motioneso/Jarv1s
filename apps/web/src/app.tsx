@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useEffect, useMemo, type ComponentType, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router";
 import { MODULE_WEB_CONTRIBUTIONS, MODULE_WEB_ROUTES } from "virtual:jarvis-module-web";
+import { confineModuleCss } from "@jarv1s/module-css-confine";
 
 import {
   ApiError,
@@ -102,13 +103,23 @@ export function App() {
         .map((m) => ({
           moduleId: m.id,
           path: `/m/${m.id}/*`,
-          Component: lazy(async () => ({
-            default: await loadExternalModuleContribution({
+          // D9 (#1388): the module's Root and its raw css load together; wrap Root in the
+          // host-owned ModuleCssScope here (not inside ExternalModuleMount) so the css that
+          // travels with THIS lazy load is the css that gets scoped — no separate state to
+          // keep in sync across the async boundary.
+          Component: lazy(async () => {
+            const { Component: Root, css } = await loadExternalModuleContribution({
               moduleId: m.id,
               entrypoint: m.web!.entrypoint,
               contractVersion: m.web!.contractVersion
-            })
-          }))
+            });
+            const ScopedRoot: ComponentType<ExternalWebContributionProps> = (rootProps) => (
+              <ModuleCssScope moduleId={m.id} css={css}>
+                <Root {...rootProps} />
+              </ModuleCssScope>
+            );
+            return { default: ScopedRoot };
+          })
         })),
     [modulesQuery.data]
   );
@@ -362,6 +373,52 @@ function ExternalModuleMount(props: {
   }, [assistantSurface]);
   const Component = props.Component;
   return <Component hostActions={hostActions} assistantSurface={assistantSurface} />;
+}
+
+const moduleCssRefCounts = new Map<string, number>();
+
+/**
+ * D9 (#1388): the host-owned CSS scope root. `data-module` is set here, never by the module
+ * itself — packages/module-css-confine prefixes every module selector to `[data-module="<id>"]`,
+ * so this attribute IS the scope boundary. Confinement + the `<style>` element's lifecycle both
+ * live here, one level above ExternalModuleMount, because this is where the module's raw css
+ * (loaded alongside its Root in the same lazy() call — see externalModuleRoutes above) is
+ * actually in scope. Ref-counted by style element id so two mounts of the same module id (not
+ * possible via routing today, but not assumed away) share one `<style>` tag.
+ */
+function ModuleCssScope(props: {
+  readonly moduleId: string;
+  readonly css: string;
+  readonly children: ReactNode;
+}) {
+  const { moduleId, css } = props;
+  useEffect(() => {
+    if (!css) return undefined;
+    const styleId = `jarvis-module-css-${moduleId}`;
+    if (!document.getElementById(styleId)) {
+      const { css: confined, rejectedAtRules } = confineModuleCss(css, moduleId);
+      if (rejectedAtRules.length > 0) {
+        console.warn(
+          `Module "${moduleId}" css: dropped unscoped at-rule(s) ${rejectedAtRules.join(", ")}`
+        );
+      }
+      const styleEl = document.createElement("style");
+      styleEl.id = styleId;
+      styleEl.textContent = confined;
+      document.head.appendChild(styleEl);
+    }
+    moduleCssRefCounts.set(moduleId, (moduleCssRefCounts.get(moduleId) ?? 0) + 1);
+    return () => {
+      const next = (moduleCssRefCounts.get(moduleId) ?? 1) - 1;
+      if (next <= 0) {
+        moduleCssRefCounts.delete(moduleId);
+        document.getElementById(styleId)?.remove();
+      } else {
+        moduleCssRefCounts.set(moduleId, next);
+      }
+    };
+  }, [moduleId, css]);
+  return <div data-module={moduleId}>{props.children}</div>;
 }
 
 function LoadingScreen() {

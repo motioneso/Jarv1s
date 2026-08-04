@@ -524,7 +524,7 @@
     "sections": ["morning", "evening"],
     "toolName": "job-search.briefing"
   },
-  "web": { "entrypoint": "dist/web/index.js", "contractVersion": 1 },
+  "web": { "entrypoint": "dist/web/index.js", "contractVersion": 2 },
   "navigation": [
     {
       "id": "job-search",

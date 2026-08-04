@@ -28,7 +28,7 @@ describe("finance manifest contract (#1146)", () => {
     // module-relative — apps/api serializeExternalModule prefixes /m/finance,
     // so "/" is the plan's "/finance" route. `landmark` is not in the web
     // iconMap yet (falls back to Layers3); Task 11 adds it.
-    expect(result.manifest.web).toEqual({ entrypoint: "dist/web/index.js", contractVersion: 1 });
+    expect(result.manifest.web).toEqual({ entrypoint: "dist/web/index.js", contractVersion: 2 });
     expect(result.manifest.navigation).toEqual([
       { id: "finance", label: "Finance", path: "/", icon: "landmark" }
     ]);

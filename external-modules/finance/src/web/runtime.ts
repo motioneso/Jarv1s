@@ -33,8 +33,8 @@ type ModuleRuntime = { contractVersion: number; react: HostReact };
 function readRuntime(): ModuleRuntime {
   const runtime = (globalThis as { __JARVIS_MODULE_RUNTIME__?: ModuleRuntime })
     .__JARVIS_MODULE_RUNTIME__;
-  if (!runtime || runtime.contractVersion !== 1) {
-    throw new Error("finance web root requires the Jarvis module runtime v1");
+  if (!runtime || runtime.contractVersion !== 2) {
+    throw new Error("finance web root requires the Jarvis module runtime v2");
   }
   return runtime;
 }

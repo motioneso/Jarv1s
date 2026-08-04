@@ -236,7 +236,7 @@ export async function mockExternalWebModule(page: Page): Promise<void> {
     version: "0.1.0",
     lifecycle: "optional" as const,
     external: true,
-    web: { entrypoint, contractVersion: 1 },
+    web: { entrypoint, contractVersion: 2 },
     navigation: [{ id: moduleId, label: "Demo Module", path: `/m/${moduleId}`, order: 60 }],
     settings: []
   };
@@ -279,7 +279,7 @@ export async function mockExternalWebModule(page: Page): Promise<void> {
     const bundle = [
       "const { react: React } = window.__JARVIS_MODULE_RUNTIME__;",
       "export default {",
-      "  contractVersion: 1,",
+      "  contractVersion: 2,",
       "  Root: (props) => React.createElement(React.Fragment, null,",
       "    React.createElement('span', { 'data-assistant-surface': props.assistantSurface ? 'available' : 'missing' }, props.assistantSurface ? 'Assistant surface available' : 'Assistant surface missing'),",
       "    React.createElement('button', {",
@@ -304,7 +304,7 @@ export async function mockAssistantSurfaceWebModule(page: Page): Promise<void> {
     const bundle = [
       "const { react: React } = window.__JARVIS_MODULE_RUNTIME__;",
       "export default {",
-      "  contractVersion: 1,",
+      "  contractVersion: 2,",
       "  Root: (props) => {",
       "    if (!props.assistantSurface) return React.createElement('p', null, 'Assistant surface missing');",
       "    const Surface = props.assistantSurface.Surface;",

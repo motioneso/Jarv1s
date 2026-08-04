@@ -46,6 +46,7 @@ const PLATFORM_PACKAGES = new Set([
   "@jarv1s/host-fetch", // shared server-only outbound network policy/transport
   "@jarv1s/jobs",
   "@jarv1s/memory",
+  "@jarv1s/module-css-confine", // host-only CSS scoping for module contributions (#1388/D9), no product domain
   "@jarv1s/module-registry", // composition root; wires every module together
   "@jarv1s/module-sdk",
   "@jarv1s/module-web-sdk", // browser-safe frontend contribution SDK (routes/widgets/palette), infra not a product domain

@@ -5,7 +5,7 @@ import * as ReactDOMClient from "react-dom/client";
 import type { AssistantSurfaceHandleV1 } from "../chat/assistant-surface";
 import type { ExternalModuleHostActionsV1 } from "./host-actions";
 
-export const JARVIS_WEB_CONTRACT_VERSION = 1;
+export const JARVIS_WEB_CONTRACT_VERSION = 2;
 
 /** Props every external module Root receives from the host (#916). */
 export interface ExternalWebContributionProps {
@@ -18,10 +18,23 @@ export interface ExternalWebContributionProps {
   readonly assistantSurface?: AssistantSurfaceHandleV1;
 }
 
-/** Contract v1: the default export of an external module's web entrypoint. */
+/** Contract v2: the default export of an external module's web entrypoint. */
 export interface ExternalWebContribution {
   readonly contractVersion: number;
   readonly Root: ComponentType<ExternalWebContributionProps>;
+  /**
+   * D9 (#1388): the module's stylesheet as plain text, unscoped. The module never injects its
+   * own `<style>` tag or sets its own scope attribute — the host confines this text to
+   * `[data-module="<id>"]` (packages/module-css-confine) and owns the `<style>` element's
+   * lifecycle. Optional: a module with no styles omits it.
+   */
+  readonly css?: string;
+}
+
+/** What the host actually needs to mount a module: its Root plus its (still-unscoped) css. */
+export interface LoadedExternalWebContribution {
+  readonly Component: ComponentType<ExternalWebContributionProps>;
+  readonly css: string;
 }
 
 /**
@@ -42,6 +55,7 @@ export function installModuleHostRuntime(): void {
 }
 
 const Missing: ComponentType<ExternalWebContributionProps> = () => null;
+const MISSING: LoadedExternalWebContribution = { Component: Missing, css: "" };
 
 /**
  * Load one external module's web contribution. Fails closed to an empty
@@ -53,14 +67,14 @@ export async function loadExternalModuleContribution(entry: {
   readonly moduleId: string;
   readonly entrypoint: string;
   readonly contractVersion: number;
-}): Promise<ComponentType<ExternalWebContributionProps>> {
-  if (entry.contractVersion !== JARVIS_WEB_CONTRACT_VERSION) return Missing;
+}): Promise<LoadedExternalWebContribution> {
+  if (entry.contractVersion !== JARVIS_WEB_CONTRACT_VERSION) return MISSING;
   const url = `/api/modules/${encodeURIComponent(entry.moduleId)}/web/${entry.entrypoint}`;
   let mod: { default?: ExternalWebContribution };
   try {
     mod = (await import(/* @vite-ignore */ url)) as { default?: ExternalWebContribution };
   } catch {
-    return Missing;
+    return MISSING;
   }
   const contribution = mod.default;
   // The export re-asserts contractVersion: the manifest gate saves a fetch,
@@ -70,7 +84,7 @@ export async function loadExternalModuleContribution(entry: {
     contribution.contractVersion !== JARVIS_WEB_CONTRACT_VERSION ||
     typeof contribution.Root !== "function"
   ) {
-    return Missing;
+    return MISSING;
   }
-  return contribution.Root;
+  return { Component: contribution.Root, css: contribution.css ?? "" };
 }

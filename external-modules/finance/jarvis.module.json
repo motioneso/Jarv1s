@@ -281,6 +281,6 @@
     ]
   },
   "fetchHosts": ["production.plaid.com", "sandbox.plaid.com"],
-  "web": { "entrypoint": "dist/web/index.js", "contractVersion": 1 },
+  "web": { "entrypoint": "dist/web/index.js", "contractVersion": 2 },
   "navigation": [{ "id": "finance", "label": "Finance", "path": "/", "icon": "landmark" }]
 }
