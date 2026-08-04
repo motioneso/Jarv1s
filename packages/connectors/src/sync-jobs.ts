@@ -552,7 +552,6 @@ export async function runGoogleSyncChunk(
   // --- Email (independent) ---
   if ((phase === "email-current-day" || phase === "email") && emailEnabled) {
     let nextEmailCursor: string | undefined;
-    let emailSectionFailed = false;
     const query = phase === "email-current-day" ? CURRENT_DAY_EMAIL_QUERY : EMAIL_QUERY;
     const pageLimit =
       phase === "email-current-day" ? GOOGLE_CURRENT_DAY_EMAIL_PAGE_SIZE : GOOGLE_EMAIL_CHUNK_SIZE;
@@ -740,7 +739,6 @@ export async function runGoogleSyncChunk(
         );
         return next(phase, phaseCursor);
       }
-      emailSectionFailed = true;
       const errorLabel =
         error instanceof EmailExtractNeedsConfigurationError ? "email-needs-config" : "email-error";
       logger.warn(
@@ -754,10 +752,8 @@ export async function runGoogleSyncChunk(
       if (!errors.includes(errorLabel)) errors.push(errorLabel);
     }
 
-    if (!emailSectionFailed) {
-      if (nextEmailCursor) return next(phase, nextEmailCursor);
-      if (phase === "email-current-day") return next("email");
-    }
+    if (nextEmailCursor) return next(phase, nextEmailCursor);
+    if (phase === "email-current-day") return next("email");
   }
 
   logger.info(
