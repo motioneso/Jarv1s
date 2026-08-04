@@ -1,14 +1,10 @@
 .onb-provmini__tile {
   width: 1.875rem;
   height: 1.875rem;
-  border-radius: var(--radius-md);
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-3);
-  color: var(--text-faint);
-  font-weight: 800;
 }
 
 .onb-provmini__main {
@@ -19,9 +15,6 @@
 .onb-provmini__name {
   display: block;
   overflow: hidden;
-  color: var(--text-muted);
-  font-size: 0.82rem;
-  font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -35,11 +28,7 @@
 
 .onb-connector {
   margin-top: 1.375rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
 }
 
 .onb-connector__head {
@@ -53,27 +42,15 @@
 .onb-connector__g {
   width: 2.25rem;
   height: 2.25rem;
-  border-radius: var(--radius-md);
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-2);
-  color: var(--steel);
-  font-weight: 800;
-}
-
-.onb-connector__title {
-  color: var(--text);
-  font-size: 0.9rem;
-  font-weight: 650;
 }
 
 .onb-connector__sub,
 .onb-cred__hint,
 .gflow__p {
-  color: var(--text-subtle);
-  font-size: 0.78rem;
   line-height: 1.5;
 }
 
@@ -83,9 +60,6 @@
   align-items: flex-start;
   padding: 0.875rem 1.125rem;
   border-bottom: 1px solid var(--border-subtle);
-  background: var(--surface-2);
-  color: var(--text-muted);
-  font-size: 0.82rem;
   line-height: 1.55;
 }
 
@@ -111,16 +85,10 @@
 .onb-guide__n {
   width: 1.5rem;
   height: 1.5rem;
-  border-radius: var(--radius-pill);
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--forest-soft);
-  color: var(--accent-fg);
-  font-family: var(--font-sans);
-  font-size: 0.75rem;
-  font-weight: 650;
 }
 
 .onb-guide__body {
@@ -129,8 +97,6 @@
 }
 
 .onb-guide__t {
-  color: var(--text);
-  font-size: 0.84rem;
   line-height: 1.55;
 }
 
@@ -138,14 +104,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  border: 1px solid var(--forest-soft-2);
-  border-radius: var(--radius-sm);
-  background: var(--forest-soft);
-  color: var(--forest-ink);
   padding: 0.06rem 0.45rem;
-  font-family: var(--font-sans);
-  font-size: 0.72rem;
-  font-weight: 650;
 }
 
 .onb-guide__link {
@@ -153,13 +112,7 @@
   align-items: center;
   gap: 0.4rem;
   margin-top: 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  color: var(--accent-fg);
   padding: 0.4rem 0.7rem;
-  font-size: 0.78rem;
-  font-weight: 650;
   text-decoration: none;
 }
 
@@ -169,7 +122,6 @@
   gap: 0.8rem;
   padding: 1rem 1.125rem;
   border-top: 1px solid var(--border-subtle);
-  background: var(--surface-2);
 }
 
 .onb-cred__field {
@@ -178,45 +130,25 @@
   gap: 0.375rem;
 }
 
-.onb-cred__lbl {
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  font-weight: 650;
-}
-
 .onb-cred__in {
   height: 2.5rem;
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
   padding: 0 0.75rem;
 }
 
 .onb-cred__in input {
   min-height: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text);
   padding: 0;
-  font-family: var(--font-sans);
-  font-size: 0.78rem;
-}
-
-.onb-cred__in input:focus {
-  outline: none;
 }
 
 .onb-cred__in .ic {
-  color: var(--text-faint);
   display: inline-flex;
   flex: none;
 }
 
 .onb-cred__ok {
-  color: var(--accent-fg);
   flex: none;
 }
 
@@ -231,18 +163,9 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-  color: var(--text);
   padding: 0.85rem 0.95rem;
   cursor: pointer;
   transition: var(--transition-control);
-}
-
-.onb-json-upload:hover {
-  border-color: var(--accent);
-  background: var(--forest-soft);
 }
 
 .onb-json-upload input {
@@ -256,13 +179,10 @@
 .onb-json-upload__icon {
   width: 2rem;
   height: 2rem;
-  border-radius: var(--radius-md);
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-2);
-  color: var(--accent-fg);
 }
 
 .onb-json-upload__main {
@@ -272,16 +192,8 @@
   gap: 0.12rem;
 }
 
-.onb-json-upload__title {
-  color: var(--text);
-  font-size: 0.85rem;
-  font-weight: 700;
-}
-
 .onb-json-upload__sub,
 .onb-json-upload__status {
-  color: var(--text-subtle);
-  font-size: 0.76rem;
   line-height: 1.4;
 }
 
@@ -291,42 +203,28 @@
   gap: 0.95rem;
   margin-top: 1.375rem;
   padding: 1.125rem;
-  border: 1px solid var(--forest-soft-2);
-  border-radius: var(--radius-card);
-  background: var(--forest-soft);
 }
 
 .onb-confirm__mark {
   width: 2.75rem;
   height: 2.75rem;
-  border-radius: var(--radius-pill);
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent);
-  color: var(--text-on-accent);
 }
 
 .onb-confirm__t {
   margin: 0;
-  color: var(--forest-ink);
-  font-size: 1.03rem;
-  font-weight: 700;
 }
 
 .onb-confirm__s {
   margin-top: 0.2rem;
-  color: var(--accent-soft-fg);
-  font-size: 0.82rem;
   line-height: 1.5;
 }
 
 .onb-acctlist {
   margin-top: 0.875rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
   overflow: hidden;
 }
 
@@ -342,12 +240,6 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.onb-acctlist__ct {
-  color: var(--text-subtle);
-  font-family: var(--font-sans);
-  font-size: 0.7rem;
-}
-
 .onb-acct {
   gap: 0.8rem;
   padding: 0.875rem 1rem;
@@ -361,18 +253,11 @@
 .onb-acct__tile {
   width: 2.25rem;
   height: 2.25rem;
-  border-radius: var(--radius-lg);
 }
 
 .onb-acct__main {
   min-width: 0;
   flex: 1;
-}
-
-.onb-acct__email {
-  color: var(--text);
-  font-size: 0.88rem;
-  font-weight: 650;
 }
 
 .onb-acct__meta {
@@ -387,23 +272,11 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  color: var(--forest-ink);
-  font-size: 0.75rem;
-  font-weight: 650;
 }
 
 .onb-acct__health .dot {
   width: 0.45rem;
   height: 0.45rem;
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-}
-
-.onb-acct__sep,
-.onb-acct__scopes {
-  color: var(--text-faint);
-  font-family: var(--font-sans);
-  font-size: 0.7rem;
 }
 
 .onb-addmore {
@@ -411,44 +284,23 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  border: 0;
   border-top: 1px solid var(--border-subtle);
-  background: transparent;
-  color: inherit;
   padding: 0.8rem 1rem;
   text-align: left;
-}
-
-.onb-addmore:hover {
-  background: var(--surface-2);
 }
 
 .onb-addmore__ic {
   width: 2rem;
   height: 2rem;
-  border: 1.5px dashed var(--border-strong);
-  border-radius: var(--radius-pill);
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-subtle);
 }
 
 .onb-addmore__main {
   display: flex;
   flex-direction: column;
-}
-
-.onb-addmore__t {
-  color: var(--text);
-  font-size: 0.84rem;
-  font-weight: 650;
-}
-
-.onb-addmore__s {
-  color: var(--text-subtle);
-  font-size: 0.75rem;
 }
 
 .onb-tour {
@@ -462,72 +314,44 @@
   display: flex;
   align-items: flex-start;
   gap: 0.95rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
   padding: 1rem 1.125rem;
 }
 
 .onb-tour__ic {
   width: 2.5rem;
   height: 2.5rem;
-  border: 1px solid var(--forest-soft-2);
-  border-radius: var(--radius-lg);
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--forest-soft);
-  color: var(--accent-fg);
-}
-
-.onb-tour__name {
-  color: var(--text);
-  font-family: var(--font-display);
-  font-size: 1.125rem;
-  font-weight: 650;
 }
 
 .onb-tour__job {
   margin-top: 0.2rem;
-  color: var(--text-muted);
-  font-size: 0.88rem;
   line-height: 1.55;
 }
 
 .onb-keyfield {
   margin-top: 1rem;
   padding: 0.875rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface-2);
 }
 
 .onb-keyfield__lbl {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 650;
 }
 
 .onb-keyfield__lbl .ic {
-  color: var(--text-faint);
   display: inline-flex;
 }
 
 .onb-keyfield input {
   margin-top: 0.55rem;
-  background: var(--surface);
-  font-family: var(--font-sans);
-  font-size: 0.82rem;
 }
 
 .onb-keyfield__hint {
   margin-top: 0.5rem;
-  color: var(--text-subtle);
-  font-size: 0.72rem;
   line-height: 1.5;
 }
 
@@ -542,10 +366,6 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--forest-soft-2);
-  border-radius: var(--radius-xl);
-  background: var(--forest-soft);
-  color: var(--accent-fg);
 }
 
 .onb-finish .onb-eyebrow {
@@ -554,19 +374,12 @@
 
 .onb-finish__title {
   margin: 0.625rem 0 0;
-  color: var(--text);
-  font-family: var(--font-display);
-  font-size: 2.25rem;
-  font-weight: 650;
   line-height: 1.1;
 }
 
 .onb-finish__lede {
   max-width: 52ch;
   margin: 0.875rem auto 0;
-  color: var(--text-muted);
-  font-family: var(--font-sans);
-  font-size: 1.1rem;
   line-height: 1.6;
 }
 
@@ -575,9 +388,6 @@
   display: flex;
   flex-direction: column;
   margin: 2.125rem auto 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
   overflow: hidden;
   text-align: left;
 }
@@ -597,43 +407,20 @@
 .onb-recap__ic {
   width: 1.875rem;
   height: 1.875rem;
-  border-radius: var(--radius-pill);
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.onb-recap__ic.ok {
-  background: var(--forest-soft);
-  color: var(--accent-fg);
-}
-
-.onb-recap__ic.skip {
-  background: var(--amber-soft);
-  color: var(--amber-ink);
-}
-
 .onb-recap__k {
   width: 7.25rem;
   flex: none;
-  color: var(--text-subtle);
-  font-size: 0.85rem;
 }
 
 .onb-recap__v {
   min-width: 0;
   flex: 1;
-  color: var(--text);
-  font-size: 0.85rem;
-  font-weight: 650;
-}
-
-.onb-recap__v .mono {
-  color: var(--text-muted);
-  font-family: var(--font-sans);
-  font-size: 0.78rem;
-  font-weight: 500;
 }
 
 .onb-finish__cta {
@@ -647,14 +434,7 @@
 
 .onb-signoff {
   margin-top: 1.625rem;
-  color: var(--text-subtle);
-  font-family: var(--font-sans);
-  font-size: 0.95rem;
   font-style: italic;
-}
-
-.onb-nav {
-  background: linear-gradient(to top, var(--bg) 62%, transparent);
 }
 
 .onb-nav__spacer {
