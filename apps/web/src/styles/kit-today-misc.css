@@ -81,12 +81,6 @@
   margin: 8px 0 0;
   text-wrap: pretty;
 }
-.np-score {
-  font-family: var(--font-sans);
-  font-size: 13px;
-  color: var(--text-muted);
-  margin-top: 8px;
-}
 .np-dek {
   font-family: var(--font-sans);
   font-size: 15px;
@@ -176,12 +170,6 @@
   background: var(--amber-soft);
   color: var(--amber-ink);
 }
-.np-quiet {
-  font-size: 13px;
-  color: var(--text-faint);
-  margin-top: 14px;
-  font-style: italic;
-}
 .np-topic {
   display: inline-flex;
   align-items: center;
@@ -219,22 +207,6 @@
 }
 
 /* ===== Agenda next / empty / tomorrow ===== */
-.sched-row--next .sched-row__body::before {
-  background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 0 0 4px var(--forest-soft);
-}
-.sched-next {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent-fg);
-  margin-top: 2px;
-}
 .agenda-clear {
   font-size: 13px;
   color: var(--text-muted);
@@ -244,15 +216,6 @@
 .agenda-clear b {
   color: var(--text);
   font-weight: 600;
-}
-.agenda-tmrw {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  padding: 10px 0 12px;
-  border-top: 1px solid var(--border-subtle);
 }
 
 /* ===== Wellness card (progress meds) ===== */
@@ -287,12 +250,6 @@
   border-radius: var(--radius-md);
   background: var(--amber-soft);
   border: 1px solid var(--amber-soft-2);
-}
-.well__nudge-tx {
-  flex: 1;
-  font-size: 12.5px;
-  line-height: 1.4;
-  color: var(--amber-ink);
 }
 .well__nudge-x {
   flex: none;

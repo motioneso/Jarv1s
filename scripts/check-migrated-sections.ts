@@ -29,7 +29,10 @@ export const MIGRATED_SECTION_PATHS: readonly string[] = [
   "apps/web/src/calendar/calendar-page.tsx",
   "apps/web/src/calendar/calendar-month.tsx",
   "apps/web/src/calendar/calendar-time-grid.tsx",
-  "apps/web/src/calendar/calendar-peek.tsx"
+  "apps/web/src/calendar/calendar-peek.tsx",
+  "apps/web/src/today/briefing-feedback-menu.tsx",
+  "apps/web/src/today/briefing-freshness.tsx",
+  "apps/web/src/today/header-weather.tsx"
 ];
 
 export interface RawClassViolation {
