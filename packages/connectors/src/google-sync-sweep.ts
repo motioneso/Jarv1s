@@ -10,6 +10,7 @@ import {
 } from "@jarv1s/jobs";
 
 import { GOOGLE_SYNC_QUEUE, type GoogleSyncPayload } from "./sync-jobs.js";
+import { reconcileGoogleAccountSchedule } from "./google-schedule.js";
 
 export const GOOGLE_SYNC_SWEEP_QUEUE = "connectors.google-sync-sweep";
 
@@ -102,6 +103,10 @@ export async function registerGoogleSyncSweepWorker(
   boss: PgBoss,
   rootDb: Kysely<JarvisDatabase>
 ): Promise<string> {
+  const accounts = await listConnectedGoogleCalendarAccounts(rootDb);
+  await Promise.all(
+    accounts.map(({ actorUserId }) => reconcileGoogleAccountSchedule(boss, actorUserId, true))
+  );
   await reconcileGoogleSyncSweepSchedule(boss);
   return boss.work<GoogleSyncSweepJobPayload, void>(
     GOOGLE_SYNC_SWEEP_QUEUE,
