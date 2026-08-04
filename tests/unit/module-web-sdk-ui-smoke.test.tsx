@@ -20,9 +20,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { buildExternalModule } from "../../scripts/build-external-module.js";
 
-const moduleDir = fileURLToPath(
-  new URL("../fixtures/module-web-sdk-ui-smoke", import.meta.url)
-);
+const moduleDir = fileURLToPath(new URL("../fixtures/module-web-sdk-ui-smoke", import.meta.url));
 
 beforeAll(async () => {
   await buildExternalModule(moduleDir);
@@ -64,7 +62,8 @@ describe("module-web-sdk UI smoke (#1388 Foundation task 11)", () => {
 
     const chip = renderer.root.findAll(
       (node) =>
-        typeof node.type === "string" && (node.props as { className?: string }).className === "jds-chip"
+        typeof node.type === "string" &&
+        (node.props as { className?: string }).className === "jds-chip"
     );
     expect(chip).toHaveLength(1);
 

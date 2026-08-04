@@ -33,7 +33,10 @@ describe("confineModuleCss (D9)", () => {
   });
 
   it("rewrites :root, html, and body to the scope selector itself rather than descendant-prefixing", () => {
-    const result = confineModuleCss(":root { --x: 1; } html { margin: 0; } body { padding: 0; }", "mod");
+    const result = confineModuleCss(
+      ":root { --x: 1; } html { margin: 0; } body { padding: 0; }",
+      "mod"
+    );
     expect(result.css).toBe(
       '[data-module="mod"]{--x: 1;}[data-module="mod"]{margin: 0;}[data-module="mod"]{padding: 0;}'
     );
@@ -56,17 +59,21 @@ describe("confineModuleCss (D9)", () => {
   });
 
   it("does not prefix keyframe selector stops (percentages, from/to) as if they were element selectors", () => {
-    const result = confineModuleCss("@keyframes fade { 0% { opacity: 0; } 50% { opacity: 0.5; } to { opacity: 1; } }", "mod");
+    const result = confineModuleCss(
+      "@keyframes fade { 0% { opacity: 0; } 50% { opacity: 0.5; } to { opacity: 1; } }",
+      "mod"
+    );
     expect(result.css).toBe(
-      '@keyframes fade__mod{0%{opacity: 0;}50%{opacity: 0.5;}to{opacity: 1;}}'
+      "@keyframes fade__mod{0%{opacity: 0;}50%{opacity: 0.5;}to{opacity: 1;}}"
     );
   });
 
   it("passes through @media/@supports while still prefixing selectors nested inside", () => {
-    const result = confineModuleCss("@media (min-width: 40rem) { .grid { display: grid; } }", "mod");
-    expect(result.css).toBe(
-      '@media (min-width: 40rem){[data-module="mod"] .grid{display: grid;}}'
+    const result = confineModuleCss(
+      "@media (min-width: 40rem) { .grid { display: grid; } }",
+      "mod"
     );
+    expect(result.css).toBe('@media (min-width: 40rem){[data-module="mod"] .grid{display: grid;}}');
   });
 
   it("rejects @import, @font-face, @property, @namespace, @page, and @counter-style", () => {
@@ -94,7 +101,7 @@ describe("confineModuleCss (D9)", () => {
   });
 
   it("rejects an unscoped @layer statement but passes through a block-form @layer", () => {
-    const unscoped = confineModuleCss('@layer utilities;', "mod");
+    const unscoped = confineModuleCss("@layer utilities;", "mod");
     expect(unscoped.rejectedAtRules).toEqual(["@layer"]);
 
     const blockForm = confineModuleCss("@layer utilities { .x { color: red; } }", "mod");

@@ -177,7 +177,10 @@ function selfTest(): void {
     console.error("Self-test failed: inline-style extraction did not find the style object");
     process.exit(1);
   }
-  if (!BANNED_INLINE_STYLE_PROPERTIES.has("color") || BANNED_INLINE_STYLE_PROPERTIES.has("display")) {
+  if (
+    !BANNED_INLINE_STYLE_PROPERTIES.has("color") ||
+    BANNED_INLINE_STYLE_PROPERTIES.has("display")
+  ) {
     console.error("Self-test failed: inline-style banned-property set is wrong (color/display)");
     process.exit(1);
   }
@@ -201,7 +204,9 @@ async function main(): Promise<void> {
       "Raw jds-* class in a migrated section (use the @jarv1s/ui component instead of a hand-typed class):"
     );
     for (const violation of rawClassViolations) {
-      console.error(`- ${violation.path}:${violation.line} ${violation.className} — ${violation.text}`);
+      console.error(
+        `- ${violation.path}:${violation.line} ${violation.className} — ${violation.text}`
+      );
     }
   }
 
@@ -210,7 +215,9 @@ async function main(): Promise<void> {
       "Banned visual property in a migrated section's inline style (D2: layout only; colour/type/border/radius/shadow come from a component or token):"
     );
     for (const violation of inlineStyleViolations) {
-      console.error(`- ${violation.path}:${violation.line} ${violation.property} — ${violation.text}`);
+      console.error(
+        `- ${violation.path}:${violation.line} ${violation.property} — ${violation.text}`
+      );
     }
   }
 

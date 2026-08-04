@@ -5,7 +5,14 @@ import { type ReactNode } from "react";
  * tone (that class doesn't exist; see #1388 D6 change list for the compat mapping). "solid-pine"
  * and "solid-amber" are their own solid-fill treatments, not a `solid` variant of every tone.
  */
-export type BadgeTone = "neutral" | "forest" | "amber" | "red" | "steel" | "solid-pine" | "solid-amber";
+export type BadgeTone =
+  | "neutral"
+  | "forest"
+  | "amber"
+  | "red"
+  | "steel"
+  | "solid-pine"
+  | "solid-amber";
 
 export interface BadgeProps {
   readonly tone?: BadgeTone;

@@ -19,7 +19,9 @@ import {
 const fixtureRoots: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(fixtureRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  await Promise.all(
+    fixtureRoots.splice(0).map((root) => rm(root, { recursive: true, force: true }))
+  );
 });
 
 async function buildFixture(tsxContents: string): Promise<string> {

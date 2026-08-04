@@ -74,16 +74,21 @@ export const Fragment: unknown = FRAGMENT_PLACEHOLDER;
 // specifier) — lucide-react, a runtime dependency of @jarv1s/ui's chip/select icons, imports
 // createElement/forwardRef directly rather than writing JSX.
 export const createElement: HostReact["createElement"] = h;
-export const forwardRef: HostReact["forwardRef"] = (render) => readRuntime().react.forwardRef(render);
+export const forwardRef: HostReact["forwardRef"] = (render) =>
+  readRuntime().react.forwardRef(render);
 export const memo: HostReact["memo"] = (component) => readRuntime().react.memo(component);
 export const createContext: HostReact["createContext"] = (defaultValue) =>
   readRuntime().react.createContext(defaultValue);
-export const useContext: HostReact["useContext"] = (context) => readRuntime().react.useContext(context);
+export const useContext: HostReact["useContext"] = (context) =>
+  readRuntime().react.useContext(context);
 export const useId: HostReact["useId"] = () => readRuntime().react.useId();
 export const useState: HostReact["useState"] = (initial) => readRuntime().react.useState(initial);
-export const useEffect: HostReact["useEffect"] = (effect, deps) => readRuntime().react.useEffect(effect, deps);
-export const useMemo: HostReact["useMemo"] = (factory, deps) => readRuntime().react.useMemo(factory, deps);
-export const useCallback: HostReact["useCallback"] = (fn, deps) => readRuntime().react.useCallback(fn, deps);
+export const useEffect: HostReact["useEffect"] = (effect, deps) =>
+  readRuntime().react.useEffect(effect, deps);
+export const useMemo: HostReact["useMemo"] = (factory, deps) =>
+  readRuntime().react.useMemo(factory, deps);
+export const useCallback: HostReact["useCallback"] = (fn, deps) =>
+  readRuntime().react.useCallback(fn, deps);
 export const useRef: HostReact["useRef"] = (initial) => readRuntime().react.useRef(initial);
 export const useSyncExternalStore: HostReact["useSyncExternalStore"] = (
   subscribe,

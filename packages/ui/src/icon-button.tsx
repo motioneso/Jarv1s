@@ -3,7 +3,10 @@ import { type ButtonHTMLAttributes, type ReactNode } from "react";
 export type IconButtonVariant = "default" | "secondary";
 export type IconButtonSize = "sm" | "md" | "lg";
 
-export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className"> {
+export interface IconButtonProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "className"
+> {
   readonly variant?: IconButtonVariant;
   readonly size?: IconButtonSize;
   readonly active?: boolean;

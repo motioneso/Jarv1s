@@ -244,7 +244,9 @@ async function main(): Promise<void> {
       "Banned visual property in a migrated section's CSS (D2: screen CSS is layout only):"
     );
     for (const violation of bannedPropertyViolations) {
-      console.error(`- ${violation.path}:${violation.line} ${violation.property} — ${violation.text}`);
+      console.error(
+        `- ${violation.path}:${violation.line} ${violation.property} — ${violation.text}`
+      );
     }
   }
 

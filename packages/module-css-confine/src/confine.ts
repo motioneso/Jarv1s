@@ -304,7 +304,13 @@ function transformNodes(
       out.push({
         type: "rule",
         selector,
-        nodes: transformNodes(node.nodes, scopeSelector, keyframeRenames, rejectedAtRules, insideKeyframes)
+        nodes: transformNodes(
+          node.nodes,
+          scopeSelector,
+          keyframeRenames,
+          rejectedAtRules,
+          insideKeyframes
+        )
       });
       continue;
     }
@@ -345,7 +351,13 @@ function transformNodes(
       name: node.name,
       params: node.params,
       nodes: node.nodes
-        ? transformNodes(node.nodes, scopeSelector, keyframeRenames, rejectedAtRules, insideKeyframes)
+        ? transformNodes(
+            node.nodes,
+            scopeSelector,
+            keyframeRenames,
+            rejectedAtRules,
+            insideKeyframes
+          )
         : null
     });
   }

@@ -16,5 +16,10 @@ export function Divider(props: DividerProps) {
   ]
     .filter(Boolean)
     .join(" ");
-  return <hr className={classes} aria-orientation={orientation === "vertical" ? "vertical" : undefined} />;
+  return (
+    <hr
+      className={classes}
+      aria-orientation={orientation === "vertical" ? "vertical" : undefined}
+    />
+  );
 }

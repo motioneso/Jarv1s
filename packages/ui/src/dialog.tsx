@@ -17,7 +17,12 @@ export function Dialog(props: DialogProps) {
         if (event.target === event.currentTarget) props.onClose();
       }}
     >
-      <div className="jds-dialog" role="dialog" aria-modal="true" aria-labelledby={props["aria-labelledby"]}>
+      <div
+        className="jds-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={props["aria-labelledby"]}
+      >
         <div className="jds-dialog__head">
           <div className="jds-dialog__title">{props.title}</div>
           {props.description ? <div className="jds-dialog__desc">{props.description}</div> : null}
