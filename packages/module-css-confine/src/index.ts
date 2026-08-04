@@ -1,2 +1,2 @@
-export { confineModuleCss } from "./confine";
-export type { ConfineCssResult } from "./confine";
+export { confineModuleCss } from "./confine.js";
+export type { ConfineCssResult } from "./confine.js";
