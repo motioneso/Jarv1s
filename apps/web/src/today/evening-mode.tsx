@@ -9,6 +9,8 @@ import {
 import { MessageSquareText } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { Card } from "@jarv1s/ui";
+
 import { useAssistantName } from "../api/use-assistant-name";
 import { targetTimeFor } from "../briefings/briefing-settings-model";
 import {
@@ -142,18 +144,17 @@ export function EveningReviewSection(props: {
 }) {
   const freshness = props.run ? parseBriefingFreshness(props.run.sourceMetadata) : null;
   const hasSummary = Boolean(props.run?.summaryText.trim());
+  const metaText = props.run
+    ? shortDate(props.run.createdAt, props.locale)
+    : `Ready at ${targetTimeLabel(props.targetTime)}`;
   const content = (
     <>
-      <div className={props.kind === "primary" ? "jds-brief__head" : "inst__head"}>
-        <span className={props.kind === "primary" ? "jds-brief__kicker" : "inst__title"}>
-          Evening review
-        </span>
-        <span className={props.kind === "primary" ? "jds-brief__kicker" : "inst__meta"}>
-          {props.run
-            ? shortDate(props.run.createdAt, props.locale)
-            : `Ready at ${targetTimeLabel(props.targetTime)}`}
-        </span>
-      </div>
+      {props.kind === "primary" ? (
+        <div className="jds-brief__head">
+          <span className="jds-brief__kicker">Evening review</span>
+          <span className="jds-brief__kicker">{metaText}</span>
+        </div>
+      ) : null}
       {props.kind === "primary" ? (
         <div className="jds-brief__title">What happened today</div>
       ) : null}
@@ -187,7 +188,9 @@ export function EveningReviewSection(props: {
   return props.kind === "primary" ? (
     <section className="jds-brief">{content}</section>
   ) : (
-    <div className="inst">{content}</div>
+    <Card title="Evening review" meta={metaText}>
+      {content}
+    </Card>
   );
 }
 
@@ -207,10 +210,7 @@ export function EveningPrepCard(props: {
   // (Ben: "Chat with {assistantName}") rather than the generic "Prep for tomorrow".
   const assistantName = useAssistantName();
   return (
-    <div className="inst">
-      <div className="inst__head">
-        <span className="inst__title">Prep for tomorrow</span>
-      </div>
+    <Card title="Prep for tomorrow">
       <p className="cmd-empty">Close out today and set up tomorrow in a quick chat.</p>
       <button
         type="button"
@@ -221,7 +221,7 @@ export function EveningPrepCard(props: {
         <MessageSquareText size={14} aria-hidden="true" />
         Chat with {assistantName}
       </button>
-    </div>
+    </Card>
   );
 }
 

@@ -531,31 +531,6 @@
      Moving it here makes the rail lock flush under the bar right as the masthead rule scrolls off. */
   top: calc(var(--topbar-h) + 1rem);
 }
-.inst {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 15px 16px 14px;
-}
-.inst__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.inst__title {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-subtle);
-}
-.inst__meta {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  color: var(--text-faint);
-}
-
 /* schedule timeline */
 .sched-row {
   display: grid;
