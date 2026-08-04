@@ -288,7 +288,7 @@ describe("runGoogleSync email orchestration", () => {
     );
 
     expect(result).toMatchObject({
-      emailUpserted: 1,
+      emailUpserted: 2,
       errors: ["email-needs-config"],
       truncated: false
     });
