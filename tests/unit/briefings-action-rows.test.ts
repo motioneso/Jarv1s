@@ -181,4 +181,15 @@ describe("structured briefing action rows", () => {
       asOf: asOf.toISOString()
     });
   });
+
+  it("omits catch-up when no eligible email items remain", async () => {
+    await expect(
+      buildEmailCatchUp(
+        fakeScopedDb,
+        [{ id: "noise", connectorAccountId: "acct", actionability: "noise" }],
+        new Set(),
+        async () => new Date("2026-06-13T12:30:00.000Z")
+      )
+    ).resolves.toBeNull();
+  });
 });

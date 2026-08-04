@@ -6,11 +6,12 @@ import {
   type SendOptions,
   type WorkOptions
 } from "pg-boss";
+import { sql, type Kysely } from "kysely";
 
 export type { Job, PgBoss };
 
 import { assertUuid } from "@jarv1s/db";
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
 
 export const PGBOSS_SCHEMA = "pgboss";
 export const RLS_PROBE_QUEUE = "rls-probe";
@@ -141,6 +142,24 @@ export async function sendJob<T extends ActorScopedJobPayload>(
 ): Promise<string | null> {
   assertMetadataOnlyPayload(payload);
   return options === undefined ? boss.send(queue, payload) : boss.send(queue, payload, options);
+}
+
+/** Return whether an actor has a created, retrying, or active job in the named queue. */
+export async function hasInFlightJob(
+  rootDb: Kysely<JarvisDatabase>,
+  queueName: string,
+  actorUserId: string
+): Promise<boolean> {
+  const result = await sql<{ in_flight: boolean }>`
+    select exists (
+      select 1
+      from pgboss.job
+      where name = ${queueName}
+        and state in ('created', 'retry', 'active')
+        and data->>'actorUserId' = ${actorUserId}
+    ) as in_flight
+  `.execute(rootDb);
+  return result.rows[0]?.in_flight ?? false;
 }
 
 export interface PgBossClientHooks {

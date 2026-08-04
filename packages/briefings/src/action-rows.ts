@@ -237,6 +237,7 @@ export async function buildEmailCatchUp(
   const eligible = filterEmailItems(items, actionRowSourceRefs).filter(
     (item) => item.actionability === "waiting_on_someone" || item.actionability === "fyi"
   );
+  if (eligible.length === 0) return null;
   const summaries = eligible
     .map((item) => (typeof item.summary === "string" ? item.summary.trim() : ""))
     .filter(Boolean)

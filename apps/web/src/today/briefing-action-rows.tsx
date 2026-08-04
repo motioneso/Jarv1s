@@ -128,7 +128,7 @@ export function BriefingActionRowsSection(props: BriefingActionRowsSectionProps)
           ))}
         </div>
       )}
-      {catchUp ? (
+      {catchUp && catchUp.itemCount > 0 ? (
         <div style={{ marginTop: 12 }}>
           <span className="jds-brief__kicker">Catch-up</span>
           <p className="cmd-leadin">{catchUp.summaryText}</p>
@@ -170,6 +170,7 @@ function ActionRow(props: {
         onClick={() => props.onOpenTask(row.taskId)}
       >
         <div className="loose-row__title">{row.title}</div>
+        <div className="loose-row__meta">{row.explanation}</div>
         <div className="loose-row__meta">{metaLabel(row, props.locale)}</div>
       </button>
       <div className="loose-row__act" style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -249,9 +250,27 @@ function PrimaryControl(props: {
 
 function metaLabel(row: BriefingActionRowDto, locale: LocaleSettingsDto): string {
   const due = row.dueAt
-    ? `Due ${formatDate(row.dueAt, locale, { month: "short", day: "numeric" })}`
+    ? "Due " + formatDate(row.dueAt, locale, { month: "short", day: "numeric" })
     : null;
-  return [row.sourceLabel, due].filter((part): part is string => part !== null).join(" · ");
+  const resurface =
+    row.resurfaceReason === "due_tomorrow"
+      ? "Back — due tomorrow"
+      : row.resurfaceReason === "relevant_context"
+        ? "Back — related to active work"
+        : null;
+  return [row.sourceLabel, due, "Updated " + formatUpdatedAge(row.computedAt), resurface]
+    .filter((part): part is string => part !== null)
+    .join(" · ");
+}
+
+function formatUpdatedAge(computedAt: string): string {
+  const timestamp = Date.parse(computedAt);
+  if (Number.isNaN(timestamp)) return "unknown";
+  const ageMs = Math.max(0, Date.now() - timestamp);
+  if (ageMs < 60_000) return "just now";
+  if (ageMs < 3_600_000) return String(Math.round(ageMs / 60_000)) + "m ago";
+  if (ageMs < 86_400_000) return String(Math.round(ageMs / 3_600_000)) + "h ago";
+  return String(Math.round(ageMs / 86_400_000)) + "d ago";
 }
 
 /**
@@ -296,15 +315,21 @@ function buildFreshness(
   suggested: readonly DisplayedActionRow[],
   capturedAt: string | null
 ): SourceFreshnessV1 | null {
-  const first = suggested[0];
-  if (!capturedAt || !first) return null;
-  const oldest = suggested.reduce(
-    (acc, entry) => (entry.row.computedAt < acc ? entry.row.computedAt : acc),
-    first.row.computedAt
-  );
+  if (!capturedAt || suggested.length === 0) return null;
+  const oldestBySource = new Map<string, string>();
+  for (const entry of suggested) {
+    const current = oldestBySource.get(entry.row.source);
+    if (!current || entry.row.computedAt < current) {
+      oldestBySource.set(entry.row.source, entry.row.computedAt);
+    }
+  }
   return {
     version: 1,
     capturedAt,
-    sources: [{ source: first.row.source, freshnessKind: "connector_sync", asOf: oldest }]
+    sources: [...oldestBySource].map(([source, asOf]) => ({
+      source,
+      freshnessKind: "connector_sync" as const,
+      asOf
+    }))
   };
 }

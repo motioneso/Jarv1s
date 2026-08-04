@@ -10,7 +10,7 @@ import type {
   DataContextRunner,
   JarvisDatabase
 } from "@jarv1s/db";
-import { sendJob, toAccessContext } from "@jarv1s/jobs";
+import { hasInFlightJob, sendJob, toAccessContext } from "@jarv1s/jobs";
 import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
 import { CalendarRepository } from "@jarv1s/calendar";
 import { EmailRepository } from "@jarv1s/email";
@@ -39,7 +39,6 @@ import { GoogleEmailReadProvider, GMAIL_READ_FOLDER } from "./email-read-provide
 import { EmailActionSuppressionRepository } from "./action-suppression-repository.js";
 import { projectEmailActions, type ProjectEmailActionsDeps } from "./monitor-jobs.js";
 import { listSavedEmailContext } from "./source-context/email.js";
-import { hasInFlightGoogleSyncLineage } from "./google-sync-admission.js";
 import { assertGoogleSyncContinuationPayload } from "./google-sync-payload.js";
 
 export const GOOGLE_SYNC_QUEUE = "connectors.google-sync";
@@ -945,7 +944,11 @@ export async function registerConnectorsJobWorkers(
         );
       },
       async (actorUserId) => {
-        const skipped = await hasInFlightGoogleSyncLineage(deps.rootDb, actorUserId);
+        const skipped = await hasInFlightJob(
+          deps.rootDb,
+          GOOGLE_SYNC_CONTINUATION_QUEUE,
+          actorUserId
+        );
         if (skipped) {
           deps.logger?.info(
             { actorScoped: true, event: "skipped:lineage-in-flight" },

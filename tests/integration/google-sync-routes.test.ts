@@ -18,7 +18,13 @@ import {
   type GoogleSyncContinuationPayload,
   type GoogleSyncPayload
 } from "@jarv1s/connectors";
-import { ALLOWED_PAYLOAD_KEYS, createPgBossClient, type Job, type PgBoss } from "@jarv1s/jobs";
+import {
+  ALLOWED_PAYLOAD_KEYS,
+  createPgBossClient,
+  hasInFlightJob,
+  type Job,
+  type PgBoss
+} from "@jarv1s/jobs";
 import { getAllQueueDefinitions } from "@jarv1s/module-registry";
 import { googleSyncRouteSchema, type GoogleSyncResponse } from "@jarv1s/shared";
 import { PreferencesRepository } from "@jarv1s/structured-state";
@@ -110,16 +116,7 @@ describe("google-sync continuation handoff", () => {
 
     const hasInFlightGoogleSyncLineage: Admission = async (actorUserId) => {
       admissionCalls.push(actorUserId);
-      const result = await sql<{ in_flight: boolean }>`
-        select exists (
-          select 1
-          from pgboss.job
-          where name = ${GOOGLE_SYNC_CONTINUATION_QUEUE}
-            and state in ('created', 'retry', 'active')
-            and data->>'actorUserId' = ${actorUserId}
-        ) as in_flight
-      `.execute(handles.workerDb);
-      return result.rows[0]?.in_flight ?? false;
+      return hasInFlightJob(handles.workerDb, GOOGLE_SYNC_CONTINUATION_QUEUE, actorUserId);
     };
 
     const healthSnapshot = async () => {

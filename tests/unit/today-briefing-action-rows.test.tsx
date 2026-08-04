@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type {
   BriefingActionRowDto,
@@ -162,6 +162,64 @@ describe("BriefingActionRowsSection", () => {
       tasks: [task({ id: "task-suggested", status: "suggested" })]
     });
     expect(fresh).not.toContain("Some sources are over a day old");
+
+    const zeroCatchUp = renderSection({
+      run: run({
+        rows: [],
+        catchUp: {
+          source: "email",
+          itemCount: 0,
+          summaryText: "No safe summary is available yet.",
+          asOf: null
+        }
+      }),
+      tasks: []
+    });
+    expect(zeroCatchUp).not.toContain("Catch-up");
+  });
+
+  it("renders explanation, relative update age, resurface reason, and per-source freshness", () => {
+    const now = new Date("2026-08-04T12:00:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    try {
+      const html = renderSection({
+        run: run({
+          rows: [
+            actionRow({
+              taskId: "task-email",
+              explanation: "Alex needs the launch date.",
+              computedAt: new Date(now.getTime() - 60 * 60 * 1000).toISOString(),
+              resurfaceReason: "due_tomorrow",
+              source: "email",
+              sourceLabel: "Email"
+            }),
+            actionRow({
+              taskId: "task-calendar",
+              explanation: "The venue deadline is approaching.",
+              computedAt: new Date(now.getTime() - 30 * 60 * 60 * 1000).toISOString(),
+              source: "calendar",
+              sourceLabel: "Calendar",
+              category: "needs_action",
+              primaryAction: { kind: "view", href: "https://calendar.example.test/event/1" }
+            })
+          ]
+        }),
+        tasks: [
+          task({ id: "task-email", status: "suggested" }),
+          task({ id: "task-calendar", status: "suggested" })
+        ]
+      });
+
+      expect(html).toContain("Alex needs the launch date.");
+      expect(html).toContain("Updated 1h ago");
+      expect(html).toContain("Back — due tomorrow");
+      const staleText = html.match(/<p class="bfresh__stale">([\s\S]*?)<\/p>/)?.[1] ?? "";
+      expect(staleText).toContain("Calendar");
+      expect(staleText).not.toContain("Email");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
