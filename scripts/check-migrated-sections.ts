@@ -48,7 +48,18 @@ export const MIGRATED_SECTION_PATHS: readonly string[] = [
   "apps/web/src/today/overnight-section.tsx",
   "apps/web/src/today/proactive-cards.tsx",
   "apps/web/src/today/today-page.tsx",
-  "apps/web/src/today/today-suggested-email.tsx"
+  "apps/web/src/today/today-suggested-email.tsx",
+  "apps/web/src/onboarding/api-key-opt-out-step.tsx",
+  "apps/web/src/onboarding/cli-auth-step.tsx",
+  "apps/web/src/onboarding/connector-step.tsx",
+  "apps/web/src/onboarding/google-connector-step.tsx",
+  "apps/web/src/onboarding/member-connector-step.tsx",
+  "apps/web/src/onboarding/member-welcome-step.tsx",
+  "apps/web/src/onboarding/onboarding-ui.tsx",
+  "apps/web/src/onboarding/onboarding-wizard.tsx",
+  "apps/web/src/onboarding/section-tour-step.tsx",
+  "apps/web/src/onboarding/skip-confirm.tsx",
+  "apps/web/src/onboarding/welcome-step.tsx"
 ];
 
 // Explicit class-family -> component name map. Resolving this by string munging (stripping
