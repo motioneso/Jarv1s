@@ -23,41 +23,31 @@ const MESSAGE_ID = "sync-monitor-actionable-1";
 const SUBJECT = "Approval needed for the launch plan";
 const BODY = "Please approve the launch plan today and reply when it is done.";
 const ACTIONABLE_SIGNALS = {
-  summary: "A colleague needs launch-plan approval today.",
-  billsDue: [],
-  actionItems: [],
-  deadlines: [],
-  mayGetLostInShuffle: true,
-  importance: "high",
+  category: "needs_action",
   confidence: 0.95,
-  actionability: {
-    category: "needs_action",
-    reason: "The sender explicitly requests approval today.",
-    inferredSubject: "Launch plan approval",
-    suggestedTasks: [{ text: "Approve the launch plan" }]
+  reason: "The sender explicitly requests approval today.",
+  action: "Approve the launch plan"
+};
+
+const incompleteCompactExtractDeps: EmailExtractDeps = {
+  runChat: async (_prompt, _signal, batchSize = 1) => {
+    expect(batchSize).toBe(1);
+    return {
+      text: JSON.stringify({
+        category: "needs_action",
+        confidence: 0.9,
+        reason: "The sender requests approval.",
+        action: ""
+      })
+    };
   }
 };
 
-const summaryOnlyExtractDeps: EmailExtractDeps = {
-  runChat: async () => ({
-    text: JSON.stringify({
-      summary: "A colleague requested launch-plan approval.",
-      billsDue: [],
-      actionItems: [],
-      deadlines: [],
-      mayGetLostInShuffle: false,
-      importance: "normal",
-      confidence: 0.9,
-      actionability: {
-        category: "needs_action",
-        reason: "The sender requests approval."
-      }
-    })
-  })
-};
-
 const actionableExtractDeps: EmailExtractDeps = {
-  runChat: async () => ({ text: JSON.stringify(ACTIONABLE_SIGNALS) })
+  runChat: async (_prompt, _signal, batchSize = 1) => {
+    expect(batchSize).toBe(1);
+    return { text: JSON.stringify(ACTIONABLE_SIGNALS) };
+  }
 };
 
 function googleClientFor(messageId: string) {
@@ -297,7 +287,7 @@ describe("Google sync → source context → email monitor", () => {
         })
       );
 
-    expect((await runSync(summaryOnlyExtractDeps)).emailUpserted).toBe(1);
+    expect((await runSync(incompleteCompactExtractDeps)).emailUpserted).toBe(1);
     expect(await emailTaskCount(tasksRepository, context, messageId)).toBe(0);
 
     const runChat = vi.fn(actionableExtractDeps.runChat);
