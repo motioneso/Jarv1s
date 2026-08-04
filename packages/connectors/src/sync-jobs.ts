@@ -1,10 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import type { Job, PgBoss, WorkOptions } from "pg-boss";
-import { sql } from "kysely";
+import { sql, type Kysely } from "kysely";
 
 import type { ActorScopedJobPayload, QueueDefinition } from "@jarv1s/jobs";
-import type { ConnectorSyncStatus, DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type {
+  ConnectorSyncStatus,
+  DataContextDb,
+  DataContextRunner,
+  JarvisDatabase
+} from "@jarv1s/db";
 import { sendJob, toAccessContext } from "@jarv1s/jobs";
 import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
 import { CalendarRepository } from "@jarv1s/calendar";
@@ -34,6 +39,8 @@ import { GoogleEmailReadProvider, GMAIL_READ_FOLDER } from "./email-read-provide
 import { EmailActionSuppressionRepository } from "./action-suppression-repository.js";
 import { projectEmailActions, type ProjectEmailActionsDeps } from "./monitor-jobs.js";
 import { listSavedEmailContext } from "./source-context/email.js";
+import { hasInFlightGoogleSyncLineage } from "./google-sync-admission.js";
+import { assertGoogleSyncContinuationPayload } from "./google-sync-payload.js";
 
 export const GOOGLE_SYNC_QUEUE = "connectors.google-sync";
 export const GOOGLE_SYNC_CONTINUATION_QUEUE = "connectors.google-sync-continuation";
@@ -816,57 +823,6 @@ export async function runGoogleSync(
   return outcome.result;
 }
 
-const GOOGLE_SYNC_ERROR_LABELS = new Set([
-  "auth-error",
-  "calendar-error",
-  "calendar-item-error",
-  "email-error",
-  "email-needs-config",
-  "email-message-error",
-  "no-active-connection"
-]);
-
-function assertGoogleSyncContinuationPayload(payload: GoogleSyncContinuationPayload): void {
-  if (payload.kind !== "google-sync-continuation") throw new Error("invalid continuation kind");
-  if (
-    payload.phase !== "calendar" &&
-    payload.phase !== "email-current-day" &&
-    payload.phase !== "email"
-  ) {
-    throw new Error("invalid continuation phase");
-  }
-  if (
-    payload.cursor !== undefined &&
-    (payload.cursor.length === 0 || payload.cursor.length > 2048)
-  ) {
-    throw new Error("invalid continuation cursor");
-  }
-  if (payload.idempotencyKey.length === 0 || payload.idempotencyKey.length > 128) {
-    throw new Error("invalid continuation idempotency key");
-  }
-  if (!Number.isFinite(Date.parse(payload.startedAt))) throw new Error("invalid continuation time");
-  if (!Number.isFinite(Date.parse(payload.calendarSeenSince))) {
-    throw new Error("invalid calendar continuation time");
-  }
-  const counts = [
-    payload.chunkIndex,
-    payload.calendarUpserted,
-    payload.calendarReconciled,
-    payload.emailUpserted,
-    payload.emailFailures,
-    payload.escalations
-  ];
-  if (counts.some((value) => !Number.isSafeInteger(value) || value < 0 || value > 1_000_000)) {
-    throw new Error("invalid continuation count");
-  }
-  if (
-    payload.errors.length > GOOGLE_SYNC_ERROR_LABELS.size ||
-    payload.errors.some((error) => !GOOGLE_SYNC_ERROR_LABELS.has(error))
-  ) {
-    throw new Error("invalid continuation error label");
-  }
-}
-
 function continuationJobId(runId: string, chunkIndex: number): string {
   const bytes = createHash("sha256").update(`${runId}:${chunkIndex}`).digest().subarray(0, 16);
   bytes[6] = (bytes[6]! & 0x0f) | 0x50;
@@ -882,8 +838,20 @@ export async function handleGoogleSyncJob(
   runChunk: (
     scopedDb: DataContextDb,
     continuation?: GoogleSyncContinuationState
-  ) => Promise<GoogleSyncChunkOutcome>
+  ) => Promise<GoogleSyncChunkOutcome>,
+  shouldSkipRoot?: (actorUserId: string) => Promise<boolean>
 ): Promise<GoogleSyncResult> {
+  if (job.data.kind === "google-sync" && (await shouldSkipRoot?.(job.data.actorUserId))) {
+    return {
+      calendarUpserted: 0,
+      calendarReconciled: 0,
+      emailUpserted: 0,
+      emailFailures: 0,
+      escalations: 0,
+      errors: [],
+      truncated: false
+    };
+  }
   const continuation =
     job.data.kind === "google-sync-continuation"
       ? ((assertGoogleSyncContinuationPayload(job.data), job.data) as GoogleSyncContinuationState)
@@ -907,6 +875,7 @@ export async function handleGoogleSyncJob(
 
 export interface RegisterConnectorsJobWorkersDeps {
   readonly dataContext: DataContextRunner;
+  readonly rootDb: Kysely<JarvisDatabase>;
   readonly taskPort: ProjectEmailActionsDeps["taskPort"];
   readonly actionRowRelevance?: ProjectEmailActionsDeps["actionRowRelevance"];
   readonly createCliStructuredAdapter?: BuildEmailExtractDepsOptions["createCliStructuredAdapter"];
@@ -938,39 +907,54 @@ export async function registerConnectorsJobWorkers(
   const processJob = async (
     job: Job<GoogleSyncPayload | GoogleSyncContinuationPayload>
   ): Promise<GoogleSyncResult> => {
-    const result = await handleGoogleSyncJob(boss, deps.dataContext, job, (scopedDb, state) => {
-      const emailExtractDeps = buildEmailExtractDeps(scopedDb, aiRepo, aiCipher, {
-        createCliStructuredAdapter: deps.createCliStructuredAdapter,
-        logger: deps.logger
-      });
-      return runGoogleSyncChunk(
-        scopedDb,
-        {
-          actorUserId: job.data.actorUserId,
-          getActiveAccount: (db) =>
-            loadGoogleSyncActiveAccount(
-              connectorsRepo,
-              connectorCipher,
-              db,
-              deps.logger ?? NOOP_SYNC_LOGGER
-            ),
-          getFreshAccessToken: (db, opts) => googleService.getFreshAccessToken(db, opts),
-          googleClient,
-          emailExtractDeps,
-          actionProjection: {
-            taskPort: deps.taskPort,
-            preferencesRepository,
-            suppressionRepository,
-            actionRowRelevance: deps.actionRowRelevance,
+    const result = await handleGoogleSyncJob(
+      boss,
+      deps.dataContext,
+      job,
+      (scopedDb, state) => {
+        const emailExtractDeps = buildEmailExtractDeps(scopedDb, aiRepo, aiCipher, {
+          createCliStructuredAdapter: deps.createCliStructuredAdapter,
+          logger: deps.logger
+        });
+        return runGoogleSyncChunk(
+          scopedDb,
+          {
             actorUserId: job.data.actorUserId,
-            logger: deps.logger
+            getActiveAccount: (db) =>
+              loadGoogleSyncActiveAccount(
+                connectorsRepo,
+                connectorCipher,
+                db,
+                deps.logger ?? NOOP_SYNC_LOGGER
+              ),
+            getFreshAccessToken: (db, opts) => googleService.getFreshAccessToken(db, opts),
+            googleClient,
+            emailExtractDeps,
+            actionProjection: {
+              taskPort: deps.taskPort,
+              preferencesRepository,
+              suppressionRepository,
+              actionRowRelevance: deps.actionRowRelevance,
+              actorUserId: job.data.actorUserId,
+              logger: deps.logger
+            },
+            logger: deps.logger,
+            runId: job.data.kind === "google-sync" ? job.id : job.data.idempotencyKey
           },
-          logger: deps.logger,
-          runId: job.data.kind === "google-sync" ? job.id : job.data.idempotencyKey
-        },
-        state
-      );
-    });
+          state
+        );
+      },
+      async (actorUserId) => {
+        const skipped = await hasInFlightGoogleSyncLineage(deps.rootDb, actorUserId);
+        if (skipped) {
+          deps.logger?.info(
+            { actorScoped: true, event: "skipped:lineage-in-flight" },
+            "google-sync root skipped while continuation lineage is in flight"
+          );
+        }
+        return skipped;
+      }
+    );
     if (!result.truncated) deps.onResult?.(job, result);
     return result;
   };

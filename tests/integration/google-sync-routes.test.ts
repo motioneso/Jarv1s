@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import Fastify from "fastify";
+import { sql } from "kysely";
 import {
   CALENDAR_SCOPE,
   createEmailActionSubjectSignature,
@@ -12,15 +13,16 @@ import {
   handleGoogleSyncJob,
   registerConnectorsRoutes,
   runGoogleSyncChunk,
+  type GoogleSyncResult,
   type GoogleSyncChunkOutcome,
   type GoogleSyncContinuationPayload,
   type GoogleSyncPayload
 } from "@jarv1s/connectors";
-import { ALLOWED_PAYLOAD_KEYS } from "@jarv1s/jobs";
+import { ALLOWED_PAYLOAD_KEYS, createPgBossClient, type Job, type PgBoss } from "@jarv1s/jobs";
 import { getAllQueueDefinitions } from "@jarv1s/module-registry";
 import { googleSyncRouteSchema, type GoogleSyncResponse } from "@jarv1s/shared";
 import { PreferencesRepository } from "@jarv1s/structured-state";
-import { ids } from "./test-database.js";
+import { connectionStrings, ids } from "./test-database.js";
 import {
   featureGrantsPrefKey,
   handles,
@@ -84,6 +86,183 @@ describe("google-sync queue contract", () => {
 });
 
 describe("google-sync continuation handoff", () => {
+  it("admits one root per actor while its continuation lineage is in flight", async () => {
+    const accountA = await seedGoogleAccount(handles.dataContext, [GMAIL_SCOPE], ids.userA);
+    await seedGoogleAccount(handles.dataContext, [GMAIL_SCOPE], ids.userB);
+    const boss = createPgBossClient(connectionStrings.worker, {
+      connectionTimeoutMillis: 25_000
+    });
+    await boss.start();
+
+    type Admission = (actorUserId: string) => Promise<boolean>;
+    type RootHandler = (
+      boss: PgBoss,
+      dataContext: Parameters<typeof handleGoogleSyncJob>[1],
+      job: Job<GoogleSyncPayload>,
+      runChunk: Parameters<typeof handleGoogleSyncJob>[3],
+      hasInFlightGoogleSyncLineage: Admission
+    ) => Promise<GoogleSyncResult>;
+    const handleRoot = handleGoogleSyncJob as unknown as RootHandler;
+    const chunkCalls: string[] = [];
+    const admissionCalls: string[] = [];
+    const dataContextCalls = vi.spyOn(handles.workerDataContext, "withDataContext");
+    const completed = new Map<string, GoogleSyncResult>();
+
+    const hasInFlightGoogleSyncLineage: Admission = async (actorUserId) => {
+      admissionCalls.push(actorUserId);
+      const result = await sql<{ in_flight: boolean }>`
+        select exists (
+          select 1
+          from pgboss.job
+          where name = ${GOOGLE_SYNC_CONTINUATION_QUEUE}
+            and state in ('created', 'retry', 'active')
+            and data->>'actorUserId' = ${actorUserId}
+        ) as in_flight
+      `.execute(handles.workerDb);
+      return result.rows[0]?.in_flight ?? false;
+    };
+
+    const healthSnapshot = async () => {
+      const result = await sql<{
+        last_sync_started_at: string | null;
+        last_sync_finished_at: string | null;
+        last_sync_status: string | null;
+        last_sync_error: string | null;
+        last_sync_counts: unknown;
+      }>`
+        select last_sync_started_at, last_sync_finished_at, last_sync_status,
+               last_sync_error, last_sync_counts
+        from app.connector_accounts
+        where id = ${accountA}
+      `.execute(handles.workerDb);
+      return result.rows[0];
+    };
+
+    const runRoot = (job: Job<GoogleSyncPayload>) =>
+      handleRoot(
+        boss,
+        handles.workerDataContext,
+        job,
+        async () => {
+          chunkCalls.push(job.data.actorUserId);
+          if (job.data.actorUserId === ids.userA) {
+            return {
+              result: {
+                calendarUpserted: 0,
+                calendarReconciled: 0,
+                emailUpserted: 1,
+                emailFailures: 0,
+                errors: [],
+                truncated: true
+              },
+              continuation: {
+                idempotencyKey: job.id,
+                connectorAccountId: accountA,
+                phase: "email",
+                cursor: "PAGE_2",
+                chunkIndex: 1,
+                startedAt: "2026-08-01T00:00:00.000Z",
+                calendarSeenSince: "2026-08-01T00:00:00.000Z",
+                calendarUpserted: 0,
+                calendarReconciled: 0,
+                emailUpserted: 1,
+                emailFailures: 0,
+                escalations: 0,
+                errors: []
+              }
+            } satisfies GoogleSyncChunkOutcome;
+          }
+          return {
+            result: {
+              calendarUpserted: 0,
+              calendarReconciled: 0,
+              emailUpserted: 1,
+              emailFailures: 0,
+              errors: [],
+              truncated: false
+            }
+          } satisfies GoogleSyncChunkOutcome;
+        },
+        hasInFlightGoogleSyncLineage
+      );
+
+    await boss.work<GoogleSyncPayload, GoogleSyncResult>(
+      GOOGLE_SYNC_QUEUE,
+      { pollingIntervalSeconds: 1 },
+      async ([job]) => {
+        if (!job) throw new Error("missing root job");
+        const result = await runRoot(job);
+        completed.set(job.id, result);
+        return result;
+      }
+    );
+
+    const waitForResult = async (jobId: string): Promise<GoogleSyncResult> => {
+      const deadline = Date.now() + 5_000;
+      while (!completed.has(jobId) && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(completed.has(jobId)).toBe(true);
+      return completed.get(jobId)!;
+    };
+
+    const sendRoot = async (actorUserId: string, idempotencyKey: string) => {
+      const jobId = await boss.send(
+        GOOGLE_SYNC_QUEUE,
+        { actorUserId, kind: "google-sync", idempotencyKey },
+        { singletonKey: actorUserId }
+      );
+      expect(jobId).toEqual(expect.any(String));
+      return jobId as string;
+    };
+
+    try {
+      const firstRootId = await sendRoot(ids.userA, "test:lineage:a:first");
+      const firstResult = await waitForResult(firstRootId);
+      expect(firstResult).toMatchObject({ emailUpserted: 1, truncated: true });
+      expect(chunkCalls).toEqual([ids.userA]);
+
+      const continuationRows = await sql<{
+        root_id: string;
+        chunk_index: number;
+      }>`
+        select data->>'idempotencyKey' as root_id,
+               (data->>'chunkIndex')::int as chunk_index
+        from pgboss.job
+        where name = ${GOOGLE_SYNC_CONTINUATION_QUEUE}
+          and data->>'actorUserId' = ${ids.userA}
+          and state in ('created', 'retry', 'active')
+      `.execute(handles.workerDb);
+      expect(continuationRows.rows).toEqual([{ root_id: firstRootId, chunk_index: 1 }]);
+
+      const healthBeforeSecondRoot = await healthSnapshot();
+      const secondRootId = await sendRoot(ids.userA, "test:lineage:a:second");
+      const secondResult = await waitForResult(secondRootId);
+      expect(secondResult).toEqual({
+        calendarUpserted: 0,
+        calendarReconciled: 0,
+        emailUpserted: 0,
+        emailFailures: 0,
+        escalations: 0,
+        errors: [],
+        truncated: false
+      });
+      expect(chunkCalls).toEqual([ids.userA]);
+      expect(admissionCalls).toEqual([ids.userA, ids.userA]);
+      expect(dataContextCalls).toHaveBeenCalledTimes(1);
+      expect(await healthSnapshot()).toEqual(healthBeforeSecondRoot);
+
+      const bRootId = await sendRoot(ids.userB, "test:lineage:b:first");
+      const bResult = await waitForResult(bRootId);
+      expect(bResult).toMatchObject({ emailUpserted: 1, truncated: false });
+      expect(chunkCalls).toEqual([ids.userA, ids.userB]);
+      expect(dataContextCalls).toHaveBeenCalledTimes(2);
+    } finally {
+      dataContextCalls.mockRestore();
+      await boss.stop({ graceful: false });
+    }
+  });
+
   it("commits before enqueue and reuses the deterministic child id on retry", async () => {
     const events: string[] = [];
     const sends: Array<{ queue: string; options?: { id?: string }; payload: unknown }> = [];

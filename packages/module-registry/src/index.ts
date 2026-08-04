@@ -1183,6 +1183,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       const actionRowRelevance = createActionRowRelevancePort();
       const googleWorkIds = await registerConnectorsJobWorkers(boss, {
         dataContext: deps.dataContext,
+        rootDb: deps.rootDb,
         taskPort: emailTaskPort,
         actionRowRelevance,
         createCliStructuredAdapter,
