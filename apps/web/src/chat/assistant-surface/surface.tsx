@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatSurface } from "@jarv1s/shared";
+import { Button } from "@jarv1s/ui";
 
 import { sendChatTurn } from "../../api/client";
 import { BrandMark } from "../../shell/brand-mark";
@@ -102,9 +103,9 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
               }
             }}
           />
-          <button className="jds-btn jds-btn--primary" type="submit">
+          <Button variant="primary" type="submit">
             Send
-          </button>
+          </Button>
         </form>
       ) : null}
     </section>

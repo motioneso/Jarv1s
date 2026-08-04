@@ -122,6 +122,36 @@ test("capture: onboarding wizard", async ({ page }) => {
 
 test("capture: today + chat drawer", async ({ page }) => {
   await baseState(page);
+
+  // Chat drawer conversation shot: the SSE stream is the source of truth for rendered
+  // records (see chat-drawer.spec.ts), not the POST /api/chat/turn response body. Serve
+  // the user+assistant events once on connect, then hold the reconnect open with no data
+  // so events don't replay.
+  let chatStreamServed = false;
+  await page.route("**/api/chat/stream", async (route) => {
+    if (chatStreamServed) {
+      return;
+    }
+    chatStreamServed = true;
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      headers: { "cache-control": "no-cache" },
+      body:
+        'data: {"kind":"user","text":"What\'s on my calendar today?"}\n\n' +
+        'data: {"kind":"reply","text":"You have a 10am sync with product and a 2pm dentist appointment."}\n\n'
+    });
+  });
+  await page.route("**/api/chat/turn", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        reply: "You have a 10am sync with product and a 2pm dentist appointment."
+      })
+    })
+  );
+
   await page.goto("/today");
   await page.waitForTimeout(600);
   await shot(page, "03-today");
@@ -134,13 +164,19 @@ test("capture: today + chat drawer", async ({ page }) => {
     await page.keyboard.press("Escape");
   }
 
-  // chat drawer
-  const chat = page.getByRole("button", { name: "Chat with Jarvis" });
-  if (await chat.count()) {
-    await chat.click();
-    await page.waitForTimeout(600);
-    await shot(page, "05-chat-drawer");
-  }
+  // chat drawer — unconditional: a missing button fails the capture instead of silently
+  // skipping it (D6 item 5).
+  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  await page.waitForTimeout(600);
+  await shot(page, "05-chat-drawer");
+
+  // conversation shot: composer + message-row in both roles. Neither had capture
+  // coverage before this (D6 item 5) — composer.tsx (527) + message-row.tsx (357) are
+  // ~40% of the section.
+  await page.getByLabel("Message Jarvis").fill("What's on my calendar today?");
+  await page.getByLabel("Message Jarvis").press("Enter");
+  await page.waitForTimeout(700);
+  await shot(page, "05b-chat-conversation");
 });
 
 test("capture: tasks", async ({ page }) => {
