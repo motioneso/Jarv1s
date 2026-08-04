@@ -221,9 +221,7 @@ export function CheckinModal({
               </div>
             ) : emotion ? (
               <div style={{ marginTop: 18 }}>
-                <div className="wl-q wl-q--sub">
-                  Which shade of {coreLabel(emotion)}?
-                </div>
+                <div className="wl-q wl-q--sub">Which shade of {coreLabel(emotion)}?</div>
                 <FeelingChips />
               </div>
             ) : null}

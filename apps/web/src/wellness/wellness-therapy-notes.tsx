@@ -159,9 +159,7 @@ export function WellnessTherapyNotes({ theme = "light" }: Props) {
         <div className="wl-tnotes">
           {notesQuery.isError ? (
             <div className="wl-tdone">
-              <span className="wl-subtle-text">
-                Couldn&apos;t load notes — try refreshing.
-              </span>
+              <span className="wl-subtle-text">Couldn&apos;t load notes — try refreshing.</span>
             </div>
           ) : notes.length === 0 ? (
             <div className="wl-tdone">

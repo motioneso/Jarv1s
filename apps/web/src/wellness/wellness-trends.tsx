@@ -141,9 +141,7 @@ export function WellnessTrends({ theme = "light" }: Props) {
 
       {checkinsQuery.isError || adherenceQuery.isError ? (
         <div className="wl-chartcard" style={{ padding: "16px 20px" }}>
-          <span className="wl-subtle-text">
-            Couldn&apos;t load trend data — try refreshing.
-          </span>
+          <span className="wl-subtle-text">Couldn&apos;t load trend data — try refreshing.</span>
         </div>
       ) : (
         <div className="wl-chartcard">

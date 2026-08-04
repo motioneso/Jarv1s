@@ -167,15 +167,11 @@ export function WellnessInsights({ onReviewNotes }: Props) {
       <div className="wl-insights__body">
         {insightsQuery.isLoading ? (
           <div className="wl-insight" style={{ padding: "16px 0" }}>
-            <span className="wl-subtle-text">
-              Loading insights&hellip;
-            </span>
+            <span className="wl-subtle-text">Loading insights&hellip;</span>
           </div>
         ) : insightsQuery.isError ? (
           <div className="wl-insight">
-            <span className="wl-subtle-text">
-              Couldn&apos;t load insights. Try refreshing.
-            </span>
+            <span className="wl-subtle-text">Couldn&apos;t load insights. Try refreshing.</span>
           </div>
         ) : insights.length === 0 ? (
           <div className="wl-insight" style={{ padding: "16px 0" }}>

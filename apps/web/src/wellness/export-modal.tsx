@@ -225,9 +225,7 @@ export function WellnessExportModal({ open, onClose }: Props) {
                 <span className="jds-check__box">
                   <CheckIcon />
                 </span>
-                <span className="wl-consent-text">
-                  {SENSITIVE_COPY}
-                </span>
+                <span className="wl-consent-text">{SENSITIVE_COPY}</span>
               </label>
 
               {isFailed || startMutation.isError ? (

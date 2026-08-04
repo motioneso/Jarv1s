@@ -135,9 +135,7 @@ export function WellnessHistory({
         </div>
       </div>
       <div className="wl-history">
-        {shown.length === 0 ? (
-          <div className="wl-history__empty">No check-ins match.</div>
-        ) : null}
+        {shown.length === 0 ? <div className="wl-history__empty">No check-ins match.</div> : null}
         {shown.map((ck) => {
           const fullIso = ck.checkedInAt ?? ck.createdAt ?? "";
           const iso = fullIso ? localDay(fullIso, timezone) : "";

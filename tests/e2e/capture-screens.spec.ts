@@ -232,7 +232,18 @@ test("capture: settings (profile, connected accounts, AI)", async ({ page }) => 
 // #1392: wellness fixtures. Shapes match packages/shared/src/wellness-api.ts DTOs exactly —
 // tone is "pine" | "amber" | "steel" (there is no "forest").
 function wellnessCheckins() {
-  const cores = ["happy", "sad", "fear", "anger", "happy", "surprise", "sad", "happy", "anger", "fear"];
+  const cores = [
+    "happy",
+    "sad",
+    "fear",
+    "anger",
+    "happy",
+    "surprise",
+    "sad",
+    "happy",
+    "anger",
+    "fear"
+  ];
   return {
     checkins: cores.map((core, i) => ({
       id: `chk-${i}`,

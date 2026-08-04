@@ -313,10 +313,7 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
                 </div>
               </div>
             ) : (
-              <div
-                className="wl-subtle-text"
-                style={{ marginTop: 10, fontStyle: "italic" }}
-              >
+              <div className="wl-subtle-text" style={{ marginTop: 10, fontStyle: "italic" }}>
                 As-needed medications have no fixed schedule.
               </div>
             )}
