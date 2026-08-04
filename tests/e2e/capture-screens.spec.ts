@@ -182,6 +182,21 @@ test("capture: notifications", async ({ page }) => {
   await shot(page, "10-notifications");
 });
 
+// #1390: command palette had no capture coverage — added ahead of the Today section migration
+// so the pixel-diff can prove that migration a visual no-op like the calendar pilot.
+test("capture: command palette", async ({ page }) => {
+  await baseState(page);
+  await page.goto("/today");
+  await page.waitForTimeout(600);
+  await page.keyboard.press("Control+k");
+  await page.waitForTimeout(400);
+  await shot(page, "10a-command-palette");
+
+  await page.keyboard.type("task");
+  await page.waitForTimeout(300);
+  await shot(page, "10b-command-palette-search");
+});
+
 test("capture: settings (profile, connected accounts, AI)", async ({ page }) => {
   await baseState(page);
   await page.goto("/settings");
