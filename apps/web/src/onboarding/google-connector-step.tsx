@@ -15,6 +15,7 @@ import {
   Upload
 } from "lucide-react";
 import type { ChangeEvent } from "react";
+import { Button } from "@jarv1s/ui";
 
 import {
   connectImapConnection,
@@ -28,6 +29,7 @@ import {
   useGoogleConnectFlow
 } from "../connectors/use-google-connect-flow";
 import { importCredentialsJson } from "../connectors/google-credentials";
+
 import { FootNote, StepHeader } from "./onboarding-ui";
 
 export const IMAP_PROVIDERS = [
@@ -290,14 +292,14 @@ export function GoogleConnectorStep(props: {
               </span>
             </label>
             <div className="onb-cred__actions">
-              <button
-                className="jds-btn jds-btn--primary jds-btn--sm"
+              <Button
+                size="sm"
                 type="button"
                 disabled={!credsReady || google.authorizationPending}
                 onClick={google.openConsentScreen}
               >
                 Open consent screen
-              </button>
+              </Button>
               {google.popupBlocked && google.authUrl ? (
                 <a
                   className="jds-btn jds-btn--quiet jds-btn--sm"
@@ -308,13 +310,14 @@ export function GoogleConnectorStep(props: {
                   Open manually <ExternalLink size={13} aria-hidden="true" />
                 </a>
               ) : null}
-              <button
-                className="jds-btn jds-btn--quiet jds-btn--sm"
+              <Button
+                variant="quiet"
+                size="sm"
                 type="button"
                 onClick={() => setMode(connected ? "connected" : "picker")}
               >
                 Cancel
-              </button>
+              </Button>
               <span className="onb-cred__hint">
                 {google.popupBlocked
                   ? "Your browser blocked the popup. Use the link above to finish in a new tab."
@@ -347,14 +350,14 @@ export function GoogleConnectorStep(props: {
                 </span>
               </label>
               <div className="onb-cred__actions">
-                <button
-                  className="jds-btn jds-btn--primary jds-btn--sm"
+                <Button
+                  size="sm"
                   type="button"
                   disabled={!redirectReady || google.completionPending}
                   onClick={google.finishConnection}
                 >
                   Finish connection
-                </button>
+                </Button>
                 <span className="onb-cred__hint">
                   Authorize first, then paste the redirect you land on.
                 </span>
@@ -446,29 +449,31 @@ export function GoogleConnectorStep(props: {
               </span>
             </label>
             <div className="onb-cred__actions">
-              <button
-                className="jds-btn jds-btn--quiet jds-btn--sm"
+              <Button
+                variant="quiet"
+                size="sm"
                 type="button"
                 disabled={!imapReady || testImap.isPending}
                 onClick={() => testImap.mutate()}
               >
                 Test connection
-              </button>
-              <button
-                className="jds-btn jds-btn--primary jds-btn--sm"
+              </Button>
+              <Button
+                size="sm"
                 type="button"
                 disabled={!imapReady || connectImap.isPending}
                 onClick={() => connectImap.mutate()}
               >
                 Connect {imapProvider.name}
-              </button>
-              <button
-                className="jds-btn jds-btn--quiet jds-btn--sm"
+              </Button>
+              <Button
+                variant="quiet"
+                size="sm"
                 type="button"
                 onClick={() => setMode(connected ? "connected" : "picker")}
               >
                 Cancel
-              </button>
+              </Button>
               <span className="onb-cred__hint">
                 Passwords are encrypted at rest and never shown in logs or briefings.
               </span>
@@ -605,13 +610,14 @@ export function GoogleConnectorStep(props: {
       <div className="onb-pickhd">
         <span className="onb-pickhd__lbl">Choose a service to connect</span>
         {mode === "adding" ? (
-          <button
-            className="jds-btn jds-btn--quiet jds-btn--sm"
+          <Button
+            variant="quiet"
+            size="sm"
             type="button"
             onClick={() => setMode("connected")}
           >
             Cancel
-          </button>
+          </Button>
         ) : null}
       </div>
       <button className="onb-prov" type="button" onClick={() => setMode("connecting")}>
