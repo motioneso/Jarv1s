@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { Button } from "@jarv1s/ui";
 import { WELLNESS_EXPORT_CATEGORIES, type WellnessExportCategory } from "@jarv1s/shared";
 import { getDataExportDownloadUrl, getDataExportStatus, type ExportJobStatus } from "../api/client";
 import { requestWellnessExport } from "../api/wellness-export";
@@ -224,7 +225,7 @@ export function WellnessExportModal({ open, onClose }: Props) {
                 <span className="jds-check__box">
                   <CheckIcon />
                 </span>
-                <span style={{ fontSize: 13, lineHeight: 1.5, color: "var(--text-muted)" }}>
+                <span className="wl-consent-text">
                   {SENSITIVE_COPY}
                 </span>
               </label>
@@ -235,17 +236,14 @@ export function WellnessExportModal({ open, onClose }: Props) {
                 </div>
               ) : null}
 
-              <button
-                type="button"
-                className="jds-btn jds-btn--primary"
+              <Button
+                variant="primary"
+                icon={<DownloadIcon />}
                 disabled={!canGenerate || startMutation.isPending}
                 onClick={() => startMutation.mutate()}
               >
-                <span className="jds-btn__icon">
-                  <DownloadIcon />
-                </span>
                 {startMutation.isPending ? "Starting…" : "Generate export"}
-              </button>
+              </Button>
             </>
           ) : inProgress ? (
             <div className="wl-modal__progress">
@@ -267,13 +265,9 @@ export function WellnessExportModal({ open, onClose }: Props) {
                   </span>
                   Download
                 </a>
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--quiet jds-btn--sm"
-                  onClick={reset}
-                >
+                <Button variant="quiet" size="sm" onClick={reset}>
                   Start a new export
-                </button>
+                </Button>
               </div>
             </div>
           ) : null}

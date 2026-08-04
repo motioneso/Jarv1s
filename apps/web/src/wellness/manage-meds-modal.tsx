@@ -166,8 +166,12 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
             {meds.map((m, i) => {
               const c = medColor(i, theme);
               return (
-                <div key={m.id} className="wl-medrow" style={{ cursor: "default" }}>
-                  <span className="wl-medrow__dot" style={{ background: c.tint }} />
+                <div
+                  key={m.id}
+                  className="wl-medrow"
+                  style={{ "--em-tint": c.tint, cursor: "default" } as React.CSSProperties}
+                >
+                  <span className="wl-medrow__dot" />
                   <span className="wl-medrow__main">
                     <span className="wl-medrow__name">{m.name}</span>
                     <span className="wl-medrow__sub">
@@ -191,13 +195,7 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
               );
             })}
           </div>
-          <div
-            style={{
-              borderTop: "1px solid var(--border-subtle)",
-              paddingTop: 14,
-              marginTop: 4
-            }}
-          >
+          <div className="wl-medmodal__addsection" style={{ paddingTop: 14, marginTop: 4 }}>
             <div className="wl-hdetail__lbl" style={{ marginBottom: 10 }}>
               Add a medication
             </div>
@@ -207,28 +205,14 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 aria-label="Medication name"
-                style={{
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-md)",
-                  padding: "8px 12px",
-                  fontSize: 14,
-                  background: "var(--surface)",
-                  color: "var(--text)"
-                }}
+                className="wl-medmodal__input"
               />
               <input
                 placeholder="Dose (e.g. 50 mg)"
                 value={dose}
                 onChange={(e) => setDose(e.target.value)}
                 aria-label="Dose"
-                style={{
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-md)",
-                  padding: "8px 12px",
-                  fontSize: 14,
-                  background: "var(--surface)",
-                  color: "var(--text)"
-                }}
+                className="wl-medmodal__input"
               />
             </div>
             <div style={{ marginTop: 10 }}>
@@ -241,16 +225,7 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
                     key={f}
                     type="button"
                     onClick={() => handleFreqChange(f)}
-                    style={{
-                      flex: 1,
-                      padding: "7px 0",
-                      fontSize: 13,
-                      borderRadius: "var(--radius-md)",
-                      border: `1.5px solid ${freqType === f ? "var(--accent)" : "var(--border)"}`,
-                      background: freqType === f ? "var(--accent-soft)" : "var(--surface)",
-                      color: freqType === f ? "var(--accent-fg)" : "var(--text)",
-                      cursor: "pointer"
-                    }}
+                    className={`wl-freqbtn${freqType === f ? " wl-freqbtn--active" : ""}`}
                   >
                     {f === "once_daily"
                       ? "Once daily"
@@ -270,8 +245,8 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <button
                     type="button"
-                    className="ghost-button"
-                    style={{ fontSize: 14, padding: "4px 12px", minHeight: "unset" }}
+                    className="ghost-button wl-fs14"
+                    style={{ padding: "4px 12px", minHeight: "unset" }}
                     disabled={timesPerDay <= 2}
                     onClick={() => {
                       const n = timesPerDay - 1;
@@ -281,13 +256,13 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
                   >
                     −
                   </button>
-                  <span style={{ fontSize: 15, minWidth: 20, textAlign: "center" }}>
+                  <span className="wl-fs15" style={{ minWidth: 20, textAlign: "center" }}>
                     {timesPerDay}
                   </span>
                   <button
                     type="button"
-                    className="ghost-button"
-                    style={{ fontSize: 14, padding: "4px 12px", minHeight: "unset" }}
+                    className="ghost-button wl-fs14"
+                    style={{ padding: "4px 12px", minHeight: "unset" }}
                     disabled={timesPerDay >= 6}
                     onClick={() => {
                       const n = timesPerDay + 1;
@@ -326,27 +301,12 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
                             })
                           }
                           aria-label={`Dose time ${i + 1}`}
-                          style={{
-                            border: `1px solid ${!isValidTime(t) && t !== "" ? "var(--danger)" : "var(--border)"}`,
-                            borderRadius: "var(--radius-md)",
-                            padding: "7px 12px",
-                            fontSize: 14,
-                            background: "var(--surface)",
-                            color: "var(--text)",
-                            width: "100%",
-                            boxSizing: "border-box"
-                          }}
+                          className={`wl-medmodal__timeinput${
+                            !isValidTime(t) && t !== "" ? " wl-medmodal__timeinput--invalid" : ""
+                          }`}
                         />
                         {!isValidTime(t) && t !== "" ? (
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "var(--danger-fg)",
-                              marginTop: 2
-                            }}
-                          >
-                            Enter a valid time (HH:MM)
-                          </div>
+                          <div className="wl-medmodal__error">Enter a valid time (HH:MM)</div>
                         ) : null}
                       </div>
                     ))}
@@ -354,12 +314,8 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
               </div>
             ) : (
               <div
-                style={{
-                  marginTop: 10,
-                  fontSize: 13,
-                  color: "var(--text-subtle)",
-                  fontStyle: "italic"
-                }}
+                className="wl-subtle-text"
+                style={{ marginTop: 10, fontStyle: "italic" }}
               >
                 As-needed medications have no fixed schedule.
               </div>
@@ -368,8 +324,8 @@ export function ManageMedsModal({ open, onClose, theme = "light" }: Props) {
             <div style={{ marginTop: 12 }}>
               <button
                 type="button"
-                className="secondary-button"
-                style={{ gap: 6, fontSize: 13, padding: "6px 14px", minHeight: "unset" }}
+                className="secondary-button wl-fs13"
+                style={{ gap: 6, padding: "6px 14px", minHeight: "unset" }}
                 disabled={!name.trim() || timesInvalid || addMutation.isPending}
                 onClick={() => addMutation.mutate()}
               >

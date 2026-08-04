@@ -70,7 +70,10 @@ export const BANNED_VISUAL_PROPERTIES = [
 
 // Burn-down list, owned by each section's own migration task — starts empty for Foundation.
 export const MIGRATED_SECTION_CSS_FILES: readonly string[] = [
-  "apps/web/src/styles/kit-calendar.css"
+  "apps/web/src/styles/kit-calendar.css",
+  "apps/web/src/styles/wellness-1.css",
+  "apps/web/src/styles/wellness-2.css",
+  "apps/web/src/styles/wellness-3.css"
 ];
 
 let validTokensCache: Set<string> | undefined;

@@ -3,6 +3,7 @@ import "../styles/wellness-2.css";
 import "../styles/wellness-3.css";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { Button } from "@jarv1s/ui";
 import {
   localDay,
   moodIndex,
@@ -221,13 +222,9 @@ export function WellnessPage() {
               <small> {streak === 1 ? "day" : "days"}</small>
             </div>
           </div>
-          <button
-            type="button"
-            className="jds-btn jds-btn--quiet jds-btn--sm wl-hero__export"
-            onClick={() => setExportOpen(true)}
-          >
+          <Button variant="quiet" size="sm" onClick={() => setExportOpen(true)}>
             Export
-          </button>
+          </Button>
         </div>
       </header>
 

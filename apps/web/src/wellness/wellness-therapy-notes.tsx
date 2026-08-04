@@ -147,8 +147,8 @@ export function WellnessTherapyNotes({ theme = "light" }: Props) {
           <span className="wl-tadd__btn">
             <button
               type="button"
-              className="primary-button"
-              style={{ fontSize: 13, padding: "5px 12px", minHeight: "unset" }}
+              className="primary-button wl-fs13"
+              style={{ padding: "5px 12px", minHeight: "unset" }}
               onClick={add}
               disabled={!draft.trim() || addMutation.isPending}
             >
@@ -159,7 +159,7 @@ export function WellnessTherapyNotes({ theme = "light" }: Props) {
         <div className="wl-tnotes">
           {notesQuery.isError ? (
             <div className="wl-tdone">
-              <span style={{ fontSize: 13, color: "var(--text-subtle)" }}>
+              <span className="wl-subtle-text">
                 Couldn&apos;t load notes — try refreshing.
               </span>
             </div>
@@ -186,8 +186,11 @@ export function WellnessTherapyNotes({ theme = "light" }: Props) {
                       {formatNoteDate(nt.createdAt ?? null, locale)}
                     </span>
                     {linkedEmotion && c ? (
-                      <span className="wl-tnote__link">
-                        <span className="d" style={{ background: c.tint }} />
+                      <span
+                        className="wl-tnote__link"
+                        style={{ "--em-tint": c.tint } as React.CSSProperties}
+                      >
+                        <span className="d" />
                         Linked to a {coreLabel(linkedEmotion)} check-in
                       </span>
                     ) : null}

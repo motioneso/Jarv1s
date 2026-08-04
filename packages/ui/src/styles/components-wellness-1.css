@@ -1,0 +1,438 @@
+/* ── Wellness — visual declarations extracted from wellness-{1,2,3}.css (#1392), part 1.
+   Layout remains in apps/web/src/styles/wellness-{1,2,3}.css; this file owns color,
+   background, border, radius, font, shadow, outline, fill/stroke/filter per selector.
+   Source order preserved so intra-wellness cascade overrides survive. Split into two
+   files at the wellness-1/wellness-2 boundary to stay under the 1000-line file cap;
+   import order (1 then 2) must be preserved. */
+
+.wl-subtle-text {
+  font-size: 13px;
+  color: var(--text-subtle);
+}
+.wl-fs12 {
+  font-size: 12px;
+}
+.wl-fs13 {
+  font-size: 13px;
+}
+.wl-fs14 {
+  font-size: 14px;
+}
+.wl-fs15 {
+  font-size: 15px;
+}
+.wl-text-subtle {
+  color: var(--text-subtle);
+}
+
+.wl-hero {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.wl-title {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 600;
+}
+.wl-lede {
+  font-family: var(--font-sans);
+  font-size: 17px;
+  color: var(--text-muted);
+}
+.wl-herostat .k {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+.wl-herostat .v {
+  font-family: var(--font-sans);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--text);
+}
+.wl-herostat .v small {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.wl-herostat--streak .v {
+  color: var(--amber-ink);
+}
+.wl-herostat--streak .v svg {
+  color: var(--amber-ink);
+}
+.wl-streakchip {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--amber-ink);
+  background: var(--amber-soft);
+  border-radius: var(--radius-pill);
+}
+.wl-streakchip svg {
+  color: var(--amber-ink);
+}
+
+.wl-sec__title {
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 600;
+}
+.wl-sec__title .sub {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+.wl-sec__note {
+  font-size: 12.5px;
+  color: var(--text-subtle);
+}
+.wl-sec__note .ic {
+  color: var(--text-faint);
+}
+
+.wl-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+.wl-card__hd .ic {
+  border-radius: 9px;
+  background: var(--forest-soft);
+  color: var(--accent-fg);
+}
+.wl-card__hd .t {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.wl-medgrp__lbl {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+.wl-medrow {
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+}
+.wl-medrow:hover {
+  background: var(--surface-2);
+}
+.wl-medrow__box {
+  border-radius: 7px;
+  border: 1.5px solid var(--border-strong);
+  color: var(--white);
+}
+.wl-medrow.is-on .wl-medrow__box {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.wl-medrow__dot {
+  border-radius: 50%;
+  background: var(--em-tint);
+}
+.wl-medrow__name {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.wl-medrow.is-on .wl-medrow__name {
+  color: var(--text-muted);
+}
+.wl-medrow__sub {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.wl-medrow__sub .dose {
+  font-family: var(--font-sans);
+}
+.wl-medrow__prn {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+}
+.wl-medrow__time {
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.wl-medrow__taken {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-fg);
+}
+.wl-medfoot {
+  border-top: 1px solid var(--border-subtle);
+}
+.wl-medfoot__track {
+  border-radius: 2px;
+  background: var(--surface-3);
+}
+.wl-medfoot__fill {
+  background: var(--accent);
+  border-radius: 2px;
+}
+.wl-medfoot__ct {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.wl-medfoot__ct b {
+  color: var(--accent-fg);
+}
+
+.wl-checkin__q {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  color: var(--text);
+}
+.wl-checkin__hint {
+  font-size: 13px;
+  color: var(--text-subtle);
+}
+.wl-emostrip__b {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-xs);
+}
+.wl-emostrip__b:hover {
+  border-color: var(--em-tint, var(--border-strong));
+  background: var(--em-soft, var(--surface));
+  box-shadow: var(--shadow-sm);
+}
+.wl-emostrip__dot {
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--hairline-contrast);
+  background: var(--em-tint);
+}
+.wl-emostrip__name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.wl-done__chip {
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  font-size: 14px;
+  background: var(--em-soft);
+  color: var(--em-ink);
+}
+.wl-done__chip .d {
+  border-radius: 50%;
+  background: var(--em-tint);
+}
+.wl-done__feeling {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  color: var(--text-muted);
+}
+.wl-done__mood .k {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+.wl-done__mood .v {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 500;
+}
+.wl-sentag {
+  font-size: 12px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+.wl-intens__pip {
+  border-radius: 3px;
+  background: var(--surface-3);
+}
+.wl-intens__pip--filled {
+  background: var(--em-tint);
+}
+.wl-intens__lbl {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-subtle);
+}
+
+.wl-insights {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+.wl-insights__hd {
+  border-bottom: 1px solid var(--border-subtle);
+  background: linear-gradient(180deg, var(--forest-soft) 0%, transparent 160%);
+}
+.wl-insights__hd .ic {
+  color: var(--accent-fg);
+}
+.wl-insights__hd .t {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+.wl-insights__hd .meta {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--text-subtle);
+}
+.wl-insight {
+  border-top: 1px solid var(--border-subtle);
+}
+.wl-insight:first-child {
+  border-top: none;
+}
+.wl-insight__ic {
+  border-radius: 9px;
+}
+.wl-insight__ic--forest {
+  background: var(--forest-soft);
+  color: var(--accent-fg);
+}
+.wl-insight__ic--amber {
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+}
+.wl-insight__ic--steel {
+  background: var(--steel-soft);
+  color: var(--steel-ink);
+}
+.wl-insight__tx {
+  font-family: var(--font-sans);
+  font-size: 15.5px;
+  color: var(--text-muted);
+}
+.wl-insight__tx b {
+  color: var(--text);
+  font-weight: 700;
+}
+.wl-linkbtn {
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-fg);
+}
+
+.wl-chartcard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+.wl-rangetoggle {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+}
+.wl-rangetoggle__btn {
+  border: 0;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--text-subtle);
+  box-shadow: none;
+}
+.wl-rangetoggle__btn--active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-xs);
+}
+.wl-chart__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-subtle);
+}
+.wl-chart__title .ic {
+  color: var(--text-faint);
+}
+.wl-help__btn {
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-faint);
+}
+.wl-help__btn:hover,
+.wl-help__btn.is-on {
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  background: var(--forest-soft);
+}
+.wl-help__pop {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.wl-help__pop::before {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+}
+.wl-help__k {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+.wl-help__v {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.wl-help__v b {
+  color: var(--text);
+  font-weight: 600;
+}
+.wl-leg {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.wl-leg__dot {
+  border-radius: 50%;
+  background: var(--em-tint);
+}
+.wl-tipdiv {
+  background: var(--white-translucent);
+}
+.wl-chart__tip {
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+.wl-chart__tip .d {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+}
+.wl-chart__tip .big {
+  font-size: 14px;
+  font-weight: 600;
+}
+.wl-tiprow {
+  font-size: 12px;
+}
+.wl-tiprow .sw {
+  border-radius: 50%;
+}
+.wl-tiprow .miss {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+}
+.wl-tiprow--more {
+  font-size: 10.5px;
+}
+.wl-chart__tip.is-pinned {
+  outline: 1.5px solid var(--accent);
+}
