@@ -161,14 +161,15 @@ describe("NewsSettings personalization sections (#953)", () => {
 
   it("prerequisites missing: custom add controls are visible but disabled, with a setup link", () => {
     const html = render(personalization({ availability: allOff }));
-    // Both closed-write Add buttons render disabled.
-    expect(html).toContain(
-      'class="jds-btn jds-btn--sm jds-btn--secondary nw-set__addbtn" disabled=""'
+    // Both closed-write Add buttons render disabled (@jarv1s/ui Button, secondary/sm).
+    expect(html).toContain('class="jds-btn jds-btn--secondary jds-btn--sm" disabled=""');
+    expect((html.match(/class="jds-btn jds-btn--secondary jds-btn--sm" disabled=""/g) ?? []).length).toBe(
+      2
     );
     expect(html).toContain("/settings?section=assistant");
     // The exclusion form stays fully live without any AI prerequisite.
-    expect(html).toContain('class="jds-btn jds-btn--sm nw-set__exadd"');
-    expect(html).not.toContain('class="jds-btn jds-btn--sm nw-set__exadd" disabled=""');
+    expect(html).toContain('class="jds-btn jds-btn--primary jds-btn--sm"');
+    expect(html).not.toContain('class="jds-btn jds-btn--primary jds-btn--sm" disabled=""');
   });
 
   it("prerequisites met: add-source and add-topic forms are live (#975 Task 9 opens the writes)", () => {
