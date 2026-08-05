@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Download, Search, SearchX } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { Button } from "@jarv1s/ui";
 import { listAdminAuditEvents, listAdminUsers } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import {
@@ -104,17 +105,15 @@ export function AuditPane() {
       <Group
         title="Recent activity"
         action={
-          <button
-            type="button"
-            className="jds-btn jds-btn--quiet jds-btn--sm"
+          <Button
+            variant="quiet"
+            size="sm"
             disabled={rows.length === 0}
             onClick={exportCsv}
+            icon={<Download size={15} />}
           >
-            <span className="jds-btn__icon">
-              <Download size={15} />
-            </span>
             Export log
-          </button>
+          </Button>
         }
       >
         <div className="audfilter">
