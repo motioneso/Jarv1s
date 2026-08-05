@@ -8,14 +8,9 @@ layout, naming, conventions — read from the repo instead of trusting this file
 GitHub is the source of truth for status: the project board, milestones, and issue links, not this
 file and not a doc. Read `docs/DEVELOPMENT_STANDARDS.md` before broad feature work or reviews.
 
-Full local gate: `pnpm verify:foundation`. Three ways it lies to you:
-
-- It must run against a freshly created gate database that you exported yourself. An unscoped run in
-  July 2026 hit the live dev database and took chat down for 90 minutes.
-- It does **not** include `test:e2e` — CI runs the browser suite as a separate step, so a green local
-  gate can sit on a red CI job.
-- Never pipe a gate command through `tail`/`grep`. The pipeline returns the filter's exit code, so
-  red reads as green.
+Full local gate: `pnpm verify:foundation` — never run it, or any DB-touching test command, without
+the `verify-gate` skill. An unscoped run hits the live dev database; a piped one reads red as
+green; a green local gate still excludes CI's e2e step.
 
 ## Hard invariants
 
@@ -56,41 +51,21 @@ Deliberate decisions, each with a real failure behind it. Violating one is a blo
 
 ## Working in a shared checkout
 
-Several agent sessions may share this working tree at once. Before any tree-wide action, check
-`herdr pane list` and send a heads-up with the `herdr-pane-message` skill.
-
-**Never `git add -A` / `git add .`, and never bare-`git commit`** — both sweep up whatever another
-session has staged. Commit with explicit paths instead: `git commit <paths> -m "…"`.
-
-That is necessary but not sufficient, and the gap has bitten repeatedly: `git commit <path>` ignores
-the index and commits the **whole current content** of that path, so on a file two sessions are both
-editing it carries their unfinished work under your message. There is no git-only safe form. Before
-committing a shared file, `git diff` it and read the added lines; afterwards run
-`git show --name-only HEAD` and check the list is what you meant. Search agentmemory for the
-shared-index commit sweep before doing anything clever here.
-
-Don't `git checkout`/`stash`/`reset` this tree while another session's build is mid-run — use a
-separate worktree.
+Several agent sessions may share this working tree at once. **Never `git add -A` / `git add .`,
+never bare-`git commit`, and never `checkout`/`stash`/`reset` while another session is mid-run.**
+Before any commit or tree-wide git action here, use the `shared-checkout` skill — even a
+path-scoped commit is unsafe on a co-edited file, and the skill has the only safe procedure.
 
 ## Scope guardrails
 
 - **Do not casually build:** real OAuth callbacks, real connector sync, full email/calendar clients,
   a module marketplace, a workflow engine. Each needs its own milestone and spec.
-- **The design system is authored, not generated.** Match the live `apps/web/src/styles/tokens.css`:
-  `--font-display` for headings, `--font-sans` for body. **No mono** (retired 2026-07-08 — use
-  `--font-sans` with `tabular-nums` for eyebrows, labels and data) and **no serif** (sports nameplate
-  only). Extend the `jds-*` primitives; raw CSS colours belong in `tokens.css` alone. Empty and
-  loading states use the existing authored patterns.
+- **The design system is authored, not generated.** Before any UI, CSS, or component work, use the
+  `design-system` skill — `jds-*` primitives, `tokens.css` typography rules, and the audit that
+  catches invented classes.
 - Keep plain Fastify REST plus shared TypeScript contracts (`packages/shared/*-api.ts`) unless a
   milestone explicitly justifies a heavier contract layer.
 - Write `~/Jarv1s` rather than absolute local paths in docs, specs and handoffs.
-
-## Judgment on design forks
-
-Verify before you rank. Read the files each option touches — give the one you lean _against_ equal
-depth — and grep for existing machinery before calling anything net-new; around here "big change" is
-usually already half-built. Steelman the option you'd reject. On milestone-level forks an adversarial
-second opinion is valuable but never a gate: `/grill-me-codex`, else an independent critic subagent.
 
 ## Memory
 
