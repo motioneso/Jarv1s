@@ -167,19 +167,15 @@ export function WellnessInsights({ onReviewNotes }: Props) {
       <div className="wl-insights__body">
         {insightsQuery.isLoading ? (
           <div className="wl-insight" style={{ padding: "16px 0" }}>
-            <span style={{ fontSize: 13, color: "var(--text-subtle)" }}>
-              Loading insights&hellip;
-            </span>
+            <span className="wl-subtle-text">Loading insights&hellip;</span>
           </div>
         ) : insightsQuery.isError ? (
           <div className="wl-insight">
-            <span style={{ fontSize: 13, color: "var(--text-subtle)" }}>
-              Couldn&apos;t load insights. Try refreshing.
-            </span>
+            <span className="wl-subtle-text">Couldn&apos;t load insights. Try refreshing.</span>
           </div>
         ) : insights.length === 0 ? (
           <div className="wl-insight" style={{ padding: "16px 0" }}>
-            <span style={{ fontSize: 13, color: "var(--text-subtle)" }}>
+            <span className="wl-subtle-text">
               Insights appear after about a week of check-ins. Keep going.
             </span>
           </div>

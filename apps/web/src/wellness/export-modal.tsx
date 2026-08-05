@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { Button, ButtonLink } from "@jarv1s/ui";
 import { WELLNESS_EXPORT_CATEGORIES, type WellnessExportCategory } from "@jarv1s/shared";
 import { getDataExportDownloadUrl, getDataExportStatus, type ExportJobStatus } from "../api/client";
 import { requestWellnessExport } from "../api/wellness-export";
@@ -224,9 +225,7 @@ export function WellnessExportModal({ open, onClose }: Props) {
                 <span className="jds-check__box">
                   <CheckIcon />
                 </span>
-                <span style={{ fontSize: 13, lineHeight: 1.5, color: "var(--text-muted)" }}>
-                  {SENSITIVE_COPY}
-                </span>
+                <span className="wl-consent-text">{SENSITIVE_COPY}</span>
               </label>
 
               {isFailed || startMutation.isError ? (
@@ -235,17 +234,14 @@ export function WellnessExportModal({ open, onClose }: Props) {
                 </div>
               ) : null}
 
-              <button
-                type="button"
-                className="jds-btn jds-btn--primary"
+              <Button
+                variant="primary"
+                icon={<DownloadIcon />}
                 disabled={!canGenerate || startMutation.isPending}
                 onClick={() => startMutation.mutate()}
               >
-                <span className="jds-btn__icon">
-                  <DownloadIcon />
-                </span>
                 {startMutation.isPending ? "Starting…" : "Generate export"}
-              </button>
+              </Button>
             </>
           ) : inProgress ? (
             <div className="wl-modal__progress">
@@ -257,23 +253,18 @@ export function WellnessExportModal({ open, onClose }: Props) {
                 Your export is ready. Open it in a browser and print to PDF to share.
               </p>
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <a
+                <ButtonLink
                   href={getDataExportDownloadUrl(jobId)}
-                  className="jds-btn jds-btn--primary jds-btn--sm"
+                  variant="primary"
+                  size="sm"
+                  icon={<DownloadIcon />}
                   download
                 >
-                  <span className="jds-btn__icon">
-                    <DownloadIcon />
-                  </span>
                   Download
-                </a>
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--quiet jds-btn--sm"
-                  onClick={reset}
-                >
+                </ButtonLink>
+                <Button variant="quiet" size="sm" onClick={reset}>
                   Start a new export
-                </button>
+                </Button>
               </div>
             </div>
           ) : null}

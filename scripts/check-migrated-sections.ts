@@ -59,8 +59,29 @@ export const MIGRATED_SECTION_PATHS: readonly string[] = [
   "apps/web/src/onboarding/onboarding-wizard.tsx",
   "apps/web/src/onboarding/section-tour-step.tsx",
   "apps/web/src/onboarding/skip-confirm.tsx",
-  "apps/web/src/onboarding/welcome-step.tsx"
+  "apps/web/src/onboarding/welcome-step.tsx",
+  // #1392 Wellness.
+  "apps/web/src/wellness/checkin-detail-fields.tsx",
+  "apps/web/src/wellness/checkin-modal.tsx",
+  "apps/web/src/wellness/export-modal.tsx",
+  "apps/web/src/wellness/manage-meds-modal.tsx",
+  "apps/web/src/wellness/radial-dial.tsx",
+  "apps/web/src/wellness/wellness-chart.tsx",
+  "apps/web/src/wellness/wellness-history.tsx",
+  "apps/web/src/wellness/wellness-insights.tsx",
+  "apps/web/src/wellness/wellness-page.tsx",
+  "apps/web/src/wellness/wellness-therapy-notes.tsx",
+  "apps/web/src/wellness/wellness-today.tsx",
+  "apps/web/src/wellness/wellness-trends.tsx"
 ];
+
+// D6 #1392: per-instance runtime chart geometry stays inline (same treatment as the calendar
+// EventBlock ruling). Exempt from the inline-style check ONLY — guard 5 (raw jds-* classes) still
+// covers these files via MIGRATED_SECTION_PATHS above.
+const INLINE_STYLE_EXEMPT_PATHS: ReadonlySet<string> = new Set([
+  "apps/web/src/wellness/radial-dial.tsx",
+  "apps/web/src/wellness/wellness-chart.tsx"
+]);
 
 // Explicit class-family -> component name map. Resolving this by string munging (stripping
 // "jds-" and title-casing) would make a silent mismatch pass the guard on everything — e.g. if
@@ -183,6 +204,7 @@ export async function checkInlineStyleProperties(
   const violations: InlineStylePropertyViolation[] = [];
 
   for (const relativeFile of migratedPaths) {
+    if (INLINE_STYLE_EXEMPT_PATHS.has(normalizePath(relativeFile))) continue;
     const contents = await readFileSafe(join(root, relativeFile));
     if (contents === undefined) continue;
     const stripped = stripJsComments(contents);
@@ -282,6 +304,17 @@ function selfTest(): void {
   ) {
     console.error("Self-test failed: inline-style banned-property set is wrong (color/display)");
     process.exit(1);
+  }
+
+  for (const exemptPath of INLINE_STYLE_EXEMPT_PATHS) {
+    if (!MIGRATED_SECTION_PATHS.includes(exemptPath)) {
+      console.error(
+        `Self-test failed: INLINE_STYLE_EXEMPT_PATHS entry ${exemptPath} is missing from ` +
+          "MIGRATED_SECTION_PATHS — the exemption must skip only the inline-style check, not " +
+          "raw-class (guard 5) coverage"
+      );
+      process.exit(1);
+    }
   }
 }
 
