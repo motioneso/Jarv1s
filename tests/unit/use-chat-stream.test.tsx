@@ -39,7 +39,7 @@ function message(threadId: string, body: string): ChatMessageDto {
     threadId,
     ownerUserId: "user-1",
     role: "assistant",
-    status: "complete",
+    status: "stored",
     body,
     modelRoute: null,
     tools: [],
