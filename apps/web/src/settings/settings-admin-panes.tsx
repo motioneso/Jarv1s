@@ -58,6 +58,7 @@ import {
   Switch,
   type BadgeTone
 } from "./settings-ui";
+import { Button } from "@jarv1s/ui";
 import {
   describeHerdrInstallOutcome,
   healthSummary,
@@ -330,20 +331,12 @@ function PendingRow(props: {
         </div>
       </div>
       <div className="pend__actions">
-        <button
-          type="button"
-          className="jds-btn jds-btn--primary jds-btn--sm"
-          onClick={props.onApprove}
-        >
+        <Button size="sm" onClick={props.onApprove}>
           Approve
-        </button>
-        <button
-          type="button"
-          className="jds-btn jds-btn--quiet jds-btn--sm"
-          onClick={props.onDecline}
-        >
+        </Button>
+        <Button variant="quiet" size="sm" onClick={props.onDecline}>
           Decline
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -731,14 +724,14 @@ export function HostPane() {
         name="Herdr"
         desc="Not installed on this host."
         control={
-          <button
-            type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => installMutation.mutate()}
             disabled={installMutation.isPending}
           >
             {installMutation.isPending ? "Installing…" : "Install Herdr"}
-          </button>
+          </Button>
         }
       />
     );
@@ -792,17 +785,15 @@ export function HostPane() {
         title="Check system health"
         desc="A safe, read-only health check of this host. No secrets, env values, or paths."
         action={
-          <button
-            type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={runDiagnostics}
             disabled={diagQuery.isFetching}
+            icon={<Stethoscope size={15} />}
           >
-            <span className="jds-btn__icon">
-              <Stethoscope size={15} />
-            </span>
             {diagQuery.isFetching ? "Checking…" : "Check system health"}
-          </button>
+          </Button>
         }
       >
         {!ranDiagnostics ? (

@@ -26,6 +26,7 @@ import {
 } from "./settings-source-behaviors";
 import { readError } from "./settings-types";
 import { Badge, Group, Note, PaneHead, Row, Switch } from "./settings-ui";
+import { Button } from "@jarv1s/ui";
 import { VaultChooser } from "./settings-vault-chooser";
 
 function candidateKindLabel(kind: MatchCandidateDto["candidateKind"]): string {
@@ -199,17 +200,13 @@ export function SettingsPeoplePane() {
           control={
             <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <span>{folderValue || "No folder selected"}</span>
-              <button
-                type="button"
-                className="jds-btn jds-btn--sm jds-btn--quiet"
-                onClick={() => setChoosingFolder(true)}
-              >
+              <Button variant="quiet" size="sm" onClick={() => setChoosingFolder(true)}>
                 Choose folder
-              </button>
+              </Button>
               {configuredFolder ? (
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--sm jds-btn--quiet"
+                <Button
+                  variant="quiet"
+                  size="sm"
                   disabled={saveFolderMutation.isPending}
                   onClick={() => {
                     refreshMutation.reset();
@@ -217,7 +214,7 @@ export function SettingsPeoplePane() {
                   }}
                 >
                   Clear folder
-                </button>
+                </Button>
               ) : null}
             </span>
           }
@@ -229,13 +226,9 @@ export function SettingsPeoplePane() {
               {refreshResult.ignored}; candidates {refreshResult.candidates}.{" "}
               {getPeopleRefreshGuidance(refreshResult).join(" ")}
               {refreshResult.candidates > 0 ? (
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--quiet jds-btn--sm"
-                  onClick={() => reviewRef.current?.focus()}
-                >
+                <Button variant="quiet" size="sm" onClick={() => reviewRef.current?.focus()}>
                   Review matches
-                </button>
+                </Button>
               ) : null}
             </Note>
           </div>
@@ -243,16 +236,12 @@ export function SettingsPeoplePane() {
         {refreshMutation.error ? (
           <Note>
             This People folder is unavailable. Choose another folder or clear it.{" "}
-            <button
-              type="button"
-              className="jds-btn jds-btn--quiet jds-btn--sm"
-              onClick={() => setChoosingFolder(true)}
-            >
+            <Button variant="quiet" size="sm" onClick={() => setChoosingFolder(true)}>
               Choose another folder
-            </button>
-            <button
-              type="button"
-              className="jds-btn jds-btn--quiet jds-btn--sm"
+            </Button>
+            <Button
+              variant="quiet"
+              size="sm"
               disabled={saveFolderMutation.isPending}
               onClick={() => {
                 refreshMutation.reset();
@@ -260,22 +249,21 @@ export function SettingsPeoplePane() {
               }}
             >
               Clear folder
-            </button>
+            </Button>
           </Note>
         ) : null}
         <Row
           name="Refresh from notes"
           desc="Scan the configured folder and update projected People records."
           control={
-            <button
-              type="button"
-              className="jds-btn jds-btn--sm jds-btn--quiet"
+            <Button
+              variant="quiet"
+              size="sm"
               disabled={refreshMutation.isPending || !configuredFolder}
               onClick={() => refreshMutation.mutate()}
               title="Refresh"
-            >
-              <RefreshCw size={15} aria-hidden="true" />
-            </button>
+              icon={<RefreshCw size={15} aria-hidden="true" />}
+            />
           }
         />
         {PEOPLE_NOTES_SOURCE_BEHAVIORS.map((behavior) => (
@@ -317,23 +305,23 @@ export function SettingsPeoplePane() {
                     <span style={{ display: "flex", gap: 8 }}>
                       <Badge tone="neutral">{Math.round(candidate.confidence * 100)}%</Badge>
                       {!DESTRUCTIVE_KINDS.has(candidate.candidateKind) && (
-                        <button
-                          type="button"
-                          className="jds-btn jds-btn--sm jds-btn--accentSoft"
+                        <Button
+                          variant="accentSoft"
+                          size="sm"
                           disabled={acceptMutation.isPending}
                           onClick={() => acceptMutation.mutate(candidate.id)}
                         >
                           Accept
-                        </button>
+                        </Button>
                       )}
-                      <button
-                        type="button"
-                        className="jds-btn jds-btn--sm jds-btn--quiet"
+                      <Button
+                        variant="quiet"
+                        size="sm"
                         disabled={rejectMutation.isPending}
                         onClick={() => rejectMutation.mutate(candidate.id)}
                       >
                         Reject
-                      </button>
+                      </Button>
                     </span>
                   }
                 />
@@ -374,31 +362,29 @@ export function SettingsPeoplePane() {
                   </Badge>
                   {editingId === person.id ? (
                     <>
-                      <button
-                        type="button"
-                        className="jds-btn jds-btn--sm jds-btn--accentSoft"
+                      <Button
+                        variant="accentSoft"
+                        size="sm"
                         disabled={updateMutation.isPending || !editingName.trim()}
                         onClick={() =>
                           updateMutation.mutate({ id: person.id, displayName: editingName.trim() })
                         }
                         title="Save name"
-                      >
-                        <Save size={15} aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        className="jds-btn jds-btn--sm jds-btn--quiet"
+                        icon={<Save size={15} aria-hidden="true" />}
+                      />
+                      <Button
+                        variant="quiet"
+                        size="sm"
                         onClick={() => setEditingId(null)}
                         title="Cancel"
-                      >
-                        <X size={15} aria-hidden="true" />
-                      </button>
+                        icon={<X size={15} aria-hidden="true" />}
+                      />
                     </>
                   ) : (
                     <>
-                      <button
-                        type="button"
-                        className="jds-btn jds-btn--sm jds-btn--quiet"
+                      <Button
+                        variant="quiet"
+                        size="sm"
                         disabled={!configuredFolder}
                         onClick={() => {
                           setEditingId(person.id);
@@ -406,16 +392,15 @@ export function SettingsPeoplePane() {
                         }}
                       >
                         Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="jds-btn jds-btn--sm jds-btn--quiet"
+                      </Button>
+                      <Button
+                        variant="quiet"
+                        size="sm"
                         disabled={archiveMutation.isPending || !configuredFolder}
                         onClick={() => archiveMutation.mutate(person.id)}
                         title="Archive"
-                      >
-                        <Archive size={15} aria-hidden="true" />
-                      </button>
+                        icon={<Archive size={15} aria-hidden="true" />}
+                      />
                     </>
                   )}
                 </span>
@@ -449,15 +434,14 @@ export function SettingsPeoplePane() {
                 onChange={(event) => setCreateEmail(event.target.value)}
                 style={{ width: 180 }}
               />
-              <button
-                type="button"
-                className="jds-btn jds-btn--sm jds-btn--accentSoft"
+              <Button
+                variant="accentSoft"
+                size="sm"
                 disabled={createMutation.isPending || !configuredFolder || !createName.trim()}
                 onClick={() => createMutation.mutate()}
                 title="Create person"
-              >
-                <Plus size={15} aria-hidden="true" />
-              </button>
+                icon={<Plus size={15} aria-hidden="true" />}
+              />
             </span>
           }
         />
