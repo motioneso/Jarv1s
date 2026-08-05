@@ -1,6 +1,7 @@
 # `ai-job-search` feature comparison
 
 **Date:** 2026-07-31  
+**Revalidated:** 2026-08-01
 **Purpose:** Compare `MadsLorentzen/ai-job-search` with Jarv1s Job Search and identify ideas worth
 adapting.  
 **Research only:** No implementation or live-state changes were made.
@@ -12,6 +13,18 @@ adapting.
   `origin/main@c591a8f9`.
 - The comparison repository was reviewed at
   [`1cdaf9497f0026fb4de877b80a439af184bce145`](https://github.com/MadsLorentzen/ai-job-search/tree/1cdaf9497f0026fb4de877b80a439af184bce145).
+- On 2026-08-01, the comparison was revalidated against upstream
+  [`a65a7167efb6a099a5487fd36ca4d38a0f3c14cf`](https://github.com/MadsLorentzen/ai-job-search/tree/a65a7167efb6a099a5487fd36ca4d38a0f3c14cf).
+  The intervening diff changes setup privacy warnings, required git-ignore/security guards,
+  upstream-update checking, tests, and changelog entries. It does not change the portal, ranking,
+  application, outcome, follow-up, interview, reporting, or profile-enrichment feature contracts,
+  so the feature dispositions and ranked recommendations below are unchanged.
+- Jarv1s was also rechecked at `62c5fec16ae5c82dd50b6f55c9a673b83f23a01a` on
+  `fix/job-search-resume-attach`, including the in-progress profile/résumé working-tree changes.
+  Attachment-backed résumé capture and setup reliability strengthen the already-present profile
+  onboarding and résumé handling rows. They do not add application lifecycle, practical posting
+  facts, evidence-grounded application artifacts, or outcomes, so they do not materially change
+  the gap ranking.
 - Sources were limited to both repositories' own README, command/skill definitions, tests, and
   implementation. The comparison repository was not executed against personal data or live job
   boards.

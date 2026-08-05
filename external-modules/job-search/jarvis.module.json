@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "job-search",
   "name": "Job Search",
-  "version": "0.2.1",
+  "version": "0.2.4",
   "publisher": "Jarvis Project",
   "lifecycle": "optional",
   "compatibility": { "jarv1s": ">=0.1.0" },
@@ -19,7 +19,8 @@
       "app.job_search_postings",
       "app.job_search_matches",
       "app.job_search_resumes",
-      "app.job_search_custom_sources"
+      "app.job_search_custom_sources",
+      "app.job_search_rescore_state"
     ]
   },
   "runtime": { "workerEntrypoint": "dist/worker.js", "workerContractVersion": 1 },
@@ -478,6 +479,21 @@
         }
       },
       {
+        "name": "job-search.criteria-set",
+        "handler": "criteria.set",
+        "retryLimit": 0,
+        "allowManualRun": true,
+        "timeoutMs": 600000,
+        "paramsSchema": {
+          "type": "object",
+          "fields": {
+            "profileId": { "type": "identifier" },
+            "criteriaJson": { "type": "string", "maxLength": 2048 },
+            "rescoreOnly": { "type": "boolean" }
+          }
+        }
+      },
+      {
         "name": "job-search.resume-set",
         "handler": "resume.set-from-attachment",
         "retryLimit": 0,
@@ -506,6 +522,20 @@
         "allowManualRun": true,
         "timeoutMs": 30000,
         "paramsSchema": { "type": "object", "fields": {} }
+      },
+      {
+        "name": "job-search.profile-rename",
+        "handler": "profile.rename",
+        "retryLimit": 2,
+        "allowManualRun": true,
+        "timeoutMs": 30000,
+        "paramsSchema": {
+          "type": "object",
+          "fields": {
+            "profileId": { "type": "identifier" },
+            "name": { "type": "string", "maxLength": 80 }
+          }
+        }
       }
     ],
     "schedules": [
@@ -514,6 +544,13 @@
         "cron": "17 */6 * * *",
         "scope": "user",
         "jobKind": "job-search.crawl-sweep",
+        "queue": "job-search.crawl-sweep"
+      },
+      {
+        "id": "job-search.rescore-sweep",
+        "cron": "*/10 * * * *",
+        "scope": "user",
+        "jobKind": "job-search.rescore-sweep",
         "queue": "job-search.crawl-sweep"
       }
     ],

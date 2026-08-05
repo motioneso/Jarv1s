@@ -1,6 +1,6 @@
 {
   "name": "job-search",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Jarvis Job Search downloaded module. Prebuilt artifact package: jarvis.module.json + dist/worker.js + dist/web/index.js."
 }

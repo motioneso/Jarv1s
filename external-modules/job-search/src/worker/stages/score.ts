@@ -160,6 +160,10 @@ export async function runScore(deps: {
   now: string;
   deadlineAt: number;
   clock: () => number;
+  /** Criteria edits re-score existing board rows; they are not newly added matches. */
+  notifyOnMatches?: boolean;
+  /** Exact claimed criteria for a continuation. The write CAS rejects it if a newer edit wins. */
+  criteriaSnapshot?: SearchCriteria;
   /** Which postings to score. "unscored" (the default) is the ordinary pass: postings with no
    *  match row at all. "unfitted" is the repair pass: postings whose match row exists but whose
    *  Fit is empty, because they were scored before the profile had a résumé. The repair is a
@@ -168,7 +172,18 @@ export async function runScore(deps: {
    *  large Fit-empty backlog. */
   candidates?: "unscored" | "unfitted";
 }): Promise<RunScoreResult> {
-  const { store, embed, ai, notify, profileId, budget, now, deadlineAt, clock } = deps;
+  const {
+    store,
+    embed,
+    ai,
+    notify,
+    profileId,
+    budget,
+    now,
+    deadlineAt,
+    clock,
+    notifyOnMatches = true
+  } = deps;
   const candidateSet = deps.candidates ?? "unscored";
 
   // Never larger than the platform's own per-invocation cap, regardless of what the caller
@@ -186,6 +201,11 @@ export async function runScore(deps: {
   if (profile === null) {
     throw new Error(`runScore: profile ${profileId} not found`);
   }
+  const criteria = deps.criteriaSnapshot ?? profile.criteria;
+  const matchWriteOptions = {
+    ...(candidateSet === "unfitted" ? { preserveWant: true } : {}),
+    criteriaSnapshot: criteria
+  };
 
   const candidates =
     candidateSet === "unfitted"
@@ -208,7 +228,7 @@ export async function runScore(deps: {
   const hasResume = resumeText.trim().length > 0;
   const contextText = profile.contextSummary ?? "";
 
-  const criteriaText = criteriaEmbeddingText(profile.criteria);
+  const criteriaText = criteriaEmbeddingText(criteria);
   if (criteriaText.length === 0) {
     // Unreachable through the product — `isReadyToCrawl` will not activate a profile whose
     // criteria are empty, so nothing can have been crawled for one either. Loud rather than
@@ -296,7 +316,7 @@ export async function runScore(deps: {
 
     const prompt = buildScorePrompt({
       posting,
-      criteria: profile.criteria,
+      criteria,
       resume: resumeText,
       context: contextText
     });
@@ -317,7 +337,7 @@ export async function runScore(deps: {
       if (result.ok) {
         try {
           const parsed = parseScoreResult(result.object);
-          await store.upsertMatch(
+          const applied = await store.upsertMatch(
             profileId,
             {
               profileId,
@@ -330,9 +350,10 @@ export async function runScore(deps: {
               state: "new",
               scoredAt: now
             },
-            candidateSet === "unfitted" ? { preserveWant: true } : undefined
+            matchWriteOptions
           );
-          scored++;
+          if (applied) scored++;
+          else unreached++;
         } catch {
           // A parse failure is the model's fault, not the platform's — increment `failed` and
           // leave the posting unscored so the next pass retries it. Never a partial write.
@@ -400,7 +421,7 @@ export async function runScore(deps: {
   // Notify only when this invocation actually produced matches, and only with the count it
   // itself created — never a store-wide `newMatchCount`, which would re-announce yesterday's
   // unread matches every six hours even on a pass that scored nothing.
-  if (scored > 0) {
+  if (scored > 0 && notifyOnMatches) {
     await notify.post({
       key: `new-matches:${profileId}`,
       title: scored === 1 ? "1 new job match" : `${scored} new job matches`,

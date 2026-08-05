@@ -383,8 +383,12 @@ Cards, pills, rounding, and “AI UI” are not inherently defective. USWDS says
 [cards][uswds-cards] should group content and actions about one subject and should not be used merely
 for decoration; Jarv1s correctly avoids a card grid on Matches. USWDS similarly warns that
 [tags][uswds-tags] can be mistaken for buttons and lose emphasis when overused. The few Profile
-pills are not the problem here. The problem is task-insensitive repetition and weak action
-priority.
+pills visible in the sparse review state were not the primary problem. That conclusion does not
+hold for a populated, directly editable profile: long removable values become a dense stack of
+variably sized rounded mini-cards, centered text wraps awkwardly, and the remove control separates
+from its label. Reviews must exercise realistic high-density values and reject pill clouds for
+sentence-length content. Use compact, left-aligned removable tags or rows with an integrated remove
+control. The broader problem remains task-insensitive repetition and weak action priority.
 
 ## AI-design tells and generic patterns
 

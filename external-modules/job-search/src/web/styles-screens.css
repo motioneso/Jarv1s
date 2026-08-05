@@ -37,10 +37,64 @@
   gap: 2.5rem;
 }
 
+.jsm-profile-name {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.jsm-profile-name .jds-input {
+  flex: 1;
+}
+
+.jsm-pay-floor-input {
+  appearance: textfield;
+}
+
+.jsm-pay-floor-input::-webkit-inner-spin-button,
+.jsm-pay-floor-input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.jsm-criteria-editor {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.jsm-criteria-editor__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.jsm-criteria-editor__field--wide,
+.jsm-criteria-editor__actions {
+  grid-column: 1 / -1;
+}
+
+.jsm-criteria-editor__actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
 @media (max-width: 640px) {
   .jsm-pf-columns {
     grid-template-columns: 1fr;
     gap: 1.5rem;
+  }
+
+  .jsm-settings--profile .jsm-fields {
+    flex-direction: column;
+  }
+
+  .jsm-settings--profile .jsm-field {
+    flex: 0 1 auto;
+  }
+
+  .jsm-criteria-editor {
+    grid-template-columns: 1fr;
   }
 }
 

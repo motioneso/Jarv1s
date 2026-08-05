@@ -280,6 +280,8 @@ describe("job-search reconciler binds crawl-sweep's schedule to its own queue (#
       `update:job-search.portal-set-enabled:${JSON.stringify({ retryLimit: 2 })}`,
       "create:job-search.profile-set-briefing-detail",
       `update:job-search.profile-set-briefing-detail:${JSON.stringify({ retryLimit: 2 })}`,
+      "create:job-search.criteria-set",
+      `update:job-search.criteria-set:${JSON.stringify({ retryLimit: 0 })}`,
       // The list is deliberately exhaustive and in manifest order: it doubles as the guard that
       // catches a queue silently dropped from the manifest, so a new queue means updating this
       // list, never loosening the assertion. resume-set carries retryLimit 0 on purpose — the
@@ -289,7 +291,9 @@ describe("job-search reconciler binds crawl-sweep's schedule to its own queue (#
       "create:job-search.profile-bootstrap",
       `update:job-search.profile-bootstrap:${JSON.stringify({ retryLimit: 1 })}`,
       "create:job-search.profile-new",
-      `update:job-search.profile-new:${JSON.stringify({ retryLimit: 1 })}`
+      `update:job-search.profile-new:${JSON.stringify({ retryLimit: 1 })}`,
+      "create:job-search.profile-rename",
+      `update:job-search.profile-rename:${JSON.stringify({ retryLimit: 2 })}`
     ]);
 
     expect(schedules).toEqual([
@@ -303,6 +307,17 @@ describe("job-search reconciler binds crawl-sweep's schedule to its own queue (#
           manifestHash: module.manifestHash
         },
         options: { tz: "UTC", key: `job-search/job-search.crawl-sweep/${ids.userA}` }
+      },
+      {
+        name: "job-search.crawl-sweep",
+        cron: "*/10 * * * *",
+        payload: {
+          actorUserId: ids.userA,
+          moduleId: "job-search",
+          jobKind: "job-search.rescore-sweep",
+          manifestHash: module.manifestHash
+        },
+        options: { tz: "UTC", key: `job-search/job-search.rescore-sweep/${ids.userA}` }
       }
     ]);
   });
@@ -497,6 +512,16 @@ describe("job-search module RLS (#1305, tier A — no worker process)", () => {
         client.query(
           `INSERT INTO app.job_search_custom_sources (owner_user_id, profile_id, host, label, url)
            VALUES ($1, $2, 'boards.example.com', 'Example Boards', 'https://boards.example.com/jobs')`,
+          [ownerUserId, profileId]
+        )
+      );
+      return;
+    }
+    if (table === "job_search_rescore_state") {
+      await asRuntime(ownerUserId, (client) =>
+        client.query(
+          `INSERT INTO app.job_search_rescore_state (owner_user_id, pending)
+           VALUES ($1, jsonb_build_object($2::text, '{}'::jsonb))`,
           [ownerUserId, profileId]
         )
       );

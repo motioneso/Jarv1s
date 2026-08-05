@@ -153,7 +153,7 @@ describe("SettingsScreen", () => {
     expect(runGroup.findAllByProps({ type: "checkbox" })).toHaveLength(0);
   });
 
-  it("leads with watched-board controls and truthful automatic-check copy without a page hero", async () => {
+  it("leads with watched-board controls without a ceremonial page hero", async () => {
     vi.mocked(api.invokeTool).mockResolvedValue({
       portals: [portalRow({ sourceId: "linkedin", label: "LinkedIn" })]
     });
@@ -162,7 +162,6 @@ describe("SettingsScreen", () => {
     await flush();
 
     const rendered = text(renderer);
-    expect(rendered).toContain("Checks automatically");
     expect(rendered).not.toMatch(/every morning/i);
     expect(rendered).not.toContain("Where this search is looking");
     expect(renderer.root.findAllByProps({ className: "jds-strap jds-strap--gold" })).toHaveLength(
@@ -324,14 +323,13 @@ describe("SettingsScreen", () => {
 
   // K7: the footer line about keyless public job-board APIs, carried over from the mockup as text
   // (modules can't import Lucide, so no shield glyph).
-  it("renders the keyless-public-APIs footer line", async () => {
+  it("keeps the footer to the one available add/edit route", async () => {
     vi.mocked(api.invokeTool).mockResolvedValue({ portals: [] });
 
     const renderer = await renderScreen(profile());
     await flush();
 
-    expect(text(renderer)).toMatch(/keyless public job-board APIs/i);
-    expect(text(renderer)).toMatch(/never submits anything/i);
+    expect(text(renderer)).toMatch(/Add or edit a job board through chat/i);
   });
 
   // K7: the trailing "N enabled · all healthy" meta on the section head must be computed from the

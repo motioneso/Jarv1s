@@ -1,11 +1,5 @@
 // tests/integration/job-search-store.test.ts
-// Task 13 (#1297): the store against a real database, before any handler depends on it. Mirrors
-// tests/integration/job-search-tables-install.test.ts's fresh-install-per-`it` discipline (each
-// case reinstalls, afterEach tears everything down), but adds a SECOND kind of fixture: cases 7-8
-// exercise the sweep cursor, which `store-sql.ts` deliberately keeps in `ctx.kv`, not a job_search_*
-// column (see store-port.ts's comment on getSweepCursor). `ctx.kv` is backed by app.module_kv — a
-// CORE platform table (packages/settings/sql/0154, 0157), not a job-search-owned one — so it needs
-// a different connection recipe than the job_search_* tables below (see asWorkerKv's comment).
+// Task 13 (#1297): real-DB store tests; sweep cursors use the worker-KV fixture below.
 import { randomUUID } from "node:crypto";
 
 import { Client } from "pg";
@@ -22,7 +16,9 @@ import { createSqlStore } from "../../external-modules/job-search/src/worker/sto
 import { BODY_MAX_CHARS } from "../../external-modules/job-search/src/domain/records.js";
 import type {
   FailureCause,
-  Posting
+  Match,
+  Posting,
+  SearchCriteria
 } from "../../external-modules/job-search/src/domain/records.js";
 import { resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -357,32 +353,205 @@ describe("job-search store (#1297)", () => {
     expect(dims.rows[0]!.dims).toBe(768);
   });
 
-  it("excludes a posting once it has a match row, but keeps one that has none (case 4)", async () => {
+  it("re-offers an invalidated match for scoring while excluding a scored match (case 4)", async () => {
     await install();
     await seedUser(ownerA);
     const store = storeFor(ownerA);
     const profile = await store.createProfile("Staff Engineer search");
 
-    const [withMatch] = await store.upsertPostings(profile.id, [
+    const [invalidated] = await store.upsertPostings(profile.id, [
       posting({ sourceId: "linkedin", externalId: "ext-scored" })
+    ]);
+    const [scored] = await store.upsertPostings(profile.id, [
+      posting({ sourceId: "linkedin", externalId: "ext-still-scored" })
     ]);
     const [withoutMatch] = await store.upsertPostings(profile.id, [
       posting({ sourceId: "linkedin", externalId: "ext-unscored" })
     ]);
     const vector = Array.from({ length: 768 }, () => 0.001);
-    await store.setEmbedding(withMatch!.id, vector);
+    await store.setEmbedding(invalidated!.id, vector);
+    await store.setEmbedding(scored!.id, vector);
     await store.setEmbedding(withoutMatch!.id, vector);
 
     await asRuntime(ownerA, (client) =>
       client.query(
         `INSERT INTO app.job_search_matches (owner_user_id, profile_id, posting_id, state)
          VALUES ($1, $2, $3, 'unscored')`,
-        [ownerA, profile.id, withMatch!.id]
+        [ownerA, profile.id, invalidated!.id]
       )
     );
+    await store.upsertMatch(profile.id, {
+      profileId: profile.id,
+      postingId: scored!.id,
+      fit: 80,
+      want: 70,
+      fitReason: "Current fit reason",
+      wantReason: "Current want reason",
+      outsideFrame: false,
+      state: "new",
+      scoredAt: null
+    });
 
     const unscored = await store.listUnscoredPostingsWithEmbeddings(profile.id, 10);
-    expect(unscored.map((row) => row.id)).toEqual([withoutMatch!.id]);
+    expect(new Set(unscored.map((row) => row.id))).toEqual(
+      new Set([invalidated!.id, withoutMatch!.id])
+    );
+  });
+
+  it("invalidates both axes when criteria change so stale prose and scores cannot remain", async () => {
+    await install();
+    await seedUser(ownerA);
+    const store = storeFor(ownerA);
+    const profile = await store.createProfile("Staff Engineer search");
+    const [created] = await store.upsertPostings(profile.id, [
+      posting({ sourceId: "linkedin", externalId: "criteria-stale" })
+    ]);
+    const vector = Array.from({ length: 768 }, () => 0.001);
+    await store.setEmbedding(created!.id, vector);
+    await store.upsertMatch(profile.id, {
+      profileId: profile.id,
+      postingId: created!.id,
+      fit: 91,
+      want: 88,
+      fitReason: "Old fit reason",
+      wantReason: "Old want reason",
+      outsideFrame: false,
+      state: "new",
+      scoredAt: null
+    });
+
+    await store.updateCriteria(profile.id, {
+      titles: ["ServiceNow Architect"],
+      seniority: [],
+      locations: ["San Diego"],
+      remote: "no-preference",
+      compFloorCents: null,
+      excludeCompanies: [],
+      mustHave: ["ServiceNow"],
+      niceToHave: [],
+      dealbreakers: ["No ServiceNow involvement"],
+      wantNarrative: "Hands-on platform architecture"
+    });
+
+    const [match] = await store.listMatches(profile.id, 10, 0);
+    expect(match).toMatchObject({ fit: null, want: null, state: "unscored" });
+    expect(await store.listUnscoredPostingsWithEmbeddings(profile.id, 10)).toHaveLength(1);
+  });
+
+  it("applies match writes only while their criteria snapshot is current", async () => {
+    await install();
+    await seedUser(ownerA);
+    const store = storeFor(ownerA);
+    const profile = await store.createProfile("Staff Engineer search");
+    const oldCriteria: SearchCriteria = {
+      titles: ["Staff Engineer"],
+      seniority: ["staff"],
+      locations: ["Remote"],
+      remote: "preferred",
+      compFloorCents: null,
+      excludeCompanies: [],
+      mustHave: ["TypeScript"],
+      niceToHave: [],
+      dealbreakers: [],
+      wantNarrative: "Small team with ownership"
+    };
+    const currentCriteria: SearchCriteria = {
+      ...oldCriteria,
+      titles: ["Platform Architect"],
+      mustHave: ["Postgres"],
+      wantNarrative: "Platform strategy and mentoring"
+    };
+    await store.updateCriteria(profile.id, oldCriteria);
+    const [existingPosting, newPosting] = await store.upsertPostings(profile.id, [
+      posting({ sourceId: "linkedin", externalId: "snapshot-existing" }),
+      posting({ sourceId: "linkedin", externalId: "snapshot-new" })
+    ]);
+    const scoredMatch = (
+      postingId: string,
+      fit: number,
+      want: number,
+      reason: string
+    ): Omit<Match, "id"> => ({
+      profileId: profile.id,
+      postingId,
+      fit,
+      want,
+      fitReason: reason,
+      wantReason: reason,
+      outsideFrame: false,
+      state: "new",
+      scoredAt: null
+    });
+    await store.upsertMatch(profile.id, scoredMatch(existingPosting!.id, 40, 30, "Old score"));
+
+    await store.updateCriteria(profile.id, currentCriteria);
+    const staleUpdate = await store.upsertMatch(
+      profile.id,
+      scoredMatch(existingPosting!.id, 99, 98, "Stale update"),
+      { criteriaSnapshot: oldCriteria }
+    );
+    const staleInsert = await store.upsertMatch(
+      profile.id,
+      scoredMatch(newPosting!.id, 97, 96, "Stale insert"),
+      {
+        criteriaSnapshot: oldCriteria
+      }
+    );
+    expect([staleUpdate, staleInsert]).toEqual([false, false]);
+
+    const staleRows = await store.listMatches(profile.id, 10, 0);
+    expect(staleRows.find((row) => row.postingId === existingPosting!.id)).toMatchObject({
+      fit: null,
+      want: null,
+      state: "unscored"
+    });
+    expect(staleRows.find((row) => row.postingId === newPosting!.id)).toMatchObject({
+      fit: null,
+      want: null,
+      state: "unscored"
+    });
+
+    const currentUpdate = await store.upsertMatch(
+      profile.id,
+      scoredMatch(existingPosting!.id, 81, 61, "Current update"),
+      { criteriaSnapshot: currentCriteria }
+    );
+    const currentInsert = await store.upsertMatch(
+      profile.id,
+      scoredMatch(newPosting!.id, 72, 52, "Current insert"),
+      {
+        criteriaSnapshot: currentCriteria
+      }
+    );
+    expect([currentUpdate, currentInsert]).toEqual([true, true]);
+
+    const currentRows = await store.listMatches(profile.id, 10, 0);
+    expect(currentRows.find((row) => row.postingId === existingPosting!.id)).toMatchObject({
+      fit: 81,
+      want: 61,
+      state: "new"
+    });
+    expect(currentRows.find((row) => row.postingId === newPosting!.id)).toMatchObject({
+      fit: 72,
+      want: 52,
+      state: "new"
+    });
+
+    const currentMatch = currentRows.find((row) => row.postingId === existingPosting!.id)!;
+    await store.setMatchState(currentMatch.id, "dismissed");
+    const lateScore = scoredMatch(existingPosting!.id, 100, 100, "Late score");
+    expect(
+      await store.upsertMatch(profile.id, lateScore, { criteriaSnapshot: currentCriteria })
+    ).toBe(false);
+    const entry = (criteria: SearchCriteria) => [{ profileId: profile.id, criteria }];
+    expect(await store.claimCriteriaRescore("lease-a")).toEqual(entry(currentCriteria));
+    expect(await store.claimCriteriaRescore("lease-b")).toBeNull();
+    await store.updateCriteria(profile.id, oldCriteria);
+    await store.finishCriteriaRescore("lease-a", entry(currentCriteria));
+    expect(await store.claimCriteriaRescore("lease-b")).toEqual(entry(oldCriteria));
+    await store.finishCriteriaRescore("lease-b", entry(oldCriteria));
+    expect(await store.claimCriteriaRescore("lease-c")).toEqual([]);
+    await store.finishCriteriaRescore("lease-c", []);
   });
 
   it("allocates versions 1 and 2 for two concurrent setResume calls, and fails fast for a nonexistent profile (case 5)", async () => {

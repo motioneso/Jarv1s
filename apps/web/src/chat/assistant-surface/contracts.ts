@@ -19,7 +19,11 @@ export interface AssistantSurfaceViewProps {
   readonly recordKinds?: readonly ChatRecordKind[];
   readonly composer?: {
     readonly placeholder?: string;
-    readonly onSubmitText?: (text: string) => "handled" | "send";
+    readonly attachmentLabel?: string;
+    readonly uploadAttachment?: (
+      file: File
+    ) => Promise<{ id: string; fileName: string; sizeBytes: number }>;
+    readonly onSubmitText?: (text: string, attachmentIds?: readonly string[]) => "handled" | "send";
   };
   readonly typing?: boolean;
 }

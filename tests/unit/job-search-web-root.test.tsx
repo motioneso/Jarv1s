@@ -50,6 +50,18 @@ const RESUME_ON_FILE = {
   content: "Staff engineer. TypeScript, Postgres, React.",
   updatedAt: "2026-07-29T10:35:44.701Z"
 };
+const CURRENT_CRITERIA = {
+  titles: ["Staff Engineer"],
+  seniority: [],
+  locations: [],
+  remote: "no-preference",
+  compFloorCents: null,
+  excludeCompanies: [],
+  mustHave: [],
+  niceToHave: [],
+  dealbreakers: [],
+  wantNarrative: ""
+};
 
 import { Root, type HostActions } from "../../external-modules/job-search/src/web/root";
 import * as api from "../../external-modules/job-search/src/web/api";
@@ -110,17 +122,46 @@ async function renderRoot(
   return renderer;
 }
 
-// setSurfaceKey/seedContext are the two methods Root's useProfileThread actually calls; every
-// test in this file uses an "active" profile (the board branch), so Surface itself is never
-// rendered here (that's job-search-web-onboarding.test.tsx's job) and submitTurn/seedComposer are
-// exercised by their owning screens.
-function assistantSurface(): AssistantSurfaceHandleV1 {
+interface TestAssistantRecordV1 {
+  readonly kind: string;
+  readonly text: string;
+  readonly actionRequestId?: string;
+  readonly toolName?: string;
+  readonly outcome?: "executed" | "denied" | "error" | "allowed";
+  readonly result?: Record<string, unknown>;
+}
+
+function deferredCriteriaRecord(actionRequestId: string): TestAssistantRecordV1 {
+  return {
+    kind: "action_result",
+    text: "Search criteria updated",
+    actionRequestId,
+    toolName: "job-search.criteria.set",
+    outcome: "executed",
+    result: { profileId: "p1", rescore: { ok: true, attempted: false } }
+  };
+}
+
+// Root binds, frames, and subscribes through this surface. The fixture keeps the live-record
+// boundary faithful to the host: subscribers receive cumulative arrays, and unsubscription stops
+// later emissions without exposing any of the host's internal store.
+function assistantSurface() {
+  let listener: ((records: readonly TestAssistantRecordV1[]) => void) | undefined;
   return {
     setSurfaceKey: vi.fn(),
     seedContext: vi.fn().mockResolvedValue(undefined),
     seedComposer: vi.fn(),
     Surface: vi.fn(),
-    submitTurn: vi.fn().mockResolvedValue(undefined)
+    submitTurn: vi.fn().mockResolvedValue(undefined),
+    subscribeRecords: vi.fn((next: (records: readonly TestAssistantRecordV1[]) => void) => {
+      listener = next;
+      return () => {
+        if (listener === next) listener = undefined;
+      };
+    }),
+    emitRecords(records: readonly TestAssistantRecordV1[]) {
+      listener?.(records);
+    }
   };
 }
 
@@ -224,18 +265,7 @@ describe("job-search web Root", () => {
       if (name === "job-search.resume.get") return { resume: resumeFixture };
       if (name === "job-search.profile.get") {
         return {
-          criteria: {
-            titles: ["Staff Engineer"],
-            seniority: [],
-            locations: [],
-            remote: "no-preference",
-            compFloorCents: null,
-            excludeCompanies: [],
-            mustHave: [],
-            niceToHave: [],
-            dealbreakers: [],
-            wantNarrative: ""
-          },
+          criteria: CURRENT_CRITERIA,
           contextSummary: null
         };
       }
@@ -247,15 +277,16 @@ describe("job-search web Root", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
-  it("renders the bootstrap panel with zero profiles, no board table", async () => {
+  it("starts bootstrap immediately with zero profiles", async () => {
     mockUseProfiles.mockReturnValue(empty());
     const renderer = await renderRoot();
 
-    expect(text(renderer)).toMatch(/Find roles that match/);
-    expect(findButton(renderer, /Start your job search/i)).toBeTruthy();
+    expect(text(renderer)).toMatch(/Setting up your job search profile/);
+    expect(api.runQueue).toHaveBeenCalledWith("job-search.profile-bootstrap", "profile.bootstrap");
     expect(renderer.root.findAllByType("table")).toHaveLength(0);
   });
 
@@ -268,12 +299,6 @@ describe("job-search web Root", () => {
     vi.mocked(api.runQueue).mockResolvedValue({ kind: "queued" });
     const actions = hostActions();
     const renderer = await renderRoot(actions);
-
-    const start = findButton(renderer, /Start your job search/i);
-    expect(start).toBeTruthy();
-    await act(async () => {
-      start!.props.onClick();
-    });
 
     expect(api.runQueue).toHaveBeenCalledTimes(1);
     expect(api.runQueue).toHaveBeenCalledWith("job-search.profile-bootstrap", "profile.bootstrap");
@@ -295,9 +320,7 @@ describe("job-search web Root", () => {
     vi.mocked(api.runQueue).mockResolvedValue({ kind: "disabled" });
     const renderer = await renderRoot();
 
-    await act(async () => {
-      findButton(renderer, /Start your job search/i)!.props.onClick();
-    });
+    await flush(renderer);
 
     expect(mockUseProfiles.mock.calls.at(-1)![0].pollArmed).toBe(false);
     expect(text(renderer)).toMatch(/turned off for this account/);
@@ -311,9 +334,7 @@ describe("job-search web Root", () => {
     vi.mocked(api.runQueue).mockResolvedValue({ kind: "error", message: "boom" });
     const renderer = await renderRoot();
 
-    await act(async () => {
-      findButton(renderer, /Start your job search/i)!.props.onClick();
-    });
+    await flush(renderer);
     await act(async () => {
       findButton(renderer, /Try again/i)!.props.onClick();
     });
@@ -344,7 +365,8 @@ describe("job-search web Root", () => {
       seedContext: vi.fn().mockResolvedValue(undefined),
       seedComposer: vi.fn(),
       Surface: SurfaceSpy,
-      submitTurn: vi.fn().mockResolvedValue(undefined)
+      submitTurn: vi.fn().mockResolvedValue(undefined),
+      subscribeRecords: vi.fn(() => () => undefined)
     };
 
     const renderer = await renderRoot(hostActions(), surface);
@@ -361,6 +383,28 @@ describe("job-search web Root", () => {
 
     // K2's keyline restructure replaced board.tsx's <table> with a rule-separated .jsm-list —
     // check for the real match's title text instead of a table element.
+    expect(text(renderer)).toMatch(/Senior Engineer/);
+    expect(text(renderer)).not.toMatch(/work out what this search is for/);
+  });
+
+  it("keeps the completed onboarding conversation visible until the user opens matches", async () => {
+    const actions = hostActions();
+    mockUseProfiles.mockReturnValue(ready([profile({ state: "in_conversation" })]));
+    const renderer = await renderRoot(actions);
+
+    mockUseProfiles.mockReturnValue(ready([profile({ state: "active" })]));
+    await act(async () => {
+      renderer.update(createElement(Root, { hostActions: actions }));
+    });
+
+    expect(text(renderer)).toMatch(/work out what this search is for/);
+    expect(text(renderer)).not.toMatch(/Senior Engineer/);
+
+    await act(async () => {
+      findButton(renderer, /View matches/i)!.props.onClick();
+    });
+    await flush(renderer);
+
     expect(text(renderer)).toMatch(/Senior Engineer/);
     expect(text(renderer)).not.toMatch(/work out what this search is for/);
   });
@@ -794,9 +838,7 @@ describe("job-search web Root", () => {
       expect(monitorsTab!.props["aria-current"]).toBeUndefined();
       expect(renderer.root.findAllByProps({ role: "tablist" })).toHaveLength(0);
       expect(renderer.root.findAllByProps({ role: "tab" })).toHaveLength(0);
-      expect(renderer.root.findAllByType("h1").map((heading) => flatten(heading.children))).toEqual(
-        ["Job Search"]
-      );
+      expect(renderer.root.findAllByType("h1")).toHaveLength(0);
 
       // Matches is the board — the pre-existing title-text assertion elsewhere in this file
       // already covers that it's the real BoardScreen, not a placeholder. (board.tsx has no
@@ -828,43 +870,21 @@ describe("job-search web Root", () => {
       });
       await flush(renderer);
       expect(text(renderer)).not.toMatch(/Search status/);
-      expect(text(renderer)).toMatch(/Profile What it's looking for/);
+      expect(text(renderer)).toMatch(/Profile Search name/);
 
       await act(async () => {
         findButton(renderer, /^Monitors$/)!.props.onClick();
       });
       await flush(renderer);
       expect(text(renderer)).not.toMatch(/What it's looking for/);
-      expect(text(renderer)).toMatch(/Checks automatically/);
+      expect(text(renderer)).toMatch(/Monitors Watched boards/);
 
       await act(async () => {
         findButton(renderer, /^Matches$/)!.props.onClick();
       });
       await flush(renderer);
-      expect(text(renderer)).not.toMatch(/Checks automatically/);
+      expect(text(renderer)).not.toMatch(/Monitors Watched boards/);
       expect(text(renderer)).toMatch(/Senior Engineer/);
-    });
-
-    it("opens a visible profile-scoped draft from Change in chat without submitting", async () => {
-      mockUseProfiles.mockReturnValue(ready([profile({ state: "active" })]));
-      const surface = assistantSurface();
-      const actions = hostActions();
-      const renderer = await renderRoot(actions, surface);
-      await flush(renderer);
-
-      await act(async () => {
-        findButton(renderer, /^Profile$/)!.props.onClick();
-      });
-      await flush(renderer);
-      await act(async () => {
-        findButton(renderer, /^Change in chat$/)!.props.onClick();
-      });
-
-      expect(actions.openAssistant).toHaveBeenCalledWith({
-        starterPrompt: 'I want to change the criteria for the "Acme SWE search" job search.'
-      });
-      expect(surface.seedComposer).not.toHaveBeenCalled();
-      expect(surface.submitTurn).not.toHaveBeenCalled();
     });
 
     it("Review unreviewed roles returns from Overview to Matches", async () => {
@@ -943,88 +963,7 @@ describe("job-search web Root", () => {
       expect(findButton(renderer, /^Overview$/)).toBeUndefined();
       expect(findButton(renderer, /^Profile$/)).toBeUndefined();
       expect(findButton(renderer, /^Monitors$/)).toBeUndefined();
-      expect(renderer.root.findAllByType("h1").map((heading) => flatten(heading.children))).toEqual(
-        ["Job Search"]
-      );
-    });
-  });
-
-  // K8 (2026-07-28 keyline-restructure plan): the module masthead. The eyebrow/title are static
-  // and already covered indirectly everywhere else in this file (every renderRoot call would fail
-  // these two assertions if the masthead didn't mount) — what's worth testing on purpose is the
-  // status line, since that's the one piece of this task with real logic behind it (mastheadStatus
-  // in root.tsx) rather than markup.
-  describe("K8 masthead", () => {
-    // Finds the jds-indicator wrapper span itself, not its __dot child — a token match against the
-    // split class list rather than a substring test, since "jds-indicator__dot" also contains the
-    // substring "jds-indicator" and a loose match would find the wrong node. A token match (rather
-    // than the exact-string match this started as) is what's needed once "ready" gained a second
-    // modifier: root.tsx appends "jds-indicator--live" to the ready case for the slow pulse, so the
-    // full className is "jds-indicator jds-indicator--ready jds-indicator--live" — still exactly
-    // one indicator, just carrying an extra token the other two states don't.
-    function findIndicator(renderer: ReactTestRenderer, modifier: string) {
-      return renderer.root.findAll(
-        (item) =>
-          typeof item.type === "string" &&
-          typeof item.props.className === "string" &&
-          item.props.className.split(" ").includes(`jds-indicator--${modifier}`)
-      );
-    }
-
-    it("renders the module identity even before any profile exists", async () => {
-      mockUseProfiles.mockReturnValue(empty());
-      const renderer = await renderRoot();
-
-      expect(text(renderer)).toMatch(/Jarvis · Module/);
-      expect(text(renderer)).toMatch(/Job Search/);
-      // No profile to derive a status from yet, and no fetch exists to go get one — the aside is
-      // omitted entirely rather than rendered empty or guessed at.
-      expect(
-        renderer.root.findAll(
-          (item) =>
-            typeof item.type === "string" &&
-            typeof item.props.className === "string" &&
-            item.props.className.startsWith("jds-indicator")
-        )
-      ).toHaveLength(0);
-    });
-
-    it('reads "Monitoring on" for an active, ready-to-crawl profile', async () => {
-      mockUseProfiles.mockReturnValue(ready([profile({ state: "active", readyToCrawl: true })]));
-      const renderer = await renderRoot();
-      await flush(renderer);
-
-      expect(text(renderer)).toMatch(/Monitoring on/);
-      expect(findIndicator(renderer, "ready")).toHaveLength(1);
-      // Never the invented "next run" clock from the design source — no schedule is knowable here.
-      expect(text(renderer)).not.toMatch(/next run/i);
-    });
-
-    it('reads "Paused" for a paused profile', async () => {
-      mockUseProfiles.mockReturnValue(ready([profile({ state: "paused" })]));
-      const renderer = await renderRoot();
-      await flush(renderer);
-
-      expect(text(renderer)).toMatch(/Paused/);
-      expect(findIndicator(renderer, "idle")).toHaveLength(1);
-    });
-
-    it('reads "Setup incomplete" for a profile still in_conversation', async () => {
-      mockUseProfiles.mockReturnValue(ready([profile({ state: "in_conversation" })]));
-      const renderer = await renderRoot();
-
-      expect(text(renderer)).toMatch(/Setup incomplete/);
-      expect(findIndicator(renderer, "drift")).toHaveLength(1);
-    });
-
-    it('reads "Setup incomplete" for an active profile that somehow isn\'t ready to crawl', async () => {
-      mockUseProfiles.mockReturnValue(ready([profile({ state: "active", readyToCrawl: false })]));
-      const renderer = await renderRoot();
-      await flush(renderer);
-
-      expect(text(renderer)).toMatch(/Setup incomplete/);
-      expect(findIndicator(renderer, "drift")).toHaveLength(1);
-      expect(text(renderer)).not.toMatch(/Monitoring on/);
+      expect(renderer.root.findAllByType("h1")).toHaveLength(0);
     });
   });
 });

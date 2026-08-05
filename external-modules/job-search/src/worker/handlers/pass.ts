@@ -16,7 +16,7 @@ import { customPortal } from "../../adapters/custom.js";
 import { freehirePortal } from "../../adapters/freehire.js";
 import { linkedinPortal } from "../../adapters/linkedin.js";
 import type { Portal } from "../../adapters/types.js";
-import type { JobSearchStore, Profile } from "../../domain/store-port.js";
+import type { CriteriaRescoreEntry, JobSearchStore, Profile } from "../../domain/store-port.js";
 import { parseJobEnvelope } from "../job-input.js";
 import { toFetchLike } from "../ports.js";
 import { runCrawl, type CrawlSummary, type EmbedPort } from "../stages/crawl.js";
@@ -230,6 +230,74 @@ async function runSingleProfilePass(
   return { crawl: result.crawl, score: result.score, refit: result.refit };
 }
 
+export interface CriteriaRescoreResult extends Record<string, unknown> {
+  readonly mode: "rescore";
+  readonly claimed: boolean;
+  readonly processed: Array<{
+    profileId: string;
+    ok: boolean;
+    score?: RunScoreResult;
+    error?: string;
+  }>;
+  readonly aiCallsUsed: number;
+}
+
+export async function runCriteriaRescore(
+  store: JobSearchStore,
+  ctx: ModuleWorkerContext,
+  leaseToken: string,
+  onlyProfileId?: string
+): Promise<CriteriaRescoreResult> {
+  const claimed = await store.claimCriteriaRescore(leaseToken);
+  if (claimed === null) {
+    return { mode: "rescore", claimed: false, processed: [], aiCallsUsed: 0 };
+  }
+
+  const ai = makeCountingAi(ctx.ai);
+  const completed: CriteriaRescoreEntry[] = [];
+  const processed: Array<{
+    profileId: string;
+    ok: boolean;
+    score?: RunScoreResult;
+    error?: string;
+  }> = [];
+  try {
+    for (const entry of claimed) {
+      if (onlyProfileId !== undefined && entry.profileId !== onlyProfileId) continue;
+      if (Date.now() >= ctx.deadlineAt || ai.used() >= AI_CALL_BUDGET) break;
+      try {
+        const score = await runScore({
+          store,
+          embed: ctx.embed,
+          ai,
+          notify: ctx.notify,
+          profileId: entry.profileId,
+          budget: AI_CALL_BUDGET - ai.used(),
+          now: new Date().toISOString(),
+          deadlineAt: ctx.deadlineAt,
+          clock: () => Date.now(),
+          notifyOnMatches: false,
+          criteriaSnapshot: entry.criteria
+        });
+        processed.push({ profileId: entry.profileId, ok: true, score });
+        if (score.deferred === 0 && score.failed === 0 && score.halted === null) {
+          completed.push(entry);
+        }
+      } catch (error) {
+        processed.push({
+          profileId: entry.profileId,
+          ok: false,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+  } finally {
+    await store.finishCriteriaRescore(leaseToken, completed);
+  }
+
+  return { mode: "rescore", claimed: true, processed, aiCallsUsed: ai.used() };
+}
+
 /** The queue handler (`job-search.crawl-run`). Reads `params.profileId`, never `input.profileId`
  * — a queue job's `ctx.input` is the four-field envelope, and the profile id is one level down.
  * The params DSL has no "required" concept (`{type:"object",fields:{…}}` accepts `{}`), so this
@@ -257,20 +325,20 @@ export function createCrawlRunNowHandler(store: JobSearchStore) {
   };
 }
 
-/** The scheduled entry point (`job-search.crawl-sweep`). Takes no params — a schedule fans out
- * one job per user, not per profile, so there is no profile id for it to carry — and instead
- * lists the actor's own profiles via the store and filters to `state === "active"` here, in the
- * handler: `listProfiles()` + filter, never a `listActiveProfiles` store method, because the
- * store contract is closed (store-port.ts) and "active" is a domain predicate, not a query
- * shape. Spends the invocation's shared `AI_CALL_BUDGET` across those profiles sequentially,
- * starting from a persisted rotation cursor that is an INDEX into that deterministically-ordered
- * (`listProfiles`'s own `ORDER BY created_at, id`), active-filtered list. */
+/** The scheduled entry point for both the six-hour crawl and the ten-minute rescore continuation.
+ * Both are metadata-only user schedules on the existing crawl-sweep queue; `jobKind` selects
+ * whether each active profile runs crawl+score or pending criteria snapshots run score alone.
+ * The invocation-wide AI budget keeps either mode bounded and sequential. */
 export function createCrawlSweepHandler(store: JobSearchStore) {
   return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
-    // Parsed and validated even though `crawl.sweep` ignores `params` — a malformed envelope
-    // here is the same host/protocol bug it would be for `crawl.run`, and silently accepting a
-    // shape that is not the documented one hides it rather than catching it.
-    parseJobEnvelope(ctx.input);
+    // Both schedules intentionally carry no params. A malformed envelope is a host/protocol bug,
+    // so validate the complete shape before using jobKind to choose the mode.
+    const envelope = parseJobEnvelope(ctx.input);
+    const rescoreOnly = envelope.jobKind === "job-search.rescore-sweep";
+
+    if (rescoreOnly) {
+      return runCriteriaRescore(store, ctx, envelope.idempotencyKey);
+    }
 
     const now = new Date().toISOString();
     const clock = (): number => Date.now();
@@ -290,7 +358,12 @@ export function createCrawlSweepHandler(store: JobSearchStore) {
 
     const cursor = await store.getSweepCursor();
     let index = cursor % activeProfiles.length;
-    const processed: Array<{ profileId: string; ok: boolean; error?: string }> = [];
+    const processed: Array<{
+      profileId: string;
+      ok: boolean;
+      score?: RunScoreResult;
+      error?: string;
+    }> = [];
 
     while (index < activeProfiles.length) {
       // Neither check below has started this profile yet, so a break here leaves `index`
