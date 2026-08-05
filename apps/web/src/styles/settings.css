@@ -4,6 +4,9 @@
    from the Jarvis Design System kit (ui_kits/jarvis-app/settings.css).
    Composes the token layer; no hex literals (those live in tokens.css).
    Loaded by settings-page.tsx (component-level import, kit-* convention).
+   Layout only — visual declarations (color, background, border, radius, font,
+   shadow, outline, fill/stroke) for these selectors live in
+   packages/ui/src/styles/components-settings-1.css (#1395).
    ============================================================ */
 
 /* ---- Base settings row (self-contained: kit-today.css is not loaded here) ---- */
@@ -21,13 +24,7 @@
   flex: 1;
   min-width: 0;
 }
-.set-row__name {
-  font-size: 15px;
-  font-weight: 600;
-}
 .set-row__desc {
-  font-size: 13px;
-  color: var(--text-subtle);
   margin-top: 3px;
   line-height: 1.5;
   max-width: 58ch;
@@ -64,14 +61,7 @@
   flex-direction: column;
   text-align: right;
 }
-.set2__adv-t {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-}
 .set2__adv-d {
-  font-size: 11.5px;
-  color: var(--text-subtle);
   margin-top: 1px;
 }
 
@@ -109,12 +99,8 @@
   }
 }
 .set2__navgroup {
-  font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--text-faint);
   padding: 4px 11px 8px;
 }
 @media (max-width: 860px) {
@@ -129,37 +115,18 @@
   gap: 11px;
   width: 100%;
   padding: 9px 11px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--text-muted);
   font: inherit;
   text-align: left;
   cursor: pointer;
   transition: var(--transition-control);
 }
-.set2__navitem:hover {
-  background: var(--surface-2);
-  color: var(--text);
-}
-.set2__navitem.is-active {
-  background: var(--forest-soft);
-  border-color: var(--forest-soft-2);
-  color: var(--forest-ink);
-}
 .set2__navitem .ic {
   display: inline-flex;
   flex: none;
-  color: var(--text-faint);
-}
-.set2__navitem.is-active .ic {
-  color: var(--accent-fg);
 }
 .set2__navitem .lbl {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
-  font-weight: 550;
 }
 .set2__navnote {
   display: flex;
@@ -167,12 +134,9 @@
   gap: 7px;
   margin-top: 14px;
   padding: 9px 11px;
-  font-size: 11.5px;
-  color: var(--text-subtle);
   border-top: 1px solid var(--border-subtle);
 }
 .set2__navnote svg {
-  color: var(--accent-fg);
   flex: none;
 }
 @media (max-width: 860px) {
@@ -194,9 +158,6 @@
     flex: 0 1 auto;
     padding: 7px 10px;
   }
-  .set2__navitem .lbl {
-    font-size: 13px;
-  }
 }
 
 /* ---- Pane ---- */
@@ -207,24 +168,16 @@
   margin-bottom: 4px;
 }
 .pane__title {
-  font-family: var(--font-display);
-  font-size: 25px;
-  font-weight: 600;
   letter-spacing: -0.012em;
   margin: 0;
 }
 .pane__desc {
-  font-size: 14px;
-  color: var(--text-subtle);
   line-height: 1.55;
   margin: 8px 0 0;
   max-width: 72ch;
 }
 
 .pane__card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
   margin-top: 18px;
 }
 .pane__cardhead {
@@ -238,15 +191,9 @@
   min-width: 0;
 }
 .pane__cardtitle {
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 600;
   letter-spacing: -0.004em;
-  color: var(--text);
 }
 .pane__carddesc {
-  font-size: 12.5px;
-  color: var(--text-subtle);
   margin-top: 3px;
   line-height: 1.5;
   max-width: 64ch;
@@ -276,9 +223,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
   margin-bottom: 8px;
 }
 .fld__row {
@@ -299,15 +243,10 @@
 .fld__row > textarea {
   flex: 1 1 100%;
 }
-.fld__sep {
-  color: var(--text-faint);
-}
 .fld__choice {
   margin-top: 2px;
 }
 .fld__hint {
-  font-size: 12px;
-  color: var(--text-subtle);
   margin-top: 8px;
   line-height: 1.45;
   max-width: 72ch;
@@ -319,27 +258,14 @@
   align-items: flex-start;
   gap: 9px;
   margin: 14px 2px 0;
-  font-size: 12.5px;
-  color: var(--text-subtle);
   line-height: 1.5;
 }
 .set2-note svg {
-  color: var(--text-faint);
   flex: none;
   margin-top: 2px;
-}
-.set2-note b {
-  color: var(--text);
-  font-weight: 600;
 }
 /* Inline command styling for footnotes (e.g. the terminal-attach hint, Ben 2026-07-08).
    Mirrors the chat markdown `code` treatment so commands read consistently app-wide. */
 .set2-note code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.9em;
-  background: var(--surface-2);
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
   padding: 1px 5px;
-  color: var(--text);
 }
