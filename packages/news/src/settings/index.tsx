@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Note, PaneHead } from "@jarv1s/settings-ui";
+import { Button } from "@jarv1s/module-web-sdk";
 import type {
   NewsCatalogSource,
   NewsPersonalizationAvailabilityDto,
@@ -280,14 +281,14 @@ export default function NewsSettings() {
   // problem it fixes. Both sections may show it; either click queues the same job.
   const retryRow = () => (
     <div className="nw-set__addrow">
-      <button
-        type="button"
-        className="jds-btn jds-btn--sm jds-btn--secondary"
+      <Button
+        variant="secondary"
+        size="sm"
         disabled={revalidateMutation.isPending}
         onClick={() => revalidateMutation.mutate()}
       >
         {revalidateMutation.isPending ? "Queuing…" : "Retry validation"}
-      </button>
+      </Button>
       {revalidateMutation.isSuccess ? (
         <span className="nw-set__gate" role="status">
           Revalidation queued — statuses update after the next check.
@@ -404,15 +405,15 @@ export default function NewsSettings() {
                   ) : source.healthStatus === "unavailable" ? (
                     <Badge tone="red">Unavailable</Badge>
                   ) : null}
-                  <button
-                    type="button"
-                    className="jds-btn jds-btn--sm jds-btn--secondary"
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     aria-label={`Remove ${source.label}`}
                     disabled={removing}
                     onClick={() => removeSourceMutation.mutate(source.id)}
                   >
                     Remove
-                  </button>
+                  </Button>
                 </li>
               );
             })}
@@ -427,13 +428,9 @@ export default function NewsSettings() {
             <AddSourceFlow />
           ) : (
             <div className="nw-set__addrow">
-              <button
-                type="button"
-                className="jds-btn jds-btn--sm jds-btn--secondary nw-set__addbtn"
-                disabled
-              >
+              <Button variant="secondary" size="sm" disabled>
                 Add source
-              </button>
+              </Button>
               {availability ? (
                 <PrereqGate requirement="Adding sources needs an AI model with structured output." />
               ) : null}
@@ -484,13 +481,9 @@ export default function NewsSettings() {
                   setExclusionValidation(null);
                 }}
               />
-              <button
-                type="submit"
-                className="jds-btn jds-btn--sm nw-set__exadd"
-                disabled={addExclusionMutation.isPending}
-              >
+              <Button type="submit" size="sm" disabled={addExclusionMutation.isPending}>
                 Add
-              </button>
+              </Button>
             </div>
           </form>
         ) : null}
@@ -508,15 +501,15 @@ export default function NewsSettings() {
               return (
                 <li key={exclusion.id} className="nw-set__item">
                   <span className="nw-set__item-label">{exclusion.canonicalDomain}</span>
-                  <button
-                    type="button"
-                    className="jds-btn jds-btn--sm jds-btn--secondary"
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     aria-label={`Remove ${exclusion.canonicalDomain}`}
                     disabled={removing}
                     onClick={() => removeExclusionMutation.mutate(exclusion.id)}
                   >
                     Remove
-                  </button>
+                  </Button>
                 </li>
               );
             })}
