@@ -196,8 +196,8 @@ export function writeUatEnvFile(input: {
       `JARVIS_WEB_PORT=${input.webPort}`,
       // #1026: Playwright drives this instance at http://127.0.0.1:<webPort> (see baseURL
       // below), which is a DIFFERENT origin than better-auth's "http://localhost:<port>"
-      // default (readTrustedOrigins, packages/auth/src/index.ts) — 127.0.0.1 and localhost
-      // are distinct origins for its exact-string check, so login was rejected with
+      // default (resolveAuthOriginConfig, packages/auth/src/runtime-config.ts) — 127.0.0.1 and
+      // localhost are distinct origins for its exact-string check, so login was rejected with
       // "Invalid origin" until this was added. Reuses the same deriveTrustedOrigins helper
       // scripts/setup-prod.ts uses for real deploys (#379) rather than hand-rolling the list.
       `JARVIS_AUTH_TRUSTED_ORIGINS=${deriveTrustedOrigins({ webPort: String(input.webPort), publicOrigin: "127.0.0.1" })}`,
