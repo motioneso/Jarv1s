@@ -57,7 +57,11 @@ export function TaskCapture(props: {
           </Button>
           <Button
             disabled={createMutation.isPending || !title.trim()}
-            icon={createMutation.isPending ? <LoaderCircle className="spin" size={14} aria-hidden="true" /> : null}
+            icon={
+              createMutation.isPending ? (
+                <LoaderCircle className="spin" size={14} aria-hidden="true" />
+              ) : null
+            }
             size="sm"
             type="submit"
           >

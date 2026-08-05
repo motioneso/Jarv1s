@@ -1,26 +1,15 @@
-/* ---- Details modal (wider than the DS Dialog, scrollable) ---- */
-.tk-modal-scrim {
-  position: fixed;
-  inset: 0;
-  background: var(--scrim);
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  z-index: 120;
-  animation: kbar-fade 0.14s ease both;
-}
+/* ---- Details modal: className passthrough onto the DS Dialog widens it past
+   the 460px default and restores scroll-on-overflow (#1393 amendment). ---- */
 .tk-modal {
   width: 100%;
   max-width: 620px;
   max-height: 88vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
   animation: kbar-in 0.18s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.tk-modal .jds-dialog__body {
+  overflow-y: auto;
 }
 .tk-modal__head {
   flex: none;
@@ -41,14 +30,6 @@
   text-transform: uppercase;
   color: var(--accent-fg);
 }
-.tk-modal__title {
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.012em;
-  margin-top: 4px;
-  line-height: 1.15;
-}
 .tk-modal__x {
   flex: none;
   width: 34px;
@@ -67,24 +48,6 @@
   background: var(--surface-2);
   color: var(--text);
 }
-.tk-modal__body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 18px 24px 22px;
-}
-.tk-modal__foot {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 24px;
-  border-top: 1px solid var(--border-subtle);
-}
-.tk-modal__foot .sp {
-  flex: 1;
-}
-
 /* form */
 .tk-form {
   display: grid;
@@ -308,8 +271,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tk-modal,
-  .tk-modal-scrim {
+  .tk-modal {
     animation: none;
   }
 }

@@ -1,5 +1,5 @@
 import { Archive, ArrowUp, Check, ChevronDown, Circle, Plus, X } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 
 import type {
   LocaleSettingsDto,

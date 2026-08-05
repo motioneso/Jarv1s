@@ -262,6 +262,7 @@ export function TaskDetailsDialog(props: {
 
   return (
     <Dialog
+      className="tk-modal"
       onClose={props.onClose}
       title={
         <div className="tk-modal__head">
