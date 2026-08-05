@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Button } from "@jarv1s/ui";
+import { Button, ButtonLink } from "@jarv1s/ui";
 import { WELLNESS_EXPORT_CATEGORIES, type WellnessExportCategory } from "@jarv1s/shared";
 import { getDataExportDownloadUrl, getDataExportStatus, type ExportJobStatus } from "../api/client";
 import { requestWellnessExport } from "../api/wellness-export";
@@ -253,16 +253,15 @@ export function WellnessExportModal({ open, onClose }: Props) {
                 Your export is ready. Open it in a browser and print to PDF to share.
               </p>
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <a
+                <ButtonLink
                   href={getDataExportDownloadUrl(jobId)}
-                  className="jds-btn jds-btn--primary jds-btn--sm"
+                  variant="primary"
+                  size="sm"
+                  icon={<DownloadIcon />}
                   download
                 >
-                  <span className="jds-btn__icon">
-                    <DownloadIcon />
-                  </span>
                   Download
-                </a>
+                </ButtonLink>
                 <Button variant="quiet" size="sm" onClick={reset}>
                   Start a new export
                 </Button>

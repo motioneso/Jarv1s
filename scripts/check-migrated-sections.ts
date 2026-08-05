@@ -49,13 +49,21 @@ export const MIGRATED_SECTION_PATHS: readonly string[] = [
   "apps/web/src/today/proactive-cards.tsx",
   "apps/web/src/today/today-page.tsx",
   "apps/web/src/today/today-suggested-email.tsx",
-  // #1392 Wellness. export-modal.tsx is deliberately NOT listed here yet: its one remaining raw
-  // jds-btn string is an <a href download> that needs ButtonLink (owned by #1391, not yet merged —
-  // do not build a second ButtonLink for this section). Adding this path before ButtonLink lands
-  // would red guard 5 on a violation this PR cannot fix without duplicating #1391's work. Add it
-  // once ButtonLink ships and the anchor migrates.
+  "apps/web/src/onboarding/api-key-opt-out-step.tsx",
+  "apps/web/src/onboarding/cli-auth-step.tsx",
+  "apps/web/src/onboarding/connector-step.tsx",
+  "apps/web/src/onboarding/google-connector-step.tsx",
+  "apps/web/src/onboarding/member-connector-step.tsx",
+  "apps/web/src/onboarding/member-welcome-step.tsx",
+  "apps/web/src/onboarding/onboarding-ui.tsx",
+  "apps/web/src/onboarding/onboarding-wizard.tsx",
+  "apps/web/src/onboarding/section-tour-step.tsx",
+  "apps/web/src/onboarding/skip-confirm.tsx",
+  "apps/web/src/onboarding/welcome-step.tsx",
+  // #1392 Wellness.
   "apps/web/src/wellness/checkin-detail-fields.tsx",
   "apps/web/src/wellness/checkin-modal.tsx",
+  "apps/web/src/wellness/export-modal.tsx",
   "apps/web/src/wellness/manage-meds-modal.tsx",
   "apps/web/src/wellness/radial-dial.tsx",
   "apps/web/src/wellness/wellness-chart.tsx",

@@ -118,6 +118,16 @@ test("capture: onboarding wizard", async ({ page }) => {
   await page.goto("/");
   await page.waitForTimeout(800);
   await shot(page, "02-onboarding");
+
+  // Founder order is welcome -> cliAuth -> connectors -> finish; continueStep() advances
+  // unconditionally, so no auth or mocked completion is needed to walk the wizard forward.
+  await page.getByRole("button", { name: "Start setup" }).click();
+  await page.getByRole("heading", { name: "Connect your AI provider." }).waitFor();
+  await shot(page, "02b-onboarding-cliauth");
+
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("heading", { name: "Connect to email and calendar" }).waitFor();
+  await shot(page, "02c-onboarding-connectors");
 });
 
 test("capture: today + chat drawer", async ({ page }) => {
