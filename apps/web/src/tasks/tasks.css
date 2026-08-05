@@ -4,22 +4,10 @@
 .tk-modal__titlein {
   width: 100%;
   box-sizing: border-box;
-  border: 0;
-  background: transparent;
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 600;
   letter-spacing: -0.012em;
   line-height: 1.15;
-  color: var(--text);
   margin-top: 4px;
   padding: 0;
-}
-.tk-modal__titlein:focus {
-  outline: none;
-}
-.tk-modal__titlein::placeholder {
-  color: var(--text-faint);
 }
 
 /* Status split button: Complete (toggles done) + caret for Archive / Reopen. */
@@ -40,7 +28,6 @@
 .tk-effort-fill {
   display: inline-flex;
   align-items: center;
-  color: var(--text-subtle);
 }
 
 /* Subtask quick-add input inside the Details modal (edit mode). */
@@ -52,18 +39,7 @@
 .tk-subadd input {
   flex: 1;
   min-width: 0;
-  border: 0;
-  background: transparent;
-  font-family: var(--font-sans);
-  font-size: 14px;
-  color: var(--text);
   padding: 6px 0;
-}
-.tk-subadd input:focus {
-  outline: none;
-}
-.tk-subadd input::placeholder {
-  color: var(--text-faint);
 }
 
 .task-capture {
@@ -130,17 +106,8 @@
     width: 32px;
     height: 32px;
     padding: 0;
-    background: transparent;
-    border: none;
-    border-radius: 6px;
-    color: var(--text-faint);
     cursor: pointer;
     flex-shrink: 0;
-  }
-  .tk-msrch:hover,
-  .tk-msrch.is-active {
-    background: var(--surface-hover);
-    color: var(--text);
   }
   /* #404: hide the "· N hidden" count text on mobile so the list-filter button
      stays narrow when lists are excluded. Users open the dropdown to see state. */

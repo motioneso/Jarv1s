@@ -1,0 +1,593 @@
+/* ── Tasks & notifications — visual declarations extracted from kit-tasks.css,
+   kit-tasks-modal.css, tasks.css (#1393). Layout remains in the app-side files;
+   this file owns color, background, border, radius, font, shadow, outline,
+   fill/stroke/filter per selector. Source order preserved so intra-section
+   cascade overrides survive. */
+
+/* ---- from kit-tasks.css ---- */
+.tk-bar__sep {
+  background: var(--border-subtle);
+}
+.tk-tagfield {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.tk-tagfield:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--forest-soft);
+}
+.tk-tagfield .ic {
+  color: var(--text-faint);
+}
+.tk-tagfield input {
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--text);
+}
+.tk-tagfield input:focus {
+  outline: none;
+}
+.tk-tagfield input::placeholder {
+  color: var(--text-faint);
+}
+.tk-tagfield__action {
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+}
+.tk-tagfield__action:hover:not(:disabled) {
+  background: var(--forest-soft);
+  color: var(--forest-ink);
+}
+.tk-tagmenu {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.tk-tagmenu__hd {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+.tk-tagmenu__item {
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--text);
+}
+.tk-tagmenu__item:hover,
+.tk-tagmenu__item.is-active {
+  background: var(--forest-soft);
+  color: var(--forest-ink);
+}
+.tk-tagmenu__item .hash {
+  font-family: var(--font-sans);
+  color: var(--text-faint);
+}
+.tk-tagmenu__item:hover .hash,
+.tk-tagmenu__item.is-active .hash {
+  color: var(--accent-fg);
+}
+.tk-tagmenu__empty {
+  font-size: 12.5px;
+  color: var(--text-subtle);
+}
+.tk-tagmenu__item .ct {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.tk-tagmenu__item.is-active .ct,
+.tk-tagmenu__item:hover .ct {
+  color: var(--accent-fg);
+}
+.tk-listbtn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.tk-listbtn:hover {
+  border-color: var(--border-strong);
+}
+.tk-listbtn.is-open {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--forest-soft);
+}
+.tk-listbtn__dot {
+  border-radius: 50%;
+}
+.tk-listbtn__chev {
+  color: var(--text-faint);
+}
+.tk-listbtn.is-on {
+  border-color: var(--border-strong);
+}
+.tk-listbtn__hidden {
+  color: var(--text-faint);
+  font-weight: 500;
+}
+.tk-tagmenu__item.is-solo {
+  background: var(--forest-soft);
+}
+.tk-tagmenu__item.is-solo .nm {
+  font-weight: 700;
+  color: var(--forest-ink);
+}
+.tk-liststate {
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+}
+.tk-liststate--only {
+  background: var(--accent);
+  color: var(--white);
+}
+.tk-liststate--hidden {
+  background: var(--surface-3);
+  color: var(--text-subtle);
+}
+.tk-tagmenu__hint {
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.tk-activetags__lbl {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+.tk-activetags__clear {
+  border: 0;
+  background: transparent;
+  color: var(--text-subtle);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+.tk-activetags__clear:hover {
+  color: var(--text);
+}
+.tk-activetags__note {
+  color: var(--text-subtle);
+  font-size: 12.5px;
+}
+.tk-add {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+.tk-add:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--forest-soft);
+}
+.tk-add__plus {
+  color: var(--accent-fg);
+}
+.tk-add input {
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  color: var(--text);
+}
+.tk-add input:focus {
+  outline: none;
+}
+.tk-add input::placeholder {
+  color: var(--text-faint);
+}
+.tk-task {
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+}
+.tk-task:hover {
+  background: var(--surface-2);
+  box-shadow: var(--shadow-sm);
+}
+.tk-task__bar {
+  border-radius: var(--radius-pill);
+}
+.tk-task__main {
+  background: transparent;
+  border: 0;
+  color: inherit;
+}
+.tk-task__title {
+  font-size: 15px;
+  color: var(--text);
+}
+.tk-task--done .tk-task__title {
+  color: var(--text-subtle);
+}
+.tk-meta-due {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.tk-meta-due--overdue,
+.tk-meta-due--today {
+  color: var(--amber-ink);
+}
+.tk-listchip {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-subtle);
+}
+.tk-listchip__dot {
+  border-radius: 50%;
+}
+.tk-metatag {
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.tk-metatag:hover {
+  color: var(--accent-fg);
+}
+.tk-metamini {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.tk-task__src {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.tk-task__open {
+  color: var(--text-faint);
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-sm);
+}
+.tk-task__open:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.tk-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+.tk-panel__head {
+  background: var(--surface-2);
+}
+.tk-panel__dot {
+  border-radius: 50%;
+}
+.tk-panel__name {
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.tk-panel__count {
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.tk-quad {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+.tk-quad__tag {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.tk-quad__tag .dot {
+  border-radius: 50%;
+}
+.tk-quad__verb {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+.tk-quad__n {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.tk-quad__empty {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+.tk-quad--do .tk-quad__head {
+  background: var(--forest-soft);
+}
+.tk-quad--do .tk-quad__tag {
+  color: var(--forest-ink);
+}
+.tk-quad--do .tk-quad__tag .dot {
+  background: var(--accent);
+}
+.tk-quad--schedule .tk-quad__head {
+  background: var(--steel-soft);
+}
+.tk-quad--schedule .tk-quad__tag {
+  color: var(--steel-ink);
+}
+.tk-quad--schedule .tk-quad__tag .dot {
+  background: var(--steel);
+}
+.tk-quad--delegate .tk-quad__head {
+  background: var(--amber-soft);
+}
+.tk-quad--delegate .tk-quad__tag {
+  color: var(--amber-ink);
+}
+.tk-quad--delegate .tk-quad__tag .dot {
+  background: var(--amber);
+}
+.tk-quad--eliminate .tk-quad__head {
+  background: var(--surface-2);
+}
+.tk-quad--eliminate .tk-quad__tag {
+  color: var(--text-subtle);
+}
+.tk-quad--eliminate .tk-quad__tag .dot {
+  background: var(--ink-4);
+}
+.tk-foot {
+  color: var(--text-subtle);
+  font-size: 13px;
+}
+.tk-foot .ic {
+  color: var(--text-faint);
+}
+
+/* ---- from kit-tasks-modal.css ---- */
+.tk-modal__eyebrow {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--accent-fg);
+}
+.tk-modal__x {
+  border-radius: var(--radius-md);
+  border: 0;
+  background: transparent;
+  color: var(--text-subtle);
+}
+.tk-modal__x:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.tk-textarea {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+}
+.tk-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--forest-soft);
+}
+.tk-tagedit {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.tk-tagedit:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--forest-soft);
+}
+.tk-tagedit input {
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--text);
+}
+.tk-tagedit input:focus {
+  outline: none;
+}
+.tk-tagsugg__btn {
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--text-subtle);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+}
+.tk-tagsugg__btn:hover {
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.tk-sub__box {
+  border-radius: 5px;
+  border: 1.5px solid var(--border-strong);
+  color: var(--white);
+}
+.tk-sub__box.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.tk-sub input {
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text);
+}
+.tk-sub input:focus {
+  outline: none;
+}
+.tk-sub--done input {
+  color: var(--text-subtle);
+}
+.tk-sub__rm {
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  border-radius: var(--radius-sm);
+}
+.tk-sub__rm:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.tk-sub__add {
+  border: 0;
+  background: transparent;
+  color: var(--accent-fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+}
+.tk-ava {
+  border-radius: 50%;
+  color: var(--white);
+  font-family: var(--font-sans);
+  font-weight: 700;
+}
+.tk-peoplefield {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.tk-peoplefield:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--forest-soft);
+}
+.tk-peoplefield input {
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--text);
+}
+.tk-peoplefield input:focus,
+.tk-peoplefield input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.tk-person {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.tk-person:hover {
+  border-color: var(--border-strong);
+}
+.tk-person__me {
+  color: var(--text-faint);
+  font-weight: 500;
+}
+.tk-act__who {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.tk-act__when {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.tk-act__text {
+  font-size: 14px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px 12px 12px 12px;
+}
+.tk-act__text .mention {
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+.tk-act-composer {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.tk-act-composer:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--forest-soft);
+  background: var(--surface);
+}
+.tk-act-composer textarea {
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--text);
+}
+.tk-act-composer textarea:focus,
+.tk-act-composer textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.tk-act-composer textarea::placeholder {
+  color: var(--text-faint);
+}
+.tk-act-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.tk-add input:focus-visible,
+.tk-tagfield input:focus-visible,
+.tk-tagedit input:focus-visible,
+.tk-sub input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* ---- from tasks.css ---- */
+.tk-modal__titlein {
+  border: 0;
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+}
+.tk-modal__titlein:focus {
+  outline: none;
+}
+.tk-modal__titlein::placeholder {
+  color: var(--text-faint);
+}
+.tk-effort-fill {
+  color: var(--text-subtle);
+}
+.tk-subadd input {
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text);
+}
+.tk-subadd input:focus {
+  outline: none;
+}
+.tk-subadd input::placeholder {
+  color: var(--text-faint);
+}
+@media (max-width: 560px) {
+  .tk-msrch {
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-faint);
+  }
+  .tk-msrch:hover,
+  .tk-msrch.is-active {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+}
