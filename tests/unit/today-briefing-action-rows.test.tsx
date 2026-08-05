@@ -92,6 +92,54 @@ describe("BriefingActionRowsSection", () => {
     expect(html).not.toContain("Blank cache id");
   });
 
+  it("uses authored fallback prose and category-specific pre-run actions", () => {
+    const suggestionMetadata = {
+      version: 1 as const,
+      sourceLabel: "Email",
+      cacheMessageId: "cache-valid",
+      subjectSignature: "subject",
+      computedAt: "2026-08-04T12:00:00.000Z",
+      resurfaceReason: null
+    };
+    const html = renderSection({
+      run: null,
+      tasks: [
+        task({
+          id: "reply",
+          status: "suggested",
+          suggestionMetadata: {
+            ...suggestionMetadata,
+            category: "needs_reply",
+            sourceHref: null
+          }
+        }),
+        task({
+          id: "view",
+          status: "suggested",
+          suggestionMetadata: {
+            ...suggestionMetadata,
+            category: "needs_action",
+            sourceHref: "https://mail.example.test/thread/1"
+          }
+        }),
+        task({
+          id: "linkless-view",
+          status: "suggested",
+          suggestionMetadata: {
+            ...suggestionMetadata,
+            category: "time_sensitive_info",
+            sourceHref: null
+          }
+        })
+      ]
+    });
+
+    expect(html.match(/This email may need your attention\./g)).toHaveLength(3);
+    expect(html.match(/>Reply</g)).toHaveLength(1);
+    expect(html).toContain('href="https://mail.example.test/thread/1"');
+    expect(html.match(/>View</g)).toHaveLength(1);
+  });
+
   it("Reply prompt never interpolates title or explanation", () => {
     expect(buildReplyChatPrompt("cache-123")).toBe(
       "Draft a reply to the cached email cache-123 using email.draftReply."

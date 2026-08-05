@@ -96,6 +96,7 @@ describe("structured briefing action rows", () => {
     expect(result.payload.actionRows).toHaveLength(1);
     expect(result.payload.actionRows[0]).toMatchObject({
       taskId: "missing-link",
+      explanation: "This email may need your attention.",
       primaryAction: null,
       sourceHref: null
     });

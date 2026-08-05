@@ -118,7 +118,7 @@ export function projectActionRows(tasks: readonly unknown[]): ActionRowCollectio
           row: {
             taskId: task.id,
             title: task.title,
-            explanation: task.description ?? "",
+            explanation: task.description ?? "This email may need your attention.",
             category: metadata.category,
             status: "suggested",
             primaryAction: action,

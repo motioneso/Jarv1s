@@ -288,10 +288,15 @@ function rowsFromSuggestedTasks(tasks: readonly TaskDto[]): readonly DisplayedAc
       row: {
         taskId: task.id,
         title: task.title,
-        explanation: task.description ?? "",
+        explanation: task.description ?? "This email may need your attention.",
         category: meta.category,
         status: "suggested",
-        primaryAction: { kind: "reply", cacheMessageId: meta.cacheMessageId },
+        primaryAction:
+          meta.category === "needs_reply"
+            ? { kind: "reply", cacheMessageId: meta.cacheMessageId }
+            : meta.sourceHref?.trim()
+              ? { kind: "view", href: meta.sourceHref }
+              : null,
         source: task.source,
         sourceLabel: meta.sourceLabel,
         sourceRef: task.sourceRef ?? "",
