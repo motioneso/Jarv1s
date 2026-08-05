@@ -167,11 +167,11 @@ describe("job-search manifest: worker queues, schedule, and risk levels (#1299)"
     return result.manifest;
   }
 
-  it("declares crawl.run and crawl.sweep among worker.queues", () => {
+  it("declares crawl.run and manually runnable crawl.sweep among worker.queues", () => {
     const manifest = loadValidatedManifest();
     const queuesByHandler = new Map((manifest.worker?.queues ?? []).map((q) => [q.handler, q]));
     expect(queuesByHandler.has("crawl.run")).toBe(true);
-    expect(queuesByHandler.has("crawl.sweep")).toBe(true);
+    expect(queuesByHandler.get("crawl.sweep")?.allowManualRun).toBe(true);
   });
 
   it("queues[0].timeoutMs is 600000 — a crawl+score pass gets the full ten minutes", () => {
