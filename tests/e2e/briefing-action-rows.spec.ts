@@ -95,6 +95,17 @@ test("morning and evening prose and action rows render accept dismiss view reply
   });
   const state: MockApiState = {
     authenticated: true,
+    onboardingStatus: {
+      role: "founder",
+      state: "completed",
+      steps: {
+        cliAuth: {
+          done: true,
+          providers: [{ kind: "anthropic", cliPresent: true, installState: "ready" }]
+        },
+        connectors: { done: false }
+      }
+    },
     chatThreads: [],
     connectorAccounts: [],
     connectorProviders: createMockConnectorProviders(),
