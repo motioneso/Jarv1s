@@ -10,6 +10,7 @@ import {
   type TaskEffort,
   type TaskListDto
 } from "@jarv1s/shared";
+import { Button } from "@jarv1s/ui";
 
 import { formatDate, useUserLocale } from "../locale/locale-format.js";
 import { effortLabels } from "./task-format.js";
@@ -259,22 +260,22 @@ export function TaskRow(props: {
       <div className="tk-task__right">
         {suggested ? (
           <>
-            <button
-              type="button"
-              className="jds-btn jds-btn--sm jds-btn--secondary"
+            <Button
               disabled={props.isUpdating}
+              size="sm"
+              variant="secondary"
               onClick={() => props.onAccept?.(task)}
             >
               Accept
-            </button>
-            <button
-              type="button"
-              className="jds-btn jds-btn--sm jds-btn--quiet"
+            </Button>
+            <Button
               disabled={props.isUpdating}
+              size="sm"
+              variant="quiet"
               onClick={() => props.onDismiss?.(task)}
             >
               Dismiss
-            </button>
+            </Button>
           </>
         ) : null}
         {!compact && task.effort ? <EffortDot effort={task.effort} /> : null}
