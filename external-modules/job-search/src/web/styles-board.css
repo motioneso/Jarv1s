@@ -95,7 +95,6 @@
 }
 
 .jsm-row__scores strong {
-  color: var(--jds-text);
   font-variant-numeric: tabular-nums;
 }
 
