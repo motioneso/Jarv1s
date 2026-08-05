@@ -203,6 +203,15 @@
       "flags": []
     },
     {
+      "name": "empty-state",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/empty-state.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["EmptyState"],
+      "options": [],
+      "flags": []
+    },
+    {
       "name": "event-chip",
       "type": "registry:ui",
       "files": [{ "path": "packages/ui/src/event-chip.tsx", "type": "registry:ui" }],
@@ -217,6 +226,15 @@
           "default": null
         }
       ],
+      "flags": []
+    },
+    {
+      "name": "field",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/field.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Field", "FormLabel"],
+      "options": [],
       "flags": []
     },
     {
