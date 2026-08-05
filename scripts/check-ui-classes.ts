@@ -20,6 +20,8 @@ const rootDirectory = process.cwd();
 
 const DEFINITION_FILES = [
   "packages/ui/src/styles/components-core.css",
+  "packages/ui/src/styles/components-empty.css",
+  "packages/ui/src/styles/components-forms.css",
   "packages/ui/src/styles/components-jarvis.css",
   "packages/ui/src/styles/components-jarvis-today.css",
   "apps/web/src/styles/command-palette.css",
