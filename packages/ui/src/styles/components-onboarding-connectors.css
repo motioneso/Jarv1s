@@ -10,7 +10,7 @@
 .onb-provmini__name {
   color: var(--text-muted);
   font-size: 0.82rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-connector {
@@ -30,7 +30,7 @@
 .onb-connector__title {
   color: var(--text);
   font-size: 0.9rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-connector__sub,
@@ -52,7 +52,7 @@
   color: var(--accent-fg);
   font-family: var(--font-sans);
   font-size: 0.75rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-guide__t {
@@ -67,7 +67,7 @@
   color: var(--forest-ink);
   font-family: var(--font-sans);
   font-size: 0.72rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-guide__link {
@@ -76,7 +76,7 @@
   background: var(--surface);
   color: var(--accent-fg);
   font-size: 0.78rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-cred {
@@ -86,7 +86,7 @@
 .onb-cred__lbl {
   color: var(--text-muted);
   font-size: 0.78rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-cred__in {
@@ -187,13 +187,13 @@
 .onb-acct__email {
   color: var(--text);
   font-size: 0.88rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-acct__health {
   color: var(--forest-ink);
   font-size: 0.75rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-acct__health .dot {
@@ -227,7 +227,7 @@
 .onb-addmore__t {
   color: var(--text);
   font-size: 0.84rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-addmore__s {
@@ -252,7 +252,7 @@
   color: var(--text);
   font-family: var(--font-display);
   font-size: 1.125rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-tour__job {
@@ -269,7 +269,7 @@
 .onb-keyfield__lbl {
   color: var(--text-muted);
   font-size: 0.75rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-keyfield__lbl .ic {
@@ -298,7 +298,7 @@
   color: var(--text);
   font-family: var(--font-display);
   font-size: 2.25rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-finish__lede {
@@ -335,7 +335,7 @@
 .onb-recap__v {
   color: var(--text);
   font-size: 0.85rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-recap__v .mono {

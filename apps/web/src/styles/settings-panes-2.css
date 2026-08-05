@@ -38,7 +38,7 @@
 }
 .ai-empty__t {
   font-size: 14.5px;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 .ai-empty__d {
   font-size: 12.5px;
@@ -361,7 +361,7 @@
   align-items: center;
   gap: 9px;
   font-size: 15px;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 .prov__auth {
   display: flex;

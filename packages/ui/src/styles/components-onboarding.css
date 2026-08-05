@@ -70,7 +70,7 @@
   color: var(--text-subtle);
   font-family: var(--font-sans);
   font-size: 0.7rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb__step.is-current .onb__step__dot {
@@ -92,7 +92,7 @@
 .onb__step__label {
   color: var(--text);
   font-size: 0.86rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb__step__state {
@@ -338,7 +338,7 @@
 .onb-opt__name {
   color: var(--text);
   font-size: 0.97rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-opt__mono {
@@ -426,7 +426,7 @@
   background: var(--surface);
   color: var(--text);
   font-size: 0.82rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-auth__note {
@@ -457,7 +457,7 @@
   background: transparent;
   color: var(--text-subtle);
   font-size: 0.78rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-auth__re:hover,
@@ -494,7 +494,7 @@
 .onb-cli__guide {
   color: var(--accent-fg);
   font-size: 0.78rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-uses {
@@ -515,7 +515,7 @@
 .onb-use__label {
   color: var(--text);
   font-size: 0.9rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-use__sub {
@@ -578,7 +578,7 @@
 .onb-prov__cta {
   color: var(--accent-fg);
   font-size: 0.85rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 .onb-provmini__soon {
