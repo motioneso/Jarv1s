@@ -67,6 +67,30 @@
       ]
     },
     {
+      "name": "button-link",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/button-link.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["ButtonLink"],
+      "options": [
+        {
+          "prop": "variant",
+          "kind": "enum",
+          "values": ["primary", "secondary", "quiet", "accentSoft", "danger"],
+          "optional": true,
+          "default": "primary"
+        },
+        {
+          "prop": "size",
+          "kind": "enum",
+          "values": ["sm", "md", "lg"],
+          "optional": true,
+          "default": "md"
+        }
+      ],
+      "flags": [{ "prop": "block", "optional": true }]
+    },
+    {
       "name": "button",
       "type": "registry:ui",
       "files": [{ "path": "packages/ui/src/button.tsx", "type": "registry:ui" }],

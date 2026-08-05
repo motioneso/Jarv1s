@@ -1,15 +1,13 @@
 /* wellness-3.css — supplemental wellness styles: mobile chart legibility (#386) and the
    as-needed (PRN) dose-entry affordance (#387).
    Loaded AFTER wellness-1.css / wellness-2.css so these overrides win.
-   Kept in a separate file to respect the 1000-line per-file cap (wellness-1/-2 are near it). */
+   Kept in a separate file to respect the 1000-line per-file cap (wellness-1/-2 are near it).
+   Layout only — visual declarations for these selectors live in
+   packages/ui/src/styles/components-wellness-1.css and components-wellness-2.css (#1392). */
 
 /* ── PRN ("as needed") dose entry (#387) ── */
 .wl-prn {
   padding: 7px 4px 7px 0;
-  border-bottom: 1px solid var(--border-subtle);
-}
-.wl-prn:last-child {
-  border-bottom: 0;
 }
 .wl-prn__row {
   display: flex;
@@ -23,9 +21,6 @@
 }
 .wl-prn__count {
   flex: none;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--accent-fg);
   font-variant-numeric: tabular-nums;
 }
 .wl-prn__log {
@@ -34,18 +29,8 @@
   align-items: center;
   gap: 5px;
   padding: 5px 11px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--forest-soft-2);
-  background: var(--forest-soft);
-  color: var(--forest-ink);
-  font-size: 12px;
-  font-weight: 600;
   cursor: pointer;
   transition: var(--transition-control);
-}
-.wl-prn__log:hover {
-  border-color: var(--accent);
-  background: var(--surface);
 }
 .wl-prn__panel {
   margin-top: 9px;
@@ -60,32 +45,12 @@
 }
 .wl-prn__chip {
   padding: 4px 10px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-subtle);
-  font-size: 12px;
   cursor: pointer;
   transition: var(--transition-control);
-}
-.wl-prn__chip.is-on {
-  border-color: var(--accent);
-  background: var(--forest-soft);
-  color: var(--forest-ink);
-  font-weight: 600;
 }
 .wl-prn__input {
   width: 100%;
   padding: 7px 10px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 13px;
-}
-.wl-prn__input:focus {
-  outline: none;
-  border-color: var(--accent);
 }
 .wl-prn__actions {
   display: flex;
@@ -110,14 +75,6 @@
     /* taller aspect at narrow widths so the mood band + meds row breathe */
     height: auto;
   }
-
-  /* Bump the in-SVG axis text so it stays readable at the held scale. */
-  .wl-axislbl {
-    font-size: 13px;
-  }
-  .wl-axislbl--ov {
-    font-size: 13.5px;
-  }
 }
 
 /* ── Export modal form utilities (#509) ── */
@@ -129,15 +86,11 @@
 }
 
 .wl-field__label {
-  font-size: 12px;
-  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-faint);
 }
 
 .wl-fieldset {
-  border: 0;
   padding: 0;
   margin: 0;
   display: flex;
@@ -146,47 +99,28 @@
 }
 
 .wl-fieldset > legend {
-  font-size: 12px;
-  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-faint);
   margin-bottom: 6px;
 }
 
 .wl-input {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
   padding: 8px 10px;
-  font-family: var(--font-sans);
-  font-size: 14px;
-  color: var(--text);
-  background: var(--surface);
   line-height: 1.4;
 }
 
-.wl-input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--forest-soft);
-}
-
 .wl-modal__desc {
-  font-size: 14px;
-  color: var(--text-muted);
   line-height: 1.6;
 }
 
 .wl-modal__note {
-  font-size: 13.5px;
-  color: var(--text-subtle);
   line-height: 1.5;
 }
 
-.wl-modal__note--error {
-  color: var(--danger-fg);
+.wl-consent-text {
+  line-height: 1.5;
 }
 
 .wl-modal__progress,
@@ -195,4 +129,26 @@
   flex-direction: column;
   gap: 10px;
   padding: 8px 0;
+}
+
+/* ── Manage medications modal ── */
+
+.wl-medmodal__input {
+  padding: 8px 12px;
+}
+
+.wl-freqbtn {
+  flex: 1;
+  padding: 7px 0;
+  cursor: pointer;
+}
+
+.wl-medmodal__timeinput {
+  padding: 7px 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.wl-medmodal__error {
+  margin-top: 2px;
 }

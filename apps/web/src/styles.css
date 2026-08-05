@@ -130,7 +130,7 @@ label {
   gap: 0.35rem;
   color: var(--muted);
   font-size: 0.84rem;
-  font-weight: 650;
+  font-weight: var(--weight-strong);
 }
 
 input,

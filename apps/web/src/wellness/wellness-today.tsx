@@ -270,8 +270,8 @@ function MedToday({ theme: _theme, onManage, timeZone }: MedTodayProps) {
         <span className="r">
           <button
             type="button"
-            className="ghost-button"
-            style={{ fontSize: 12, padding: "4px 10px", minHeight: "unset", gap: 5 }}
+            className="ghost-button wl-fs12"
+            style={{ padding: "4px 10px", minHeight: "unset", gap: 5 }}
             onClick={onManage}
           >
             <Settings2Icon />
@@ -281,7 +281,7 @@ function MedToday({ theme: _theme, onManage, timeZone }: MedTodayProps) {
       </div>
       <div className="wl-medlist">
         {scheduleQuery.isError ? (
-          <p style={{ fontSize: 13, color: "var(--text-subtle)", padding: "4px 0" }}>
+          <p className="wl-subtle-text" style={{ padding: "4px 0" }}>
             Couldn&apos;t load schedule — try refreshing.
           </p>
         ) : null}
@@ -352,8 +352,8 @@ function MedToday({ theme: _theme, onManage, timeZone }: MedTodayProps) {
                             <div className="wl-prn__actions">
                               <button
                                 type="button"
-                                className="ghost-button"
-                                style={{ fontSize: 12, padding: "5px 12px", minHeight: "unset" }}
+                                className="ghost-button wl-fs12"
+                                style={{ padding: "5px 12px", minHeight: "unset" }}
                                 onClick={() => {
                                   setPrnOpenFor(null);
                                   setPrnReason("");
@@ -363,8 +363,8 @@ function MedToday({ theme: _theme, onManage, timeZone }: MedTodayProps) {
                               </button>
                               <button
                                 type="button"
-                                className="primary-button"
-                                style={{ fontSize: 12, padding: "5px 12px", minHeight: "unset" }}
+                                className="primary-button wl-fs12"
+                                style={{ padding: "5px 12px", minHeight: "unset" }}
                                 disabled={logMutation.isPending}
                                 onClick={() => logPrnDose(slot.medicationId)}
                               >
@@ -422,32 +422,15 @@ function MedToday({ theme: _theme, onManage, timeZone }: MedTodayProps) {
             );
           })}
         {!scheduleQuery.isError && slots.length === 0 ? (
-          <p style={{ fontSize: 13, color: "var(--text-subtle)", padding: "4px 0" }}>
+          <p className="wl-subtle-text" style={{ padding: "4px 0" }}>
             No medications scheduled.
           </p>
         ) : null}
       </div>
       <div className="wl-medfoot">
         <span className="wl-medfoot__bar">
-          <span
-            style={{
-              display: "block",
-              height: 4,
-              borderRadius: 2,
-              background: "var(--surface-3)",
-              overflow: "hidden"
-            }}
-          >
-            <span
-              style={{
-                display: "block",
-                height: "100%",
-                width: `${pct}%`,
-                background: "var(--accent)",
-                borderRadius: 2,
-                transition: "width .3s ease"
-              }}
-            />
+          <span className="wl-medfoot__track">
+            <span className="wl-medfoot__fill" style={{ width: `${pct}%` }} />
           </span>
         </span>
         <span className="wl-medfoot__ct">
@@ -524,7 +507,7 @@ function CheckinToday({
                   }
                   onClick={() => onSeed(em.core)}
                 >
-                  <span className="wl-emostrip__dot" style={{ background: c.tint }} />
+                  <span className="wl-emostrip__dot" />
                   <span className="wl-emostrip__name">{coreLabel(em.core)}</span>
                 </button>
               );
@@ -588,8 +571,8 @@ function CheckinToday({
           {StreakChip}
           <button
             type="button"
-            className="ghost-button"
-            style={{ fontSize: 12, padding: "4px 10px", minHeight: "unset", gap: 5 }}
+            className="ghost-button wl-fs12"
+            style={{ padding: "4px 10px", minHeight: "unset", gap: 5 }}
             onClick={onStart}
           >
             <PlusIcon />
@@ -597,8 +580,8 @@ function CheckinToday({
           </button>
           <button
             type="button"
-            className="ghost-button"
-            style={{ fontSize: 12, padding: "4px 10px", minHeight: "unset", gap: 5 }}
+            className="ghost-button wl-fs12"
+            style={{ padding: "4px 10px", minHeight: "unset", gap: 5 }}
             onClick={onEdit}
           >
             <PencilIcon />
@@ -608,8 +591,8 @@ function CheckinToday({
       </div>
       <div className="wl-done">
         <div className="wl-done__top">
-          <span className="wl-done__chip" style={{ background: c.soft, color: c.ink }}>
-            <span className="d" style={{ background: c.tint }} />
+          <span className="wl-done__chip">
+            <span className="d" />
             {coreLabel(core)}
           </span>
           <span className="wl-done__feeling">{latestCheckin.feelingSecondary}</span>
@@ -646,10 +629,7 @@ function CheckinToday({
             {[1, 2, 3, 4, 5].map((n) => (
               <span
                 key={n}
-                className="wl-intens__pip"
-                style={{
-                  background: n <= (latestCheckin.intensity ?? 0) ? c.tint : "var(--surface-3)"
-                }}
+                className={`wl-intens__pip${n <= (latestCheckin.intensity ?? 0) ? " wl-intens__pip--filled" : ""}`}
               />
             ))}
           </span>
@@ -661,7 +641,7 @@ function CheckinToday({
         ) : null}
       </div>
       {todayCheckins.length > 1 ? (
-        <div style={{ fontSize: 12, color: "var(--text-subtle)", padding: "4px 16px 12px" }}>
+        <div className="wl-fs12 wl-text-subtle" style={{ padding: "4px 16px 12px" }}>
           {todayCheckins.length} check-ins today
         </div>
       ) : null}

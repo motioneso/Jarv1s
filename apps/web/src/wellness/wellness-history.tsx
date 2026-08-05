@@ -118,30 +118,13 @@ export function WellnessHistory({
         <div className="wl-sec__title">Check-in history</div>
         <div className="wl-sec__aside">
           {filter === "notes" ? (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 12,
-                padding: "4px 10px",
-                background: "var(--surface-2)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-pill)"
-              }}
-            >
+            <span className="wl-filter-pill">
               Noted sad / angry check-ins
               <button
                 type="button"
+                className="wl-filter-pill__x"
                 aria-label="Clear filter"
                 onClick={onClearFilter}
-                style={{
-                  display: "inline-flex",
-                  border: 0,
-                  background: "transparent",
-                  cursor: "pointer",
-                  padding: 0
-                }}
               >
                 <SmallXIcon />
               </button>
@@ -152,11 +135,7 @@ export function WellnessHistory({
         </div>
       </div>
       <div className="wl-history">
-        {shown.length === 0 ? (
-          <div style={{ padding: "20px 6px", color: "var(--text-subtle)", fontSize: 14 }}>
-            No check-ins match.
-          </div>
-        ) : null}
+        {shown.length === 0 ? <div className="wl-history__empty">No check-ins match.</div> : null}
         {shown.map((ck) => {
           const fullIso = ck.checkedInAt ?? ck.createdAt ?? "";
           const iso = fullIso ? localDay(fullIso, timezone) : "";
@@ -195,11 +174,12 @@ export function WellnessHistory({
                     </span>
                   )}
                 </span>
-                <span className="wl-hrow__emo">
-                  <span className="d" style={{ background: c.tint }} />
-                  <span className="nm" style={{ color: c.ink }}>
-                    {coreLabel(ck.feelingCore)}
-                  </span>
+                <span
+                  className="wl-hrow__emo"
+                  style={{ "--em-tint": c.tint, "--em-ink": c.ink } as React.CSSProperties}
+                >
+                  <span className="d" />
+                  <span className="nm">{coreLabel(ck.feelingCore)}</span>
                 </span>
                 <span className="wl-hrow__feel">{ck.feelingSecondary}</span>
                 <span className="wl-hrow__meta">
@@ -209,15 +189,7 @@ export function WellnessHistory({
                     </span>
                   ) : null}
                   <span
-                    className="wl-hrow__mood"
-                    style={{
-                      color:
-                        v > 0
-                          ? "var(--accent-fg)"
-                          : v < 0
-                            ? "var(--text-muted)"
-                            : "var(--text-subtle)"
-                    }}
+                    className={`wl-hrow__mood ${v > 0 ? "wl-hrow__mood--pos" : v < 0 ? "wl-hrow__mood--neg" : "wl-hrow__mood--neutral"}`}
                   >
                     {v > 0 ? "+" : ""}
                     {v}
@@ -242,15 +214,7 @@ export function WellnessHistory({
                   {ck.note ? (
                     <div className="wl-hdetail__note">{ck.note}</div>
                   ) : (
-                    <div
-                      style={{
-                        fontSize: 13.5,
-                        color: "var(--text-faint)",
-                        fontStyle: "italic"
-                      }}
-                    >
-                      No note on this one.
-                    </div>
+                    <div className="wl-hdetail__empty">No note on this one.</div>
                   )}
                   <div className="wl-hdetail__foot">
                     <span className="wl-hdetail__time">
@@ -260,13 +224,8 @@ export function WellnessHistory({
                     <span style={{ flex: 1 }} />
                     <button
                       type="button"
-                      className="secondary-button"
-                      style={{
-                        fontSize: 12,
-                        padding: "4px 10px",
-                        minHeight: "unset",
-                        gap: 5
-                      }}
+                      className="secondary-button wl-fs12"
+                      style={{ padding: "4px 10px", minHeight: "unset", gap: 5 }}
                       onClick={() => onEdit(ck.id)}
                     >
                       <PencilIcon />
@@ -283,8 +242,8 @@ export function WellnessHistory({
         <div className="wl-history__more">
           <button
             type="button"
-            className="ghost-button"
-            style={{ fontSize: 12, padding: "5px 14px", minHeight: "unset" }}
+            className="ghost-button wl-fs12"
+            style={{ padding: "5px 14px", minHeight: "unset" }}
             onClick={() => setLimit((l) => l + 10)}
           >
             Show {Math.min(10, rows.length - limit)} more

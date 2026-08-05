@@ -3,3 +3,7 @@
 @import "./styles/components-jarvis-today.css";
 @import "./styles/components-calendar.css";
 @import "./styles/components-chat.css";
+@import "./styles/components-onboarding.css";
+@import "./styles/components-onboarding-connectors.css";
+@import "./styles/components-wellness-1.css";
+@import "./styles/components-wellness-2.css";

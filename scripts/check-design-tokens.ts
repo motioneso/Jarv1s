@@ -74,7 +74,13 @@ export const MIGRATED_SECTION_CSS_FILES: readonly string[] = [
   "apps/web/src/styles/kit-chat.css",
   "apps/web/src/styles/kit-chat-attach.css",
   "apps/web/src/styles/kit-chat-skills.css",
-  "apps/web/src/chat/chat-model-pill.css"
+  "apps/web/src/chat/chat-model-pill.css",
+  "apps/web/src/styles/onboarding.css",
+  "apps/web/src/styles/onboarding-connectors.css",
+  "apps/web/src/styles/onboarding-design.css",
+  "apps/web/src/styles/wellness-1.css",
+  "apps/web/src/styles/wellness-2.css",
+  "apps/web/src/styles/wellness-3.css"
 ];
 
 let validTokensCache: Set<string> | undefined;
