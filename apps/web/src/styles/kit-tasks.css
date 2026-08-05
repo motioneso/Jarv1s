@@ -14,11 +14,6 @@
   gap: 12px 14px;
   flex-wrap: wrap;
 }
-.tk-bar__group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 .tk-bar__spacer {
   flex: 1 1 24px;
 }
@@ -330,49 +325,6 @@
   flex: none;
 }
 
-/* ---- Criticality divider (line — label — line) ---- */
-.tk-div {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin: 30px 0 4px;
-}
-.tk-div:first-child {
-  margin-top: 14px;
-}
-.tk-div::before,
-.tk-div::after {
-  content: "";
-  height: 1px;
-  background: var(--border);
-  flex: 1;
-}
-.tk-div__label {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  white-space: nowrap;
-}
-.tk-div__dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex: none;
-}
-.tk-div__name {
-  font-family: var(--font-sans);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.tk-div__count {
-  font-family: var(--font-sans);
-  font-size: 11.5px;
-  color: var(--text-faint);
-}
-
 /* ---- Task row ---- */
 .tk-task {
   display: flex;
@@ -505,63 +457,6 @@
   flex: none;
   align-self: center;
   margin-left: 4px;
-}
-.tk-effort {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 2px;
-}
-.tk-effort__tick {
-  width: 3px;
-  border-radius: 1px;
-  background: var(--surface-3);
-}
-.tk-effort__tick:nth-child(1) {
-  height: 7px;
-}
-.tk-effort__tick:nth-child(2) {
-  height: 10px;
-}
-.tk-effort__tick:nth-child(3) {
-  height: 13px;
-}
-.tk-effort__tick.on {
-  background: var(--text-subtle);
-}
-/* effort — alternate readouts */
-.tk-effort-dots {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-.tk-effort-dots span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--surface-3);
-}
-.tk-effort-dots span.on {
-  background: var(--text-subtle);
-}
-.tk-effort-label {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--text-subtle);
-}
-.tk-effort-time {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-family: var(--font-sans);
-  font-size: 11.5px;
-  color: var(--text-subtle);
-  font-variant-numeric: tabular-nums;
-}
-.tk-effort-time .ic {
-  display: inline-flex;
-  color: var(--text-faint);
 }
 .tk-task__open {
   opacity: 0;
@@ -732,33 +627,6 @@
 }
 
 /* ---- Empty state + footer ---- */
-.tk-empty {
-  text-align: center;
-  padding: 64px 20px;
-}
-.tk-empty__mark {
-  width: 52px;
-  height: 52px;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-faint);
-  box-shadow: var(--shadow-xs);
-}
-.tk-empty__title {
-  font-family: var(--font-display);
-  font-size: 21px;
-  color: var(--text);
-  margin-top: 16px;
-}
-.tk-empty__sub {
-  font-size: 14px;
-  color: var(--text-subtle);
-  margin-top: 6px;
-}
 .tk-foot {
   display: flex;
   align-items: center;
@@ -770,24 +638,6 @@
 .tk-foot .ic {
   color: var(--text-faint);
   display: inline-flex;
-}
-
-/* ---- Compact density ---- */
-.tasks--compact .tk-task {
-  padding: 7px 8px 7px 7px;
-}
-.tasks--compact .tk-task__title {
-  font-size: 14px;
-}
-.tasks--compact .tk-task__meta {
-  margin-top: 2px;
-  gap: 9px;
-}
-.tasks--compact .tk-div {
-  margin: 20px 0 2px;
-}
-.tasks--compact .tk-quad {
-  min-height: 150px;
 }
 
 /* ---- Notifications (shares this kit file — #1393 is one section) ---- */
