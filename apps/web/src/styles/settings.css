@@ -299,6 +299,9 @@
 .fld__row > textarea {
   flex: 1 1 100%;
 }
+.fld__sep {
+  color: var(--text-faint);
+}
 .fld__choice {
   margin-top: 2px;
 }

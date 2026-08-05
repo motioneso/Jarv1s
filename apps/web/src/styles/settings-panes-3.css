@@ -757,6 +757,7 @@
 .theme-swatch {
   width: 30px;
   height: 30px;
+  background: var(--st-swatch);
   border: var(--border-w) solid var(--border-strong);
   border-radius: var(--radius-sm);
   flex: none;

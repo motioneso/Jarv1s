@@ -42,7 +42,13 @@ const allowList = new Set([
   // #1393 Tasks: shared per-instance swatch color for priority dots/bars (priorityColor()) and
   // list dots (listColorMap()) in task-list-view.tsx. Same components-tasks.css consumer, same
   // out-of-scan-root note as --tk-ava-bg above.
-  "--tk-swatch"
+  "--tk-swatch",
+  // #1395 Settings: runtime accent-ramp / staged-palette swatch color in settings-appearance-pane.
+  // Consuming var() is in apps/web/src/styles/settings-panes-3.css today; Task 4's CSS split moves
+  // it to packages/ui/src/styles/components-settings-*.css, same out-of-scan-root shape as
+  // --tk-swatch. Named --st-swatch (not --swatch) per the coordinator's ruling — every sectional
+  // runtime token here is scoped, and a bare name would be the one an ancestor could capture.
+  "--st-swatch"
 ]);
 
 export interface TokenViolation {

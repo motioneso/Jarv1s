@@ -695,8 +695,11 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--text-subtle);
+}
+.psona-save__state--error {
+  color: var(--danger-fg);
 }
 .psona-save__state svg {
   color: var(--text-faint);

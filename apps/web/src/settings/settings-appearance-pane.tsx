@@ -273,7 +273,10 @@ export function AppearancePane() {
               {Object.entries(deriveAccentRamp(draft.tokens.accent, draft.tokens.paper)).map(
                 ([name, value]) => (
                   <span className="theme-ramp__item" key={name}>
-                    <span className="theme-swatch" style={{ background: value }} />
+                    <span
+                      className="theme-swatch"
+                      style={{ "--st-swatch": value } as React.CSSProperties}
+                    />
                     <span>{name.replace("--", "")}</span>
                   </span>
                 )
@@ -305,7 +308,7 @@ export function AppearancePane() {
                     className="theme-swatch"
                     key={color}
                     type="button"
-                    style={{ background: color }}
+                    style={{ "--st-swatch": color } as React.CSSProperties}
                     title={`Assign ${color} to ${TOKEN_LABELS[selectedSlot]}`}
                     onClick={() => updateToken(selectedSlot, color)}
                   />

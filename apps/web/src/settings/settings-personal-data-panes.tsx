@@ -132,9 +132,7 @@ function AccountRow(props: {
   const grants = featureQuery.data;
   return (
     <div className="acct">
-      <div className="acct__logo" style={{ background: "var(--text-faint)" }}>
-        {account.providerDisplayName[0]?.toUpperCase() ?? "?"}
-      </div>
+      <div className="acct__logo">{account.providerDisplayName[0]?.toUpperCase() ?? "?"}</div>
       <div className="acct__main">
         <div className="acct__name">{account.providerDisplayName}</div>
         <div className="acct__sub">

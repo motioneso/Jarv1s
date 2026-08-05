@@ -87,14 +87,10 @@ function useProfileAutoSave(initial: ProfileFields) {
 function SaveStatusChip({ status }: { readonly status: SaveStatus }) {
   if (status === "idle") return null;
   if (status === "error") {
-    return (
-      <span className="psona-save__state" style={{ fontSize: 12, color: "var(--danger-fg)" }}>
-        Save failed
-      </span>
-    );
+    return <span className="psona-save__state psona-save__state--error">Save failed</span>;
   }
   return (
-    <span className="psona-save__state" style={{ fontSize: 12 }}>
+    <span className="psona-save__state">
       {status === "saving" ? (
         <>
           <LoaderCircle size={13} className="dexp__spin" aria-hidden="true" />
@@ -286,7 +282,7 @@ export function ProfilePane({ me }: PaneProps) {
               }}
               style={{ flex: "0 0 130px", minWidth: 0 }}
             />
-            <span style={{ color: "var(--text-faint)" }}>→</span>
+            <span className="fld__sep">→</span>
             <input
               className="jds-input"
               type="time"
