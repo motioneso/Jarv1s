@@ -431,7 +431,7 @@
         "name": "job-search.crawl-sweep",
         "handler": "crawl.sweep",
         "retryLimit": 1,
-        "allowManualRun": false,
+        "allowManualRun": true,
         "timeoutMs": 600000,
         "paramsSchema": { "type": "object", "fields": {} }
       },
