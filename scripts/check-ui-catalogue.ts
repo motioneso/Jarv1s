@@ -2,7 +2,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { buildUiCatalogue, formatCatalogueJson, formatOptionsDoc } from "./build-ui-catalogue.ts";
+import {
+  buildCatalogueItem,
+  buildUiCatalogue,
+  formatCatalogueJson,
+  formatOptionsDoc
+} from "./build-ui-catalogue.ts";
 
 /**
  * D5: the catalogue and vocabulary doc are checked into git as the source of truth for what
@@ -22,6 +27,31 @@ async function selfTest(): Promise<void> {
   if (before === after) {
     console.error("Self-test failed: guard's diff comparison did not distinguish drifted content");
     process.exit(1);
+  }
+
+  // #1406: a prop typed with a union imported from a sibling component file (rather than declared
+  // inline) must throw, not silently vanish from both options and flags.
+  const crossFileSource = [
+    'import type { ButtonVariant } from "./button.js";',
+    "",
+    "export interface WidgetProps {",
+    "  readonly variant?: ButtonVariant;",
+    "}",
+    "",
+    "export function Widget(_props: WidgetProps) {",
+    "  return null;",
+    "}",
+    ""
+  ].join("\n");
+
+  try {
+    buildCatalogueItem("widget.tsx", crossFileSource);
+    console.error(
+      "Self-test failed: build-ui-catalogue did not throw on an unresolved cross-file type reference"
+    );
+    process.exit(1);
+  } catch {
+    // expected — see #1406
   }
 }
 

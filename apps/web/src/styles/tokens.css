@@ -172,6 +172,9 @@
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
+  /* Between --weight-semibold and --weight-bold, and used at the same scale as both (33 sites
+     against semibold's 33 and bold's 31) — a real step in the scale, not accumulated drift. */
+  --weight-strong: 650;
   --weight-bold: 700;
   /* Job Search mockup's display headings (kit.jsx, JobsMatches/Overview) land at weight 800 —
      between --weight-bold and --weight-black, and distinct enough from both that reusing either
