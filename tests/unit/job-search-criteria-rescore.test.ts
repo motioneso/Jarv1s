@@ -99,7 +99,27 @@ function scoringCtx(
 }
 
 describe("job-search queued criteria rescoring", () => {
-  it("re-scores invalidated matches with the saved criteria snapshot and no notification", async () => {
+  it("commits a queued criteria edit without waiting for stale scoring work", async () => {
+    const { state, store } = createCriteriaStore(makeProfile(EMPTY_CRITERIA));
+    store.claimCriteriaRescore = async () => {
+      throw new Error("stale scoring must not block a criteria save");
+    };
+
+    const result = await createCriteriaSetHandler(store)(
+      scoringCtx({
+        profileId: "p1",
+        criteriaJson: JSON.stringify({ remote: "required" })
+      })
+    );
+
+    expect(state.profile.criteria.remote).toBe("required");
+    expect(result).toMatchObject({
+      unchanged: false,
+      rescore: { ok: true, attempted: false }
+    });
+  });
+
+  it("defers rescoring invalidated matches after the saved criteria snapshot", async () => {
     const profile = makeProfile({ ...EMPTY_CRITERIA, titles: ["Staff Engineer"] });
     const { store } = createCriteriaStore(profile);
     const resume: Resume = {
@@ -172,31 +192,14 @@ describe("job-search queued criteria rescoring", () => {
     expect(result).toMatchObject({
       profileId: "p1",
       unchanged: false,
-      rescore: {
-        ok: true,
-        attempted: true,
-        scored: 1,
-        failed: 0,
-        deferred: 0,
-        aiCallsUsed: 1,
-        halted: null
-      }
+      rescore: { ok: true, attempted: false }
     });
-    expect(upserted).toEqual([
-      expect.objectContaining({ postingId: "post-1", fit: 80, want: 70, state: "new" })
-    ]);
-    expect(upsertOptions).toEqual([
-      {
-        criteriaSnapshot: expect.objectContaining({
-          titles: ["Staff Engineer"],
-          mustHave: ["TypeScript"]
-        })
-      }
-    ]);
+    expect(upserted).toEqual([]);
+    expect(upsertOptions).toEqual([]);
     expect(notifications).toEqual([]);
   });
 
-  it("keeps a committed criteria save successful when scoring fails", async () => {
+  it("does not enter scoring after a committed criteria save", async () => {
     const { state, store } = createCriteriaStore(
       makeProfile({ ...EMPTY_CRITERIA, titles: ["Staff Engineer"] })
     );
@@ -217,7 +220,7 @@ describe("job-search queued criteria rescoring", () => {
     expect(result).toMatchObject({
       profileId: "p1",
       unchanged: false,
-      rescore: { ok: false, attempted: true, cause: "scoring unavailable" },
+      rescore: { ok: true, attempted: false },
       statusText: "Search criteria updated"
     });
     expect(state.profile.criteria.mustHave).toEqual(["TypeScript"]);
@@ -271,7 +274,7 @@ describe("job-search queued criteria rescoring", () => {
     expect(state.criteriaWrites).toBe(1);
   });
 
-  it("runs an equivalent rescore-only continuation without rewriting criteria", async () => {
+  it("drains a legacy rescore-only continuation without scoring or rewriting criteria", async () => {
     const criteria: SearchCriteria = {
       ...EMPTY_CRITERIA,
       titles: ["Staff Engineer"],
@@ -297,17 +300,9 @@ describe("job-search queued criteria rescoring", () => {
     expect(result).toMatchObject({
       profileId: "p1",
       unchanged: true,
-      rescore: {
-        ok: true,
-        attempted: true,
-        scored: 0,
-        failed: 0,
-        deferred: 0,
-        aiCallsUsed: 0,
-        halted: null
-      }
+      rescore: { ok: true, attempted: false }
     });
     expect(state.criteriaWrites).toBe(0);
-    expect(scoreReads).toBe(1);
+    expect(scoreReads).toBe(0);
   });
 });

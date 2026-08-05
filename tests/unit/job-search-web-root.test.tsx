@@ -605,10 +605,7 @@ describe("job-search web Root", () => {
     expect(
       vi.mocked(api.invokeTool).mock.calls.filter(([name]) => name === "job-search.profile.get")
     ).toHaveLength(0);
-    expect(api.runQueue).toHaveBeenCalledWith("job-search.criteria-set", "criteria.set", {
-      profileId: "p1",
-      rescoreOnly: true
-    });
+    expect(api.runQueue).toHaveBeenCalledWith("job-search.crawl-sweep", "job-search.rescore-sweep");
 
     // The host publishes a cumulative transcript, so the same record appears in every later
     // snapshot. Replaying it must not enqueue a second scoring pass.
@@ -731,10 +728,10 @@ describe("job-search web Root", () => {
     });
     await flush(renderer);
     expect(api.runQueue).toHaveBeenCalledTimes(2);
-    expect(api.runQueue).toHaveBeenLastCalledWith("job-search.criteria-set", "criteria.set", {
-      profileId: "p1",
-      rescoreOnly: true
-    });
+    expect(api.runQueue).toHaveBeenLastCalledWith(
+      "job-search.crawl-sweep",
+      "job-search.rescore-sweep"
+    );
   });
 
   it("caps continuation attempts and cancels a pending retry on profile switch", async () => {

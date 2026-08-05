@@ -5,8 +5,8 @@
 // job-search.profile.set-briefing-detail.
 //
 // Handlers validate input, use existing domain/store operations, and return records rather than
-// prose. The queued `criteria.set` path also runs the existing bounded scorer inline:
-// ModuleWorkerContext has no enqueue port, and invalidated rows should not wait for the next pass.
+// prose. Queued `criteria.set` writes commit quickly; scoring is handled by the existing
+// crawl-sweep continuation so later edits are never blocked by stale AI work.
 //
 // `validateProfileInput` (Task 13) only accepts an input whose ONLY field is `profileId` — it
 // throws `unknown key` on anything else, so it is used verbatim only by the profileId-only
@@ -25,7 +25,6 @@ import {
 } from "../../domain/criteria.js";
 import type { SearchCriteria } from "../../domain/records.js";
 import type { BriefingDetail, JobSearchStore, ProfileState } from "../../domain/store-port.js";
-import { runCriteriaRescore } from "./pass.js";
 import { looksLikeJobEnvelope, parseJobEnvelope } from "../job-input.js";
 import { InputError, stripEnvelope } from "../validate.js";
 
@@ -360,46 +359,8 @@ export function createCriteriaSetHandler(store: JobSearchStore) {
     }
 
     const outcome = await activateIfReady(store, profile, criteria);
-    let rescore: Record<string, unknown> | null = null;
-    if (!unchanged || rescoreOnly) {
-      if (!queueInvocation) {
-        // Direct assistant-tool invocations have only the host's default 120-second ceiling. The
-        // Profile editor uses the ten-minute manual queue, which is the only safe place to run the
-        // bounded score pass after this already-committed write.
-        rescore = { ok: true, attempted: false };
-      } else {
-        try {
-          const envelope = parseJobEnvelope(ctx.input);
-          const continuation = await runCriteriaRescore(
-            store,
-            ctx,
-            envelope.idempotencyKey,
-            profileId
-          );
-          const profileResult = continuation.processed[0];
-          rescore =
-            profileResult?.ok === false
-              ? { ok: false, attempted: true, cause: profileResult.error ?? "scoring failed" }
-              : {
-                  ok: true,
-                  attempted: continuation.claimed,
-                  ...(profileResult?.score ?? {
-                    scored: 0,
-                    deferred: 0,
-                    failed: 0,
-                    aiCallsUsed: 0,
-                    halted: null
-                  })
-                };
-        } catch (error) {
-          rescore = {
-            ok: false,
-            attempted: true,
-            cause: error instanceof Error ? error.message : String(error)
-          };
-        }
-      }
-    }
+    const rescore: Record<string, unknown> | null =
+      !unchanged || rescoreOnly ? { ok: true, attempted: false } : null;
 
     return {
       profileId,

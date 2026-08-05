@@ -39,6 +39,8 @@ export { RESUME_GET_TOOL };
 export const PROFILE_GET_TOOL = "job-search.profile.get";
 export const PROFILE_SET_BRIEFING_DETAIL_QUEUE = "job-search.profile-set-briefing-detail";
 export const CRITERIA_SET_QUEUE = "job-search.criteria-set";
+export const CRITERIA_RESCORE_QUEUE = "job-search.crawl-sweep";
+export const CRITERIA_RESCORE_JOB_KIND = "job-search.rescore-sweep";
 export const PROFILE_RENAME_QUEUE = "job-search.profile-rename";
 const MATCHES_COUNT_TOOL = "job-search.matches.count";
 const CRITERIA_RESCORE_POLL_MS = 5_000;
@@ -656,10 +658,9 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
         ) {
           return false;
         }
-        return runQueue(CRITERIA_SET_QUEUE, "criteria.set", {
-          profileId: profile.profileId,
-          rescoreOnly: true
-        }).then((outcome) => outcome.kind !== "disabled");
+        return runQueue(CRITERIA_RESCORE_QUEUE, CRITERIA_RESCORE_JOB_KIND).then(
+          (outcome) => outcome.kind !== "disabled"
+        );
       })
       .then((retry) => {
         if (retry !== false && criteriaSaveRevision.current === revision) {

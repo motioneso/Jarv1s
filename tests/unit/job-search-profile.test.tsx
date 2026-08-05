@@ -367,10 +367,11 @@ describe("ProfileScreen", () => {
     });
     await flush();
 
-    expect(api.runQueue).toHaveBeenNthCalledWith(2, CRITERIA_SET_QUEUE, "criteria.set", {
-      profileId: "p1",
-      rescoreOnly: true
-    });
+    expect(api.runQueue).toHaveBeenNthCalledWith(
+      2,
+      "job-search.crawl-sweep",
+      "job-search.rescore-sweep"
+    );
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);

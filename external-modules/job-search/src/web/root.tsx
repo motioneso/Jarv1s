@@ -376,10 +376,7 @@ export function Root(props: RootProps): ReactNodeLike {
       void (async () => {
         let retry = false;
         try {
-          const outcome = await runQueue("job-search.criteria-set", "criteria.set", {
-            profileId: selectedProfileId,
-            rescoreOnly: true
-          });
+          const outcome = await runQueue("job-search.crawl-sweep", "job-search.rescore-sweep");
           if (outcome.kind === "queued") {
             completedCriteriaActionsRef.current.add(actionRequestId);
           } else if (outcome.kind === "disabled") {
