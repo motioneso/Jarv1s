@@ -29,6 +29,7 @@ import {
 } from "./settings-persona-preview";
 import { type PaneProps } from "./settings-types";
 import { Choice, Field, Group, Note, PaneHead, Row, Select, Switch } from "./settings-ui";
+import { Button } from "@jarv1s/ui";
 
 type PersonaState = PersonaDraft;
 
@@ -150,22 +151,22 @@ function Persona({ who }: { readonly who: string }) {
       </Field>
       <Field label="How to set your persona" hint="Switching methods keeps your current draft.">
         <span className="psona-save__acts">
-          <button
-            type="button"
+          <Button
+            variant="quiet"
+            size="sm"
             aria-pressed={mode === "authored"}
-            className="jds-btn jds-btn--quiet jds-btn--sm"
             onClick={() => setMode("authored")}
           >
             Write it yourself
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="quiet"
+            size="sm"
             aria-pressed={mode === "guided"}
-            className="jds-btn jds-btn--quiet jds-btn--sm"
             onClick={() => setMode("guided")}
           >
             Use guided dials
-          </button>
+          </Button>
         </span>
       </Field>
       {mode === "authored" ? (
@@ -217,13 +218,9 @@ function Persona({ who }: { readonly who: string }) {
             label="Apply dials"
             hint="Overwrites the text above with a description built from these dials."
           >
-            <button
-              type="button"
-              className="jds-btn jds-btn--quiet jds-btn--sm"
-              onClick={applySeed}
-            >
+            <Button variant="quiet" size="sm" onClick={applySeed}>
               Use dials for text
-            </button>
+            </Button>
           </Field>
         </>
       )}
@@ -259,27 +256,26 @@ function Persona({ who }: { readonly who: string }) {
           {dirty ? "Unsaved changes" : "Saved. This is Jarvis's current voice."}
         </span>
         <span className="psona-save__acts">
-          <button
-            type="button"
-            className="jds-btn jds-btn--quiet jds-btn--sm"
+          <Button
+            variant="quiet"
+            size="sm"
             onClick={() => previewMutation.mutate()}
             disabled={previewMutation.isPending || personaQuery.isLoading}
           >
             {previewMutation.isPending ? "Previewing" : "Preview response"}
-          </button>
+          </Button>
           {dirty ? (
-            <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={discard}>
+            <Button variant="quiet" size="sm" onClick={discard}>
               Discard
-            </button>
+            </Button>
           ) : null}
-          <button
-            type="button"
-            className="jds-btn jds-btn--primary jds-btn--sm"
+          <Button
+            size="sm"
             disabled={!dirty || saveMutation.isPending}
             onClick={() => saveMutation.mutate()}
           >
             {saveMutation.isPending ? "Saving" : "Save persona"}
-          </button>
+          </Button>
         </span>
       </div>
     </Group>

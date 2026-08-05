@@ -289,6 +289,37 @@ test("capture: settings (profile, connected accounts, AI)", async ({ page }) => 
   }
 });
 
+test("capture: settings appearance theme editor", async ({ page }) => {
+  await baseState(page);
+  await page.goto("/settings");
+  await page.waitForTimeout(500);
+
+  const appearance = page.getByRole("button", { name: "Appearance" });
+  await appearance.click();
+  await page.waitForTimeout(400);
+
+  const newTheme = page.getByRole("button", { name: "New theme" });
+  await newTheme.click();
+  await page.waitForTimeout(400);
+  await shot(page, "14b-settings-appearance-editor");
+});
+
+test("capture: settings delete-account dialog", async ({ page }) => {
+  await baseState(page);
+  await page.goto("/settings");
+  await page.waitForTimeout(500);
+
+  const deleteAccount = page.getByRole("button", { name: "Delete account" });
+  await deleteAccount.click();
+  await page.waitForTimeout(400);
+  await shot(page, "14c-settings-delete-dialog");
+
+  const cancel = page.getByRole("button", { name: "Cancel" });
+  if (await cancel.count()) {
+    await cancel.click();
+  }
+});
+
 // #1392: wellness fixtures. Shapes match packages/shared/src/wellness-api.ts DTOs exactly —
 // tone is "pine" | "amber" | "steel" (there is no "forest").
 function wellnessCheckins() {

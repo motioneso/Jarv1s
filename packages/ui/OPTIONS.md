@@ -39,6 +39,7 @@ _No enum or boolean props._
 - **variant** (optional, default `primary`): `primary`, `secondary`, `quiet`, `accentSoft`, `danger`
 - **size** (optional, default `md`): `sm`, `md`, `lg`
 - **block** (optional boolean flag)
+- **active** (optional boolean flag)
 
 ## card
 

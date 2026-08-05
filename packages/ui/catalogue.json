@@ -112,7 +112,10 @@
           "default": "md"
         }
       ],
-      "flags": [{ "prop": "block", "optional": true }]
+      "flags": [
+        { "prop": "block", "optional": true },
+        { "prop": "active", "optional": true }
+      ]
     },
     {
       "name": "card",

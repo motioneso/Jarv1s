@@ -28,12 +28,12 @@ export function describeHerdrInstallOutcome(result: HerdrInstallResultDto): {
 }
 
 export function healthSummary(checks: readonly HostDiagnosticCheckDto[]): {
-  tone: "pine" | "amber" | "red";
+  tone: "forest" | "amber" | "red";
   label: string;
 } {
   if (checks.some((c) => c.status === "fail")) return { tone: "red", label: "Action required" };
   if (checks.some((c) => c.status === "warn")) return { tone: "amber", label: "Needs attention" };
-  return { tone: "pine", label: "Healthy" };
+  return { tone: "forest", label: "Healthy" };
 }
 
 export function orderChecksBySeverity(

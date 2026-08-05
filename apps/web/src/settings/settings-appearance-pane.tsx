@@ -20,6 +20,7 @@ import {
 import type { AestheticThemeTokenKey, AestheticThemeTokens } from "@jarv1s/shared";
 import { AESTHETIC_THEME_TOKEN_KEYS } from "@jarv1s/shared";
 import { Badge, Field, Group, Note, PaneHead } from "./settings-ui";
+import { Button, Segmented } from "@jarv1s/ui";
 
 interface DraftTheme {
   readonly id: string;
@@ -153,42 +154,34 @@ export function AppearancePane() {
       <Group
         title="Themes"
         action={
-          <button
-            type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() =>
               makeDraft(
                 "New theme",
                 readCurrentAestheticTokens(getComputedStyle(document.documentElement))
               )
             }
+            icon={<Plus size={15} aria-hidden="true" />}
           >
-            <span className="jds-btn__icon">
-              <Plus size={15} aria-hidden="true" />
-            </span>
             New theme
-          </button>
+          </Button>
         }
       >
-        <div className="jds-segmented" role="group" aria-label="Color mode">
-          {(["light", "dark"] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              className={`jds-segmented__opt ${activeMode === mode ? "is-active" : ""}`}
-              aria-pressed={activeMode === mode}
-              disabled={!activeIsBuiltIn || modeMutation.isPending}
-              title={
-                activeIsBuiltIn
-                  ? undefined
-                  : "Custom themes use their saved fixed palette and do not support color mode."
-              }
-              onClick={() => modeMutation.mutate({ mode })}
-            >
-              {mode === "light" ? "Light" : "Dark"}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          ariaLabel="Color mode"
+          value={activeMode}
+          onChange={(mode) => modeMutation.mutate({ mode })}
+          options={(["light", "dark"] as const).map((mode) => ({
+            value: mode,
+            label: mode === "light" ? "Light" : "Dark",
+            disabled: !activeIsBuiltIn || modeMutation.isPending,
+            title: activeIsBuiltIn
+              ? undefined
+              : "Custom themes use their saved fixed palette and do not support color mode."
+          }))}
+        />
         {!activeIsBuiltIn ? (
           <Note>Custom themes use their saved fixed palette, so color mode is unavailable.</Note>
         ) : null}
@@ -223,17 +216,14 @@ export function AppearancePane() {
         <Group
           title="Editor"
           action={
-            <button
-              type="button"
-              className="jds-btn jds-btn--primary jds-btn--sm"
+            <Button
+              size="sm"
               disabled={saveMutation.isPending}
               onClick={saveDraft}
+              icon={<Save size={15} aria-hidden="true" />}
             >
-              <span className="jds-btn__icon">
-                <Save size={15} aria-hidden="true" />
-              </span>
               Save
-            </button>
+            </Button>
           }
         >
           <div className="theme-editor">
@@ -283,7 +273,10 @@ export function AppearancePane() {
               {Object.entries(deriveAccentRamp(draft.tokens.accent, draft.tokens.paper)).map(
                 ([name, value]) => (
                   <span className="theme-ramp__item" key={name}>
-                    <span className="theme-swatch" style={{ background: value }} />
+                    <span
+                      className="theme-swatch"
+                      style={{ "--st-swatch": value } as React.CSSProperties}
+                    />
                     <span>{name.replace("--", "")}</span>
                   </span>
                 )
@@ -315,7 +308,7 @@ export function AppearancePane() {
                     className="theme-swatch"
                     key={color}
                     type="button"
-                    style={{ background: color }}
+                    style={{ "--st-swatch": color } as React.CSSProperties}
                     title={`Assign ${color} to ${TOKEN_LABELS[selectedSlot]}`}
                     onClick={() => updateToken(selectedSlot, color)}
                   />
@@ -333,9 +326,7 @@ export function AppearancePane() {
               <div className="theme-preview__eyebrow">Preview</div>
               <h3>Daily plan</h3>
               <p>Paper, ink, line, and accent update here before saving.</p>
-              <button type="button" className="jds-btn jds-btn--primary jds-btn--sm">
-                Primary action
-              </button>
+              <Button size="sm">Primary action</Button>
             </div>
             {contrastWarnings.length ? (
               <Note icon={<Palette size={13} aria-hidden="true" />}>
@@ -346,7 +337,7 @@ export function AppearancePane() {
               <Note icon={<Palette size={13} aria-hidden="true" />}>{goldWarning}</Note>
             ) : null}
             {error ? <Note>{error}</Note> : null}
-            {status ? <Badge tone="pine">{status}</Badge> : null}
+            {status ? <Badge tone="forest">{status}</Badge> : null}
           </div>
         </Group>
       ) : null}
@@ -375,30 +366,26 @@ function ThemeRow(props: {
     <div className={`theme-row ${props.active ? "is-active" : ""}`}>
       <button type="button" className="theme-row__select" onClick={props.onSelect}>
         <span>{props.name}</span>
-        {props.active ? <Badge tone="pine">Active</Badge> : null}
+        {props.active ? <Badge tone="forest">Active</Badge> : null}
         {props.readonlyLabel ? <Badge tone="neutral">{props.readonlyLabel}</Badge> : null}
       </button>
-      <button
-        type="button"
-        className="jds-btn jds-btn--quiet jds-btn--sm"
+      <Button
+        variant="quiet"
+        size="sm"
         onClick={props.onDuplicate}
+        icon={<Copy size={14} aria-hidden="true" />}
       >
-        <span className="jds-btn__icon">
-          <Copy size={14} aria-hidden="true" />
-        </span>
         Duplicate
-      </button>
+      </Button>
       {props.onDelete ? (
-        <button
-          type="button"
-          className="jds-btn jds-btn--quiet jds-btn--sm"
+        <Button
+          variant="quiet"
+          size="sm"
           onClick={props.onDelete}
+          icon={<Trash2 size={14} aria-hidden="true" />}
         >
-          <span className="jds-btn__icon">
-            <Trash2 size={14} aria-hidden="true" />
-          </span>
           Delete
-        </button>
+        </Button>
       ) : null}
     </div>
   );

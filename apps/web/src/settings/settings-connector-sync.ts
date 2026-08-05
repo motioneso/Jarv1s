@@ -2,7 +2,7 @@ import type { ConnectorAccountDto, ConnectorSyncCounts } from "@jarv1s/shared";
 
 export type ConnectorAccountHealth = {
   readonly indicator: "ready" | "error" | "idle";
-  readonly badgeTone: "pine" | "amber" | "neutral";
+  readonly badgeTone: "forest" | "amber" | "neutral";
   readonly label: string;
   readonly alert: string | null;
   readonly canReconnect: boolean;
@@ -102,7 +102,7 @@ export function getConnectorAccountHealth(
 
   return {
     indicator: "ready",
-    badgeTone: "pine",
+    badgeTone: "forest",
     label: "Synced",
     alert: null,
     canReconnect: false

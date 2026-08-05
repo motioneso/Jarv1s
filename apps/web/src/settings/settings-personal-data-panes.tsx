@@ -80,6 +80,7 @@ import {
 import { VaultChooser } from "./settings-vault-chooser";
 import { useChatControls } from "../shell/chat-controls-context";
 import { type ConnectorAccountDto, type PutNotesSourceRequest } from "@jarv1s/shared";
+import { Button } from "@jarv1s/ui";
 
 const MODULE_ICONS: Record<string, LucideIcon> = {
   tasks: ListChecks,
@@ -131,9 +132,7 @@ function AccountRow(props: {
   const grants = featureQuery.data;
   return (
     <div className="acct">
-      <div className="acct__logo" style={{ background: "var(--text-faint)" }}>
-        {account.providerDisplayName[0]?.toUpperCase() ?? "?"}
-      </div>
+      <div className="acct__logo">{account.providerDisplayName[0]?.toUpperCase() ?? "?"}</div>
       <div className="acct__main">
         <div className="acct__name">{account.providerDisplayName}</div>
         <div className="acct__sub">
@@ -177,22 +176,14 @@ function AccountRow(props: {
       </div>
       <div className="acct__actions">
         {health.canReconnect ? (
-          <button
-            type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
-            onClick={props.onReconnect}
-          >
+          <Button variant="secondary" size="sm" onClick={props.onReconnect}>
             Reconnect
-          </button>
+          </Button>
         ) : null}
         {account.status !== "revoked" ? (
-          <button
-            type="button"
-            className="jds-btn jds-btn--quiet jds-btn--sm"
-            onClick={props.onRevoke}
-          >
+          <Button variant="quiet" size="sm" onClick={props.onRevoke}>
             Revoke
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>
@@ -310,16 +301,14 @@ function ConnectedPane() {
       <Group
         title="Accounts"
         action={
-          <button
-            type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setFlow((f) => (f === "picker" ? null : "picker"))}
+            icon={<Plus size={15} />}
           >
-            <span className="jds-btn__icon">
-              <Plus size={15} />
-            </span>
             Connect account
-          </button>
+          </Button>
         }
       >
         {accounts.length === 0 ? (
@@ -508,38 +497,34 @@ function SourcesPane() {
             )}
           </div>
           <div className="vault__act">
-            <button
-              type="button"
-              className="jds-btn jds-btn--secondary jds-btn--sm"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setChoosing(true)}
               disabled={putNotesSourceMutation.isPending}
+              icon={<FolderSearch size={15} />}
             >
-              <span className="jds-btn__icon">
-                <FolderSearch size={15} />
-              </span>
               {linkedPath ? "Change folder" : "Browse…"}
-            </button>
+            </Button>
             {linkedPath ? (
               <>
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--secondary jds-btn--sm"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => syncMutation.mutate()}
                   disabled={syncMutation.isPending}
+                  icon={<RefreshCw size={15} className={syncMutation.isPending ? "spin" : ""} />}
                 >
-                  <span className="jds-btn__icon">
-                    <RefreshCw size={15} className={syncMutation.isPending ? "spin" : ""} />
-                  </span>
                   {syncMutation.isPending ? "Syncing…" : "Sync now"}
-                </button>
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--quiet jds-btn--sm"
+                </Button>
+                <Button
+                  variant="quiet"
+                  size="sm"
                   onClick={unlink}
                   disabled={putNotesSourceMutation.isPending}
                 >
                   Unlink
-                </button>
+                </Button>
               </>
             ) : null}
           </div>
@@ -552,13 +537,13 @@ function SourcesPane() {
             <strong>{pendingNotesDelete.summary}</strong> is awaiting explicit approval before
             deletion.{" "}
             {openActionRequest ? (
-              <button
-                type="button"
-                className="jds-btn jds-btn--quiet jds-btn--sm"
+              <Button
+                variant="quiet"
+                size="sm"
                 onClick={() => openActionRequest(pendingNotesDelete.actionRequestId)}
               >
                 Review deletion
-              </button>
+              </Button>
             ) : null}
           </>
         ) : (
@@ -664,7 +649,7 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
     ) : control.kind === "required" ? (
       <Badge tone="neutral">Required</Badge>
     ) : control.kind === "toggle" && module.active ? (
-      <Badge tone="pine" dot>
+      <Badge tone="forest" dot>
         Enabled
       </Badge>
     ) : null;

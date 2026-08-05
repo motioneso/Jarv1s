@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Upload } from "lucide-react";
 
+import { Button } from "@jarv1s/ui";
 import {
   createChatSkill,
   deleteChatSkill,
@@ -125,21 +126,12 @@ export function SettingsSkillsPane() {
         title={`Skills${skills.length > 0 ? ` (${skills.length})` : ""}`}
         action={
           <span style={{ display: "flex", gap: 8 }}>
-            <button
-              type="button"
-              className="jds-btn jds-btn--secondary jds-btn--sm"
-              onClick={openCreate}
-            >
+            <Button variant="secondary" size="sm" onClick={openCreate}>
               <Plus size={15} aria-hidden="true" /> Create skill
-            </button>
-            <button
-              ref={listActionRef}
-              type="button"
-              className="jds-btn jds-btn--secondary jds-btn--sm"
-              onClick={openUpload}
-            >
+            </Button>
+            <Button ref={listActionRef} variant="secondary" size="sm" onClick={openUpload}>
               <Upload size={15} aria-hidden="true" /> Upload file
-            </button>
+            </Button>
           </span>
         }
       >
@@ -155,7 +147,7 @@ export function SettingsSkillsPane() {
                 .join(" · ")}
               control={
                 <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <Badge tone={skill.enabled ? "pine" : "neutral"}>
+                  <Badge tone={skill.enabled ? "forest" : "neutral"}>
                     {skill.enabled ? "Enabled" : "Disabled"}
                   </Badge>
                   <Switch
@@ -164,16 +156,12 @@ export function SettingsSkillsPane() {
                     disabled={toggleMutation.isPending}
                     onChange={(enabled) => toggleMutation.mutate({ id: skill.id, enabled })}
                   />
-                  <button
-                    type="button"
-                    className="jds-btn jds-btn--sm jds-btn--quiet"
-                    onClick={() => openEdit(skill)}
-                  >
+                  <Button variant="quiet" size="sm" onClick={() => openEdit(skill)}>
                     Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="jds-btn jds-btn--sm jds-btn--quiet"
+                  </Button>
+                  <Button
+                    variant="quiet"
+                    size="sm"
                     disabled={deleteMutation.isPending}
                     onClick={() =>
                       confirm({
@@ -185,9 +173,8 @@ export function SettingsSkillsPane() {
                       })
                     }
                     title="Delete"
-                  >
-                    <Trash2 size={15} aria-hidden="true" />
-                  </button>
+                    icon={<Trash2 size={15} aria-hidden="true" />}
+                  />
                 </span>
               }
             />
@@ -236,21 +223,17 @@ export function SettingsSkillsPane() {
           <Note>Command: /{skillCommandName(name) || "…"}</Note>
           <Field label="Save">
             <span style={{ display: "flex", gap: 8 }}>
-              <button
-                type="button"
-                className="jds-btn jds-btn--accentSoft jds-btn--sm"
+              <Button
+                variant="accentSoft"
+                size="sm"
                 disabled={saveMutation.isPending || !name.trim() || !body.trim()}
                 onClick={() => saveMutation.mutate()}
               >
                 {flow === "edit" ? "Save changes" : "Create skill"}
-              </button>
-              <button
-                type="button"
-                className="jds-btn jds-btn--quiet jds-btn--sm"
-                onClick={resetForm}
-              >
+              </Button>
+              <Button variant="quiet" size="sm" onClick={resetForm}>
                 Cancel
-              </button>
+              </Button>
             </span>
           </Field>
         </Group>
@@ -281,9 +264,9 @@ export function SettingsSkillsPane() {
             }
           />
           {uploadStatus ? <Note>{uploadStatus}</Note> : null}
-          <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={resetForm}>
+          <Button variant="quiet" size="sm" onClick={resetForm}>
             Cancel
-          </button>
+          </Button>
         </Group>
       ) : null}
     </>

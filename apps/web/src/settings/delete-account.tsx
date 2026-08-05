@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle, TriangleAlert } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 
+import { Button, Dialog } from "@jarv1s/ui";
 import type { MeResponse } from "@jarv1s/shared";
 import { DELETE_MY_ACCOUNT_PHRASE } from "@jarv1s/shared";
 
@@ -70,6 +71,8 @@ export function DeleteAccount({ me }: { readonly me: MeResponse }) {
     }
   });
 
+  const titleId = useId();
+
   const canSubmit =
     confirmEmail.trim().length > 0 &&
     confirmPhrase === DELETE_MY_ACCOUNT_PHRASE &&
@@ -103,43 +106,50 @@ export function DeleteAccount({ me }: { readonly me: MeResponse }) {
           name="Delete account"
           desc="Permanently remove your account, personal data, and vault files."
           control={
-            <button
-              type="button"
-              className="jds-btn jds-btn--danger jds-btn--sm"
+            <Button
+              variant="danger"
+              size="sm"
               onClick={() => setOpen(true)}
+              icon={<TriangleAlert size={15} />}
             >
-              <span className="jds-btn__icon">
-                <TriangleAlert size={15} />
-              </span>
               Delete account
-            </button>
+            </Button>
           }
         />
       </Group>
 
       {open ? (
-        <div
-          className="jds-dialog-scrim"
-          role="presentation"
-          onClick={(event) => {
-            if (event.target === event.currentTarget && !deleteMutation.isPending) close();
-          }}
-        >
-          <form
-            className="jds-dialog deldlg"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Delete your account"
-            onSubmit={onSubmit}
+        <form onSubmit={onSubmit}>
+          <Dialog
+            className="deldlg"
+            onClose={() => {
+              if (!deleteMutation.isPending) close();
+            }}
+            aria-labelledby={titleId}
+            title={<span id={titleId}>Delete your account</span>}
+            description="This permanently deletes your account, personal data, and vault files. Audit metadata is retained anonymously. You'll be signed out everywhere immediately."
+            footer={
+              <>
+                <Button variant="quiet" onClick={close} disabled={deleteMutation.isPending}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="danger"
+                  disabled={!canSubmit || deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending ? (
+                    <>
+                      <LoaderCircle size={15} className="dexp__spin" aria-hidden="true" />
+                      Deleting…
+                    </>
+                  ) : (
+                    "Delete my account"
+                  )}
+                </Button>
+              </>
+            }
           >
-            <div className="jds-dialog__head">
-              <div className="jds-dialog__title">Delete your account</div>
-              <div className="jds-dialog__desc">
-                This permanently deletes your account, personal data, and vault files. Audit
-                metadata is retained anonymously. You'll be signed out everywhere immediately.
-              </div>
-            </div>
-
             <div className="deldlg__body">
               <label className="deldlg__field">
                 <span className="deldlg__label">
@@ -191,33 +201,8 @@ export function DeleteAccount({ me }: { readonly me: MeResponse }) {
             <Note icon={<TriangleAlert size={13} />}>
               Export your data above before deleting your account.
             </Note>
-
-            <div className="jds-dialog__foot">
-              <button
-                type="button"
-                className="jds-btn jds-btn--quiet"
-                onClick={close}
-                disabled={deleteMutation.isPending}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="jds-btn jds-btn--danger"
-                disabled={!canSubmit || deleteMutation.isPending}
-              >
-                {deleteMutation.isPending ? (
-                  <>
-                    <LoaderCircle size={15} className="dexp__spin" aria-hidden="true" />
-                    Deleting…
-                  </>
-                ) : (
-                  "Delete my account"
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
+          </Dialog>
+        </form>
       ) : null}
     </>
   );
