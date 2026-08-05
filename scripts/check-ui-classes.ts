@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 
 const rootDirectory = process.cwd();
 
-const DEFINITION_FILES = [
+export const DEFINITION_FILES = [
   "packages/ui/src/styles/components-core.css",
   "packages/ui/src/styles/components-empty.css",
   "packages/ui/src/styles/components-forms.css",
