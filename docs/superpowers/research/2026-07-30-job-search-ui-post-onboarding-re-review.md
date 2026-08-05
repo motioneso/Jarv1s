@@ -257,21 +257,23 @@ unintended authority.
 the role was scored, and make explicit negative evidence capable of lowering or invalidating the
 band.
 
-### 11. Profile is now scannable, but correction remains indirect
+### 11. Profile exposes criteria, but dense editable values are hard to scan
 
 **Severity:** Medium
 
-**Evidence.** The completed Profile successfully exposes titles, seniority, location, remote
-preference, pay floor, and narrative ([completed Profile][e-profile]). Only résumé replacement and
-briefing detail have direct controls. Titles, location, compensation, must-haves, nice-to-haves,
-dealbreakers, and narrative have no visible edit action.
+**Evidence.** The completed Profile exposes titles, seniority, location, remote preference, pay
+floor, and narrative ([completed Profile][e-profile]). In a realistically populated profile, long
+removable values render as a tall cloud of variably sized rounded pills. Wrapped labels are centered
+while small × controls sit at the far edge, so sentence-length criteria read as mini-cards rather
+than editable values.
 
-**Why it matters.** This is the screen where users discover interpretation errors. It shows the
-source-of-truth values but does not provide the correction path next to them.
+**Why it matters.** This is the screen where users discover interpretation errors. The oversized
+pill treatment obscures field hierarchy and makes comparison slower precisely when the profile has
+enough detail to be useful.
 
-**Smallest credible remedy.** Add a single Edit search criteria action that opens a compact
-structured editor. If chat must remain the only editor, make “Change in chat” a visible action at
-the criteria section, not an implied global behavior.
+**Smallest credible remedy.** Keep the direct edit and remove actions, but render long values as
+compact, left-aligned tags or rows with restrained rounding, natural wrapping, and an integrated
+remove target. Review the populated state, not only sparse fixtures.
 
 ### 12. Tab and heading semantics still overpromise
 

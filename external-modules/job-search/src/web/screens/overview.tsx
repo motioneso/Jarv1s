@@ -101,17 +101,17 @@ function StatusFacts(props: {
     <div className="jsm-overview__status">
       <div className="jsm-fields">
         <FieldPair label="Unreviewed">
-          <span className="jds-hero-figure">{board.unreviewed}</span>
+          <span>{board.unreviewed}</span>
         </FieldPair>
         <FieldPair label="Scored">
-          <span className="jds-hero-figure">{board.scored}</span>
+          <span>{board.scored}</span>
         </FieldPair>
         <FieldPair label="Queued">
-          <span className="jds-hero-figure">{board.queued}</span>
+          <span>{board.queued}</span>
         </FieldPair>
         <FieldPair label="Last successful check">{sources.lastSuccess}</FieldPair>
         <FieldPair label="Source issues">
-          <span className="jds-hero-figure">{sources.issues}</span>
+          <span>{sources.issues}</span>
         </FieldPair>
       </div>
       <button
@@ -296,10 +296,10 @@ export function OverviewScreen(props: OverviewScreenProps): ReactNodeLike {
 
   const setupStatus =
     props.profile.state === "paused"
-      ? "Search paused · Setup complete."
+      ? "Paused"
       : props.profile.readyToCrawl
-        ? "Setup complete · Checks automatically."
-        : "Setup incomplete · Checks automatically once setup is complete.";
+        ? "Ready"
+        : "Setup incomplete";
 
   return (
     <div className="jsm-overview">
@@ -310,7 +310,7 @@ export function OverviewScreen(props: OverviewScreenProps): ReactNodeLike {
       </header>
 
       <section className="jsm-overview__section">
-        <SectionHead label="Board and sources" />
+        <SectionHead label="Board" />
         <StatusFacts
           matches={matches}
           portals={portals}
@@ -320,7 +320,6 @@ export function OverviewScreen(props: OverviewScreenProps): ReactNodeLike {
 
       <section className="jsm-overview__section">
         <SectionHead label="Sources" />
-        <p className="jds-hint">Checks automatically.</p>
         <SourcesSection state={portals} />
       </section>
 

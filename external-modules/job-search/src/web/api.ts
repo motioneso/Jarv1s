@@ -25,32 +25,48 @@ async function parseJson(response: { json: () => Promise<unknown> }): Promise<un
   }
 }
 
-export async function invokeTool(name: string, input?: Record<string, unknown>): Promise<unknown> {
-  let response: { ok: boolean; status: number; json: () => Promise<unknown> };
-  try {
-    response = await fetch(`/api/ai/assistant-tools/${encodeURIComponent(name)}/invoke`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ input: input ?? {} })
-    });
-  } catch {
-    throw new Error("Network error");
-  }
-  // 404 = tool not declared = module disabled/uninstalled server-side. A stale browser
-  // session must fail closed rather than treat a missing tool as "no profiles yet."
-  if (response.status === 404) {
-    throw new Error("disabled");
-  }
-  const body = (await parseJson(response)) as InvocationBody | null;
-  const invocation = body?.invocation;
-  if (response.ok && invocation?.status === "succeeded") {
-    return invocation.result ?? {};
-  }
-  if (invocation?.status === "blocked") {
-    throw new Error(invocation.blockedReason ?? "blocked");
-  }
-  throw new Error(`Request failed (${response.status})`);
+// React DEV may mount the same module view twice. Share identical reads across those instances so
+// a paged board costs one request per page, not two simultaneous copies of every page.
+const inFlightReads = new Map<string, Promise<unknown>>();
+
+export function invokeTool(name: string, input?: Record<string, unknown>): Promise<unknown> {
+  const requestBody = JSON.stringify({ input: input ?? {} });
+  const key = `${name}\n${requestBody}`;
+  const existing = inFlightReads.get(key);
+  if (existing) return existing;
+
+  const request = (async () => {
+    let response: { ok: boolean; status: number; json: () => Promise<unknown> };
+    try {
+      response = await fetch(`/api/ai/assistant-tools/${encodeURIComponent(name)}/invoke`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: requestBody
+      });
+    } catch {
+      throw new Error("Network error");
+    }
+    // 404 = tool not declared = module disabled/uninstalled server-side. A stale browser
+    // session must fail closed rather than treat a missing tool as "no profiles yet."
+    if (response.status === 404) {
+      throw new Error("disabled");
+    }
+    const body = (await parseJson(response)) as InvocationBody | null;
+    const invocation = body?.invocation;
+    if (response.ok && invocation?.status === "succeeded") {
+      return invocation.result ?? {};
+    }
+    if (invocation?.status === "blocked") {
+      throw new Error(invocation.blockedReason ?? "blocked");
+    }
+    throw new Error(`Request failed (${response.status})`);
+  })();
+  const tracked = request.finally(() => {
+    if (inFlightReads.get(key) === tracked) inFlightReads.delete(key);
+  });
+  inFlightReads.set(key, tracked);
+  return tracked;
 }
 
 export type RunOutcome =

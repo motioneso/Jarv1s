@@ -4,19 +4,27 @@ import { updatePageContext } from "../api/client.js";
 import { capturePageContextSnapshot } from "./page-context.js";
 
 const SYNC_DEBOUNCE_MS = 250;
+// Page context shares a 20/minute chat-mutation limit; animated/live pages can mutate far faster.
+const SYNC_MIN_INTERVAL_MS = 5_000;
 
 export function createDebouncedPageContextSync(input: {
   readonly capture: typeof capturePageContextSnapshot;
   readonly upload: typeof updatePageContext;
   readonly delayMs: number;
+  readonly minIntervalMs?: number;
 }) {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let lastUploadAt = Number.NEGATIVE_INFINITY;
   return {
     schedule() {
       if (timer) clearTimeout(timer);
+      const remaining = (input.minIntervalMs ?? 0) - (Date.now() - lastUploadAt);
       timer = setTimeout(
-        () => void input.upload(input.capture()).catch(() => undefined),
-        input.delayMs
+        () => {
+          lastUploadAt = Date.now();
+          void input.upload(input.capture()).catch(() => undefined);
+        },
+        Math.max(input.delayMs, remaining)
       );
     },
     stop() {
@@ -37,7 +45,8 @@ export function usePageContextSync(): void {
     const sync = createDebouncedPageContextSync({
       capture: capturePageContextSnapshot,
       upload: updatePageContext,
-      delayMs: SYNC_DEBOUNCE_MS
+      delayMs: SYNC_DEBOUNCE_MS,
+      minIntervalMs: SYNC_MIN_INTERVAL_MS
     });
     const observer = new MutationObserver(sync.schedule);
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });

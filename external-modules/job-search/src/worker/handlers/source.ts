@@ -12,7 +12,7 @@ import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
 import { JOB_SEARCH_STATIC_FETCH_HOSTS } from "../../db/tables.js";
 import type { CustomSource, JobSearchStore } from "../../domain/store-port.js";
 import { InputError, stripEnvelope } from "../validate.js";
-import { requireNoUnknownKeys, requireProfileId } from "./profile.js";
+import { activateIfReady, requireNoUnknownKeys, requireProfileId } from "./profile.js";
 
 export const SOURCE_ADD_SCHEMA = {
   type: "object",
@@ -161,10 +161,22 @@ export function createSourceAddHandler(store: JobSearchStore) {
     // an invisible capability with no listing behind it.
     const source = await store.addCustomSource(profileId, url, label);
     await ctx.kv.set("user", FETCH_HOST_GRANTS_NAMESPACE, source.host, {});
+    await store.setPortalState(profileId, {
+      sourceId: source.sourceId,
+      enabled: true,
+      lastOkAt: null,
+      cause: null
+    });
+    const activation =
+      profile.state === "in_conversation"
+        ? await activateIfReady(store, profile, profile.criteria)
+        : null;
 
     return {
       ...shapeCustomSource(profileId, source),
-      statusText: `${source.label} source added`
+      enabled: true,
+      statusText: `${source.label} source added and enabled`,
+      ...(activation ?? {})
     };
   };
 }

@@ -306,7 +306,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
     matchId: string;
     fallbackId: string | null;
   } | null>(null);
-  const [hiddenIds, setHiddenIds] = useState<ReadonlySet<string>>(new Set());
+  const pendingStatesRef = useRef(new Map<string, "seen" | "dismissed">());
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
   // A read that failed while the board already had rows. Kept apart from MatchesState because the
   // two mean different things: this one is "the rows on screen are a moment stale", not "there is
@@ -328,34 +328,29 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
     discussRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   }, [discussing]);
 
-  // Any id still optimistically hidden that comes back from a fresh read still not dismissed
-  // means the write never landed — un-hide it and say so plainly rather than leaving it
-  // silently missing. IDs that DID land as "dismissed" are already excluded by the render
-  // filter below, so they're simply dropped from tracking here.
-  const reconcileHidden = useCallback((freshItems: BoardMatch[]): void => {
-    setHiddenIds((prev) => {
-      if (prev.size === 0) return prev;
-      let restored = false;
-      for (const id of prev) {
-        const fresh = freshItems.find((item) => item.id === id);
-        if (fresh && fresh.state !== "dismissed") restored = true;
+  // Queue acceptance is not completion. Preserve the user's optimistic decision across reads
+  // until a read confirms the worker applied it; otherwise an immediate stale read makes a role
+  // disappear and then come back. An enqueue rejection is handled separately below.
+  const reconcilePendingStates = useCallback((freshItems: BoardMatch[]): BoardMatch[] => {
+    if (pendingStatesRef.current.size === 0) return freshItems;
+    return freshItems.map((item) => {
+      const pending = pendingStatesRef.current.get(item.id);
+      if (pending === undefined) return item;
+      if (item.state === pending) {
+        pendingStatesRef.current.delete(item.id);
+        return item;
       }
-      if (restored) {
-        setRestoreMessage("A dismissal didn't go through — that match is showing again.");
-      }
-      return new Set();
+      return { ...item, state: pending };
     });
   }, []);
 
   // Returns a digest of what landed, or null if the read failed, so a caller following a run can
   // tell "still arriving" from "settled" without owning the board's state. Dismissed rows are
   // excluded because a run's own count must not move when the user passes on something. It does
-  // not subtract `hiddenIds` the way activeItems below does: those are rows dismissed in this
-  // session awaiting server confirmation, and reading that state here would rebuild this callback
-  // on every dismissal, restarting any poll holding a reference to it.
+  // Pending decisions are overlaid by reconcilePendingStates, so this read stays server-shaped.
   // Whether a read has ever succeeded, in a ref rather than derived from matchesState: naming that
   // state in this callback's dependency list would rebuild the callback on every read and restart
-  // any poll holding a reference to it, for the same reason hiddenIds is excluded above.
+  // any poll holding a reference to it.
   const hasRowsRef = useRef(false);
 
   // Returns nothing on purpose. It used to hand back a digest so the search poll could tell a
@@ -368,8 +363,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
       // Every page, not the first one — see web/read-board.ts for why the board is paged at all
       // and why 25 is a page size rather than the size of the board.
       const { items, truncated } = await readWholeBoard(profileId);
-      reconcileHidden(items);
-      setMatchesState({ status: "ready", items, truncated });
+      setMatchesState({ status: "ready", items: reconcilePendingStates(items), truncated });
       hasRowsRef.current = true;
       setReadError(null);
     } catch (error) {
@@ -386,7 +380,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
       }
       setMatchesState({ status: "error", message });
     }
-  }, [profileId, reconcileHidden]);
+  }, [profileId, reconcilePendingStates]);
 
   // A full read is one request per 25 rows — seven on a 168-row board — and every module read tool
   // in the app shares one sixty-per-minute host budget. Two of them overlapping is therefore not a
@@ -467,7 +461,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
 
   // #1330: fetches the untruncated detail (fitReason/wantReason, per N39) the instant a row is
   // selected — Inspector never calls invokeTool itself (see that file's header). `cancelled`
-  // guards the same kind of race reconcileHidden's id-set tracking guards above: if the
+  // guards the same kind of race the pending-state tracking guards above: if the
   // selection changes again before this resolves, the stale response must never overwrite the
   // newer selection's state. An unscored match's id never resolves to a real row (#1329), so
   // match.get correctly answers `null` for it — surfaced here as an error state that Inspector
@@ -508,28 +502,55 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
     };
   }, [selectedMatchId]);
 
+  function queueMatchState(matchId: string, state: "seen" | "dismissed"): void {
+    setRestoreMessage(null);
+    pendingStatesRef.current.set(matchId, state);
+    setMatchesState((current) =>
+      current.status === "ready"
+        ? {
+            ...current,
+            items: current.items.map((item) => (item.id === matchId ? { ...item, state } : item))
+          }
+        : current
+    );
+    runQueue("job-search.match-state", "match.set-state", { matchId, state })
+      .then((outcome) => {
+        if (outcome.kind !== "disabled" && outcome.kind !== "error") return;
+        pendingStatesRef.current.delete(matchId);
+        setRestoreMessage(
+          state === "dismissed"
+            ? "That role couldn't be passed. It is back on your board."
+            : "That role couldn't be saved."
+        );
+        void fetchMatches();
+      })
+      .catch(() => {
+        pendingStatesRef.current.delete(matchId);
+        setRestoreMessage(
+          state === "dismissed"
+            ? "That role couldn't be passed. It is back on your board."
+            : "That role couldn't be saved."
+        );
+        void fetchMatches();
+      });
+  }
+
   function handleDismiss(matchId: string): void {
-    setHiddenIds((prev) => new Set(prev).add(matchId));
     if (selectedMatchId === matchId) closeInspector(true);
-    runQueue("job-search.match-state", "match.set-state", { matchId, state: "dismissed" })
-      .catch(() => undefined)
-      .then(() => fetchMatches());
+    queueMatchState(matchId, "dismissed");
   }
 
   // #100: the board's other settable state (worker/handlers/matches.ts's SETTABLE_STATES already
   // allows "seen" through this same queue path) — mirrors handleDismiss's shape (close the detail
-  // view immediately, then fire-and-reconcile via fetchMatches) but deliberately does NOT touch
-  // hiddenIds: a saved match stays visible on the board, it just moves bucket, unlike a dismissed
-  // one which is optimistically hidden outright. Closing the view on both actions sidesteps a real
+  // view immediately, then queue the same optimistic state transition. Closing the view on both
+  // actions sidesteps a real
   // race — `selectedMatch` below is derived from the current bucket's own filtered+sorted list, so
   // a Save/Pass that moves an item to a different bucket can make it vanish from that list the
   // moment fetchMatches resolves; closing immediately means Inspector never renders against that
   // mid-transition state.
   function handleSave(matchId: string): void {
     if (selectedMatchId === matchId) closeInspector(true);
-    runQueue("job-search.match-state", "match.set-state", { matchId, state: "seen" })
-      .catch(() => undefined)
-      .then(() => fetchMatches());
+    queueMatchState(matchId, "seen");
   }
 
   function closeInspector(useFallback = false): void {
@@ -595,13 +616,11 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
     );
   }
 
-  // activeItems mirrors the board's pre-bucket semantics exactly — dismissed rows excluded,
-  // optimistically-hidden rows excluded — because the hero's role count and "X read and scored"
+  // activeItems mirrors the board's pre-bucket semantics exactly — dismissed rows excluded —
+  // because the hero's role count and "X read and scored"
   // line describe the whole board, not whichever bucket happens to be open. Switching tabs must
   // never move that figure.
-  const activeItems = matchesState.items.filter(
-    (item) => item.state !== "dismissed" && !hiddenIds.has(item.id)
-  );
+  const activeItems = matchesState.items.filter((item) => item.state !== "dismissed");
   const scoredCount = activeItems.filter(isScored).length;
   // No résumé means every Fit on this board is empty and stays empty, because a résumé is the
   // only thing Fit is judged against. A column of em dashes with no explanation reads as a
@@ -617,10 +636,9 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
       ? scoredCount > 0 && activeItems.filter(isScored).every((item) => item.fit === null)
       : !hasResume;
 
-  // boardItems is activeItems' opposite number: every non-hidden row INCLUDING dismissed ones, so
-  // Passed has something to show. hiddenIds still applies here too — an optimistically dismissed
-  // row must vanish from every bucket immediately, not just from New/Saved.
-  const boardItems = matchesState.items.filter((item) => !hiddenIds.has(item.id));
+  // boardItems is activeItems' opposite number: every row INCLUDING dismissed ones, so Passed has
+  // something to show.
+  const boardItems = matchesState.items;
   const filteredItems = filterBoardMatches(boardItems, filters, filterNowRef.current);
   const bucketCounts: Record<MatchBucket, number> = { unreviewed: 0, saved: 0, passed: 0 };
   for (const item of filteredItems) bucketCounts[matchBucket(item)] += 1;

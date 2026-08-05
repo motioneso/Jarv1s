@@ -1,5 +1,6 @@
 import { seedChat, sendChatTurn, uploadChatAttachment } from "../../api/client";
 import { moduleChatSurface } from "../../shell/chat-surface-key";
+import { useSyncExternalStore } from "react";
 import type { ChatSurface } from "@jarv1s/shared";
 
 import type { AssistantSurfaceHandleV1, AssistantSurfaceViewProps } from "./contracts";
@@ -57,8 +58,14 @@ export function createAssistantSurfaceHandle(
   // currentSurface is permanently undefined — pass AssistantSurface straight through rather than
   // an always-identical wrapper, preserving reference identity for callers that compare it.
   const Surface = moduleId
-    ? (props: AssistantSurfaceViewProps) =>
-        AssistantSurface({ ...props, surface: currentSurface ?? props.surface })
+    ? (props: AssistantSurfaceViewProps) => {
+        const surface = useSyncExternalStore(
+          subscribeActiveModuleSurface,
+          getActiveModuleSurface,
+          getActiveModuleSurface
+        ) as ChatSurface | null;
+        return AssistantSurface({ ...props, surface: surface ?? props.surface });
+      }
     : AssistantSurface;
 
   return {

@@ -6,6 +6,14 @@ export function isValidModuleParamsSchema(value: unknown): value is ModuleParams
   if (["uuid", "identifier", "timestamp", "boolean", "null"].includes(String(schema.type))) {
     return Object.keys(schema).length === 1;
   }
+  if (schema.type === "string") {
+    return (
+      Object.keys(schema).every((key) => ["type", "maxLength"].includes(key)) &&
+      Number.isInteger(schema.maxLength) &&
+      (schema.maxLength as number) > 0 &&
+      (schema.maxLength as number) <= 2_048
+    );
+  }
   if (schema.type === "integer" || schema.type === "number") {
     return (
       Object.keys(schema).every((key) => ["type", "min", "max"].includes(key)) &&
@@ -61,6 +69,8 @@ export function matchesModuleParamsSchema(schema: ModuleParamsSchema, value: unk
       );
     case "identifier":
       return typeof value === "string" && /^[a-z0-9][a-z0-9_.:-]{0,63}$/i.test(value);
+    case "string":
+      return typeof value === "string" && value.length <= schema.maxLength;
     case "timestamp":
       return typeof value === "string" && !Number.isNaN(Date.parse(value));
     case "boolean":

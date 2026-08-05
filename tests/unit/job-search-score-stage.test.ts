@@ -90,7 +90,10 @@ function createFakeStore(input: {
     listProfiles: vi.fn(notUsed("listProfiles")),
     getProfile: vi.fn(async (id: string) => (id === profile.id ? profile : null)),
     createProfile: vi.fn(notUsed("createProfile")),
+    renameProfile: vi.fn(notUsed("renameProfile")),
     updateCriteria: vi.fn(notUsed("updateCriteria")),
+    claimCriteriaRescore: vi.fn(async () => []),
+    finishCriteriaRescore: vi.fn(async () => undefined),
     setProfileState: vi.fn(notUsed("setProfileState")),
     setProfileContext: vi.fn(notUsed("setProfileContext")),
     setBriefingDetail: vi.fn(notUsed("setBriefingDetail")),
@@ -104,6 +107,7 @@ function createFakeStore(input: {
     countMatches: vi.fn(notUsed("countMatches")),
     upsertMatch: vi.fn(async (_profileId: string, match: Omit<Match, "id">) => {
       matches.push({ ...match, id: `match-${matches.length}` });
+      return true;
     }),
     setMatchState: vi.fn(notUsed("setMatchState")),
     getMatch: vi.fn(notUsed("getMatch")),
@@ -284,6 +288,45 @@ describe("runScore", () => {
     expect(store.__matches[0]?.fit).toBe(80);
   });
 
+  it("guards every match write with the profile snapshot loaded by the stage", async () => {
+    const criteria = makeCriteria({ mustHave: ["TypeScript"] });
+    const store = createFakeStore({
+      profile: makeProfile({ criteria }),
+      candidates: [makePosting("p-criteria-snapshot")]
+    });
+    const ai = scriptedAi([{ ok: true, object: okResult }]);
+
+    await runScore(runDeps({ store, ai, budget: 1 }));
+
+    expect(store.upsertMatch).toHaveBeenCalledWith(
+      PROFILE_ID,
+      expect.objectContaining({ postingId: "p-criteria-snapshot" }),
+      { criteriaSnapshot: criteria }
+    );
+  });
+
+  it("keeps a CAS-rejected candidate deferred and does not announce it", async () => {
+    const store = createFakeStore({
+      profile: makeProfile(),
+      candidates: [makePosting("p-stale-score")]
+    });
+    const notify = createFakeNotify();
+    vi.mocked(store.upsertMatch).mockResolvedValue(false);
+
+    const result = await runScore(
+      runDeps({ store, ai: scriptedAi([{ ok: true, object: okResult }]), notify, budget: 1 })
+    );
+
+    expect(result).toEqual({
+      scored: 0,
+      deferred: 1,
+      failed: 0,
+      aiCallsUsed: 1,
+      halted: null
+    });
+    expect(notify.post).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["insufficient_evidence", 99, 84],
     ["domain_mismatch", 99, 39],
@@ -329,8 +372,9 @@ describe("runScore", () => {
 
   it("rescores an invalidated row through the existing unfitted pass", async () => {
     const posting = makePosting("p-invalidated");
+    const criteria = makeCriteria();
     const store = createFakeStore({
-      profile: makeProfile(),
+      profile: makeProfile({ criteria }),
       candidates: [],
       unfittedCandidates: [posting],
       resume: {
@@ -354,7 +398,7 @@ describe("runScore", () => {
     expect(store.upsertMatch).toHaveBeenCalledWith(
       "profile-1",
       expect.objectContaining({ postingId: "p-invalidated" }),
-      { preserveWant: true }
+      { preserveWant: true, criteriaSnapshot: criteria }
     );
   });
 

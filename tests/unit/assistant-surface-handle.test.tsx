@@ -1,11 +1,19 @@
+import { createElement } from "react";
+import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AssistantSurface } from "../../apps/web/src/chat/assistant-surface/index.js";
+import {
+  AssistantSurface,
+  AssistantSurfaceHostProvider
+} from "../../apps/web/src/chat/assistant-surface/index.js";
 import { createAssistantSurfaceHandle } from "../../apps/web/src/chat/assistant-surface/handle.js";
 import { moduleChatSurface } from "../../apps/web/src/shell/chat-surface-key.js";
 
 // React/web unit tests use .tsx so root NodeNext typecheck does not reinterpret Vite imports.
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  createAssistantSurfaceHandle(() => () => undefined, "cleanup").setSurfaceKey(null);
+  vi.unstubAllGlobals();
+});
 
 describe("createAssistantSurfaceHandle", () => {
   it("binds turn, upload, composer, and record subscription to host services", async () => {
@@ -82,6 +90,43 @@ describe("createAssistantSurfaceHandle", () => {
         body: JSON.stringify({ text: "hello", surface: expectedSurface })
       })
     );
+  });
+
+  it("rerenders the embedded surface when its profile key changes", async () => {
+    const handle = createAssistantSurfaceHandle(() => () => undefined, "job-search");
+    const firstSurface = moduleChatSurface("job-search", "profile-1");
+    const secondSurface = moduleChatSurface("job-search", "profile-2");
+    let renderer: ReactTestRenderer;
+
+    handle.setSurfaceKey("profile-1");
+    await act(async () => {
+      renderer = create(
+        createElement(
+          AssistantSurfaceHostProvider,
+          {
+            value: {
+              records: [],
+              recordsForSurface: (surface) => [
+                {
+                  kind: "reply",
+                  text: surface === firstSurface ? "First profile" : "Second profile"
+                }
+              ],
+              registerComposer: () => () => undefined,
+              subscribeRecords: () => () => undefined
+            }
+          },
+          createElement(handle.Surface)
+        )
+      );
+    });
+    expect(JSON.stringify(renderer!.toJSON())).toContain("First profile");
+
+    await act(async () => handle.setSurfaceKey("profile-2"));
+    const switched = JSON.stringify(renderer!.toJSON());
+    expect(switched).toContain("Second profile");
+    expect(switched).not.toContain("First profile");
+    expect(secondSurface).not.toBe(firstSurface);
   });
 
   it("releases its surface claim on setSurfaceKey(null)", async () => {

@@ -19,3 +19,22 @@ it("debounces repeated changes into one snapshot upload", async () => {
   expect(upload).toHaveBeenCalledTimes(1);
   sync.stop();
 });
+
+it("caps uploads while the page keeps changing", async () => {
+  const upload = vi.fn().mockResolvedValue(undefined);
+  let revision = 0;
+  const sync = createDebouncedPageContextSync({
+    capture: () => ({ route: `/news/${revision++}` }) as never,
+    upload,
+    delayMs: 250,
+    minIntervalMs: 5_000
+  });
+
+  for (let elapsed = 0; elapsed < 10_000; elapsed += 500) {
+    sync.schedule();
+    await vi.advanceTimersByTimeAsync(500);
+  }
+
+  expect(upload).toHaveBeenCalledTimes(2);
+  sync.stop();
+});
