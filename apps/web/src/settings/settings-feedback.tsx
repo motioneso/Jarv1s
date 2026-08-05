@@ -3,11 +3,14 @@ import {
   createContext,
   useCallback,
   useContext,
+  useId,
   useMemo,
   useRef,
   useState,
   type ReactNode
 } from "react";
+
+import { Dialog } from "@jarv1s/ui";
 
 /* Settings feedback layer — a quiet ambient toast for simple actions and a
    confirm dialog for consequential/destructive ones. Mirrors the design kit's
@@ -69,6 +72,7 @@ export function FeedbackProvider(props: {
   const [dialog, setDialog] = useState<ConfirmOptions | null>(props.initialDialog ?? null);
   const [confirmInput, setConfirmInput] = useState("");
   const nextId = useRef(1);
+  const titleId = useId();
 
   const toast = useCallback((message: string, options?: ToastOptions) => {
     const id = nextId.current++;
@@ -133,34 +137,13 @@ export function FeedbackProvider(props: {
       </div>
 
       {dialog ? (
-        <div
-          className="jds-dialog-scrim"
-          role="presentation"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) closeDialog();
-          }}
-        >
-          <div className="jds-dialog" role="dialog" aria-modal="true" aria-label={dialog.title}>
-            <div className="jds-dialog__head">
-              <div className="jds-dialog__title">{dialog.title}</div>
-              {dialog.description ? (
-                <div className="jds-dialog__desc">{dialog.description}</div>
-              ) : null}
-            </div>
-            {dialog.requireText !== undefined ? (
-              <div className="jds-dialog__body">
-                <label>
-                  Type <strong>{dialog.requireText}</strong> to confirm
-                  <input
-                    className="jds-input"
-                    value={confirmInput}
-                    onChange={(event) => setConfirmInput(event.target.value)}
-                    autoFocus
-                  />
-                </label>
-              </div>
-            ) : null}
-            <div className="jds-dialog__foot">
+        <Dialog
+          onClose={closeDialog}
+          aria-labelledby={titleId}
+          title={<span id={titleId}>{dialog.title}</span>}
+          description={dialog.description}
+          footer={
+            <>
               <button type="button" className="jds-btn jds-btn--quiet" onClick={closeDialog}>
                 {dialog.cancelLabel ?? "Cancel"}
               </button>
@@ -172,9 +155,21 @@ export function FeedbackProvider(props: {
               >
                 {dialog.confirmLabel ?? "Confirm"}
               </button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        >
+          {dialog.requireText !== undefined ? (
+            <label>
+              Type <strong>{dialog.requireText}</strong> to confirm
+              <input
+                className="jds-input"
+                value={confirmInput}
+                onChange={(event) => setConfirmInput(event.target.value)}
+                autoFocus
+              />
+            </label>
+          ) : null}
+        </Dialog>
       ) : null}
     </FeedbackContext.Provider>
   );
