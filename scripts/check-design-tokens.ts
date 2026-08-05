@@ -112,7 +112,15 @@ export const MIGRATED_SECTION_CSS_FILES: readonly string[] = [
   "packages/sports/src/web/styles/sports-3.css",
   "packages/sports/src/web/styles/sports-4-grid.css",
   "packages/sports/src/web/styles/sports-5-editorial.css",
-  "packages/sports/src/web/styles/sports-6-newsband.css"
+  "packages/sports/src/web/styles/sports-6-newsband.css",
+  // #1395 Settings: Task 4's layout/visual split reduced these four to layout-only; the visual
+  // half moved to packages/ui/src/styles/components-settings-1.css and components-settings-2.css
+  // (component CSS, not screen CSS — deliberately NOT added here, since D2 only bans visual
+  // properties in a screen's own CSS).
+  "apps/web/src/styles/settings.css",
+  "apps/web/src/styles/settings-panes.css",
+  "apps/web/src/styles/settings-panes-2.css",
+  "apps/web/src/styles/settings-panes-3.css"
 ];
 
 let validTokensCache: Set<string> | undefined;
