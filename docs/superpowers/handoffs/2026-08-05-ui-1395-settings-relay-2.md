@@ -60,8 +60,12 @@ staging. After every commit, `git show --name-only HEAD` and check the file list
   (`pnpm build:ui-catalogue`); `OPTIONS.md` line 42 shows it under `button` (not to be confused
   with `icon-button`'s pre-existing `active` at line 95). `check:ui-catalogue` and `pnpm typecheck`
   both green.
+- `f19d1517` — **Task 2 complete.** Barrel repoint of 5 primitives (Avatar/Indicator/Segmented/
+  Select/Switch) to `@jarv1s/ui`, per coordinator ruling (b) below. Badge/ComingSoon deliberately
+  deferred to Task 3.
+- `f8d1805b` — this doc, capturing the coordinator's ruling so it isn't re-litigated.
 
-## Task 2 — RULED, resume here (do not re-litigate)
+## Task 2 — DONE (commits `f19d1517`, `f8d1805b`). Ruling below for context/Task 3 carry-forward — do not re-litigate.
 
 **Coordinator ruling (received, binding — do not re-open):** Option **(b)**. Full mapping and
 reasoning below; treat this section as settled fact, not open discussion.
@@ -103,32 +107,39 @@ reasoning below; treat this section as settled fact, not open discussion.
   and have been rendering untoned since the tone class never existed now render their intended
   forest tone. That is a bug fix with a visible result, not a redesign."
 
-**Resume instructions (Task 2, immediate):**
+**What actually happened (done, in this order):**
 
-1. Trim the uncommitted `apps/web/src/settings/settings-ui.tsx` barrel repoint to drop `Badge`,
-   `ComingSoon`, `BadgeTone` — keep only:
+1. Trimmed `apps/web/src/settings/settings-ui.tsx` to:
    ```tsx
    export { Avatar, Indicator, Segmented, Select, Switch } from "@jarv1s/ui";
    export * from "@jarv1s/settings-ui";
    ```
-2. Verify `pnpm typecheck` exit 0 — run the **direct** `apps/web` form
-   (`cd apps/web && npx tsc --noEmit`), not just the chained `pnpm typecheck` script, since the
-   chained form swallows all but 1 error and would give a false green.
-3. Grep confirms no settings pane imports `@jarv1s/settings-ui` directly for the 5 repointed
-   primitives (Avatar/Indicator/Segmented/Select/Switch) — only via the `settings-ui.tsx` barrel.
-4. Run `pnpm capture:screens`, diff vs the Task-0 baseline (`aeaaccba`) — expect byte-identical on
-   all settings shots this time (Badge/ComingSoon untouched, so no named-cause delta expected at
-   this step). Note the corroboration-not-proof caveat in the commit message regardless.
-5. Commit (explicit paths: `settings-ui.tsx` + this handoff doc's ruling-capture edit if not
-   already committed separately). Mark Task 2 complete.
-6. **Carry into Task 3's plan:** Badge conversion must include renaming all 10 `tone="pine"` sites
-   in `apps/web/src/settings/*` to `tone="forest"`, scoped to exactly those files (not
-   `packages/settings-ui`), landed as its own commit with the PR-body framing above.
+2. `cd apps/web && npx tsc --noEmit` → `EXIT=0` (direct form, not the chained script — the chained
+   `pnpm typecheck` swallows all but 1 error; always use the direct form to get a true count for
+   settings-scoped changes).
+3. `grep -rln '@jarv1s/settings-ui' apps/web/src/settings/` → only `settings-ui.tsx` itself. No
+   other settings file imports the package directly; the barrel is the sole seam.
+4. `pnpm capture:screens` → 28/28 green, no failures, both Task-0 shots (`14b`/`14c`) included.
+   **Byte-level diff against the `aeaaccba` baseline was not mechanically available** — listing
+   `test-results/design-screens/` was denied by the permission system (same denial hit in the
+   prior relay session on the identical directory; did not retry the identical command per tool
+   guidance, and no separate baseline copy exists to diff against since screenshots aren't
+   git-tracked and weren't copied aside after the `aeaaccba` run). Treated the clean 28/28 run as
+   corroboration only — say this plainly in the PR body, do not claim a verified byte-identical
+   diff for this step. **If your environment does NOT hit this permission wall, prefer an actual
+   diff** (e.g. `cmp`/imagemagick `compare` against a copy of the `aeaaccba` screenshots) over
+   relying on corroboration again — only fall back to "clean run = corroboration" if you hit the
+   same denial.
+5. Committed `f19d1517` (barrel trim) and `f8d1805b` (this doc, ruling captured). Task 2 complete.
+
+**Carry into Task 3's plan:** Badge conversion must include renaming all 10 `tone="pine"` sites in
+`apps/web/src/settings/*` to `tone="forest"`, scoped to exactly those files (not
+`packages/settings-ui`), landed as its own commit with the PR-body framing above.
 
 ## Tasks 3-7 — not started, full detail in plan comment `5195260909` (read by task, not all at once)
 
-Summarized in the prior relay doc's "What's NOT done yet" section — still accurate for Tasks 3-7
-(Task 2 detail there is now superseded by the blocker above). Key points to carry forward:
+**Start here.** Task 3 is the next unstarted work. Summarized below — still accurate (Task 2 is
+now done, see above). Key points to carry forward:
 
 - **Task 3**: Convert `jds-btn`(312)/`jds-dialog`(30)/`jds-badge`(7)/`jds-iconbtn`(4)/
   `jds-segmented`(2) to components, split 2-3 commits by pane cluster. `Dialog.className`
@@ -156,12 +167,19 @@ Summarized in the prior relay doc's "What's NOT done yet" section — still accu
 
 ## Coordinator contact
 
-Two messages sent to "DESIGN ELEMENTS" (`w1:p1` at send time, re-resolve fresh — pane numbers
-reflow): the Task 2 blocker/options, then the relay notice. Coordinator was "working" status at
-send time, not yet replied to either as of this doc.
+Two messages sent to "DESIGN ELEMENTS" before this doc's first version: the Task 2 blocker/
+options, then the relay notice. The coordinator replied with the full ruling captured above
+(delivered mid-relay, before a successor was spawned — this session applied it directly rather
+than leaving it for the successor to pick up cold). **The successor still owes the coordinator a
+short confirmation** that it has read this doc and the ruling is understood, per the coordinator's
+explicit "confirm the successor picked this up" instruction — send that confirmation as your first
+action after re-resolving the "DESIGN ELEMENTS" pane fresh via `herdr pane list`, before starting
+Task 3.
 
 ## Relay trigger note
 
-Fired on the context-meter 70% PostToolUse warning, mid-Task-2, immediately after sending the
-blocker escalation. No compaction summary seen. Successor should NOT re-read the full plan comment
-— only the Task 2/3 sections referenced above.
+Fired on the context-meter 70% PostToolUse warning, mid-Task-2 (during blocker escalation). No
+compaction summary seen. The coordinator's ruling arrived mid-relay-prep and was applied in the
+same session before spawning a successor — Task 2 is fully done, not just ruled. Successor should
+NOT re-read the full plan comment — only the Task 3 section above, and the plan comment's Task 3
+detail by subsection as needed.
