@@ -142,7 +142,12 @@ export function VoiceConfigGroup() {
           placeholder={hasKey ? "•••••••• (stored)" : "sk-…"}
           aria-label="Voice endpoint API key"
         />
-        <Button variant="secondary" size="sm" disabled={!canSave} onClick={() => saveMutation.mutate()}>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!canSave}
+          onClick={() => saveMutation.mutate()}
+        >
           {saveMutation.isPending ? "Saving…" : "Save"}
         </Button>
       </Field>

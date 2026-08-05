@@ -177,7 +177,9 @@ export function ActivityPane(_props: PaneProps) {
                   <Badge tone={isDistinct(entry.outcome) ? "red" : "neutral"}>
                     {outcomeLabel(entry.outcome)}
                   </Badge>
-                  {entry.sourceSurface !== "chat" && <Badge tone="steel">{entry.sourceSurface}</Badge>}
+                  {entry.sourceSurface !== "chat" && (
+                    <Badge tone="steel">{entry.sourceSurface}</Badge>
+                  )}
                 </div>
               </div>
               <div className="aud__cat">{entry.toolModuleId}</div>

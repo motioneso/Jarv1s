@@ -228,10 +228,7 @@ export function ProviderLoginDialog(props: {
             <X size={14} aria-hidden="true" /> Close
           </Button>
           {state.phase === "awaiting-token" ? (
-            <Button
-              onClick={() => void submitToken()}
-              disabled={!state.token || !state.loginId}
-            >
+            <Button onClick={() => void submitToken()} disabled={!state.token || !state.loginId}>
               <LogIn size={14} aria-hidden="true" /> Submit code
             </Button>
           ) : null}
@@ -266,9 +263,7 @@ export function ProviderLoginDialog(props: {
             placeholder="Paste sign-in code"
             aria-label="Provider sign-in code"
             value={state.token}
-            onChange={(event) =>
-              setState((current) => ({ ...current, token: event.target.value }))
-            }
+            onChange={(event) => setState((current) => ({ ...current, token: event.target.value }))}
           />
         </>
       ) : null}

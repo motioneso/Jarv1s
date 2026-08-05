@@ -835,7 +835,9 @@ export function HostPane() {
                     {diag.latestAvailableVersion &&
                       compareJarvisVersions(diag.latestAvailableVersion, diag.version ?? "") >
                         0 && (
-                        <Badge tone="forest">Update Available ({diag.latestAvailableVersion})</Badge>
+                        <Badge tone="forest">
+                          Update Available ({diag.latestAvailableVersion})
+                        </Badge>
                       )}
                   </div>
                 }
