@@ -4,9 +4,9 @@
 // job-search.profile.list, job-search.criteria.set, job-search.profile.set-context, and
 // job-search.profile.set-briefing-detail.
 //
-// Every handler here is the same four steps: validate the input, call the store, shape a
-// record, return it. No handler builds a sentence and no handler decides policy —
-// `completedSteps`/`isReadyToCrawl` (Task 10) are called, never reimplemented.
+// Handlers validate input, use existing domain/store operations, and return records rather than
+// prose. Queued `criteria.set` writes commit quickly; scoring is handled by the existing
+// crawl-sweep continuation so later edits are never blocked by stale AI work.
 //
 // `validateProfileInput` (Task 13) only accepts an input whose ONLY field is `profileId` — it
 // throws `unknown key` on anything else, so it is used verbatim only by the profileId-only
@@ -284,6 +284,8 @@ export function createCriteriaSetHandler(store: JobSearchStore) {
     await store.updateCriteria(profileId, criteria);
 
     const outcome = await activateIfReady(store, profile, criteria);
+    const rescore: Record<string, unknown> | null =
+      !unchanged || rescoreOnly ? { ok: true, attempted: false } : null;
 
     return {
       profileId,
