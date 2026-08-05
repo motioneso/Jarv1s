@@ -213,19 +213,10 @@ export function AddSourceFlow() {
             ))}
           </ul>
           <div className="nw-set__addrow">
-            <Button
-              size="sm"
-              disabled={busy || !selectedCandidateId}
-              onClick={confirmSelected}
-            >
+            <Button size="sm" disabled={busy || !selectedCandidateId} onClick={confirmSelected}>
               {confirmMutation.isPending ? "Adding…" : "Add this source"}
             </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={busy}
-              onClick={reset}
-            >
+            <Button variant="secondary" size="sm" disabled={busy} onClick={reset}>
               Cancel
             </Button>
           </div>

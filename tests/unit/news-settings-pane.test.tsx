@@ -163,9 +163,9 @@ describe("NewsSettings personalization sections (#953)", () => {
     const html = render(personalization({ availability: allOff }));
     // Both closed-write Add buttons render disabled (@jarv1s/ui Button, secondary/sm).
     expect(html).toContain('class="jds-btn jds-btn--secondary jds-btn--sm" disabled=""');
-    expect((html.match(/class="jds-btn jds-btn--secondary jds-btn--sm" disabled=""/g) ?? []).length).toBe(
-      2
-    );
+    expect(
+      (html.match(/class="jds-btn jds-btn--secondary jds-btn--sm" disabled=""/g) ?? []).length
+    ).toBe(2);
     expect(html).toContain("/settings?section=assistant");
     // The exclusion form stays fully live without any AI prerequisite.
     expect(html).toContain('class="jds-btn jds-btn--primary jds-btn--sm"');

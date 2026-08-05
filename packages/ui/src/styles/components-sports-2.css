@@ -425,7 +425,6 @@
 }
 
 @media (max-width: 720px) {
-
   .sp-scorebar__score {
     font-size: var(--text-xl);
   }
@@ -664,7 +663,6 @@
 }
 
 @media (max-width: 900px) {
-
   .sp-grid__rail {
     border-left: none;
     border-top: 1px solid var(--border-subtle);
