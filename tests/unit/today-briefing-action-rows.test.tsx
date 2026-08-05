@@ -82,6 +82,20 @@ describe("BriefingActionRowsSection", () => {
           title: "Blank cache id",
           status: "suggested",
           suggestionMetadata: { ...suggestionMetadata, cacheMessageId: "  " }
+        }),
+        task({
+          id: "null-source-ref",
+          title: "Null source ref",
+          status: "suggested",
+          sourceRef: null,
+          suggestionMetadata
+        }),
+        task({
+          id: "empty-source-ref",
+          title: "Empty source ref",
+          status: "suggested",
+          sourceRef: "",
+          suggestionMetadata
         })
       ]
     });
@@ -90,6 +104,8 @@ describe("BriefingActionRowsSection", () => {
     expect(html).toContain("Valid suggestion");
     expect(html).not.toContain("Missing cache id");
     expect(html).not.toContain("Blank cache id");
+    expect(html).not.toContain("Null source ref");
+    expect(html).not.toContain("Empty source ref");
   });
 
   it("uses authored fallback prose and category-specific pre-run actions", () => {
@@ -106,6 +122,7 @@ describe("BriefingActionRowsSection", () => {
       tasks: [
         task({
           id: "reply",
+          description: "  ",
           status: "suggested",
           suggestionMetadata: {
             ...suggestionMetadata,

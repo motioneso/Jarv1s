@@ -73,9 +73,47 @@ describe("structured briefing action rows", () => {
         }
       },
       {
+        id: "null-source",
+        title: "Null source",
+        description: null,
+        dueAt: null,
+        updatedAt: null,
+        source: "email",
+        sourceRef: null,
+        suggestionMetadata: {
+          version: 1,
+          category: "needs_reply",
+          sourceLabel: "Gmail",
+          sourceHref: null,
+          cacheMessageId: "cache-null-source",
+          subjectSignature: "sig-null-source",
+          computedAt: FIXED_NOW.toISOString(),
+          resurfaceReason: null
+        }
+      },
+      {
+        id: "empty-source",
+        title: "Empty source",
+        description: null,
+        dueAt: null,
+        updatedAt: null,
+        source: "email",
+        sourceRef: "",
+        suggestionMetadata: {
+          version: 1,
+          category: "needs_reply",
+          sourceLabel: "Gmail",
+          sourceHref: null,
+          cacheMessageId: "cache-empty-source",
+          subjectSignature: "sig-empty-source",
+          computedAt: FIXED_NOW.toISOString(),
+          resurfaceReason: null
+        }
+      },
+      {
         id: "missing-link",
         title: "No link",
-        description: null,
+        description: "  ",
         dueAt: null,
         updatedAt: null,
         source: "email",

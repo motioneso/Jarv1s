@@ -27,8 +27,8 @@ test("greeting and dateline share the same top line on the Today masthead", asyn
   await page.locator("form.auth-form").getByRole("button", { name: "Sign in" }).click();
 
   // admin+data lands on Today (app.tsx's index route), the greeting/dateline live there.
-  const greeting = page.locator(".cmd-eyebrow");
-  const dateline = page.locator(".cmd-dateline");
+  const greeting = page.locator(".jds-masthead__eyebrow");
+  const dateline = page.locator(".jds-masthead__dateline");
   await expect(greeting).toBeVisible();
   await expect(dateline).toBeVisible();
 
@@ -37,7 +37,9 @@ test("greeting and dateline share the same top line on the Today masthead", asyn
     dateline.boundingBox()
   ]);
   if (!greetingBox || !datelineBox) {
-    throw new Error("could not read bounding boxes for .cmd-eyebrow / .cmd-dateline");
+    throw new Error(
+      "could not read bounding boxes for .jds-masthead__eyebrow / .jds-masthead__dateline"
+    );
   }
 
   // Same top line: allow a small tolerance for sub-pixel/line-height rounding between the two

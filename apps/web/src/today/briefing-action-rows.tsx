@@ -281,14 +281,22 @@ function rowsFromSuggestedTasks(tasks: readonly TaskDto[]): readonly DisplayedAc
   const displayed: DisplayedActionRow[] = [];
   for (const task of tasks) {
     const meta = task.suggestionMetadata;
-    if (task.status !== "suggested" || meta?.version !== 1 || !meta.cacheMessageId?.trim())
+    if (
+      task.status !== "suggested" ||
+      meta?.version !== 1 ||
+      !meta.cacheMessageId?.trim() ||
+      task.sourceRef === null ||
+      task.sourceRef.length === 0
+    )
       continue;
     displayed.push({
       liveStatus: "suggested",
       row: {
         taskId: task.id,
         title: task.title,
-        explanation: task.description ?? "This email may need your attention.",
+        explanation: task.description?.trim()
+          ? task.description
+          : "This email may need your attention.",
         category: meta.category,
         status: "suggested",
         primaryAction:

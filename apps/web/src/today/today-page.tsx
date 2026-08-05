@@ -19,6 +19,7 @@ import { AgendaRow, Card, Masthead, MastheadClock, MastheadDateline, StatTile } 
 
 import {
   createWellnessCheckin,
+  getOnboardingStatus,
   getMedicationSchedule,
   listCalendarEvents,
   listBriefingDefinitions,
@@ -30,6 +31,7 @@ import {
 } from "../api/client";
 import { findDefinition, targetTimeFor } from "../briefings/briefing-settings-model";
 import { useUserLocale } from "../locale/locale-format";
+import { hasConnectedProvider } from "../onboarding/chat-availability";
 import { useChatControls } from "../shell/chat-controls-context";
 import { readColorMode } from "../theme/color-mode";
 import { MedToday } from "../wellness/wellness-today";
@@ -96,6 +98,11 @@ export function TodayPage(props: {
   const navigate = useNavigate();
   const chatControls = useChatControls();
   const locale = useUserLocale();
+  const onboardingStatusQuery = useQuery({
+    queryKey: queryKeys.onboarding.status,
+    queryFn: getOnboardingStatus,
+    retry: false
+  });
   const feed = props.feed ?? createEmptyTodayFeed();
   const disabledModuleIds = props.disabledModuleIds ?? [];
   const wellnessEnabled = props.wellnessEnabled ?? false;
@@ -391,7 +398,7 @@ export function TodayPage(props: {
             loading={actionRowsLoading}
             tasks={tasks}
             locale={locale}
-            chatAvailable={true}
+            chatAvailable={hasConnectedProvider(onboardingStatusQuery.data)}
             onOpenTask={(id) => setDialog({ id })}
           />
 
