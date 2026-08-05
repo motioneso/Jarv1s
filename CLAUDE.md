@@ -6,7 +6,9 @@ layout, naming, conventions — read from the repo instead of trusting this file
 ## Orientation
 
 GitHub is the source of truth for status: the project board, milestones, and issue links, not this
-file and not a doc. Read `docs/DEVELOPMENT_STANDARDS.md` before broad feature work or reviews.
+file and not a doc. **The live board is project 2, "Issue and Roadmap Work"** — projects 1 and 3 are
+archived and stop at #1270 and #427, so a query against either finds nothing current and reads as
+"never tracked". Read `docs/DEVELOPMENT_STANDARDS.md` before broad feature work or reviews.
 
 Full local gate: `pnpm verify:foundation` — never run it, or any DB-touching test command, without
 the `verify-gate` skill. An unscoped run hits the live dev database; a piped one reads red as

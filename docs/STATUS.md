@@ -3,8 +3,9 @@
 > **Retired 2026-06-07.** Status and the milestone roadmap are no longer tracked in markdown.
 > GitHub is the single source of truth.
 >
-> - **Current status / next step:** the [project board](https://github.com/users/motioneso/projects/1)
->   ("Jarv1s Roadmap") — the "In Progress" column is what's active.
+> - **Current status / next step:** the [project board](https://github.com/users/motioneso/projects/2)
+>   ("Issue and Roadmap Work") — the "In progress" column is what's active. Projects 1 and 3 are
+>   archived; they stopped tracking at #1270 and #427.
 > - **Milestones + exit criteria:** GitHub Milestones and epic issues #2–#10 on `motioneso/Jarv1s`.
 > - **Hard invariants:** `CLAUDE.md` → _Hard Invariants_.
 > - **Local/LAN dev run + infrastructure notes:** `docs/operations/dev-environment.md`.

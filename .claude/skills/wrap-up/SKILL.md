@@ -97,8 +97,11 @@ If red: fix it (systematic-debugging) before claiming done. A red gate is not a 
 
 Verify with `gh` — do not assume the board drifted with you:
 
-- **Board** (project #1; field/option IDs are in the `start` skill): each touched epic is in
-  the right column. _Move the board item_ — editing a doc is not "started/done".
+- **Board** (project **#2**, "Issue and Roadmap Work"; field/option IDs are in the `start` skill —
+  projects #1 and #3 are archived, never query those): each touched epic is in the right column.
+  _Move the board item_ — editing a doc is not "started/done". Note the board largely self-maintains:
+  new issues are added automatically and closed ones flip to Done, so this is usually a *verify*
+  step, not an *update* step. Never hand-backfill it.
 - **Epic exit-criteria**: checkboxes reflect what actually shipped. Close the issue only when
   **all** criteria are met **and** the gate is green. For a multi-plan/multi-PR milestone,
   post a progress comment and leave it **open**.
@@ -149,7 +152,7 @@ anything awaiting the user.
 | Uncommitted?            | `git status --porcelain` · `pnpm format`                                                        |
 | Unpushed?               | `git status -sb` · `git log --oneline @{u}..HEAD`                                               |
 | Gate (real exit)        | `scripts/run-gate.sh start` → `wait` → `status` (never `pgrep`, never a pipe) |
-| Board / issues          | `gh project item-list 1 --owner motioneso --format json` · `gh issue …` · `gh pr …`             |
+| Board / issues          | `gh project item-list 2 --owner motioneso --format json --limit 800` · `gh issue …` · `gh pr …` |
 | Coordinate / hand off   | `herdr-pane-message` · `tmux-pane-message` · `herdr-handoff`                                    |
 | Memory                  | `memory_save` (project: jarv1s) or file-based memory + MEMORY.md                                |
 
