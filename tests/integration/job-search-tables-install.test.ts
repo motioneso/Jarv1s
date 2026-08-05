@@ -168,9 +168,9 @@ async function insertMatch(
 }
 
 describe("job-search module table install (#1288)", () => {
-  it("installs all ten migrations, FORCE RLS on every table, and re-runs idempotently", async () => {
+  it("installs all eleven migrations, FORCE RLS on every table, and re-runs idempotently", async () => {
     const result = await install();
-    expect(result.installed).toHaveLength(10);
+    expect(result.installed).toHaveLength(11);
 
     const client = new Client({ connectionString: urls.bootstrap });
     await client.connect();
@@ -195,7 +195,7 @@ describe("job-search module table install (#1288)", () => {
       "SELECT version FROM app.module_schema_migrations WHERE module_id = $1",
       [moduleId]
     );
-    expect(ledger.rows).toHaveLength(10);
+    expect(ledger.rows).toHaveLength(11);
 
     await client.end();
 
