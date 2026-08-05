@@ -58,7 +58,7 @@ import {
   Switch,
   type BadgeTone
 } from "./settings-ui";
-import { Button } from "@jarv1s/ui";
+import { Button, IconButton } from "@jarv1s/ui";
 import {
   describeHerdrInstallOutcome,
   healthSummary,
@@ -155,16 +155,15 @@ function PersonRow(props: {
       <div className="ppl__actions">
         {props.actions.length === 0 ? null : (
           <div className="ppl__menu" ref={menuRef}>
-            <button
-              type="button"
+            <IconButton
               ref={menuTriggerRef}
-              className="jds-iconbtn jds-iconbtn--sm"
+              size="sm"
               aria-label={`Actions for ${user.name || user.email}`}
               aria-expanded={menu}
               onClick={() => (menu ? closeMenu() : setMenu(true))}
             >
               <MoreHorizontal size={16} />
-            </button>
+            </IconButton>
             {menu ? (
               <div className="ppl__menupop" role="menu">
                 {canAdmin ? (

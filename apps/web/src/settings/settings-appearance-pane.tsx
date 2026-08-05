@@ -20,7 +20,7 @@ import {
 import type { AestheticThemeTokenKey, AestheticThemeTokens } from "@jarv1s/shared";
 import { AESTHETIC_THEME_TOKEN_KEYS } from "@jarv1s/shared";
 import { Badge, Field, Group, Note, PaneHead } from "./settings-ui";
-import { Button } from "@jarv1s/ui";
+import { Button, Segmented } from "@jarv1s/ui";
 
 interface DraftTheme {
   readonly id: string;
@@ -169,25 +169,19 @@ export function AppearancePane() {
           </Button>
         }
       >
-        <div className="jds-segmented" role="group" aria-label="Color mode">
-          {(["light", "dark"] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              className={`jds-segmented__opt ${activeMode === mode ? "is-active" : ""}`}
-              aria-pressed={activeMode === mode}
-              disabled={!activeIsBuiltIn || modeMutation.isPending}
-              title={
-                activeIsBuiltIn
-                  ? undefined
-                  : "Custom themes use their saved fixed palette and do not support color mode."
-              }
-              onClick={() => modeMutation.mutate({ mode })}
-            >
-              {mode === "light" ? "Light" : "Dark"}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          ariaLabel="Color mode"
+          value={activeMode}
+          onChange={(mode) => modeMutation.mutate({ mode })}
+          options={(["light", "dark"] as const).map((mode) => ({
+            value: mode,
+            label: mode === "light" ? "Light" : "Dark",
+            disabled: !activeIsBuiltIn || modeMutation.isPending,
+            title: activeIsBuiltIn
+              ? undefined
+              : "Custom themes use their saved fixed palette and do not support color mode."
+          }))}
+        />
         {!activeIsBuiltIn ? (
           <Note>Custom themes use their saved fixed palette, so color mode is unavailable.</Note>
         ) : null}

@@ -129,14 +129,9 @@ export function SettingsSkillsPane() {
             <Button variant="secondary" size="sm" onClick={openCreate}>
               <Plus size={15} aria-hidden="true" /> Create skill
             </Button>
-            <button
-              type="button"
-              ref={listActionRef}
-              className="jds-btn jds-btn--secondary jds-btn--sm"
-              onClick={openUpload}
-            >
+            <Button ref={listActionRef} variant="secondary" size="sm" onClick={openUpload}>
               <Upload size={15} aria-hidden="true" /> Upload file
-            </button>
+            </Button>
           </span>
         }
       >

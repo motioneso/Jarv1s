@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-import { Button } from "@jarv1s/ui";
+import { Button, IconButton } from "@jarv1s/ui";
 import {
   createAiProvider,
   getChatModelOverrideSettings,
@@ -259,14 +259,13 @@ function ProviderCard(props: {
           >
             {props.editing ? "Done" : "Edit"}
           </Button>
-          <button
-            type="button"
-            className="jds-iconbtn jds-iconbtn--sm"
+          <IconButton
+            size="sm"
             aria-label={`Remove ${provider.displayName}`}
             onClick={props.onRemove}
           >
             <Trash2 size={15} />
-          </button>
+          </IconButton>
         </div>
       </div>
 

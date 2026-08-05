@@ -1,4 +1,4 @@
-import { type ButtonHTMLAttributes, type ReactNode } from "react";
+import { type ButtonHTMLAttributes, type ReactNode, type Ref } from "react";
 
 export type IconButtonVariant = "default" | "secondary";
 export type IconButtonSize = "sm" | "md" | "lg";
@@ -12,6 +12,7 @@ export interface IconButtonProps extends Omit<
   readonly active?: boolean;
   readonly "aria-label": string;
   readonly children: ReactNode;
+  readonly ref?: Ref<HTMLButtonElement>;
 }
 
 export function IconButton(props: IconButtonProps) {

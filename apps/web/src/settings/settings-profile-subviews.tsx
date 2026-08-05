@@ -41,7 +41,7 @@ import { queryKeys } from "../api/query-keys.js";
 import { formatDate, useUserLocale } from "../locale/locale-format.js";
 import { useFeedback } from "./settings-feedback.js";
 import { Badge, Group, Note, Row } from "./settings-ui.js";
-import { Button } from "@jarv1s/ui";
+import { Button, ButtonLink } from "@jarv1s/ui";
 
 /* ----------------------------------------------------------- Data export */
 
@@ -164,16 +164,15 @@ export function DataExport() {
             it.
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <a
+            <ButtonLink
               href={getDataExportDownloadUrl(jobId!)}
-              className="jds-btn jds-btn--primary jds-btn--sm"
+              variant="primary"
+              size="sm"
+              icon={<Download size={15} />}
               download
             >
-              <span className="jds-btn__icon">
-                <Download size={15} />
-              </span>
               Download
-            </a>
+            </ButtonLink>
             <Button variant="quiet" size="sm" onClick={reset}>
               Prepare a new export
             </Button>
