@@ -15,6 +15,7 @@ import type { ChangeEvent, ReactNode } from "react";
 import { importCredentialsJson } from "../connectors/google-credentials";
 import { useGoogleConnectFlow } from "../connectors/use-google-connect-flow";
 import { useFeedback } from "./settings-feedback";
+import { Button } from "@jarv1s/ui";
 
 /* Credential / paste field, matched to the onboarding Google walkthrough. */
 function CredField(props: {
@@ -305,21 +306,12 @@ export function GoogleConnect(props: { readonly onBack: () => void }) {
             disabled={!authorized}
           />
           <div className="onb-cred__actions">
-            <button
-              type="button"
-              className="jds-btn jds-btn--primary jds-btn--sm"
-              disabled={!finishReady}
-              onClick={google.finishConnection}
-            >
+            <Button size="sm" disabled={!finishReady} onClick={google.finishConnection}>
               Finish connection
-            </button>
-            <button
-              type="button"
-              className="jds-btn jds-btn--quiet jds-btn--sm"
-              onClick={props.onBack}
-            >
+            </Button>
+            <Button variant="quiet" size="sm" onClick={props.onBack}>
               Cancel
-            </button>
+            </Button>
             <span className="onb-cred__hint">
               {finishReady
                 ? "Looks good — completing the token exchange."

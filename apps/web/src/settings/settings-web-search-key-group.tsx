@@ -7,6 +7,7 @@ import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
 import { Field, Group, Note } from "./settings-ui";
+import { Button } from "@jarv1s/ui";
 
 export function WebSearchKeyGroup() {
   const queryClient = useQueryClient();
@@ -59,18 +60,18 @@ export function WebSearchKeyGroup() {
           placeholder={configured ? "•••••••• (stored)" : "BSA…"}
           aria-label="Brave Search API key"
         />
-        <button
-          type="button"
-          className="jds-btn jds-btn--secondary jds-btn--sm"
+        <Button
+          variant="secondary"
+          size="sm"
           disabled={!apiKey.trim() || saveMutation.isPending}
           onClick={() => saveMutation.mutate(apiKey.trim())}
         >
           {saveMutation.isPending ? "Saving…" : "Save"}
-        </button>
+        </Button>
         {configured && !fromEnv ? (
-          <button
-            type="button"
-            className="jds-btn jds-btn--quiet jds-btn--sm"
+          <Button
+            variant="quiet"
+            size="sm"
             disabled={revokeMutation.isPending}
             onClick={() =>
               confirm({
@@ -83,7 +84,7 @@ export function WebSearchKeyGroup() {
             }
           >
             Revoke
-          </button>
+          </Button>
         ) : null}
       </Field>
       <Note icon={<Globe size={13} />}>

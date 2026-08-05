@@ -10,7 +10,7 @@ import {
   type ReactNode
 } from "react";
 
-import { Dialog } from "@jarv1s/ui";
+import { Button, Dialog } from "@jarv1s/ui";
 
 /* Settings feedback layer — a quiet ambient toast for simple actions and a
    confirm dialog for consequential/destructive ones. Mirrors the design kit's
@@ -144,17 +144,16 @@ export function FeedbackProvider(props: {
           description={dialog.description}
           footer={
             <>
-              <button type="button" className="jds-btn jds-btn--quiet" onClick={closeDialog}>
+              <Button variant="quiet" onClick={closeDialog}>
                 {dialog.cancelLabel ?? "Cancel"}
-              </button>
-              <button
-                type="button"
-                className={`jds-btn ${dialog.danger ? "jds-btn--danger" : "jds-btn--primary"}`}
+              </Button>
+              <Button
+                variant={dialog.danger ? "danger" : "primary"}
                 onClick={runConfirm}
                 disabled={dialog.requireText !== undefined && confirmInput !== dialog.requireText}
               >
                 {dialog.confirmLabel ?? "Confirm"}
-              </button>
+              </Button>
             </>
           }
         >

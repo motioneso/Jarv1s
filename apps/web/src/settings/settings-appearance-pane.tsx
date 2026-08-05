@@ -20,6 +20,7 @@ import {
 import type { AestheticThemeTokenKey, AestheticThemeTokens } from "@jarv1s/shared";
 import { AESTHETIC_THEME_TOKEN_KEYS } from "@jarv1s/shared";
 import { Badge, Field, Group, Note, PaneHead } from "./settings-ui";
+import { Button } from "@jarv1s/ui";
 
 interface DraftTheme {
   readonly id: string;
@@ -153,21 +154,19 @@ export function AppearancePane() {
       <Group
         title="Themes"
         action={
-          <button
-            type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() =>
               makeDraft(
                 "New theme",
                 readCurrentAestheticTokens(getComputedStyle(document.documentElement))
               )
             }
+            icon={<Plus size={15} aria-hidden="true" />}
           >
-            <span className="jds-btn__icon">
-              <Plus size={15} aria-hidden="true" />
-            </span>
             New theme
-          </button>
+          </Button>
         }
       >
         <div className="jds-segmented" role="group" aria-label="Color mode">
@@ -223,17 +222,14 @@ export function AppearancePane() {
         <Group
           title="Editor"
           action={
-            <button
-              type="button"
-              className="jds-btn jds-btn--primary jds-btn--sm"
+            <Button
+              size="sm"
               disabled={saveMutation.isPending}
               onClick={saveDraft}
+              icon={<Save size={15} aria-hidden="true" />}
             >
-              <span className="jds-btn__icon">
-                <Save size={15} aria-hidden="true" />
-              </span>
               Save
-            </button>
+            </Button>
           }
         >
           <div className="theme-editor">
@@ -333,9 +329,7 @@ export function AppearancePane() {
               <div className="theme-preview__eyebrow">Preview</div>
               <h3>Daily plan</h3>
               <p>Paper, ink, line, and accent update here before saving.</p>
-              <button type="button" className="jds-btn jds-btn--primary jds-btn--sm">
-                Primary action
-              </button>
+              <Button size="sm">Primary action</Button>
             </div>
             {contrastWarnings.length ? (
               <Note icon={<Palette size={13} aria-hidden="true" />}>
@@ -378,27 +372,23 @@ function ThemeRow(props: {
         {props.active ? <Badge tone="forest">Active</Badge> : null}
         {props.readonlyLabel ? <Badge tone="neutral">{props.readonlyLabel}</Badge> : null}
       </button>
-      <button
-        type="button"
-        className="jds-btn jds-btn--quiet jds-btn--sm"
+      <Button
+        variant="quiet"
+        size="sm"
         onClick={props.onDuplicate}
+        icon={<Copy size={14} aria-hidden="true" />}
       >
-        <span className="jds-btn__icon">
-          <Copy size={14} aria-hidden="true" />
-        </span>
         Duplicate
-      </button>
+      </Button>
       {props.onDelete ? (
-        <button
-          type="button"
-          className="jds-btn jds-btn--quiet jds-btn--sm"
+        <Button
+          variant="quiet"
+          size="sm"
           onClick={props.onDelete}
+          icon={<Trash2 size={14} aria-hidden="true" />}
         >
-          <span className="jds-btn__icon">
-            <Trash2 size={14} aria-hidden="true" />
-          </span>
           Delete
-        </button>
+        </Button>
       ) : null}
     </div>
   );
