@@ -23,6 +23,7 @@ import {
 import type { AuthProviderStatusDto } from "@jarv1s/shared";
 
 import { readBearerToken, toWebHeaders } from "./headers.js";
+import { resolveAuthOriginConfig } from "./runtime-config.js";
 import { createMeSessionsService, type MeSessionsRuntimeService } from "./session-service.js";
 
 const { Pool } = pg;
@@ -257,11 +258,12 @@ function createBetterAuthOptions(
 ): BetterAuthOptions {
   const socialProviders = readSocialProviders(env);
   const plugins = readAuthPlugins(env);
+  const originConfig = resolveAuthOriginConfig(env);
 
   return {
     appName: "Jarv1s",
     basePath: "/api/auth",
-    baseURL: env.JARVIS_AUTH_BASE_URL ?? env.BETTER_AUTH_URL ?? "http://localhost:3000",
+    baseURL: originConfig.baseURL,
     secret: readAuthSecret(env, logger),
     database: pool,
     emailAndPassword: {
@@ -332,7 +334,7 @@ function createBetterAuthOptions(
         }
       }
     },
-    trustedOrigins: readTrustedOrigins(env),
+    trustedOrigins: originConfig.trustedOrigins,
     ...(Object.keys(socialProviders).length > 0 ? { socialProviders } : {}),
     ...(plugins.length > 0 ? { plugins } : {})
   };
@@ -656,13 +658,6 @@ function readAuthSecret(env: NodeJS.ProcessEnv, logger?: AuthLogger): string {
       "when the process restarts. Set BETTER_AUTH_SECRET to persist sessions."
   );
   return ephemeralSecret;
-}
-
-function readTrustedOrigins(env: NodeJS.ProcessEnv): string[] {
-  return (env.JARVIS_AUTH_TRUSTED_ORIGINS ?? "http://localhost:3000")
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
 }
 
 function readSocialProviders(
