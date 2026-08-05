@@ -6,20 +6,13 @@
 
 .nw-set__kicker {
   margin: 0 0 var(--space-3);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-bold);
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
-  color: var(--text-muted);
 }
 
 .nw-set__hint {
   margin: calc(-1 * var(--space-2)) 0 var(--space-3);
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
   line-height: 1.5;
-  color: var(--text-muted);
 }
 
 .nw-set__grid {
@@ -34,37 +27,16 @@
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-family: var(--font-sans);
   text-align: left;
-}
-.nw-setsrc:hover:not(:disabled) {
-  border-color: var(--border-strong);
 }
 .nw-setsrc:disabled {
   opacity: 0.6;
   cursor: default;
 }
-.nw-setsrc.is-active {
-  border-color: var(--accent);
-  background: var(--forest-soft);
-}
-.nw-setsrc__name {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-bold);
-  color: var(--text);
-}
 .nw-setsrc__state {
-  font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
-  color: var(--text-muted);
-}
-.nw-setsrc.is-active .nw-setsrc__state {
-  color: var(--accent-fg);
 }
 
 .nw-set__chips {
@@ -75,26 +47,11 @@
 
 .nw-settopic {
   padding: var(--space-1) var(--space-3);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
   cursor: pointer;
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  color: var(--text);
-}
-.nw-settopic:hover:not(:disabled) {
-  border-color: var(--border-strong);
 }
 .nw-settopic:disabled {
   opacity: 0.6;
   cursor: default;
-}
-.nw-settopic.is-active {
-  border-color: var(--accent);
-  background: var(--forest-soft);
-  color: var(--accent-fg);
-  font-weight: var(--weight-bold);
 }
 
 /* ----- #953 personalization sections ----- */
@@ -103,15 +60,10 @@
    distinct from the plain disabled (pending) state's opacity fade. */
 .nw-setsrc.is-excluded {
   border-style: dashed;
-  background: var(--surface);
   opacity: 1;
 }
 .nw-setsrc.is-excluded .nw-setsrc__name {
-  color: var(--text-muted);
   text-decoration: line-through;
-}
-.nw-setsrc.is-excluded .nw-setsrc__state {
-  color: var(--text-muted);
 }
 
 .nw-set__prereq {
@@ -135,16 +87,6 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-sans);
-}
-
-.nw-set__item-label {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-bold);
-  color: var(--text);
 }
 
 .nw-set__item-meta {
@@ -153,8 +95,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--text-xs);
-  color: var(--text-muted);
 }
 
 .nw-set__item > button {
@@ -172,13 +112,9 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
 }
 
 .nw-set__gatelink {
-  color: var(--accent-fg);
   text-decoration: underline;
 }
 
@@ -189,9 +125,6 @@
 .nw-set__exlabel {
   display: block;
   margin: 0 0 var(--space-2);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
 }
 
 .nw-set__exrow {
@@ -207,9 +140,6 @@
 
 .nw-set__exerr {
   margin: calc(-1 * var(--space-2)) 0 var(--space-3);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--danger, var(--text));
 }
 
 /* ----- #975 Task 9: add-source/topic write flows ----- */
@@ -238,12 +168,6 @@
 
 .nw-set__exstatus {
   margin: calc(-1 * var(--space-2)) 0 var(--space-3);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-.nw-set__exstatus.is-success {
-  color: var(--accent-fg);
 }
 
 @media (max-width: 40rem) {

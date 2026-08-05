@@ -3,11 +3,9 @@
 
 .sp-photo--img {
   object-fit: cover;
-  border-radius: 0;
 }
 
 .sp-hero__link {
-  color: inherit;
   text-decoration: none;
 }
 
@@ -25,14 +23,8 @@
   margin-top: var(--space-4);
 }
 
-.sp-skel {
-  border-radius: 0;
-  background: var(--surface-2);
-}
-
 .sp-skel--ticker {
   height: 96px;
-  border-top: 2px solid var(--border);
 }
 
 .sp-skel--hero {

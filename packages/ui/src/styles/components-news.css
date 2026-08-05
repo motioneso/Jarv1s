@@ -1,0 +1,436 @@
+/* ── News — visual declarations extracted from news-{1,2}.css and news-settings.css
+   (#1394). Layout remains in packages/news/src/web/styles/news-{1,2}.css and
+   packages/news/src/settings/news-settings.css; this file owns color, background, border,
+   radius, font, shadow, outline, fill/stroke/filter per selector. Source order preserved
+   (news-1 → news-2 → news-settings) so intra-news cascade overrides survive. */
+
+.nw-lede {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  color: var(--text-muted);
+}
+
+/* Reusable mono-caps section kicker (same voice as sports' .sp-col__kicker). */
+.nw-kicker {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* "Continue reading →" jump line shared by hero/feature/mosaic articles. */
+.nw-more {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--accent-fg);
+}
+
+/* ------------------------------------------------------------------ Masthead */
+
+/* Hairline-boxed section bar, the same broadsheet frame as sports' masthead — but these
+   chips are functional topic filters, not an inert preview nav. */
+.nw-mast {
+  border-top: 2px solid var(--border-strong);
+  border-bottom: 2px solid var(--border-strong);
+}
+
+.nw-mast__chip {
+  background: transparent;
+  border: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.nw-mast__chip:hover {
+  color: var(--text);
+}
+/* Active topic reads as the open section of the paper: ink text + accent underline bar. */
+.nw-mast__chip[aria-pressed="true"] {
+  color: var(--text);
+  font-weight: var(--weight-bold);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.nw-mast__chip:focus-visible {
+  outline: 2px solid var(--focus-ring);
+}
+
+/* Top-front-page mode (no followed topics): a quiet centered nameplate keeps the band from
+   sitting empty between its two rules. */
+.nw-mast__plate {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.nw-carousel__nav {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+}
+.nw-carousel__nav:hover {
+  background: var(--surface-2);
+}
+.nw-carousel__dot {
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+}
+.nw-carousel__dot[aria-current] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.nw-hero__photo--empty {
+  background: var(--surface-2);
+}
+.nw-hero__kicker {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.nw-hero__kicker-desk {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--accent-fg);
+}
+.nw-hero__kicker-src {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.nw-hero__headline {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3.4vw, 40px);
+  font-weight: var(--weight-black);
+}
+.nw-hero__link {
+  color: var(--text);
+}
+.nw-hero__dek {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  color: var(--text-muted);
+}
+.nw-skel {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+/* --------------------------------------------------------------- Empty state */
+
+.nw-empty {
+  border: 1px solid var(--border-subtle);
+}
+.nw-empty__mark {
+  color: var(--text-muted);
+}
+.nw-empty__title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-black);
+}
+.nw-empty__lede {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  color: var(--text-muted);
+}
+.nw-empty__btn {
+  background: var(--ink);
+  color: var(--surface);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+/* News broadsheet body: main/rail grid, feature, mosaic, briefs, source rail, /today list.
+   Tokens only — raw colors live in apps/web/src/styles/tokens.css. */
+
+/* ------------------------------------------------------------- Page grid */
+
+/* Broadsheet body: mosaic main well + keyline-separated source rail (the sports two-column
+   idiom). Collapses to a single column below 900px. */
+.nw-grid {
+  border-top: 1px solid var(--border-subtle);
+}
+.nw-grid__rail {
+  border-left: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 900px) {
+  .nw-grid__rail {
+    border-left: 0;
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+
+/* ------------------------------------------------------------- Feature */
+
+/* Full-width breakout above the mosaic: art beside display type, one rank down from the hero. */
+.nw-feature {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.nw-feature__kicker {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+.nw-feature__title {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.4vw, 28px);
+  font-weight: var(--weight-black);
+}
+.nw-feature__blurb {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.nw-mosaic__art {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.nw-mosaic__artkicker {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+.nw-mosaic__title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+.nw-mosaic__art--major .nw-mosaic__title {
+  font-size: var(--text-xl);
+}
+.nw-mosaic__blurb {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------- In brief */
+
+.nw-briefs {
+  border-top: 2px solid var(--border-strong);
+}
+.nw-briefs__label {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--text);
+}
+.nw-briefs__item {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.nw-briefs__link {
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+}
+.nw-briefs__tag {
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------- Source rail */
+
+.nw-rail__group {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.nw-rail__group:last-child {
+  border-bottom: 0;
+}
+.nw-rail__src {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--text);
+}
+.nw-rail__src:hover {
+  color: var(--accent-fg);
+}
+.nw-rail__link {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.nw-rail__link:hover {
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------- Degraded notice */
+
+.nw-degraded {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------- /today widget lead (newspaper) */
+
+/* Broadsheet lead for the /today News desk (Ben 2026-07-09 "more newspaper style"): the top
+   story gets a photo + display headline, the same voice as the /news mosaic hero, scaled down for
+   the brief column. A bottom keyline sets it off from the headline list that follows. Whole block
+   is the link — hover underlines the headline only (the photo/dek shouldn't flicker). */
+.nw-twlead {
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text);
+}
+.nw-twlead__photo {
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+}
+.nw-twlead__tag {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  color: var(--accent-fg);
+}
+.nw-twlead__title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-black);
+}
+/* One-line dek: a taste of the summary, clamped to two lines so a long feed blurb can't shove the
+   headline list below the fold. */
+.nw-twlead__dek {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.nw-twlist__item {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.nw-twlist__item:last-child {
+  border-bottom: 0;
+}
+.nw-twlist__link {
+  color: var(--text);
+}
+.nw-twlist__tag {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+.nw-twlist__title {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+}
+
+.nw-set__kicker {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--text-muted);
+}
+
+.nw-set__hint {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.nw-setsrc {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+}
+.nw-setsrc:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+.nw-setsrc.is-active {
+  border-color: var(--accent);
+  background: var(--forest-soft);
+}
+.nw-setsrc__name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--text);
+}
+.nw-setsrc__state {
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+.nw-setsrc.is-active .nw-setsrc__state {
+  color: var(--accent-fg);
+}
+
+.nw-settopic {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+.nw-settopic:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+.nw-settopic.is-active {
+  border-color: var(--accent);
+  background: var(--forest-soft);
+  color: var(--accent-fg);
+  font-weight: var(--weight-bold);
+}
+
+/* ----- #953 personalization sections ----- */
+
+/* An excluded curated tile is inert — dashed border + muted text reads as "overridden",
+   distinct from the plain disabled (pending) state's opacity fade. */
+.nw-setsrc.is-excluded {
+  background: var(--surface);
+}
+.nw-setsrc.is-excluded .nw-setsrc__name {
+  color: var(--text-muted);
+}
+.nw-setsrc.is-excluded .nw-setsrc__state {
+  color: var(--text-muted);
+}
+
+.nw-set__item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+}
+
+.nw-set__item-label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--text);
+}
+
+.nw-set__item-meta {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.nw-set__gate {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.nw-set__gatelink {
+  color: var(--accent-fg);
+}
+
+.nw-set__exlabel {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.nw-set__exerr {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--danger, var(--text));
+}
+
+/* ----- #990 described-topic add/edit status regions ----- */
+
+.nw-set__exstatus {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.nw-set__exstatus.is-success {
+  color: var(--accent-fg);
+}

@@ -94,7 +94,19 @@ export const MIGRATED_SECTION_CSS_FILES: readonly string[] = [
   "apps/web/src/styles/wellness-3.css",
   "apps/web/src/styles/kit-tasks.css",
   "apps/web/src/styles/kit-tasks-modal.css",
-  "apps/web/src/tasks/tasks.css"
+  "apps/web/src/tasks/tasks.css",
+  // #1394 Shipped modules: news + sports. These live under packages/, outside checkTokens'
+  // apps/web/src walk root, but checkBannedProperties resolves each entry against the repo root
+  // directly, so the layout-only rule is enforced here just as it is for apps/web sections.
+  "packages/news/src/settings/news-settings.css",
+  "packages/news/src/web/styles/news-1.css",
+  "packages/news/src/web/styles/news-2.css",
+  "packages/sports/src/settings/sports-2.css",
+  "packages/sports/src/web/styles/sports-1.css",
+  "packages/sports/src/web/styles/sports-3.css",
+  "packages/sports/src/web/styles/sports-4-grid.css",
+  "packages/sports/src/web/styles/sports-5-editorial.css",
+  "packages/sports/src/web/styles/sports-6-newsband.css"
 ];
 
 let validTokensCache: Set<string> | undefined;
