@@ -513,7 +513,8 @@ async function syncEmailPhase(
     }
     pending.sort(
       (left, right) =>
-        right.receivedAt.localeCompare(left.receivedAt) || left.externalId.localeCompare(right.externalId)
+        right.receivedAt.localeCompare(left.receivedAt) ||
+        left.externalId.localeCompare(right.externalId)
     );
     let processed = 0;
     const batches = pending.map((message) => [message]);
