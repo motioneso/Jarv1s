@@ -101,7 +101,7 @@ export function BriefingActionRowsSection(props: BriefingActionRowsSectionProps)
   if (!props.run && displayed.length === 0) return null;
 
   const countLabel = `${suggested.length} ${suggested.length === 1 ? "needs" : "need"} you`;
-  const freshness = buildFreshness(suggested, props.run?.createdAt ?? null);
+  const freshness = buildFreshness(displayed, props.run?.createdAt ?? null);
 
   return (
     <section className="jds-brief">
@@ -281,7 +281,8 @@ function rowsFromSuggestedTasks(tasks: readonly TaskDto[]): readonly DisplayedAc
   const displayed: DisplayedActionRow[] = [];
   for (const task of tasks) {
     const meta = task.suggestionMetadata;
-    if (task.status !== "suggested" || meta?.version !== 1) continue;
+    if (task.status !== "suggested" || meta?.version !== 1 || !meta.cacheMessageId?.trim())
+      continue;
     displayed.push({
       liveStatus: "suggested",
       row: {
@@ -290,9 +291,7 @@ function rowsFromSuggestedTasks(tasks: readonly TaskDto[]): readonly DisplayedAc
         explanation: task.description ?? "",
         category: meta.category,
         status: "suggested",
-        primaryAction: meta.cacheMessageId
-          ? { kind: "reply", cacheMessageId: meta.cacheMessageId }
-          : null,
+        primaryAction: { kind: "reply", cacheMessageId: meta.cacheMessageId },
         source: task.source,
         sourceLabel: meta.sourceLabel,
         sourceRef: task.sourceRef ?? "",
@@ -312,12 +311,12 @@ function rowsFromSuggestedTasks(tasks: readonly TaskDto[]): readonly DisplayedAc
  * run, so the pre-briefing fallback (no run) reports nothing.
  */
 function buildFreshness(
-  suggested: readonly DisplayedActionRow[],
+  displayed: readonly DisplayedActionRow[],
   capturedAt: string | null
 ): SourceFreshnessV1 | null {
-  if (!capturedAt || suggested.length === 0) return null;
+  if (!capturedAt || displayed.length === 0) return null;
   const oldestBySource = new Map<string, string>();
-  for (const entry of suggested) {
+  for (const entry of displayed) {
     const current = oldestBySource.get(entry.row.source);
     if (!current || entry.row.computedAt < current) {
       oldestBySource.set(entry.row.source, entry.row.computedAt);

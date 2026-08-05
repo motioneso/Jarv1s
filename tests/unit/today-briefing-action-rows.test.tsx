@@ -51,6 +51,47 @@ describe("BriefingActionRowsSection", () => {
     expect(html.match(/>Dismiss</g)?.length).toBe(1);
   });
 
+  it("omits fallback suggestions without a reply cache id", () => {
+    const suggestionMetadata = {
+      version: 1 as const,
+      category: "needs_reply" as const,
+      sourceLabel: "Email",
+      sourceHref: null,
+      cacheMessageId: "cache-valid",
+      subjectSignature: "subject",
+      computedAt: "2026-08-04T12:00:00.000Z",
+      resurfaceReason: null
+    };
+    const html = renderSection({
+      run: null,
+      tasks: [
+        task({
+          id: "valid-suggestion",
+          title: "Valid suggestion",
+          status: "suggested",
+          suggestionMetadata
+        }),
+        task({
+          id: "missing-cache-id",
+          title: "Missing cache id",
+          status: "suggested",
+          suggestionMetadata: { ...suggestionMetadata, cacheMessageId: null }
+        }),
+        task({
+          id: "blank-cache-id",
+          title: "Blank cache id",
+          status: "suggested",
+          suggestionMetadata: { ...suggestionMetadata, cacheMessageId: "  " }
+        })
+      ]
+    });
+
+    expect(html).toContain("1 needs you");
+    expect(html).toContain("Valid suggestion");
+    expect(html).not.toContain("Missing cache id");
+    expect(html).not.toContain("Blank cache id");
+  });
+
   it("Reply prompt never interpolates title or explanation", () => {
     expect(buildReplyChatPrompt("cache-123")).toBe(
       "Draft a reply to the cached email cache-123 using email.draftReply."
@@ -217,6 +258,46 @@ describe("BriefingActionRowsSection", () => {
       const staleText = html.match(/<p class="bfresh__stale">([\s\S]*?)<\/p>/)?.[1] ?? "";
       expect(staleText).toContain("Calendar");
       expect(staleText).not.toContain("Email");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("uses accepted and dismissed rows for freshness but not the suggested count", () => {
+    const now = new Date("2026-08-04T12:00:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    try {
+      const html = renderSection({
+        run: run({
+          rows: [
+            actionRow({ taskId: "fresh", computedAt: now.toISOString() }),
+            actionRow({
+              taskId: "old-accepted",
+              source: "calendar",
+              sourceLabel: "Calendar",
+              computedAt: new Date(now.getTime() - 30 * 60 * 60 * 1000).toISOString()
+            }),
+            actionRow({
+              taskId: "old-dismissed",
+              source: "email",
+              sourceLabel: "Email",
+              computedAt: new Date(now.getTime() - 30 * 60 * 60 * 1000).toISOString()
+            })
+          ]
+        }),
+        tasks: [
+          task({ id: "fresh", status: "suggested" }),
+          task({ id: "old-accepted", status: "todo" }),
+          task({ id: "old-dismissed", status: "archived" })
+        ]
+      });
+
+      expect(html).toContain("1 needs you");
+      expect(html).toContain("Some sources are over a day old");
+      const staleText = html.match(/<p class="bfresh__stale">([\s\S]*?)<\/p>/)?.[1] ?? "";
+      expect(staleText).toContain("Calendar");
+      expect(staleText).toContain("Email");
     } finally {
       vi.useRealTimers();
     }
