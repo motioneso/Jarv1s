@@ -4,7 +4,6 @@
 // screen NEVER writes. No chart library: category/payee shares are CSS-width
 // bars and the net-worth trend is one inline SVG polyline in currentColor,
 // so raw colors stay in tokens.css and theme switching costs nothing.
-import { Card, Select } from "@jarv1s/module-web-sdk";
 import { fetchUserDirectory } from "../api";
 import { formatCents, monthLabel } from "../format";
 import { h, useEffect, useState, type ReactNodeLike } from "../runtime";
@@ -85,9 +84,9 @@ function BarList(props: { rows: BarRow[] }): ReactNodeLike {
       {props.rows.map((row) => (
         <div key={row.label} className="fnm-report-bar-row">
           <span>{row.label}</span>
-          <div className="jds-progress jds-progress--current fnm-report-bar">
+          <div className="fnm-report-bar">
             <div
-              className="jds-progress__fill"
+              className="fnm-report-bar-fill"
               style={{ width: `${Math.round((Math.abs(row.cents) / max) * 100)}%` }}
             />
           </div>
@@ -101,39 +100,37 @@ function BarList(props: { rows: BarRow[] }): ReactNodeLike {
 function NetWorthSection(props: { result: NetWorthResult }): ReactNodeLike {
   const { points, headlineCents } = props.result;
   return (
-    <Card flush>
-      <section className="fnm-state" aria-label="Net worth">
-        <span className="jds-eyebrow">Net worth</span>
-        {headlineCents === null ? (
-          <EmptyState
-            title="No snapshots yet"
-            body="Net worth builds from daily balance snapshots, which appear after your first sync."
-          />
-        ) : (
-          <div className="fnm-stack">
-            <strong className="fnm-amount">{formatCents(headlineCents, REPORT_CURRENCY)}</strong>
-            {/* A polyline needs ≥2 points; a single snapshot day renders the
-                headline alone. */}
-            {points.length >= 2 ? (
-              <svg
-                viewBox="0 0 100 32"
-                preserveAspectRatio="none"
-                className="fnm-report-trend"
-                role="img"
-                aria-label="Net worth trend"
-              >
-                <polyline
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1"
-                  points={trendPoints(points)}
-                />
-              </svg>
-            ) : null}
-          </div>
-        )}
-      </section>
-    </Card>
+    <section className="jds-card jds-card--flush fnm-state" aria-label="Net worth">
+      <span className="jds-eyebrow">Net worth</span>
+      {headlineCents === null ? (
+        <EmptyState
+          title="No snapshots yet"
+          body="Net worth builds from daily balance snapshots, which appear after your first sync."
+        />
+      ) : (
+        <div className="fnm-stack">
+          <strong className="fnm-amount">{formatCents(headlineCents, REPORT_CURRENCY)}</strong>
+          {/* A polyline needs ≥2 points; a single snapshot day renders the
+              headline alone. */}
+          {points.length >= 2 ? (
+            <svg
+              viewBox="0 0 100 32"
+              preserveAspectRatio="none"
+              className="fnm-report-trend"
+              role="img"
+              aria-label="Net worth trend"
+            >
+              <polyline
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1"
+                points={trendPoints(points)}
+              />
+            </svg>
+          ) : null}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -179,64 +176,58 @@ function SpendingSection(props: {
         <p className="jds-caption">Includes shared household accounts</p>
       ) : null}
       <div className="fnm-report-grid">
-        <Card flush>
-          <section className="fnm-state" aria-label="Spending by category">
-            <span className="jds-eyebrow">Spending by category — {monthLabel(latest.month)}</span>
-            {categoryRows.length > 0 ? (
-              <BarList rows={categoryRows} />
-            ) : (
-              <EmptyState title="Nothing this month" body="No spending recorded this month yet." />
-            )}
-          </section>
-        </Card>
-        <Card flush>
-          <section className="fnm-state" aria-label="Spending by payee">
-            <span className="jds-eyebrow">Spending by payee — {monthLabel(latest.month)}</span>
-            {payeeRows.length > 0 ? (
-              <div className="fnm-stack">
-                <BarList rows={payeeRows} />
-                {/* Visible caption IS the no-silent-caps disclosure. */}
-                {payeeRowsAll.length > PAYEE_CAP ? (
-                  <p className="jds-caption">Top {PAYEE_CAP} payees</p>
-                ) : null}
-              </div>
-            ) : (
-              <EmptyState title="Nothing this month" body="No spending recorded this month yet." />
-            )}
-          </section>
-        </Card>
-      </div>
-      <Card flush>
-        <section className="fnm-state" aria-label="Cash flow">
-          <span className="jds-eyebrow">Cash flow</span>
-          <table className="fnm-table">
-            <thead>
-              <tr>
-                <th>Month</th>
-                <th>Income</th>
-                <th>Outflow</th>
-                <th>Net</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...merged].reverse().map((entry) => (
-                <tr key={entry.month}>
-                  <td>{monthLabel(entry.month)}</td>
-                  <td className="fnm-amount">
-                    {formatCents(entry.cashFlow.incomeCents, REPORT_CURRENCY)}
-                  </td>
-                  <td className="fnm-amount">
-                    {formatCents(entry.cashFlow.outflowCents, REPORT_CURRENCY)}
-                  </td>
-                  <td className="fnm-amount">
-                    {formatCents(entry.cashFlow.netCents, REPORT_CURRENCY)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <section className="jds-card jds-card--flush fnm-state" aria-label="Spending by category">
+          <span className="jds-eyebrow">Spending by category — {monthLabel(latest.month)}</span>
+          {categoryRows.length > 0 ? (
+            <BarList rows={categoryRows} />
+          ) : (
+            <EmptyState title="Nothing this month" body="No spending recorded this month yet." />
+          )}
         </section>
-      </Card>
+        <section className="jds-card jds-card--flush fnm-state" aria-label="Spending by payee">
+          <span className="jds-eyebrow">Spending by payee — {monthLabel(latest.month)}</span>
+          {payeeRows.length > 0 ? (
+            <div className="fnm-stack">
+              <BarList rows={payeeRows} />
+              {/* Visible caption IS the no-silent-caps disclosure. */}
+              {payeeRowsAll.length > PAYEE_CAP ? (
+                <p className="jds-caption">Top {PAYEE_CAP} payees</p>
+              ) : null}
+            </div>
+          ) : (
+            <EmptyState title="Nothing this month" body="No spending recorded this month yet." />
+          )}
+        </section>
+      </div>
+      <section className="jds-card jds-card--flush fnm-state" aria-label="Cash flow">
+        <span className="jds-eyebrow">Cash flow</span>
+        <table className="fnm-table">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Income</th>
+              <th>Outflow</th>
+              <th>Net</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...merged].reverse().map((entry) => (
+              <tr key={entry.month}>
+                <td>{monthLabel(entry.month)}</td>
+                <td className="fnm-amount">
+                  {formatCents(entry.cashFlow.incomeCents, REPORT_CURRENCY)}
+                </td>
+                <td className="fnm-amount">
+                  {formatCents(entry.cashFlow.outflowCents, REPORT_CURRENCY)}
+                </td>
+                <td className="fnm-amount">
+                  {formatCents(entry.cashFlow.netCents, REPORT_CURRENCY)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
     </div>
   );
 }
@@ -263,7 +254,8 @@ export function ReportsScreen(): ReactNodeLike {
         <h2>Reports</h2>
         <label className="fnm-catpick">
           <span className="jds-caption">Window</span>
-          <Select
+          <select
+            className="jds-select"
             value={months}
             onChange={(event: { target: { value: string } }) =>
               setMonths(Number(event.target.value))
@@ -274,7 +266,7 @@ export function ReportsScreen(): ReactNodeLike {
                 Last {option} months
               </option>
             ))}
-          </Select>
+          </select>
         </label>
       </div>
       {outcomeGate(

@@ -3,18 +3,15 @@
 // states shared by the feed (job-search precedent: every route funnels its
 // query snapshot through one gate so the states stay consistent). Text-only —
 // no icons, no animation, so prefers-reduced-motion needs no special casing.
-import { Card } from "@jarv1s/module-web-sdk";
 import { Fragment, h, type ReactNodeLike } from "./runtime";
 import type { QuerySnapshot } from "./store";
 
 export function LoadingState(props: { label: string }): ReactNodeLike {
   return (
-    <Card sunken role="status">
-      <div className="fnm-state">
-        <span className="jds-eyebrow">Loading</span>
-        <p>{props.label}…</p>
-      </div>
-    </Card>
+    <div className="jds-card jds-card--sunken fnm-state" role="status">
+      <span className="jds-eyebrow">Loading</span>
+      <p>{props.label}…</p>
+    </div>
   );
 }
 
@@ -24,25 +21,21 @@ export function EmptyState(props: {
   action?: ReactNodeLike;
 }): ReactNodeLike {
   return (
-    <Card sunken>
-      <div className="fnm-state">
-        <span className="jds-eyebrow">Nothing here yet</span>
-        <h2>{props.title}</h2>
-        <p>{props.body}</p>
-        {props.action ?? null}
-      </div>
-    </Card>
+    <div className="jds-card jds-card--sunken fnm-state">
+      <span className="jds-eyebrow">Nothing here yet</span>
+      <h2>{props.title}</h2>
+      <p>{props.body}</p>
+      {props.action ?? null}
+    </div>
   );
 }
 
 export function ErrorState(props: { message: string }): ReactNodeLike {
   return (
-    <Card sunken role="alert">
-      <div className="fnm-state">
-        <span className="jds-eyebrow">Something went wrong</span>
-        <p>{props.message}</p>
-      </div>
-    </Card>
+    <div className="jds-card jds-card--sunken fnm-state" role="alert">
+      <span className="jds-eyebrow">Something went wrong</span>
+      <p>{props.message}</p>
+    </div>
   );
 }
 
@@ -50,27 +43,23 @@ export function ErrorState(props: { message: string }): ReactNodeLike {
 // no assistant handoff from a disabled surface (job-search spec ruling).
 export function DisabledState(): ReactNodeLike {
   return (
-    <Card sunken role="status">
-      <div className="fnm-state">
-        <span className="jds-eyebrow">Module off</span>
-        <h2>Finance is turned off</h2>
-        <p>
-          This module was disabled on the server. Your data is preserved; an administrator can
-          re-enable it under Settings.
-        </p>
-      </div>
-    </Card>
+    <div className="jds-card jds-card--sunken fnm-state" role="status">
+      <span className="jds-eyebrow">Module off</span>
+      <h2>Finance is turned off</h2>
+      <p>
+        This module was disabled on the server. Your data is preserved; an administrator can
+        re-enable it under Settings.
+      </p>
+    </div>
   );
 }
 
 export function DegradedState(props: { detail: string }): ReactNodeLike {
   return (
-    <Card sunken role="status">
-      <div className="fnm-state">
-        <span className="jds-eyebrow">Partially unavailable</span>
-        <p>{props.detail}</p>
-      </div>
-    </Card>
+    <div className="jds-card jds-card--sunken fnm-state" role="status">
+      <span className="jds-eyebrow">Partially unavailable</span>
+      <p>{props.detail}</p>
+    </div>
   );
 }
 

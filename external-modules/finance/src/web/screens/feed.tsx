@@ -19,7 +19,6 @@
 // fingerprint stay own-accounts-only: household balances are context, not
 // the user's money, and a member sharing/unsharing must never stop a
 // connect poll.
-import { Badge, Button, Card, Select } from "@jarv1s/module-web-sdk";
 import { fetchUserDirectory, runQueue, type RunOutcome } from "../api";
 import { currentMonth, dayLabel, formatCents, monthLabel, shiftMonth } from "../format";
 import { resolveSharedOwners, type DirectoryUser } from "../household";
@@ -91,10 +90,10 @@ function afterRun(outcome: RunOutcome, queuedMessage: string): void {
   }
 }
 
-const STATUS_BADGE: Record<string, { label: string; tone: "forest" | "amber" }> = {
-  connected: { label: "Connected", tone: "forest" },
-  "reauth-required": { label: "Needs re-auth", tone: "amber" },
-  error: { label: "Connection error", tone: "amber" }
+const STATUS_BADGE: Record<string, { label: string; className: string }> = {
+  connected: { label: "Connected", className: "jds-badge jds-badge--forest" },
+  "reauth-required": { label: "Needs re-auth", className: "jds-badge jds-badge--amber" },
+  error: { label: "Connection error", className: "jds-badge jds-badge--amber" }
 };
 
 function AccountPill(props: {
@@ -112,34 +111,32 @@ function AccountPill(props: {
     // badge (shared views carry no itemStatus — Plaid plumbing stays with
     // the owner), and no Share toggle (only the owner may unshare, #1149).
     return (
-      <Card flush>
-        <span className="fnm-pill">
-          <span>{label}</span>
-          <span className="fnm-amount">{formatCents(account.balanceCents, account.isoCurrency)}</span>
-          <Badge outline>{account.ownerName ?? "Household member"}</Badge>
+      <span className="jds-card jds-card--flush fnm-pill">
+        <span>{label}</span>
+        <span className="fnm-amount">{formatCents(account.balanceCents, account.isoCurrency)}</span>
+        <span className="jds-badge jds-badge--outline">
+          {account.ownerName ?? "Household member"}
         </span>
-      </Card>
+      </span>
     );
   }
   const badge = STATUS_BADGE[account.itemStatus ?? "error"] ?? STATUS_BADGE.error;
   return (
-    <Card flush>
-      <span className="fnm-pill">
-        <span>{label}</span>
-        <span className="fnm-amount">{formatCents(account.balanceCents, account.isoCurrency)}</span>
-        <Badge tone={badge.tone}>{badge.label}</Badge>
-        {props.onToggleShare ? (
-          <Button
-            variant="quiet"
-            size="sm"
-            aria-pressed={props.sharedNow === true}
-            onClick={() => props.onToggleShare?.(account)}
-          >
-            {props.sharedNow ? "Shared" : "Share"}
-          </Button>
-        ) : null}
-      </span>
-    </Card>
+    <span className="jds-card jds-card--flush fnm-pill">
+      <span>{label}</span>
+      <span className="fnm-amount">{formatCents(account.balanceCents, account.isoCurrency)}</span>
+      <span className={badge.className}>{badge.label}</span>
+      {props.onToggleShare ? (
+        <button
+          type="button"
+          className="jds-btn jds-btn--quiet jds-btn--sm"
+          aria-pressed={props.sharedNow === true}
+          onClick={() => props.onToggleShare?.(account)}
+        >
+          {props.sharedNow ? "Shared" : "Share"}
+        </button>
+      ) : null}
+    </span>
   );
 }
 
@@ -167,8 +164,10 @@ function TransactionRow(props: {
           ) : null}
         </div>
         <span className="fnm-txtags">
-          {record.pending ? <Badge tone="amber">Pending</Badge> : null}
-          <Badge outline>{record.ownerName ?? "Household member"}</Badge>
+          {record.pending ? <span className="jds-badge jds-badge--amber">Pending</span> : null}
+          <span className="jds-badge jds-badge--outline">
+            {record.ownerName ?? "Household member"}
+          </span>
           <span className="jds-eyebrow">{category ? category.name : "Uncategorized"}</span>
         </span>
         <span className="fnm-amount">{formatCents(record.amountCents, record.isoCurrency)}</span>
@@ -184,10 +183,11 @@ function TransactionRow(props: {
         ) : null}
       </div>
       <span className="fnm-txtags">
-        {record.pending ? <Badge tone="amber">Pending</Badge> : null}
+        {record.pending ? <span className="jds-badge jds-badge--amber">Pending</span> : null}
         <label className="fnm-catpick">
           <span className="fnm-visually-hidden">{`Category for ${record.name}`}</span>
-          <Select
+          <select
+            className="jds-select"
             value={categoryId ?? ""}
             onChange={(event: { target: { value: string } }) => {
               if (event.target.value) props.onRecategorize(record, event.target.value);
@@ -201,7 +201,7 @@ function TransactionRow(props: {
                 {entry.name}
               </option>
             ))}
-          </Select>
+          </select>
         </label>
       </span>
       <span className="fnm-amount">{formatCents(record.amountCents, record.isoCurrency)}</span>
@@ -229,15 +229,15 @@ function FeedBody(props: {
         title="Connect a bank"
         body="Finance syncs accounts and transactions once a bank is connected. Ask Jarvis to connect one — the assistant walks you through the secure Plaid link."
         action={
-          <Button
-            variant="primary"
-            size="sm"
+          <button
+            type="button"
+            className="jds-btn jds-btn--primary jds-btn--sm"
             onClick={() =>
               props.hostActions.openAssistant({ starterPrompt: "Connect my bank account" })
             }
           >
             Connect with Jarvis
-          </Button>
+          </button>
         }
       />
     );
@@ -261,20 +261,18 @@ function FeedBody(props: {
       {byDay.map((group) => (
         <section key={group.date} aria-label={dayLabel(group.date)}>
           <h3 className="jds-eyebrow">{dayLabel(group.date)}</h3>
-          <Card flush>
-            <ul className="fnm-feed">
-              {group.rows.map((record) => (
-                <TransactionRow
-                  key={record.id}
-                  record={record}
-                  month={props.month}
-                  categories={live}
-                  overrideCategoryId={props.overrides[record.id]}
-                  onRecategorize={props.onRecategorize}
-                />
-              ))}
-            </ul>
-          </Card>
+          <ul className="fnm-feed jds-card jds-card--flush">
+            {group.rows.map((record) => (
+              <TransactionRow
+                key={record.id}
+                record={record}
+                month={props.month}
+                categories={live}
+                overrideCategoryId={props.overrides[record.id]}
+                onRecategorize={props.onRecategorize}
+              />
+            ))}
+          </ul>
         </section>
       ))}
     </div>
@@ -431,15 +429,15 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
             />
           ))}
           {[...totalsByCurrency].map(([currency, cents]) => (
-            <Badge key={currency} outline>
-              <span className="fnm-amount">{`Total ${formatCents(cents, currency)}`}</span>
-            </Badge>
+            <span key={currency} className="jds-badge jds-badge--outline fnm-amount">
+              {`Total ${formatCents(cents, currency)}`}
+            </span>
           ))}
         </div>
         <div className="fnm-chips">
-          <Button
-            variant="secondary"
-            size="sm"
+          <button
+            type="button"
+            className="jds-btn jds-btn--secondary jds-btn--sm"
             onClick={() => {
               void runQueue("finance.sync-run", "finance.sync-run-now").then((outcome) =>
                 afterRun(outcome, "Sync queued — balances refresh shortly.")
@@ -447,10 +445,10 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
             }}
           >
             Sync now
-          </Button>
-          <Button
-            variant="quiet"
-            size="sm"
+          </button>
+          <button
+            type="button"
+            className="jds-btn jds-btn--quiet jds-btn--sm"
             disabled={pollRound !== null}
             onClick={() => {
               pollBaseline.current = fingerprint;
@@ -459,28 +457,28 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
             }}
           >
             {pollRound !== null ? "Checking connection…" : "Finish connecting"}
-          </Button>
+          </button>
         </div>
       </div>
       <div className="fnm-row">
         <div className="fnm-chips" role="group" aria-label="Month">
-          <Button
-            variant="quiet"
-            size="sm"
+          <button
+            type="button"
+            className="jds-btn jds-btn--quiet jds-btn--sm"
             aria-label="Previous month"
             onClick={() => setMonth(shiftMonth(month, -1))}
           >
             ←
-          </Button>
+          </button>
           <span className="jds-eyebrow">{monthLabel(month)}</span>
-          <Button
-            variant="quiet"
-            size="sm"
+          <button
+            type="button"
+            className="jds-btn jds-btn--quiet jds-btn--sm"
             aria-label="Next month"
             onClick={() => setMonth(shiftMonth(month, 1))}
           >
             →
-          </Button>
+          </button>
         </div>
         <form
           className="fnm-chips"
@@ -497,34 +495,35 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
             value={searchDraft}
             onChange={(event: { target: { value: string } }) => setSearchDraft(event.target.value)}
           />
-          <Button type="submit" variant="secondary" size="sm">
+          <button type="submit" className="jds-btn jds-btn--secondary jds-btn--sm">
             Search
-          </Button>
+          </button>
         </form>
       </div>
       <div className="fnm-chips" aria-label="Filters">
-        <Button
-          variant={accountId === null ? "secondary" : "quiet"}
-          size="sm"
+        <button
+          type="button"
+          className={`jds-btn jds-btn--quiet jds-btn--sm${accountId === null ? " jds-btn--secondary" : ""}`}
           aria-pressed={accountId === null}
           onClick={() => setAccountId(null)}
         >
           All accounts
-        </Button>
+        </button>
         {resolvedAccounts.map((account) => (
-          <Button
+          <button
             key={account.shared ? `${account.ownerUserId}:${account.accountId}` : account.accountId}
-            variant={accountId === account.accountId ? "secondary" : "quiet"}
-            size="sm"
+            type="button"
+            className={`jds-btn jds-btn--quiet jds-btn--sm${accountId === account.accountId ? " jds-btn--secondary" : ""}`}
             aria-pressed={accountId === account.accountId}
             onClick={() => setAccountId(accountId === account.accountId ? null : account.accountId)}
           >
             {account.mask ? `${account.name} ··${account.mask}` : account.name}
-          </Button>
+          </button>
         ))}
         <label className="fnm-catpick">
           <span className="jds-eyebrow">Category</span>
-          <Select
+          <select
+            className="jds-select"
             value={categoryId ?? ""}
             onChange={(event: { target: { value: string } }) =>
               setCategoryId(event.target.value || null)
@@ -538,16 +537,16 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
                   {category.name}
                 </option>
               ))}
-          </Select>
+          </select>
         </label>
-        <Button
-          variant={pendingOnly ? "secondary" : "quiet"}
-          size="sm"
+        <button
+          type="button"
+          className={`jds-btn jds-btn--quiet jds-btn--sm${pendingOnly ? " jds-btn--secondary" : ""}`}
           aria-pressed={pendingOnly}
           onClick={() => setPendingOnly(!pendingOnly)}
         >
           Pending only
-        </Button>
+        </button>
       </div>
       {outcomeGate(
         feed,
