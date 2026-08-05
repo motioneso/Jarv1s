@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { Button } from "@jarv1s/ui";
 import { listActionAuditLog } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
 import { formatDateTime, useUserLocale } from "../locale/locale-format.js";
@@ -109,14 +110,15 @@ export function ActivityPane(_props: PaneProps) {
 
       <div className="audfilter">
         {(["today", "7d", "30d", "90d"] as DateRange[]).map((r) => (
-          <button
+          <Button
             key={r}
-            className={`jds-btn jds-btn--quiet jds-btn--sm${range === r ? " jds-btn--active" : ""}`}
+            variant="quiet"
+            size="sm"
+            active={range === r}
             onClick={() => setRange(r)}
-            type="button"
           >
             {RANGE_LABELS[r]}
-          </button>
+          </Button>
         ))}
         {families.length > 0 && (
           <Select
@@ -137,13 +139,9 @@ export function ActivityPane(_props: PaneProps) {
       {isError && (
         <div className="aud__empty" aria-live="polite">
           <p>Activity unavailable.</p>
-          <button
-            className="jds-btn jds-btn--quiet jds-btn--sm"
-            type="button"
-            onClick={() => void refetch()}
-          >
+          <Button variant="quiet" size="sm" onClick={() => void refetch()}>
             Try again
-          </button>
+          </Button>
         </div>
       )}
 

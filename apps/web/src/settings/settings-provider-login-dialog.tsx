@@ -1,7 +1,7 @@
 import { ExternalLink, Info, LoaderCircle, LogIn, X } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
-import { Dialog } from "@jarv1s/ui";
+import { Button, Dialog } from "@jarv1s/ui";
 import type { AiProviderConfigDto, AiProviderKind } from "@jarv1s/shared";
 
 import { ApiError } from "../api/client";
@@ -224,23 +224,16 @@ export function ProviderLoginDialog(props: {
       description="Complete the provider sign-in here; no terminal session or API key is required."
       footer={
         <>
-          <button
-            type="button"
-            className="jds-btn jds-btn--quiet"
-            onClick={close}
-            disabled={busy}
-          >
+          <Button variant="quiet" onClick={close} disabled={busy}>
             <X size={14} aria-hidden="true" /> Close
-          </button>
+          </Button>
           {state.phase === "awaiting-token" ? (
-            <button
-              type="button"
-              className="jds-btn jds-btn--primary"
+            <Button
               onClick={() => void submitToken()}
               disabled={!state.token || !state.loginId}
             >
               <LogIn size={14} aria-hidden="true" /> Submit code
-            </button>
+            </Button>
           ) : null}
         </>
       }
@@ -260,9 +253,9 @@ export function ProviderLoginDialog(props: {
               <a href={state.authorizationUrl} target="_blank" rel="noreferrer">
                 Open provider sign-in <ExternalLink size={13} aria-hidden="true" />
               </a>{" "}
-              <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={copyUrl}>
+              <Button variant="quiet" size="sm" onClick={copyUrl}>
                 Copy link
-              </button>
+              </Button>
             </p>
           ) : null}
           <input
@@ -291,9 +284,9 @@ export function ProviderLoginDialog(props: {
               <a href={state.authorizationUrl} target="_blank" rel="noreferrer">
                 Open provider sign-in <ExternalLink size={13} aria-hidden="true" />
               </a>{" "}
-              <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={copyUrl}>
+              <Button variant="quiet" size="sm" onClick={copyUrl}>
                 Copy link
-              </button>
+              </Button>
             </p>
           ) : null}
           {state.userCode ? (
@@ -309,13 +302,9 @@ export function ProviderLoginDialog(props: {
           <p>
             <Info size={15} aria-hidden="true" /> {state.error ?? "Login failed."}
           </p>
-          <button
-            type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
-            onClick={() => void beginLogin()}
-          >
+          <Button variant="secondary" size="sm" onClick={() => void beginLogin()}>
             Try again
-          </button>
+          </Button>
         </div>
       ) : null}
 

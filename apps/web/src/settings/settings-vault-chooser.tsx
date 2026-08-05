@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ChevronRight, Folder, FolderCheck, FolderOpen, HardDrive } from "lucide-react";
 import { useState } from "react";
 
+import { Button } from "@jarv1s/ui";
 import { getNotesSourceDirectories } from "../api/notes-client";
 import { getPeopleNotesDirectories } from "../api/people-client";
 import { queryKeys } from "../api/query-keys";
@@ -173,24 +174,17 @@ export function VaultChooser(props: {
           <div className="vselect__meta">Jarvis reads this folder and its text files.</div>
         </div>
         <div className="vselect__acts">
-          <button
-            type="button"
-            className="jds-btn jds-btn--quiet jds-btn--sm"
-            onClick={props.onCancel}
-          >
+          <Button variant="quiet" size="sm" onClick={props.onCancel}>
             Cancel
-          </button>
-          <button
-            type="button"
-            className="jds-btn jds-btn--primary jds-btn--sm"
+          </Button>
+          <Button
+            size="sm"
             disabled={!path || loading || Boolean(displayError)}
             onClick={() => (path ? props.onChoose(path) : undefined)}
+            icon={<FolderCheck size={15} />}
           >
-            <span className="jds-btn__icon">
-              <FolderCheck size={15} />
-            </span>
             Use this folder
-          </button>
+          </Button>
         </div>
       </div>
     </div>

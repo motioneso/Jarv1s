@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle, TriangleAlert } from "lucide-react";
 import { useId, useState, type FormEvent } from "react";
 
-import { Dialog } from "@jarv1s/ui";
+import { Button, Dialog } from "@jarv1s/ui";
 import type { MeResponse } from "@jarv1s/shared";
 import { DELETE_MY_ACCOUNT_PHRASE } from "@jarv1s/shared";
 
@@ -106,16 +106,14 @@ export function DeleteAccount({ me }: { readonly me: MeResponse }) {
           name="Delete account"
           desc="Permanently remove your account, personal data, and vault files."
           control={
-            <button
-              type="button"
-              className="jds-btn jds-btn--danger jds-btn--sm"
+            <Button
+              variant="danger"
+              size="sm"
               onClick={() => setOpen(true)}
+              icon={<TriangleAlert size={15} />}
             >
-              <span className="jds-btn__icon">
-                <TriangleAlert size={15} />
-              </span>
               Delete account
-            </button>
+            </Button>
           }
         />
       </Group>
@@ -132,17 +130,12 @@ export function DeleteAccount({ me }: { readonly me: MeResponse }) {
             description="This permanently deletes your account, personal data, and vault files. Audit metadata is retained anonymously. You'll be signed out everywhere immediately."
             footer={
               <>
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--quiet"
-                  onClick={close}
-                  disabled={deleteMutation.isPending}
-                >
+                <Button variant="quiet" onClick={close} disabled={deleteMutation.isPending}>
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  className="jds-btn jds-btn--danger"
+                  variant="danger"
                   disabled={!canSubmit || deleteMutation.isPending}
                 >
                   {deleteMutation.isPending ? (
@@ -153,7 +146,7 @@ export function DeleteAccount({ me }: { readonly me: MeResponse }) {
                   ) : (
                     "Delete my account"
                   )}
-                </button>
+                </Button>
               </>
             }
           >

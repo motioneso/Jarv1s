@@ -9,7 +9,7 @@ import "@xterm/xterm/css/xterm.css";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 
-import { Dialog } from "@jarv1s/ui";
+import { Button, Dialog } from "@jarv1s/ui";
 import type { AiProviderConfigDto } from "@jarv1s/shared";
 
 import {
@@ -296,17 +296,11 @@ export function TerminalModal(props: {
   const footer: ReactNode =
     phase === null ? null : phase.kind === "set-password" ? (
       <>
-        <button
-          type="button"
-          className="jds-btn jds-btn--quiet"
-          onClick={onClose}
-          disabled={setPasswordMutation.isPending}
-        >
+        <Button variant="quiet" onClick={onClose} disabled={setPasswordMutation.isPending}>
           Cancel
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
-          className="jds-btn jds-btn--primary"
           disabled={setPasswordMutation.isPending || !password || password !== confirmPassword}
         >
           {setPasswordMutation.isPending ? (
@@ -317,23 +311,14 @@ export function TerminalModal(props: {
           ) : (
             "Set password"
           )}
-        </button>
+        </Button>
       </>
     ) : phase.kind === "locked" ? (
       <>
-        <button
-          type="button"
-          className="jds-btn jds-btn--quiet"
-          onClick={onClose}
-          disabled={ticketMutation.isPending}
-        >
+        <Button variant="quiet" onClick={onClose} disabled={ticketMutation.isPending}>
           Cancel
-        </button>
-        <button
-          type="submit"
-          className="jds-btn jds-btn--primary"
-          disabled={ticketMutation.isPending || !password}
-        >
+        </Button>
+        <Button type="submit" disabled={ticketMutation.isPending || !password}>
           {ticketMutation.isPending ? (
             <>
               <LoaderCircle size={15} className="dexp__spin" aria-hidden="true" />
@@ -345,25 +330,21 @@ export function TerminalModal(props: {
               Unlock
             </>
           )}
-        </button>
+        </Button>
       </>
     ) : (
       <>
-        <button
-          type="button"
-          className="jds-btn jds-btn--quiet"
+        <Button
+          variant="quiet"
           onClick={() => void copyTerminalSelection()}
           disabled={!hasTerminalSelection}
         >
           <Copy size={14} aria-hidden="true" />
           Copy selected text
-        </button>
-        <button type="button" className="jds-btn jds-btn--quiet" onClick={onClose}>
-          <span className="jds-btn__icon">
-            <X size={14} aria-hidden="true" />
-          </span>
+        </Button>
+        <Button variant="quiet" onClick={onClose} icon={<X size={14} aria-hidden="true" />}>
           Close
-        </button>
+        </Button>
       </>
     );
 
