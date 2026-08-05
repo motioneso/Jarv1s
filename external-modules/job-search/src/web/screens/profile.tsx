@@ -27,7 +27,7 @@
 //   - The mockup's "Work mode" field (remote/hybrid/onsite preference framed as a lifestyle
 //     choice) doesn't exist on SearchCriteria; the closest real field is `criteria.remote`, kept
 //     below as "Remote" with its real four values (required/preferred/no-preference/onsite-ok).
-import { h, useEffect, useRef, useState, type ReactNodeLike } from "../runtime";
+import { h, useEffect, useState, type ReactNodeLike } from "../runtime";
 import { invokeTool, runQueue } from "../api";
 import type { Profile } from "../use-profiles";
 import type { BriefingDetail } from "../../domain/store-port.js";
@@ -38,13 +38,6 @@ import { RESUME_GET_TOOL, ResumeSection, fetchResume, type ResumeState } from ".
 export { RESUME_GET_TOOL };
 export const PROFILE_GET_TOOL = "job-search.profile.get";
 export const PROFILE_SET_BRIEFING_DETAIL_QUEUE = "job-search.profile-set-briefing-detail";
-export const CRITERIA_SET_QUEUE = "job-search.criteria-set";
-export const CRITERIA_RESCORE_QUEUE = "job-search.crawl-sweep";
-export const CRITERIA_RESCORE_JOB_KIND = "job-search.rescore-sweep";
-export const PROFILE_RENAME_QUEUE = "job-search.profile-rename";
-const MATCHES_COUNT_TOOL = "job-search.matches.count";
-const CRITERIA_RESCORE_POLL_MS = 5_000;
-const CRITERIA_RESCORE_MAX_POLLS = 120;
 
 // -------------------------------------------------------------------------------------------
 // Search profile (context summary + criteria)
@@ -97,211 +90,50 @@ const REMOTE_LABELS: Record<SearchCriteria["remote"], string> = {
   "onsite-ok": "Onsite OK"
 };
 
-function ChipGroup(props: {
-  items: string[];
-  emptyLabel: string;
-  onRemove?: (item: string) => void;
-}): ReactNodeLike {
+// Pure integer/string comma-grouping — no Intl.NumberFormat (banned by check:no-ambient-dates'
+// sibling rule against ambient formatting APIs in web display layers).
+function formatCompFloor(cents: number): string {
+  const dollars = Math.trunc(Math.abs(cents) / 100);
+  const digits = String(dollars);
+  let grouped = "";
+  for (let i = 0; i < digits.length; i++) {
+    const fromEnd = digits.length - i;
+    if (i > 0 && fromEnd % 3 === 0) grouped += ",";
+    grouped += digits[i];
+  }
+  return `${cents < 0 ? "-" : ""}$${grouped}`;
+}
+
+function ChipGroup(props: { items: string[]; emptyLabel: string }): ReactNodeLike {
   if (props.items.length === 0) {
     return <p className="jds-hint">{props.emptyLabel}</p>;
   }
   return (
     <div className="jsm-chips">
-      {props.items.map((item, index) =>
-        props.onRemove ? (
-          <button
-            key={`${item}-${index}`}
-            type="button"
-            className="jds-chip jds-chip--criteria"
-            aria-label={`Remove ${item}`}
-            onClick={() => props.onRemove?.(item)}
-          >
-            {item}
-            <span className="jds-chip__x" aria-hidden="true">
-              ×
-            </span>
-          </button>
-        ) : (
-          <span key={`${item}-${index}`} className="jds-badge jds-badge--pill jds-badge--neutral">
-            {item}
-          </span>
-        )
-      )}
+      {/*
+        jds-badge, not jds-chip. `.jds-chip`'s padding is deliberately lopsided —
+        `space-1 space-1 space-1 space-3` — because it is built to carry a `jds-chip__x` remove
+        button in the gap on the right. These titles and seniority levels are read-only, there is
+        no remove button, and the reserved gap renders as a pill whose text sits visibly
+        off-centre. Ben, looking at exactly these rows: "internal margins are the pills are not
+        correct." `jds-badge --pill` is the design system's own symmetric static-tag primitive, so
+        this is a swap to the right primitive rather than an override of the wrong one.
+      */}
+      {props.items.map((item, index) => (
+        <span key={`${item}-${index}`} className="jds-badge jds-badge--pill jds-badge--neutral">
+          {item}
+        </span>
+      ))}
     </div>
   );
 }
 
-function splitList(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-}
-
-function PayFloorControl(props: {
-  cents: number | null;
-  saving: boolean;
-  onSave(cents: number | null): void;
-}): ReactNodeLike {
-  const [draft, setDraft] = useState(
-    props.cents === null ? "" : String(Math.trunc(props.cents / 100))
-  );
-  useEffect(() => {
-    setDraft(props.cents === null ? "" : String(Math.trunc(props.cents / 100)));
-  }, [props.cents]);
-
-  function save(): void {
-    const dollars = draft.trim() === "" ? null : Number(draft);
-    if (dollars !== null && (!Number.isFinite(dollars) || dollars < 0)) return;
-    const cents = dollars === null ? null : dollars * 100;
-    if (cents !== props.cents) props.onSave(cents);
-  }
-
-  return (
-    <form
-      onSubmit={(event: { preventDefault(): void }) => {
-        event.preventDefault();
-        save();
-      }}
-    >
-      <input
-        className="jds-input jsm-pay-floor-input"
-        aria-label="Pay floor"
-        type="number"
-        min="0"
-        step="1000"
-        value={draft}
-        disabled={props.saving}
-        onChange={(event: { target: { value: string } }) => setDraft(event.target.value)}
-        onBlur={save}
-      />
-    </form>
-  );
-}
-
-const LIST_FIELDS = [
-  ["titles", "Titles"],
-  ["seniority", "Seniority"],
-  ["locations", "Locations"],
-  ["mustHave", "Must have"],
-  ["niceToHave", "Nice to have"],
-  ["dealbreakers", "Dealbreakers"],
-  ["excludeCompanies", "Excluded companies"]
-] as const;
-
-function CriteriaEditor(props: {
-  criteria: SearchCriteria;
-  saving: boolean;
-  onCancel(): void;
-  onSave(criteria: SearchCriteria): void;
-}): ReactNodeLike {
-  const [draft, setDraft] = useState(() => ({
-    titles: props.criteria.titles.join(", "),
-    seniority: props.criteria.seniority.join(", "),
-    locations: props.criteria.locations.join(", "),
-    remote: props.criteria.remote,
-    payFloor:
-      props.criteria.compFloorCents === null
-        ? ""
-        : String(Math.trunc(props.criteria.compFloorCents / 100)),
-    mustHave: props.criteria.mustHave.join(", "),
-    niceToHave: props.criteria.niceToHave.join(", "),
-    dealbreakers: props.criteria.dealbreakers.join(", "),
-    excludeCompanies: props.criteria.excludeCompanies.join(", "),
-    wantNarrative: props.criteria.wantNarrative
-  }));
-
-  const set = (field: keyof typeof draft, value: string) =>
-    setDraft((current) => ({ ...current, [field]: value }));
-
-  return (
-    <form
-      className="jsm-criteria-editor"
-      onSubmit={(event: { preventDefault(): void }) => {
-        event.preventDefault();
-        const dollars = draft.payFloor.trim() === "" ? null : Number(draft.payFloor);
-        props.onSave({
-          titles: splitList(draft.titles),
-          seniority: splitList(draft.seniority),
-          locations: splitList(draft.locations),
-          remote: draft.remote,
-          compFloorCents: dollars !== null && Number.isFinite(dollars) ? dollars * 100 : null,
-          mustHave: splitList(draft.mustHave),
-          niceToHave: splitList(draft.niceToHave),
-          dealbreakers: splitList(draft.dealbreakers),
-          excludeCompanies: splitList(draft.excludeCompanies),
-          wantNarrative: draft.wantNarrative
-        });
-      }}
-    >
-      {LIST_FIELDS.map(([field, label]) => (
-        <label key={field} className="jsm-criteria-editor__field">
-          <span className="jds-label">{label}</span>
-          <input
-            className="jds-input"
-            value={draft[field]}
-            onChange={(event: { target: { value: string } }) => set(field, event.target.value)}
-          />
-        </label>
-      ))}
-      <label className="jsm-criteria-editor__field">
-        <span className="jds-label">Remote</span>
-        <select
-          className="jds-select"
-          value={draft.remote}
-          onChange={(event: { target: { value: string } }) => set("remote", event.target.value)}
-        >
-          {Object.entries(REMOTE_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="jsm-criteria-editor__field">
-        <span className="jds-label">Pay floor</span>
-        <input
-          className="jds-input"
-          type="number"
-          min="0"
-          step="1000"
-          value={draft.payFloor}
-          onChange={(event: { target: { value: string } }) => set("payFloor", event.target.value)}
-        />
-      </label>
-      <label className="jsm-criteria-editor__field jsm-criteria-editor__field--wide">
-        <span className="jds-label">What you want</span>
-        <textarea
-          className="jds-textarea"
-          rows={5}
-          value={draft.wantNarrative}
-          onChange={(event: { target: { value: string } }) =>
-            set("wantNarrative", event.target.value)
-          }
-        />
-      </label>
-      <div className="jsm-criteria-editor__actions">
-        <button type="submit" className="jds-btn jds-btn--primary" disabled={props.saving}>
-          {props.saving ? "Saving…" : "Save changes"}
-        </button>
-        <button type="button" className="jds-btn jds-btn--quiet" onClick={props.onCancel}>
-          Cancel
-        </button>
-      </div>
-    </form>
-  );
-}
-
 function LookingForSection(props: {
+  profile: Profile;
   state: CriteriaState;
-  editing: boolean;
-  saveStatus: "idle" | "saving" | "saved" | "error";
-  onEdit(): void;
-  onCancel(): void;
-  onSave(criteria: SearchCriteria): void;
-  onRemove(field: keyof SearchCriteria, item: string): void;
+  onChangeInChat?: () => void;
 }): ReactNodeLike {
-  const { state } = props;
+  const { profile, state } = props;
   if (state.status === "loading") {
     return (
       <section className="jsm-settings__group">
@@ -323,98 +155,46 @@ function LookingForSection(props: {
     );
   }
   const { criteria } = state;
-  if (props.editing) {
-    return (
-      <section className="jsm-settings__group">
-        <SectionHead label="What it's looking for" />
-        <CriteriaEditor
-          criteria={criteria}
-          saving={props.saveStatus === "saving"}
-          onCancel={props.onCancel}
-          onSave={props.onSave}
-        />
-      </section>
-    );
-  }
   const wantNarrative = criteria.wantNarrative?.trim();
   return (
     <section className="jsm-settings__group">
       <SectionHead label="What it's looking for">
-        <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={props.onEdit}>
-          Edit
-        </button>
+        {props.onChangeInChat ? (
+          <button
+            type="button"
+            className="jds-btn jds-btn--quiet jds-btn--sm"
+            onClick={props.onChangeInChat}
+          >
+            Change in chat
+          </button>
+        ) : null}
       </SectionHead>
       <div className="jsm-fields">
         <FieldPair label="Titles">
-          <ChipGroup
-            items={criteria.titles}
-            emptyLabel="No titles yet."
-            onRemove={(item) => props.onRemove("titles", item)}
-          />
+          <ChipGroup items={criteria.titles} emptyLabel="No titles yet." />
         </FieldPair>
         <FieldPair label="Seniority">
-          <ChipGroup
-            items={criteria.seniority}
-            emptyLabel="No seniority level yet."
-            onRemove={(item) => props.onRemove("seniority", item)}
-          />
+          <ChipGroup items={criteria.seniority} emptyLabel="No seniority level yet." />
         </FieldPair>
         <FieldPair label="Locations">
-          <ChipGroup
-            items={criteria.locations}
-            emptyLabel="No locations yet."
-            onRemove={(item) => props.onRemove("locations", item)}
-          />
+          <ChipGroup items={criteria.locations} emptyLabel="No locations yet." />
         </FieldPair>
-        <FieldPair label="Remote">
-          <select
-            className="jds-select"
-            aria-label="Remote preference"
-            value={criteria.remote}
-            disabled={props.saveStatus === "saving"}
-            onChange={(event: { target: { value: string } }) =>
-              props.onSave({
-                ...criteria,
-                remote: event.target.value as SearchCriteria["remote"]
-              })
-            }
-          >
-            {Object.entries(REMOTE_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </FieldPair>
+        <FieldPair label="Remote">{REMOTE_LABELS[criteria.remote]}</FieldPair>
         <FieldPair label="Pay floor">
-          <PayFloorControl
-            cents={criteria.compFloorCents}
-            saving={props.saveStatus === "saving"}
-            onSave={(compFloorCents) => props.onSave({ ...criteria, compFloorCents })}
-          />
+          {criteria.compFloorCents === null
+            ? "No minimum set."
+            : formatCompFloor(criteria.compFloorCents)}
         </FieldPair>
       </div>
       <div className="jsm-fields">
         <FieldPair label="Must have">
-          <ChipGroup
-            items={criteria.mustHave}
-            emptyLabel="Nothing marked must-have yet."
-            onRemove={(item) => props.onRemove("mustHave", item)}
-          />
+          <ChipGroup items={criteria.mustHave} emptyLabel="Nothing marked must-have yet." />
         </FieldPair>
         <FieldPair label="Nice to have">
-          <ChipGroup
-            items={criteria.niceToHave}
-            emptyLabel="Nothing marked nice-to-have yet."
-            onRemove={(item) => props.onRemove("niceToHave", item)}
-          />
+          <ChipGroup items={criteria.niceToHave} emptyLabel="Nothing marked nice-to-have yet." />
         </FieldPair>
         <FieldPair label="Dealbreakers">
-          <ChipGroup
-            items={criteria.dealbreakers}
-            emptyLabel="No dealbreakers marked yet."
-            onRemove={(item) => props.onRemove("dealbreakers", item)}
-          />
+          <ChipGroup items={criteria.dealbreakers} emptyLabel="No dealbreakers marked yet." />
         </FieldPair>
       </div>
       <p className="jds-hint">
@@ -422,16 +202,11 @@ function LookingForSection(props: {
           ? wantNarrative
           : "Nothing said yet about what you actually want out of this search."}
       </p>
-      {props.saveStatus === "saved" ? (
-        <p className="jds-hint" role="status">
-          Saved. Existing matches will be reread.
-        </p>
-      ) : null}
-      {props.saveStatus === "error" ? (
-        <p className="jds-hint jds-hint--error" role="alert">
-          Couldn&rsquo;t save these changes.
-        </p>
-      ) : null}
+      <p className="jds-hint">
+        {profile.readyToCrawl
+          ? "Ready to search — every step above is answered."
+          : "Still finishing setup. Answer what's left in chat and this search will start crawling."}
+      </p>
     </section>
   );
 }
@@ -453,10 +228,9 @@ function isBriefingDetail(value: string | null): value is BriefingDetail {
 
 function BriefingDetailSection(props: {
   briefingDetail: BriefingDetail;
-  saveStatus: "idle" | "saving" | "saved" | "error";
   onChange: (next: BriefingDetail) => void;
 }): ReactNodeLike {
-  const { briefingDetail, onChange, saveStatus } = props;
+  const { briefingDetail, onChange } = props;
   return (
     <section className="jsm-settings__group">
       <SectionHead label="Briefing detail" />
@@ -474,7 +248,6 @@ function BriefingDetailSection(props: {
                   type="button"
                   className="jds-segmented__opt"
                   aria-pressed={briefingDetail === level}
-                  disabled={saveStatus === "saving"}
                   onClick={() => onChange(level)}
                 >
                   {BRIEFING_DETAIL_LEVELS[level].label}
@@ -484,21 +257,6 @@ function BriefingDetailSection(props: {
           </div>
         </div>
       </div>
-      {saveStatus === "saving" ? (
-        <p className="jds-hint" role="status">
-          Saving…
-        </p>
-      ) : null}
-      {saveStatus === "saved" ? (
-        <p className="jds-hint" role="status">
-          Saved.
-        </p>
-      ) : null}
-      {saveStatus === "error" ? (
-        <p className="jds-hint jds-hint--error" role="alert">
-          Couldn&rsquo;t save this preference.
-        </p>
-      ) : null}
     </section>
   );
 }
@@ -517,7 +275,6 @@ export interface ProfileScreenProps {
    *  (see the crawl effect in root.tsx for why the ordering is load-bearing), and nothing else
    *  in this screen's lifecycle tells it. Optional so the unit renderer can omit it. */
   onResumeSaved?: () => void;
-  onProfileChanged?: () => void;
 }
 
 export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
@@ -527,31 +284,6 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
   const [briefingDetail, setBriefingDetail] = useState<BriefingDetail>(
     isBriefingDetail(profile.briefingDetail) ? profile.briefingDetail : "top"
   );
-  const [briefingSaveStatus, setBriefingSaveStatus] = useState<
-    "idle" | "saving" | "saved" | "error"
-  >("idle");
-  const briefingSaveRevision = useRef(0);
-  const [editingCriteria, setEditingCriteria] = useState(false);
-  const [criteriaSaveStatus, setCriteriaSaveStatus] = useState<
-    "idle" | "saving" | "saved" | "error"
-  >("idle");
-  const criteriaSaveRevision = useRef(0);
-  const criteriaRescoreTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [nameDraft, setNameDraft] = useState(profile.name);
-  const [nameStatus, setNameStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-
-  useEffect(() => {
-    setNameDraft(profile.name);
-    setNameStatus("idle");
-  }, [profile.profileId, profile.name]);
-
-  useEffect(() => {
-    setBriefingDetail(isBriefingDetail(profile.briefingDetail) ? profile.briefingDetail : "top");
-  }, [profile.profileId, profile.briefingDetail]);
-
-  useEffect(() => {
-    setBriefingSaveStatus("idle");
-  }, [profile.profileId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -598,218 +330,22 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
     };
   }, [profile.profileId]);
 
-  useEffect(() => {
-    return () => {
-      criteriaSaveRevision.current++;
-      if (criteriaRescoreTimer.current !== null) clearTimeout(criteriaRescoreTimer.current);
-      criteriaRescoreTimer.current = null;
-    };
-  }, [profile.profileId]);
-
+  // Writes apply optimistically and reconcile via the next profile read (ruling I5 — runQueue
+  // never resolves "done"); a failed enqueue is swallowed rather than rolled back visually, same
+  // as settings.tsx's own portal toggle does on success, because there is nothing meaningful to
+  // show inline for a control this small.
   function handleBriefingDetail(next: BriefingDetail): void {
-    const revision = ++briefingSaveRevision.current;
     setBriefingDetail(next);
-    setBriefingSaveStatus("saving");
     runQueue(PROFILE_SET_BRIEFING_DETAIL_QUEUE, "profile.set-briefing-detail", {
       profileId: profile.profileId,
       detail: next
-    })
-      .then((outcome) => {
-        if (outcome.kind === "disabled" || outcome.kind === "error") {
-          if (briefingSaveRevision.current === revision) setBriefingSaveStatus("error");
-          return;
-        }
-        const confirm = (attempt: number): void => {
-          invokeTool(PROFILE_GET_TOOL, { profileId: profile.profileId })
-            .then((result) => {
-              if (briefingSaveRevision.current !== revision) return;
-              if ((result as { briefingDetail?: unknown } | null)?.briefingDetail === next) {
-                setBriefingSaveStatus("saved");
-                props.onProfileChanged?.();
-              } else if (attempt < 20) {
-                setTimeout(() => confirm(attempt + 1), 500);
-              } else {
-                setBriefingSaveStatus("error");
-              }
-            })
-            .catch(() => {
-              if (briefingSaveRevision.current === revision) setBriefingSaveStatus("error");
-            });
-        };
-        confirm(0);
-      })
-      .catch(() => {
-        if (briefingSaveRevision.current === revision) setBriefingSaveStatus("error");
-      });
-  }
-
-  function continueCriteriaRescore(revision: number, polls = 0): void {
-    criteriaRescoreTimer.current = null;
-    if (criteriaSaveRevision.current !== revision || polls >= CRITERIA_RESCORE_MAX_POLLS) return;
-    invokeTool(MATCHES_COUNT_TOOL, { profileId: profile.profileId })
-      .then((result) => {
-        if (criteriaSaveRevision.current !== revision) return false;
-        const counts = result as { profileId?: unknown; active?: unknown; scored?: unknown } | null;
-        if (
-          counts?.profileId !== profile.profileId ||
-          typeof counts.active !== "number" ||
-          typeof counts.scored !== "number" ||
-          counts.active <= counts.scored
-        ) {
-          return false;
-        }
-        return runQueue(CRITERIA_RESCORE_QUEUE, CRITERIA_RESCORE_JOB_KIND).then(
-          (outcome) => outcome.kind !== "disabled"
-        );
-      })
-      .then((retry) => {
-        if (retry !== false && criteriaSaveRevision.current === revision) {
-          criteriaRescoreTimer.current = setTimeout(
-            () => continueCriteriaRescore(revision, polls + 1),
-            CRITERIA_RESCORE_POLL_MS
-          );
-        }
-      })
-      .catch(() => {
-        if (criteriaSaveRevision.current === revision) {
-          criteriaRescoreTimer.current = setTimeout(
-            () => continueCriteriaRescore(revision, polls + 1),
-            CRITERIA_RESCORE_POLL_MS
-          );
-        }
-      });
-  }
-
-  function saveCriteria(next: SearchCriteria): void {
-    const revision = ++criteriaSaveRevision.current;
-    setCriteriaSaveStatus("saving");
-    setCriteria((current) =>
-      current.status === "ready" ? { ...current, criteria: next } : current
-    );
-    runQueue(CRITERIA_SET_QUEUE, "criteria.set", {
-      profileId: profile.profileId,
-      criteriaJson: JSON.stringify(next)
-    })
-      .then((outcome) => {
-        if (outcome.kind === "disabled" || outcome.kind === "error") {
-          if (criteriaSaveRevision.current === revision) setCriteriaSaveStatus("error");
-          return;
-        }
-        setEditingCriteria(false);
-        const confirm = (attempt: number): void => {
-          fetchCriteria(profile.profileId)
-            .then((actual) => {
-              if (criteriaSaveRevision.current !== revision) return;
-              if (JSON.stringify(actual.criteria) === JSON.stringify(next)) {
-                setCriteria({ status: "ready", ...actual });
-                setCriteriaSaveStatus("saved");
-                continueCriteriaRescore(revision);
-              } else if (attempt < 20) {
-                setTimeout(() => confirm(attempt + 1), 500);
-              } else {
-                setCriteriaSaveStatus("error");
-              }
-            })
-            .catch(() => {
-              if (criteriaSaveRevision.current === revision) setCriteriaSaveStatus("error");
-            });
-        };
-        confirm(0);
-      })
-      .catch(() => {
-        if (criteriaSaveRevision.current === revision) setCriteriaSaveStatus("error");
-      });
-  }
-
-  function removeCriteriaItem(field: keyof SearchCriteria, item: string): void {
-    if (criteria.status !== "ready") return;
-    const current = criteria.criteria[field];
-    if (!Array.isArray(current)) return;
-    saveCriteria({ ...criteria.criteria, [field]: current.filter((value) => value !== item) });
-  }
-
-  function saveName(): void {
-    const name = nameDraft.trim();
-    if (name.length === 0 || name.length > 80) {
-      setNameStatus("error");
-      return;
-    }
-    setNameStatus("saving");
-    runQueue(PROFILE_RENAME_QUEUE, "profile.rename", { profileId: profile.profileId, name })
-      .then((outcome) => {
-        if (outcome.kind === "disabled" || outcome.kind === "error") {
-          setNameStatus("error");
-          return;
-        }
-        const confirm = (attempt: number): void => {
-          invokeTool(PROFILE_GET_TOOL, { profileId: profile.profileId })
-            .then((result) => {
-              if ((result as { name?: unknown } | null)?.name === name) {
-                setNameStatus("saved");
-                props.onProfileChanged?.();
-              } else if (attempt < 10) {
-                setTimeout(() => confirm(attempt + 1), 500);
-              } else {
-                setNameStatus("error");
-              }
-            })
-            .catch(() => setNameStatus("error"));
-        };
-        confirm(0);
-      })
-      .catch(() => setNameStatus("error"));
+    }).catch(() => {});
   }
 
   return (
     <div className="jsm-settings jsm-settings--profile">
       <h2 className="jds-section-title">Profile</h2>
-      <section className="jsm-settings__group">
-        <SectionHead label="Search name" />
-        <form
-          className="jsm-profile-name"
-          onSubmit={(event: { preventDefault(): void }) => {
-            event.preventDefault();
-            saveName();
-          }}
-        >
-          <input
-            className="jds-input"
-            aria-label="Search name"
-            maxLength={80}
-            value={nameDraft}
-            onChange={(event: { target: { value: string } }) => setNameDraft(event.target.value)}
-          />
-          <button
-            type="submit"
-            className="jds-btn jds-btn--secondary"
-            disabled={nameStatus === "saving" || nameDraft.trim() === profile.name}
-          >
-            {nameStatus === "saving" ? "Saving…" : "Save name"}
-          </button>
-        </form>
-        {nameStatus === "saved" ? (
-          <p className="jds-hint" role="status">
-            Saved.
-          </p>
-        ) : null}
-        {nameStatus === "error" ? (
-          <p className="jds-hint jds-hint--error" role="alert">
-            Couldn&rsquo;t rename this search.
-          </p>
-        ) : null}
-      </section>
-      <LookingForSection
-        state={criteria}
-        editing={editingCriteria}
-        saveStatus={criteriaSaveStatus}
-        onEdit={() => {
-          setCriteriaSaveStatus("idle");
-          setEditingCriteria(true);
-        }}
-        onCancel={() => setEditingCriteria(false)}
-        onSave={saveCriteria}
-        onRemove={removeCriteriaItem}
-      />
+      <LookingForSection profile={profile} state={criteria} onChangeInChat={props.onChangeInChat} />
       <ContextSummarySection state={criteria} />
       <ResumeSection
         profileId={profile.profileId}
@@ -817,11 +353,7 @@ export function ProfileScreen(props: ProfileScreenProps): ReactNodeLike {
         onSaved={reloadResume}
         openSignal={props.openResumeSignal}
       />
-      <BriefingDetailSection
-        briefingDetail={briefingDetail}
-        saveStatus={briefingSaveStatus}
-        onChange={handleBriefingDetail}
-      />
+      <BriefingDetailSection briefingDetail={briefingDetail} onChange={handleBriefingDetail} />
     </div>
   );
 }

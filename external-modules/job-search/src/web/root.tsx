@@ -65,6 +65,46 @@ export interface RootProps {
   assistantSurface?: AssistantSurfaceHandleV1;
 }
 
+function ModuleMasthead(props: { profile: Profile | null }): ReactNodeLike {
+  const status = mastheadStatus(props.profile);
+  return (
+    <div className="jsm-masthead">
+      <div className="jsm-masthead__ident">
+        <span className="jds-eyebrow">Jarvis · Module</span>
+        <h1 className="jds-section-title">Job Search</h1>
+      </div>
+      {status ? (
+        <span
+          className={`jds-indicator jds-indicator--${status.modifier}${
+            status.modifier === "ready" ? " jds-indicator--live" : ""
+          }`}
+        >
+          <span className="jds-indicator__dot" />
+          <span className="jds-eyebrow">{status.text}</span>
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+type MastheadIndicatorModifier = "ready" | "idle" | "drift";
+
+interface MastheadStatus {
+  text: string;
+  modifier: MastheadIndicatorModifier;
+}
+
+function mastheadStatus(profile: Profile | null): MastheadStatus | null {
+  if (profile === null) return null;
+  if (profile.state === "paused") return { text: "Paused", modifier: "idle" };
+  if (profile.state === "in_conversation") {
+    return { text: "Setup incomplete", modifier: "drift" };
+  }
+  return profile.readyToCrawl
+    ? { text: "Monitoring on", modifier: "ready" }
+    : { text: "Setup incomplete", modifier: "drift" };
+}
+
 function LoadingPanel(): ReactNodeLike {
   return (
     <div className="jds-card jds-card--sunken jsm-state" role="status">
@@ -179,7 +219,6 @@ function ActiveProfilePanel(props: {
   /** Passed straight to ProfileScreen — Root uses it to re-read profiles, which re-runs the
    *  résumé-gated crawl effect so the first crawl fires as soon as a résumé lands. */
   onResumeSaved?: () => void;
-  onProfileChanged?: () => void;
 }): ReactNodeLike {
   const [view, setView] = useState<ActiveView>("matches");
   // Bumped by the board's "Add résumé" button, which also switches to the Profile tab. A counter,
@@ -256,7 +295,6 @@ function ActiveProfilePanel(props: {
         onChangeInChat={props.onChangeInChat}
         openResumeSignal={resumeIntent}
         onResumeSaved={props.onResumeSaved}
-        onProfileChanged={props.onProfileChanged}
       />
     );
   } else {
@@ -697,7 +735,6 @@ export function Root(props: RootProps): ReactNodeLike {
             // deps precisely so the save itself, not the shape of the response, retriggers it.
             setResumeSavedTick((tick) => tick + 1);
           }}
-          onProfileChanged={() => refetchRef.current()}
         />
       )
     );
@@ -709,6 +746,7 @@ export function Root(props: RootProps): ReactNodeLike {
     Fragment,
     null,
     <div className="jsm-root">
+      <ModuleMasthead profile={selectedProfile} />
       {queueNotice ? <QueueNotice outcome={queueNotice} /> : null}
       {body}
     </div>

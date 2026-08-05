@@ -838,7 +838,9 @@ describe("job-search web Root", () => {
       expect(monitorsTab!.props["aria-current"]).toBeUndefined();
       expect(renderer.root.findAllByProps({ role: "tablist" })).toHaveLength(0);
       expect(renderer.root.findAllByProps({ role: "tab" })).toHaveLength(0);
-      expect(renderer.root.findAllByType("h1")).toHaveLength(0);
+      expect(renderer.root.findAllByType("h1").map((node) => flatten(node.children))).toEqual([
+        "Job Search"
+      ]);
 
       // Matches is the board — the pre-existing title-text assertion elsewhere in this file
       // already covers that it's the real BoardScreen, not a placeholder. (board.tsx has no
@@ -870,7 +872,7 @@ describe("job-search web Root", () => {
       });
       await flush(renderer);
       expect(text(renderer)).not.toMatch(/Search status/);
-      expect(text(renderer)).toMatch(/Profile Search name/);
+      expect(text(renderer)).toMatch(/Profile What it's looking for/);
 
       await act(async () => {
         findButton(renderer, /^Monitors$/)!.props.onClick();
@@ -963,7 +965,24 @@ describe("job-search web Root", () => {
       expect(findButton(renderer, /^Overview$/)).toBeUndefined();
       expect(findButton(renderer, /^Profile$/)).toBeUndefined();
       expect(findButton(renderer, /^Monitors$/)).toBeUndefined();
-      expect(renderer.root.findAllByType("h1")).toHaveLength(0);
+      expect(renderer.root.findAllByType("h1").map((node) => flatten(node.children))).toEqual([
+        "Job Search"
+      ]);
+      expect(text(renderer)).toMatch(/Setup incomplete/);
     });
+  });
+
+  it.each([
+    ["active", true, "Monitoring on"],
+    ["active", false, "Setup incomplete"],
+    ["paused", true, "Paused"],
+    ["in_conversation", false, "Setup incomplete"]
+  ] as const)("shows an honest masthead for %s/%s", async (state, readyToCrawl, label) => {
+    mockUseProfiles.mockReturnValue(ready([profile({ state, readyToCrawl })]));
+    const renderer = await renderRoot();
+    await flush(renderer);
+
+    expect(text(renderer)).toContain("Jarvis · Module");
+    expect(text(renderer)).toContain(label);
   });
 });
