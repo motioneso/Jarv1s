@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@jarv1s/ui";
 import { LoaderCircle, Plus, SlidersHorizontal } from "lucide-react";
 import { type FormEvent, useState } from "react";
 
@@ -46,23 +47,26 @@ export function TaskCapture(props: {
           value={title}
         />
         <div className="tk-add__actions">
-          <button
-            className="jds-btn jds-btn--secondary jds-btn--sm"
+          <Button
+            icon={<SlidersHorizontal size={14} aria-hidden="true" />}
+            size="sm"
+            variant="secondary"
             onClick={() => props.onDetails(title)}
-            type="button"
           >
-            <SlidersHorizontal size={14} aria-hidden="true" /> Details
-          </button>
-          <button
-            className="jds-btn jds-btn--primary jds-btn--sm"
+            Details
+          </Button>
+          <Button
             disabled={createMutation.isPending || !title.trim()}
+            icon={
+              createMutation.isPending ? (
+                <LoaderCircle className="spin" size={14} aria-hidden="true" />
+              ) : null
+            }
+            size="sm"
             type="submit"
           >
-            {createMutation.isPending ? (
-              <LoaderCircle className="spin" size={14} aria-hidden="true" />
-            ) : null}
             Add task
-          </button>
+          </Button>
         </div>
       </div>
       {formError ? <p className="form-error">{formError}</p> : null}

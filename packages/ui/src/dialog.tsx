@@ -7,6 +7,8 @@ export interface DialogProps {
   readonly footer?: ReactNode;
   readonly children: ReactNode;
   readonly "aria-labelledby"?: string;
+  /** Extra class on the dialog surface, for a section to scope layout-only overrides (size, scroll). */
+  readonly className?: string;
 }
 
 export function Dialog(props: DialogProps) {
@@ -18,7 +20,7 @@ export function Dialog(props: DialogProps) {
       }}
     >
       <div
-        className="jds-dialog"
+        className={props.className ? `jds-dialog ${props.className}` : "jds-dialog"}
         role="dialog"
         aria-modal="true"
         aria-labelledby={props["aria-labelledby"]}

@@ -431,6 +431,10 @@
 .jds-task--p2 .jds-task__prio {
   background: var(--ink-4);
 }
+.jds-task--unread {
+  border-color: var(--accent-soft-border-weak);
+  background: var(--surface-assistant);
+}
 
 /* ---------------------------------------------------------------
    BRIEFING SECTION BLOCK

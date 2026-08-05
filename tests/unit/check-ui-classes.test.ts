@@ -1,10 +1,10 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { checkUiClasses } from "../../scripts/check-ui-classes.ts";
+import { checkUiClasses, DEFINITION_FILES } from "../../scripts/check-ui-classes.ts";
 
 /**
  * Guard 1/2 regression test (#1388 foundation).
@@ -29,42 +29,20 @@ async function buildFixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "check-ui-classes-"));
   fixtureRoots.push(root);
 
-  await mkdir(join(root, "packages/ui/src/styles"), { recursive: true });
-  await mkdir(join(root, "apps/web/src/styles"), { recursive: true });
   await mkdir(join(root, "apps/web/src/widgets"), { recursive: true });
   await mkdir(join(root, "packages/other/src"), { recursive: true });
   await mkdir(join(root, "external-modules/demo/src/web"), { recursive: true });
 
-  for (const relativeFile of [
-    "packages/ui/src/styles/components-core.css",
-    "packages/ui/src/styles/components-jarvis.css",
-    "packages/ui/src/styles/components-jarvis-today.css",
-    "apps/web/src/styles/command-palette.css",
-    "apps/web/src/styles/components-forms.css",
-    "apps/web/src/styles/components-keyline.css",
-    "apps/web/src/styles/index.css",
-    "apps/web/src/styles/kit-calendar.css",
-    "apps/web/src/styles/kit-chat-attach.css",
-    "apps/web/src/styles/kit-chat.css",
-    "apps/web/src/styles/kit-chat-skills.css",
-    "apps/web/src/styles/kit-tasks.css",
-    "apps/web/src/styles/kit-tasks-modal.css",
-    "apps/web/src/styles/kit-today.css",
-    "apps/web/src/styles/kit-today-feeds.css",
-    "apps/web/src/styles/kit-today-misc.css",
-    "apps/web/src/styles/onboarding-connectors.css",
-    "apps/web/src/styles/onboarding.css",
-    "apps/web/src/styles/onboarding-design.css",
-    "apps/web/src/styles/settings.css",
-    "apps/web/src/styles/settings-panes-2.css",
-    "apps/web/src/styles/settings-panes-3.css",
-    "apps/web/src/styles/settings-panes.css",
-    "apps/web/src/styles/texture.css",
-    "apps/web/src/styles/tokens.css",
-    "apps/web/src/styles/wellness-1.css",
-    "apps/web/src/styles/wellness-2.css",
-    "apps/web/src/styles/wellness-3.css"
-  ]) {
+  // Fixture directories/files are derived from the guard's own DEFINITION_FILES rather than a
+  // second hand-maintained copy — a duplicated list drifts the moment the script gains an entry
+  // (#1393: components-empty.css/components-forms.css landed in the script but not here, and
+  // every check-ui-classes.test.ts case ENOENT'd on the missing fixture file).
+  const definitionDirs = new Set(DEFINITION_FILES.map((relativeFile) => dirname(relativeFile)));
+  for (const dir of definitionDirs) {
+    await mkdir(join(root, dir), { recursive: true });
+  }
+
+  for (const relativeFile of DEFINITION_FILES) {
     await writeFile(join(root, relativeFile), "");
   }
 

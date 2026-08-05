@@ -71,9 +71,17 @@ _No enum or boolean props._
 - **orientation** (optional, default `horizontal`): `horizontal`, `vertical`
 - **weight** (optional, default `default`): `default`, `strong`, `ink`
 
+## empty-state
+
+_No enum or boolean props._
+
 ## event-chip
 
 - **variant** (required): `hard`, `tentative`, `block`
+
+## field
+
+_No enum or boolean props._
 
 ## held-banner
 
