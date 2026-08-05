@@ -90,7 +90,15 @@ export const MIGRATED_SECTION_PATHS: readonly string[] = [
   "apps/web/src/tasks/task-list-view.tsx",
   "apps/web/src/tasks/task-matrix-view.tsx",
   "apps/web/src/tasks/tasks-page.tsx",
-  "apps/web/src/notifications/notifications-page.tsx"
+  "apps/web/src/notifications/notifications-page.tsx",
+  // #1394 Shipped modules: the news settings pane, whose 13 raw jds-btn elements became <Button>.
+  // Sports migrated CSS only (no TSX changed), so its .tsx files are deliberately absent — see the
+  // PR body. Note guard 5 is inert across both packages either way: the only raw jds-* strings
+  // remaining in packages/news and packages/sports are jds-brief and jds-input, and neither family
+  // is in CLASS_FAMILY_TO_COMPONENT. Guard 6 (inline styles) is what these entries actually buy.
+  "packages/news/src/settings/add-source.tsx",
+  "packages/news/src/settings/describe-topics.tsx",
+  "packages/news/src/settings/index.tsx"
 ];
 
 // D6 #1392: per-instance runtime chart geometry stays inline (same treatment as the calendar
