@@ -664,7 +664,7 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
     ) : control.kind === "required" ? (
       <Badge tone="neutral">Required</Badge>
     ) : control.kind === "toggle" && module.active ? (
-      <Badge tone="pine" dot>
+      <Badge tone="forest" dot>
         Enabled
       </Badge>
     ) : null;

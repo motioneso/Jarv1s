@@ -5,7 +5,7 @@ import { listActionAuditLog } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
 import { formatDateTime, useUserLocale } from "../locale/locale-format.js";
 import type { PaneProps } from "./settings-types.js";
-import { Select } from "./settings-ui.js";
+import { Badge, Select } from "./settings-ui.js";
 import type { ActionAuditLogEntryDto } from "@jarv1s/shared";
 
 type DateRange = "today" | "7d" | "30d" | "90d";
@@ -175,17 +175,11 @@ export function ActivityPane(_props: PaneProps) {
                   </>
                 )}
                 <div className="aud__badges">
-                  <span className="jds-badge jds-badge--neutral">
-                    {approvalLabel(entry.approvalMode)}
-                  </span>
-                  <span
-                    className={`jds-badge${isDistinct(entry.outcome) ? " jds-badge--red" : " jds-badge--neutral"}`}
-                  >
+                  <Badge tone="neutral">{approvalLabel(entry.approvalMode)}</Badge>
+                  <Badge tone={isDistinct(entry.outcome) ? "red" : "neutral"}>
                     {outcomeLabel(entry.outcome)}
-                  </span>
-                  {entry.sourceSurface !== "chat" && (
-                    <span className="jds-badge jds-badge--steel">{entry.sourceSurface}</span>
-                  )}
+                  </Badge>
+                  {entry.sourceSurface !== "chat" && <Badge tone="steel">{entry.sourceSurface}</Badge>}
                 </div>
               </div>
               <div className="aud__cat">{entry.toolModuleId}</div>

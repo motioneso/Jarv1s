@@ -305,7 +305,7 @@ export function ChatSettingsView(props: {
           }
           control={
             voiceAvailable ? (
-              <Badge tone="pine">Ready</Badge>
+              <Badge tone="forest">Ready</Badge>
             ) : (
               <button
                 type="button"
@@ -464,7 +464,7 @@ export function NotificationSettings(props: {
         <Row
           name="In-app"
           desc="The notification center inside Jarvis."
-          control={<Badge tone="pine">Enabled</Badge>}
+          control={<Badge tone="forest">Enabled</Badge>}
         />
         <Row name="Push" desc="System notifications on this device." comingIssue={743} />
         <Row

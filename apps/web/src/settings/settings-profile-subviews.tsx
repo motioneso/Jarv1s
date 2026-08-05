@@ -369,7 +369,7 @@ export function Sessions() {
                 <div className="sess__dev">
                   {s.deviceLabel}
                   {group.isCurrent ? (
-                    <Badge tone="pine" dot>
+                    <Badge tone="forest" dot>
                       This device
                     </Badge>
                   ) : null}

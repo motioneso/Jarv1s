@@ -203,7 +203,7 @@ function ProviderCard(props: {
         <div className="prov__id">
           <div className="prov__name">
             {provider.displayName}
-            <Badge tone="pine" dot>
+            <Badge tone="forest" dot>
               Connected
             </Badge>
             {/* #870/H1: one provider is the instance default that feeds mode-bound services. */}

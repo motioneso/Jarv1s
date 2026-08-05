@@ -369,7 +369,7 @@ export function SettingsPeoplePane() {
               desc={person.relationshipSummary ?? person.contextSummary ?? undefined}
               control={
                 <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <Badge tone={person.status === "active" ? "pine" : "neutral"}>
+                  <Badge tone={person.status === "active" ? "forest" : "neutral"}>
                     {person.status}
                   </Badge>
                   {editingId === person.id ? (

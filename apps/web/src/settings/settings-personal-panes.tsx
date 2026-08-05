@@ -194,7 +194,7 @@ export function ProfilePane({ me }: PaneProps) {
           desc={user.email}
           control={
             user.emailVerified ? (
-              <Badge tone="pine" dot>
+              <Badge tone="forest" dot>
                 Verified
               </Badge>
             ) : undefined

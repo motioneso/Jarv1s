@@ -43,12 +43,12 @@ const TAB_LABELS: { readonly value: DashboardTab; readonly label: string }[] = [
 
 function itemKindTone(kind: string): BadgeTone {
   if (kind === "candidate") return "amber";
-  if (kind === "entity") return "pine";
+  if (kind === "entity") return "forest";
   return "neutral";
 }
 
 function confidenceTone(tier?: string): BadgeTone {
-  if (tier === "confirmed") return "pine";
+  if (tier === "confirmed") return "forest";
   if (tier === "high") return "steel";
   if (tier === "low") return "amber";
   return "neutral";

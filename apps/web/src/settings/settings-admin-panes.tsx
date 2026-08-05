@@ -76,7 +76,7 @@ function roleLabel(user: UserDto): string {
 }
 
 function diagnosticTone(status: HostDiagnosticStatus): BadgeTone {
-  return status === "pass" ? "pine" : status === "warn" ? "amber" : "red";
+  return status === "pass" ? "forest" : status === "warn" ? "amber" : "red";
 }
 
 function diagnosticLabel(status: HostDiagnosticStatus): string {
@@ -146,7 +146,7 @@ function PersonRow(props: {
             Deactivated
           </Badge>
         ) : (
-          <Badge tone="pine" dot>
+          <Badge tone="forest" dot>
             Active
           </Badge>
         )}
@@ -771,7 +771,7 @@ export function HostPane() {
           name="tmux available"
           desc="Whether tmux is usable on this host."
           control={
-            <Badge tone={mux?.available.tmux ? "pine" : "neutral"} dot={mux?.available.tmux}>
+            <Badge tone={mux?.available.tmux ? "forest" : "neutral"} dot={mux?.available.tmux}>
               {mux?.available.tmux ? "Yes" : "No"}
             </Badge>
           }
@@ -780,7 +780,7 @@ export function HostPane() {
           name="herdr available"
           desc={herdrDesc}
           control={
-            <Badge tone={herdrAvailable ? "pine" : "neutral"} dot={herdrAvailable}>
+            <Badge tone={herdrAvailable ? "forest" : "neutral"} dot={herdrAvailable}>
               {herdrAvailable ? "Yes" : "No"}
             </Badge>
           }
@@ -845,7 +845,7 @@ export function HostPane() {
                     {diag.latestAvailableVersion &&
                       compareJarvisVersions(diag.latestAvailableVersion, diag.version ?? "") >
                         0 && (
-                        <Badge tone="pine">Update Available ({diag.latestAvailableVersion})</Badge>
+                        <Badge tone="forest">Update Available ({diag.latestAvailableVersion})</Badge>
                       )}
                   </div>
                 }

@@ -155,7 +155,7 @@ export function SettingsSkillsPane() {
                 .join(" · ")}
               control={
                 <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <Badge tone={skill.enabled ? "pine" : "neutral"}>
+                  <Badge tone={skill.enabled ? "forest" : "neutral"}>
                     {skill.enabled ? "Enabled" : "Disabled"}
                   </Badge>
                   <Switch

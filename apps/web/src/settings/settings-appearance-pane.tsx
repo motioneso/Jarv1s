@@ -346,7 +346,7 @@ export function AppearancePane() {
               <Note icon={<Palette size={13} aria-hidden="true" />}>{goldWarning}</Note>
             ) : null}
             {error ? <Note>{error}</Note> : null}
-            {status ? <Badge tone="pine">{status}</Badge> : null}
+            {status ? <Badge tone="forest">{status}</Badge> : null}
           </div>
         </Group>
       ) : null}
@@ -375,7 +375,7 @@ function ThemeRow(props: {
     <div className={`theme-row ${props.active ? "is-active" : ""}`}>
       <button type="button" className="theme-row__select" onClick={props.onSelect}>
         <span>{props.name}</span>
-        {props.active ? <Badge tone="pine">Active</Badge> : null}
+        {props.active ? <Badge tone="forest">Active</Badge> : null}
         {props.readonlyLabel ? <Badge tone="neutral">{props.readonlyLabel}</Badge> : null}
       </button>
       <button
