@@ -67,7 +67,7 @@
   background: var(--forest-soft);
   color: var(--forest-ink);
 }
-.tk-tagmenu__item .hash {
+.hash {
   font-family: var(--font-sans);
   color: var(--text-faint);
 }
@@ -106,6 +106,7 @@
 }
 .tk-listbtn__dot {
   border-radius: 50%;
+  background: var(--forest);
 }
 .tk-listbtn__chev {
   color: var(--text-faint);
@@ -197,6 +198,7 @@
 }
 .tk-task__bar {
   border-radius: var(--radius-pill);
+  background: var(--tk-swatch);
 }
 .tk-task__main {
   background: transparent;
@@ -226,6 +228,7 @@
 }
 .tk-listchip__dot {
   border-radius: 50%;
+  background: var(--tk-swatch);
 }
 .tk-metatag {
   font-family: var(--font-sans);
@@ -263,6 +266,7 @@
 }
 .tk-panel__dot {
   border-radius: 50%;
+  background: var(--tk-swatch);
 }
 .tk-panel__name {
   font-family: var(--font-sans);
@@ -449,8 +453,10 @@
 }
 .tk-ava {
   border-radius: 50%;
+  background: var(--tk-ava-bg);
   color: var(--white);
   font-family: var(--font-sans);
+  font-size: var(--tk-ava-fs);
   font-weight: 700;
 }
 .tk-peoplefield {

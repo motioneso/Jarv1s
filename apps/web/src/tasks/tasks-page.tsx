@@ -282,7 +282,7 @@ export function TasksPage() {
               removeLabel={`Remove ${name}`}
               onRemove={() => setTagFilter((a) => a.filter((x) => x !== name))}
             >
-              <span style={{ fontFamily: "var(--font-sans)", color: "var(--text-faint)" }}>#</span>
+              <span className="hash">#</span>
               {name}
             </Chip>
           ))}
@@ -524,7 +524,7 @@ function ListFilterMenu(props: {
                 className={`tk-tagmenu__item ${cls}`}
                 onClick={() => props.onCycle(list.id)}
               >
-                <span className="tk-listbtn__dot" style={{ background: "var(--forest)" }} />
+                <span className="tk-listbtn__dot" />
                 <span className="nm">{list.name}</span>
                 {st === "solo" ? (
                   <span className="tk-liststate tk-liststate--only">Only</span>

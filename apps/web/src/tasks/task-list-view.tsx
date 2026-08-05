@@ -131,7 +131,10 @@ export function TaskListView(props: {
       {groups.map((group) => (
         <div className="tk-panel" key={group.value ?? "none"}>
           <div className="tk-panel__head">
-            <span className="tk-panel__dot" style={{ background: priorityColor(group.value) }} />
+            <span
+              className="tk-panel__dot"
+              style={{ "--tk-swatch": priorityColor(group.value) } as React.CSSProperties}
+            />
             <span className="tk-panel__name">{group.label}</span>
             <span className="tk-panel__count">{group.tasks.length}</span>
           </div>
@@ -185,7 +188,10 @@ export function TaskRow(props: {
 
   return (
     <div className={`tk-task ${done ? "tk-task--done" : ""}`}>
-      <span className="tk-task__bar" style={{ background: priorityColor(task.priority) }} />
+      <span
+        className="tk-task__bar"
+        style={{ "--tk-swatch": priorityColor(task.priority) } as React.CSSProperties}
+      />
       <span className="tk-task__check">
         {suggested ? (
           <span className="tk-task__src" title="Suggested by Jarvis">
@@ -239,7 +245,10 @@ export function TaskRow(props: {
           ) : null}
           {props.list ? (
             <span className="tk-listchip">
-              <span className="tk-listchip__dot" style={{ background: props.list.color }} />
+              <span
+                className="tk-listchip__dot"
+                style={{ "--tk-swatch": props.list.color } as React.CSSProperties}
+              />
               {props.list.name}
             </span>
           ) : null}

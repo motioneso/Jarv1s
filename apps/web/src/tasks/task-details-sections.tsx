@@ -32,12 +32,14 @@ function Ava(props: { readonly name: string; readonly size?: number }) {
   return (
     <span
       className="tk-ava"
-      style={{
-        width: size,
-        height: size,
-        background: avaColor(props.name),
-        fontSize: Math.round(size * 0.4)
-      }}
+      style={
+        {
+          width: size,
+          height: size,
+          "--tk-ava-bg": avaColor(props.name),
+          "--tk-ava-fs": `${Math.round(size * 0.4)}px`
+        } as React.CSSProperties
+      }
     >
       {initialsOf(props.name)}
     </span>
@@ -114,7 +116,7 @@ export function TaskTagsField(props: {
 function TagChip(props: { readonly label: string; readonly onRemove: () => void }) {
   return (
     <Chip onRemove={props.onRemove} removeLabel={`Remove ${props.label}`}>
-      <span style={{ fontFamily: "var(--font-sans)", color: "var(--text-faint)" }}>#</span>
+      <span className="hash">#</span>
       {props.label}
     </Chip>
   );
