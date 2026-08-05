@@ -118,6 +118,14 @@ export interface GoogleSyncResult {
 
 export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
 export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
+const DEFAULT_EMAIL_MESSAGE_CAP = 50;
+
+export function resolveEmailMessageCap(raw: string | undefined): number {
+  if (raw === undefined) return DEFAULT_EMAIL_MESSAGE_CAP;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0) return DEFAULT_EMAIL_MESSAGE_CAP;
+  return parsed;
+}
 
 interface GoogleClientLike {
   listCalendarEvents(input: {
