@@ -92,7 +92,7 @@ function pascalCaseFromKebab(kebabName: string): string {
     .join("");
 }
 
-function buildCatalogueItem(fileName: string, sourceText: string): CatalogueItem {
+export function buildCatalogueItem(fileName: string, sourceText: string): CatalogueItem {
   const source = ts.createSourceFile(
     fileName,
     sourceText,
@@ -101,7 +101,9 @@ function buildCatalogueItem(fileName: string, sourceText: string): CatalogueItem
     ts.ScriptKind.TSX
   );
 
+  const componentName = fileName.replace(/\.tsx$/, "");
   const unionAliases = new Map<string, readonly string[]>();
+  const relativeImportedTypeNames = new Set<string>();
   const exportedFunctionNames: string[] = [];
   const exportedFunctions = new Map<string, ts.FunctionDeclaration>();
   const dependencies = new Set<string>();
@@ -111,6 +113,16 @@ function buildCatalogueItem(fileName: string, sourceText: string): CatalogueItem
     if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
       const specifier = statement.moduleSpecifier.text;
       if (specifier !== "react" && !specifier.startsWith(".")) dependencies.add(specifier);
+
+      if (specifier.startsWith(".")) {
+        const importClause = statement.importClause;
+        if (importClause?.name) relativeImportedTypeNames.add(importClause.name.text);
+        if (importClause?.namedBindings && ts.isNamedImports(importClause.namedBindings)) {
+          for (const element of importClause.namedBindings.elements) {
+            relativeImportedTypeNames.add(element.name.text);
+          }
+        }
+      }
     }
 
     if (ts.isTypeAliasDeclaration(statement) && hasExportModifier(statement)) {
@@ -151,7 +163,17 @@ function buildCatalogueItem(fileName: string, sourceText: string): CatalogueItem
       ts.isTypeReferenceNode(member.type) &&
       ts.isIdentifier(member.type.typeName)
     ) {
-      enumValues = unionAliases.get(member.type.typeName.text) ?? null;
+      const typeName = member.type.typeName.text;
+      enumValues = unionAliases.get(typeName) ?? null;
+
+      if (!enumValues && relativeImportedTypeNames.has(typeName)) {
+        throw new Error(
+          `${componentName}: prop "${name}" has type "${typeName}", imported from a sibling ` +
+            `component file. build-ui-catalogue.ts only resolves enum unions declared inline in ` +
+            `the same file (see #1406) — declare "${typeName}" in ${fileName} instead of importing ` +
+            `it, or the catalogue silently drops this prop.`
+        );
+      }
     }
 
     if (enumValues) {
@@ -170,7 +192,6 @@ function buildCatalogueItem(fileName: string, sourceText: string): CatalogueItem
     }
   }
 
-  const componentName = fileName.replace(/\.tsx$/, "");
   return {
     name: componentName,
     type: "registry:ui",
