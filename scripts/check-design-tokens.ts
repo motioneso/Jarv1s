@@ -31,7 +31,18 @@ const allowList = new Set([
   // job-search's Score component (score.tsx) sets this as a 0-1 fraction inline — a caller-scoped
   // runtime value, not a design token. Want still renders through the jds-score bar everywhere Fit
   // doesn't (K-D1 covers Fit only), so this survives the Matches board rebuild.
-  "--jds-score"
+  "--jds-score",
+  // #1393 Tasks: avatar background color, hashed per-name in Ava (task-details-sections.tsx).
+  // Consuming var() lives in packages/ui/src/styles/components-tasks.css, outside this guard's
+  // apps/web/src scan root, so this entry documents intent rather than unblocking a violation.
+  "--tk-ava-bg",
+  // #1393 Tasks: avatar font-size, scaled from the size prop in Ava. Same components-tasks.css
+  // consumer, same out-of-scan-root note as --tk-ava-bg above.
+  "--tk-ava-fs",
+  // #1393 Tasks: shared per-instance swatch color for priority dots/bars (priorityColor()) and
+  // list dots (listColorMap()) in task-list-view.tsx. Same components-tasks.css consumer, same
+  // out-of-scan-root note as --tk-ava-bg above.
+  "--tk-swatch"
 ]);
 
 export interface TokenViolation {
@@ -80,7 +91,10 @@ export const MIGRATED_SECTION_CSS_FILES: readonly string[] = [
   "apps/web/src/styles/onboarding-design.css",
   "apps/web/src/styles/wellness-1.css",
   "apps/web/src/styles/wellness-2.css",
-  "apps/web/src/styles/wellness-3.css"
+  "apps/web/src/styles/wellness-3.css",
+  "apps/web/src/styles/kit-tasks.css",
+  "apps/web/src/styles/kit-tasks-modal.css",
+  "apps/web/src/tasks/tasks.css"
 ];
 
 let validTokensCache: Set<string> | undefined;

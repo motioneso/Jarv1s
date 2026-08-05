@@ -119,8 +119,7 @@ a {
 }
 
 .auth-form,
-.activity-form,
-.task-detail-form {
+.activity-form {
   display: grid;
   gap: 0.875rem;
 }
@@ -338,8 +337,7 @@ a {
 }
 
 .brand-lockup strong,
-.compact-row span,
-.task-title-link {
+.compact-row span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -652,9 +650,7 @@ button.module-link {
 .note-create-form,
 .ai-form,
 .connector-form,
-.note-detail-form,
-.task-create-form,
-.task-detail-form {
+.note-detail-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.875rem;
@@ -677,17 +673,6 @@ button.module-link {
   grid-column: 1 / -1;
 }
 
-.task-toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(14rem, 20rem);
-  gap: 0.75rem;
-  align-items: center;
-}
-
-.task-toolbar.single {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 .search-box {
   position: relative;
 }
@@ -701,27 +686,6 @@ button.module-link {
 
 .search-box input {
   padding-left: 2.25rem;
-}
-
-.task-list {
-  display: grid;
-  gap: 0.65rem;
-}
-
-.task-row {
-  min-height: 5.25rem;
-  display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  align-items: center;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-raised);
-  padding: 0.75rem;
-}
-
-.task-row.done {
-  background: var(--surface-accent-soft);
 }
 
 .ai-config-list,
@@ -795,60 +759,8 @@ button.module-link {
   background: var(--surface-assistant);
 }
 
-.task-status-icon {
-  color: var(--accent);
-}
-
-.task-row-main {
-  min-width: 0;
-  display: grid;
-  gap: 0.25rem;
-}
-
-.task-title-link {
-  max-width: 100%;
-  display: inline-block;
-  font-weight: 800;
-  text-decoration: none;
-}
-
-.task-title-link:hover,
 .back-link:hover {
   color: var(--accent);
-}
-
-.task-row-main p {
-  margin: 0;
-  color: var(--muted);
-  overflow-wrap: anywhere;
-}
-
-.task-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.task-meta span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  border-radius: 999px;
-  background: var(--surface-divider);
-  color: var(--muted);
-  padding: 0.15rem 0.45rem;
-  font-size: 0.75rem;
-  font-weight: 750;
-}
-
-.task-row-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.task-row-actions select {
-  width: 8rem;
 }
 
 .empty-state {
@@ -944,18 +856,8 @@ button.module-link {
 
   .settings-grid,
   .detail-grid,
-  .task-toolbar,
   .chat-layout {
     grid-template-columns: 1fr;
-  }
-
-  .task-row {
-    grid-template-columns: 2rem minmax(0, 1fr);
-  }
-
-  .task-row-actions {
-    grid-column: 2;
-    justify-content: space-between;
   }
 }
 
@@ -965,9 +867,7 @@ button.module-link {
   }
 
   .note-create-form,
-  .note-detail-form,
-  .task-create-form,
-  .task-detail-form {
+  .note-detail-form {
     grid-template-columns: 1fr;
   }
 

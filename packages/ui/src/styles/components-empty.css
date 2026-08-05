@@ -1,0 +1,27 @@
+.jds-empty {
+  text-align: center;
+  padding: 64px 20px;
+}
+.jds-empty__mark {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  box-shadow: var(--shadow-xs);
+}
+.jds-empty__title {
+  font-family: var(--font-display);
+  font-size: 21px;
+  color: var(--text);
+  margin-top: 16px;
+}
+.jds-empty__sub {
+  font-size: 14px;
+  color: var(--text-subtle);
+  margin-top: 6px;
+}
