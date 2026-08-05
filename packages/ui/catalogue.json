@@ -71,7 +71,7 @@
       "type": "registry:ui",
       "files": [{ "path": "packages/ui/src/button-link.tsx", "type": "registry:ui" }],
       "dependencies": [],
-      "exports": ["ButtonLink"],
+      "exports": ["ButtonLink", "buttonLinkClassName"],
       "options": [
         {
           "prop": "variant",

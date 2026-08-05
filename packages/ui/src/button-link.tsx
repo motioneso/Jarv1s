@@ -15,9 +15,12 @@ export interface ButtonLinkProps extends Omit<
   readonly children?: ReactNode;
 }
 
-export function ButtonLink(props: ButtonLinkProps) {
-  const { variant = "primary", size = "md", block, icon, children, href, ...rest } = props;
-  const classes = [
+export function buttonLinkClassName(
+  variant: ButtonLinkVariant = "primary",
+  size: ButtonLinkSize = "md",
+  block = false
+): string {
+  return [
     "jds-btn",
     `jds-btn--${variant}`,
     size !== "md" ? `jds-btn--${size}` : null,
@@ -25,6 +28,11 @@ export function ButtonLink(props: ButtonLinkProps) {
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+export function ButtonLink(props: ButtonLinkProps) {
+  const { variant = "primary", size = "md", block, icon, children, href, ...rest } = props;
+  const classes = buttonLinkClassName(variant, size, block);
   return (
     <a href={href} className={classes} {...rest}>
       {icon ? <span className="jds-btn__icon">{icon}</span> : null}

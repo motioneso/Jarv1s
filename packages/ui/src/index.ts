@@ -8,7 +8,7 @@ export { Badge, ComingSoon } from "./badge.js";
 export type { BadgeProps, BadgeTone } from "./badge.js";
 export { Button } from "./button.js";
 export type { ButtonProps, ButtonSize, ButtonVariant } from "./button.js";
-export { ButtonLink } from "./button-link.js";
+export { ButtonLink, buttonLinkClassName } from "./button-link.js";
 export type { ButtonLinkProps, ButtonLinkSize, ButtonLinkVariant } from "./button-link.js";
 export { Card } from "./card.js";
 export type { CardPadding, CardProps } from "./card.js";
