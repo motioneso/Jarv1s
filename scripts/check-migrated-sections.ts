@@ -82,7 +82,15 @@ export const MIGRATED_SECTION_PATHS: readonly string[] = [
   "apps/web/src/wellness/wellness-page.tsx",
   "apps/web/src/wellness/wellness-therapy-notes.tsx",
   "apps/web/src/wellness/wellness-today.tsx",
-  "apps/web/src/wellness/wellness-trends.tsx"
+  "apps/web/src/wellness/wellness-trends.tsx",
+  // #1393 Tasks + notifications.
+  "apps/web/src/tasks/task-capture.tsx",
+  "apps/web/src/tasks/task-details-dialog.tsx",
+  "apps/web/src/tasks/task-details-sections.tsx",
+  "apps/web/src/tasks/task-list-view.tsx",
+  "apps/web/src/tasks/task-matrix-view.tsx",
+  "apps/web/src/tasks/tasks-page.tsx",
+  "apps/web/src/notifications/notifications-page.tsx"
 ];
 
 // D6 #1392: per-instance runtime chart geometry stays inline (same treatment as the calendar

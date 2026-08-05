@@ -80,7 +80,10 @@ export const MIGRATED_SECTION_CSS_FILES: readonly string[] = [
   "apps/web/src/styles/onboarding-design.css",
   "apps/web/src/styles/wellness-1.css",
   "apps/web/src/styles/wellness-2.css",
-  "apps/web/src/styles/wellness-3.css"
+  "apps/web/src/styles/wellness-3.css",
+  "apps/web/src/styles/kit-tasks.css",
+  "apps/web/src/styles/kit-tasks-modal.css",
+  "apps/web/src/tasks/tasks.css"
 ];
 
 let validTokensCache: Set<string> | undefined;
