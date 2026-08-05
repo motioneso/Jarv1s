@@ -153,10 +153,13 @@ function standingsGroup(): StandingsGroup {
 export const sportsOverviewFixture: SportsOverviewResponse = {
   hero: {
     mode: "gameday",
-    game: liveGame(),
-    competitionLabel: "NFL",
-    rationale: "You follow the Vikings — they are on now",
-    alsoToday: "2 other followed games today"
+    games: [
+      {
+        game: liveGame(),
+        competitionLabel: "NFL",
+        rationale: "You follow the Vikings — they are on now"
+      }
+    ]
   },
   followed: [
     followedCard({

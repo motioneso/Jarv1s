@@ -113,7 +113,7 @@ describe("ChatGatewayNotifier", () => {
     expect(record.actionRequestId).toBe("ar_1");
   });
 
-  it("keeps structured module results on the live action record", () => {
+  it("uses capped module-authored status text on the live structured result", () => {
     const manager = makeManager();
     const notifier = new ChatGatewayNotifier(manager);
 
@@ -122,14 +122,20 @@ describe("ChatGatewayNotifier", () => {
       actionRequestId: "ar_resume",
       toolName: "demo-module.resume.critique",
       outcome: "executed",
-      result: { status: "ok", revisionId: "review-1" }
+      result: {
+        status: "ok",
+        revisionId: "review-1",
+        statusText: `  Criteria\nupdated ${"safely ".repeat(30)}`
+      }
     });
 
     const [, record] = (manager.injectRecord as ReturnType<typeof vi.fn>).mock.calls[0] as [
       string,
       TranscriptRecord
     ];
-    expect(record.result).toEqual({ status: "ok", revisionId: "review-1" });
+    expect(record.result).toMatchObject({ status: "ok", revisionId: "review-1" });
+    expect(record.text).toMatch(/^Criteria updated safely/);
+    expect(record.text.length).toBe(160);
   });
 
   it("renders an allowed outcome as 'Allowed by YOLO'", () => {
@@ -151,7 +157,7 @@ describe("ChatGatewayNotifier", () => {
     expect(record.text).toContain("Allowed by YOLO");
   });
 
-  it("still renders denied outcomes unchanged", () => {
+  it("renders denied outcomes as a typed not-changed result", () => {
     const manager = makeManager();
     const notifier = new ChatGatewayNotifier(manager);
 
@@ -159,13 +165,14 @@ describe("ChatGatewayNotifier", () => {
       kind: "action_result",
       actionRequestId: "ar_1",
       toolName: "example.write",
-      outcome: "denied"
+      outcome: "denied",
+      reason: "Denied by user."
     });
 
     const [, record] = (manager.injectRecord as ReturnType<typeof vi.fn>).mock.calls[0] as [
       string,
       TranscriptRecord
     ];
-    expect(record.text).toContain("Denied");
+    expect(record.text).toBe("Not changed — Denied by user.");
   });
 });

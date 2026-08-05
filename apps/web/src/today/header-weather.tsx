@@ -1,9 +1,9 @@
 import { Cloud, CloudRain, CloudSnow, CloudSun, Sun, Wind } from "lucide-react";
 import type { ComponentType } from "react";
 import type { WeatherTodayDto } from "@jarv1s/shared";
+import { WeatherChip } from "@jarv1s/ui";
 
 import type { WeatherIcon } from "./feed-source";
-import "../styles/kit-weather.css";
 
 const ICONS: Record<
   WeatherIcon,
@@ -22,15 +22,12 @@ export function HeaderWeather(props: { readonly weather?: WeatherTodayDto | null
   if (!wx) return null;
   const Now = ICONS[wx.icon];
   return (
-    <div className="wx-mini">
-      <span className="wx-mini__city">{wx.location}</span>
-      <div className="wx-mini__now">
-        <Now size={20} color="var(--steel)" />
-        <span className="t">
-          {wx.temp}°<span className="lo"> {wx.feelsLike}°</span>
-        </span>
-      </div>
-      <div className="wx-mini__condition">{wx.condition}</div>
-    </div>
+    <WeatherChip
+      city={wx.location}
+      icon={<Now size={20} color="var(--steel)" />}
+      temp={wx.temp}
+      feelsLike={wx.feelsLike}
+      condition={wx.condition}
+    />
   );
 }

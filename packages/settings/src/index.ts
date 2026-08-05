@@ -47,6 +47,7 @@ export {
   createAppMapReadService
 } from "./app-map.js";
 export {
+  APP_MAP_SLICE_LOOKUP_KEYS,
   appGetMapSliceInputSchema,
   appGetMapSliceOutputSchema,
   appGetMapSliceExecute

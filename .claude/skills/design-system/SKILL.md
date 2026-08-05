@@ -18,6 +18,10 @@ The design system is **authored, not generated**. Match the live
 ## Primitives and colour
 
 - Extend the `jds-*` primitives; don't build parallel one-off components.
+- Before adding a variant/size/tone string to a `@jarv1s/ui` component, check
+  `packages/ui/catalogue.json` (or the human-readable `packages/ui/OPTIONS.md`) for one that
+  already covers it — both are generated from the components' own types by
+  `pnpm build:ui-catalogue` and gated by `check:ui-catalogue`, so they're always current.
 - Raw CSS colours belong in `tokens.css` alone — nowhere else, and never inside a module. Module
   CSS is layout-only by contract; if a primitive is missing, add it to `apps/web/src/styles/`,
   never work around it in the calling surface.

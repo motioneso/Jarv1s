@@ -11,10 +11,56 @@ describe("sports manifest", () => {
     expect(sportsModuleManifest.routes.map((r) => r.path)).toContain("/api/sports/overview");
   });
 
-  it("exposes exactly one read-risk briefing tool", () => {
-    expect(sportsModuleManifest.assistantTools).toHaveLength(1);
-    expect(sportsModuleManifest.assistantTools[0]?.name).toBe("sports.followedFactsToday");
-    expect(sportsModuleManifest.assistantTools[0]?.risk).toBe("read");
+  it("exposes one read-risk briefing tool and two write-risk follow tools", () => {
+    expect(sportsModuleManifest.assistantTools).toHaveLength(3);
+    const byName = Object.fromEntries(
+      sportsModuleManifest.assistantTools.map((tool) => [tool.name, tool])
+    );
+    expect(byName["sports.followedFactsToday"]?.risk).toBe("read");
+    for (const name of ["sports.followTeam", "sports.unfollowTeam"]) {
+      expect(byName[name]?.risk).toBe("write");
+      // #1265 binding condition (task #9): risk:"write" alone doesn't stop these from being
+      // treated as destructive — policy.ts makes risk:"destructive" never auto-run regardless of
+      // tier, so if either tool's risk ever silently became "destructive", granted_at_install
+      // would combine with it and nothing else would catch that. Assert it explicitly here.
+      expect(byName[name]?.risk).not.toBe("destructive");
+      expect(byName[name]?.actionFamilyId).toBe("sports_follows");
+      expect(byName[name]?.executionPolicy).toBe("auto");
+      expect(byName[name]?.selfOperationGrant).toBe("granted_at_install");
+    }
+  });
+
+  // #1265 security QA BLOCKING-1(b): both follow tools auto-run under a granted_at_install grant,
+  // and their keys end up interpolated into an outbound ESPN URL. Bare `{ type: "string" }` puts
+  // no bound at all on what the model may pass, so the schema itself is one of the three
+  // independent belts (alongside the service-layer roster check and encodeURIComponent at the URL
+  // site). Bounds mirror the REST schema (packages/shared/src/sports-api.ts
+  // `createSportsFollowRequestSchema`), plus a character-class pattern the REST schema lacks.
+  it("bounds both follow tools' key inputs with length and a catalog-shaped pattern", () => {
+    const byName = Object.fromEntries(
+      sportsModuleManifest.assistantTools.map((tool) => [tool.name, tool])
+    );
+    for (const name of ["sports.followTeam", "sports.unfollowTeam"]) {
+      const properties = (
+        byName[name]?.inputSchema as {
+          properties?: Record<string, { maxLength?: number; minLength?: number; pattern?: string }>;
+        }
+      )?.properties;
+      for (const field of ["competitionKey", "teamKey"]) {
+        expect(properties?.[field]?.maxLength).toBe(100);
+        // Catalog keys are lowercase alphanumeric with dots ("nfl", "eng.1"); ESPN team keys are a
+        // lowercased abbreviation or a bare numeric id. Nothing that can traverse a URL path.
+        expect(properties?.[field]?.pattern).toBe("^[a-z0-9.]{1,100}$");
+      }
+      expect(properties?.competitionKey?.minLength).toBe(1);
+    }
+  });
+
+  it("declares exactly one action family, sports_follows, with trusted_auto allowed", () => {
+    expect(sportsModuleManifest.assistantActionFamilies).toHaveLength(1);
+    const family = sportsModuleManifest.assistantActionFamilies?.[0];
+    expect(family?.id).toBe("sports_follows");
+    expect(family?.allowedTiers).toContain("trusted_auto");
   });
 
   it("declares the espn external source with credential none and pinned hosts", () => {
@@ -23,7 +69,13 @@ describe("sports manifest", () => {
     expect(espn?.credential).toBe("none");
     // content.core host is the per-article body endpoint (#857); site.api serves the list feeds.
     expect(espn?.fetchHosts).toEqual(["site.api.espn.com", "content.core.api.espn.com"]);
-    expect(espn?.imageHosts).toEqual(["a.espncdn.com", "s.secure.espncdn.com"]);
+    // akamaized is ESPN's video-still CDN — story art for video-led pieces (most soccer analysis)
+    // comes from there, and a host absent from this list is a CSP-blocked blank image.
+    expect(espn?.imageHosts).toEqual([
+      "a.espncdn.com",
+      "s.secure.espncdn.com",
+      "espnmedia-cdn.akamaized.net"
+    ]);
     // articleBody (#857) MUST be listed — the service requests it, and an undeclared dataset makes
     // the real DatasetClient throw before its fallback path, 500ing the overview on every load.
     expect(espn?.datasets.map((d) => d.key).sort()).toEqual(

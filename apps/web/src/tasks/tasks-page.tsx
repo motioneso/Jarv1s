@@ -1,11 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TaskDefaultView, TaskDto, TaskSearchIntent } from "@jarv1s/shared";
+import { Chip, EmptyState, Segmented } from "@jarv1s/ui";
 import {
   CheckCheck,
   ChevronDown,
   Layers,
-  LayoutGrid,
-  List as ListIcon,
   LoaderCircle,
   Search,
   GitCommitHorizontal,
@@ -184,22 +183,20 @@ export function TasksPage() {
           />
         </div>
 
-        <div className="jds-segmented" role="group" aria-label="Status filter">
-          {statusFilters.map((status) => (
-            <button
-              aria-pressed={!focus && statusFilter === status}
-              className={`jds-segmented__opt ${!focus && statusFilter === status ? "is-active" : ""}`}
-              key={status}
-              onClick={() => {
-                setStatusFilter(status);
-                clearFocus();
-              }}
-              type="button"
-            >
-              {status === "all" ? "All" : statusLabels[status]}
-            </button>
-          ))}
-        </div>
+        {/* "" is the no-selection value: a URL focus overrides the status filter. */}
+        <Segmented<StatusFilter | "">
+          ariaLabel="Status filter"
+          options={statusFilters.map((status) => ({
+            value: status,
+            label: status === "all" ? "All" : statusLabels[status]
+          }))}
+          value={focus ? "" : statusFilter}
+          onChange={(next) => {
+            if (next === "") return;
+            setStatusFilter(next);
+            clearFocus();
+          }}
+        />
 
         <span className="tk-bar__sep" />
 
@@ -253,52 +250,26 @@ export function TasksPage() {
 
         <span className="tk-bar__spacer" />
 
-        <div className="jds-segmented" role="group" aria-label="View">
-          <button
-            aria-pressed={view === "priority"}
-            className={`jds-segmented__opt ${view === "priority" ? "is-active" : ""}`}
-            disabled={viewMutation.isPending}
-            onClick={() => viewMutation.mutate("priority")}
-            type="button"
-          >
-            <ListIcon size={15} aria-hidden="true" /> List
-          </button>
-          <button
-            aria-pressed={view === "matrix"}
-            className={`jds-segmented__opt ${view === "matrix" ? "is-active" : ""}`}
-            disabled={viewMutation.isPending}
-            onClick={() => viewMutation.mutate("matrix")}
-            type="button"
-          >
-            <LayoutGrid size={15} aria-hidden="true" /> Matrix
-          </button>
-        </div>
+        <Segmented<TaskDefaultView>
+          ariaLabel="View"
+          options={[
+            { value: "priority", label: "List" },
+            { value: "matrix", label: "Matrix" }
+          ]}
+          value={view}
+          onChange={(next) => {
+            if (viewMutation.isPending) return;
+            viewMutation.mutate(next);
+          }}
+        />
       </div>
 
       {focus ? (
         <div className="tk-activetags">
           <span className="tk-activetags__lbl">Focus</span>
-          <span className="jds-chip">
+          <Chip removeLabel="Clear focus" onRemove={clearFocus}>
             {FOCUS_LABELS[focus]}
-            <button
-              type="button"
-              className="jds-chip__x"
-              aria-label="Clear focus"
-              onClick={clearFocus}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="13"
-                height="13"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-              >
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg>
-            </button>
-          </span>
+          </Chip>
         </div>
       ) : null}
 
@@ -306,28 +277,14 @@ export function TasksPage() {
         <div className="tk-activetags">
           <span className="tk-activetags__lbl">Tags</span>
           {tagFilter.map((name) => (
-            <span key={name} className="jds-chip">
-              <span style={{ fontFamily: "var(--font-sans)", color: "var(--text-faint)" }}>#</span>
+            <Chip
+              key={name}
+              removeLabel={`Remove ${name}`}
+              onRemove={() => setTagFilter((a) => a.filter((x) => x !== name))}
+            >
+              <span className="hash">#</span>
               {name}
-              <button
-                type="button"
-                className="jds-chip__x"
-                aria-label={`Remove ${name}`}
-                onClick={() => setTagFilter((a) => a.filter((x) => x !== name))}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="13"
-                  height="13"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                >
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </span>
+            </Chip>
           ))}
           <button type="button" className="tk-activetags__clear" onClick={() => setTagFilter([])}>
             Clear
@@ -339,29 +296,13 @@ export function TasksPage() {
         <div className="tk-activetags">
           <span className="tk-activetags__lbl">Search</span>
           {searchChips.map((chip) => (
-            <span key={chip.key} className="jds-chip">
+            <Chip
+              key={chip.key}
+              removeLabel={`Remove ${chip.label}`}
+              onRemove={() => setSearchIntent((intent) => removeSearchIntentChip(intent, chip.key))}
+            >
               {chip.label}
-              <button
-                type="button"
-                className="jds-chip__x"
-                aria-label={`Remove ${chip.label}`}
-                onClick={() =>
-                  setSearchIntent((intent) => removeSearchIntentChip(intent, chip.key))
-                }
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="13"
-                  height="13"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                >
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </span>
+            </Chip>
           ))}
           {searchWarning ? <span className="tk-activetags__note">{searchWarning}</span> : null}
           {searchChips.length > 0 ? (
@@ -382,20 +323,16 @@ export function TasksPage() {
       />
 
       {tasksQuery.isLoading ? (
-        <div className="tk-empty">
-          <span className="tk-empty__mark">
-            <LoaderCircle className="spin" size={24} aria-hidden="true" />
-          </span>
-          <div className="tk-empty__title">Loading tasks</div>
-        </div>
+        <EmptyState
+          icon={<LoaderCircle className="spin" size={24} aria-hidden="true" />}
+          title="Loading tasks"
+        />
       ) : visibleTasks.length === 0 ? (
-        <div className="tk-empty">
-          <span className="tk-empty__mark">
-            <CheckCheck size={24} aria-hidden="true" />
-          </span>
-          <div className="tk-empty__title">No tasks match</div>
-          <div className="tk-empty__sub">Try clearing a filter or two.</div>
-        </div>
+        <EmptyState
+          icon={<CheckCheck size={24} aria-hidden="true" />}
+          title="No tasks match"
+          description="Try clearing a filter or two."
+        />
       ) : view === "matrix" ? (
         <TaskMatrixView
           tasks={visibleTasks}
@@ -587,7 +524,7 @@ function ListFilterMenu(props: {
                 className={`tk-tagmenu__item ${cls}`}
                 onClick={() => props.onCycle(list.id)}
               >
-                <span className="tk-listbtn__dot" style={{ background: "var(--forest)" }} />
+                <span className="tk-listbtn__dot" />
                 <span className="nm">{list.name}</span>
                 {st === "solo" ? (
                   <span className="tk-liststate tk-liststate--only">Only</span>

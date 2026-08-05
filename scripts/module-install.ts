@@ -12,6 +12,7 @@
 import { Client } from "pg";
 
 import {
+  assertQualifiedTableName,
   disableInstallerLogin,
   enableInstallerLogin,
   ensureModuleRoles,
@@ -67,6 +68,14 @@ export async function installModule(
     await installerClient.connect();
     try {
       await installerClient.query("BEGIN");
+      // Existing module tables are FORCE-RLS'd after their first install. The installer owns
+      // them but has no actor-scoped runtime policy, so an UPDATE migration otherwise succeeds
+      // while touching zero rows. Relax FORCE only inside this transaction; rollback restores it
+      // on failure, and the generated RLS statements below restore it before commit.
+      for (const table of ownedTables) {
+        assertQualifiedTableName(table);
+        await installerClient.query(`ALTER TABLE IF EXISTS ${table} NO FORCE ROW LEVEL SECURITY`);
+      }
       for (const file of files) {
         await installerClient.query(file.sql);
       }

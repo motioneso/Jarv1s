@@ -73,8 +73,11 @@ async function main(): Promise<void> {
   const level = parseUatSeedLevel(process.env.JARVIS_UAT_SEED_LEVEL ?? "bare");
   const excludeChunks = parseUatExcludeChunks(process.env.JARVIS_UAT_SEED_EXCLUDE_CHUNKS ?? "");
   const withoutNewsJsonBinding = process.env.JARVIS_UAT_WITHOUT_NEWS_JSON_BINDING === "1";
+  // N42/#57: empty string (unset — composeSeedHook always passes the var) reads as absent, same
+  // as every other optional docker -e value here.
+  const jobSearchAiProviderBaseUrl = process.env.JARVIS_UAT_JOB_SEARCH_AI_BASE_URL || undefined;
 
-  await seedLevel({ level, excludeChunks, withoutNewsJsonBinding });
+  await seedLevel({ level, excludeChunks, withoutNewsJsonBinding, jobSearchAiProviderBaseUrl });
   console.log(
     `[uat-seed] seeded level "${level}"${excludeChunks.length ? ` (excluding: ${excludeChunks.join(", ")})` : ""}`
   );

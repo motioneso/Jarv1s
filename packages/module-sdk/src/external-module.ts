@@ -1,11 +1,29 @@
-// Split out of index.ts (file-size gate) — external/downloadable module ABI (#917/#918/#964/#1019
-// dataset connector SDK). Re-exported from the barrel verbatim, so no consumer import path changes.
+// packages/module-sdk/src/external-module.ts
+//
+// The external (downloadable) module ABI — auth/storage/web/worker declarations, the queue/
+// schedule/reconcile-job shapes, JsonJarvisModuleManifest, and the dataset-connector adapter
+// surface (#917/#918/#964/#1019). Lifted verbatim out of index.ts to bring that barrel back
+// under the file-size cap — same extraction pattern as
+// apps/worker/src/external-module-job-handler.ts. Pure type/const surface, no logic or
+// signature changes.
+//
+// index.ts re-exports everything below, so no import site anywhere in the repo changes: every
+// existing `import { X } from "@jarv1s/module-sdk"` still resolves, because @jarv1s/module-sdk
+// IS index.ts (package root / tsconfig path / vitest alias all point at it).
+//
+// Merge note (epic #1280 → main): main and the job-search branch performed this same split
+// independently and picked different filenames (`external-module.ts` vs `external-manifest.ts`).
+// This file is the union — main's name, with the job-search additions folded in. There is no
+// `external-manifest.ts`; do not reintroduce one.
 import type {
-  JsonSchema,
+  ModuleAssistantActionFamilyManifest,
   ModuleAssistantOnboardingManifest,
+  ModuleAssistantToolExecutionPolicy,
   ModuleAssistantToolRisk,
+  ModuleAssistantToolSelfOperationGrant,
   ModuleCompatibility,
-  ModuleLifecycle
+  ModuleLifecycle,
+  JsonSchema
 } from "./index.js";
 
 /**
@@ -55,6 +73,25 @@ export interface ModuleWorkerDeclaration {
 
 export const MODULE_WORKER_CONTRACT_VERSION = 1 as const;
 
+/**
+ * Max texts a module may hand `ctx.embed.embedDocuments` in one call (#1281).
+ * Declared here, not in the host, so the SDK and the host validation share one
+ * number: the in-process embedder is CPU-bound and instance-wide, so an
+ * unbounded batch from one module would pin it for every other module.
+ */
+export const EMBED_BATCH_MAX = 128;
+
+/**
+ * Ceiling on any worker queue's declared `timeoutMs` (#1286 Task 2e). Declared here
+ * rather than in worker-runtime.ts (which needs `node:child_process`) so that
+ * validate.ts — the browser-safe manifest validator re-exported from
+ * @jarv1s/module-registry's browser entry — can import and enforce it without
+ * pulling a node:* dependency into a bundle apps/web also consumes. worker-runtime.ts
+ * imports and re-exports this same constant so the runtime and the validator can
+ * never drift.
+ */
+export const MAX_INVOCATION_MS = 600_000;
+
 export type ModuleParamScalarSchema =
   | { readonly type: "uuid" | "identifier" | "timestamp" | "boolean" | "null" }
   | { readonly type: "integer" | "number"; readonly min: number; readonly max: number }
@@ -85,6 +122,10 @@ export interface ExternalModuleQueueDeclaration {
   readonly retryLimit?: number;
   readonly deadLetterQueue?: string;
   readonly allowManualRun?: boolean;
+  // #1286 Task 2e: per-queue override of the worker's hard invocation ceiling
+  // (WorkerLane's invocationHardTimeoutMs default), clamped to MAX_INVOCATION_MS by
+  // validateWorker below. Absent means the runtime's own default applies.
+  readonly timeoutMs?: number;
 }
 
 export interface ExternalModuleScheduleDeclaration {
@@ -129,11 +170,21 @@ export interface ModuleFetchResponse {
   readonly bodyBase64: string;
 }
 
+export interface ExternalModuleConfirmWhenClause {
+  readonly key: string;
+  readonly equals: string | number | boolean;
+}
+
 export interface ExternalModuleAssistantToolDeclaration {
   readonly name: string;
   readonly description: string;
   readonly permissionId: string;
   readonly risk: ModuleAssistantToolRisk;
+  readonly actionFamilyId?: string;
+  readonly executionPolicy?: ModuleAssistantToolExecutionPolicy;
+  readonly selfOperationGrant?: ModuleAssistantToolSelfOperationGrant;
+  readonly confirmWhen?: readonly ExternalModuleConfirmWhenClause[];
+  readonly confirmWhenKeys?: readonly string[];
   readonly inputSchema?: JsonSchema;
   readonly outputSchema?: JsonSchema;
   readonly handler: string;
@@ -164,6 +215,36 @@ export interface ExternalModuleNavigationEntry {
   readonly path: string;
   readonly icon?: string;
   readonly order?: number;
+  /**
+   * A count badge on this nav entry (#1285). Closed enum with one member today. A badge
+   * is always derived from a core-owned count — never from module-supplied text or a
+   * module tool result (the `action_result.result` channel doesn't exist yet at HEAD) —
+   * so the module can only choose *which* core count to display, never the number
+   * itself. `"notifications"` means this module's unread notification count
+   * (`NotificationDto.moduleId`, rulings-ledger G6).
+   */
+  readonly badge?: {
+    readonly source: "notifications";
+  };
+}
+
+/**
+ * How an external module contributes to a daily briefing (#1282).
+ *
+ * Core modules reach a briefing by registering an in-process assistant tool the
+ * composer resolves and calls. An external module ships JSON and has no `execute`
+ * function it could ever register, so it declares a WORKER HANDLER here instead and
+ * the composer reaches it through an injected invoker. This is a worker handler, not
+ * an `assistantTools` entry, so it is already invisible to the chat tool registry —
+ * that is why there is no `briefingOnly` flag to set.
+ */
+export interface ExternalModuleBriefingDeclaration {
+  /** Worker handler name. Requires `runtime.workerEntrypoint` — a briefing handler with no worker to run it is an error, not a no-op. */
+  readonly handler: string;
+  /** Which briefings this module may appear in. Non-empty. */
+  readonly sections: readonly ("morning" | "evening")[];
+  /** The name the user selects in briefing settings; conventionally `<moduleId>.briefing`. */
+  readonly toolName: string;
 }
 
 /**
@@ -196,8 +277,16 @@ export interface JsonJarvisModuleManifest {
   readonly web?: ModuleWebDeclaration;
   readonly runtime?: ModuleWorkerDeclaration;
   readonly assistantTools?: readonly ExternalModuleAssistantToolDeclaration[];
+  readonly assistantActionFamilies?: readonly ModuleAssistantActionFamilyManifest[];
   readonly worker?: ExternalModuleWorkerDeclaration;
   readonly fetchHosts?: readonly string[];
+  /**
+   * Names a declared `storage` namespace (must have `scopes` including "user") whose keys are
+   * runtime-granted fetch hosts for the invoking actor, merged with `fetchHosts` by
+   * worker-rpc-host.ts's `fetch.request` branch (#1309, Task 24). Absent means the module has no
+   * runtime grants — its fetch surface is exactly `fetchHosts`, as before this field existed.
+   */
+  readonly fetchHostGrantsNamespace?: string;
   readonly database?: ExternalModuleDatabaseDeclaration;
   /**
    * Nav-menu entries this module contributes (#1019). Optional — a metadata-only module
@@ -205,6 +294,12 @@ export interface JsonJarvisModuleManifest {
    * validated positively in packages/module-registry/src/external/validate.ts.
    */
   readonly navigation?: readonly ExternalModuleNavigationEntry[];
+  /**
+   * Briefing contribution (#1282). External modules cannot register an in-process
+   * assistant tool, so the composer reaches them through an injected worker invoker
+   * instead. Optional: a module that declares none contributes no briefing section.
+   */
+  readonly briefing?: ExternalModuleBriefingDeclaration;
   readonly assistantOnboarding?: ModuleAssistantOnboardingManifest;
 }
 

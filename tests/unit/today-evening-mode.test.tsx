@@ -136,12 +136,27 @@ describe("TodayPage evening mode", () => {
 
     expect(html.indexOf("Evening review")).toBeLessThan(html.indexOf("Start here"));
     expect(html).toContain("What happened today");
-    expect(html).not.toContain("Wrapped the launch notes.");
-    expect(html).not.toContain("Sent follow-ups");
+    expect(html).toContain("Wrapped the launch notes.");
+    expect(html).toContain("Sent follow-ups");
     expect(html).toContain("Accomplished today");
     expect(html).toContain("Carrying forward");
     expect(html).toContain("Tomorrow");
     expect(html.match(/Evening review/g)?.length).toBe(1);
+  });
+
+  it("keeps the 220-character cut only on the compact day-mode tile", () => {
+    const definition = briefingDefinition({ targetTime: "19:00", timezone: locale.timezone });
+    const summaryText = `${"A".repeat(217)} tail that should be clipped`;
+    const html = renderToday({
+      now: new Date("2026-06-30T01:30:00.000Z"),
+      definitions: [definition],
+      runs: [briefingRun({ summaryText })],
+      tasks: [],
+      events: []
+    });
+
+    expect(html).toContain(`${"A".repeat(217)}...`);
+    expect(html).not.toContain("tail that should be clipped");
   });
 });
 
@@ -167,9 +182,11 @@ function renderToday(input: {
     client.setQueryData(queryKeys.tasks.lists, { lists: [] });
     client.setQueryData(queryKeys.calendar.list, { events: input.events });
     client.setQueryData(queryKeys.briefings.definitions, { definitions: input.definitions });
-    client.setQueryData(queryKeys.briefings.runs(input.definitions[0]?.id ?? null), {
-      runs: input.runs
-    });
+    for (const definition of input.definitions) {
+      client.setQueryData(queryKeys.briefings.runs(definition.id), {
+        runs: input.runs.filter((run) => run.definitionId === definition.id)
+      });
+    }
     client.setQueryData(queryKeys.goals.list, { items: [] });
 
     return renderToString(

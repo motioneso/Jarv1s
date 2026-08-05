@@ -16,6 +16,20 @@ pnpm dev:worker                           # pg-boss worker (must run separately)
 
 Access from another device on the tailnet: `http://<tailscale-ip>:5173` (Tailscale).
 
+Better Auth automatically trusts `localhost` and `127.0.0.1` on the API's `PORT` in development.
+For any other browser origin, set the exact comma-separated allowlist when starting the API:
+
+```sh
+PORT=3097 \
+JARVIS_AUTH_TRUSTED_ORIGINS="https://jarvis.example.com,http://jarvis.lan:5197" \
+pnpm dev:api
+```
+
+For a containerized install, edit `JARVIS_AUTH_TRUSTED_ORIGINS` in
+`infra/env.production.local`, then recreate the `jarv1s` service with the same Compose command used
+to deploy it. Use full origins (`scheme://host[:port]`), not paths or wildcards. Fresh installs set
+this automatically from `JARVIS_PUBLIC_ORIGIN`.
+
 ## Database / infrastructure
 
 - **Docker Compose uses `pgvector/pgvector:pg17`.** Do not revert to `postgres:17-alpine` — the

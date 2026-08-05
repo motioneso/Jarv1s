@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Headline, LeagueNewsGroup } from "@jarv1s/shared";
+import { useAutoAdvance } from "./use-auto-advance.js";
 // Ranking now lives in a shared pure module (#857) so the server computes the SAME featured pick
 // it needs to fetch the article body for. Re-export `isFollowed` because sports-around-ticker /
 // sports-standings still import it from here.
@@ -113,21 +114,10 @@ export function HeroCarousel({ headlines }: { readonly headlines: readonly Headl
   const slides = headlines.slice(0, CAROUSEL_CAP);
   const count = slides.length;
   const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
   // A refetch can shrink the pool while we're pointing past its end — clamp, don't crash.
   const active = Math.min(index, Math.max(count - 1, 0));
-
-  useEffect(() => {
-    if (paused || count < 2) return;
-    // matchMedia in an effect, not render: SSR has no window, and this respects a user
-    // flipping the OS setting mid-session on the next slide change.
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = window.setInterval(
-      () => setIndex((current) => (current + 1) % count),
-      CAROUSEL_ADVANCE_MS
-    );
-    return () => window.clearInterval(timer);
-  }, [paused, count]);
+  const advance = useCallback(() => setIndex((current) => (current + 1) % count), [count]);
+  const pauseHandlers = useAutoAdvance(count, advance, CAROUSEL_ADVANCE_MS);
 
   if (count === 0) {
     // Same placeholder the null-headline StoryHero rendered — a quiet day with no stories
@@ -147,10 +137,7 @@ export function HeroCarousel({ headlines }: { readonly headlines: readonly Headl
       className="sp-carousel"
       aria-label="Top stories"
       aria-roledescription="carousel"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
-      onBlur={() => setPaused(false)}
+      {...pauseHandlers}
     >
       {/* All slides render stacked in one grid cell (CSS) so the stage holds the tallest
           slide's height — no reflow jump between a dek-heavy story and a bare headline. */}

@@ -20,6 +20,7 @@ import {
   type BriefingCadence,
   type BriefingDefinitionDto,
   type BriefingRunDto,
+  type BriefingStructuredPayloadV1,
   type BriefingType,
   type RunBriefingDefinitionRequest,
   type UpdateBriefingDefinitionRequest
@@ -577,6 +578,11 @@ function serializeRun(
   run: BriefingRun,
   options: { readonly dismissedItems?: ReadonlySet<string> } = {}
 ): BriefingRunDto {
+  const { structuredPayload: storedPayload, ...sourceMetadata } = run.source_metadata;
+  const structuredPayload =
+    storedPayload && typeof storedPayload === "object"
+      ? (storedPayload as BriefingStructuredPayloadV1)
+      : { version: 1 as const, actionRows: [], catchUp: null };
   const feedbackItems = deriveBriefingFeedbackItems(run.source_metadata).filter(
     (item) => !options.dismissedItems?.has(item.feedbackItemId)
   );
@@ -588,8 +594,9 @@ function serializeRun(
     runKind: run.run_kind,
     briefingType: run.briefing_type,
     summaryText: run.summary_text,
-    sourceMetadata: run.source_metadata,
+    sourceMetadata,
     feedbackItems,
+    structuredPayload,
     createdAt: toIsoString(run.created_at)
   };
 }

@@ -45,7 +45,7 @@ function normalizeOrigin(value: string, webPort: string): string {
  *   in first-seen order (so a publicOrigin equal to the localhost origin collapses). The
  *   localhost origin is always present so an on-box / port-forward reach still works.
  *
- * The result is parsed back at runtime by `readTrustedOrigins` (packages/auth), which
+ * The result is parsed back at runtime by `resolveAuthOriginConfig` (packages/auth), which
  * comma-splits / trims / filters — so a comma-joined list is exactly the right shape.
  */
 export function deriveTrustedOrigins(input: DeriveTrustedOriginsInput): string {

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "finance",
   "name": "Finance",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "publisher": "Jarvis Project",
   "lifecycle": "optional",
   "compatibility": { "jarv1s": ">=0.1.0" },
@@ -281,6 +281,6 @@
     ]
   },
   "fetchHosts": ["production.plaid.com", "sandbox.plaid.com"],
-  "web": { "entrypoint": "dist/web/index.js", "contractVersion": 1 },
+  "web": { "entrypoint": "dist/web/index.js", "contractVersion": 2 },
   "navigation": [{ "id": "finance", "label": "Finance", "path": "/", "icon": "landmark" }]
 }

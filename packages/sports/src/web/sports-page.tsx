@@ -3,9 +3,17 @@ import "./styles/sports-3.css";
 import "./styles/sports-4-grid.css";
 import "./styles/sports-5-editorial.css";
 import "./styles/sports-6-newsband.css";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { GameSide, Headline, OverviewHero, SportsOverviewResponse } from "@jarv1s/shared";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import type {
+  GamedayGame,
+  GameSide,
+  GameSummary,
+  Headline,
+  OverviewHero,
+  SportsOverviewResponse
+} from "@jarv1s/shared";
 
 import { getSportsOverview } from "./sports-client.js";
 import { sportsQueryKeys } from "./query-keys.js";
@@ -16,6 +24,7 @@ import { HeroCarousel, LatestColumn, NewsBand } from "./sports-news.js";
 import { SportsTicker } from "./sports-ticker.js";
 import { AroundLeaguesBoard, AroundLeaguesTicker } from "./sports-around-ticker.js";
 import { SOCCER_COMPETITIONS } from "./competitions.js";
+import { useAutoAdvance } from "./use-auto-advance.js";
 import { StandingsRail } from "./sports-standings.js";
 
 const SETTINGS_HREF = "/settings?section=modules&module=sports";
@@ -42,23 +51,33 @@ export const LIVE_REFETCH_INTERVAL_MS = 60_000;
 // would have sent.
 const GAMEDAY_HERO_LEAD_MS = 15 * 60 * 1000;
 
+// Slower than the story carousel's 7s (#1386): a score bar is glanced at, not read, but the
+// masthead retitles with each slide, so flipping it faster than this reads as flicker.
+const GAMEDAY_ADVANCE_MS = 9000;
+
+function stillInWindow(game: GameSummary): boolean {
+  if (game.state === "live") return true;
+  return (
+    game.state === "pre" && new Date(game.startsAt).getTime() - Date.now() <= GAMEDAY_HERO_LEAD_MS
+  );
+}
+
 function demoteEarlyGameday(data: SportsOverviewResponse): OverviewHero {
   const hero = data.hero;
   if (hero.mode !== "gameday") return hero;
-  const { game } = hero;
-  if (game.state === "live") return hero;
-  if (
-    game.state === "pre" &&
-    new Date(game.startsAt).getTime() - Date.now() <= GAMEDAY_HERO_LEAD_MS
-  ) {
-    return hero;
-  }
+  // Applied per game, not to the hero as a whole (#1386): one slide aging out of the window
+  // must drop only that slide. Demoting the whole hero because games[0] went stale would pull
+  // a live game off the page.
+  const games = hero.games.filter((entry) => stillInWindow(entry.game));
+  if (games.length > 0) return { mode: "gameday", games };
   return { mode: "story", headline: data.topStories[0] ?? null };
 }
 
 export function hasLiveGame(data: SportsOverviewResponse | undefined): boolean {
   if (!data) return false;
-  if (data.hero.mode === "gameday" && data.hero.game.state === "live") return true;
+  if (data.hero.mode === "gameday" && data.hero.games.some((e) => e.game.state === "live")) {
+    return true;
+  }
   if (data.followed.some((card) => card.status === "live")) return true;
   return data.scoreboard.some((group) => group.games.some((game) => game.state === "live"));
 }
@@ -77,6 +96,13 @@ export function SportsPage() {
     refetchOnWindowFocus: true
   });
   const data = overviewQuery.data;
+
+  // Which hero slide is showing, tracked by game id rather than position (#1386): the overview
+  // refetches every few seconds while anything is live, and each refetch can reorder the slides
+  // (a game kicks off and jumps ahead of the scheduled ones) or drop one (it leaves the window).
+  // An index would silently point at a different match; an id resolves to nothing and falls back
+  // to the lead, which is the honest behaviour when the game you were reading is gone.
+  const [activeGameId, setActiveGameId] = useState<string | null>(null);
 
   const followedPairs = useMemo(
     () => new Set((data?.followedTeams ?? []).map((f) => `${f.competitionKey}:${f.teamKey}`)),
@@ -105,6 +131,9 @@ export function SportsPage() {
   const hasLeagueFollows = data.followedLeagues.length > 0;
   const hasFollows = hasTeamFollows || hasLeagueFollows;
   const hero = demoteEarlyGameday(data);
+  const gamedayGames = hero.mode === "gameday" ? hero.games : [];
+  const activeGame =
+    gamedayGames.find((entry) => entry.game.id === activeGameId) ?? gamedayGames[0] ?? null;
   // The old hero-vs-Latest dedupe (mra4os7y) is gone with the rebuild: on a quiet day the
   // carousel consumes the whole topStories pool and no list renders; on a gameday the
   // featured-game bar owns the hero and the full pool renders once as the combined list
@@ -112,7 +141,9 @@ export function SportsPage() {
 
   return (
     <div className="sp-wrap">
-      <PageHeader hero={hero} />
+      {/* The masthead names whichever game is showing, so tabbing to the second live match
+          retitles the page with it rather than leaving the header on the lead game. */}
+      <PageHeader game={activeGame?.game ?? null} />
 
       {hasFollows ? (
         <>
@@ -121,8 +152,13 @@ export function SportsPage() {
               The two hero modes are mutually exclusive, so exactly one lead renders here:
               gameday → the featured game is the lead; quiet day → the top-stories carousel is.
               The ticker ("my teams") drops to the second beat below. */}
-          {hero.mode === "gameday" ? (
-            <FeaturedGameBar hero={hero} story={findFeaturedStory(hero, data)} />
+          {activeGame ? (
+            <GamedayHero
+              games={gamedayGames}
+              active={activeGame}
+              onSelect={setActiveGameId}
+              overview={data}
+            />
           ) : (
             <HeroCarousel headlines={data.topStories} />
           )}
@@ -152,7 +188,7 @@ export function SportsPage() {
 
 // "Live: Giants at Dodgers" — the event masthead line, rendered as broadsheet display type.
 // Everything in it is real: game state + the two teams from the featured game.
-function eventTitle(game: Extract<OverviewHero, { mode: "gameday" }>["game"]): string {
+function eventTitle(game: GameSummary): string {
   const lead = game.state === "live" ? "Live" : game.state === "final" ? "Final" : "Today";
   const matchup = SOCCER_COMPETITIONS.has(game.competitionKey)
     ? `${game.home.shortName} v ${game.away.shortName}`
@@ -163,8 +199,8 @@ function eventTitle(game: Extract<OverviewHero, { mode: "gameday" }>["game"]): s
 // Broadsheet masthead: a thin folio strip (date · SPORTS nameplate · manage), then — on a
 // gameday — the event headline at real display scale (header redesign pass, follows the
 // nyt_style_sports_mockup layout in sans).
-function PageHeader(props: { hero?: OverviewHero }) {
-  const gameday = props.hero?.mode === "gameday" ? props.hero : null;
+function PageHeader(props: { game?: GameSummary | null }) {
+  const game = props.game ?? null;
   return (
     <header className="sp-mast">
       {/* Folio cleared (Ben 2026-07-07, /sports masthead note): the date line, the "The Sports
@@ -186,7 +222,7 @@ function PageHeader(props: { hero?: OverviewHero }) {
             can reach whatever sports news they want. Still inert preview; destination TBD. */}
         <span className="sp-mast__navlink sp-mast__navlink--more">More</span>
       </nav>
-      {gameday ? <p className="sp-mast__event">{eventTitle(gameday.game)}</p> : null}
+      {game ? <p className="sp-mast__event">{eventTitle(game)}</p> : null}
     </header>
   );
 }
@@ -215,11 +251,7 @@ function SportsSkeleton() {
 // headline about this matchup from the overview payload. Honest data only — if no headline
 // mentions either team, no band renders. Prefers the service's teamKeys join; falls back to
 // scanning titles for a team name, since some sources emit empty teamKeys.
-function findFeaturedStory(
-  hero: Extract<OverviewHero, { mode: "gameday" }>,
-  overview: SportsOverviewResponse
-): Headline | null {
-  const { game } = hero;
+function findFeaturedStory(game: GameSummary, overview: SportsOverviewResponse): Headline | null {
   const keys = new Set([game.home.teamKey, game.away.teamKey]);
   const names = [game.home.shortName, game.away.shortName].map((name) => name.toLowerCase());
   // A story about *this* game (preview, recap, highlights) tags or names both clubs.
@@ -265,11 +297,147 @@ function FeaturedStoryBand(props: { story: Headline }) {
   );
 }
 
-function FeaturedGameBar(props: {
-  hero: Extract<OverviewHero, { mode: "gameday" }>;
-  story: Headline | null;
+// The gameday hero: one score bar when a single followed game is on, a carousel of them when
+// more than one is (#1386). Every slide stays mounted and stacked in one grid cell so the stage
+// holds the tallest slide's height — the same trick HeroCarousel uses to stop the page jumping
+// between a slide that found a story band and one that didn't.
+function GamedayHero(props: {
+  games: readonly GamedayGame[];
+  active: GamedayGame;
+  onSelect: (gameId: string) => void;
+  overview: SportsOverviewResponse;
 }) {
-  const { game, competitionLabel } = props.hero;
+  const { games, active, onSelect, overview } = props;
+  const count = games.length;
+  const activeIndex = Math.max(
+    games.findIndex((entry) => entry.game.id === active.game.id),
+    0
+  );
+
+  const step = useCallback(
+    (delta: number) => {
+      const next = games[(activeIndex + delta + count) % count];
+      if (next) onSelect(next.game.id);
+    },
+    [games, activeIndex, count, onSelect]
+  );
+  const advance = useCallback(() => step(1), [step]);
+  const pauseHandlers = useAutoAdvance(count, advance, GAMEDAY_ADVANCE_MS);
+
+  if (count === 1) {
+    return <FeaturedGameBar entry={active} story={findFeaturedStory(active.game, overview)} />;
+  }
+
+  return (
+    <section
+      className="sp-gameday"
+      aria-label="Today's games"
+      aria-roledescription="carousel"
+      {...pauseHandlers}
+    >
+      <div className="sp-gameday__stage">
+        {games.map((entry) => (
+          <div
+            key={entry.game.id}
+            className="sp-gameday__slide"
+            id={`sp-gameday-${entry.game.id}`}
+            role="tabpanel"
+            aria-labelledby={`sp-gameday-tab-${entry.game.id}`}
+            data-active={entry.game.id === active.game.id ? "true" : "false"}
+            // Inactive slides are visually hidden but still in the DOM for the stage height, so
+            // they must leave the tab order and the accessibility tree too — otherwise Tab
+            // wanders into invisible story links.
+            aria-hidden={entry.game.id === active.game.id ? undefined : "true"}
+            inert={entry.game.id !== active.game.id}
+          >
+            <FeaturedGameBar entry={entry} story={findFeaturedStory(entry.game, overview)} />
+          </div>
+        ))}
+      </div>
+      <div className="sp-gameday__ctl">
+        {/* Tabs, not dots: a dot says "there is more", a matchup and a score says WHAT more —
+            which is the whole point of surfacing a second live game (#1386). */}
+        <div className="sp-gameday__tabs" role="tablist" aria-label="Today's games">
+          {games.map((entry, i) => (
+            <GamedayTab
+              key={entry.game.id}
+              entry={entry}
+              selected={entry.game.id === active.game.id}
+              onSelect={() => onSelect(entry.game.id)}
+              onStep={(delta) => step(i - activeIndex + delta)}
+            />
+          ))}
+        </div>
+        <button
+          type="button"
+          className="sp-gameday__nav"
+          aria-label="Previous game"
+          onClick={() => step(-1)}
+        >
+          <ChevronLeft size={16} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="sp-gameday__nav"
+          aria-label="Next game"
+          onClick={() => step(1)}
+        >
+          <ChevronRight size={16} aria-hidden="true" />
+        </button>
+      </div>
+    </section>
+  );
+}
+
+// One matchup tab. Roving arrow-key navigation is the tablist contract: Left/Right move between
+// tabs and select as they go, so a keyboard user reaches the second game the same way a mouse
+// user does.
+function GamedayTab(props: {
+  entry: GamedayGame;
+  selected: boolean;
+  onSelect: () => void;
+  onStep: (delta: number) => void;
+}) {
+  const { entry, selected, onSelect, onStep } = props;
+  const { game } = entry;
+  const soccer = SOCCER_COMPETITIONS.has(game.competitionKey);
+  const [left, right] = soccer ? [game.home, game.away] : [game.away, game.home];
+  const scored = game.state !== "pre";
+  return (
+    <button
+      type="button"
+      role="tab"
+      id={`sp-gameday-tab-${game.id}`}
+      aria-controls={`sp-gameday-${game.id}`}
+      aria-selected={selected}
+      tabIndex={selected ? undefined : -1}
+      className="sp-gameday__tab"
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowRight") {
+          event.preventDefault();
+          onStep(1);
+        } else if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          onStep(-1);
+        }
+      }}
+    >
+      {game.state === "live" ? <LiveDot /> : null}
+      {/* Built as one string rather than interpolated children: JSX would split this into
+          separate text nodes, which reads as "WAS at PHI" but isn't one selectable label. */}
+      <span className="sp-gameday__tabteams">
+        {`${left.shortName} ${soccer ? "v" : "at"} ${right.shortName}`}
+      </span>
+      {scored ? (
+        <span className="sp-gameday__tabscore">{`${left.score ?? 0}–${right.score ?? 0}`}</span>
+      ) : null}
+    </button>
+  );
+}
+
+function FeaturedGameBar(props: { entry: GamedayGame; story: Headline | null }) {
+  const { game, competitionLabel } = props.entry;
   const locale = useUserLocale();
   const soccer = SOCCER_COMPETITIONS.has(game.competitionKey);
   const left = soccer ? game.home : game.away;

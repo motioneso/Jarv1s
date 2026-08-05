@@ -25,7 +25,8 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState
+  useState,
+  useSyncExternalStore
 } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
 
@@ -37,6 +38,8 @@ import { queryKeys, resolveQueryKeyToken } from "../api/query-keys";
 import { ChatDrawer } from "../chat/chat-drawer";
 import {
   AssistantSurfaceHostProvider,
+  getActiveModuleSurface,
+  subscribeActiveModuleSurface,
   type AssistantRecordV1,
   type AssistantSurfaceHostValue
 } from "../chat/assistant-surface";
@@ -54,7 +57,13 @@ import {
   saveShellTheme,
   type ShellTheme
 } from "./theme-storage";
-import type { MeResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
+import {
+  DEFAULT_CHAT_SURFACE,
+  type ChatSurface,
+  type MeResponse,
+  type ModuleDto,
+  type ModuleNavigationEntryDto
+} from "@jarv1s/shared";
 
 interface AppShellProps {
   readonly children: ReactNode;
@@ -110,12 +119,29 @@ export function AppShell(props: AppShellProps) {
     setModuleDraft(draft);
     setChatOpen(true);
   }, []);
-  // Lifted to the shell so the SSE stream + transcript persist while the drawer is
-  // closed and as the user navigates between pages — the chat follows the user.
-  const { records, clearRecords, streamErrorCount } = useChatStream();
-  // The shell owns exactly one stream today (the drawer). `subscribeRecords`/`recordsForSurface`
-  // still take a surface so a future module can be given its own shell-owned stream without
-  // reshaping the host contract — but no surface-specific branch lives here.
+  // #1284 — which module surface (if any) currently owns the shell's one chat stream. A module
+  // claims one via assistantSurface.setSurfaceKey (handle.ts's module-level store, #1196/#1232's
+  // "one external route mounts at a time" is what makes a single subscribable value sufficient
+  // here); this is the sole subscriber, turning a claim into an actual stream switch below and
+  // into the drawer-isolation check recordsForSurface performs.
+  const activeModuleSurface = useSyncExternalStore(
+    subscribeActiveModuleSurface,
+    getActiveModuleSurface,
+    getActiveModuleSurface
+  );
+  // activeModuleSurface is `string | null` per useSyncExternalStore's snapshot type, but every
+  // non-null value it can ever hold came from moduleChatSurface (handle.ts's setSurfaceKey), whose
+  // fixed 18-char output already satisfies CHAT_SURFACE_PATTERN by construction — so this cast
+  // (rather than a redundant normalizeChatSurface re-validation) just recovers that branding.
+  const activeModuleSurfaceBranded = activeModuleSurface as ChatSurface | null;
+  const activeSurface = activeModuleSurfaceBranded ?? DEFAULT_CHAT_SURFACE;
+  // Lifted to the shell so the SSE stream + transcript persist while the drawer is closed and as
+  // the user navigates between pages — the chat follows the user. `undefined` (no module surface
+  // claimed) keeps the "nothing active" case on the exact request shape it always had — no
+  // `?surface=` query param — so this is a strict widening of the pre-#1284 behaviour.
+  const { records, clearRecords, streamErrorCount } = useChatStream(
+    activeModuleSurfaceBranded ?? undefined
+  );
   const assistantRecordListeners = useRef(
     new Set<(records: readonly AssistantRecordV1[]) => void>()
   );
@@ -151,15 +177,34 @@ export function AppShell(props: AppShellProps) {
   const seedAssistantComposer = useCallback((draft: string) => {
     embeddedComposerRef.current?.(draft);
   }, []);
+  // #1284/#1332 — Ben's ruling, refined 2026-07-28: the drawer shows the chat you are actually
+  // in, and nothing else. `records` is whichever surface's stream is currently live (see the
+  // useChatStream call above); this hands it back for the ONE surface that's active right now, so
+  // any other surface gets `[]`.
+  //
+  // #1284's "a module's thread must never appear in the main drawer" is a LEAKAGE rule, not a
+  // blanket one: it means a module's transcript must not survive your leaving the module. That is
+  // enforced here by construction — `setSurfaceKey(null)` on unmount flips `activeSurface` back to
+  // DEFAULT_CHAT_SURFACE, and the module's records stop matching on the very next render.
+  const recordsForSurface = useCallback(
+    (surface: string) => (surface === activeSurface ? records : []),
+    [records, activeSurface]
+  );
   const assistantSurfaceHost = useMemo<AssistantSurfaceHostValue>(
     () => ({
       records,
-      recordsForSurface: () => records,
+      recordsForSurface,
       registerComposer: registerAssistantComposer,
       seedComposer: seedAssistantComposer,
       subscribeRecords: subscribeAssistantRecords
     }),
-    [records, registerAssistantComposer, seedAssistantComposer, subscribeAssistantRecords]
+    [
+      records,
+      recordsForSurface,
+      registerAssistantComposer,
+      seedAssistantComposer,
+      subscribeAssistantRecords
+    ]
   );
   const pendingNotesDelete = useMemo(() => {
     const results = new Set(
@@ -231,6 +276,10 @@ export function AppShell(props: AppShellProps) {
     saveShellColorMode(mode);
   }, [activeThemeId, colorMode, themesQuery.data?.custom, themesQuery.data?.mode]);
   const unreadCount = notificationsQuery.data?.unreadCount ?? 0;
+  // #1285: per-module breakdown of the same unread count, for the nav badge. Defaults to `{}`
+  // while loading or if an older cached response lacks the field — never renders a badge in
+  // that case (NavItem only shows a badge for a strictly-positive count).
+  const unreadByModule = notificationsQuery.data?.unreadByModule ?? {};
   const onTodayPage = location.pathname.startsWith("/today");
   const weatherQuery = useQuery({
     queryKey: queryKeys.weather.today,
@@ -270,7 +319,12 @@ export function AppShell(props: AppShellProps) {
             <div className="nav-group" key={section.key}>
               {section.label ? <p className="nav-group__label">{section.label}</p> : null}
               {section.items.map((entry) => (
-                <NavItem key={entry.id} entry={entry} onClick={closeMobileNav} />
+                <NavItem
+                  key={entry.id}
+                  entry={entry}
+                  unreadByModule={unreadByModule}
+                  onClick={closeMobileNav}
+                />
               ))}
             </div>
           ))}
@@ -374,7 +428,12 @@ export function AppShell(props: AppShellProps) {
           // #916: starters are one-shot — a later manual open starts from a blank composer.
           setModuleDraft(undefined);
         }}
-        records={records}
+        // #1332 — the drawer renders whichever surface is LIVE, which is what makes opening the
+        // header control inside a profile give you that profile's thread (job-search spec §7)
+        // instead of an empty panel. Outside a module `activeSurface` is DEFAULT_CHAT_SURFACE, so
+        // this is the ordinary drawer thread; no module content can survive the exit, because the
+        // surface key is also the history lookup key all the way down to the repository.
+        records={recordsForSurface(activeSurface)}
         clearRecords={clearRecords}
         streamErrorCount={streamErrorCount}
         isFounder={props.me.user.isBootstrapOwner}
@@ -487,11 +546,33 @@ function RailUserMenu(props: {
   );
 }
 
+/**
+ * #1285: `ModuleNavigationEntryDto` (packages/shared/src/platform-api.ts) does not yet declare
+ * a `badge` field — extending it there, and re-emitting it from `serializeExternalModule` in
+ * apps/api/src/server.ts, is outside this task's file boundary pending a scope decision from
+ * team-lead. This local extension keeps NavItem forward-compatible without touching that DTO:
+ * `badge` is simply always `undefined` until the DTO gains the field, so this is inert, not a
+ * behavior change. The manifest-facing counterpart (`ExternalModuleNavigationEntry.badge` in
+ * module-sdk) is already validated and re-emitted end-to-end by validate.ts.
+ */
+type NavEntryWithBadge = ModuleNavigationEntryDto & {
+  readonly badge?: { readonly source: "notifications" };
+};
+
 function NavItem(props: {
   readonly entry: ModuleNavigationEntryDto;
+  readonly unreadByModule: Readonly<Record<string, number>>;
   readonly onClick: () => void;
 }) {
   const Icon = props.entry.icon ? (iconMap[props.entry.icon] ?? Layers3) : Layers3;
+  const entry = props.entry as NavEntryWithBadge;
+  // #1285: a nav entry id is always exactly the owning module's id, or "<moduleId>.<slug>"
+  // (validate.ts's #1019 anti-spoof rule enforces this at manifest-validation time), so
+  // splitting on "." reliably recovers the true module id without needing a separate
+  // moduleId prop threaded through app-route-metadata.ts's buildShellNavigation.
+  const moduleId = entry.id.split(".")[0] ?? entry.id;
+  const unreadCount =
+    entry.badge?.source === "notifications" ? (props.unreadByModule[moduleId] ?? 0) : 0;
 
   return (
     <NavLink
@@ -501,6 +582,17 @@ function NavItem(props: {
     >
       <Icon size={17} />
       <span>{props.entry.label}</span>
+      {unreadCount > 0 ? (
+        // #1285: a module can only ever select WHICH core-owned count to display
+        // (badge.source is a closed enum), never supply its own number — this renders
+        // exactly `unreadByModule`, never anything module-authored. Inline flex override
+        // is needed because `.module-link span` (styles.css) sets flex:1 on every span
+        // descendant, including this one, and styles.css is outside this task's file
+        // boundary to edit.
+        <span className="jds-badge-count" style={{ flex: "0 0 auto" }}>
+          {formatUnreadCount(unreadCount)}
+        </span>
+      ) : null}
     </NavLink>
   );
 }

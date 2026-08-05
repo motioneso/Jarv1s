@@ -1,19 +1,15 @@
 /* Wellness page styles — part 1: wrap, hero, sections, cards, today row,
    insights, charts. Split into two files to stay under the 1000-line cap;
-   import order (1 then 2) must be preserved. */
-
-/* Wellness page — private medication + mental-health tracking.
-   Composes the Jarvis tokens; emotion color comes inline (theme-aware ramp). */
+   import order (1 then 2) must be preserved.
+   Layout only — visual declarations (color, background, border, radius, font,
+   shadow, outline, fill/stroke) for these selectors live in
+   packages/ui/src/styles/components-wellness-1.css and components-wellness-2.css (#1392). */
 
 .wl-wrap {
   max-width: 1060px;
   margin: 0 auto;
   padding: 30px 40px 110px;
 }
-.wl-wrap.wl--compact {
-  padding-top: 22px;
-}
-
 /* ---- hero ---- */
 .wl-hero {
   display: flex;
@@ -22,37 +18,17 @@
   gap: 24px;
   flex-wrap: wrap;
   padding-bottom: 22px;
-  border-bottom: 1px solid var(--border-subtle);
 }
 .wl-hero__main {
   max-width: 60ch;
 }
-.wl-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-family: var(--font-sans);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent-fg);
-}
-.wl-eyebrow .ic {
-  display: inline-flex;
-}
 .wl-title {
-  font-family: var(--font-display);
-  font-size: 34px;
-  font-weight: 600;
   letter-spacing: -0.014em;
   line-height: 1.08;
   margin: 10px 0 0;
 }
 .wl-lede {
-  font-family: var(--font-sans);
-  font-size: 17px;
   line-height: 1.55;
-  color: var(--text-muted);
   margin-top: 10px;
 }
 .wl-hero__stat {
@@ -64,48 +40,24 @@
   text-align: right;
 }
 .wl-herostat .k {
-  font-size: 10px;
-  font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--text-faint);
 }
 .wl-herostat .v {
-  font-family: var(--font-sans);
-  font-size: 22px;
-  font-weight: 500;
   font-variant-numeric: tabular-nums;
   margin-top: 3px;
-  color: var(--text);
-}
-.wl-herostat .v small {
-  font-size: 12px;
-  color: var(--text-subtle);
 }
 .wl-herostat--streak .v {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: var(--amber-ink);
-}
-.wl-herostat--streak .v svg {
-  color: var(--amber-ink);
 }
 .wl-streakchip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-family: var(--font-sans);
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--amber-ink);
-  background: var(--amber-soft);
-  border-radius: var(--radius-pill);
   padding: 3px 10px 3px 8px;
   font-variant-numeric: tabular-nums;
-}
-.wl-streakchip svg {
-  color: var(--amber-ink);
 }
 
 /* ---- section scaffold ---- */
@@ -120,17 +72,10 @@
   margin-bottom: 13px;
 }
 .wl-sec__title {
-  font-family: var(--font-display);
-  font-size: 21px;
-  font-weight: 600;
   letter-spacing: -0.008em;
 }
 .wl-sec__title .sub {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 400;
   letter-spacing: 0.03em;
-  color: var(--text-faint);
   margin-left: 10px;
   text-transform: uppercase;
 }
@@ -140,22 +85,16 @@
   gap: 10px;
 }
 .wl-sec__note {
-  font-size: 12.5px;
-  color: var(--text-subtle);
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 .wl-sec__note .ic {
-  color: var(--text-faint);
   display: inline-flex;
 }
 
 /* ---- card ---- */
 .wl-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
   padding: 18px 20px 18px;
 }
 .wl-card__hd {
@@ -167,19 +106,10 @@
 .wl-card__hd .ic {
   width: 30px;
   height: 30px;
-  border-radius: 9px;
-  background: var(--forest-soft);
-  color: var(--accent-fg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: none;
-}
-.wl-card__hd .t {
-  font-family: var(--font-display);
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text);
 }
 .wl-card__hd .r {
   margin-left: auto;
@@ -216,12 +146,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--font-sans);
-  font-size: 10.5px;
-  font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text-faint);
   padding: 8px 2px 4px;
 }
 .wl-medgrp__lbl .ic {
@@ -232,34 +158,21 @@
   align-items: center;
   gap: 12px;
   padding: 9px 6px;
-  border-radius: var(--radius-md);
   cursor: pointer;
   transition: var(--transition-control);
-  border: 1px solid transparent;
-}
-.wl-medrow:hover {
-  background: var(--surface-2);
 }
 .wl-medrow__box {
   width: 23px;
   height: 23px;
-  border-radius: 7px;
-  border: 1.5px solid var(--border-strong);
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--white);
   transition: var(--transition-control);
-}
-.wl-medrow.is-on .wl-medrow__box {
-  background: var(--accent);
-  border-color: var(--accent);
 }
 .wl-medrow__dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
   flex: none;
 }
 .wl-medrow__main {
@@ -268,21 +181,8 @@
   display: flex;
   flex-direction: column;
 }
-.wl-medrow__name {
-  font-size: 14.5px;
-  font-weight: 600;
-  color: var(--text);
-}
-.wl-medrow.is-on .wl-medrow__name {
-  color: var(--text-muted);
-}
 .wl-medrow__sub {
-  font-size: 12px;
-  color: var(--text-subtle);
   margin-top: 1px;
-}
-.wl-medrow__sub .dose {
-  font-family: var(--font-sans);
 }
 .wl-medrow--tight {
   padding: 11px 8px;
@@ -290,38 +190,22 @@
 .wl-medrow__prn {
   display: inline-block;
   margin-left: 8px;
-  font-size: 10px;
-  font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--text-faint);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
   padding: 1px 7px;
   vertical-align: 1px;
   white-space: nowrap;
-}
-.wl-medrow__name {
-  font-size: 14.5px;
-  font-weight: 600;
-  color: var(--text);
 }
 .wl-medrow--tight .wl-medrow__name {
   white-space: nowrap;
 }
 .wl-medrow__time {
-  font-family: var(--font-sans);
-  font-size: 11.5px;
-  color: var(--text-faint);
   flex: none;
   font-variant-numeric: tabular-nums;
 }
 .wl-medrow__taken {
-  font-size: 11px;
-  font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--accent-fg);
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -334,21 +218,23 @@
   gap: 12px;
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid var(--border-subtle);
 }
 .wl-medfoot__bar {
   flex: 1;
 }
+.wl-medfoot__track {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+}
+.wl-medfoot__fill {
+  display: block;
+  height: 100%;
+  transition: width 0.3s ease;
+}
 .wl-medfoot__ct {
-  font-family: var(--font-sans);
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-.wl-medfoot__ct b {
-  color: var(--accent-fg);
 }
 
 /* check-in card */
@@ -363,15 +249,10 @@
   flex-direction: column;
 }
 .wl-checkin__q {
-  font-family: var(--font-sans);
-  font-size: 18px;
   line-height: 1.4;
-  color: var(--text);
   margin: 2px 0 4px;
 }
 .wl-checkin__hint {
-  font-size: 13px;
-  color: var(--text-subtle);
   line-height: 1.5;
 }
 .wl-emostrip {
@@ -382,34 +263,22 @@
 .wl-emostrip__b {
   flex: 1;
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
   padding: 13px 4px 11px;
-  background: var(--surface-2);
   cursor: pointer;
   transition: var(--transition-control);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  box-shadow: var(--shadow-xs);
 }
 .wl-emostrip__b:hover {
-  border-color: var(--em-tint, var(--border-strong));
-  background: var(--em-soft, var(--surface));
   transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
 }
 .wl-emostrip__dot {
   width: 19px;
   height: 19px;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1px var(--hairline-contrast);
 }
 .wl-emostrip__name {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
   letter-spacing: 0.01em;
 }
 .wl-checkin__cta {
@@ -432,19 +301,10 @@
   align-items: center;
   gap: 8px;
   padding: 7px 13px 7px 10px;
-  border-radius: var(--radius-pill);
-  font-weight: 600;
-  font-size: 14px;
 }
 .wl-done__chip .d {
   width: 11px;
   height: 11px;
-  border-radius: 50%;
-}
-.wl-done__feeling {
-  font-family: var(--font-sans);
-  font-size: 15px;
-  color: var(--text-muted);
 }
 .wl-done__mood {
   display: flex;
@@ -455,16 +315,10 @@
   text-align: right;
 }
 .wl-done__mood .k {
-  font-size: 10px;
-  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-faint);
 }
 .wl-done__mood .v {
-  font-family: var(--font-sans);
-  font-size: 18px;
-  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 .wl-senrow {
@@ -473,12 +327,7 @@
   gap: 6px;
 }
 .wl-sentag {
-  font-size: 12px;
   padding: 4px 10px;
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
-  color: var(--text-muted);
-  border: 1px solid var(--border-subtle);
 }
 .wl-intens {
   display: flex;
@@ -493,23 +342,15 @@
 .wl-intens__pip {
   height: 6px;
   flex: 1;
-  border-radius: 3px;
-  background: var(--surface-3);
 }
 .wl-intens__lbl {
-  font-size: 11px;
-  font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--text-subtle);
   white-space: nowrap;
 }
 
 /* ===================== INSIGHTS ===================== */
 .wl-insights {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
   overflow: hidden;
 }
 .wl-insights__hd {
@@ -517,25 +358,13 @@
   align-items: center;
   gap: 10px;
   padding: 15px 20px 14px;
-  border-bottom: 1px solid var(--border-subtle);
-  background: linear-gradient(180deg, var(--forest-soft) 0%, transparent 160%);
 }
 .wl-insights__hd .ic {
-  color: var(--accent-fg);
   display: inline-flex;
-}
-.wl-insights__hd .t {
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text);
 }
 .wl-insights__hd .meta {
   margin-left: auto;
-  font-family: var(--font-sans);
-  font-size: 11px;
   letter-spacing: 0.04em;
-  color: var(--text-subtle);
   text-transform: uppercase;
 }
 .wl-insights__body {
@@ -546,46 +375,22 @@
   gap: 14px;
   align-items: flex-start;
   padding: 13px 0;
-  border-top: 1px solid var(--border-subtle);
-}
-.wl-insight:first-child {
-  border-top: none;
 }
 .wl-insight__ic {
   width: 32px;
   height: 32px;
-  border-radius: 9px;
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-top: 1px;
 }
-.wl-insight__ic--forest {
-  background: var(--forest-soft);
-  color: var(--accent-fg);
-}
-.wl-insight__ic--amber {
-  background: var(--amber-soft);
-  color: var(--amber-ink);
-}
-.wl-insight__ic--steel {
-  background: var(--steel-soft);
-  color: var(--steel-ink);
-}
 .wl-insight__main {
   flex: 1;
   min-width: 0;
 }
 .wl-insight__tx {
-  font-family: var(--font-sans);
-  font-size: 15.5px;
   line-height: 1.5;
-  color: var(--text-muted);
-}
-.wl-insight__tx b {
-  color: var(--text);
-  font-weight: 700;
 }
 .wl-insight__act {
   margin-top: 7px;
@@ -594,13 +399,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 0;
-  background: transparent;
   padding: 0;
-  font-family: var(--font-sans);
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--accent-fg);
   cursor: pointer;
 }
 .wl-linkbtn:hover {
@@ -612,13 +411,19 @@
 
 /* ===================== CHARTS ===================== */
 .wl-chartcard {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
   padding: 16px 18px 14px;
 }
 .wl-chartcard + .wl-chartcard {
   margin-top: 16px;
+}
+.wl-rangetoggle {
+  display: inline-flex;
+  padding: 3px;
+}
+.wl-rangetoggle__btn {
+  padding: 4px 14px;
+  cursor: pointer;
+  transition: var(--transition-control);
 }
 .wl-chart__hd {
   display: flex;
@@ -633,28 +438,16 @@
   min-width: 0;
 }
 .wl-chart__title {
-  font-size: 13px;
-  font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-subtle);
   display: flex;
   align-items: center;
   gap: 8px;
   white-space: nowrap;
 }
 .wl-chart__title .ic {
-  color: var(--text-faint);
   display: inline-flex;
 }
-.wl-chart__cap {
-  font-size: 12.5px;
-  color: var(--text-subtle);
-  margin-top: 3px;
-  line-height: 1.45;
-  max-width: 62ch;
-}
-
 /* help popover (the ? next to the chart title) */
 .wl-help {
   position: relative;
@@ -664,22 +457,12 @@
 .wl-help__btn {
   width: 19px;
   height: 19px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-faint);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   padding: 0;
   transition: var(--transition-control);
-}
-.wl-help__btn:hover,
-.wl-help__btn.is-on {
-  border-color: var(--accent);
-  color: var(--accent-fg);
-  background: var(--forest-soft);
 }
 .wl-help__scrim {
   position: fixed;
@@ -693,10 +476,6 @@
   z-index: 41;
   width: 320px;
   max-width: 78vw;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
   padding: 14px 15px;
   display: flex;
   flex-direction: column;
@@ -712,9 +491,6 @@
   left: 14px;
   width: 9px;
   height: 9px;
-  background: var(--surface);
-  border-left: 1px solid var(--border);
-  border-top: 1px solid var(--border);
   transform: rotate(45deg);
 }
 .wl-help__row {
@@ -723,37 +499,11 @@
   gap: 5px;
 }
 .wl-help__k {
-  font-family: var(--font-sans);
-  font-size: 10.5px;
-  font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--text-faint);
 }
 .wl-help__v {
-  font-size: 13px;
   line-height: 1.5;
-  color: var(--text-muted);
-  font-weight: 400;
-}
-.wl-help__v b {
-  color: var(--text);
-  font-weight: 600;
-}
-.wl-help__dots {
-  display: flex;
-  gap: 13px;
-  margin-bottom: 7px;
-}
-.wl-help__dl {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.wl-help__dl svg {
-  display: block;
 }
 .wl-chart__legend {
   display: flex;
@@ -767,60 +517,16 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
-  color: var(--text-muted);
   white-space: nowrap;
 }
 .wl-leg__dot {
   width: 9px;
   height: 9px;
-  border-radius: 50%;
   flex: none;
-}
-.wl-leg__dot--sm {
-  width: 7px;
-  height: 7px;
-}
-.wl-chart__medkey {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-  margin-top: 10px;
-  padding-top: 11px;
-  border-top: 1px solid var(--border-subtle);
-}
-.wl-chart__medkey-lbl {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-.wl-chart__medkey .wl-leg {
-  font-size: 11px;
-  color: var(--text-subtle);
-}
-.wl-chart__medkey .wl-leg svg {
-  display: block;
-  flex: none;
-}
-.wl-chart__medkey-note {
-  font-size: 11px;
-  color: var(--text-faint);
-  font-style: italic;
-  margin-left: 2px;
 }
 .wl-tipdiv {
   height: 1px;
-  background: var(--white-translucent);
   margin: 7px 0 5px;
-}
-.wl-leg__bar {
-  width: 14px;
-  height: 3px;
-  border-radius: 2px;
-  flex: none;
 }
 .wl-chart__plot {
   position: relative;
@@ -837,12 +543,8 @@
   transform: translate(-50%, -100%);
   pointer-events: none;
   z-index: 5;
-  background: var(--ink);
-  color: var(--paper);
-  border-radius: var(--radius-md);
   padding: 9px 11px;
   min-width: 150px;
-  box-shadow: var(--shadow-lg);
   opacity: 0;
   transition: opacity 0.1s ease;
 }
@@ -853,42 +555,30 @@
   opacity: 1;
 }
 .wl-chart__tip .d {
-  font-family: var(--font-sans);
-  font-size: 10.5px;
   letter-spacing: 0.04em;
   opacity: 0.7;
   text-transform: uppercase;
 }
 .wl-chart__tip .big {
-  font-size: 14px;
-  font-weight: 600;
   margin-top: 3px;
 }
 .wl-tiprow {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 12px;
   margin-top: 5px;
 }
 .wl-tiprow .sw {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
   flex: none;
 }
 .wl-tiprow .miss {
   margin-left: auto;
   opacity: 0.55;
-  font-family: var(--font-sans);
-  font-size: 10.5px;
 }
 .wl-tiprow--more {
   opacity: 0.6;
-  font-size: 10.5px;
   font-style: italic;
   margin-top: 3px;
-}
-.wl-chart__tip.is-pinned {
-  outline: 1.5px solid var(--accent);
 }

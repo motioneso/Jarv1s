@@ -37,15 +37,20 @@ function toTranscriptRecord(record: GatewaySessionRecord): TranscriptRecord | nu
     };
   }
   if (record.kind === "action_result") {
-    const verb =
-      record.outcome === "allowed"
-        ? "Allowed by YOLO"
+    const statusText =
+      record.outcome === "executed" && typeof record.result?.statusText === "string"
+        ? record.result.statusText.replace(/\s+/g, " ").trim().slice(0, 160)
+        : "";
+    const text =
+      statusText ||
+      (record.outcome === "allowed"
+        ? `Allowed by YOLO: ${record.toolName}`
         : record.outcome === "executed"
-          ? "Executed"
-          : "Denied";
+          ? `Executed: ${record.toolName}`
+          : `Not changed${record.reason ? ` — ${record.reason}` : ""}`);
     return {
       kind: "action_result",
-      text: `${verb}: ${record.toolName}`,
+      text,
       actionRequestId: record.actionRequestId,
       toolName: record.toolName,
       outcome: record.outcome,

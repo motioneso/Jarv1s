@@ -119,12 +119,11 @@ test("dark: today + chat", async ({ page }) => {
   await page.goto("/today");
   await page.waitForTimeout(600);
   await shot(page, "03-today");
-  const chat = page.getByRole("button", { name: "Chat with Jarvis" });
-  if (await chat.count()) {
-    await chat.click();
-    await page.waitForTimeout(600);
-    await shot(page, "04-chat-drawer");
-  }
+  // unconditional: a missing button fails the capture instead of silently skipping it
+  // (same trap as the light capture, D6 item 5 / plan C4).
+  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  await page.waitForTimeout(600);
+  await shot(page, "04-chat-drawer");
 });
 
 test("dark: tasks", async ({ page }) => {
@@ -146,6 +145,20 @@ test("dark: notifications", async ({ page }) => {
   await page.goto("/notifications");
   await page.waitForTimeout(500);
   await shot(page, "07-notifications");
+});
+
+// #1390: command palette had no capture coverage — added ahead of the Today section migration.
+test("dark: command palette", async ({ page }) => {
+  await baseState(page);
+  await page.goto("/today");
+  await page.waitForTimeout(600);
+  await page.keyboard.press("Control+k");
+  await page.waitForTimeout(400);
+  await shot(page, "07a-command-palette");
+
+  await page.keyboard.type("task");
+  await page.waitForTimeout(300);
+  await shot(page, "07b-command-palette-search");
 });
 
 test("dark: settings + AI", async ({ page }) => {

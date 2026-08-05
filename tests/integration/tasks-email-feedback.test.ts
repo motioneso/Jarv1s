@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Writable } from "node:stream";
 
 import Fastify from "fastify";
 import { Client } from "pg";
@@ -263,12 +264,29 @@ describe("Tasks — email triage feedback on suggested-task accept/reject (spec 
   });
 
   it("a throwing feedback port never breaks the PATCH itself", async () => {
+    const logLines: string[] = [];
     const throwingPort: EmailTriageFeedbackPort = {
       record: async () => {
-        throw new Error("feedback store exploded");
+        throw new Error("private subject prefix: feedback store exploded");
       }
     };
-    const app = await buildApp(throwingPort);
+    const app = Fastify({
+      logger: {
+        stream: new Writable({
+          write(chunk, _encoding, callback) {
+            logLines.push(chunk.toString());
+            callback();
+          }
+        })
+      }
+    });
+    registerTasksRoutes(app, {
+      resolveAccessContext: async () => ctx,
+      dataContext,
+      boss: undefined as never,
+      emailTriageFeedback: throwingPort
+    });
+    await app.ready();
     try {
       const before = (await listFeedbackRows()).length;
       const taskId = await createSuggestedEmailTask();
@@ -284,5 +302,73 @@ describe("Tasks — email triage feedback on suggested-task accept/reject (spec 
     } finally {
       await app.close();
     }
+    const serializedLogs = logLines.join("\n");
+    expect(serializedLogs).not.toContain("private subject prefix");
+    expect(serializedLogs).toContain('"stage":"email-triage-feedback"');
+    expect(serializedLogs).toContain('"name":"Error"');
+  });
+
+  it("rolls back signed feedback failures without logging private error text", async () => {
+    const logLines: string[] = [];
+    const throwingPort: EmailTriageFeedbackPort = {
+      record: async () => {
+        throw new Error("private signed subject: feedback store exploded");
+      }
+    };
+    const app = Fastify({
+      logger: {
+        stream: new Writable({
+          write(chunk, _encoding, callback) {
+            logLines.push(chunk.toString());
+            callback();
+          }
+        })
+      }
+    });
+    registerTasksRoutes(app, {
+      resolveAccessContext: async () => ctx,
+      dataContext,
+      boss: undefined as never,
+      emailTriageFeedback: throwingPort
+    });
+    await app.ready();
+    try {
+      const task = await dataContext.withDataContext(ctx, (scopedDb) =>
+        tasksRepository.create(scopedDb, {
+          title: "Signed suggestion",
+          status: "suggested",
+          source: "email",
+          sourceRef: emailSourceRef(CONNECTOR_ACCOUNT_ID, EMAIL_EXTERNAL_ID),
+          externalKey: `email:signed:${randomUUID()}`,
+          suggestionMetadata: {
+            version: 1,
+            category: "needs_action",
+            sourceLabel: "Gmail",
+            sourceHref: null,
+            cacheMessageId: EMAIL_EXTERNAL_ID,
+            subjectSignature: "signed-subject-signature",
+            computedAt: "2026-07-30T00:00:00.000Z",
+            resurfaceReason: null
+          }
+        })
+      );
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/api/tasks/${task.id}`,
+        payload: { status: "todo" }
+      });
+
+      expect(res.statusCode).toBe(500);
+      expect(res.json()).toEqual({ error: "Internal server error" });
+      await expect(
+        dataContext.withDataContext(ctx, (scopedDb) => tasksRepository.getById(scopedDb, task.id))
+      ).resolves.toMatchObject({ status: "suggested" });
+    } finally {
+      await app.close();
+    }
+    const serializedLogs = logLines.join("\n");
+    expect(serializedLogs).not.toContain("private signed subject");
+    expect(serializedLogs).toContain('"stage":"email-triage-feedback"');
+    expect(serializedLogs).toContain('"name":"Error"');
   });
 });

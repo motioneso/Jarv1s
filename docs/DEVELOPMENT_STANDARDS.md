@@ -53,6 +53,22 @@ broken the entire time, so none of it worked for the owner. Green parts, dead wh
 
 Out of scope: docs-only changes, refactors with no user-visible surface, and internal tooling.
 
+### Redeploying an external module on dev
+
+Use `scripts/redeploy-external-module.sh <module-id>`. Do not run the build/reconcile/enable steps
+by hand.
+
+Rebuilding a module changes its package hash, which makes `pnpm db:reconcile` disable it by design.
+Re-enabling it reads the API's **boot-time** discovery cache, so the enable must land on an API
+process running the new code. During a `tsx watch` restart the old process keeps serving and
+answers `/health` with a 200, so a health check does not prove the restart happened — an enable
+gated on `/health` can store the stale hash, report `drifted:false`, and then be disabled again
+seconds later when the new process boots and sees the mismatch. The module disappears from the rail
+after an apparently successful deploy.
+
+The script gates on the listening PID changing rather than on `/health`, and re-verifies after a
+settle delay, because the disable happens _after_ the enable returns 200.
+
 ## Design System Guardrails
 
 Jarv1s UI must keep the authored design-system shape:

@@ -669,6 +669,7 @@ describe("parseEmail", () => {
   it("extracts headers and decodes a base64url text/plain body", () => {
     const parsed = parseEmail({
       id: "m1",
+      threadId: "thread-1",
       labelIds: ["INBOX", "UNREAD"],
       snippet: "snip",
       payload: {
@@ -683,6 +684,7 @@ describe("parseEmail", () => {
       }
     });
     expect(parsed.subject).toBe("Hello");
+    expect(parsed.threadId).toBe("thread-1");
     expect(parsed.from).toBe("a@b.com");
     expect(parsed.recipients).toContain("c@d.com");
     expect(parsed.labelIds).toContain("INBOX");

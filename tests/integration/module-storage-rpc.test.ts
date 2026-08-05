@@ -13,7 +13,11 @@ import {
   ModuleQueryError,
   type JarvisDatabase
 } from "@jarv1s/db";
-import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
+import {
+  connectionStrings,
+  dropModuleRolesAtTeardown,
+  resetEmptyFoundationDatabase
+} from "./test-database.js";
 
 const moduleId = "storage-rpc-fixture";
 
@@ -74,8 +78,10 @@ describe("createModuleStorageRpc", () => {
       await client.query(
         "REVOKE EXECUTE ON FUNCTION app.current_actor_user_id() FROM jarvis_mod_storage_rpc_fixture_install"
       );
-      await client.query("DROP ROLE IF EXISTS jarvis_mod_storage_rpc_fixture_install");
-      await client.query("DROP ROLE IF EXISTS jarvis_mod_storage_rpc_fixture_runtime");
+      await dropModuleRolesAtTeardown(client, [
+        "jarvis_mod_storage_rpc_fixture_install",
+        "jarvis_mod_storage_rpc_fixture_runtime"
+      ]);
     } finally {
       await client.end();
     }

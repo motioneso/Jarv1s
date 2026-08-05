@@ -53,20 +53,20 @@ gh pr checks <PR>          # required checks pass/fail
 - **Green ≠ the gate ran.** Since #1277, docs-only PRs *skip* the full gate — the checks go green
   without executing it. If the PR is docs-only that's correct and fine; if it is docs-plus-code and
   CI skipped the gate, the skip condition is itself the finding. Say which case you're in.
-- **Only if CI is red** do you reproduce locally to diagnose. Use an isolated gate DB — with
-  `JARVIS_PGDATABASE` unset the gate writes to Ben's live dev database `jarv1s` and has taken his
-  instance down:
+- **Only if CI is red** do you reproduce locally to diagnose — via `scripts/run-gate.sh`, which
+  handles the isolated gate DB for you. With `JARVIS_PGDATABASE` unset the gate writes to Ben's
+  live dev database `jarv1s` and has taken his instance down:
   ```bash
-  GATEDB=jarvis_qa_<pr>          # jarv1s-postgres = DEV (:55433). NEVER jarv1s-prod-postgres-1.
-  docker exec jarv1s-postgres psql -U postgres -c "DROP DATABASE IF EXISTS $GATEDB;"
-  docker exec jarv1s-postgres psql -U postgres -c "CREATE DATABASE $GATEDB;"
-  export JARVIS_PGDATABASE=$GATEDB          # inline `VAR=x pnpm …` does NOT survive backgrounding
-  ( pnpm verify:foundation > /tmp/qa-vf.log 2>&1; echo "### FINAL rc=$?" >> /tmp/qa-vf.log ) &
-  grep '### FINAL' /tmp/qa-vf.log           # never a pipe as the final stage; never a wrapper echo
+  scripts/run-gate.sh start --exclusive       # fresh gate DB, flock'd, detached
+  scripts/run-gate.sh wait                    # give the Bash tool a 600000 ms timeout
+  scripts/run-gate.sh status                  # 0 green · 1 failed · 2 DIED · 3 running
   ```
-  Don't start a gate while a build lane is running one — concurrent `test:integration` has crashed
-  the shared dev Postgres into recovery. A known flake (e.g. pg-boss worker-timeout) gets one
-  re-run before you call it red; don't wave it off either.
+  Never decide a gate is still alive from `pgrep`/`ps` — it matches Claude's own bash wrappers and
+  stays true forever (that cost lane #1273 19 hours). Never pipe a gate to `tail`/`grep` as the
+  final stage, and never trust a wrapper `echo $?`. Don't start a gate while a build lane is
+  running one — concurrent `test:integration` has crashed the shared dev Postgres into recovery.
+  A known flake (e.g. pg-boss worker-timeout) gets one re-run before you call it red; don't wave
+  it off either.
 - A red check is **stop-the-line** unless waivable per the coordinator's CI-waiver protocol (proven
   red on `main` @ same SHA + recorded + Ben-approved) — that's the coordinator's call, not yours.
   Report it red.

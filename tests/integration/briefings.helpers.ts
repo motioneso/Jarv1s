@@ -149,6 +149,56 @@ export function makeComposeDeps(
   };
 }
 
+export function structuredRowManifest(options: {
+  readonly id: string;
+  readonly title: string;
+  readonly category: "needs_reply" | "needs_action" | "time_sensitive_info";
+  readonly cacheMessageId: string | null;
+}): JarvisModuleManifest {
+  return {
+    id: options.id,
+    name: options.id,
+    version: "0.0.0",
+    publisher: "test",
+    lifecycle: "optional",
+    compatibility: { jarv1s: "*" },
+    assistantTools: [
+      {
+        name: "tasks.list",
+        description: "test task reader",
+        permissionId: "tasks.view",
+        risk: "read",
+        execute: async () => ({
+          data: {
+            items: [
+              {
+                id: `${options.id}-task`,
+                title: options.title,
+                description: "row explanation",
+                status: "suggested",
+                source: "email",
+                sourceRef: "account:external-message",
+                dueAt: null,
+                updatedAt: "2026-07-30T12:00:00.000Z",
+                suggestionMetadata: {
+                  version: 1,
+                  category: options.category,
+                  sourceLabel: "Gmail",
+                  sourceHref: "https://mail.example.test/thread",
+                  cacheMessageId: options.cacheMessageId,
+                  subjectSignature: "signature",
+                  computedAt: "2026-07-30T12:00:00.000Z",
+                  resurfaceReason: null
+                }
+              }
+            ]
+          }
+        })
+      }
+    ]
+  };
+}
+
 export async function seedBriefingData(): Promise<void> {
   const client = new Client({ connectionString: connectionStrings.bootstrap });
 

@@ -30,6 +30,7 @@ function task(partial: Partial<TaskDto>): TaskDto {
     createdAt: null,
     updatedAt: null,
     tags: [],
+    suggestionMetadata: null,
     ...partial
   };
 }

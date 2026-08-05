@@ -604,11 +604,17 @@ export interface ModuleAssistantOnboardingManifest {
 }
 
 // Split out of index.ts (file-size gate) — external/downloadable module ABI (#917/#918/#964/
-// #1019 dataset connector SDK). Re-exported verbatim so no consumer import path changes.
+// #1019 dataset connector SDK, plus the #1281/#1282/#1285/#1286/#1309 additions from epic
+// #1280). Re-exported verbatim so no consumer import path changes. The list is explicit rather
+// than `export *`: adding a symbol to external-module.ts is a deliberate widening of the SDK's
+// public surface, so it has to be named here too.
 export {
+  EMBED_BATCH_MAX,
+  MAX_INVOCATION_MS,
   MODULE_WORKER_CONTRACT_VERSION,
   type ExternalJarvisModulePackage,
   type ExternalModuleAssistantToolDeclaration,
+  type ExternalModuleBriefingDeclaration,
   type ExternalModuleDatabaseDeclaration,
   type ExternalModuleNavigationEntry,
   type ExternalModuleQueueDeclaration,

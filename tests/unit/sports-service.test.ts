@@ -259,7 +259,13 @@ export function makeDeps(
         work({} as DataContextDb)
     },
     repository: {
-      list: async () => follows
+      list: async () => follows,
+      async create() {
+        throw new Error("not exercised by this test file — see sports-service-follows.test.ts");
+      },
+      async remove() {
+        throw new Error("not exercised by this test file — see sports-service-follows.test.ts");
+      }
     },
     now: () => FIXED_NOW
   };
@@ -272,6 +278,68 @@ describe("SportsService.getOverview", () => {
     expect(overview.hero.mode).toBe("gameday");
     expect(overview.followedTeams.map((f) => f.teamKey)).toContain("dal");
     expect(overview.degraded).toBe(false);
+  });
+
+  // #1386: the hero used to keep the first followed game and reduce the rest to an "N more
+  // followed games today" string that no surface ever rendered — a second live game was simply
+  // invisible. Every game in the window is now its own slide.
+  it("puts every followed game inside the window on the hero, live ones first", async () => {
+    // phi kicks off in 10 minutes (inside the T−15min window) but is still `pre`; dal is live.
+    // dal is also the FIRST follow, so an ordering that just kept follow order would still pass —
+    // the assertion is that live-first wins over follow order, hence phi second.
+    const phiGame: GameSummary = {
+      id: "g2",
+      competitionKey: "nfl",
+      startsAt: "2026-07-01T18:10:00.000Z",
+      state: "pre",
+      statusDetail: "2:10 PM ET",
+      home: side({ teamKey: "phi", shortName: "PHI", name: "Philadelphia Eagles" }),
+      away: side({ teamKey: "was", shortName: "WAS", name: "Washington" })
+    };
+    const service = new SportsService(
+      makeDeps({
+        source: makeSource({ getScoreboard: async () => [phiGame, dalLiveGame] }),
+        follows: [
+          dalTeamFollow,
+          {
+            id: "f2",
+            competitionKey: "nfl",
+            teamKey: "phi",
+            createdAt: "2026-06-02T00:00:00.000Z"
+          }
+        ]
+      })
+    );
+    const overview = await service.getOverview(userA);
+    expect(overview.hero.mode).toBe("gameday");
+    if (overview.hero.mode !== "gameday") return;
+    expect(overview.hero.games.map((entry) => entry.game.id)).toEqual(["g1", "g2"]);
+    // Each slide carries its own human label and reason — never the raw competitionKey (#765 M4).
+    expect(overview.hero.games.map((entry) => entry.competitionLabel)).toEqual(["NFL", "NFL"]);
+    expect(overview.hero.games[1]?.rationale).toContain("Philadelphia Eagles");
+  });
+
+  it("counts a game between two followed teams once, not twice", async () => {
+    // dalLiveGame is DAL v MIN. Follow both and it is still one match — the "N more games"
+    // count this replaced had exactly this bug, and as slides it would have shown the same
+    // score bar twice in a row.
+    const service = new SportsService(
+      makeDeps({
+        follows: [
+          dalTeamFollow,
+          {
+            id: "f2",
+            competitionKey: "nfl",
+            teamKey: "min",
+            createdAt: "2026-06-02T00:00:00.000Z"
+          }
+        ]
+      })
+    );
+    const overview = await service.getOverview(userA);
+    expect(overview.hero.mode).toBe("gameday");
+    if (overview.hero.mode !== "gameday") return;
+    expect(overview.hero.games).toHaveLength(1);
   });
 
   it("emits followed teams as competition-scoped pairs", async () => {

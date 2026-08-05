@@ -97,10 +97,19 @@ export function transcriptGlobDir(
 ): string {
   switch (provider) {
     case "anthropic": {
-      // Claude Code encodes the project dir by replacing both "/" and "." with
-      // "-", and KEEPS the leading "-" (an absolute path starts with "/").
-      // e.g. ~/Jarv1s/apps/worker -> -home-USER-Jarv1s-apps-worker
-      const encoded = cwd.replace(/[/.]/g, "-");
+      // Claude Code encodes the project dir by replacing EVERY character outside
+      // [a-zA-Z0-9-] with "-", and KEEPS the leading "-" (an absolute path starts
+      // with "/"). Case is preserved and runs of separators are NOT collapsed, so
+      //   /home/USER/Jarv1s/.claude/worktrees/x -> -home-USER-Jarv1s--claude-worktrees-x
+      //
+      // #1353: this used to replace only "/" and "." — which is right for an ordinary
+      // repo path and wrong for the live-chat neutral dir, whose session key carries a
+      // surface suffix (`<userId>:drawer`). The engine then polled
+      // `…-<uuid>:drawer/<id>.jsonl` while Claude wrote `…-<uuid>-drawer/<id>.jsonl`,
+      // so every read was ENOENT, the turn produced nothing for 180s, and the idle
+      // watchdog returned an empty reply with no message ever persisted. Prod chat was
+      // down on exactly this. Keep the character class in sync with Claude Code.
+      const encoded = cwd.replace(/[^a-zA-Z0-9-]/g, "-");
       return join(homeBase, ".claude", "projects", encoded);
     }
     case "openai-compatible": {

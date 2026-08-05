@@ -12,10 +12,21 @@ import { renderAttachmentsManifest } from "./attachments-manifest.js";
 import { renderReplayBlock, renderSummaryBlock } from "./chat-context-blocks.js";
 import type { CrossToolReadRunner } from "./cross-tool-reasoning.js";
 import { buildEngineText } from "./engine-text.js";
-import { CliChatDeliveryUnknownError, CliChatUnavailableError } from "./errors.js";
+import {
+  ChatStreamLimitError,
+  ChatThreadNotFoundError,
+  ChatTurnInFlightError,
+  CliChatDeliveryUnknownError,
+  CliChatUnavailableError
+} from "./errors.js";
 import { renderPersona, type PersonaFs } from "./persona.js";
 import { renderMemorySeedBlock } from "./recall-seed.js";
-import type { CliChatEngine, EngineKillOpts, TranscriptRecord } from "./types.js";
+import type {
+  ActionResultMetadata,
+  CliChatEngine,
+  EngineKillOpts,
+  TranscriptRecord
+} from "./types.js";
 import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
 import {
   DEFAULT_CHAT_SURFACE,
@@ -30,7 +41,7 @@ export {
   renderReplayBlock,
   renderSummaryBlock
 } from "./chat-context-blocks.js";
-// Split out for the 1000-line file cap (#1157); re-exported to keep import paths stable.
+export { ChatStreamLimitError, ChatThreadNotFoundError, ChatTurnInFlightError } from "./errors.js";
 export type {
   ChatPersistencePort,
   PassiveRetrievalPort,
@@ -38,7 +49,6 @@ export type {
 } from "./chat-session-ports.js";
 import type { ChatPersistencePort, PassiveRetrievalPort } from "./chat-session-ports.js";
 
-/** Monotonic-ish wall clock, injected so idle reaping is testable. */
 export interface Clock {
   now(): number;
 }
@@ -126,7 +136,6 @@ export interface ChatSessionManagerDeps {
   readonly serverOwnsDrain?: boolean;
 }
 
-/** A subscriber receives every emitted transcript record for its user. */
 type Subscriber = (record: TranscriptRecord) => void;
 
 interface UserSession {
@@ -145,33 +154,6 @@ const MAX_SUBSCRIBERS_PER_ACTOR = 5;
 const MAX_SUBSCRIBERS_TOTAL_PER_ACTOR = MAX_SUBSCRIBERS_PER_ACTOR * 2;
 const PRIVATE_DETACH_GRACE_MS = 30_000;
 
-/**
- * Thrown by submitTurn when a turn is already in flight for the same user. The
- * live route maps this to HTTP 409 (turn-at-a-time, spec §6.5): concurrent input
- * while a turn is in-flight is rejected rather than interleaved, which would
- * corrupt the shared transcript offset.
- */
-export class ChatTurnInFlightError extends Error {
-  constructor() {
-    super("A chat turn is already in progress. Wait for it to finish before sending another.");
-    this.name = "ChatTurnInFlightError";
-  }
-}
-
-export class ChatStreamLimitError extends Error {
-  constructor() {
-    super("Too many open chat streams for this user.");
-    this.name = "ChatStreamLimitError";
-  }
-}
-
-export class ChatThreadNotFoundError extends Error {
-  constructor() {
-    super("Chat thread not found or does not belong to this user.");
-    this.name = "ChatThreadNotFoundError";
-  }
-}
-
 export class ChatSessionManager {
   private readonly sessions = new Map<string, UserSession>();
   private readonly subscribers = new Map<string, Set<Subscriber>>();
@@ -184,6 +166,7 @@ export class ChatSessionManager {
   private readonly turnsInFlight = new Set<string>();
   /** #456 — per-turn stop controllers, keyed by actor + surface. */
   private readonly turnControllers = new Map<string, AbortController>();
+  private readonly actionResultsBySession = new Map<string, ActionResultMetadata[]>();
   private readonly pollMs: number;
   /** #456 — idle/heartbeat watchdog window; 0 disables (tests only). */
   private readonly idleWatchdogMs: number;
@@ -422,6 +405,7 @@ export class ChatSessionManager {
     const controller = new AbortController();
     const sessionKey = surfaceSessionKey(actorUserId, surface);
     this.turnControllers.set(sessionKey, controller);
+    this.actionResultsBySession.set(sessionKey, []);
 
     try {
       const attachments = opts?.attachments ?? [];
@@ -575,7 +559,8 @@ export class ChatSessionManager {
                   mimeType: meta.mimeType,
                   sizeBytes: meta.sizeBytes
                 }))
-              : undefined
+              : undefined,
+          actionResults: this.actionResultsBySession.get(sessionKey)
         },
         surface
       );
@@ -599,6 +584,7 @@ export class ChatSessionManager {
         sourceFreshness: stored?.sourceFreshness
       };
     } finally {
+      this.actionResultsBySession.delete(sessionKey);
       this.turnControllers.delete(sessionKey);
     }
   }
@@ -770,7 +756,20 @@ export class ChatSessionManager {
    * records into the live transcript stream without going through the engine.
    */
   injectRecord(actorUserId: string, record: TranscriptRecord, surface?: string): void {
-    this.emit(actorUserId, normalizeChatSurface(surface), record);
+    const chatSurface = normalizeChatSurface(surface);
+    const sessionKey = surfaceSessionKey(actorUserId, chatSurface);
+    if (record.kind === "action_result" && record.outcome) {
+      const results = this.actionResultsBySession.get(sessionKey);
+      if (results && results.length < 20) {
+        results.push({
+          kind: "action_result",
+          text: record.text.slice(0, 200),
+          ...(record.toolName ? { toolName: record.toolName.slice(0, 120) } : {}),
+          outcome: record.outcome
+        });
+      }
+    }
+    this.emit(actorUserId, chatSurface, record);
   }
 
   /**

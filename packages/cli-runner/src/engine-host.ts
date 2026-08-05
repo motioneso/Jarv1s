@@ -13,9 +13,9 @@
 import { createHash } from "node:crypto";
 
 import {
-  CliChatEngineImpl,
   CliChatUnavailableError,
   VerifiedSubmitError,
+  createChatEngine,
   deriveNeutralDir,
   killMuxSessionByName,
   listLiveMuxSessions,
@@ -24,6 +24,10 @@ import {
   purgePrivateTranscriptMarkers,
   removeNeutralDir,
   sanitizeSessionKey,
+  type CliChatEngine,
+  // #1350: type-only now — the host builds its engine through `createChatEngine`, never by
+  // naming an implementation. Kept solely for the `hasVerifiedSubmit` capability narrow.
+  type CliChatEngineImpl,
   type ProbeProviderResult,
   type RpcBeginLoginResult,
   type RpcCancelLoginResult,
@@ -114,7 +118,10 @@ interface ReplayLaunchAttempt {
 }
 
 export class CliChatEngineHost {
-  private readonly engines = new Map<string, CliChatEngineImpl>();
+  // #1350: widened from CliChatEngineImpl — a `non_interactive` session is now backed by a
+  // one-shot print engine, which implements CliChatEngine but has no multiplexer pane and so
+  // no `verifiedSubmit`/`purgeTranscripts`. Both call sites feature-detect rather than assume.
+  private readonly engines = new Map<string, CliChatEngine>();
   /** §4.0 per-sessionKey serialization queues (submit can't interleave a kill). */
   private readonly queues = new Map<string, Promise<unknown>>();
   /** §4.1.0a server-side in-flight-launch reservations (NOT the api's launching map). */
@@ -228,7 +235,12 @@ export class CliChatEngineHost {
     // never strand K and freeze the gate (fail-safe; release guaranteed by settle AND
     // by timeout).
 
-    const engine = new CliChatEngineImpl(params.provider as ProviderKind, key, sessionIo, {
+    // #1350: the engine is chosen by the ONE shared selector, so a provider configured
+    // `non_interactive` gets the one-shot (`claude -p` / agy exec) engine here exactly as it
+    // does in the in-process factory. Before this the runner ALWAYS built the tmux REPL
+    // engine, which made #1239's flip a no-op on every containerized deploy and took prod
+    // chat down completely.
+    const engine = createChatEngine(params.provider as ProviderKind, key, sessionIo, {
       mux: this.deps.mux,
       homeBase: this.deps.homeBase,
       ownsDrain: true,
@@ -357,9 +369,12 @@ export class CliChatEngineHost {
         if (attempt.controller.signal.aborted) throw new VerifiedSubmitError("unavailable");
         const engine = this.engines.get(key);
         if (!engine) throw new NotLaunchedError();
-        if (engine.provider === "google") {
-          // AGY's real transcript schema cannot use the out-of-scope Gemini CLI ACK reader.
-          // Ledger idempotency still prevents duplicate RPC paste/Enter for this legacy seam.
+        if (engine.provider === "google" || !hasVerifiedSubmit(engine)) {
+          // Two engines land here. AGY's real transcript schema cannot use the out-of-scope
+          // Gemini CLI ACK reader; and the one-shot engines (#1350) have NO multiplexer pane
+          // to echo-verify against — each turn is its own `claude -p` process, so the process
+          // spawning IS the delivery. Ledger idempotency remains the duplicate-submit guard
+          // for both.
           await engine.submit(params.text);
           if (attempt.controller.signal.aborted) throw new VerifiedSubmitError("unavailable");
         } else {
@@ -460,7 +475,10 @@ export class CliChatEngineHost {
     const key = sanitizeSessionKey(sessionKey);
     return this.enqueue(key, async () => {
       const engine = this.engines.get(key);
-      if (engine) {
+      // #1350: `purgeTranscripts` is optional on CliChatEngine — the one-shot engines don't
+      // implement it. Falling through to the engine-less sweep is correct for them: it purges
+      // the same neutral-dir/home-base transcript tree the print engine writes into.
+      if (engine?.purgeTranscripts) {
         await engine.purgeTranscripts();
         return;
       }
@@ -673,6 +691,15 @@ export class CliChatEngineHost {
   liveEngineCount(): number {
     return this.engines.size;
   }
+}
+
+/**
+ * #1350 — does this engine drive a multiplexer pane it can echo-verify a submit against?
+ * Only `CliChatEngineImpl` does; the one-shot print engines spawn a fresh process per turn and
+ * have no pane to read back, so they take the plain `submit` path.
+ */
+function hasVerifiedSubmit(engine: CliChatEngine): engine is CliChatEngineImpl {
+  return typeof (engine as Partial<CliChatEngineImpl>).verifiedSubmit === "function";
 }
 
 /** Internal marker mapped to RpcErr code "not_launched" by the dispatcher. */

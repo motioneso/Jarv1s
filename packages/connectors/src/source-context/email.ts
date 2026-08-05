@@ -5,6 +5,7 @@ import type { EmailReadProvider } from "../email-read-provider.js";
 import { GMAIL_READ_FOLDER } from "../email-read-provider.js";
 import { IMAP_DEFAULT_FOLDER } from "../imap-email-read-provider.js";
 import type { ImapConnectionSecret } from "../imap-secret.js";
+import { buildEmailActionLink } from "./email-action-links.js";
 import {
   extractEmailSignals,
   type EmailExtractDeps,
@@ -87,6 +88,7 @@ interface TriageFields {
   readonly importance: EmailContextItem["importance"];
   readonly confidence: number;
   readonly reason: string | null;
+  readonly inferredSubject: string | null;
   readonly dueDate: string | null;
   readonly suggestedTasks: readonly EmailSuggestedTaskCandidate[];
 }
@@ -98,6 +100,7 @@ function triageFromSignals(summary: string | null, signals: EmailSignals): Triag
     importance: signals.importance ?? "normal",
     confidence: signals.confidence ?? 0,
     reason: signals.actionability?.reason ?? null,
+    inferredSubject: signals.actionability?.inferredSubject ?? null,
     dueDate: signals.actionability?.dueDate ?? null,
     suggestedTasks: suggestedTasksFromSignals(signals)
   };
@@ -109,6 +112,7 @@ const UNTRIAGED: TriageFields = {
   importance: "normal",
   confidence: 0,
   reason: null,
+  inferredSubject: null,
   dueDate: null,
   suggestedTasks: []
 };
@@ -131,6 +135,10 @@ function receivedAtIso(value: EmailMessage["received_at"]): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
+function cacheKey(connectorAccountId: string, externalId: string): string {
+  return JSON.stringify([connectorAccountId, externalId]);
+}
+
 function cacheItem(
   row: EmailMessage,
   meta: SourceAccountMeta,
@@ -145,6 +153,10 @@ function cacheItem(
     subject: row.subject,
     receivedAt: receivedAtIso(row.received_at),
     threadId: threadIdFromMetadata(row),
+    sourceHref: buildEmailActionLink({
+      providerId: meta.providerId,
+      threadId: threadIdFromMetadata(row)
+    }),
     snippet: row.snippet,
     ...triage,
     source: "cache",
@@ -201,7 +213,7 @@ async function readAccountLive(
   let triageBudget = LIVE_TRIAGE_CAP;
   const items: EmailContextItem[] = [];
   for (const message of fetched) {
-    const cachedRow = cachedByExternalId.get(message.externalId);
+    const cachedRow = cachedByExternalId.get(cacheKey(account.id, message.externalId));
     let triage: TriageFields;
     if (cachedRow && (cachedRow.summary !== null || cachedSignals(cachedRow).actionability)) {
       triage = triageFromSignals(cachedRow.summary, cachedSignals(cachedRow));
@@ -220,6 +232,10 @@ async function readAccountLive(
       subject: message.subject,
       receivedAt: message.receivedAt,
       threadId: threadIdFromMetadata(cachedRow),
+      sourceHref: buildEmailActionLink({
+        providerId: meta.providerId,
+        threadId: threadIdFromMetadata(cachedRow)
+      }),
       snippet: message.snippet,
       ...triage,
       source: "live",
@@ -244,7 +260,9 @@ export async function listEmailContext(
 
   // One cache load serves triage reuse AND transient fallback for every account.
   const cachedRows = await deps.emailRepository.listVisibleForBriefing(scopedDb);
-  const cachedByExternalId = new Map(cachedRows.map((row) => [row.external_id, row]));
+  const cachedByExternalId = new Map(
+    cachedRows.map((row) => [cacheKey(row.connector_account_id, row.external_id), row])
+  );
 
   const items: EmailContextItem[] = [];
   const accounts: SourceContextAccountResult[] = [];

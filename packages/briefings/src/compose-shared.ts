@@ -7,13 +7,15 @@ import type { FocusSignalInput } from "@jarv1s/priority";
 import type { BriefingDefinition, BriefingRunStatus, DataContextDb } from "@jarv1s/db";
 import type { CalendarSignalSettings, EmailSignalSettings } from "./signals.js";
 import type { MemoryRetriever } from "@jarv1s/memory";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { JarvisModuleManifest, JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
 import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@jarv1s/source-behaviors";
 import {
   parseCalendarAutomationMode,
   normalizePersonaSettings,
   renderPersonaText
 } from "@jarv1s/shared";
+import type { BriefingContribution, ExternalBriefingInvoker } from "./external-contributions.js";
+import type { BriefingStructuredPayloadV1 } from "@jarv1s/shared";
 
 export type GenerateChatFn = (input: GenerateChatInput) => Promise<{ readonly text: string }>;
 
@@ -86,6 +88,16 @@ export interface ComposeDeps {
     apiKey: string,
     baseUrl: string | null
   ) => { generateChat: GenerateChatFn };
+  /**
+   * External modules ship JSON manifests with no in-process `execute`, so the composer
+   * cannot resolve them through findExecute(). The composition root injects a worker
+   * invoker instead. Absent in tests and in defaultComposeDeps → no external sections (#1282).
+   */
+  readonly invokeExternalBriefing?: ExternalBriefingInvoker;
+  /** External manifests, injected separately — NOT read off `moduleManifests` (J1): that
+   *  array's only production supplier is getBuiltInModuleManifests(), which never contains
+   *  an external (JSON-manifest) module. */
+  readonly externalBriefingManifests?: readonly JsonJarvisModuleManifest[];
 }
 
 export interface ComposeRunInput {
@@ -109,13 +121,20 @@ export interface BriefingGap {
   // connector-sync slice lands cache state, so an empty source is just `empty`.
   // `source_auth` (#729): a live-first source-context read reported an auth/grant/revocation
   // gap — the user must reconnect or re-grant; the data was NOT silently served from cache.
-  readonly reason: "tool_failed" | "truncated" | "empty" | "unwired" | "source_auth";
+  readonly reason:
+    | "tool_failed"
+    | "structured_payload_failed"
+    | "truncated"
+    | "empty"
+    | "unwired"
+    | "source_auth";
 }
 
 export interface ComposeResult {
   readonly status: BriefingRunStatus;
   readonly summaryText: string;
   readonly sourceMetadata: Record<string, unknown>;
+  readonly structuredPayload: BriefingStructuredPayloadV1;
 }
 
 export interface Section {
@@ -133,6 +152,35 @@ export function ctxFor(definition: BriefingDefinition, input: ComposeRunInput) {
     actorUserId: definition.owner_user_id,
     requestId: input.jobId ? `pgboss:${input.jobId}` : `briefing:${input.runId ?? randomUUID()}`,
     chatSessionId: ""
+  };
+}
+
+/**
+ * Folds already-sanitized external-module contributions (#1282) into one fixed, enumerable
+ * channel (`external_modules`) rather than one block per installed module id — TRUST_BOUNDARY
+ * names its channels as a static literal, and a dynamic per-module channel name could never be
+ * listed there ahead of time. Shared by compose.ts and compose-evening.ts so the two briefing
+ * kinds render external contributions identically. `undefined` when there is nothing to say,
+ * matching every other conditionally-pushed section (goals, sports) rather than emitting an
+ * always-present empty block.
+ */
+export function buildExternalModulesSection(
+  contributions: readonly BriefingContribution[]
+): Section | undefined {
+  if (contributions.length === 0) return undefined;
+  return {
+    key: "external_modules",
+    label: "EXTERNAL MODULES",
+    lines: contributions.flatMap((contribution) =>
+      contribution.items.length > 0
+        ? contribution.items.map((item) =>
+            [contribution.headline, item.title, item.detail, item.href ? `(${item.href})` : ""]
+              .filter(Boolean)
+              .join(" · ")
+          )
+        : [contribution.headline]
+    ),
+    count: contributions.reduce((total, contribution) => total + contribution.items.length, 0)
   };
 }
 
@@ -287,6 +335,8 @@ export async function gatherToolSection(
      * email bodyExcerpt, chat thread titles, or LLM-derived summary/signals).
      */
     readonly format: (item: Record<string, unknown>) => string;
+    /** Optional post-read filter for prose sections (e.g. exclude suggested tasks). */
+    readonly include?: (item: Record<string, unknown>) => boolean;
     /** When set, items are filtered to the definition's local day on this field. */
     readonly localDayField?: string;
     /**
@@ -332,6 +382,9 @@ export async function gatherToolSection(
     // slice not built yet so there is no source-side date filter — compose enforces it).
     if (args.localDayField) {
       items = items.filter((it) => withinLocalDay(it[args.localDayField!], now, timeZone));
+    }
+    if (args.include) {
+      items = items.filter(args.include);
     }
     if (items.length === 0) {
       // Neutral `empty` only: we cannot distinguish "synced and empty" from

@@ -453,7 +453,11 @@ export async function runGoogleSync(
               subject: parsed.subject,
               snippet: parsed.snippet,
               receivedAt: parsed.receivedAt,
-              externalMetadata: { labelIds: parsed.labelIds, historyId: parsed.historyId ?? null },
+              externalMetadata: {
+                labelIds: parsed.labelIds,
+                historyId: parsed.historyId ?? null,
+                threadId: parsed.threadId ?? null
+              },
               summary,
               // EmailSignals is a structured interface (no index signature); the repository column
               // is a jsonb object, so widen to Record<string, unknown> at this boundary.

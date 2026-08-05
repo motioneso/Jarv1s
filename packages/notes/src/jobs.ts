@@ -9,6 +9,7 @@ import { type ActorScopedJobPayload, type QueueDefinition, toAccessContext } fro
 import type { EmbeddingProvider } from "@jarv1s/memory";
 import {
   createEmbeddingProvider,
+  embedChunks,
   getEmbeddingProviderConfig,
   MemoryRepository,
   parseDocument,
@@ -144,16 +145,7 @@ async function ingestResolvedMarkdownFile(
 
   const { chunks, wikilinks } = parseDocument(content);
 
-  const newChunks: NewChunkData[] = await Promise.all(
-    chunks.map(async (chunk) => ({
-      sourcePath: resolvedFile,
-      lineStart: chunk.lineStart,
-      lineEnd: chunk.lineEnd,
-      contentHash: createHash("sha256").update(chunk.text).digest("hex"),
-      text: chunk.text,
-      embedding: await embeddingProvider.embedDocument(chunk.text)
-    }))
-  );
+  const newChunks: NewChunkData[] = await embedChunks(embeddingProvider, chunks, resolvedFile);
 
   await repository.upsertFileChunks(
     scopedDb,

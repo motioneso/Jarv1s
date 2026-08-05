@@ -1,4 +1,8 @@
 import { errorResponseSchema, idParamsSchema, jsonObjectSchema } from "./schema-fragments.js";
+import {
+  briefingStructuredPayloadV1Schema,
+  type BriefingStructuredPayloadV1
+} from "./briefing-action-rows.js";
 
 export type BriefingCadence = "manual" | "daily" | "weekly";
 export type BriefingRunKind = "manual" | "scheduled";
@@ -38,6 +42,7 @@ export interface BriefingRunDto {
   readonly summaryText: string;
   readonly sourceMetadata: Record<string, unknown>;
   readonly feedbackItems: readonly BriefingFeedbackItemDto[];
+  readonly structuredPayload: BriefingStructuredPayloadV1;
   readonly createdAt: string;
 }
 
@@ -173,6 +178,7 @@ const briefingRunSchema = {
     "summaryText",
     "sourceMetadata",
     "feedbackItems",
+    "structuredPayload",
     "createdAt"
   ],
   properties: {
@@ -212,6 +218,7 @@ const briefingRunSchema = {
         }
       }
     },
+    structuredPayload: briefingStructuredPayloadV1Schema,
     createdAt: { type: "string" }
   }
 } as const;

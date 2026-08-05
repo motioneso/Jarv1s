@@ -12,6 +12,7 @@ export * from "./ai-voice-api.js";
 export * from "./ai-audit-api.js";
 export * from "./ai-summary-api.js";
 export * from "./briefings-api.js";
+export * from "./briefing-action-rows.js";
 export * from "./calendar-briefing-settings-api.js";
 export * from "./calendar-api.js";
 export * from "./chat-api.js";

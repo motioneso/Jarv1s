@@ -629,32 +629,48 @@ function sameTranscriptRecord(a: TranscriptRecord, b: TranscriptRecord): boolean
   return a.kind === b.kind && a.text === b.text;
 }
 
-function recordsFromMessages(messages: readonly ChatMessageDto[]): TranscriptRecord[] {
-  return messages.flatMap((message) => [
-    ...message.activity.map((event) => ({
-      kind: safeActivityKind(event.kind),
-      text: event.text
-    })),
-    ...message.tools.map((tool) => ({
-      kind: "tool" as const,
-      text: tool.name
-    })),
-    {
-      kind:
-        message.role === "user"
-          ? ("user" as const)
-          : message.status === "error"
-            ? ("error" as const)
-            : ("reply" as const),
-      text: message.body,
-      messageId: message.id,
-      // #1133: history user rows re-show the chips saved in tool_metadata.attachments.
-      attachments: message.role === "user" ? message.attachments : undefined,
-      answerProvenance: message.answerProvenance,
-      answerProvenanceCitedIds: message.answerProvenanceCitedIds,
-      sourceFreshness: message.role === "assistant" ? message.sourceFreshness : undefined
-    }
-  ]);
+export function recordsFromMessages(messages: readonly ChatMessageDto[]): TranscriptRecord[] {
+  return messages.flatMap((message) => {
+    const actionResults = message.activity.flatMap((event): TranscriptRecord[] =>
+      event.kind === "action_result" && event.outcome
+        ? [
+            {
+              kind: "action_result",
+              text: event.text,
+              toolName: event.toolName,
+              outcome: event.outcome
+            }
+          ]
+        : []
+    );
+    return [
+      ...message.activity.flatMap((event): TranscriptRecord[] =>
+        event.kind === "action_result"
+          ? []
+          : [{ kind: safeActivityKind(event.kind), text: event.text }]
+      ),
+      ...message.tools.map((tool) => ({
+        kind: "tool" as const,
+        text: tool.name
+      })),
+      {
+        kind:
+          message.role === "user"
+            ? ("user" as const)
+            : message.status === "error"
+              ? ("error" as const)
+              : ("reply" as const),
+        text: message.body,
+        messageId: message.id,
+        // #1133: history user rows re-show the chips saved in tool_metadata.attachments.
+        attachments: message.role === "user" ? message.attachments : undefined,
+        answerProvenance: message.answerProvenance,
+        answerProvenanceCitedIds: message.answerProvenanceCitedIds,
+        sourceFreshness: message.role === "assistant" ? message.sourceFreshness : undefined
+      },
+      ...actionResults
+    ];
+  });
 }
 
 function safeActivityKind(kind: string): ChatRecordKind {

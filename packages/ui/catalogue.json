@@ -1,0 +1,427 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "jarv1s-ui",
+  "items": [
+    {
+      "name": "agenda-row",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/agenda-row.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["AgendaRow"],
+      "options": [
+        {
+          "prop": "status",
+          "kind": "enum",
+          "values": ["default", "now", "done"],
+          "optional": true,
+          "default": "default"
+        }
+      ],
+      "flags": []
+    },
+    {
+      "name": "all-day-chip",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/all-day-chip.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["AllDayChip"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "avatar",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/avatar.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Avatar"],
+      "options": [
+        {
+          "prop": "size",
+          "kind": "enum",
+          "values": ["xs", "sm", "md", "lg"],
+          "optional": true,
+          "default": null
+        }
+      ],
+      "flags": [{ "prop": "square", "optional": true }]
+    },
+    {
+      "name": "badge",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/badge.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Badge", "ComingSoon"],
+      "options": [
+        {
+          "prop": "tone",
+          "kind": "enum",
+          "values": ["neutral", "forest", "amber", "red", "steel", "solid-pine", "solid-amber"],
+          "optional": true,
+          "default": "neutral"
+        }
+      ],
+      "flags": [
+        { "prop": "outline", "optional": true },
+        { "prop": "pill", "optional": true },
+        { "prop": "dot", "optional": true }
+      ]
+    },
+    {
+      "name": "button-link",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/button-link.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["ButtonLink", "buttonLinkClassName"],
+      "options": [
+        {
+          "prop": "variant",
+          "kind": "enum",
+          "values": ["primary", "secondary", "quiet", "accentSoft", "danger"],
+          "optional": true,
+          "default": "primary"
+        },
+        {
+          "prop": "size",
+          "kind": "enum",
+          "values": ["sm", "md", "lg"],
+          "optional": true,
+          "default": "md"
+        }
+      ],
+      "flags": [{ "prop": "block", "optional": true }]
+    },
+    {
+      "name": "button",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/button.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Button"],
+      "options": [
+        {
+          "prop": "variant",
+          "kind": "enum",
+          "values": ["primary", "secondary", "quiet", "accentSoft", "danger"],
+          "optional": true,
+          "default": "primary"
+        },
+        {
+          "prop": "size",
+          "kind": "enum",
+          "values": ["sm", "md", "lg"],
+          "optional": true,
+          "default": "md"
+        }
+      ],
+      "flags": [{ "prop": "block", "optional": true }]
+    },
+    {
+      "name": "card",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/card.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Card"],
+      "options": [
+        {
+          "prop": "padding",
+          "kind": "enum",
+          "values": ["sm", "md", "lg"],
+          "optional": true,
+          "default": null
+        }
+      ],
+      "flags": [
+        { "prop": "sunken", "optional": true },
+        { "prop": "flush", "optional": true },
+        { "prop": "raised", "optional": true },
+        { "prop": "interactive", "optional": true }
+      ]
+    },
+    {
+      "name": "category-dot",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/category-dot.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["CategoryDot"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "chip",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/chip.tsx", "type": "registry:ui" }],
+      "dependencies": ["lucide-react"],
+      "exports": ["Chip"],
+      "options": [],
+      "flags": [
+        { "prop": "toggle", "optional": true },
+        { "prop": "selected", "optional": true }
+      ]
+    },
+    {
+      "name": "day-cell",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/day-cell.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["DayCell"],
+      "options": [],
+      "flags": [
+        { "prop": "out", "optional": true },
+        { "prop": "today", "optional": true }
+      ]
+    },
+    {
+      "name": "dialog",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/dialog.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Dialog"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "divider",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/divider.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Divider"],
+      "options": [
+        {
+          "prop": "orientation",
+          "kind": "enum",
+          "values": ["horizontal", "vertical"],
+          "optional": true,
+          "default": "horizontal"
+        },
+        {
+          "prop": "weight",
+          "kind": "enum",
+          "values": ["default", "strong", "ink"],
+          "optional": true,
+          "default": "default"
+        }
+      ],
+      "flags": []
+    },
+    {
+      "name": "empty-state",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/empty-state.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["EmptyState"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "event-chip",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/event-chip.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["EventChip"],
+      "options": [
+        {
+          "prop": "variant",
+          "kind": "enum",
+          "values": ["hard", "tentative", "block"],
+          "optional": false,
+          "default": null
+        }
+      ],
+      "flags": []
+    },
+    {
+      "name": "field",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/field.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Field", "FormLabel"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "held-banner",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/held-banner.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["HeldBanner"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "icon-button",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/icon-button.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["IconButton"],
+      "options": [
+        {
+          "prop": "variant",
+          "kind": "enum",
+          "values": ["default", "secondary"],
+          "optional": true,
+          "default": "default"
+        },
+        {
+          "prop": "size",
+          "kind": "enum",
+          "values": ["sm", "md", "lg"],
+          "optional": true,
+          "default": "md"
+        }
+      ],
+      "flags": [{ "prop": "active", "optional": true }]
+    },
+    {
+      "name": "indicator",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/indicator.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Indicator"],
+      "options": [
+        {
+          "prop": "status",
+          "kind": "enum",
+          "values": ["ready", "drift", "error", "idle"],
+          "optional": false,
+          "default": null
+        }
+      ],
+      "flags": [{ "prop": "live", "optional": true }]
+    },
+    {
+      "name": "legend-swatch",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/legend-swatch.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["LegendSwatch"],
+      "options": [
+        {
+          "prop": "tone",
+          "kind": "enum",
+          "values": ["hard", "hold"],
+          "optional": false,
+          "default": null
+        }
+      ],
+      "flags": []
+    },
+    {
+      "name": "masthead",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/masthead.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Masthead", "MastheadClock", "MastheadDateline"],
+      "options": [],
+      "flags": [{ "prop": "pm", "optional": true }]
+    },
+    {
+      "name": "menu",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/menu.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Menu"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "month-chip",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/month-chip.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["MonthChip"],
+      "options": [],
+      "flags": [{ "prop": "block", "optional": true }]
+    },
+    {
+      "name": "now-line",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/now-line.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["NowLine"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "peek-close-button",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/peek-close-button.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["PeekCloseButton"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "peek-panel",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/peek-panel.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["PeekPanel"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "segmented",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/segmented.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Segmented"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "select",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/select.tsx", "type": "registry:ui" }],
+      "dependencies": ["lucide-react"],
+      "exports": ["Select"],
+      "options": [],
+      "flags": []
+    },
+    {
+      "name": "stat-tile",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/stat-tile.tsx", "type": "registry:ui" }],
+      "dependencies": ["lucide-react"],
+      "exports": ["StatTile"],
+      "options": [],
+      "flags": [{ "prop": "warn", "optional": true }]
+    },
+    {
+      "name": "switch",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/switch.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["Switch"],
+      "options": [],
+      "flags": [
+        { "prop": "checked", "optional": false },
+        { "prop": "disabled", "optional": true }
+      ]
+    },
+    {
+      "name": "today-pill",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/today-pill.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["TodayPill"],
+      "options": [
+        {
+          "prop": "variant",
+          "kind": "enum",
+          "values": ["month", "grid"],
+          "optional": false,
+          "default": null
+        }
+      ],
+      "flags": []
+    },
+    {
+      "name": "weather-chip",
+      "type": "registry:ui",
+      "files": [{ "path": "packages/ui/src/weather-chip.tsx", "type": "registry:ui" }],
+      "dependencies": [],
+      "exports": ["WeatherChip"],
+      "options": [],
+      "flags": []
+    }
+  ]
+}

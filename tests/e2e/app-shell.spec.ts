@@ -164,14 +164,14 @@ test("lists and marks notifications read through REST calls", async ({ page }) =
 
   await page.goto("/notifications");
   await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Unread\s*2/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Unread\s*\(2\)/ })).toBeVisible();
   await expect(page.getByText("New secure notice")).toBeVisible();
 
   await page.getByLabel("Mark New secure notice read").click();
-  await expect(page.getByRole("button", { name: /Unread\s*1/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Unread\s*\(1\)/ })).toBeVisible();
 
   await page.getByRole("button", { name: "Mark all read" }).click();
-  await expect(page.getByRole("button", { name: /Unread\s*0/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Unread\s*\(0\)/ })).toBeVisible();
   await page.getByRole("button", { name: /Unread/ }).click();
   await expect(page.getByText("No notifications")).toBeVisible();
 });
@@ -324,7 +324,7 @@ test.describe("Chat drawer — Approve/Reject card", () => {
 
     // Mock the resolve endpoint, capturing the request so we can assert the
     // decision was actually transmitted — not merely that the card flipped to
-    // "Resolved." (a card could resolve optimistically without sending) (#171).
+    // "Approved" (a card could resolve optimistically without sending) (#171).
     let resolveUrl: string | undefined;
     let resolveBody: unknown;
     await page.route("**/api/chat/action-requests/*/resolve", (route) => {
@@ -344,8 +344,9 @@ test.describe("Chat drawer — Approve/Reject card", () => {
     // Approve
     await page.locator(".action-request-card").getByRole("button", { name: "Approve" }).click();
 
-    // Card should show Resolved.
-    await expect(page.locator(".action-request-card")).toContainText("Resolved.");
+    await expect(page.locator('.action-request-card [data-state="confirmed"]')).toHaveText(
+      "Approved"
+    );
 
     // Assert the approval decision and the path's action-request id actually went over the wire.
     expect(resolveBody).toEqual({ status: "confirmed" });
@@ -396,7 +397,9 @@ test.describe("Chat drawer — Approve/Reject card", () => {
 
     await expect(page.locator(".action-request-card")).toBeVisible({ timeout: 3000 });
     await page.locator(".action-request-card").getByRole("button", { name: "Reject" }).click();
-    await expect(page.locator(".action-request-card")).toContainText("Resolved.");
+    await expect(page.locator('.action-request-card [data-state="rejected"]')).toHaveText(
+      "Not approved"
+    );
 
     // Assert the rejection decision and the path's action-request id actually went over the wire.
     expect(resolveBody).toEqual({ status: "rejected" });
@@ -452,13 +455,10 @@ test.describe("Chat drawer — Approve/Reject card", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "Chat with Jarvis" }).click();
 
-    // action_result records collapse into the "Behind the scenes" activity peek
-    // (apps/web/src/chat/message-row.tsx groupRecords/ActivityPeek), never the Approve/Reject
-    // card — the card only renders for a `kind === "action_request"` record.
-    const peekSummary = page.getByText("Behind the scenes");
-    await expect(peekSummary).toBeVisible({ timeout: 3000 });
-    await peekSummary.click();
-    await expect(page.getByText("Executed")).toBeVisible();
+    // action_result records render as durable outcomes, never Approve/Reject cards.
+    const result = page.getByRole("dialog", { name: "Chat with Jarvis" }).getByRole("status");
+    await expect(result).toContainText("Changed", { timeout: 3000 });
+    await expect(result).toContainText("Switched to dark mode.");
 
     await expect(page.locator(".action-request-card")).toHaveCount(0);
     expect(resolveCallCount).toBe(0);
@@ -529,10 +529,9 @@ test.describe("Chat drawer — Approve/Reject card", () => {
 
     await page.getByRole("button", { name: "Chat with Jarvis" }).click();
 
-    const peekSummary = page.getByText("Behind the scenes");
-    await expect(peekSummary).toBeVisible({ timeout: 3000 });
-    await peekSummary.click();
-    await expect(page.getByText("Executed")).toBeVisible();
+    const result = page.getByRole("dialog", { name: "Chat with Jarvis" }).getByRole("status");
+    await expect(result).toContainText("Changed", { timeout: 3000 });
+    await expect(result).toContainText("Switched to dark mode.");
 
     // No page.reload() anywhere above — the attribute flips purely from the generic
     // invalidation effect resolving "settings.themes" and refetching.

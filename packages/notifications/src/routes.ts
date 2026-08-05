@@ -40,7 +40,10 @@ export function registerNotificationsRoutes(
 
         return {
           notifications: result.notifications.map(serializeNotification),
-          unreadCount: result.unreadCount
+          unreadCount: result.unreadCount,
+          // #1285: per-module unread breakdown for the nav badge — see repository.ts for why
+          // it is safe to trust without a re-derived RLS check (same scopedDb, same query).
+          unreadByModule: result.unreadByModule
         };
       } catch (error) {
         return handleRouteError(error, reply);
@@ -112,7 +115,8 @@ export function serializeNotification(notification: NotificationWithReadState): 
     body: notification.body,
     metadata: projectNotificationMetadata(notification.metadata),
     readAt: toIsoString(notification.read_at),
-    createdAt: toIsoString(notification.created_at)
+    createdAt: toIsoString(notification.created_at),
+    href: notification.href
   };
 }
 

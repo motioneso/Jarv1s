@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LocaleSettingsDto, NotificationDto } from "@jarv1s/shared";
+import { Button, buttonLinkClassName, EmptyState, IconButton, Segmented } from "@jarv1s/ui";
 import { Bell, Check, CheckCheck, Inbox, LoaderCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
@@ -8,9 +9,7 @@ import { listNotifications, markAllNotificationsRead, markNotificationRead } fro
 import { queryKeys } from "../api/query-keys";
 import { formatDateTime, useUserLocale } from "../locale/locale-format";
 
-const notificationFilters = ["all", "unread"] as const;
-
-type NotificationFilter = (typeof notificationFilters)[number];
+type NotificationFilter = "all" | "unread";
 
 export function NotificationsPage() {
   const queryClient = useQueryClient();
@@ -43,45 +42,47 @@ export function NotificationsPage() {
           <h1 id="notifications-title">Notifications</h1>
         </div>
 
-        <button
-          className="secondary-button"
+        <Button
           disabled={unreadCount === 0 || markAllReadMutation.isPending}
-          type="button"
+          icon={
+            markAllReadMutation.isPending ? (
+              <LoaderCircle className="spin" size={18} aria-hidden="true" />
+            ) : (
+              <CheckCheck size={18} aria-hidden="true" />
+            )
+          }
+          variant="secondary"
           onClick={() => markAllReadMutation.mutate()}
         >
-          {markAllReadMutation.isPending ? (
-            <LoaderCircle className="spin" size={18} aria-hidden="true" />
-          ) : (
-            <CheckCheck size={18} aria-hidden="true" />
-          )}
           Mark all read
-        </button>
+        </Button>
       </div>
 
-      <section className="task-toolbar" aria-label="Notification filters">
-        <div className="segmented-control wide" aria-label="Read filter">
-          {notificationFilters.map((status) => (
-            <button
-              className={filter === status ? "active" : ""}
-              key={status}
-              type="button"
-              onClick={() => setFilter(status)}
-            >
-              {status[0]?.toUpperCase()}
-              {status.slice(1)}
-              <span>{status === "unread" ? unreadCount : totalCount}</span>
-            </button>
-          ))}
-        </div>
+      <section className="tk-toolbar" aria-label="Notification filters">
+        <Segmented
+          ariaLabel="Read filter"
+          options={[
+            { value: "all", label: `All (${totalCount})` },
+            { value: "unread", label: `Unread (${unreadCount})` }
+          ]}
+          value={filter}
+          onChange={setFilter}
+        />
       </section>
 
-      <section className="task-list" aria-live="polite">
+      <section className="tk-list" aria-live="polite">
         {notificationsQuery.isLoading ? (
-          <EmptyState loading title="Loading notifications" />
+          <EmptyState
+            icon={<LoaderCircle className="spin" size={22} aria-hidden="true" />}
+            title="Loading notifications"
+          />
         ) : notificationsQuery.error ? (
-          <EmptyState title={notificationsQuery.error.message} />
+          <EmptyState
+            icon={<Inbox size={22} aria-hidden="true" />}
+            title={notificationsQuery.error.message}
+          />
         ) : notifications.length === 0 ? (
-          <EmptyState title="No notifications" />
+          <EmptyState icon={<Inbox size={22} aria-hidden="true" />} title="No notifications" />
         ) : (
           notifications.map((notification) => (
             <NotificationRow
@@ -107,30 +108,35 @@ function NotificationRow(props: {
   const upgrade = props.notification.metadata.kind === "upgrade_available";
 
   return (
-    <article className={`task-row notification-row ${unread ? "unread" : ""}`}>
-      <div className="task-status-icon" aria-hidden="true">
+    <article className={`jds-task ${unread ? "jds-task--unread" : ""}`}>
+      <div className="jds-task__check" aria-hidden="true">
         <Bell size={22} />
       </div>
-      <div className="task-row-main">
-        <strong>{props.notification.title}</strong>
+      <div className="jds-task__main">
+        <div className="jds-task__title">{props.notification.title}</div>
         {props.notification.body ? <p>{props.notification.body}</p> : null}
         {upgrade ? (
-          <Link className="jds-btn jds-btn--sm jds-btn--secondary" to="/settings?section=host">
+          <Link className={buttonLinkClassName("secondary", "sm")} to="/settings?section=host">
             View changes
           </Link>
+        ) : props.notification.href ? (
+          // Task 2b (#1283): module-supplied deep link. Always same-origin — validated at
+          // the RPC boundary and again in NotificationsRepository — so a plain router Link
+          // (not a full page anchor) is safe here.
+          <Link className={buttonLinkClassName("secondary", "sm")} to={props.notification.href}>
+            View
+          </Link>
         ) : null}
-        <div className="task-meta">
+        <div className="jds-task__meta">
           <span>{unread ? "Unread" : "Read"}</span>
           <span>{formatNotificationDate(props.notification.createdAt, locale)}</span>
         </div>
       </div>
-      <div className="task-row-actions">
-        <button
+      <div className="tk-row-actions">
+        <IconButton
           aria-label={`Mark ${props.notification.title} read`}
-          className="icon-button"
           disabled={props.isUpdating || !unread}
           title="Mark read"
-          type="button"
           onClick={props.onMarkRead}
         >
           {props.isUpdating ? (
@@ -138,22 +144,9 @@ function NotificationRow(props: {
           ) : (
             <Check size={18} aria-hidden="true" />
           )}
-        </button>
+        </IconButton>
       </div>
     </article>
-  );
-}
-
-function EmptyState(props: { readonly loading?: boolean; readonly title: string }) {
-  return (
-    <div className="empty-state">
-      {props.loading ? (
-        <LoaderCircle className="spin" size={22} aria-hidden="true" />
-      ) : (
-        <Inbox size={22} aria-hidden="true" />
-      )}
-      <p>{props.title}</p>
-    </div>
   );
 }
 

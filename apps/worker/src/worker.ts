@@ -3,7 +3,12 @@ import { pino, type Logger as PinoLogger } from "pino";
 import type { FastifyBaseLogger } from "fastify";
 import { sql } from "kysely";
 
-import { DataContextRunner, createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
+import {
+  DataContextRunner,
+  createDatabase,
+  getJarvisDatabaseUrls,
+  type AccessContext
+} from "@jarv1s/db";
 import { RlsProbeRepository } from "@jarv1s/db/probes";
 import {
   RLS_PROBE_QUEUE,
@@ -35,10 +40,13 @@ import {
   resolveModulesDir
 } from "@jarv1s/module-registry/node";
 import { AiRepository } from "@jarv1s/ai";
-import { NotificationsRepository } from "@jarv1s/notifications";
+import { ChatAttachmentsService } from "@jarv1s/chat";
+import { NotificationsRepository, type CreateNotificationInput } from "@jarv1s/notifications";
 import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
+import { getVaultBaseDir, VaultContextRunner } from "@jarv1s/vault";
 
 import { createModuleWorkerAiBridge } from "./external-module-ai-bridge.js";
+import { createExternalBriefingInvoker } from "./external-module-invoke.js";
 import { createExternalModuleJobHandler } from "./external-module-job-handler.js";
 
 // ---------------------------------------------------------------------------
@@ -174,6 +182,97 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
     repository: new NotificationsRepository(undefined, createNotificationPreferencePort())
   });
 
+  // #996/#860: external-module job reconciliation is always-on now (the
+  // JARVIS_ENABLE_EXTERNAL_MODULES gate was removed) — resolveExternalWorkerConfig
+  // always resolves a modulesDir, so this block runs unconditionally.
+  //
+  // Moved above registerBuiltInModuleWorkers (#1282 Task 2): the briefings module
+  // needs externalBriefingManifests + invokeExternalBriefing at registration time,
+  // and both are built from this same discovery/runtime/cipher setup. Building it
+  // once here and threading it down avoids a second discovery scan.
+  const externalConfig = resolveExternalWorkerConfig();
+  const reservedQueueNames = new Set(getAllQueueDefinitions().map((queue) => queue.name));
+  const discoveries = getExternalModuleRegistrations({
+    modulesDir: externalConfig.modulesDir,
+    reservedQueueNames
+  }).discoveries;
+  const externalRuntime = new ExternalModuleWorkerRuntime({ logger: workerLogger });
+  const runtime = externalRuntime;
+  const cipher = createModuleCredentialSecretCipher();
+  // ctx.ai for queued module jobs (JS-07 Step 0, spec D6): one repository and
+  // one bridge at composition time — the bridge's AiSecretCipher is a separate
+  // key domain (JARVIS_AI_SECRET_KEY) from the ModuleCredentialCipher above.
+  // Only the module-job registration below receives it; every other handler
+  // path stays without an ai dep and fails closed in the rpc host.
+  const moduleAiBridge = createModuleWorkerAiBridge({
+    aiRepository: new AiRepository(),
+    logger: workerLogger as unknown as FastifyBaseLogger
+  });
+  // ctx.notify (Task 2b, #1283): same construction as apps/api/src/external-module-tools.ts
+  // — no quiet-hours port, parity with registerUpgradeNotifyWorker's own repository above.
+  // A separate instance from that one: NotificationsRepository holds no per-call state, so
+  // this only avoids implying the module-notify and upgrade-notify paths share a lifecycle.
+  const moduleNotifications = new NotificationsRepository(
+    undefined,
+    createNotificationPreferencePort()
+  );
+  const postModuleNotification = async (
+    access: AccessContext,
+    notifyInput: CreateNotificationInput
+  ): Promise<void> => {
+    await dataContext.withDataContext(access, (scopedDb) =>
+      moduleNotifications.create(scopedDb, notifyInput)
+    );
+  };
+  // ctx.attachments.readText (#109 parity fix): identical construction to
+  // apps/api/src/external-module-tools.ts's `attachments` + readAttachmentText closure.
+  // The two composition roots drifted because this dependency was wired into the
+  // synchronous tool-dispatch path when it was added (#932-era) without a matching pass
+  // through this file — worker-rpc-host.ts's `readAttachmentText` is optional and its
+  // `attachments.readText` RPC method returns null silently when absent, so a queued job
+  // (or a briefing) reading a job-search résumé attachment saw the identical "missing
+  // attachment" outcome as a genuinely-missing one, with no way to tell them apart.
+  const attachments = new ChatAttachmentsService(new VaultContextRunner(getVaultBaseDir()));
+  const readModuleAttachmentText = async (access: AccessContext, attachmentId: string) => {
+    const content = await attachments.readContent(access, attachmentId);
+    return content.kind === "text"
+      ? {
+          fileName: content.meta.fileName,
+          mimeType: content.meta.mimeType,
+          text: content.text
+        }
+      : null;
+  };
+  const discoveryById = new Map(discoveries.map((module) => [module.id, module]));
+  const listActiveUserIds = async (moduleId: string): Promise<readonly string[]> =>
+    (
+      await sql<{
+        user_id: string;
+      }>`SELECT user_id FROM app.list_active_external_module_users(${moduleId})`.execute(workerDb)
+    ).rows.map((row) => row.user_id);
+
+  // #1282 Task 2: same discovery/runtime/cipher this file already built above for the job
+  // queue path, adapted to the narrower shape the briefing composer calls (see
+  // external-module-invoke.ts for the shared trust gate both paths run through).
+  //
+  // #1306 Task 22: deliberately no `createFetch` here. A briefing contribution renders
+  // from stored records (see external-modules/job-search/src/worker/handlers/briefing.ts) —
+  // there is no fetch on this path for the e2e/UAT fixture override to redirect. If a
+  // briefing handler ever does gain a fetch, this is the call site to pass
+  // resolveE2eFetchOverride() into (see external-module-job-handler.ts for the queue-path
+  // precedent) — don't let the omission read as an oversight.
+  const invokeExternalBriefing = createExternalBriefingInvoker({
+    workerDb,
+    discoveryById,
+    dataContext,
+    cipher,
+    runtime,
+    listActiveUserIds,
+    ai: moduleAiBridge,
+    postNotification: postModuleNotification,
+    readAttachmentText: readModuleAttachmentText
+  });
+
   await registerBuiltInModuleWorkers(boss, {
     rootDb: workerDb,
     dataContext,
@@ -196,37 +295,10 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
     },
     // Pino's Logger is structurally what FastifyBaseLogger wraps at runtime
     // (Fastify uses pino internally). The cast bridges the nominal type gap.
-    logger: workerLogger as unknown as FastifyBaseLogger
+    logger: workerLogger as unknown as FastifyBaseLogger,
+    externalBriefingManifests: discoveries.map((module) => module.manifest),
+    invokeExternalBriefing
   });
-
-  // #996/#860: external-module job reconciliation is always-on now (the
-  // JARVIS_ENABLE_EXTERNAL_MODULES gate was removed) — resolveExternalWorkerConfig
-  // always resolves a modulesDir, so this block runs unconditionally.
-  const externalConfig = resolveExternalWorkerConfig();
-  const reservedQueueNames = new Set(getAllQueueDefinitions().map((queue) => queue.name));
-  const discoveries = getExternalModuleRegistrations({
-    modulesDir: externalConfig.modulesDir,
-    reservedQueueNames
-  }).discoveries;
-  const externalRuntime = new ExternalModuleWorkerRuntime({ logger: workerLogger });
-  const runtime = externalRuntime;
-  const cipher = createModuleCredentialSecretCipher();
-  // ctx.ai for queued module jobs (JS-07 Step 0, spec D6): one repository and
-  // one bridge at composition time — the bridge's AiSecretCipher is a separate
-  // key domain (JARVIS_AI_SECRET_KEY) from the ModuleCredentialCipher above.
-  // Only the module-job registration below receives it; every other handler
-  // path stays without an ai dep and fails closed in the rpc host.
-  const moduleAiBridge = createModuleWorkerAiBridge({
-    aiRepository: new AiRepository(),
-    logger: workerLogger as unknown as FastifyBaseLogger
-  });
-  const discoveryById = new Map(discoveries.map((module) => [module.id, module]));
-  const listActiveUserIds = async (moduleId: string): Promise<readonly string[]> =>
-    (
-      await sql<{
-        user_id: string;
-      }>`SELECT user_id FROM app.list_active_external_module_users(${moduleId})`.execute(workerDb)
-    ).rows.map((row) => row.user_id);
 
   const externalReconciler = new ExternalModuleJobReconciler({
     boss,
@@ -263,7 +335,10 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
           cipher,
           discoveryById,
           listActiveUserIds,
-          ai: moduleAiBridge
+          ai: moduleAiBridge,
+          postNotification: postModuleNotification,
+          readAttachmentText: readModuleAttachmentText,
+          logger: workerLogger
         })
       );
     },

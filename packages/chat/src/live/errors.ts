@@ -18,3 +18,24 @@ export class CliChatDeliveryUnknownError extends Error {
     this.name = "CliChatDeliveryUnknownError";
   }
 }
+
+export class ChatTurnInFlightError extends Error {
+  constructor() {
+    super("A chat turn is already in progress. Wait for it to finish before sending another.");
+    this.name = "ChatTurnInFlightError";
+  }
+}
+
+export class ChatStreamLimitError extends Error {
+  constructor() {
+    super("Too many open chat streams for this user.");
+    this.name = "ChatStreamLimitError";
+  }
+}
+
+export class ChatThreadNotFoundError extends Error {
+  constructor() {
+    super("Chat thread not found or does not belong to this user.");
+    this.name = "ChatThreadNotFoundError";
+  }
+}

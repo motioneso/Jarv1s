@@ -201,7 +201,7 @@ export function SettingsPeoplePane() {
               <span>{folderValue || "No folder selected"}</span>
               <button
                 type="button"
-                className="jds-btn jds-btn--sm jds-btn--ghost"
+                className="jds-btn jds-btn--sm jds-btn--quiet"
                 onClick={() => setChoosingFolder(true)}
               >
                 Choose folder
@@ -269,7 +269,7 @@ export function SettingsPeoplePane() {
           control={
             <button
               type="button"
-              className="jds-btn jds-btn--sm jds-btn--ghost"
+              className="jds-btn jds-btn--sm jds-btn--quiet"
               disabled={refreshMutation.isPending || !configuredFolder}
               onClick={() => refreshMutation.mutate()}
               title="Refresh"
@@ -319,7 +319,7 @@ export function SettingsPeoplePane() {
                       {!DESTRUCTIVE_KINDS.has(candidate.candidateKind) && (
                         <button
                           type="button"
-                          className="jds-btn jds-btn--sm jds-btn--pine"
+                          className="jds-btn jds-btn--sm jds-btn--accentSoft"
                           disabled={acceptMutation.isPending}
                           onClick={() => acceptMutation.mutate(candidate.id)}
                         >
@@ -328,7 +328,7 @@ export function SettingsPeoplePane() {
                       )}
                       <button
                         type="button"
-                        className="jds-btn jds-btn--sm jds-btn--ghost"
+                        className="jds-btn jds-btn--sm jds-btn--quiet"
                         disabled={rejectMutation.isPending}
                         onClick={() => rejectMutation.mutate(candidate.id)}
                       >
@@ -376,7 +376,7 @@ export function SettingsPeoplePane() {
                     <>
                       <button
                         type="button"
-                        className="jds-btn jds-btn--sm jds-btn--pine"
+                        className="jds-btn jds-btn--sm jds-btn--accentSoft"
                         disabled={updateMutation.isPending || !editingName.trim()}
                         onClick={() =>
                           updateMutation.mutate({ id: person.id, displayName: editingName.trim() })
@@ -387,7 +387,7 @@ export function SettingsPeoplePane() {
                       </button>
                       <button
                         type="button"
-                        className="jds-btn jds-btn--sm jds-btn--ghost"
+                        className="jds-btn jds-btn--sm jds-btn--quiet"
                         onClick={() => setEditingId(null)}
                         title="Cancel"
                       >
@@ -398,7 +398,7 @@ export function SettingsPeoplePane() {
                     <>
                       <button
                         type="button"
-                        className="jds-btn jds-btn--sm jds-btn--ghost"
+                        className="jds-btn jds-btn--sm jds-btn--quiet"
                         disabled={!configuredFolder}
                         onClick={() => {
                           setEditingId(person.id);
@@ -409,7 +409,7 @@ export function SettingsPeoplePane() {
                       </button>
                       <button
                         type="button"
-                        className="jds-btn jds-btn--sm jds-btn--ghost"
+                        className="jds-btn jds-btn--sm jds-btn--quiet"
                         disabled={archiveMutation.isPending || !configuredFolder}
                         onClick={() => archiveMutation.mutate(person.id)}
                         title="Archive"
@@ -451,7 +451,7 @@ export function SettingsPeoplePane() {
               />
               <button
                 type="button"
-                className="jds-btn jds-btn--sm jds-btn--pine"
+                className="jds-btn jds-btn--sm jds-btn--accentSoft"
                 disabled={createMutation.isPending || !configuredFolder || !createName.trim()}
                 onClick={() => createMutation.mutate()}
                 title="Create person"

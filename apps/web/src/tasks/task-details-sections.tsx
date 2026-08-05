@@ -1,5 +1,5 @@
 import { Archive, ArrowUp, Check, ChevronDown, Circle, Plus, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useId, useState } from "react";
 
 import type {
   LocaleSettingsDto,
@@ -8,6 +8,7 @@ import type {
   TaskDto,
   TaskTagDto
 } from "@jarv1s/shared";
+import { Button, Chip, EmptyState } from "@jarv1s/ui";
 
 import { formatDate, useUserLocale } from "../locale/locale-format";
 import { useDismissableMenu } from "../shared/use-dismissable-menu.js";
@@ -31,12 +32,14 @@ function Ava(props: { readonly name: string; readonly size?: number }) {
   return (
     <span
       className="tk-ava"
-      style={{
-        width: size,
-        height: size,
-        background: avaColor(props.name),
-        fontSize: Math.round(size * 0.4)
-      }}
+      style={
+        {
+          width: size,
+          height: size,
+          "--tk-ava-bg": avaColor(props.name),
+          "--tk-ava-fs": `${Math.round(size * 0.4)}px`
+        } as React.CSSProperties
+      }
     >
       {initialsOf(props.name)}
     </span>
@@ -112,18 +115,10 @@ export function TaskTagsField(props: {
 
 function TagChip(props: { readonly label: string; readonly onRemove: () => void }) {
   return (
-    <span className="jds-chip">
-      <span style={{ fontFamily: "var(--font-sans)", color: "var(--text-faint)" }}>#</span>
+    <Chip onRemove={props.onRemove} removeLabel={`Remove ${props.label}`}>
+      <span className="hash">#</span>
       {props.label}
-      <button
-        type="button"
-        className="jds-chip__x"
-        aria-label={`Remove ${props.label}`}
-        onClick={props.onRemove}
-      >
-        <X size={13} aria-hidden="true" />
-      </button>
-    </span>
+    </Chip>
   );
 }
 
@@ -204,10 +199,10 @@ export function TaskStatusControl(props: {
   readonly onChange: (status: TaskApiStatus) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const triggerId = useId();
   const closeMenu = () => {
     setOpen(false);
-    triggerRef.current?.focus();
+    document.getElementById(triggerId)?.focus();
   };
   const { ref } = useDismissableMenu<HTMLDivElement>({
     open,
@@ -229,23 +224,20 @@ export function TaskStatusControl(props: {
 
   return (
     <div className="tk-statusctl" ref={ref}>
-      <button
-        type="button"
-        className={`tk-statusctl__main ${mainClass}`}
+      <Button
+        icon={<MainIcon size={15} aria-hidden="true" />}
+        variant={mainClass ? "secondary" : "quiet"}
         onClick={() => props.onChange(done || archived ? "todo" : "done")}
       >
-        <MainIcon size={15} aria-hidden="true" />
         {mainLabel}
-      </button>
-      <button
-        type="button"
-        ref={triggerRef}
-        className="tk-statusctl__more"
+      </Button>
+      <Button
+        id={triggerId}
         aria-label="More status options"
+        icon={<ChevronDown size={14} aria-hidden="true" />}
+        variant="quiet"
         onClick={() => (open ? closeMenu() : setOpen(true))}
-      >
-        <ChevronDown size={14} aria-hidden="true" />
-      </button>
+      />
       {open && items.length > 0 ? (
         <div className="tk-statusctl__menu tk-tagmenu">
           {items.map((item) => {
@@ -298,7 +290,7 @@ export function TaskActivityPanel(props: {
           ))}
         </div>
       ) : (
-        <div className="tk-act-empty">No activity yet. Log progress as you go.</div>
+        <EmptyState title="No activity yet. Log progress as you go." />
       )}
 
       <div className="tk-act-composer">
@@ -314,15 +306,13 @@ export function TaskActivityPanel(props: {
             }
           }}
         />
-        <button
-          type="button"
-          className="tk-act-send"
+        <Button
           disabled={!props.draft.trim() || props.pending}
+          icon={<ArrowUp size={16} aria-hidden="true" />}
+          variant="quiet"
           onClick={props.onPost}
           aria-label="Post comment"
-        >
-          <ArrowUp size={16} aria-hidden="true" />
-        </button>
+        />
       </div>
       <div className="tk-act-hint">Enter to post · Shift+Enter for a new line</div>
     </div>

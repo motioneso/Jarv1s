@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { deriveTrustedOrigins } from "../../scripts/setup-prod-origins.js";
+import { JOB_SEARCH_FIXTURE_CONTAINER_PORT } from "./fixtures/job-search-fixture-server.js";
 import { parseUatSeedLevel } from "./seed/level-validation.js";
 
 export interface UatRunId {
@@ -30,6 +31,92 @@ export function generateUatRunId(): UatRunId {
 // #1059: env override lets a run pick a free /24 when the default is squatted by a leaked
 // stack (harness contract is `down -v`, but a crashed run can leave 10.254.0.0/24 held).
 export const UAT_DOCKER_SUBNET = process.env.UAT_DOCKER_SUBNET ?? "10.254.0.0/24";
+
+/**
+ * #1306 Task 22: the `jarv1s` worker container can't reach a fixture server bound on the HOST's
+ * 127.0.0.1 — inside the container that address means the container itself.
+ *
+ * The obvious next move, reaching the host through the Docker bridge network's gateway address,
+ * was tried and does not work: the first live run of the board UAT timed out on every crawl fetch
+ * because ufw (active on this project's dev box, and the Ubuntu default) drops container traffic
+ * arriving at the host's gateway address. Fixing that would mean asking every developer and CI
+ * image to add a firewall rule before the suite could pass.
+ *
+ * So the fixture origin runs as its OWN container on the stack's Compose network, reachable by
+ * container name over Docker's embedded DNS. Container-to-container traffic on a user-defined
+ * network crosses no host firewall, and the name is derived from the project name — known before
+ * the container exists, which is what lets the base URL be written into the stack's env file up
+ * front. It is `docker run`, not a Compose service, because the ruling that neither
+ * JARVIS_RUNTIME_MODE nor JARVIS_E2E_MODULE_FETCH_BASE may appear in a checked-in compose file
+ * applies just as much to the origin they point at.
+ */
+export function jobSearchFixtureContainerName(projectName: string): string {
+  return `${projectName}-jsfixture`;
+}
+
+/** The URL the `jarv1s` and `seed` containers use to reach the fixture origin (see above). */
+export function jobSearchFixtureBaseUrlFor(projectName: string): string {
+  return `http://${jobSearchFixtureContainerName(projectName)}:${JOB_SEARCH_FIXTURE_CONTAINER_PORT}`;
+}
+
+/** The line fixture-server-cli.ts prints once its listen() has resolved. */
+const FIXTURE_READY_LOG = "[job-search-fixture] listening on";
+const FIXTURE_READY_TIMEOUT_MS = 30_000;
+
+/**
+ * #1306 Task 22: starts the fixture origin as a detached container on the stack's Compose network
+ * and waits until it is genuinely accepting connections.
+ *
+ * Runs the same image the stack runs, which already carries `tests/uat/fixtures/**` and
+ * `node_modules/.bin/tsx` (see .dockerignore's carve-outs) — exactly how the `seed` and
+ * `module-install` ops services run repo TypeScript in-network. Nothing is published to the host.
+ *
+ * The wait polls `docker logs` for the CLI's readiness line rather than sleeping. A fixture that
+ * dies at startup surfaces here, as a timeout naming the container, instead of silently much
+ * later as "the board has no matches" — which is precisely how the ufw failure this replaced
+ * presented, and it cost a 2.7-minute Phase 7 timeout to diagnose.
+ */
+export async function startJobSearchFixtureContainer(projectName: string): Promise<void> {
+  const name = jobSearchFixtureContainerName(projectName);
+  await runCommand("docker", [
+    "run",
+    "--detach",
+    "--name",
+    name,
+    "--network",
+    `${projectName}_jarv1s`,
+    `ghcr.io/motioneso/jarv1s:${process.env.JARVIS_IMAGE_TAG ?? "uat-smoke"}`,
+    "node_modules/.bin/tsx",
+    "tests/uat/fixtures/fixture-server-cli.ts"
+  ]);
+
+  const deadline = Date.now() + FIXTURE_READY_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    // 2>&1 is not available here (runCapture inherits stderr), and the CLI prints readiness on
+    // stdout, so plain `docker logs` is enough.
+    const logs = await runCapture("docker", ["logs", name]).catch(() => "");
+    if (logs.includes(FIXTURE_READY_LOG)) {
+      return;
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 250));
+  }
+  throw new Error(
+    `job-search fixture container ${name} never reported ready; ` +
+      `check \`docker logs ${name}\` before it is removed`
+  );
+}
+
+/**
+ * Removes the fixture container. MUST run before `docker compose down -v`: an outside container
+ * still attached to the Compose network blocks the network's removal, which would then trip
+ * assertNoLeakedResources on a run that was otherwise clean. Idempotent and never throws — a
+ * teardown helper that can fail is a teardown helper that leaks.
+ */
+export async function removeJobSearchFixtureContainer(projectName: string): Promise<void> {
+  await runCommand("docker", ["rm", "--force", jobSearchFixtureContainerName(projectName)]).catch(
+    () => {}
+  );
+}
 
 // #1024/#1000: prod's fixed host port is 1533 (JARVIS_WEB_PORT default). Rather than editing the
 // prod-shaped compose file to support a Docker-assigned ephemeral port (spec §3.4 option 2), Phase
@@ -90,7 +177,16 @@ const UAT_CLI_RUNNER_RPC_SECRET = "uat-only-not-real";
  * `stub` embed provider for the `bare` level (no users → nothing to embed → no reason to pull the
  * real embedding model into a per-run, per-project model-cache volume; spec §3.3).
  */
-export function writeUatEnvFile(input: { readonly webPort: number }): UatEnvFile {
+export function writeUatEnvFile(input: {
+  readonly webPort: number;
+  // #1306 Task 22: opt-in, absent by default. When set, activates
+  // apps/worker/src/external-module-job-handler.ts's host-side createFetch bypass so the
+  // job-search module's crawl hits a fixture origin instead of the real LinkedIn/freehire.me —
+  // provisioner-only, per the ruling that neither JARVIS_RUNTIME_MODE nor
+  // JARVIS_E2E_MODULE_FETCH_BASE may appear in any checked-in compose file, .env.example, or dev
+  // script. See provisionForUat's jobSearchFixture wiring.
+  readonly jobSearchFixtureBaseUrl?: string;
+}): UatEnvFile {
   const dir = mkdtempSync(join(tmpdir(), "jarv1s-uat-"));
   const path = join(dir, "env.production.local");
   writeFileSync(
@@ -100,8 +196,8 @@ export function writeUatEnvFile(input: { readonly webPort: number }): UatEnvFile
       `JARVIS_WEB_PORT=${input.webPort}`,
       // #1026: Playwright drives this instance at http://127.0.0.1:<webPort> (see baseURL
       // below), which is a DIFFERENT origin than better-auth's "http://localhost:<port>"
-      // default (readTrustedOrigins, packages/auth/src/index.ts) — 127.0.0.1 and localhost
-      // are distinct origins for its exact-string check, so login was rejected with
+      // default (resolveAuthOriginConfig, packages/auth/src/runtime-config.ts) — 127.0.0.1 and
+      // localhost are distinct origins for its exact-string check, so login was rejected with
       // "Invalid origin" until this was added. Reuses the same deriveTrustedOrigins helper
       // scripts/setup-prod.ts uses for real deploys (#379) rather than hand-rolling the list.
       `JARVIS_AUTH_TRUSTED_ORIGINS=${deriveTrustedOrigins({ webPort: String(input.webPort), publicOrigin: "127.0.0.1" })}`,
@@ -136,6 +232,16 @@ export function writeUatEnvFile(input: { readonly webPort: number }): UatEnvFile
       // input — hence env_file: here, not the seed container's docker -e args below.
       "JARVIS_UAT_SEED_CONFIRM=1",
       "JARVIS_UAT_NEWS_TRANSIENT_INPUT=uat-transient.invalid",
+      // #1306 Task 22: absent unless a caller passes jobSearchFixtureBaseUrl — see this
+      // function's param doc. JARVIS_RUNTIME_MODE alone (without the base URL) would throw at
+      // host boot per resolveE2eFetchOverride's fail-closed guard, so these two are written
+      // together or not at all.
+      ...(input.jobSearchFixtureBaseUrl
+        ? [
+            "JARVIS_RUNTIME_MODE=e2e",
+            `JARVIS_E2E_MODULE_FETCH_BASE=${input.jobSearchFixtureBaseUrl}`
+          ]
+        : []),
       ""
     ].join("\n"),
     { mode: 0o600 }
@@ -261,6 +367,9 @@ export type SeedHook = (ctx: {
   readonly level: UatSeedLevel;
   readonly excludeChunks?: readonly string[];
   readonly withoutNewsJsonBinding?: boolean;
+  /** N42/#57: the job-search fixture's docker-reachable base URL — see provisionForUat's
+   *  jobSearchFixtureBaseUrl computation. Absent unless withJobSearchFixture is set. */
+  readonly jobSearchAiProviderBaseUrl?: string;
 }) => Promise<void>;
 
 // #1024/#1000: Phase 1 ships zero seed data by design (spec §8.1 acceptance = bare level only).
@@ -280,7 +389,8 @@ export const composeSeedHook: SeedHook = async ({
   projectName,
   level,
   excludeChunks,
-  withoutNewsJsonBinding
+  withoutNewsJsonBinding,
+  jobSearchAiProviderBaseUrl
 }) => {
   await runCommand(
     "docker",
@@ -295,6 +405,11 @@ export const composeSeedHook: SeedHook = async ({
       `JARVIS_UAT_SEED_EXCLUDE_CHUNKS=${(excludeChunks ?? []).join(",")}`,
       "-e",
       `JARVIS_UAT_WITHOUT_NEWS_JSON_BINDING=${withoutNewsJsonBinding === true ? "1" : "0"}`,
+      "-e",
+      // N42/#57: empty string reads as absent in cli.ts (`|| undefined`) — same "always pass,
+      // empty means off" shape as the other -e values here, rather than omitting the flag
+      // entirely.
+      `JARVIS_UAT_JOB_SEARCH_AI_BASE_URL=${jobSearchAiProviderBaseUrl ?? ""}`,
       "-e",
       "JARVIS_UAT_SEED_CONFIRM=1",
       "seed"
@@ -490,23 +605,37 @@ async function waitForReady(url: string, timeoutMs = 120_000): Promise<void> {
 export interface UatProvisionOptions {
   readonly excludeChunks?: readonly string[];
   readonly withoutNewsJsonBinding?: boolean;
+  // #1306 Task 22: opt-in, absent by default — mirrors REAL_CHAT_TOKEN_TRIGGER_ENV's "no-op
+  // unless asked" shape. tests/uat/run-uat.ts threads this from job-search-board.uat.spec.ts's
+  // exported `uatLevel` object. One flag turns on the whole fixture-backed pipeline: the crawl
+  // fetch bypass (jobSearchFixtureBaseUrl -> writeUatEnvFile) AND, per N42/#57, the fake
+  // `openai-compatible` AI provider seeded for scoring (same base URL, threaded into
+  // composeSeedHook below) — both point at the one fixture origin this starts.
+  readonly withJobSearchFixture?: boolean;
 }
 
 export function buildSeedHookInput(
   projectName: string,
   level: UatSeedLevel,
-  opts?: UatProvisionOptions
+  opts?: UatProvisionOptions,
+  // N42/#57: NOT part of UatProvisionOptions — provisionForUat computes this itself (the fixture
+  // server's docker-reachable base URL) and passes it through explicitly, the same way it already
+  // threads jobSearchFixtureBaseUrl into writeUatEnvFile below, rather than asking every caller of
+  // UatProvisionOptions to compute a Docker bridge gateway address by hand.
+  jobSearchAiProviderBaseUrl?: string
 ): {
   projectName: string;
   level: UatSeedLevel;
   excludeChunks?: readonly string[];
   withoutNewsJsonBinding?: boolean;
+  jobSearchAiProviderBaseUrl?: string;
 } {
   return {
     projectName,
     level,
     excludeChunks: opts?.excludeChunks,
-    withoutNewsJsonBinding: opts?.withoutNewsJsonBinding
+    withoutNewsJsonBinding: opts?.withoutNewsJsonBinding,
+    jobSearchAiProviderBaseUrl
   };
 }
 
@@ -554,7 +683,16 @@ export async function provisionForUat(
   while (remainingCandidates.length > 0) {
     const { projectName } = generateUatRunId();
     const webPort = await findAvailablePort(remainingCandidates);
-    const envFile = writeUatEnvFile({ webPort });
+    // #1306 Task 22: opt-in (see UatProvisionOptions.withJobSearchFixture). Unlike
+    // realChatEnvFile above this is per-attempt, not once before the loop: the fixture is a
+    // container on THIS attempt's Compose network, so a port-bind retry gets a fresh one under
+    // the new project name. The URL is knowable now — it is just the container's name — which is
+    // what lets it be written into the env file the stack starts with, several steps before the
+    // container itself exists.
+    const jobSearchFixtureBaseUrl = opts?.withJobSearchFixture
+      ? jobSearchFixtureBaseUrlFor(projectName)
+      : undefined;
+    const envFile = writeUatEnvFile({ webPort, jobSearchFixtureBaseUrl });
     process.env.JARVIS_ENV_FILE = envFile.path;
     process.env.JARVIS_IMAGE_TAG ??= "uat-smoke";
     // #1024/#1000: must be exported for every retry iteration, not just the first — a TOCTOU
@@ -562,10 +700,17 @@ export async function provisionForUat(
     // interpolate the stale (or default/prod) port. See uatComposeInterpolationEnv's doc comment.
     Object.assign(process.env, uatComposeInterpolationEnv({ webPort }));
 
-    const teardownCompose = () =>
-      runCommand("docker", buildUatComposeArgs(projectName, ["down", "-v"])).catch((error) => {
-        console.error(`teardown failed for ${projectName}:`, error);
-      });
+    // #1306: the fixture container is removed FIRST — an outside container still attached to the
+    // Compose network blocks `down -v` from removing that network, and the leak assertion that
+    // follows would then fail on an otherwise clean run.
+    const teardownCompose = async () => {
+      await removeJobSearchFixtureContainer(projectName);
+      await runCommand("docker", buildUatComposeArgs(projectName, ["down", "-v"])).catch(
+        (error) => {
+          console.error(`teardown failed for ${projectName}:`, error);
+        }
+      );
+    };
 
     try {
       console.log(`[uat] provisioning ${projectName} on port ${webPort}`);
@@ -588,7 +733,14 @@ export async function provisionForUat(
         console.log(`[uat] ${step.description}`);
         await runCommand(step.command, step.args);
       }
-      await composeSeedHook(buildSeedHookInput(projectName, level, opts));
+      // #1306: after the plan loop, because the Compose network it attaches to does not exist
+      // until the first `up`; before the seed hook, so the fixture origin is already answering by
+      // the time anything can reach for it.
+      if (jobSearchFixtureBaseUrl !== undefined) {
+        console.log(`[uat] starting job-search fixture origin at ${jobSearchFixtureBaseUrl}`);
+        await startJobSearchFixtureContainer(projectName);
+      }
+      await composeSeedHook(buildSeedHookInput(projectName, level, opts, jobSearchFixtureBaseUrl));
       const baseURL = `http://127.0.0.1:${webPort}`;
       await waitForReady(`${baseURL}/health/ready`);
       console.log(`[uat] reachable at ${baseURL} after ${Date.now() - overallStart}ms`);
@@ -613,7 +765,8 @@ export async function provisionForUat(
       if (error instanceof PortBindConflictError) {
         // #1024/#1000: Coordinator condition 1 — findAvailablePort (Task 2) only proved this port
         // free at probe time; docker just told us another process won the bind race. Retry with
-        // the next untried candidate instead of flaking the whole gate.
+        // the next untried candidate instead of flaking the whole gate. The fixture container (if
+        // any) went down with teardownCompose above and is recreated under the next project name.
         console.warn(
           `[uat] port ${webPort} lost the bind race after probing free; retrying with next candidate (#1024)`
         );

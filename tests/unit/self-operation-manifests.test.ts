@@ -9,6 +9,7 @@ import { newsModuleManifest } from "../../packages/news/src/manifest.js";
 import { emailModuleManifest } from "../../packages/email/src/manifest.js";
 import { calendarModuleManifest } from "../../packages/calendar/src/manifest.js";
 import { webModuleManifest } from "../../packages/web-research/src/manifest.js";
+import { sportsModuleManifest } from "../../packages/sports/src/manifest.js";
 import { getBuiltInModuleManifests } from "../../packages/module-registry/src/index.js";
 import { isSelfOperationExcluded } from "../../packages/ai/src/gateway/self-operation.js";
 import type { ModuleAssistantToolManifest } from "../../packages/module-sdk/src/index.js";
@@ -194,6 +195,24 @@ describe("News self-operation manifest classification", () => {
   });
 });
 
+const GRANTED_AT_INSTALL_SPORTS_TOOLS = ["sports.followTeam", "sports.unfollowTeam"];
+
+describe("Sports self-operation manifest classification", () => {
+  it("classifies both follow tools as granted_at_install", () => {
+    const tools = sportsModuleManifest.assistantTools ?? [];
+    for (const name of GRANTED_AT_INSTALL_SPORTS_TOOLS) {
+      const tool = tools.find((candidate) => candidate.name === name);
+      expect(tool, `expected tool ${name} to exist`).toBeDefined();
+      expect(tool?.risk).toBe("write");
+      expect(tool?.actionFamilyId).toBe("sports_follows");
+      expect(tool?.executionPolicy).toBe("auto");
+      expect(tool?.selfOperationGrant, `expected ${name} to be granted_at_install`).toBe(
+        "granted_at_install"
+      );
+    }
+  });
+});
+
 describe("Email self-operation manifest classification", () => {
   it("classifies email.draftReply as granted_at_install", () => {
     const tools = emailModuleManifest.assistantTools ?? [];
@@ -290,8 +309,31 @@ const PLANNED_CONFIRM_ALWAYS_TOOL_NAMES = [
   "web.read"
 ];
 
+describe("Sports/News denylist check (#1265)", () => {
+  it("neither news nor sports write tools intersect the Spec 1 excluded set", () => {
+    const modules = [newsModuleManifest, sportsModuleManifest];
+    for (const manifest of modules) {
+      for (const tool of manifest.assistantTools ?? []) {
+        if (tool.risk === "read") continue;
+        expect(
+          isSelfOperationExcluded(manifest.id, tool),
+          `expected ${manifest.id}.${tool.name} not to be self-operation-excluded`
+        ).toBe(false);
+      }
+    }
+  });
+
+  // ALSO-2: the check above only ever exercises the false branch (nothing in news/sports is
+  // excluded), so it can never fail if isSelfOperationExcluded were stubbed to always return
+  // false. Assert the true branch against a real SELF_OPERATION_EXCLUSIONS entry
+  // (self_authority.settings, prefix "settings.yolo.") so a regression there is caught.
+  it("matches a known-excluded moduleId/tool-name-prefix pair (self_authority.settings)", () => {
+    expect(isSelfOperationExcluded("settings", { name: "settings.yolo.enable" })).toBe(true);
+  });
+});
+
 describe("Complete built-in self-operation inventory (#1263)", () => {
-  it("classifies every built-in write/destructive tool across exactly the three legal buckets, summing to 46", () => {
+  it("classifies every built-in write/destructive tool across exactly the three legal buckets, summing to 48", () => {
     // People declares its grants in packages/people/src/tools.ts, not a manifest.ts — this
     // walks the real getBuiltInModuleManifests() registry (which resolves that indirection),
     // so it does not undercount the way a manifest.ts-only grep would (34 instead of 38).
@@ -337,7 +379,9 @@ describe("Complete built-in self-operation inventory (#1263)", () => {
       `expected zero excluded built-in write tools, found: ${excluded.join(", ")}`
     ).toEqual([]);
 
-    expect(grantedAtInstall.length).toBe(37);
+    // #1265: +2 (sports.followTeam, sports.unfollowTeam), both granted_at_install — the sports
+    // module's first write tools, added on top of #1264's settings-module bump below.
+    expect(grantedAtInstall.length).toBe(39);
     expect(confirmAlways.length).toBe(5);
     expect(userPromotable.length).toBe(4);
 
@@ -352,8 +396,10 @@ describe("Complete built-in self-operation inventory (#1263)", () => {
     // at 4 — 38 total. #1268 then added chat.setResponseStyle (granted_at_install), and #1264
     // added the settings module's seven self-operation tools (theme mode, locale x2, quiet hours,
     // weather location, notification preference, and the mandatory undo-apply tool), all
-    // granted_at_install — 29 + 1 + 7 = 37 granted, 46 write/destructive tools total.
-    expect(grantedAtInstall.length + confirmAlways.length + userPromotable.length).toBe(46);
+    // granted_at_install — 29 + 1 + 7 = 37 granted. #1265 then added sports.followTeam and
+    // sports.unfollowTeam (also granted_at_install) — 37 + 2 = 39 granted, 48 write/destructive
+    // tools total.
+    expect(grantedAtInstall.length + confirmAlways.length + userPromotable.length).toBe(48);
 
     expect(confirmAlways.sort()).toEqual([...PLANNED_CONFIRM_ALWAYS_TOOL_NAMES].sort());
     expect(userPromotable.sort()).toEqual(

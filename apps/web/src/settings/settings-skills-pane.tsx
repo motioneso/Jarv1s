@@ -166,14 +166,14 @@ export function SettingsSkillsPane() {
                   />
                   <button
                     type="button"
-                    className="jds-btn jds-btn--sm jds-btn--ghost"
+                    className="jds-btn jds-btn--sm jds-btn--quiet"
                     onClick={() => openEdit(skill)}
                   >
                     Edit
                   </button>
                   <button
                     type="button"
-                    className="jds-btn jds-btn--sm jds-btn--ghost"
+                    className="jds-btn jds-btn--sm jds-btn--quiet"
                     disabled={deleteMutation.isPending}
                     onClick={() =>
                       confirm({
@@ -238,7 +238,7 @@ export function SettingsSkillsPane() {
             <span style={{ display: "flex", gap: 8 }}>
               <button
                 type="button"
-                className="jds-btn jds-btn--pine jds-btn--sm"
+                className="jds-btn jds-btn--accentSoft jds-btn--sm"
                 disabled={saveMutation.isPending || !name.trim() || !body.trim()}
                 onClick={() => saveMutation.mutate()}
               >

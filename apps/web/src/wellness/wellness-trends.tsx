@@ -123,34 +123,13 @@ export function WellnessTrends({ theme = "light" }: Props) {
           Trends<span className="sub">history</span>
         </div>
         <div className="wl-sec__aside">
-          <div
-            role="group"
-            aria-label="Chart range"
-            style={{
-              display: "inline-flex",
-              background: "var(--surface-2)",
-              borderRadius: "var(--radius-pill)",
-              padding: 3,
-              border: "1px solid var(--border)"
-            }}
-          >
+          <div role="group" aria-label="Chart range" className="wl-rangetoggle">
             {([14, 30] as const).map((v) => (
               <button
                 key={v}
                 type="button"
                 aria-pressed={range === v}
-                style={{
-                  padding: "4px 14px",
-                  border: 0,
-                  borderRadius: "var(--radius-pill)",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  background: range === v ? "var(--surface)" : "transparent",
-                  color: range === v ? "var(--text)" : "var(--text-subtle)",
-                  boxShadow: range === v ? "var(--shadow-xs)" : "none",
-                  transition: "var(--transition-control)"
-                }}
+                className={`wl-rangetoggle__btn${range === v ? " wl-rangetoggle__btn--active" : ""}`}
                 onClick={() => setRange(v)}
               >
                 {v} days
@@ -162,9 +141,7 @@ export function WellnessTrends({ theme = "light" }: Props) {
 
       {checkinsQuery.isError || adherenceQuery.isError ? (
         <div className="wl-chartcard" style={{ padding: "16px 20px" }}>
-          <span style={{ fontSize: 13, color: "var(--text-subtle)" }}>
-            Couldn&apos;t load trend data — try refreshing.
-          </span>
+          <span className="wl-subtle-text">Couldn&apos;t load trend data — try refreshing.</span>
         </div>
       ) : (
         <div className="wl-chartcard">
@@ -215,7 +192,10 @@ export function WellnessTrends({ theme = "light" }: Props) {
                 const c = emoColor(em.core, theme);
                 return (
                   <span key={em.core} className="wl-leg">
-                    <span className="wl-leg__dot" style={{ background: c.tint }} />
+                    <span
+                      className="wl-leg__dot"
+                      style={{ "--em-tint": c.tint } as React.CSSProperties}
+                    />
                     {em.core.charAt(0).toUpperCase() + em.core.slice(1)}
                   </span>
                 );

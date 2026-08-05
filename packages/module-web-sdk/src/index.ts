@@ -13,7 +13,15 @@ import type { ReactNode } from "react";
  * `package.json` under the `"./web"` subpath export. The build-time scanner
  * (`@jarv1s/settings-ui`'s `virtual:jarvis-module-web`) discovers every package declaring that
  * subpath and lazily loads its contribution.
+ *
+ * Also re-exports the full @jarv1s/ui component surface and the JSX runtime shim (#1388
+ * Foundation) so an external module can author screens with the authored `jds-*` component set
+ * without its own React dependency: `scripts/build-external-module.ts`'s web build aliases the
+ * bare "react"/"react-dom" specifiers to `./runtime`/`./react-dom-runtime` and injects
+ * `./runtime`'s `h`/`Fragment` as the JSX pragma target.
  */
+export * from "@jarv1s/ui";
+export * from "./runtime.js";
 export interface ModuleWebContribution {
   /** Must match the module's backend manifest `id` — asserted at scan/test time. */
   readonly moduleId: string;

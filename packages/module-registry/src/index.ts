@@ -68,7 +68,8 @@ import {
   createBriefingsFeedbackTargetVerifier,
   registerBriefingsJobWorkers,
   registerBriefingsRoutes,
-  type ComposeDeps
+  type ComposeDeps,
+  type ExternalBriefingInvoker
 } from "@jarv1s/briefings";
 import {
   CalendarRepository,
@@ -109,6 +110,7 @@ import {
 import { TerminalRpcClient } from "@jarv1s/chat/live";
 import {
   ConnectorsRepository,
+  EmailActionSuppressionRepository,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
   GOOGLE_SYNC_SWEEP_QUEUE_DEFINITIONS,
   GoogleEmailWriteProvider,
@@ -129,7 +131,9 @@ import {
   registerGoogleSyncSweepWorker,
   registerImapSyncWorker,
   registerSourceMonitorWorkers,
+  sharesSubjectToken,
   parseEmailSourceRef,
+  type ActionRowRelevancePort,
   type EmailTaskCreationPort,
   type GoogleApiClient,
   type GoogleConnectionService
@@ -152,6 +156,7 @@ import {
 import { createModuleLogger } from "@jarv1s/module-sdk";
 import type {
   JarvisModuleManifest,
+  JsonJarvisModuleManifest,
   RegisteredFocusSignal,
   RegisteredProactiveMonitorProvider
 } from "@jarv1s/module-sdk";
@@ -239,6 +244,7 @@ import {
 import { registerWeatherRoutes, weatherModuleManifest } from "@jarv1s/weather";
 import {
   configureSportsBriefingService,
+  configureSportsChatTools,
   createEspnDatasetAdapter,
   registerSportsRoutes,
   sportsModuleManifest,
@@ -321,6 +327,14 @@ export type { ChatEngineFactory } from "@jarv1s/chat";
 export type { TerminalRpcConnectOptions, TerminalRpcHandle } from "@jarv1s/ai";
 export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
 export { aggregateFocusSignals } from "@jarv1s/module-sdk";
+// Re-exported for the two external-module rpc construction sites (#1281): they
+// need the same embedder seam built-in modules use, without naming a provider.
+export { createRuntimeEmbeddingProvider } from "./built-in-module-helpers.js";
+// Re-exported for apps/worker's module AI bridge, which must supply the same CLI structured
+// adapter apps/api does or every module worker AI call fails `needs_config` against a
+// CLI-authenticated provider. The worker reaches chat internals through this package rather than
+// taking a direct @jarv1s/chat dependency, exactly as it does for the embedder above.
+export { createCliStructuredAdapterFactory } from "@jarv1s/chat";
 
 export * from "./external/validate.js";
 export * from "./external/types.js";
@@ -529,6 +543,16 @@ export interface BuiltInWorkerDependencies {
    * no `console.*` lands in production worker logs (observability spec #413).
    */
   readonly logger?: FastifyBaseLogger;
+  /**
+   * #1282 Task 2: external (JSON-manifest) module discovery, built by apps/worker (the only
+   * place holding both external-module discovery and the external worker runtime) and
+   * forwarded to the briefings module. Both fields are optional — a host with zero external
+   * modules must still boot, and neither is constructed here: packages/module-registry has
+   * no external discovery and no external worker runtime, so building them in this file
+   * would violate module isolation (J2).
+   */
+  readonly externalBriefingManifests?: readonly JsonJarvisModuleManifest[];
+  readonly invokeExternalBriefing?: ExternalBriefingInvoker;
 }
 
 export function createStructuredChatEngineFactory(options: {
@@ -944,6 +968,7 @@ function createNotificationDigestSender(): NotificationDigestSender {
 export function createEmailTriageFeedbackPort(): EmailTriageFeedbackPort {
   const emailRepository = new EmailRepository();
   const connectorsRepository = new ConnectorsRepository();
+  const suppressionRepository = new EmailActionSuppressionRepository();
   return {
     async record(scopedDb, input) {
       const parsedRef = input.taskSourceRef ? parseEmailSourceRef(input.taskSourceRef) : null;
@@ -974,6 +999,36 @@ export function createEmailTriageFeedbackPort(): EmailTriageFeedbackPort {
         verdict: input.verdict,
         reason: null
       });
+      if (input.subjectSignature) {
+        if (input.verdict === "accepted") {
+          await suppressionRepository.resetAccepted(scopedDb, input.subjectSignature);
+        } else {
+          await suppressionRepository.incrementDismissal(scopedDb, input.subjectSignature);
+        }
+      }
+    }
+  };
+}
+
+/** Boolean-only bridge from connectors to both existing memory retrieval paths. */
+export function createActionRowRelevancePort(): ActionRowRelevancePort {
+  return {
+    async hasRelevantContext(scopedDb, input) {
+      const [vaultChunks, graphResult] = await Promise.all([
+        runtimeMemoryRetriever.retrieve(scopedDb, input.inferredSubject, 5, "vault"),
+        (async () => {
+          const provider = await createRuntimeEmbeddingProvider(scopedDb);
+          return new GraphMemoryRecallService(provider).recall(
+            scopedDb,
+            input.ownerUserId,
+            input.inferredSubject
+          );
+        })()
+      ]);
+      return (
+        graphResult.items.length > 0 ||
+        vaultChunks.some((chunk) => sharesSubjectToken(input.inferredSubject, chunk.text))
+      );
     }
   };
 }
@@ -1128,14 +1183,16 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
             priority: input.priority ?? undefined,
             source: input.source,
             sourceRef: input.sourceRef,
-            externalKey: input.externalKey
+            externalKey: input.externalKey,
+            suggestionMetadata: input.suggestionMetadata
           });
           return { id: task.id };
         }
       };
       const monitorWorkIds = await registerSourceMonitorWorkers(boss, {
         dataContext: deps.dataContext,
-        taskPort: emailTaskPort
+        taskPort: emailTaskPort,
+        actionRowRelevance: createActionRowRelevancePort()
       });
       return [...googleWorkIds, googleSweepWorkId, ...imapWorkIds, ...monitorWorkIds];
     }
@@ -1383,7 +1440,12 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
             preferencesRepository: new PreferencesRepository()
           }),
           sourceContextService: buildRuntimeSourceContextService({ logger: briefingsLogger }),
-          calendarFollowThrough: buildCalendarFollowThroughPort()
+          calendarFollowThrough: buildCalendarFollowThroughPort(),
+          // #1282: injected by apps/worker (external discovery + runtime live only there —
+          // J2). NOT read off `moduleManifests` above, which getBuiltInModuleManifests()
+          // populates and which therefore matches zero external modules forever (J1).
+          externalBriefingManifests: dependencies.externalBriefingManifests,
+          invokeExternalBriefing: dependencies.invokeExternalBriefing
         },
         notificationsRepository: new NotificationsRepository(
           quietHoursPortImpl,
@@ -1514,6 +1576,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
       // static manifest data at import time, before this wiring runs, so it adopts the client
       // via a late-bound setter (mirrors `adoptChatRpcConnection` above for the chat RPC path).
       configureSportsBriefingService(datasetClient);
+      configureSportsChatTools(datasetClient);
       registerSportsRoutes(server, {
         dataContext: deps.dataContext,
         resolveAccessContext: deps.resolveAccessContext,

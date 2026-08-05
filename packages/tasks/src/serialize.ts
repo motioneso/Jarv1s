@@ -6,6 +6,7 @@ import type {
   TaskPreferencesDto,
   TaskTagDto
 } from "@jarv1s/shared";
+import type { TaskSuggestionMetadataV1 } from "@jarv1s/shared";
 
 export function serializeDate(value: Date | string | null): string | null {
   if (value === null) {
@@ -54,7 +55,8 @@ export function serializeTask(task: Task, tags: readonly TaskTag[] = []): TaskDt
     completedAt: serializeDate(task.completed_at),
     createdAt: serializeDate(task.created_at),
     updatedAt: serializeDate(task.updated_at),
-    tags: tags.map(serializeTaskTag)
+    tags: tags.map(serializeTaskTag),
+    suggestionMetadata: task.suggestion_metadata as TaskSuggestionMetadataV1 | null
   };
 }
 

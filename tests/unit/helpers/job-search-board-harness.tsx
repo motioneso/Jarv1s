@@ -1,0 +1,359 @@
+// Shared harness for the BoardScreen suites. This was the top third of
+// job-search-web-board.test.tsx until that file crossed the 1000-line gate and had to be split
+// into a list half and an inspector half; the two halves need byte-identical fixtures and DOM
+// helpers, so they live here rather than being copied.
+//
+// The transport mock reads from the mutable `fixtures` object below rather than being re-mocked
+// per test, which is what lets a single test flip matches.list from rejecting to succeeding
+// between a render and a retry click.
+//
+// Each importing suite still declares its own `vi.mock` of api.ts: vi.mock is hoisted per test
+// file, and this module's own `import * as api` resolves through that same mocked registry.
+import { createElement } from "react";
+import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import { afterEach, beforeEach, vi } from "vitest";
+
+import { BoardScreen } from "../../../external-modules/job-search/src/web/screens/board";
+import * as api from "../../../external-modules/job-search/src/web/api";
+import type {
+  BoardMatch,
+  MatchDetail,
+  PortalListItem
+} from "../../../external-modules/job-search/src/web/board-types";
+import type { FailureCause } from "../../../external-modules/job-search/src/domain/records";
+import type { AssistantSurfaceHandleV1 } from "../../../external-modules/job-search/src/domain/seed-prompt";
+
+// A minimal, in-memory window stand-in — installed file-wide so latch.ts's real
+// window.localStorage calls don't throw under plain node, and so board.tsx's window-focus refetch
+// effect (guarded with `typeof window === "undefined"`) has something to attach its no-op listener
+// to instead of skipping that branch entirely.
+export function installWindowStub(): void {
+  const store = new Map<string, string>();
+  // Listeners are recorded rather than discarded so a test can fire the real window event a
+  // behaviour hangs off — board.tsx's focus refetch is the one that matters, and the previous
+  // no-op stub meant that whole branch attached and was never exercised.
+  windowListeners.clear();
+  scrollToSpy.mockReset();
+  focusSpy.mockReset();
+  documentGetElementByIdSpy.mockClear();
+  (globalThis as unknown as { window: unknown }).window = {
+    scrollY: 480,
+    scrollTo: scrollToSpy,
+    requestAnimationFrame: (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    },
+    localStorage: {
+      getItem: (key: string) => (store.has(key) ? (store.get(key) as string) : null),
+      setItem: (key: string, value: string) => {
+        store.set(key, value);
+      },
+      removeItem: (key: string) => {
+        store.delete(key);
+      }
+    },
+    addEventListener: (type: string, handler: () => void) => {
+      const existing = windowListeners.get(type) ?? [];
+      existing.push(handler);
+      windowListeners.set(type, existing);
+    },
+    removeEventListener: (type: string, handler: () => void) => {
+      const existing = windowListeners.get(type) ?? [];
+      windowListeners.set(
+        type,
+        existing.filter((item) => item !== handler)
+      );
+    }
+  };
+  (globalThis as unknown as { document: unknown }).document = {
+    getElementById: documentGetElementByIdSpy
+  };
+}
+
+const windowListeners = new Map<string, Array<() => void>>();
+export const scrollToSpy = vi.fn();
+export const focusSpy = vi.fn();
+export const documentGetElementByIdSpy = vi.fn(() => ({ focus: focusSpy }));
+
+/** Fires every handler registered for a window event, in registration order. */
+export function fireWindowEvent(type: string): void {
+  for (const handler of windowListeners.get(type) ?? []) handler();
+}
+
+export function match(overrides: Partial<BoardMatch> = {}): BoardMatch {
+  return {
+    id: "m1",
+    title: "Senior Engineer",
+    company: "Acme",
+    fit: 80,
+    want: 70,
+    outsideFrame: false,
+    state: "new",
+    url: "https://example.com/jobs/senior-engineer",
+    location: "Remote — US",
+    source: "LinkedIn",
+    postedAt: "2026-07-15T09:00:00.000Z",
+    ...overrides
+  };
+}
+
+// #1330: the untruncated record job-search.match.get answers with, fetched by board.tsx once a
+// row is selected. A separate helper from match() — MatchDetail is its own type, not
+// BoardMatch-plus-fields (see board-types.ts's own comment on why).
+export function matchDetail(overrides: Partial<MatchDetail> = {}): MatchDetail {
+  return {
+    id: "m1",
+    title: "Senior Engineer",
+    company: "Acme",
+    url: "https://example.com/jobs/senior-engineer",
+    body: "Build reliable systems with a small product team.",
+    fit: 80,
+    want: 70,
+    fitReason: "Matches your stated skills.",
+    wantReason: "Aligns with your stated priorities.",
+    outsideFrame: false,
+    scoredAt: "2026-07-29T18:00:00.000Z",
+    state: "new",
+    ...overrides
+  };
+}
+
+export function cause(overrides: Partial<FailureCause> = {}): FailureCause {
+  return {
+    kind: "rate_limited",
+    sourceId: "linkedin",
+    summary: "LinkedIn rate-limited this run.",
+    retrieved: 3,
+    expected: 10,
+    lastOkAt: null,
+    nextAction: "We'll retry automatically.",
+    retryAt: null,
+    disabled: false,
+    ...overrides
+  };
+}
+
+export function portal(overrides: Partial<PortalListItem> = {}): PortalListItem {
+  return {
+    sourceId: "linkedin",
+    label: "LinkedIn",
+    enabled: true,
+    lastOkAt: null,
+    cause: null,
+    ...overrides
+  };
+}
+
+/** The mutable transport fixtures the per-test invokeTool implementation reads from. A single
+ *  object rather than loose `let`s so importing suites can assign to its fields — a re-exported
+ *  `let` binding is read-only at the import site. */
+export interface BoardFixtures {
+  matchesShouldReject: boolean;
+  matchesItems: BoardMatch[];
+  portalsItems: PortalListItem[];
+  /** #1330: job-search.match.get's fixture. `undefined` (the default) means "the test never
+   *  exercises this path" and throws, same as any other unmapped tool name — a test that opens the
+   *  inspector without setting this is deliberately exercising the failure branch, not an
+   *  oversight. */
+  matchGetResult: { match: MatchDetail | null } | undefined;
+  matchGetShouldReject: boolean;
+  /** job-search.resume.get's fixture — the board reads it to decide whether to show the
+   *  no-résumé notice. `null` (the default) is "no résumé on file", which is what every existing
+   *  board test was implicitly asserting against before the read existed. Set a summary to put
+   *  one on file. */
+  resumeGetResult: { version: number; content: string; updatedAt: string } | null;
+  /** job-search.matches.count's failure switch — the shape a 429 arrives in. Separate from
+   *  `matchesShouldReject` because the whole point of the count tool is that the two reads fail
+   *  independently: a rate-limited count must not provoke a whole-board read. */
+  countShouldReject: boolean;
+  matchesTruncated: boolean;
+}
+
+export const fixtures: BoardFixtures = {
+  matchesShouldReject: false,
+  matchesItems: [],
+  portalsItems: [],
+  matchGetResult: undefined,
+  matchGetShouldReject: false,
+  resumeGetResult: null,
+  countShouldReject: false,
+  matchesTruncated: false
+};
+
+function installTransportMock(): void {
+  vi.mocked(api.invokeTool).mockImplementation(async (name: string, params?: unknown) => {
+    if (name === "job-search.matches.list") {
+      if (fixtures.matchesShouldReject) throw new Error("Request failed (500)");
+      const offset = (params as { offset?: number } | undefined)?.offset ?? 0;
+      return {
+        items: offset === 0 ? fixtures.matchesItems : [],
+        hasMore: fixtures.matchesTruncated
+      };
+    }
+    if (name === "job-search.portal.list") {
+      return { portals: fixtures.portalsItems };
+    }
+    // The search poll's change detector. Derived from `matchesItems` rather than being its own
+    // fixture field so the number can never disagree with the rows the list tool would page — a
+    // count that drifted from the rows would let a test "pass" against a poll that either missed a
+    // finished search or never called one finished. The two filters mirror the SQL in
+    // worker/store-sql.ts and `isScored` in web/board-types.ts.
+    if (name === "job-search.matches.count") {
+      if (fixtures.countShouldReject) throw new Error("Request failed (429)");
+      const active = fixtures.matchesItems.filter((item) => item.state !== "dismissed");
+      return {
+        profileId: "p1",
+        active: active.length,
+        scored: active.filter((item) => item.state !== "unscored" && item.want !== null).length
+      };
+    }
+    if (name === "job-search.match.get") {
+      if (fixtures.matchGetShouldReject) throw new Error("Request failed (500)");
+      if (fixtures.matchGetResult !== undefined) return fixtures.matchGetResult;
+      throw new Error(`unexpected invokeTool ${name}`);
+    }
+    if (name === "job-search.resume.get") {
+      return { resume: fixtures.resumeGetResult };
+    }
+    throw new Error(`unexpected invokeTool ${name}`);
+  });
+}
+
+/** Registers the beforeEach/afterEach both suites share. Called at the top level of each suite so
+ *  the hooks land on that file's own runner. */
+export function setupBoardHarness(): void {
+  beforeEach(() => {
+    installWindowStub();
+    fixtures.matchesShouldReject = false;
+    fixtures.matchesItems = [];
+    fixtures.portalsItems = [];
+    fixtures.matchGetResult = undefined;
+    fixtures.matchGetShouldReject = false;
+    fixtures.resumeGetResult = null;
+    fixtures.countShouldReject = false;
+    fixtures.matchesTruncated = false;
+    vi.mocked(api.invokeTool).mockReset();
+    vi.mocked(api.runQueue).mockReset();
+    vi.mocked(api.runQueue).mockResolvedValue({ kind: "queued" });
+    installTransportMock();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+}
+
+export async function renderBoard(
+  profileId = "p1",
+  assistantSurface?: AssistantSurfaceHandleV1
+): Promise<ReactTestRenderer> {
+  let renderer!: ReactTestRenderer;
+  await act(async () => {
+    renderer = create(createElement(BoardScreen, { profileId, assistantSurface }));
+  });
+  return renderer;
+}
+
+// Task 20/#1304: a fake satisfying AssistantSurfaceHandleV1 structurally (module isolation means
+// board.tsx never imports the host's real handle, only this local mirror) — submitTurn is a spy
+// so Discuss's own wiring can be asserted on without a real chat-surface test double.
+export function fakeAssistantSurface(): AssistantSurfaceHandleV1 {
+  return {
+    setSurfaceKey: vi.fn(),
+    seedContext: vi.fn(async () => undefined),
+    seedComposer: vi.fn(),
+    submitTurn: vi.fn(async () => undefined),
+    Surface: () => null
+  };
+}
+
+// Flushes the microtask queue a few times over — enough for a mocked invokeTool/runQueue's
+// resolved promise to reach its own .then() chain (job-search-web-root.test.tsx's own flush()).
+export async function flush(renderer: ReactTestRenderer): Promise<void> {
+  for (let i = 0; i < 4; i++) {
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+  void renderer;
+}
+
+export function flatten(node: unknown): string {
+  if (node == null) return "";
+  if (typeof node === "string") return node;
+  if (Array.isArray(node)) return node.map(flatten).join(" ");
+  if (typeof node === "object" && "children" in (node as { children?: unknown })) {
+    return flatten((node as { children?: unknown }).children);
+  }
+  return "";
+}
+
+export function text(renderer: ReactTestRenderer): string {
+  return flatten(renderer.toJSON()).replace(/\s+/g, " ").trim();
+}
+
+export function findButton(renderer: ReactTestRenderer, name: RegExp) {
+  return renderer.root.findAllByType("button").find((item) => {
+    const children = Array.isArray(item.props.children)
+      ? item.props.children
+      : [item.props.children];
+    return children.some((child: unknown) => typeof child === "string" && name.test(child));
+  });
+}
+
+// Deliberately not scoped to <p> — the error branch's outer container is a <div role="alert">,
+// not a paragraph, so this must match on role alone regardless of host element type.
+export function findByRole(renderer: ReactTestRenderer, role: string) {
+  return renderer.root.findAll((item) => (item.props as { role?: string }).role === role);
+}
+
+// Mockup rewrite (task #98): rows are match-row.tsx's own `.jsm-row` now — a single button that
+// IS the whole row (no separate title button inside it the way the old two-part `.jsm-krow` row
+// had), with the title nested three levels down inside `.jsm-row__main > .jsm-row__heading >
+// .jds-card-title`. This helper follows that rewrite: find each row by its own `jsm-row` class,
+// then read the title span directly rather than "the row's first button" (there is no second
+// button to disambiguate from any more — see findRowButton below for opening a row).
+export function rowTitles(renderer: ReactTestRenderer): string[] {
+  return renderer.root
+    .findAll((item) =>
+      String((item.props as { className?: string }).className ?? "")
+        .split(" ")
+        .includes("jsm-row")
+    )
+    .map((row) => {
+      const titleSpan = row.findAllByType("span").find((span) =>
+        String((span.props as { className?: string }).className ?? "")
+          .split(" ")
+          .includes("jds-card-title")
+      );
+      return flatten(titleSpan?.props.children).trim();
+    });
+}
+
+// Opens a row by its title. match-row.tsx's row button carries no literal string as a direct
+// child (unlike every other button in this screen — Search now, Try again, Fit/Want sort chips,
+// bucket tabs, Save/Pass/Discuss — which all still have one and keep using findButton() above), so
+// finding "the button whose title text matches" needs a flatten() over the row's own subtree
+// rather than a direct-child scan. Scoped to `.jsm-row` so this can't accidentally match Inspector,
+// sort, tab or banner buttons that also happen to be on the page.
+export function findRowButton(renderer: ReactTestRenderer, name: RegExp) {
+  return renderer.root
+    .findAll((item) =>
+      String((item.props as { className?: string }).className ?? "")
+        .split(" ")
+        .includes("jsm-row")
+    )
+    .find((row) => name.test(flatten(row.children)));
+}
+
+// K2/K1 (job-search-keyline.test.tsx's own copy): a class-membership predicate over
+// renderer.root, not over the toJSON() tree flatten()/text() walk — needed whenever a test cares
+// about *how many* elements carry a class (a tab's own count span, a divider count) rather than
+// just whether the class's text appears anywhere in the page.
+export function findByClass(renderer: ReactTestRenderer, className: string) {
+  return renderer.root.findAll((item) =>
+    String((item.props as { className?: string }).className ?? "")
+      .split(" ")
+      .includes(className)
+  );
+}

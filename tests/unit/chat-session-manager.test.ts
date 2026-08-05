@@ -497,7 +497,6 @@ describe("ChatSessionManager passive retrieval", () => {
     );
 
     await manager.submitTurn("u1", "Ben", "what did we decide?");
-
     expect(engine.submitted.at(-1)).toContain("<retrieved_context>");
     expect(engine.submitted.at(-1)).toContain("what did we decide?");
     expect(recordTurn).toHaveBeenCalledWith(
@@ -508,7 +507,10 @@ describe("ChatSessionManager passive retrieval", () => {
         provider: "anthropic",
         model: "sonnet"
       },
-      { invokedToolNames: expect.any(Set), answerProvenance: undefined, attachments: undefined },
+      expect.objectContaining({
+        invokedToolNames: expect.any(Set),
+        actionResults: []
+      }),
       "drawer"
     );
   });

@@ -232,6 +232,7 @@ export async function reconcileModules(options: ReconcileModulesOptions): Promis
       await client.query(
         `UPDATE app.external_modules
             SET status = 'enabled',
+                manifest_hash = $3,
                 package_hash = $2,
                 disabled_reason = NULL,
                 staged_version = NULL,
@@ -241,7 +242,7 @@ export async function reconcileModules(options: ReconcileModulesOptions): Promis
                 staged_source = NULL,
                 updated_at = now()
           WHERE id = $1`,
-        [row.id, row.staged_package_hash]
+        [row.id, row.staged_package_hash, discovery!.manifestHash]
       );
       report.accepted.push(row.id);
     }

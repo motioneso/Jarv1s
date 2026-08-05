@@ -20,7 +20,13 @@ export default tseslint.config(
       ".claude/worktrees/**",
       ".claude/workflows/**",
       "docs/audit/**",
-      "docs/audits/**"
+      "docs/audits/**",
+      // #1326: unit-test fixtures mkdtemp() a ".tmp-*" directory directly in the repo
+      // root (external-worker-runtime, external-module-invocation-budget,
+      // module-sdk-worker) rather than os.tmpdir(); a concurrent lint run can otherwise
+      // enumerate one mid-test and crash with ENOENT when the test's afterEach removes
+      // it first.
+      "**/.tmp-*/**"
     ]
   },
   {

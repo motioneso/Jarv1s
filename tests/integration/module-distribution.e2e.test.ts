@@ -17,6 +17,7 @@ import { Client } from "pg";
 
 import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
 import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { getExternalModuleRegistrations } from "@jarv1s/module-registry/node";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { packModuleArtifact } from "../../scripts/publish-module-registry.js";
@@ -286,6 +287,9 @@ describe("module distribution e2e (#964)", () => {
     const ledger = await client.query<{ n: number }>(
       "SELECT count(*)::int AS n FROM app.module_schema_migrations WHERE module_id = 'acme-widgets'"
     );
+    const baseline = await client.query<{ manifest_hash: string; package_hash: string }>(
+      "SELECT manifest_hash, package_hash FROM app.external_modules WHERE id = 'acme-widgets'"
+    );
     await client.end();
     expect(table.rows[0].t).toBe("app.acme_widgets_items");
     expect(roles.rows.some((r) => r.rolname === "jarvis_mod_acme_widgets_runtime")).toBe(true);
@@ -293,6 +297,11 @@ describe("module distribution e2e (#964)", () => {
       roles.rows.find((r) => r.rolname === "jarvis_mod_acme_widgets_install")?.rolcanlogin
     ).toBe(false);
     expect(ledger.rows[0]!.n).toBe(1);
+    const discovery = getExternalModuleRegistrations({ modulesDir }).discoveries[0]!;
+    expect(baseline.rows[0]).toEqual({
+      manifest_hash: discovery.manifestHash,
+      package_hash: discovery.packageHash
+    });
 
     // Boot discovery is a startup-only snapshot (#917) — restart to pick up the module
     // reconcile just installed onto disk.

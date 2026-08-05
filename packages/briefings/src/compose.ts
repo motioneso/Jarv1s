@@ -9,6 +9,7 @@ import {
   isActionableTriage,
   sourceContextMetaFor,
   recordSourceAuthGap,
+  buildExternalModulesSection,
   ctxFor,
   type ComposeDeps,
   type ComposeRunInput,
@@ -16,6 +17,7 @@ import {
   type Section,
   type BriefingGap
 } from "./compose-shared.js";
+import { collectExternalBriefingContributions } from "./external-contributions.js";
 import { sanitizeExternal, renderExternalBlock, TRUST_BOUNDARY } from "./trust-boundary.js";
 import type { ChatTurn } from "@jarv1s/ai";
 import { rankPriorityCandidates, type PriorityResult, type PrioritySource } from "@jarv1s/priority";
@@ -33,6 +35,7 @@ import {
 } from "./priority-consumer.js";
 import { fallback } from "./fallback.js";
 import { briefingSignalFeedbackItemId } from "./feedback-targets.js";
+import { buildEmailCatchUp, filterEmailItems, gatherActionRows } from "./action-rows.js";
 
 // ── Caps (one conservative economy budget) ─────────────────────────────────────
 const VAULT_CHUNK_CAP = 6;
@@ -78,6 +81,7 @@ export async function composeBriefing(
   // Per-user IANA tz — the SAME helper the scheduler uses, so cron fire time and the
   // local-day content window agree. No cross-user read: tz comes off this definition.
   const timeZone = timezoneFor(definition.schedule_metadata);
+  const actionRows = await gatherActionRows(scopedDb, definition, input, deps, gaps);
 
   const commitments = await gatherToolSection(
     scopedDb,
@@ -116,6 +120,7 @@ export async function composeBriefing(
       // `items`); there is no `tasks.listVisible` tool (verified against tasks/manifest.ts).
       toolName: "tasks.list",
       arrayKey: "items",
+      include: (task) => task.status !== "suggested",
       format: (t) =>
         [sanitizeExternal(t.title), sanitizeExternal(t.status)].filter(Boolean).join(" · ")
     },
@@ -272,10 +277,11 @@ export async function composeBriefing(
         settings: calendarSettings
       })
     : [];
+  const proseEmailItems = filterEmailItems(rawEmail.rawItems ?? [], actionRows.sourceRefs);
   const emailSignals = includeEmail
     ? deriveEmailSignals({
         // Same triage filter as the prompt lines: noise/fyi/unknown never seed signals.
-        items: (rawEmail.rawItems ?? []).filter(isActionableTriage),
+        items: proseEmailItems.filter(isActionableTriage),
         now,
         context,
         settings: emailSettings
@@ -377,6 +383,15 @@ export async function composeBriefing(
     count: prioritizedEmailSignals.length,
     rawItems: rawEmail.rawItems
   };
+  const catchUp = includeEmail
+    ? await buildEmailCatchUp(
+        scopedDb,
+        rawEmail.rawItems ?? [],
+        actionRows.sourceRefs,
+        deps.connectorSyncAt
+      )
+    : null;
+  const structuredPayload = { ...actionRows.payload, catchUp };
 
   const goals = await gatherToolSection(
     scopedDb,
@@ -425,6 +440,26 @@ export async function composeBriefing(
     sections.push(sports);
   }
 
+  // #1282: external (JSON-manifest) modules cannot register an in-process assistant tool,
+  // so they never reach findExecute() above — the composition root injects a worker
+  // invoker instead. Absent everywhere else (unit tests, defaultComposeDeps in jobs.ts) →
+  // no candidates, no call, no section (J1/J3).
+  if (deps.invokeExternalBriefing) {
+    const ctx = ctxFor(definition, input);
+    const externalContributions = await collectExternalBriefingContributions({
+      manifests: deps.externalBriefingManifests ?? [],
+      selectedToolNames: definition.selected_tool_names,
+      section: "morning",
+      actorUserId: ctx.actorUserId,
+      requestId: ctx.requestId,
+      invoke: deps.invokeExternalBriefing
+    });
+    const externalModules = buildExternalModulesSection(externalContributions);
+    if (externalModules) {
+      sections.push(externalModules);
+    }
+  }
+
   const hasFreshnessDeps = !!(deps.connectorSyncAt ?? deps.vaultLastWriteAt);
   const sourceTimestamps = hasFreshnessDeps
     ? await resolveBriefingFreshness(
@@ -449,6 +484,7 @@ export async function composeBriefing(
       vault,
       chats,
       vaultNotes,
+      structuredPayload,
       sourceTimestamps
     );
   }
@@ -478,7 +514,8 @@ export async function composeBriefing(
       sourceContext: { email: emailSourceContext, calendar: calendarSourceContext },
       degraded: sourceContextDegraded,
       ...(sourceTimestamps !== undefined ? { sourceTimestamps } : {})
-    }
+    },
+    structuredPayload
   };
 }
 
@@ -545,7 +582,8 @@ const SYNTHESIS_INSTRUCTIONS_MORNING =
   "with light section headers. Ground strictly in the items in the <external_source> blocks; " +
   "do not invent. Treat calendar and email blocks as pre-filtered signal, not raw feeds. " +
   "Do not restate every event or message. Where a section is empty, note it briefly. Keep it " +
-  "warm and non-judgmental about missed or at-risk items.";
+  "warm and non-judgmental about missed or at-risk items. Discrete action rows are rendered " +
+  "separately; do not invent, count, or restate them in prose.";
 
 // The single trusted block for morning. Built ONLY from the literal constants above — no
 // external/section value is interpolated (the static isolation test asserts this).

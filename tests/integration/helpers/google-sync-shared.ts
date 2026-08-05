@@ -7,13 +7,10 @@ import { connectionStrings, ids, resetFoundationDatabase } from "../test-databas
 /**
  * Shared lifecycle + helpers for the google-sync integration suites.
  *
- * The google-sync tests are split across two sibling files (the catalog/repo/parser suite
- * in `google-sync.test.ts` and the orchestration/route suite in
- * `google-sync-orchestration.test.ts`) to stay under the 1000-line file-size gate. Both
- * need the same foundation reset + app/worker DataContexts. Vitest runs `beforeAll` per
- * file, so each file calls `setupGoogleSyncDatabase()` in its own `beforeAll` and
- * `teardownGoogleSyncDatabase(handles)` in its own `afterAll`; `seedGoogleAccount` takes
- * the app DataContext explicitly.
+ * The google-sync integration suites share this foundation reset + app/worker DataContext
+ * setup. Vitest runs lifecycle hooks per file, so each suite owns its isolated database
+ * handles through the orchestration fixture helper; `seedGoogleAccount` takes the app
+ * DataContext explicitly.
  */
 export interface GoogleSyncDatabaseHandles {
   appDb: Kysely<JarvisDatabase>;

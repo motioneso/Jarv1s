@@ -129,7 +129,7 @@ function AccountPill(props: {
       {props.onToggleShare ? (
         <button
           type="button"
-          className="jds-btn jds-btn--ghost jds-btn--sm"
+          className="jds-btn jds-btn--quiet jds-btn--sm"
           aria-pressed={props.sharedNow === true}
           onClick={() => props.onToggleShare?.(account)}
         >
@@ -448,7 +448,7 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
           </button>
           <button
             type="button"
-            className="jds-btn jds-btn--ghost jds-btn--sm"
+            className="jds-btn jds-btn--quiet jds-btn--sm"
             disabled={pollRound !== null}
             onClick={() => {
               pollBaseline.current = fingerprint;
@@ -464,7 +464,7 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
         <div className="fnm-chips" role="group" aria-label="Month">
           <button
             type="button"
-            className="jds-btn jds-btn--ghost jds-btn--sm"
+            className="jds-btn jds-btn--quiet jds-btn--sm"
             aria-label="Previous month"
             onClick={() => setMonth(shiftMonth(month, -1))}
           >
@@ -473,7 +473,7 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
           <span className="jds-eyebrow">{monthLabel(month)}</span>
           <button
             type="button"
-            className="jds-btn jds-btn--ghost jds-btn--sm"
+            className="jds-btn jds-btn--quiet jds-btn--sm"
             aria-label="Next month"
             onClick={() => setMonth(shiftMonth(month, 1))}
           >
@@ -503,7 +503,7 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
       <div className="fnm-chips" aria-label="Filters">
         <button
           type="button"
-          className={`jds-btn jds-btn--ghost jds-btn--sm${accountId === null ? " jds-btn--secondary" : ""}`}
+          className={`jds-btn jds-btn--quiet jds-btn--sm${accountId === null ? " jds-btn--secondary" : ""}`}
           aria-pressed={accountId === null}
           onClick={() => setAccountId(null)}
         >
@@ -513,7 +513,7 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
           <button
             key={account.shared ? `${account.ownerUserId}:${account.accountId}` : account.accountId}
             type="button"
-            className={`jds-btn jds-btn--ghost jds-btn--sm${accountId === account.accountId ? " jds-btn--secondary" : ""}`}
+            className={`jds-btn jds-btn--quiet jds-btn--sm${accountId === account.accountId ? " jds-btn--secondary" : ""}`}
             aria-pressed={accountId === account.accountId}
             onClick={() => setAccountId(accountId === account.accountId ? null : account.accountId)}
           >
@@ -541,7 +541,7 @@ export function FeedScreen(props: { hostActions: HostActions }): ReactNodeLike {
         </label>
         <button
           type="button"
-          className={`jds-btn jds-btn--ghost jds-btn--sm${pendingOnly ? " jds-btn--secondary" : ""}`}
+          className={`jds-btn jds-btn--quiet jds-btn--sm${pendingOnly ? " jds-btn--secondary" : ""}`}
           aria-pressed={pendingOnly}
           onClick={() => setPendingOnly(!pendingOnly)}
         >

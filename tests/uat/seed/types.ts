@@ -30,10 +30,27 @@ export const UAT_SEED_CHUNKS: readonly UatSeedChunk[] = [
   "finance"
 ];
 
+// #1306/N33 (Task 22): job-search has NO chunk here, deliberately, and none should be added — not
+// even a no-op. #1087 finding 3 requires job-search to be NOT INSTALLED by default at admin+data,
+// so #1026's absent-module UI path stays reachable; a registered chunk is the vocabulary that
+// invites a future agent to add it to `ADMIN_DATA_CHUNKS` (tests/uat/seed/levels.ts) and silently
+// re-break that path. Task 22 Phase 1 installs the module LIVE via docker-cp + the admin UI (the
+// finance precedent), so seeding a profile/criteria row here would also skip the very onboarding
+// flow that UAT exists to exercise. See docs/superpowers/handoffs/2026-07-27-job-search/
+// rulings-ledger.md#n33 for the full reasoning. If a later spec genuinely needs seeded job-search
+// data, add a real chunk with real content, deliberately — do not resurrect this as a no-op.
+
 export interface SeedOptions {
   readonly level: UatSeedLevel;
   /** #1025: e.g. omit a chunk to prove the absent-module UI path. */
   readonly excludeChunks?: readonly UatSeedChunk[];
   /** #1110: leave module.news unbound to a JSON-capable model, to prove the prerequisite-error path. */
   readonly withoutNewsJsonBinding?: boolean;
+  /**
+   * N42/#57: absent by default (no-op — see seedJobSearchAiProviderChunk). When set, seeds a fake
+   * `openai-compatible` provider/model bound to `module.job-search` pointed at this base URL (the
+   * job-search fixture server's docker-reachable address). Deliberately NOT a UatSeedChunk/
+   * ADMIN_DATA_CHUNKS entry — see ./chunks/job-search-ai.ts's header and N33.
+   */
+  readonly jobSearchAiProviderBaseUrl?: string;
 }

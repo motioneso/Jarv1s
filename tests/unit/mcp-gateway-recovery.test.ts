@@ -142,12 +142,13 @@ describe("logical action terminal results", () => {
       ok: true
     });
     expect(emitted).toEqual([
-      {
+      expect.objectContaining({
         kind: "action_result",
         actionRequestId: handlerRequestIds[0],
         toolName: "demo-module.resume.import",
-        outcome: "executed"
-      }
+        outcome: "executed",
+        result: { text: expect.stringContaining('"imported": true') }
+      })
     ]);
     expect(handlerRequestIds[0]).toMatch(/^mcp_/);
   });
@@ -159,12 +160,13 @@ describe("logical action terminal results", () => {
       ok: true
     });
     expect(emitted).toEqual([
-      {
+      expect.objectContaining({
         kind: "action_result",
         actionRequestId: handlerRequestIds[0],
         toolName: "demo-module.resume.import",
-        outcome: "executed"
-      }
+        outcome: "executed",
+        result: { text: expect.stringContaining('"imported": true') }
+      })
     ]);
   });
 
@@ -178,12 +180,13 @@ describe("logical action terminal results", () => {
       ok: false
     });
     expect(emitted).toEqual([
-      {
+      expect.objectContaining({
         kind: "action_result",
         actionRequestId: handlerRequestIds[0],
         toolName: "demo-module.resume.import",
-        outcome: "error"
-      }
+        outcome: "error",
+        reason: "Tool demo-module.resume.import failed"
+      })
     ]);
   });
 });

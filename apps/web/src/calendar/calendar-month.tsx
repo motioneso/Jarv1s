@@ -1,3 +1,4 @@
+import { DayCell, MonthChip, TodayPill } from "@jarv1s/ui";
 import {
   DOW_SHORT,
   MONTH_NAMES,
@@ -41,43 +42,36 @@ export function CalendarMonth({ cursor, eventsByDay, onPickDay, onPick }: Calend
           const extra = evs.length - 3;
 
           return (
-            <div
+            <DayCell
               key={key + "-" + date.getDate()}
-              className={"cal-mcell" + (out ? " is-out" : "") + (today ? " is-today" : "")}
+              out={out}
+              today={today}
+              onPickDate={() => onPickDay(date)}
+              dateContent={
+                <>
+                  <TodayPill variant="month">{date.getDate()}</TodayPill>
+                  {date.getDate() === 1 ? (
+                    <span className="mo">{(MONTH_NAMES[date.getMonth()] ?? "").slice(0, 3)}</span>
+                  ) : null}
+                </>
+              }
             >
-              <button type="button" className="cal-mcell__date" onClick={() => onPickDay(date)}>
-                <span className="n">{date.getDate()}</span>
-                {date.getDate() === 1 ? (
-                  <span className="mo">{(MONTH_NAMES[date.getMonth()] ?? "").slice(0, 3)}</span>
-                ) : null}
-              </button>
-              <div className="cal-mcell__evs">
-                {shown.map((e) => (
-                  <button
-                    key={e.id}
-                    type="button"
-                    className={"cal-mchip" + (e.kind === "block" ? " is-block" : "")}
-                    style={
-                      {
-                        "--ev": e.kind === "block" ? "var(--accent)" : "var(--steel)"
-                      } as React.CSSProperties
-                    }
-                    onClick={() => onPick(e)}
-                  >
-                    <span className="cal-mchip__dot" />
-                    {!e.allDay ? (
-                      <span className="cal-mchip__t">{fmtTime(e.startMin).replace(":00", "")}</span>
-                    ) : null}
-                    <span className="cal-mchip__title">{e.title}</span>
-                  </button>
-                ))}
-                {extra > 0 ? (
-                  <button type="button" className="cal-mmore" onClick={() => onPickDay(date)}>
-                    {extra} more
-                  </button>
-                ) : null}
-              </div>
-            </div>
+              {shown.map((e) => (
+                <MonthChip
+                  key={e.id}
+                  block={e.kind === "block"}
+                  color={e.kind === "block" ? "var(--accent)" : "var(--steel)"}
+                  time={!e.allDay ? fmtTime(e.startMin).replace(":00", "") : undefined}
+                  title={e.title}
+                  onClick={() => onPick(e)}
+                />
+              ))}
+              {extra > 0 ? (
+                <button type="button" className="cal-mmore" onClick={() => onPickDay(date)}>
+                  {extra} more
+                </button>
+              ) : null}
+            </DayCell>
           );
         })}
       </div>

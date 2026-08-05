@@ -19,7 +19,17 @@ const CORE_BASE = "https://site.api.espn.com/apis/v2/sports";
 const CONTENT_BASE = "https://content.core.api.espn.com/v1/sports/news";
 
 // Hosts ESPN crest/photo URLs resolve to (team.logos + article images).
-export const ESPN_IMAGE_HOSTS: readonly string[] = ["a.espncdn.com", "s.secure.espncdn.com"];
+// These become the module's CSP img-src allowlist via the manifest's connector `imageHosts`, so a
+// host missing here is a silently broken thumbnail, not a fallback. akamaized is ESPN's video-still
+// CDN: any story whose art is a video frame (most soccer analysis pieces) serves its image from
+// there rather than a.espncdn.com, so soccer cards and the news band showed blank art while the US
+// leagues looked fine (Ben 2026-08-01 console report). Adding a host changes the manifest hash —
+// the sports module must be redeployed for the new CSP to reach the browser.
+export const ESPN_IMAGE_HOSTS: readonly string[] = [
+  "a.espncdn.com",
+  "s.secure.espncdn.com",
+  "espnmedia-cdn.akamaized.net"
+];
 
 export const ESPN_FETCH_HOSTS: readonly string[] = [
   "site.api.espn.com",
@@ -74,8 +84,15 @@ function resolve(competitionKey: string): { sport: string; league: string } {
   return { sport: entry.espnSport, league: entry.espnLeague };
 }
 
+// Bounded so `followTeam`'s roster check (sports-service.ts:599-621) can't pin a pooled
+// RLS-scoped DB connection on a hung ESPN request indefinitely. A timeout throws an AbortError
+// here, which rides the same already-fail-closed path as any other adapter error: it's caught by
+// datasets/client.ts's getDataset, degrades to `{ data: [], degraded: true }`, and followTeam
+// already rejects on a degraded/empty teams list — no new catch or bypass needed.
+const ESPN_FETCH_TIMEOUT_MS = 8_000;
+
 async function fetchJson(fetchFn: typeof fetch, url: string, label: string): Promise<unknown> {
-  const response = await fetchFn(url);
+  const response = await fetchFn(url, { signal: AbortSignal.timeout(ESPN_FETCH_TIMEOUT_MS) });
   if (!response.ok) {
     throw new Error(`ESPN ${label} returned ${response.status}`);
   }
@@ -204,6 +221,13 @@ export interface EspnHeadlinesParams {
   readonly competitionKey: string;
   /** ESPN team slug — narrows the news feed to one team (`?team=sf`). */
   readonly teamKey?: string;
+  // Same abbreviation-slug trap as EspnScheduleParams, on the news endpoint this time: soccer
+  // rejects the slug outright — /soccer/eng.1/news?team=ars answers HTTP 400 with a binary body
+  // (verified live 2026-08-01) while ?team=359 returns that club's stories. The throw fell back to
+  // an empty team feed, and the 6-article league feed rarely files under a specific club, so every
+  // soccer card read "No recent news" mid-season (Ben /sports feedback 2026-08-01). The numeric id
+  // is accepted by the US leagues too (mlb ?team=26 === ?team=sf), so it is simply preferred.
+  readonly sourceTeamId?: string | null;
 }
 
 async function listTeams(fetchFn: typeof fetch, params: EspnTeamsParams): Promise<SourceTeamRef[]> {
@@ -267,7 +291,12 @@ async function getSchedule(
   // Numeric id first — the abbreviation slug 404s-to-empty on soccer schedule URLs (see
   // EspnScheduleParams.sourceTeamId); teamKey stays as the fallback for callers without a
   // catalog in hand.
-  const pathKey = params.sourceTeamId ?? teamKey;
+  // Percent-encoded because this is the outbound sink for a key that can originate in an
+  // assistant tool call (#1265 security QA BLOCKING-1c): the value must stay inside its own path
+  // segment no matter what upstream validation did or didn't catch. `getHeadlines` below already
+  // encodes its query-string use of teamKey; this is the same rule for the path use. Catalog-clean
+  // keys ("nfl", "dal", "22529") are unchanged by encoding, so this is invisible in practice.
+  const pathKey = encodeURIComponent(params.sourceTeamId ?? teamKey);
   const data = (await fetchJson(
     fetchFn,
     `${SITE_BASE}/${sport}/${league}/teams/${pathKey}/schedule`,
@@ -342,7 +371,11 @@ async function getHeadlines(
 ): Promise<SourceHeadline[]> {
   const { competitionKey, teamKey } = params;
   const { sport, league } = resolve(competitionKey);
-  const teamFilter = teamKey ? `?team=${encodeURIComponent(teamKey)}` : "";
+  // Numeric id first, slug as the fallback for callers without a catalog in hand — see
+  // EspnHeadlinesParams.sourceTeamId. Still percent-encoded: this is an outbound sink for a key
+  // that can originate in an assistant tool call (#1265 security QA BLOCKING-1c).
+  const teamParam = params.sourceTeamId ?? teamKey;
+  const teamFilter = teamParam ? `?team=${encodeURIComponent(teamParam)}` : "";
   const data = (await fetchJson(
     fetchFn,
     `${SITE_BASE}/${sport}/${league}/news${teamFilter}`,

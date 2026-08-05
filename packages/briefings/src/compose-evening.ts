@@ -1,10 +1,16 @@
 import type { ChatTurn } from "@jarv1s/ai";
 import type { BriefingDefinition, DataContextDb } from "@jarv1s/db";
-import { EVENING_FALLBACK_QUESTIONS, EVENING_SECTION_HEADERS } from "@jarv1s/shared";
+import {
+  EVENING_FALLBACK_QUESTIONS,
+  EVENING_SECTION_HEADERS,
+  type BriefingStructuredPayloadV1
+} from "@jarv1s/shared";
 
 import {
   emptySection,
   buildPersonaBlock,
+  buildExternalModulesSection,
+  ctxFor,
   gatherToolSection,
   isActionableTriage,
   readEmailSignalSettings,
@@ -21,11 +27,13 @@ import {
   type Section,
   type SynthesisFailureReason
 } from "./compose-shared.js";
+import { collectExternalBriefingContributions } from "./external-contributions.js";
 import { filterEveningCalendar, partitionEveningTasks } from "./evening-lenses.js";
 import { resolveBriefingFreshness } from "./freshness.js";
 import { timezoneFor } from "./schedule.js";
 import { contextTokens, deriveEmailSignals } from "./signals.js";
 import { renderExternalBlock, sanitizeExternal, TRUST_BOUNDARY } from "./trust-boundary.js";
+import { buildEmailCatchUp, filterEmailItems, gatherActionRows } from "./action-rows.js";
 
 // ── Evening trusted literals (#316: PURE LITERALS — no external value ever) ────
 // The six section headers are embedded VERBATIM from EVENING_SECTION_HEADERS
@@ -47,7 +55,8 @@ const SYNTHESIS_INSTRUCTIONS_EVENING =
   "block; if there is nothing, call it a quiet day. Treat the chats and morning_plan blocks " +
   "as context only — use them to judge what mattered today and what the morning plan expected; " +
   "never summarize them as their own topics. Where a section has no items, keep it to one " +
-  "short line. Close with exactly two short reflection questions specific to today's items.";
+  "short line. Discrete action rows are rendered separately; do not invent, count, or restate " +
+  "them in prose. Close with exactly two short reflection questions specific to today's items.";
 
 // The single evening trusted block. Built ONLY from the two literal constants — no
 // external/section value is interpolated (the static isolation test asserts this).
@@ -113,6 +122,7 @@ export async function composeEveningBriefing(
   const gaps: BriefingGap[] = [];
   const now = input.now ?? new Date();
   const timeZone = timezoneFor(definition.schedule_metadata);
+  const actionRows = await gatherActionRows(scopedDb, definition, input, deps, gaps);
 
   // ── tasks_reconciliation: three lenses over two tasks.list reads ─────────────
   // Scratch gap arrays: two gathers share one section key, so per-gather empty/
@@ -315,7 +325,9 @@ export async function composeEveningBriefing(
   const emailSignals = includeEmail
     ? deriveEmailSignals({
         // Same triage filter as the prompt lines: noise/fyi/unknown never seed signals.
-        items: (rawEmail.rawItems ?? []).filter(isActionableTriage),
+        items: filterEmailItems(rawEmail.rawItems ?? [], actionRows.sourceRefs).filter(
+          isActionableTriage
+        ),
         now,
         context,
         settings: emailSettings
@@ -332,6 +344,15 @@ export async function composeEveningBriefing(
     count: emailSignals.length,
     rawItems: rawEmail.rawItems
   };
+  const catchUp = includeEmail
+    ? await buildEmailCatchUp(
+        scopedDb,
+        rawEmail.rawItems ?? [],
+        actionRows.sourceRefs,
+        deps.connectorSyncAt
+      )
+    : null;
+  const structuredPayload = { ...actionRows.payload, catchUp };
 
   // ── goals / sports / chats: identical to the morning gathers ─────────────────
   const goals = await gatherToolSection(
@@ -397,6 +418,25 @@ export async function composeEveningBriefing(
   if (sportsSelected) {
     sections.push(sports);
   }
+
+  // #1282: same seam as the morning composer (compose.ts) — see the comment there for why
+  // the manifests/invoker are injected rather than filtered off `deps.moduleManifests` (J1).
+  if (deps.invokeExternalBriefing) {
+    const ctx = ctxFor(definition, input);
+    const externalContributions = await collectExternalBriefingContributions({
+      manifests: deps.externalBriefingManifests ?? [],
+      selectedToolNames: definition.selected_tool_names,
+      section: "evening",
+      actorUserId: ctx.actorUserId,
+      requestId: ctx.requestId,
+      invoke: deps.invokeExternalBriefing
+    });
+    const externalModules = buildExternalModulesSection(externalContributions);
+    if (externalModules) {
+      sections.push(externalModules);
+    }
+  }
+
   sections.push(chats);
 
   const morningPlan = morningPlanSection(input.sameDayMorningMeta);
@@ -454,7 +494,8 @@ export async function composeEveningBriefing(
       attention: [...commitments.lines, ...emailToday.lines],
       tomorrow: calendarTomorrow.lines,
       newsSports: sportsSelected ? sports.lines : [],
-      metadata: baseMetadata
+      metadata: baseMetadata,
+      structuredPayload
     });
   }
   return {
@@ -470,7 +511,8 @@ export async function composeEveningBriefing(
       // Degraded when any source-context account was served from cache (#729); a synthesis
       // failure still routes through fallbackEvening with its own degradedReason.
       degraded: sourceContextDegraded
-    }
+    },
+    structuredPayload
   };
 }
 
@@ -485,6 +527,7 @@ export function fallbackEvening(args: {
   readonly tomorrow: readonly string[];
   readonly newsSports: readonly string[];
   readonly metadata: Record<string, unknown>;
+  readonly structuredPayload: BriefingStructuredPayloadV1;
 }): ComposeResult {
   const H = EVENING_SECTION_HEADERS;
   const block = (header: string, lines: readonly string[], emptyLine: string) =>
@@ -507,6 +550,7 @@ export function fallbackEvening(args: {
       aiModel: null,
       degraded: true,
       degradedReason: args.reason
-    }
+    },
+    structuredPayload: args.structuredPayload
   };
 }
