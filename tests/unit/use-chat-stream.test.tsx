@@ -3,7 +3,11 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessageDto, ChatSurface, ChatThreadDto } from "@jarv1s/shared";
 
-import { listChatThreadMessages, listChatThreads } from "../../apps/web/src/api/client.js";
+import {
+  listChatThreadMessages,
+  listChatThreads,
+  listPendingActionRequests
+} from "../../apps/web/src/api/client.js";
 import {
   parseRecord,
   shouldEndPrivateChatOnStreamDisconnect,
@@ -13,12 +17,15 @@ import {
 vi.mock("../../apps/web/src/api/client.js", () => ({
   chatStreamUrl: (surface?: string) => `/api/chat/stream${surface ? `?surface=${surface}` : ""}`,
   listChatThreadMessages: vi.fn(),
-  listChatThreads: vi.fn()
+  listChatThreads: vi.fn(),
+  listPendingActionRequests: vi.fn(async () => ({ actions: [] }))
 }));
 
 afterEach(() => {
   vi.mocked(listChatThreadMessages).mockReset();
   vi.mocked(listChatThreads).mockReset();
+  vi.mocked(listPendingActionRequests).mockReset();
+  vi.mocked(listPendingActionRequests).mockResolvedValue({ actions: [] });
   vi.unstubAllGlobals();
 });
 

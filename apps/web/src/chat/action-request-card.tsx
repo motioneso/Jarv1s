@@ -15,7 +15,9 @@ interface ActionRequestCardProps {
 }
 
 export function ActionRequestCard(props: ActionRequestCardProps) {
-  const [status, setStatus] = useState<"pending" | "loading" | "done" | "error">("pending");
+  const [status, setStatus] = useState<"pending" | "loading" | "done" | "error" | "expired">(
+    "pending"
+  );
   const [decision, setDecision] = useState<"confirmed" | "rejected" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -41,8 +43,15 @@ export function ActionRequestCard(props: ActionRequestCardProps) {
       setDecision(next);
       setStatus("done");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not resolve");
-      setStatus("error");
+      // #1250 — server returns 409 for expired requests; card stays showing expiration message
+      const message = err instanceof Error ? err.message : "Could not resolve";
+      if (message.includes("expired")) {
+        setError("This request expired — ask again.");
+        setStatus("expired");
+      } else {
+        setError(message);
+        setStatus("error");
+      }
     }
   };
 
@@ -117,6 +126,8 @@ export function ActionRequestCard(props: ActionRequestCardProps) {
         <p className="muted-text">
           <LoaderCircle className="spin" size={14} aria-hidden="true" /> Resolving…
         </p>
+      ) : status === "expired" ? (
+        <p className="form-error">{error}</p>
       ) : null}
     </div>
   );

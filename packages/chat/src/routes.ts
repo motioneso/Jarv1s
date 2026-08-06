@@ -262,6 +262,8 @@ export function registerChatRoutes(
       ? async (scopedDb, kind) =>
           getConnectorSyncAt(dependencies.connectorsRepository!, scopedDb, kind)
       : undefined,
+    // #1414 — wire crossToolGateway so cross-tool reads (email, calendar, task, note, person) produce provenance chips
+    crossToolGateway: wiring?.gateway,
     passiveMemoryRecall: dependencies.passiveMemoryRecall,
     personaPreferences: dependencies.personaPreferences,
     chatPreferences: dependencies.chatPreferences,
@@ -360,7 +362,18 @@ export function registerChatRoutes(
         }
 
         try {
-          await wiring.gateway.resolveActionRequest(access.actorUserId, id, rawStatus);
+          // #1250 — gateway now returns outcome so we can distinguish expired (409) from success (204)
+          const outcome = await wiring.gateway.resolveActionRequest(
+            access.actorUserId,
+            id,
+            rawStatus
+          );
+          if (outcome === "expired") {
+            return reply.code(409).send({ error: "This request expired — ask again." });
+          }
+          if (outcome === "not_found") {
+            return reply.code(404).send({ error: "Action request not found" });
+          }
           return reply.code(204).send();
         } catch {
           return reply.code(400).send({ error: "Could not resolve action request" });
