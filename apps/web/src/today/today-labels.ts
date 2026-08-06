@@ -154,6 +154,22 @@ export function durationLabel(event: CalendarEventDto): string {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
+/**
+ * #1438 — event cards are plain `<div>`s, so their text is invisible to the page-context
+ * capture selector. This composes the one flat string they declare via
+ * `data-jarvis-capture-text` (apps/web/src/chat/page-context.ts).
+ */
+export function eventCaptureText(event: CalendarEventDto, locale: LocaleSettingsDto): string {
+  const parts = [
+    `${timeLabel(event.startsAt, locale)} ${ampm(event.startsAt, locale)}`,
+    event.title
+  ];
+  if (event.location) parts.push(event.location);
+  const duration = durationLabel(event);
+  if (duration) parts.push(duration);
+  return parts.join(" — ");
+}
+
 export function shortDate(iso: string, locale: LocaleSettingsDto): string {
   return formatDate(iso, locale, { month: "short", day: "numeric" });
 }
