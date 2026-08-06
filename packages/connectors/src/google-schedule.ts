@@ -2,7 +2,7 @@ import type { PgBoss } from "pg-boss";
 
 import { assertMetadataOnlyPayload } from "@jarv1s/jobs";
 
-import { GOOGLE_SYNC_QUEUE } from "./sync-jobs.js";
+import { GOOGLE_SYNC_QUEUE, type GoogleSyncPayload } from "./sync-jobs.js";
 
 export const GOOGLE_SYNC_CRON = "*/15 * * * *";
 const GOOGLE_SYNC_TZ = "UTC";
@@ -19,11 +19,16 @@ export async function reconcileGoogleAccountSchedule(
   connected: boolean
 ): Promise<void> {
   if (connected) {
-    const data = { actorUserId };
+    const data: GoogleSyncPayload = {
+      actorUserId,
+      kind: "google-sync",
+      idempotencyKey: `schedule:${actorUserId}`
+    };
     assertMetadataOnlyPayload(data);
     await boss.schedule(GOOGLE_SYNC_QUEUE, GOOGLE_SYNC_CRON, data, {
       tz: GOOGLE_SYNC_TZ,
-      key: actorUserId
+      key: actorUserId,
+      singletonKey: actorUserId
     });
     return;
   }

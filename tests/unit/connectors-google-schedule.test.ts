@@ -3,15 +3,19 @@ import { describe, expect, it, vi } from "vitest";
 import { reconcileGoogleAccountSchedule } from "../../packages/connectors/src/google-schedule.js";
 
 describe("reconcileGoogleAccountSchedule", () => {
-  it("schedules a 15-min cron keyed by actorUserId when connected", async () => {
+  it("schedules valid stable metadata with native per-actor coalescing", async () => {
     const schedule = vi.fn().mockResolvedValue(undefined);
     const boss = { schedule, unschedule: vi.fn() };
     await reconcileGoogleAccountSchedule(boss as never, "actor-1", true);
     expect(schedule).toHaveBeenCalledWith(
       "connectors.google-sync",
       expect.any(String),
-      { actorUserId: "actor-1" },
-      { tz: "UTC", key: "actor-1" }
+      {
+        actorUserId: "actor-1",
+        kind: "google-sync",
+        idempotencyKey: "schedule:actor-1"
+      },
+      { tz: "UTC", key: "actor-1", singletonKey: "actor-1" }
     );
   });
 

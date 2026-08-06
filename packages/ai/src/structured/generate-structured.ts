@@ -9,6 +9,9 @@ import {
   StructuredOutputParseError,
   type GenerateStructuredProviderInput,
   type StructuredChatTurn,
+  type StructuredRunScope,
+  type StructuredRunPriority,
+  type StructuredTelemetry,
   type StructuredProviderResult,
   type StructuredUsage
 } from "../adapters/http-api-structured.js";
@@ -50,8 +53,13 @@ export type GenerateStructuredInput = {
   readonly schema: Record<string, unknown>;
   readonly prompt: string;
   readonly tierHint?: AiModelTier;
+  readonly requireExplicitBinding?: boolean;
   readonly maxOutputTokens?: number;
   readonly signal?: AbortSignal;
+  readonly telemetry?: StructuredTelemetry;
+  readonly priority?: StructuredRunPriority;
+  readonly scope?: StructuredRunScope;
+  readonly closeScope?: boolean;
 };
 
 export type GenerateStructuredResult =
@@ -71,7 +79,8 @@ export async function generateStructured(
 
   const route = await deps.repository.resolveModelForService(scopedDb, input.service, {
     capability: "json",
-    tierHint: input.tierHint
+    tierHint: input.tierHint,
+    requireExplicitBinding: input.requireExplicitBinding
   });
   if (!route.model) return { ok: false, error: "needs_config" };
   const model = route.model;
@@ -136,7 +145,11 @@ export async function generateStructured(
         messages,
         schema: input.schema,
         maxOutputTokens,
-        signal: input.signal
+        signal: input.signal,
+        telemetry: input.telemetry,
+        priority: input.priority,
+        scope: input.scope,
+        closeScope: input.closeScope
       });
       if ("rawText" in generated) {
         try {
@@ -156,6 +169,7 @@ export async function generateStructured(
         return { ok: false, error: "aborted" };
       }
       if (error instanceof StructuredOutputParseError) {
+        input.telemetry?.emit({ kind: "parse" });
         usage.inputTokens += error.usage.inputTokens;
         usage.outputTokens += error.usage.outputTokens;
         messages.push({ role: "assistant", content: error.rawText });
@@ -164,10 +178,11 @@ export async function generateStructured(
           content:
             "That output was not valid JSON for the required schema. Respond again with ONLY a JSON object matching the schema."
         });
+        input.telemetry?.emit({ kind: "repair" });
         continue;
       }
       deps.logger?.warn(
-        { service: input.service, message: error instanceof Error ? error.message : String(error) },
+        { service: input.service, name: error instanceof Error ? error.name : "UnknownError" },
         "ai.structured provider error"
       );
       return { ok: false, error: "provider_error" };
@@ -194,6 +209,7 @@ export async function generateStructured(
 
     messages.push({ role: "assistant", content: serialized.slice(0, 4000) });
     messages.push({ role: "user", content: formatValidationErrors(validate.errors ?? []) });
+    input.telemetry?.emit({ kind: "repair" });
   }
 
   return { ok: false, error: "validation_failed" };

@@ -54,7 +54,8 @@ import {
   type AiProviderConfigDto,
   type AiProviderExecutionMode,
   type AiProviderKind,
-  type AiServiceBinding
+  type AiServiceBinding,
+  type AiServiceKey
 } from "@jarv1s/shared";
 
 const PROVIDER_CATALOG: readonly {
@@ -88,16 +89,27 @@ const TIERS: Record<AiModelTier, { label: string; hint: string }> = {
 
 const MODEL_TIERS: readonly AiModelTier[] = ["reasoning", "interactive", "economy"];
 
-// #870 Slice 1 / #874 HIGH-2: Chat is the only bindable user-facing service here. Voice (STT) moved
-// to its own dedicated endpoint (see VoiceConfigGroup) and is NO longer a per-service binding.
-// Worker capabilities (tool-use / json / vision / summarization) stay cross-provider automatic and
-// are not surfaced as knobs; embeddings are out of scope (M3). Chat binds to EITHER a "mode" (a tier
-// resolved inside the instance-default provider) OR a specific model.
-const SERVICE_ROWS: readonly { k: AiModelCapability; name: string; desc: string }[] = [
+// Chat and the strict email-extraction background service share the existing binding control. Voice
+// stays on its dedicated endpoint; other worker capabilities remain automatic.
+const SERVICE_ROWS: readonly {
+  k: AiServiceKey;
+  capability: AiModelCapability;
+  name: string;
+  desc: string;
+  requireExplicitBinding?: boolean;
+}[] = [
   {
     k: "chat",
+    capability: "chat",
     name: "Chat & briefing",
     desc: "Everyday conversation and the daily reading voice."
+  },
+  {
+    k: "module.connectors.email-extract",
+    capability: "json",
+    name: "Email extraction",
+    desc: "Turns connected email into summaries and suggested actions.",
+    requireExplicitBinding: true
   }
 ];
 
@@ -400,19 +412,19 @@ function ProviderCard(props: {
 
 /* ---------------------------------------------------------- Service bindings */
 
-// #870 Slice 1: one row per user-facing service (Chat / Voice). A binding is either a "mode" (tier,
-// resolved inside the instance-default provider) or a specific model. The row shows the resolved
-// model id — or an explicit "needs configuration" prompt when the resolver returns `needs-config`.
+// A binding is either a mode or a specific capable model. Strict background services start with an
+// explicit unconfigured value instead of inheriting chat's default-provider route.
 function ServiceRow(props: {
-  readonly service: { k: AiModelCapability; name: string; desc: string };
+  readonly service: (typeof SERVICE_ROWS)[number];
   readonly binding: AiServiceBinding | undefined;
   readonly models: readonly AiConfiguredModelDto[];
 }) {
   const { toast } = useFeedback();
   const queryClient = useQueryClient();
   const routeQuery = useQuery({
-    queryKey: queryKeys.ai.capability(props.service.k),
-    queryFn: () => lookupAiCapabilityRoute(props.service.k),
+    queryKey: queryKeys.ai.capability(props.service.capability),
+    queryFn: () => lookupAiCapabilityRoute(props.service.capability),
+    enabled: !props.service.requireExplicitBinding,
     retry: false
   });
 
@@ -421,7 +433,9 @@ function ServiceRow(props: {
     onSuccess: () => {
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.serviceBindings }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.ai.capability(props.service.k) }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.ai.capability(props.service.capability)
+        }),
         queryClient.invalidateQueries({ queryKey: queryKeys.ai.capabilities })
       ]);
       toast("Service updated", { icon: <GitCommitHorizontal size={17} /> });
@@ -434,7 +448,7 @@ function ServiceRow(props: {
     (model) =>
       model.status === "active" &&
       model.providerStatus === "active" &&
-      model.capabilities.includes(props.service.k)
+      model.capabilities.includes(props.service.capability)
   );
 
   // The <select> value encodes the binding kind: `mode:<tier>` or `model:<id>`.
@@ -442,7 +456,11 @@ function ServiceRow(props: {
   const currentValue =
     binding?.kind === "model"
       ? `model:${binding.modelId}`
-      : `mode:${binding?.tier ?? "interactive"}`;
+      : binding?.kind === "mode"
+        ? `mode:${binding.tier}`
+        : props.service.requireExplicitBinding
+          ? ""
+          : "mode:interactive";
 
   const onChange = (raw: string) => {
     if (raw.startsWith("model:")) {
@@ -453,8 +471,16 @@ function ServiceRow(props: {
   };
 
   const route = routeQuery.data?.route;
-  const needsConfig = route ? route.reason === "needs-config" : false;
-  const resolvedModel = route?.model ?? null;
+  const boundModel =
+    binding?.kind === "model"
+      ? (capableModels.find((model) => model.id === binding.modelId) ?? null)
+      : null;
+  const needsConfig = props.service.requireExplicitBinding
+    ? !binding || (binding.kind === "model" ? !boundModel : capableModels.length === 0)
+    : route?.reason === "needs-config";
+  const resolvedModel = props.service.requireExplicitBinding ? boundModel : (route?.model ?? null);
+  const configuredMode =
+    props.service.requireExplicitBinding && binding?.kind === "mode" && !needsConfig;
 
   return (
     <div className="rt">
@@ -469,6 +495,11 @@ function ServiceRow(props: {
           disabled={mutation.isPending}
           onChange={(event) => onChange(event.target.value)}
         >
+          {props.service.requireExplicitBinding && !binding ? (
+            <option value="" disabled>
+              Choose a model or mode
+            </option>
+          ) : null}
           <optgroup label="Mode (uses the default provider)">
             {MODEL_TIERS.map((tier) => (
               <option key={tier} value={`mode:${tier}`}>
@@ -492,7 +523,11 @@ function ServiceRow(props: {
             Needs configuration
           </span>
         ) : resolvedModel ? (
-          <div className="rt__resolved">{resolvedModel.providerModelId}</div>
+          <div className="rt__resolved">
+            {resolvedModel.providerModelId ?? resolvedModel.displayName}
+          </div>
+        ) : configuredMode ? (
+          <div className="rt__resolved">Configured</div>
         ) : (
           <span className="rt__none">
             <MinusCircle size={13} aria-hidden="true" />
@@ -769,7 +804,7 @@ export function AiProvidersPane() {
       {providers.length ? (
         <Group
           title="Services"
-          desc="Bind each person-facing service to a mode (the default provider picks the model for that tier) or to a specific model. Everything else — tools, structured output, vision, summaries — is routed automatically."
+          desc="Bind each listed service to a mode or a specific capable model. Unlisted AI work is routed automatically."
         >
           {SERVICE_ROWS.map((service) => (
             <ServiceRow
@@ -788,7 +823,7 @@ export function AiProvidersPane() {
       <YoloAdminGroup />
       <Note icon={<GitCommitHorizontal size={13} />}>
         Each person can override which model powers their own chat under{" "}
-        <b>Personal → Assistant &amp; AI</b>. Everything else follows the services above.
+        <b>Personal → Assistant &amp; AI</b>. Background services follow the bindings above.
       </Note>
     </>
   );

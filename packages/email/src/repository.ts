@@ -4,6 +4,28 @@ import { sql } from "kysely";
 
 import { assertDataContextDb, type DataContextDb, type EmailMessage } from "@jarv1s/db";
 
+function hasCompleteTriage(signals: unknown): boolean {
+  if (!signals || typeof signals !== "object" || Array.isArray(signals)) return false;
+  const actionability = (signals as Record<string, unknown>).actionability;
+  if (!actionability || typeof actionability !== "object" || Array.isArray(actionability)) {
+    return false;
+  }
+  const fields = actionability as Record<string, unknown>;
+  if (
+    fields.category !== "needs_action" &&
+    fields.category !== "needs_reply" &&
+    fields.category !== "time_sensitive_info"
+  ) {
+    return typeof fields.category === "string" && fields.category !== "unknown";
+  }
+  return (
+    typeof fields.inferredSubject === "string" &&
+    fields.inferredSubject.trim().length > 0 &&
+    Array.isArray(fields.suggestedTasks) &&
+    fields.suggestedTasks.length > 0
+  );
+}
+
 export interface CreateCachedEmailMessageInput {
   readonly id?: string;
   readonly connectorAccountId: string;
@@ -144,6 +166,30 @@ export class EmailRepository {
       input.bodyExcerpt != null
         ? input.bodyExcerpt.slice(0, EmailRepository.MAX_BODY_EXCERPT_CHARS)
         : null;
+    const incomingHistoryId =
+      typeof input.externalMetadata?.historyId === "string"
+        ? input.externalMetadata.historyId
+        : null;
+    const preserveSameRevisionTriage =
+      incomingHistoryId !== null && (input.summary == null || !hasCompleteTriage(input.signals));
+    const storedTriageIsComplete = sql<boolean>`
+      app.email_messages.summary is not null
+      and case
+        when app.email_messages.signals->'actionability'->>'category'
+          in ('needs_action', 'needs_reply', 'time_sensitive_info')
+        then nullif(trim(app.email_messages.signals->'actionability'->>'inferredSubject'), '')
+          is not null
+          and jsonb_array_length(
+            coalesce(app.email_messages.signals->'actionability'->'suggestedTasks', '[]'::jsonb)
+          ) > 0
+        else coalesce(app.email_messages.signals->'actionability'->>'category', 'unknown')
+          <> 'unknown'
+      end
+    `;
+    const keepStoredTriage = sql<boolean>`
+      app.email_messages.external_metadata->>'historyId' = ${incomingHistoryId}
+      and ${storedTriageIsComplete}
+    `;
 
     return scopedDb.db
       .insertInto("app.email_messages")
@@ -173,8 +219,16 @@ export class EmailRepository {
           body_excerpt: bodyExcerpt,
           received_at: input.receivedAt,
           external_metadata: input.externalMetadata ?? {},
-          summary: input.summary ?? null,
-          signals: input.signals ?? {},
+          summary: preserveSameRevisionTriage
+            ? sql<
+                string | null
+              >`case when ${keepStoredTriage} then app.email_messages.summary else ${input.summary ?? null} end`
+            : (input.summary ?? null),
+          signals: preserveSameRevisionTriage
+            ? sql<
+                Record<string, unknown>
+              >`case when ${keepStoredTriage} then app.email_messages.signals else ${JSON.stringify(input.signals ?? {})}::jsonb end`
+            : (input.signals ?? {}),
           updated_at: now
         })
       )
@@ -184,26 +238,33 @@ export class EmailRepository {
 
   /**
    * Lightweight per-account sync markers for skip-unchanged: external_id, the stored Gmail
-   * historyId (read from external_metadata), AND whether a non-null summary already exists.
-   * The handler skips the (costly) LLM pass ONLY when historyId is unchanged AND a usable
-   * summary is already stored — so a message first cached before any model was configured (or
-   * after a failed extraction, summary=null) is correctly RE-summarized once a model exists.
+   * historyId (read from external_metadata), whether a non-null summary exists, and whether
+   * actionable triage has the subject/task fields required for projection. The handler skips the
+   * LLM pass only when all three are complete, so partial actionable triage is retried unchanged.
    * RLS-scoped to the actor via the worker SELECT grant (0068); returns only this account's rows.
    */
   async listSyncMarkers(
     scopedDb: DataContextDb,
     connectorAccountId: string
-  ): Promise<Array<{ externalId: string; historyId: string | null; hasSummary: boolean }>> {
+  ): Promise<
+    Array<{
+      externalId: string;
+      historyId: string | null;
+      hasSummary: boolean;
+      hasCompleteTriage: boolean;
+    }>
+  > {
     assertDataContextDb(scopedDb);
     const rows = await scopedDb.db
       .selectFrom("app.email_messages")
-      .select(["external_id", "external_metadata", "summary"])
+      .select(["external_id", "external_metadata", "summary", "signals"])
       .where("connector_account_id", "=", connectorAccountId)
       .execute();
     return rows.map((r) => ({
       externalId: r.external_id,
       historyId: (r.external_metadata as { historyId?: string | null } | null)?.historyId ?? null,
-      hasSummary: r.summary !== null
+      hasSummary: r.summary !== null,
+      hasCompleteTriage: hasCompleteTriage(r.signals)
     }));
   }
 }

@@ -18,7 +18,8 @@ import { ChatControlsProvider } from "../../apps/web/src/shell/chat-controls-con
 import {
   deriveTodayMode,
   latestEveningRunForToday,
-  scheduleTodayModeRefresh
+  scheduleTodayModeRefresh,
+  selectActionRowsRun
 } from "../../apps/web/src/today/evening-mode.js";
 import { TodayPage } from "../../apps/web/src/today/today-page.js";
 
@@ -100,7 +101,31 @@ describe("scheduleTodayModeRefresh", () => {
   });
 });
 
+describe("selectActionRowsRun", () => {
+  it("day selects morning payload and evening selects outstanding evening payload", () => {
+    const morningRun = briefingRun({ id: "morning-run" });
+    const eveningRun = briefingRun({ id: "evening-run" });
+
+    expect(selectActionRowsRun("day", morningRun, eveningRun)).toBe(morningRun);
+    expect(selectActionRowsRun("evening", morningRun, eveningRun)).toBe(eveningRun);
+    expect(selectActionRowsRun("day", null, eveningRun)).toBeNull();
+    expect(selectActionRowsRun("evening", morningRun, null)).toBeNull();
+  });
+});
+
 describe("TodayPage evening mode", () => {
+  it("does not wait for runs when the morning briefing is absent", () => {
+    const html = renderToday({
+      now: new Date("2026-06-30T01:30:00.000Z"),
+      definitions: [],
+      runs: [],
+      tasks: [],
+      events: []
+    });
+
+    expect(html).not.toContain("Checking what needs you");
+  });
+
   it("leads with the readable evening review after the time gate", () => {
     const definition = briefingDefinition({ targetTime: "19:00", timezone: locale.timezone });
     const run = briefingRun({
@@ -251,6 +276,7 @@ function briefingRun(overrides: Partial<BriefingRunDto> = {}): BriefingRunDto {
     summaryText: "Evening summary",
     sourceMetadata: {},
     feedbackItems: [],
+    structuredPayload: { version: 1, actionRows: [], catchUp: null },
     createdAt: "2026-06-30T02:15:00.000Z",
     ...overrides
   };

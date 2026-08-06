@@ -6,9 +6,12 @@ import { describe, expect, it } from "vitest";
 
 import type {
   BriefingDefinitionDto,
+  BriefingActionRowDto,
   BriefingRunDto,
   LocaleSettingsDto,
-  MeResponse
+  MeResponse,
+  OnboardingStatusResponse,
+  TaskDto
 } from "@jarv1s/shared";
 
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
@@ -82,12 +85,89 @@ describe("Today morning briefing prose", () => {
     });
     expect(disabledHtml).not.toContain("Morning briefing");
   });
+
+  it("enables Reply only when a provider is ready", () => {
+    const morning = briefingDefinition({
+      id: "morning-1",
+      title: "Morning briefing",
+      briefingType: "morning"
+    });
+    const replyRow: BriefingActionRowDto = {
+      taskId: "reply-task",
+      title: "Reply to Alex",
+      explanation: "Alex needs a response.",
+      category: "needs_reply",
+      status: "suggested",
+      primaryAction: { kind: "reply", cacheMessageId: "cache-1" },
+      source: "email",
+      sourceLabel: "Email",
+      sourceRef: "account:message",
+      sourceHref: null,
+      dueAt: null,
+      computedAt: "2026-06-30T01:00:00.000Z",
+      resurfaceReason: null
+    };
+    const replyTask: TaskDto = {
+      id: "reply-task",
+      ownerUserId: "user-1",
+      listId: "list-1",
+      parentTaskId: null,
+      title: "Reply to Alex",
+      description: "Alex needs a response.",
+      status: "suggested",
+      priority: 2,
+      position: 0,
+      dueAt: null,
+      doAt: null,
+      effort: null,
+      source: "email",
+      sourceRef: "account:message",
+      completedAt: null,
+      createdAt: "2026-06-30T01:00:00.000Z",
+      updatedAt: "2026-06-30T01:00:00.000Z",
+      tags: [],
+      suggestionMetadata: null
+    };
+    const runs = [
+      briefingRun({
+        structuredPayload: { version: 1, actionRows: [replyRow], catchUp: null }
+      })
+    ];
+    let blockedOpenChatCalls = 0;
+    const blocked = renderToday({
+      now: new Date("2026-06-30T01:30:00.000Z"),
+      definitions: [morning],
+      runs,
+      tasks: [replyTask],
+      onboardingStatus: onboardingStatus("needs_login"),
+      openChatWith: () => {
+        blockedOpenChatCalls += 1;
+      }
+    });
+
+    expect(blocked).toMatch(/<button[^>]*disabled=""[^>]*>Reply<\/button>/);
+    expect(blockedOpenChatCalls).toBe(0);
+
+    const ready = renderToday({
+      now: new Date("2026-06-30T01:30:00.000Z"),
+      definitions: [morning],
+      runs,
+      tasks: [replyTask],
+      onboardingStatus: onboardingStatus("ready")
+    });
+
+    expect(ready).toMatch(/<button[^>]*>Reply<\/button>/);
+    expect(ready).not.toMatch(/<button[^>]*disabled=""[^>]*>Reply<\/button>/);
+  });
 });
 
 function renderToday(input: {
   readonly now: Date;
   readonly definitions: readonly BriefingDefinitionDto[] | undefined;
   readonly runs: readonly BriefingRunDto[];
+  readonly tasks?: readonly TaskDto[];
+  readonly onboardingStatus?: OnboardingStatusResponse;
+  readonly openChatWith?: (prompt: string) => void;
 }): string {
   const previousDocument = globalThis.document;
   const previousDateNow = Date.now;
@@ -100,10 +180,13 @@ function renderToday(input: {
   try {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(queryKeys.settings.locale, { locale });
-    client.setQueryData(queryKeys.tasks.list, { tasks: [] });
+    client.setQueryData(queryKeys.tasks.list, { tasks: input.tasks ?? [] });
     client.setQueryData(queryKeys.tasks.lists, { lists: [] });
     client.setQueryData(queryKeys.calendar.list, { events: [] });
     client.setQueryData(queryKeys.goals.list, { items: [] });
+    if (input.onboardingStatus) {
+      client.setQueryData(queryKeys.onboarding.status, input.onboardingStatus);
+    }
     if (input.definitions) {
       client.setQueryData(queryKeys.briefings.definitions, { definitions: input.definitions });
       for (const definition of input.definitions) {
@@ -119,7 +202,12 @@ function renderToday(input: {
         { client },
         createElement(
           ChatControlsProvider,
-          { value: { openChat: () => undefined, openChatWith: () => undefined } },
+          {
+            value: {
+              openChat: () => undefined,
+              openChatWith: input.openChatWith ?? (() => undefined)
+            }
+          },
           createElement(
             MemoryRouter,
             null,
@@ -135,6 +223,20 @@ function renderToday(input: {
       value: previousDocument
     });
   }
+}
+
+function onboardingStatus(installState: "needs_login" | "ready"): OnboardingStatusResponse {
+  return {
+    role: "founder",
+    state: "completed",
+    steps: {
+      cliAuth: {
+        done: installState === "ready",
+        providers: [{ kind: "anthropic", cliPresent: true, installState }]
+      },
+      connectors: { done: false }
+    }
+  };
 }
 
 function briefingDefinition(
@@ -175,6 +277,7 @@ function briefingRun(overrides: Partial<BriefingRunDto> = {}): BriefingRunDto {
     summaryText: "Morning summary",
     sourceMetadata: {},
     feedbackItems: [],
+    structuredPayload: { version: 1, actionRows: [], catchUp: null },
     createdAt: "2026-06-30T01:15:00.000Z",
     ...overrides
   };

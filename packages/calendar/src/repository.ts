@@ -130,6 +130,19 @@ export class CalendarRepository {
     return Number(result.numDeletedRows ?? 0);
   }
 
+  async deleteCachedEventsNotSeenSince(
+    scopedDb: DataContextDb,
+    input: { readonly connectorAccountId: string; readonly seenSince: Date }
+  ): Promise<number> {
+    assertDataContextDb(scopedDb);
+    const result = await scopedDb.db
+      .deleteFrom("app.calendar_events")
+      .where("connector_account_id", "=", input.connectorAccountId)
+      .where("updated_at", "<", input.seenSince)
+      .executeTakeFirst();
+    return Number(result.numDeletedRows ?? 0);
+  }
+
   async deleteById(scopedDb: DataContextDb, eventId: string): Promise<void> {
     assertDataContextDb(scopedDb);
     await scopedDb.db.deleteFrom("app.calendar_events").where("id", "=", eventId).execute();

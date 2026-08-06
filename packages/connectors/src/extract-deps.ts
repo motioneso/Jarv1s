@@ -1,55 +1,120 @@
 import type { createAiSecretCipher } from "@jarv1s/ai";
 import {
-  HttpApiAdapter,
-  parseAiApiKeyCredential,
-  type AiConfiguredModelSafeRow,
+  generateStructured,
   type AiRepository,
-  type ProviderKind
+  type GenerateStructuredDeps,
+  type StructuredRunScope,
+  type StructuredRunPriority,
+  type StructuredTelemetry
 } from "@jarv1s/ai";
 import type { DataContextDb } from "@jarv1s/db";
-
-import type { EmailExtractDeps } from "./email-extract.js";
+import { EmailExtractNeedsConfigurationError, type EmailExtractDeps } from "./email-extract.js";
 
 type AiSecretCipher = ReturnType<typeof createAiSecretCipher>;
 
-/**
- * Build the model-selection + chat-call deps for extractEmailSignals against the actor's
- * configured AI providers. Shared by the Google/IMAP sync workers and the live-first
- * source-context triage path so the credential handling exists in exactly one place.
- */
+export type BuildEmailExtractDepsOptions = Pick<
+  GenerateStructuredDeps,
+  "createAdapter" | "createCliStructuredAdapter"
+> & {
+  readonly logger?: {
+    info(data: Record<string, unknown>, message: string): void;
+    warn(data: Record<string, unknown>, message: string): void;
+  };
+};
+
+const EMAIL_SIGNALS_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["category", "confidence"],
+  properties: {
+    category: {
+      enum: [
+        "needs_reply",
+        "needs_action",
+        "time_sensitive_info",
+        "waiting_on_someone",
+        "fyi",
+        "noise",
+        "unknown"
+      ]
+    },
+    reason: { type: "string" },
+    action: { type: "string" },
+    dueDate: { type: "string" },
+    confidence: { type: "number", minimum: 0, maximum: 1 }
+  }
+} as const;
+
+const EMAIL_EXTRACT_SERVICE = "module.connectors.email-extract";
+
+/** Shared production composition for Google/IMAP sync and live source-context triage. */
 export function buildEmailExtractDeps(
   scopedDb: DataContextDb,
   aiRepo: AiRepository,
-  aiCipher: AiSecretCipher
+  aiCipher: AiSecretCipher,
+  options: BuildEmailExtractDepsOptions = {}
 ): EmailExtractDeps {
   return {
-    selectModel: (tier) => aiRepo.selectModelForCapability(scopedDb, "summarization", tier),
-    runChat: async (model, prompt) => {
-      // `model` is the AiConfiguredModelSafeRow returned by selectModelForCapability:
-      // it carries provider_config_id, provider_kind, and provider_model_id directly.
-      // Load + decrypt the provider credential in-process (never logged/forwarded), then
-      // call the adapter.
-      const row = model as AiConfiguredModelSafeRow;
-      const provider = await aiRepo.selectProviderWithCredential(scopedDb, row.provider_config_id);
-      if (!provider) return { text: "" };
-      const credential = parseAiApiKeyCredential(
-        aiCipher.decryptJson(provider.encrypted_credential)
-      );
-      if (!credential) return { text: "" };
-      // HttpApiAdapter supports anthropic/openai-compatible/google (ProviderKind); narrow
-      // the wider AiProviderKind at this boundary — the router already selected the model.
-      const adapter = new HttpApiAdapter(
-        row.provider_kind as ProviderKind,
-        credential.apiKey,
-        provider.base_url ? { baseUrl: provider.base_url } : {}
-      );
-      return adapter.generateChat({
-        model: {
-          provider_kind: row.provider_kind,
-          provider_model_id: row.provider_model_id
+    runChat: async (
+      prompt,
+      signal,
+      batchSize = 1,
+      telemetry?: StructuredTelemetry,
+      priority?: StructuredRunPriority,
+      scope?: StructuredRunScope,
+      closeScope?: boolean
+    ) => {
+      const schema =
+        batchSize === 1
+          ? EMAIL_SIGNALS_SCHEMA
+          : {
+              type: "object",
+              additionalProperties: false,
+              required: ["results"],
+              properties: {
+                results: {
+                  type: "array",
+                  minItems: batchSize,
+                  maxItems: batchSize,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["index", "value"],
+                    properties: {
+                      index: { type: "integer", minimum: 0, maximum: batchSize - 1 },
+                      value: EMAIL_SIGNALS_SCHEMA
+                    }
+                  }
+                }
+              }
+            };
+      const result = await generateStructured(
+        scopedDb,
+        {
+          service: EMAIL_EXTRACT_SERVICE,
+          schema,
+          prompt,
+          requireExplicitBinding: true,
+          signal,
+          telemetry,
+          priority,
+          scope,
+          closeScope
         },
-        messages: [{ role: "user", content: prompt }]
-      });
+        {
+          repository: aiRepo,
+          cipher: aiCipher,
+          createAdapter: options.createAdapter,
+          createCliStructuredAdapter: options.createCliStructuredAdapter,
+          // generateStructured uses only the two-argument structured logger form above.
+          logger: options.logger as GenerateStructuredDeps["logger"]
+        }
+      );
+      if (!result.ok) {
+        if (result.error === "needs_config") throw new EmailExtractNeedsConfigurationError();
+        throw new Error(`email-extract-structured-${result.error}`);
+      }
+      return { text: JSON.stringify(result.object) };
     }
   };
 }

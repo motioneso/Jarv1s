@@ -3,6 +3,8 @@ import type { ProviderKind } from "./transcript-reader.js";
 // #915 D6: provider mechanics only. Routing policy and credentials stay outside feature code.
 export const STRUCTURED_TOOL_NAME = "emit_structured_output";
 
+export type StructuredRunPriority = "foreground" | "background";
+
 export type StructuredChatTurn = {
   readonly role: "user" | "assistant";
   readonly content: string;
@@ -13,12 +15,45 @@ export type StructuredUsage = {
   readonly outputTokens: number;
 };
 
+export type StructuredTelemetryEvent = {
+  readonly kind:
+    | "invoked"
+    | "busy"
+    | "elapsed"
+    | "exit"
+    | "first-readable"
+    | "late-read"
+    | "timeout"
+    | "parse"
+    | "repair"
+    | "fallback";
+  readonly elapsedMs?: number;
+  readonly exit?: "complete" | "busy" | "timeout" | "no-reply" | "error";
+  readonly count?: number;
+  readonly priority?: StructuredRunPriority;
+};
+
+export type StructuredTelemetry = {
+  readonly emit: (event: StructuredTelemetryEvent) => void;
+};
+
+/** Metadata-only identity for a transient structured CLI conversation. */
+export type StructuredRunScope = {
+  readonly actorUserId: string;
+  readonly connectorAccountId: string;
+  readonly lineageId: string;
+};
+
 export type GenerateStructuredProviderInput = {
   readonly model: { readonly provider_kind: ProviderKind; readonly provider_model_id: string };
   readonly messages: readonly StructuredChatTurn[];
   readonly schema: Record<string, unknown>;
   readonly maxOutputTokens: number;
   readonly signal?: AbortSignal;
+  readonly telemetry?: StructuredTelemetry;
+  readonly priority?: StructuredRunPriority;
+  readonly scope?: StructuredRunScope;
+  readonly closeScope?: boolean;
 };
 
 export type StructuredProviderResult =

@@ -61,6 +61,11 @@ export interface EmailSourceContextDeps {
   readonly imapProvider: EmailReadProvider<ImapConnectionSecret>;
   readonly emailRepository: {
     listVisibleForBriefing(scopedDb: DataContextDb): Promise<EmailMessage[]>;
+    getByConnectorAccountAndExternalId?(
+      scopedDb: DataContextDb,
+      connectorAccountId: string,
+      externalId: string
+    ): Promise<EmailMessage | undefined>;
   };
   readonly makeEmailExtractDeps: (scopedDb: DataContextDb) => EmailExtractDeps;
   readonly now?: () => Date;
@@ -139,10 +144,10 @@ function cacheKey(connectorAccountId: string, externalId: string): string {
   return JSON.stringify([connectorAccountId, externalId]);
 }
 
-function cacheItem(
+export function emailContextItemFromCache(
   row: EmailMessage,
   meta: SourceAccountMeta,
-  degradedReason: DegradedReason
+  degradedReason: DegradedReason | null
 ): EmailContextItem {
   const triage = triageFromSignals(row.summary, cachedSignals(row));
   return {
@@ -162,6 +167,59 @@ function cacheItem(
     source: "cache",
     degradedReason,
     cacheMessageId: row.id
+  };
+}
+
+export async function listSavedEmailContext(
+  scopedDb: DataContextDb,
+  deps: Pick<
+    EmailSourceContextDeps,
+    "connectorsRepository" | "preferencesRepository" | "emailRepository"
+  >,
+  connectorAccountId: string,
+  messageKeys?: readonly string[]
+): Promise<EmailContextResult> {
+  const account = (await deps.connectorsRepository.listAccounts(scopedDb)).find(
+    (candidate) => candidate.id === connectorAccountId
+  );
+  if (!account) return { items: [], accounts: [], gaps: [] };
+
+  const meta = accountMeta(account);
+  if (account.status === "revoked") {
+    return { items: [], accounts: [], gaps: [{ account: meta, reason: "connector_revoked" }] };
+  }
+  const stored = await deps.preferencesRepository.get(
+    scopedDb,
+    featureGrantsPrefKey(connectorAccountId)
+  );
+  if (!isFeatureGranted(stored, "email")) {
+    return { items: [], accounts: [], gaps: [{ account: meta, reason: "feature_grant_disabled" }] };
+  }
+  if (account.status !== "active") {
+    return { items: [], accounts: [], gaps: [{ account: meta, reason: "auth_error" }] };
+  }
+
+  const rows =
+    messageKeys && deps.emailRepository.getByConnectorAccountAndExternalId
+      ? (
+          await Promise.all(
+            messageKeys.map((key) =>
+              deps.emailRepository.getByConnectorAccountAndExternalId!(
+                scopedDb,
+                connectorAccountId,
+                key
+              )
+            )
+          )
+        ).filter((row): row is EmailMessage => row !== undefined)
+      : await deps.emailRepository.listVisibleForBriefing(scopedDb);
+  const items = rows
+    .filter((row) => row.connector_account_id === connectorAccountId)
+    .map((row) => emailContextItemFromCache(row, meta, null));
+  return {
+    items,
+    accounts: [{ account: meta, source: "cache", degradedReason: null }],
+    gaps: []
   };
 }
 
@@ -214,13 +272,27 @@ async function readAccountLive(
   const items: EmailContextItem[] = [];
   for (const message of fetched) {
     const cachedRow = cachedByExternalId.get(cacheKey(account.id, message.externalId));
+    const cachedSignalSet = cachedRow ? cachedSignals(cachedRow) : undefined;
+    const cachedActionability = cachedSignalSet?.actionability;
+    const cachedNeedsActionDetails =
+      cachedActionability?.category === "needs_action" ||
+      cachedActionability?.category === "needs_reply" ||
+      cachedActionability?.category === "time_sensitive_info";
+    const cachedActionDetailsComplete =
+      Boolean(cachedActionability?.inferredSubject?.trim()) &&
+      (cachedActionability?.suggestedTasks?.length ?? 0) > 0;
     let triage: TriageFields;
-    if (cachedRow && (cachedRow.summary !== null || cachedSignals(cachedRow).actionability)) {
-      triage = triageFromSignals(cachedRow.summary, cachedSignals(cachedRow));
+    if (
+      cachedRow &&
+      cachedSignalSet &&
+      cachedActionability &&
+      (!cachedNeedsActionDetails || cachedActionDetailsComplete)
+    ) {
+      triage = triageFromSignals(cachedRow.summary, cachedSignalSet);
     } else if (triageBudget > 0) {
       triageBudget -= 1;
       const extracted = await extractEmailSignals(message, extractDeps);
-      triage = triageFromSignals(extracted.summary, extracted.signals);
+      triage = triageFromSignals(cachedRow?.summary ?? extracted.summary, extracted.signals);
     } else {
       triage = UNTRIAGED;
     }
@@ -344,7 +416,7 @@ export async function listEmailContext(
       const fallback = cachedRows
         .filter((row) => row.connector_account_id === account.id)
         .slice(0, input.limitPerAccount !== undefined ? limit : cachedRows.length)
-        .map((row) => cacheItem(row, meta, classified.degradedReason));
+        .map((row) => emailContextItemFromCache(row, meta, classified.degradedReason));
       items.push(...fallback);
       accounts.push({ account: meta, source: "cache", degradedReason: classified.degradedReason });
     }

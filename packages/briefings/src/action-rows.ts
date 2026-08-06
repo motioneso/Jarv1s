@@ -118,7 +118,9 @@ export function projectActionRows(tasks: readonly unknown[]): ActionRowCollectio
           row: {
             taskId: task.id,
             title: task.title,
-            explanation: task.description ?? "",
+            explanation: task.description?.trim()
+              ? task.description
+              : "This email may need your attention.",
             category: metadata.category,
             status: "suggested",
             primaryAction: action,
@@ -237,6 +239,7 @@ export async function buildEmailCatchUp(
   const eligible = filterEmailItems(items, actionRowSourceRefs).filter(
     (item) => item.actionability === "waiting_on_someone" || item.actionability === "fyi"
   );
+  if (eligible.length === 0) return null;
   const summaries = eligible
     .map((item) => (typeof item.summary === "string" ? item.summary.trim() : ""))
     .filter(Boolean)

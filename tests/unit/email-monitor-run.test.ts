@@ -122,7 +122,7 @@ function fakePorts(result: EmailContextResult, options: { mode?: string } = {}):
     }
   };
   const deps: RunEmailMonitorDeps = {
-    sourceContext: { listEmailContext: async () => result },
+    savedContext: { listEmailContext: async () => result },
     taskPort: {
       // Dedupes on externalKey like TasksRepository.create's (source, external_key) check.
       create: async (_db, input) => {
@@ -172,7 +172,6 @@ describe("runEmailMonitor", () => {
         ]
       },
       makeEmailExtractDeps: () => ({
-        selectModel: async () => ({ tier: "economy" }),
         runChat: async () => ({ text: "{}" })
       })
     };

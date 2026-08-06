@@ -111,8 +111,12 @@ export function registerAiServiceRoutes(
             // #915 D6: module-specific keys name installed modules. module.worker is generic.
             if (isModuleServiceKey(service) && service !== MODULE_WORKER_SERVICE_KEY) {
               const installedIds = dependencies.listInstalledModuleIds?.() ?? [];
-              const moduleId = service.slice("module.".length);
-              if (!installedIds.includes(moduleId)) {
+              const namespace = service.slice("module.".length);
+              if (
+                !installedIds.some(
+                  (moduleId) => namespace === moduleId || namespace.startsWith(`${moduleId}.`)
+                )
+              ) {
                 throw new HttpError(400, "service does not reference an installed module");
               }
             }

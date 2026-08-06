@@ -67,7 +67,6 @@ export function fakeEmailProvider<TCredential>(
 /** Deterministic triage stub — no model call ever leaves the test process. */
 function stubExtractDeps() {
   return {
-    selectModel: async () => ({ tier: "economy" }),
     runChat: async () => ({
       text: JSON.stringify({
         summary: "Triage summary (integration stub).",

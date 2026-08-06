@@ -1,4 +1,5 @@
 import type { GmailMessageFull, GmailPayloadPart } from "./google-api-client.js";
+import type { StructuredRunPriority, StructuredRunScope, StructuredTelemetry } from "@jarv1s/ai";
 
 /** Max decoded body length sent to the LLM (bounded to protect prompt limits, spec risk #6). */
 export const MAX_BODY_CHARS = 20_000;
@@ -188,68 +189,105 @@ export interface EmailExtractResult {
   readonly escalated?: boolean;
 }
 
+export class EmailExtractNeedsConfigurationError extends Error {
+  constructor() {
+    super("email extraction needs configuration");
+    this.name = "EmailExtractNeedsConfigurationError";
+  }
+}
+
+export type EmailExtractRetryableReason = "busy" | "timeout" | "no-reply" | "structured-output";
+
+export class EmailExtractRetryableError extends Error {
+  readonly retryable = true;
+
+  constructor(readonly reason: EmailExtractRetryableReason) {
+    super(`email extraction retryable failure: ${reason}`);
+    this.name = "EmailExtractRetryableError";
+  }
+}
+
 /** Injectable seam: the worker passes router-backed impls; tests pass fakes. */
 export interface EmailExtractDeps {
-  /**
-   * Resolve a model for the summarization capability at a tier (router-backed). The sync pass only
-   * ever requests the "economy" tier; the wider union is kept so the seam matches the underlying
-   * router signature (AiRepository.selectModelForCapability), not because we escalate.
-   */
-  readonly selectModel: (
-    tier: "economy" | "interactive" | "reasoning"
-  ) => Promise<{ readonly tier: string } | undefined>;
-  /** Run one chat generation against the resolved model; returns { text }. */
+  /** Run structured extraction through the configured service binding; returns JSON text. */
   readonly runChat: (
-    model: { readonly tier: string },
-    prompt: string
+    prompt: string,
+    signal?: AbortSignal,
+    batchSize?: number,
+    telemetry?: StructuredTelemetry,
+    priority?: StructuredRunPriority,
+    scope?: StructuredRunScope,
+    closeScope?: boolean
   ) => Promise<{ readonly text: string }>;
 }
 
 export interface EmailExtractOptions {
   /** Per-LLM-call timeout in ms (bounds sync latency; default from env, then 20s). */
   readonly callTimeoutMs?: number;
+  /** Metadata-only telemetry factory; the worker supplies job and batch attribution. */
+  readonly telemetry?: (batchIndex: number, batchSize: number) => StructuredTelemetry;
+  readonly priority?: StructuredRunPriority;
+  readonly scope?: StructuredRunScope;
+  readonly closeScope?: boolean;
 }
 
+export const EMAIL_EXTRACT_BATCH_MAX_ITEMS = 48;
+export const EMAIL_EXTRACT_BATCH_MAX_PROMPT_BYTES = 48_000;
+
 /** Reject a chat call that exceeds the budget so one slow model can't stall the whole sync. */
-async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+async function withTimeout<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  ms: number,
+  onTimeout?: () => void
+): Promise<T> {
+  const controller = new AbortController();
+  const request = run(controller.signal);
   let timer: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error("llm-timeout")), ms);
+  const timedOut = Symbol("timed-out");
+  const timeout = new Promise<typeof timedOut>((resolve) => {
+    timer = setTimeout(() => {
+      onTimeout?.();
+      controller.abort();
+      resolve(timedOut);
+    }, ms);
   });
   try {
-    return await Promise.race([p, timeout]);
+    const first = await Promise.race([request, timeout]);
+    if (first !== timedOut) return first;
+    try {
+      return await request;
+    } catch {
+      throw new Error("llm-timeout");
+    }
   } finally {
     clearTimeout(timer!);
   }
 }
 
+const EMAIL_TRIAGE_INSTRUCTIONS = [
+  "You are an email triage assistant. Read the email and reply with one JSON object only:",
+  '{ category: "needs_reply"|"needs_action"|"time_sensitive_info"|"waiting_on_someone"|"fyi"|"noise"|"unknown",',
+  "  confidence: number, reason?: string, action?: string, dueDate?: string }",
+  "confidence is 0..1. Use ISO dates. Keep reason and action concise.",
+  "Actionability rules:",
+  "- needs_reply: a real person is waiting on the user's answer. NEVER use it for marketing,",
+  "  newsletters, receipts, or automated notifications, whatever the subject line claims.",
+  "- needs_action: the user must do something (pay a bill, submit, book, review). Include a",
+  "  short action and due date when concrete.",
+  "- time_sensitive_info: no action required but it expires (flight change, outage window).",
+  "- waiting_on_someone: the user is owed a response or delivery by someone else.",
+  "- fyi: informational, no urgency (receipts, confirmations, status updates).",
+  "- noise: marketing, promotions, newsletters, social notifications. No suggestedTasks.",
+  "- unknown: only when genuinely unclassifiable.",
+  "reason must be one short sentence."
+].join("\n");
+
+function promptInput(parsed: ParsedEmail): string {
+  return [`Subject: ${parsed.subject}`, `From: ${parsed.from}`, "", parsed.body].join("\n");
+}
+
 function buildPrompt(parsed: ParsedEmail): string {
-  return [
-    "You are an email triage assistant. Read the email and reply with a single JSON object only,",
-    "no prose, matching this TypeScript type:",
-    "{ summary: string, billsDue: {description:string, amount?:number, currency?:string, dueDate?:string}[],",
-    " actionItems: {text:string, dueDate?:string}[], deadlines: {text:string, date?:string}[],",
-    ' actionability: { category: "needs_reply"|"needs_action"|"time_sensitive_info"|"waiting_on_someone"|"fyi"|"noise"|"unknown",',
-    "   reason?: string, dueDate?: string, inferredSubject?: string, suggestedTasks?: {text:string, dueDate?:string}[] },",
-    ' mayGetLostInShuffle: boolean, importance: "low"|"normal"|"high", confidence: number }',
-    "Use ISO dates. confidence is 0..1.",
-    "Actionability rules:",
-    "- needs_reply: a real person is waiting on the user's answer. NEVER use it for marketing,",
-    "  newsletters, receipts, or automated notifications, whatever the subject line claims.",
-    "- needs_action: the user must do something (pay a bill, submit, book, review) — include the",
-    "  due date and a short suggestedTasks entry when the action is concrete.",
-    "- time_sensitive_info: no action required but it expires (flight change, outage window).",
-    "- waiting_on_someone: the user is owed a response or delivery by someone else.",
-    "- fyi: informational, no urgency (receipts, confirmations, status updates).",
-    "- noise: marketing, promotions, newsletters, social notifications. No suggestedTasks.",
-    "- unknown: only when genuinely unclassifiable.",
-    "reason must be one short sentence.",
-    "",
-    `Subject: ${parsed.subject}`,
-    `From: ${parsed.from}`,
-    "",
-    parsed.body
-  ].join("\n");
+  return [EMAIL_TRIAGE_INSTRUCTIONS, promptInput(parsed)].join("\n\n");
 }
 
 /**
@@ -328,18 +366,35 @@ function safeDeadlines(value: unknown, body: string): EmailDeadline[] {
     .filter((d): d is EmailDeadline => d !== undefined);
 }
 
-function safeActionability(value: unknown, body: string): EmailActionabilitySignal | undefined {
+function safeActionability(
+  value: unknown,
+  body: string,
+  subject: string,
+  compact: boolean
+): EmailActionabilitySignal | undefined {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
   const o = value as Record<string, unknown>;
   const category = ACTIONABILITY_CATEGORIES.includes(o.category as EmailActionabilityCategory)
     ? (o.category as EmailActionabilityCategory)
     : "unknown";
-  const suggestedTasks = category === "noise" ? [] : safeActionItems(o.suggestedTasks, body);
+  const action = compact ? safeSignalStr(o.action, body) : undefined;
+  const suggestedTasks = compact
+    ? category === "noise" || action === undefined
+      ? []
+      : [{ text: action, dueDate: safeSignalStr(o.dueDate, body) }]
+    : category === "noise"
+      ? []
+      : safeActionItems(o.suggestedTasks, body);
+  const inferredSubject = compact
+    ? ["needs_reply", "needs_action", "time_sensitive_info"].includes(category)
+      ? safeSignalStr(subject, body)
+      : undefined
+    : safeSignalStr(o.inferredSubject, body);
   return {
     category,
     reason: safeSignalStr(o.reason, body),
     dueDate: safeSignalStr(o.dueDate, body),
-    inferredSubject: safeSignalStr(o.inferredSubject, body),
+    inferredSubject,
     ...(suggestedTasks.length > 0 ? { suggestedTasks } : {})
   };
 }
@@ -350,19 +405,25 @@ function safeActionability(value: unknown, body: string): EmailActionabilitySign
  * coerce every value to a bounded type, and drop any string that echoes the email body. This is
  * the single chokepoint that keeps the model from leaking the body into a persisted column.
  */
-function safeParseSignals(text: string, parsedBody: string): EmailExtractResult {
-  const normalizedBody = parsedBody.replace(/\s+/g, " ").trim().toLowerCase();
+function safeParseSignals(
+  text: string,
+  parsed: Pick<ParsedEmail, "body" | "subject">
+): EmailExtractResult {
+  const normalizedBody = parsed.body.replace(/\s+/g, " ").trim().toLowerCase();
   try {
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
     if (start < 0 || end < start) throw new Error("no json object");
     const obj = JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
+    const compact = !Object.prototype.hasOwnProperty.call(obj, "summary") && "category" in obj;
     const importance =
       obj.importance === "low" || obj.importance === "high" ? obj.importance : "normal";
     const confidence =
       typeof obj.confidence === "number" && obj.confidence >= 0 && obj.confidence <= 1
         ? obj.confidence
         : 0;
+    // Keep a legacy summary when present. Compact output deliberately has no model summary;
+    // sanitizeExtractResult supplies the deterministic existing snippet/subject fallback.
     // Keep the RAW (untruncated) summary here. Truncation to MAX_SUMMARY_CHARS happens only AFTER
     // the body-containment guard in extractEmailSignals — truncating first would let a model that
     // returns the first MAX_SUMMARY_CHARS of a longer body slip a near-complete body prefix past a
@@ -371,10 +432,15 @@ function safeParseSignals(text: string, parsedBody: string): EmailExtractResult 
     return {
       summary,
       signals: {
-        billsDue: safeBills(obj.billsDue, normalizedBody),
-        actionItems: safeActionItems(obj.actionItems, normalizedBody),
-        deadlines: safeDeadlines(obj.deadlines, normalizedBody),
-        actionability: safeActionability(obj.actionability, normalizedBody),
+        billsDue: compact ? [] : safeBills(obj.billsDue, normalizedBody),
+        actionItems: compact ? [] : safeActionItems(obj.actionItems, normalizedBody),
+        deadlines: compact ? [] : safeDeadlines(obj.deadlines, normalizedBody),
+        actionability: safeActionability(
+          compact ? obj : obj.actionability,
+          normalizedBody,
+          parsed.subject,
+          compact
+        ),
         mayGetLostInShuffle: obj.mayGetLostInShuffle === true,
         importance,
         confidence
@@ -456,74 +522,23 @@ function stripIfBodyReconstructed(signals: EmailSignals, normalizedBody: string)
   return signals;
 }
 
-export async function extractEmailSignals(
+function sanitizeExtractResult(
   parsed: ParsedEmail,
-  deps: EmailExtractDeps,
-  options: EmailExtractOptions = {}
-): Promise<EmailExtractResult> {
-  const timeoutMs =
-    options.callTimeoutMs ?? Number(process.env.JARVIS_EMAIL_LLM_TIMEOUT_MS ?? "20000");
-
-  // Economy tier ONLY. The summary/signals pass is a high-volume, low-stakes batch job; the plan
-  // (Goal §) pins it to the user's capability-routed *economy* model. We deliberately do NOT
-  // escalate to interactive/reasoning here — that would spend the user's pricier tier on routine
-  // inbox triage. Still fully provider-agnostic: the router selects whatever economy model the
-  // user configured (no provider/model is hardcoded).
-  const economyModel = await deps.selectModel("economy");
-  if (!economyModel) {
-    // No configured summarization model — metadata-only row (graceful degrade).
-    return { summary: null, signals: {} };
+  initial: EmailExtractResult
+): EmailExtractResult {
+  let result = initial;
+  if (result.summary === null && (result.signals.confidence ?? 0) > 0) {
+    const deterministicSummary = parsed.snippet?.trim() || parsed.subject.trim();
+    result = {
+      ...result,
+      summary:
+        deterministicSummary.length > 0 ? deterministicSummary.slice(0, MAX_SUMMARY_CHARS) : null
+    };
   }
-  // STRICT economy-tier enforcement. selectModelForCapability walks the tier ladder UP from the
-  // requested tier and ultimately falls back to ANY active model, so "economy" can resolve to an
-  // interactive/reasoning/other-tier model in production. The plan pins inbox triage to the user's
-  // economy tier (cost posture); rather than silently spend a pricier tier on routine batch
-  // summarization, we reject a non-economy resolution and degrade to a metadata-only row. Still
-  // provider-agnostic: we gate on the tier label, never on a provider/model identity.
-  if (economyModel.tier !== "economy") {
-    return { summary: null, signals: {} };
-  }
-
-  const prompt = buildPrompt(parsed);
-  let result: EmailExtractResult;
-  try {
-    const reply = await withTimeout(deps.runChat(economyModel, prompt), timeoutMs);
-    result = safeParseSignals(reply.text, parsed.body);
-  } catch {
-    // Timeout or model error — degrade to metadata-only, never throw (spec §error handling).
-    result = { summary: null, signals: { confidence: 0 } };
-  }
-
-  // Body-echo guard for the summary. A legitimate summary is SHORTER than the body and
-  // paraphrases it; it never embeds (a large run of) the body. This runs on the RAW, untruncated
-  // model summary — running it after truncation would blind it to a body longer than the summary
-  // cap (a model returning the first MAX_SUMMARY_CHARS of a longer body would otherwise persist a
-  // near-complete body prefix). We drop the summary when its normalized form:
-  //   (a) equals the body, OR
-  //   (b) CONTAINS the full body as a substring — the "Summary: <body>" wrap/prefix case a bad
-  //       model uses to slip a short body past exact-equality, OR
-  //   (c) IS a verbatim body substring (prefix/slice) long enough to be a reconstruction — the
-  //       model echoing a long contiguous body chunk into the summary. We require the substring to
-  //       be both an absolute minimum length AND cover the reconstruction fraction of the body, so
-  //       a genuine short-email summary that happens to reuse a phrase verbatim is not nulled.
-  // Only after passing all three is the summary truncated to MAX_SUMMARY_CHARS for persistence.
   const normalize = (s: string): string => s.replace(/\s+/g, " ").trim().toLowerCase();
   const normalizedBody = normalize(parsed.body);
   if (result.summary !== null) {
     const normalizedSummary = normalize(result.summary);
-    // A summary that is a verbatim contiguous slice of the body, at or above the absolute
-    // SUMMARY_BODY_SUBSTRING_FLOOR (200 chars), is a body echo regardless of WHAT FRACTION of
-    // the body it covers. We deliberately DROP the prior `>= body.length * FRACTION` requirement:
-    // a 200–600 char verbatim prefix of a LONG body (e.g. 200 chars of a 2000-char body) is below
-    // 50% and was slipping through to be persisted as raw email text in `summary`. The fraction
-    // gate is still used by the cumulative SIGNALS guard (stripIfBodyReconstructed), which sums
-    // many short chunks; for the SINGLE-string summary, a 200+ char verbatim slice is enough.
-    // Trade-off (accepted, fail-safe): a legitimate 200+ char summary that happens to be a
-    // verbatim slice of a very short body is nulled → metadata-only row.
-    // Sliding-window scan: a summary that CONTAINS any verbatim body run at/above the floor is a
-    // body echo even when WRAPPED (e.g. "Summary: <200+ char verbatim body prefix>") or embedded —
-    // a whole-string `body.includes(summary)` misses those because the body lacks the wrapper text.
-    // (Surfaced by the cross-model Codex re-verify of the original prefix fix.)
     const containsLongBodyRun = (): boolean => {
       if (normalizedBody.length === 0 || normalizedSummary.length < SUMMARY_BODY_SUBSTRING_FLOOR) {
         return false;
@@ -535,25 +550,173 @@ export async function extractEmailSignals(
       }
       return false;
     };
-    const isLongBodySubstring = containsLongBodyRun();
     const echoesBody =
       normalizedSummary === normalizedBody ||
       (normalizedBody.length > 0 && normalizedSummary.includes(normalizedBody)) ||
-      isLongBodySubstring;
+      containsLongBodyRun();
     result = {
       ...result,
       summary: echoesBody ? null : result.summary.slice(0, MAX_SUMMARY_CHARS)
     };
   }
 
-  // Cumulative guard: defeat the "split the body into many short chunks across signal fields"
-  // exfiltration path that the per-field echo check cannot see on its own.
   result = { ...result, signals: stripIfBodyReconstructed(result.signals, normalizedBody) };
+  return {
+    ...result,
+    signals: parsed.bodyTruncated ? { ...result.signals, truncated: true } : result.signals,
+    escalated: false
+  };
+}
 
-  const truncatedSignals = parsed.bodyTruncated
-    ? { ...result.signals, truncated: true }
-    : result.signals;
-  // escalated is always false now (economy-tier only); retained on the result type so the
-  // handler's telemetry counter wiring stays stable without a signature change.
-  return { ...result, signals: truncatedSignals, escalated: false };
+function buildBatchPrompt(messages: readonly ParsedEmail[]): string {
+  return [
+    EMAIL_TRIAGE_INSTRUCTIONS,
+    "Apply those rules to every numbered input.",
+    'Return one JSON object: {"results":[{"index":0,"value":<triage object>}, ...]}.',
+    "Include every index exactly once and no extra indexes.",
+    JSON.stringify(messages.map((message, index) => ({ index, email: promptInput(message) })))
+  ].join("\n\n");
+}
+
+export function partitionEmailExtractionBatches(messages: readonly ParsedEmail[]): ParsedEmail[][] {
+  const batches: ParsedEmail[][] = [];
+  let current: ParsedEmail[] = [];
+  for (const message of messages) {
+    const candidate = [...current, message];
+    if (
+      current.length > 0 &&
+      (candidate.length > EMAIL_EXTRACT_BATCH_MAX_ITEMS ||
+        Buffer.byteLength(buildBatchPrompt(candidate), "utf8") >
+          EMAIL_EXTRACT_BATCH_MAX_PROMPT_BYTES)
+    ) {
+      batches.push(current);
+      current = [message];
+    } else {
+      current = candidate;
+    }
+  }
+  if (current.length > 0) batches.push(current);
+  return batches;
+}
+
+function retryableReason(error: unknown): EmailExtractRetryableReason {
+  if (error instanceof EmailExtractRetryableError) return error.reason;
+  const name = error instanceof Error ? error.name : "";
+  const message = error instanceof Error ? error.message : "";
+  if (/timeout|timed.?out/i.test(`${name} ${message}`)) return "timeout";
+  if (/busy/i.test(`${name} ${message}`)) return "busy";
+  if (/no.?reply|without a reply/i.test(`${name} ${message}`)) return "no-reply";
+  return "structured-output";
+}
+
+function parseBatchSignals(text: string, parsed: ParsedEmail): EmailExtractResult {
+  const result = safeParseSignals(text, parsed);
+  if (result.signals.confidence === 0) {
+    throw new Error("email-extract-batch-structured-output");
+  }
+  return result;
+}
+
+export async function extractEmailSignalsBatch(
+  messages: readonly ParsedEmail[],
+  deps: EmailExtractDeps,
+  options: EmailExtractOptions = {}
+): Promise<EmailExtractResult[]> {
+  const timeoutMs =
+    options.callTimeoutMs ?? Number(process.env.JARVIS_EMAIL_LLM_TIMEOUT_MS ?? "20000");
+  const extracted: EmailExtractResult[] = [];
+
+  for (const [batchIndex, batch] of partitionEmailExtractionBatches(messages).entries()) {
+    const telemetry = options.telemetry?.(batchIndex, batch.length);
+    try {
+      if (batch.length === 1) {
+        const message = batch[0]!;
+        const reply = await withTimeout(
+          (signal) =>
+            deps.runChat(
+              buildPrompt(message),
+              signal,
+              1,
+              telemetry,
+              options.priority,
+              options.scope,
+              options.closeScope
+            ),
+          timeoutMs,
+          () => telemetry?.emit({ kind: "timeout", priority: options.priority })
+        );
+        extracted.push(sanitizeExtractResult(message, parseBatchSignals(reply.text, message)));
+        continue;
+      }
+      const reply = await withTimeout(
+        (signal) =>
+          deps.runChat(
+            buildBatchPrompt(batch),
+            signal,
+            batch.length,
+            telemetry,
+            options.priority,
+            options.scope,
+            options.closeScope
+          ),
+        timeoutMs,
+        () => telemetry?.emit({ kind: "timeout", priority: options.priority })
+      );
+      const object = JSON.parse(reply.text) as { results?: unknown };
+      if (!Array.isArray(object.results) || object.results.length !== batch.length) {
+        throw new Error("email-extract-batch-result-count");
+      }
+      const byIndex = new Map<number, unknown>();
+      for (const item of object.results) {
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+          throw new Error("email-extract-batch-result-shape");
+        }
+        const { index, value } = item as { index?: unknown; value?: unknown };
+        if (
+          !Number.isInteger(index) ||
+          (index as number) < 0 ||
+          (index as number) >= batch.length
+        ) {
+          throw new Error("email-extract-batch-result-index");
+        }
+        if (byIndex.has(index as number)) throw new Error("email-extract-batch-result-index");
+        byIndex.set(index as number, value);
+      }
+      for (let index = 0; index < batch.length; index += 1) {
+        if (!byIndex.has(index)) throw new Error("email-extract-batch-result-index");
+        extracted.push(
+          sanitizeExtractResult(
+            batch[index]!,
+            parseBatchSignals(JSON.stringify(byIndex.get(index)), batch[index]!)
+          )
+        );
+      }
+    } catch (error) {
+      if (error instanceof EmailExtractNeedsConfigurationError) throw error;
+      throw new EmailExtractRetryableError(retryableReason(error));
+    }
+  }
+  return extracted;
+}
+
+export async function extractEmailSignals(
+  parsed: ParsedEmail,
+  deps: EmailExtractDeps,
+  options: EmailExtractOptions = {}
+): Promise<EmailExtractResult> {
+  const timeoutMs =
+    options.callTimeoutMs ?? Number(process.env.JARVIS_EMAIL_LLM_TIMEOUT_MS ?? "20000");
+
+  const prompt = buildPrompt(parsed);
+  let result: EmailExtractResult;
+  try {
+    const reply = await withTimeout((signal) => deps.runChat(prompt, signal), timeoutMs);
+    result = safeParseSignals(reply.text, parsed);
+  } catch (error) {
+    if (error instanceof EmailExtractNeedsConfigurationError) throw error;
+    // Timeout or model error — degrade to metadata-only, never throw (spec §error handling).
+    result = { summary: null, signals: { confidence: 0 } };
+  }
+
+  return sanitizeExtractResult(parsed, result);
 }

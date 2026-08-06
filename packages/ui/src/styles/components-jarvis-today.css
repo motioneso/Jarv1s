@@ -1,7 +1,7 @@
 /* Masthead */
 .jds-masthead__row {
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   justify-content: space-between;
   gap: var(--space-6);
 }
@@ -50,6 +50,10 @@
   color: var(--ink-4);
 }
 .jds-masthead__aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
   flex-shrink: 0;
   text-align: right;
 }

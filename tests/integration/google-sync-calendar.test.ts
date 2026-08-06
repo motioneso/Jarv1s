@@ -7,10 +7,66 @@ import {
   ids,
   isCalendarFollowThroughEvent,
   runGoogleSync,
+  runGoogleSyncChunk,
   seedGoogleAccount
 } from "./helpers/google-sync-orchestration.js";
 
+function calendarEvent(id: string) {
+  return {
+    id,
+    summary: id,
+    start: { dateTime: "2026-08-01T13:00:00.000Z" },
+    end: { dateTime: "2026-08-01T13:30:00.000Z" }
+  };
+}
+
 describe("runGoogleSync calendar orchestration", () => {
+  it("continues every calendar page before stale reconciliation", async () => {
+    const accountId = await seedGoogleAccount(handles.dataContext, [
+      "https://www.googleapis.com/auth/calendar"
+    ]);
+    const ctx = { actorUserId: ids.userA, requestId: "pgboss:test-calendar-continuation" };
+    const pageCalls: Array<{ pageToken?: string; maxResults?: number }> = [];
+    const deps = {
+      getFreshAccessToken: async () => "tok",
+      getActiveAccount: async () => ({ id: accountId, scopes: ["calendar"] }),
+      googleClient: {
+        listCalendarEvents: async () => [],
+        listCalendarEventsPage: async (input: { pageToken?: string; maxResults?: number }) => {
+          pageCalls.push(input);
+          return input.pageToken === "CALENDAR_PAGE_2"
+            ? { items: [calendarEvent("continued-calendar-2")] }
+            : {
+                items: [calendarEvent("continued-calendar-1")],
+                nextPageToken: "CALENDAR_PAGE_2"
+              };
+        },
+        listMessageIds: async () => [],
+        getMessage: async () => ({ id: "x" })
+      },
+      emailExtractDeps: { runChat: async () => ({ text: "" }) },
+      now: () => new Date("2026-08-01T12:00:00.000Z")
+    };
+
+    const first = await handles.workerDataContext.withDataContext(ctx, (db) =>
+      runGoogleSyncChunk(db, deps)
+    );
+    expect(first.continuation).toMatchObject({
+      phase: "calendar",
+      cursor: "CALENDAR_PAGE_2"
+    });
+    const second = await handles.workerDataContext.withDataContext(ctx, (db) =>
+      runGoogleSyncChunk(db, deps, first.continuation)
+    );
+
+    expect(second.continuation).toBeUndefined();
+    expect(second.result.calendarUpserted).toBe(2);
+    expect(pageCalls).toEqual([
+      expect.objectContaining({ pageToken: undefined, maxResults: 100 }),
+      expect.objectContaining({ pageToken: "CALENDAR_PAGE_2", maxResults: 100 })
+    ]);
+  });
+
   it("skips calendar sync when the account calendar grant is off", async () => {
     const accountId = await seedGoogleAccount(handles.dataContext, [
       "https://www.googleapis.com/auth/calendar",
@@ -42,8 +98,9 @@ describe("runGoogleSync calendar orchestration", () => {
           getMessage: async () => ({ id: "x" })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
-          runChat: async () => ({ text: "" })
+          runChat: async () => ({
+            text: JSON.stringify({ summary: "Processed", confidence: 0.5 })
+          })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
       })
@@ -56,7 +113,7 @@ describe("runGoogleSync calendar orchestration", () => {
     );
 
     expect(calendarCalls).toBe(0);
-    expect(emailCalls).toBe(1);
+    expect(emailCalls).toBe(2);
     expect(result.calendarUpserted).toBe(0);
     expect(result.emailUpserted).toBe(0);
     expect(result.errors).toEqual([]);
@@ -81,7 +138,8 @@ describe("runGoogleSync calendar orchestration", () => {
               end: { dateTime: "2026-06-13T09:15:00Z" }
             }
           ],
-          listMessageIds: async () => [{ id: "m1" }],
+          listMessageIds: async ({ query }) =>
+            query?.includes("older_than:1d") ? [] : [{ id: "m1" }],
           getMessage: async () => ({
             id: "m1",
             payload: {
@@ -95,8 +153,9 @@ describe("runGoogleSync calendar orchestration", () => {
           })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
-          runChat: async () => ({ text: "" })
+          runChat: async () => ({
+            text: JSON.stringify({ summary: "Processed", confidence: 0.5 })
+          })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
       })
@@ -138,7 +197,6 @@ describe("runGoogleSync calendar orchestration", () => {
           getMessage: async () => ({ id: "x" })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
@@ -228,7 +286,6 @@ describe("runGoogleSync calendar orchestration", () => {
           getMessage: async () => ({ id: "x" })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")
@@ -286,7 +343,6 @@ describe("runGoogleSync calendar orchestration", () => {
           getMessage: async () => ({ id: "x" })
         },
         emailExtractDeps: {
-          selectModel: async () => undefined,
           runChat: async () => ({ text: "" })
         },
         now: () => new Date("2026-06-13T12:00:00.000Z")

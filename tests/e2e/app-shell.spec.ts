@@ -224,9 +224,7 @@ test("connector accounts panel shows existing accounts and supports revoke", asy
   await expect(page.getByText("Revoked", { exact: true })).toBeVisible();
 });
 
-test("auto-discovers AI models and configures capability routing through settings REST calls", async ({
-  page
-}) => {
+test("configures chat and email extraction models through settings", async ({ page }) => {
   await mockApi(page, {
     authenticated: true,
     aiModels: [
@@ -237,6 +235,14 @@ test("auto-discovers AI models and configures capability routing through setting
         providerModelId: "gpt-4o",
         displayName: "gpt-4o",
         capabilities: ["chat", "tool-use", "json", "summarization"]
+      }),
+      createMockAiModel("ai-model-mailbox", {
+        providerConfigId: "ai-provider-1",
+        providerKind: "anthropic",
+        providerDisplayName: "Anthropic",
+        providerModelId: "mailbox-json",
+        displayName: "Mailbox JSON",
+        capabilities: ["json"]
       })
     ],
     aiProviders: [],
@@ -275,6 +281,25 @@ test("auto-discovers AI models and configures capability routing through setting
   await expect(page.getByText(/Routing override .*not wired/)).toHaveCount(0);
   await page.getByLabel("Binding for Chat & briefing").selectOption("mode:reasoning");
   await expect(page.getByText("Service updated")).toBeVisible();
+
+  const emailBinding = page.getByLabel("Binding for Email extraction");
+  await expect(emailBinding).toHaveValue("");
+  await expect(page.getByText("Needs configuration", { exact: true })).toBeVisible();
+
+  await emailBinding.selectOption("model:ai-model-auto");
+  await expect(emailBinding).toHaveValue("model:ai-model-auto");
+  await page.reload();
+  await page.getByRole("button", { name: "Admin / Setup" }).click();
+  await page.getByRole("button", { name: "Assistant & AI" }).click();
+  await expect(page.getByLabel("Binding for Email extraction")).toHaveValue("model:ai-model-auto");
+
+  await page.getByLabel("Binding for Email extraction").selectOption("model:ai-model-mailbox");
+  await page.reload();
+  await page.getByRole("button", { name: "Admin / Setup" }).click();
+  await page.getByRole("button", { name: "Assistant & AI" }).click();
+  await expect(page.getByLabel("Binding for Email extraction")).toHaveValue(
+    "model:ai-model-mailbox"
+  );
 
   await page.getByRole("button", { name: "Remove Anthropic" }).click();
   await page.getByRole("button", { name: "Remove", exact: true }).click();

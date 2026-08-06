@@ -1176,22 +1176,33 @@ export class AiRepository {
   async resolveModelForService(
     scopedDb: DataContextDb,
     service: ModuleServiceKey,
-    options: { capability: AiModelCapability; tierHint?: AiModelTier }
+    options: {
+      capability: AiModelCapability;
+      tierHint?: AiModelTier;
+      requireExplicitBinding?: boolean;
+    }
   ): Promise<AiCapabilityRouteResolution> {
     assertDataContextDb(scopedDb);
-    const { capability, tierHint = "economy" } = options;
+    const { capability, tierHint = "economy", requireExplicitBinding = false } = options;
+
+    const bindings = await this.listModuleServiceBindings(scopedDb);
+    if (requireExplicitBinding && !bindings[service]) {
+      await this.logNeedsConfig(scopedDb, capability);
+      return { model: null, reason: "needs-config" };
+    }
 
     const [pinnedModelId, pinnedProviderId] = await Promise.all([
       this.getAdminPinnedModelId(scopedDb),
       this.getAdminPinnedProviderId(scopedDb)
     ]);
-    if (pinnedModelId !== null || pinnedProviderId !== null) {
+    if (!requireExplicitBinding && (pinnedModelId !== null || pinnedProviderId !== null)) {
       return this.resolveModelForCapability(scopedDb, capability, tierHint);
     }
 
-    const bindings = await this.listModuleServiceBindings(scopedDb);
     const keys: ModuleServiceKey[] =
-      service === MODULE_WORKER_SERVICE_KEY ? [service] : [service, MODULE_WORKER_SERVICE_KEY];
+      requireExplicitBinding || service === MODULE_WORKER_SERVICE_KEY
+        ? [service]
+        : [service, MODULE_WORKER_SERVICE_KEY];
 
     for (const key of keys) {
       const binding = bindings[key];
@@ -1210,7 +1221,9 @@ export class AiRepository {
         // #1083 F2: service bindings store row UUIDs without an FK. A legitimate catalog removal
         // can leave one dangling, so degrade inside the configured default provider instead of
         // breaking structured module work or silently jumping to another provider.
-        const defaultProviderId = await this.resolveDefaultProviderId(scopedDb);
+        const defaultProviderId = requireExplicitBinding
+          ? null
+          : await this.resolveDefaultProviderId(scopedDb);
         if (defaultProviderId) {
           const fallback = await this.selectModelInProviderForCapability(
             scopedDb,
@@ -1234,6 +1247,10 @@ export class AiRepository {
       return { model: null, reason: "needs-config" };
     }
 
+    if (requireExplicitBinding) {
+      await this.logNeedsConfig(scopedDb, capability);
+      return { model: null, reason: "needs-config" };
+    }
     return this.resolveModelForCapability(scopedDb, capability, tierHint);
   }
 

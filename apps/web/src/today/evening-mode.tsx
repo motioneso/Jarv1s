@@ -351,3 +351,16 @@ function durationLabel(event: CalendarEventDto): string {
 function shortDate(iso: string, locale: LocaleSettingsDto): string {
   return formatDate(iso, locale, { month: "short", day: "numeric" });
 }
+
+/**
+ * Which briefing run supplies the action rows for the current Today mode. The evening briefing
+ * carries what is still outstanding at end of day, so evening mode must never fall back to the
+ * morning run — a stale morning row would read as "still needs you" hours after it was handled.
+ */
+export function selectActionRowsRun(
+  mode: TodayMode,
+  morningRun: BriefingRunDto | null,
+  eveningRun: BriefingRunDto | null
+): BriefingRunDto | null {
+  return mode === "day" ? morningRun : eveningRun;
+}

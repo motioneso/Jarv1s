@@ -115,7 +115,7 @@ export function isModuleServiceKey(value: string): value is ModuleServiceKey {
 
 export type ModuleServiceBindingMap = Partial<Record<ModuleServiceKey, AiServiceBinding>>;
 
-export type AiServiceBindingMapDto = Partial<Record<AiModelCapability, AiServiceBinding>>;
+export type AiServiceBindingMapDto = Partial<Record<AiServiceKey, AiServiceBinding>>;
 
 export interface AiProviderTestResultDto {
   readonly ok: boolean;
@@ -316,7 +316,7 @@ export interface PutAiServiceBindingRequest {
 }
 
 export interface PutAiServiceBindingResponse {
-  readonly service: AiModelCapability;
+  readonly service: AiServiceKey;
   readonly binding: AiServiceBinding;
 }
 

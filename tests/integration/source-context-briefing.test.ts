@@ -61,8 +61,7 @@ function triageJson(category: string, summary: string): string {
 /** Triage stub keyed on the extract prompt: the reply-shaped live email is actionable, the rest noise. */
 function subjectKeyedExtractDeps() {
   return {
-    selectModel: async () => ({ tier: "economy" }),
-    runChat: async (_model: { tier: string }, prompt: string) => ({
+    runChat: async (prompt: string) => ({
       text: prompt.includes(LIVE_ACTIONABLE_SUBJECT)
         ? triageJson("needs_reply", "Alice still needs a reply on the budget plan.")
         : triageJson("noise", "Routine newsletter.")

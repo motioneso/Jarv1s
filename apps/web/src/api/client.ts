@@ -10,6 +10,7 @@ import type {
   DiscoverAiProviderModelsResponse,
   AddTaskActivityResponse,
   AiModelCapability,
+  AiServiceKey,
   BootstrapStatusResponse,
   ChatSkillResponse,
   CreateChatSkillRequest,
@@ -1092,7 +1093,7 @@ export async function listAiServiceBindings(): Promise<ListAiServiceBindingsResp
 }
 
 export async function putAiServiceBinding(
-  service: AiModelCapability,
+  service: AiServiceKey,
   input: PutAiServiceBindingRequest
 ): Promise<PutAiServiceBindingResponse> {
   return requestJson<PutAiServiceBindingResponse>(

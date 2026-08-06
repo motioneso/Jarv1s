@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PassThrough } from "node:stream";
 
 import type { Multiplexer, MuxHandle, TmuxIo } from "@jarv1s/ai";
 
@@ -12,14 +13,30 @@ vi.mock("node:child_process", async () => ({
 }));
 
 function fakeChild() {
+  const listeners = new Map<string, Array<() => void>>();
+  const stdin = new PassThrough();
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
   const child = {
     exitCode: null,
     signalCode: null,
-    kill: vi.fn(() => true),
-    on: vi.fn(),
-    unref: vi.fn()
+    kill: vi.fn(() => {
+      queueMicrotask(() => listeners.get("exit")?.forEach((listener) => listener()));
+      return true;
+    }),
+    on: vi.fn((event: string, callback: () => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), callback]);
+      return child;
+    }),
+    once: vi.fn((event: string, callback: () => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), callback]);
+      return child;
+    }),
+    unref: vi.fn(),
+    stdin,
+    stdout,
+    stderr
   };
-  child.on.mockReturnValue(child);
   return child;
 }
 
@@ -122,7 +139,7 @@ describe("ClaudePrintChatEngine", () => {
     await engine.interrupt();
     expect(currentChild.kill).toHaveBeenCalledWith("SIGINT");
     await engine.kill();
-    expect(currentChild.kill).toHaveBeenCalledWith();
+    expect(currentChild.kill).toHaveBeenCalledWith("SIGTERM");
     expect(await engine.isAlive()).toBe(false);
   });
 
@@ -144,6 +161,40 @@ describe("ClaudePrintChatEngine", () => {
     await engine.submit("second");
 
     expect(launchLineAt(1)).toContain("--resume 00000000-0000-4000-8000-000000000001");
+  });
+
+  it("does not finish teardown until the detached CLI process exits", async () => {
+    let exit!: () => void;
+    const child = fakeChild();
+    Object.assign(child, {
+      kill: vi.fn(() => true),
+      once: vi.fn((event: string, callback: () => void) => {
+        if (event === "exit") exit = callback;
+        return child;
+      })
+    });
+    spawnMock.mockReturnValue(child);
+    const engine = new ClaudePrintChatEngine("user-1", fakeIo(), {
+      mux: fakeMux(),
+      homeBase: "/home/test",
+      sessionId: "00000000-0000-4000-8000-000000000010"
+    });
+    await engine.launch({
+      neutralDir: "/tmp/jarvis-neutral",
+      personaPath: "/tmp/jarvis-neutral/persona.md",
+      personaText: "persona"
+    });
+    await engine.submit("hello");
+
+    let settled = false;
+    const teardown = engine.kill().then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    exit();
+    await teardown;
+    expect(settled).toBe(true);
   });
 
   it("reads Claude transcript JSONL through the existing parser", async () => {
@@ -176,6 +227,43 @@ describe("ClaudePrintChatEngine", () => {
     expect(result.records).toEqual([{ kind: "reply", text: "claude print ok" }]);
     expect(result.complete).toBe(true);
     expect(result.offset).toBe(`${transcript}\n`.length);
+  });
+
+  it("launches the authenticated native stream-json contract and reads one structured result", async () => {
+    const engine = new ClaudePrintChatEngine("structured-scope", fakeIo(), {
+      mux: fakeMux(),
+      homeBase: "/home/test"
+    });
+
+    await engine.launchStructured({
+      neutralDir: "/tmp/jarvis-neutral",
+      personaPath: "/tmp/jarvis-neutral/persona.md",
+      personaText: "persona",
+      model: "claude-haiku-4-5-20251001",
+      schema: { type: "object", required: ["ok"] }
+    });
+    await engine.submitStructured("Return a synthetic structured result.");
+    const output = `${JSON.stringify({ type: "result", structured_output: { ok: true } })}\n`;
+    currentChild.stdout.write(output);
+
+    const result = await engine.readStructured(0);
+    expect(result).toEqual({ text: '{"ok":true}', offset: output.length, complete: true });
+    expect(launchLineAt()).toContain("--input-format stream-json");
+    expect(launchLineAt()).toContain("--output-format stream-json");
+    expect(launchLineAt()).toContain("--include-partial-messages");
+    expect(launchLineAt()).toContain("--verbose");
+    expect(launchLineAt()).toContain("--no-session-persistence");
+    expect(launchLineAt()).toContain("--json-schema");
+    expect(spawnMock).toHaveBeenCalledWith(
+      "bash",
+      ["-lc", expect.stringContaining("--input-format stream-json")],
+      expect.objectContaining({
+        cwd: "/tmp/jarvis-neutral",
+        detached: true,
+        stdio: ["pipe", "pipe", "pipe"]
+      })
+    );
+    await engine.kill();
   });
 
   it("#1353 reads the transcript when the neutral dir contains a surface suffix", async () => {
