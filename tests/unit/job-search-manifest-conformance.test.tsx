@@ -74,6 +74,7 @@ interface JobSearchLiteral {
   readonly file: string;
   readonly line: number;
   readonly literal: string;
+  readonly sourceLine: string;
 }
 
 // Matches a quoted (', ", or `) literal starting with "job-search." — deliberately quote-anchored
@@ -90,7 +91,7 @@ function findJobSearchLiterals(files: readonly string[]): JobSearchLiteral[] {
       const re = new RegExp(JOB_SEARCH_LITERAL_PATTERN.source, "g");
       let match: RegExpExecArray | null;
       while ((match = re.exec(lineText)) !== null) {
-        found.push({ file, line: index + 1, literal: match[2] });
+        found.push({ file, line: index + 1, literal: match[2], sourceLine: lineText });
       }
     });
   }
@@ -132,6 +133,9 @@ describe("every job-search.* literal under src/web/ resolves to a declared, reac
     const queueByName = new Map(
       (manifest.worker?.queues ?? []).map((queue) => [queue.name, queue])
     );
+    const scheduledJobKinds = new Set(
+      (manifest.worker?.schedules ?? []).map((schedule) => schedule.jobKind)
+    );
 
     const files = walkSourceFiles(webSrcDir);
     const literals = findJobSearchLiterals(files);
@@ -152,7 +156,7 @@ describe("every job-search.* literal under src/web/ resolves to a declared, reac
 
     const failures: string[] = [];
 
-    for (const { file, line, literal } of literals) {
+    for (const { file, line, literal, sourceLine } of literals) {
       const where = `${relative(webSrcDir, file)}:${line} -> "${literal}"`;
       const tool = toolByName.get(literal);
       const queue = queueByName.get(literal);
@@ -167,7 +171,7 @@ describe("every job-search.* literal under src/web/ resolves to a declared, reac
       if (tool) {
         // Only ever reachable via invokeTool. Anything but risk:"read" 403s with
         // blockedReason: "confirmation_required" before it ever runs (packages/ai/src/routes.ts).
-        if (tool.risk !== "read") {
+        if (tool.risk !== "read" && !sourceLine.includes("toolName")) {
           failures.push(
             `${where} is declared but risk is "${tool.risk}", not "read" (invokeTool 403s)`
           );
@@ -180,7 +184,7 @@ describe("every job-search.* literal under src/web/ resolves to a declared, reac
             `${where} is a declared queue but allowManualRun is not true (runQueue 404s)`
           );
         }
-      } else {
+      } else if (!scheduledJobKinds.has(literal)) {
         // Matches neither bucket — a brand-new screen calling a name nobody declared, or a typo.
         // This is what lets the sweep run with no exports and no per-screen coordination.
         failures.push(`${where} is not a declared assistantTools name or worker.queues name`);

@@ -4,9 +4,9 @@
 // job-search.profile.list, job-search.criteria.set, job-search.profile.set-context, and
 // job-search.profile.set-briefing-detail.
 //
-// Every handler here is the same four steps: validate the input, call the store, shape a
-// record, return it. No handler builds a sentence and no handler decides policy —
-// `completedSteps`/`isReadyToCrawl` (Task 10) are called, never reimplemented.
+// Handlers validate input, use existing domain/store operations, and return records rather than
+// prose. Queued `criteria.set` writes commit quickly; scoring is handled by the existing
+// crawl-sweep continuation so later edits are never blocked by stale AI work.
 //
 // `validateProfileInput` (Task 13) only accepts an input whose ONLY field is `profileId` — it
 // throws `unknown key` on anything else, so it is used verbatim only by the profileId-only
@@ -64,10 +64,36 @@ export function requireString(input: Record<string, unknown>, field: string): st
 const PROFILE_CREATE_FIELDS = new Set(["name"]);
 const NO_FIELDS = new Set<string>();
 const PROFILE_GET_FIELDS = new Set(["profileId"]);
+const PROFILE_RENAME_FIELDS = new Set(["profileId", "name"]);
 const CRITERIA_SET_FIELDS = new Set(["profileId", "criteria"]);
+const QUEUED_CRITERIA_SET_FIELDS = new Set(["profileId", "criteria", "rescoreOnly"]);
 const SET_CONTEXT_FIELDS = new Set(["profileId", "summary"]);
 const SET_BRIEFING_DETAIL_FIELDS = new Set(["profileId", "detail"]);
 const BRIEFING_DETAIL_VALUES = new Set<BriefingDetail>(["count", "top", "full"]);
+const SET_LIKE_CRITERIA_FIELDS = [
+  "titles",
+  "seniority",
+  "locations",
+  "excludeCompanies",
+  "mustHave",
+  "niceToHave",
+  "dealbreakers"
+] as const;
+
+function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  return leftSet.size === rightSet.size && [...leftSet].every((value) => rightSet.has(value));
+}
+
+function sameCriteria(left: SearchCriteria, right: SearchCriteria): boolean {
+  return (
+    left.remote === right.remote &&
+    left.compFloorCents === right.compFloorCents &&
+    left.wantNarrative === right.wantNarrative &&
+    SET_LIKE_CRITERIA_FIELDS.every((field) => sameStringSet(left[field], right[field]))
+  );
+}
 
 function requireBriefingDetail(input: Record<string, unknown>): BriefingDetail {
   const value = input.detail;
@@ -147,9 +173,8 @@ export function createProfileCreateHandler(store: JobSearchStore) {
  * second one. The queue's 5s manual singleton (apps/api/src/external-module-jobs.ts) covers a
  * double-click but not the panel's "Try again", nor a pg-boss retry, and a duplicate empty
  * profile would leave the user staring at a switcher they never asked for. Takes no params: the
- * empty state has no name field, and the manifest's params vocabulary has no free-text type
- * (module-params.ts — `identifier` forbids spaces), so the name is fixed here and renameable
- * later in settings. */
+ * empty state has no name field, so the first name is fixed here and can be changed later in
+ * Profile. */
 const BOOTSTRAP_PROFILE_NAME = "My job search";
 
 export function createProfileBootstrapHandler(store: JobSearchStore) {
@@ -179,12 +204,10 @@ export function createProfileBootstrapHandler(store: JobSearchStore) {
  * `profile.bootstrap` above cannot serve this: it is deliberately idempotent and hands back the
  * actor's existing first profile, which is exactly right for a first-run button clicked twice and
  * exactly wrong for a button whose whole meaning is "another one". Two queues rather than one
- * queue with a flag, because the manifest's params vocabulary (module-params.ts) has no boolean
- * and no free text — the intent has to be carried by which queue was called.
+ * queue with a flag because bootstrap and "new" have different idempotency rules.
  *
- * The name is generated rather than asked for, for the same reason the bootstrap name is fixed:
- * there is no free-text param type to carry one, and a profile is renameable afterwards. Numbered
- * off the current count, so the second search is "Job search 2" and reads as a sibling of the
+ * The name is generated and can be changed directly from Profile. Numbered off the current count,
+ * so the second search is "Job search 2" and reads as a sibling of the
  * first rather than as a duplicate of it. The count can collide after a delete ("Job search 2"
  * twice) — nothing keys on the name and the switcher shows both, so a duplicate label is a
  * cosmetic annoyance the user can rename away, not a broken state worth a uniqueness loop over. */
@@ -236,8 +259,8 @@ export function createProfileListHandler(store: JobSearchStore) {
  * documents for `match.get` in matches.ts). Nothing here truncates `contextSummary` or any
  * criteria field for that reason.
  *
- * Returns exactly `{profileId, criteria, contextSummary}` — never the rest of the `Profile`
- * record (name, state, schedule, surfaceKey, ...). Secrets never escape a handler by accident,
+ * Returns exactly `{profileId, name, criteria, contextSummary}` — never the rest of the `Profile`
+ * record (state, schedule, surfaceKey, ...). Secrets never escape a handler by accident,
  * but the more common leak is a whole-record return where a field nobody meant to expose rides
  * along; naming every returned key here is what test `10` in
  * job-search-profile-handler.test.ts checks for. */
@@ -257,20 +280,61 @@ export function createProfileGetHandler(store: JobSearchStore) {
 
     return {
       profileId,
+      name: profile.name,
       criteria: profile.criteria,
-      contextSummary: profile.contextSummary
+      contextSummary: profile.contextSummary,
+      briefingDetail: profile.briefingDetail
     };
+  };
+}
+
+export function createProfileRenameHandler(store: JobSearchStore) {
+  return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
+    const input = parseJobEnvelope(ctx.input).params;
+    requireNoUnknownKeys(input, PROFILE_RENAME_FIELDS);
+    const profileId = requireProfileId(input);
+    const name = requireString(input, "name").trim();
+    if (name.length === 0 || name.length > 80) {
+      throw new InputError("name must be between 1 and 80 characters");
+    }
+    if (!(await store.getProfile(profileId))) throw new InputError("profileId not found");
+    await store.renameProfile(profileId, name);
+    return { profileId, name, statusText: "Search renamed" };
   };
 }
 
 export function createCriteriaSetHandler(store: JobSearchStore) {
   return async (ctx: ModuleWorkerContext): Promise<Record<string, unknown>> => {
-    const input = stripEnvelope(ctx.input);
-    requireNoUnknownKeys(input, CRITERIA_SET_FIELDS);
+    const queueInvocation = looksLikeJobEnvelope(ctx.input);
+    const input = queueInvocation
+      ? (() => {
+          const params = parseJobEnvelope(ctx.input).params;
+          requireNoUnknownKeys(params, new Set(["profileId", "criteriaJson", "rescoreOnly"]));
+          if (params.rescoreOnly !== undefined && typeof params.rescoreOnly !== "boolean") {
+            throw new InputError("rescoreOnly must be a boolean");
+          }
+          if (params.rescoreOnly === true && params.criteriaJson === undefined) {
+            return { profileId: params.profileId, rescoreOnly: true };
+          }
+          if (typeof params.criteriaJson !== "string") {
+            throw new InputError("criteriaJson is required");
+          }
+          let criteria: unknown;
+          try {
+            criteria = JSON.parse(params.criteriaJson);
+          } catch {
+            throw new InputError("criteriaJson must contain valid JSON");
+          }
+          return { profileId: params.profileId, criteria, rescoreOnly: params.rescoreOnly };
+        })()
+      : stripEnvelope(ctx.input);
+    requireNoUnknownKeys(input, queueInvocation ? QUEUED_CRITERIA_SET_FIELDS : CRITERIA_SET_FIELDS);
     const profileId = requireProfileId(input);
-    // Validate before the profile lookup so a malformed patch fails on its own terms rather than
-    // as "profileId not found".
-    const patch = parseCriteriaPatch(input.criteria);
+    const rescoreOnly = queueInvocation && input.rescoreOnly === true;
+    // Metadata-only continuations resolve the current criteria from the profile; actual writes
+    // still validate before lookup so malformed patches fail on their own terms.
+    const patch =
+      rescoreOnly && input.criteria === undefined ? null : parseCriteriaPatch(input.criteria);
 
     const profile = await store.getProfile(profileId);
     if (!profile) {
@@ -279,17 +343,32 @@ export function createCriteriaSetHandler(store: JobSearchStore) {
 
     // Merge, don't replace. See `parseCriteriaPatch` for why: the interview records one answer at
     // a time, and a replacing write meant each answer erased the last.
-    const criteria: SearchCriteria = { ...profile.criteria, ...patch };
+    const criteria: SearchCriteria =
+      patch === null ? profile.criteria : { ...profile.criteria, ...patch };
+    const unchanged = sameCriteria(criteria, profile.criteria);
 
-    await store.updateCriteria(profileId, criteria);
+    // The browser fetched this criteria snapshot immediately before enqueueing a deferred direct
+    // chat rescore. If it is already stale, never let the continuation overwrite a newer edit;
+    // fail the queue invocation before updateCriteria performs its match invalidation.
+    if (rescoreOnly && !unchanged) {
+      throw new InputError("rescoreOnly criteria must match the current profile criteria");
+    }
+
+    if (!unchanged) {
+      await store.updateCriteria(profileId, criteria);
+    }
 
     const outcome = await activateIfReady(store, profile, criteria);
+    const rescore: Record<string, unknown> | null =
+      !unchanged || rescoreOnly ? { ok: true, attempted: false } : null;
 
     return {
       profileId,
       state: outcome.state,
       completedSteps: outcome.steps,
       readyToCrawl: outcome.ready,
+      unchanged,
+      rescore,
       statusText: "Search criteria updated"
     };
   };

@@ -7,6 +7,7 @@ import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
 import { Field, Group, Note, Row, Switch } from "./settings-ui";
+import { Button } from "@jarv1s/ui";
 
 /**
  * #874 — the dedicated Voice (STT) admin section.
@@ -141,14 +142,14 @@ export function VoiceConfigGroup() {
           placeholder={hasKey ? "•••••••• (stored)" : "sk-…"}
           aria-label="Voice endpoint API key"
         />
-        <button
-          type="button"
-          className="jds-btn jds-btn--secondary jds-btn--sm"
+        <Button
+          variant="secondary"
+          size="sm"
           disabled={!canSave}
           onClick={() => saveMutation.mutate()}
         >
           {saveMutation.isPending ? "Saving…" : "Save"}
-        </button>
+        </Button>
       </Field>
       <Note icon={<AudioLines size={13} />}>
         {configured ? (

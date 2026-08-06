@@ -22,6 +22,7 @@ import {
   formatDateTime as fmtDateTime,
   useUserLocale
 } from "../locale/locale-format";
+import { Button } from "@jarv1s/ui";
 import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
@@ -43,12 +44,12 @@ const TAB_LABELS: { readonly value: DashboardTab; readonly label: string }[] = [
 
 function itemKindTone(kind: string): BadgeTone {
   if (kind === "candidate") return "amber";
-  if (kind === "entity") return "pine";
+  if (kind === "entity") return "forest";
   return "neutral";
 }
 
 function confidenceTone(tier?: string): BadgeTone {
-  if (tier === "confirmed") return "pine";
+  if (tier === "confirmed") return "forest";
   if (tier === "high") return "steel";
   if (tier === "low") return "amber";
   return "neutral";
@@ -193,9 +194,8 @@ function CandidateActions(props: {
       ) : null}
 
       <div className="memdash-drawer__actions">
-        <button
-          type="button"
-          className="jds-btn jds-btn--sm"
+        <Button
+          size="sm"
           disabled={busy}
           onClick={() => {
             if (showAcceptForm) {
@@ -204,36 +204,27 @@ function CandidateActions(props: {
               setShowAcceptForm(true);
             }
           }}
+          icon={<Check size={13} aria-hidden="true" />}
         >
-          <Check size={13} aria-hidden="true" />
           {showAcceptForm ? "Confirm accept" : "Accept"}
-        </button>
+        </Button>
         {showAcceptForm ? (
-          <button
-            type="button"
-            className="jds-btn jds-btn--quiet jds-btn--sm"
-            onClick={() => setShowAcceptForm(false)}
-          >
+          <Button variant="quiet" size="sm" onClick={() => setShowAcceptForm(false)}>
             Cancel
-          </button>
+          </Button>
         ) : null}
-        <button
-          type="button"
-          className="jds-btn jds-btn--quiet jds-btn--sm"
+        <Button
+          variant="quiet"
+          size="sm"
           disabled={busy}
           onClick={handleReject}
+          icon={<X size={13} aria-hidden="true" />}
         >
-          <X size={13} aria-hidden="true" />
           Reject
-        </button>
-        <button
-          type="button"
-          className="jds-btn jds-btn--quiet jds-btn--sm"
-          disabled={busy}
-          onClick={handleSuppress}
-        >
+        </Button>
+        <Button variant="quiet" size="sm" disabled={busy} onClick={handleSuppress}>
           Suppress
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -301,20 +292,25 @@ function FactActions(props: { readonly item: MemoryDashboardItem; readonly onDon
 
       <div className="memdash-drawer__actions">
         {item.editableFields.includes("pinned") ? (
-          <button
-            type="button"
-            className={`jds-btn jds-btn--quiet jds-btn--sm${pinned ? " jds-btn--active" : ""}`}
+          <Button
+            variant="quiet"
+            size="sm"
+            active={pinned}
             disabled={patchMutation.isPending}
             onClick={handlePinToggle}
+            icon={<Pin size={13} aria-hidden="true" />}
           >
-            <Pin size={13} aria-hidden="true" />
             {pinned ? "Unpin" : "Pin"}
-          </button>
+          </Button>
         ) : null}
-        <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={handleForget}>
-          <Trash2 size={13} aria-hidden="true" />
+        <Button
+          variant="quiet"
+          size="sm"
+          onClick={handleForget}
+          icon={<Trash2 size={13} aria-hidden="true" />}
+        >
           Forget
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -395,24 +391,19 @@ function EntityActions(props: { readonly item: MemoryDashboardItem; readonly onD
 
       <div className="memdash-drawer__actions">
         {item.editableFields.includes("entityName") && name !== item.title ? (
-          <button
-            type="button"
-            className="jds-btn jds-btn--sm"
-            disabled={busy}
-            onClick={handleSave}
-          >
+          <Button size="sm" disabled={busy} onClick={handleSave}>
             Save
-          </button>
+          </Button>
         ) : null}
-        <button
-          type="button"
-          className="jds-btn jds-btn--quiet jds-btn--sm"
+        <Button
+          variant="quiet"
+          size="sm"
           disabled={busy}
           onClick={handleDelete}
+          icon={<Trash2 size={13} aria-hidden="true" />}
         >
-          <Trash2 size={13} aria-hidden="true" />
           Delete
-        </button>
+        </Button>
       </div>
     </div>
   );

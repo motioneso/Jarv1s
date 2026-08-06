@@ -1,6 +1,6 @@
 ---
 name: plan-build
-description: How to write an implementation plan in this repo — seams check before planning, decisions not implementation code, determinism boundary, kill gates, and unpiped verification. Use when writing or reviewing any implementation plan, build plan, or phased delivery plan, and before starting a milestone or module build. Overrides superpowers:writing-plans, whose "complete code in every step" rule is wrong here.
+description: How to write an implementation plan in this repo — seams check before planning, ranking design forks, decisions not implementation code, determinism boundary, kill gates, and unpiped verification. Use when writing or reviewing any implementation plan, build plan, or phased delivery plan, when ranking the options on a design fork, and before starting a milestone or module build. Overrides superpowers:writing-plans, whose "complete code in every step" rule is wrong here.
 ---
 
 # Writing a build plan
@@ -36,6 +36,12 @@ don't cover. Use the `codebase-memory` skill for structure queries.
 
 Grep for existing machinery before calling anything net-new — "big changes" here are routinely
 already half-built.
+
+### Ranking a design fork
+
+Verify before you rank. Read the files each option touches — give the one you lean *against* equal
+depth — and steelman the option you'd reject. On milestone-level forks an adversarial second
+opinion is valuable but never a gate: `/grill-me-codex`, else an independent critic subagent.
 
 ## 2. Plans carry decisions, not implementations
 

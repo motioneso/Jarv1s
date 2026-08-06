@@ -18,7 +18,7 @@ export { MAX_INVOCATION_MS };
 // racing on one child could run under, or leak into, the wrong actor's grant. A
 // dedicated child per lane makes that structurally impossible: lanes never share
 // process state, stdio, or environment.
-export type WorkerLane = "queue" | "tool" | "briefing";
+export type WorkerLane = "queue" | `queue:${string}` | "tool" | "briefing";
 
 // Margin subtracted from the hard ceiling when computing the absolute deadline shipped
 // to the module (ctx.deadlineAt). Leaves the host time to observe the ceiling, abort

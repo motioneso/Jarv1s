@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Note } from "@jarv1s/settings-ui";
-import { ApiError } from "@jarv1s/module-web-sdk";
+import { ApiError, Button } from "@jarv1s/module-web-sdk";
 import type {
   JarvisError,
   NewsSourcePreviewCandidate,
@@ -169,9 +169,9 @@ export function AddSourceFlow() {
               setAdded(false);
             }}
           />
-          <button type="submit" className="jds-btn jds-btn--sm" disabled={busy || !input.trim()}>
+          <Button type="submit" size="sm" disabled={busy || !input.trim()}>
             {previewMutation.isPending ? "Checking…" : "Check"}
-          </button>
+          </Button>
         </div>
       </form>
 
@@ -213,22 +213,12 @@ export function AddSourceFlow() {
             ))}
           </ul>
           <div className="nw-set__addrow">
-            <button
-              type="button"
-              className="jds-btn jds-btn--sm"
-              disabled={busy || !selectedCandidateId}
-              onClick={confirmSelected}
-            >
+            <Button size="sm" disabled={busy || !selectedCandidateId} onClick={confirmSelected}>
               {confirmMutation.isPending ? "Adding…" : "Add this source"}
-            </button>
-            <button
-              type="button"
-              className="jds-btn jds-btn--sm jds-btn--secondary"
-              disabled={busy}
-              onClick={reset}
-            >
+            </Button>
+            <Button variant="secondary" size="sm" disabled={busy} onClick={reset}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}

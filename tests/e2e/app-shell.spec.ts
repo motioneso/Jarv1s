@@ -164,14 +164,14 @@ test("lists and marks notifications read through REST calls", async ({ page }) =
 
   await page.goto("/notifications");
   await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Unread\s*2/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Unread\s*\(2\)/ })).toBeVisible();
   await expect(page.getByText("New secure notice")).toBeVisible();
 
   await page.getByLabel("Mark New secure notice read").click();
-  await expect(page.getByRole("button", { name: /Unread\s*1/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Unread\s*\(1\)/ })).toBeVisible();
 
   await page.getByRole("button", { name: "Mark all read" }).click();
-  await expect(page.getByRole("button", { name: /Unread\s*0/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Unread\s*\(0\)/ })).toBeVisible();
   await page.getByRole("button", { name: /Unread/ }).click();
   await expect(page.getByText("No notifications")).toBeVisible();
 });

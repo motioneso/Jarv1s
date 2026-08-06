@@ -214,6 +214,13 @@ test("capture: tasks", async ({ page }) => {
   }
 });
 
+test("capture: tasks empty", async ({ page }) => {
+  await baseState(page, { tasks: [] });
+  await page.goto("/tasks");
+  await page.waitForTimeout(600);
+  await shot(page, "06b-tasks-empty");
+});
+
 test("capture: calendar", async ({ page }) => {
   await baseState(page);
   await page.goto("/calendar");
@@ -226,6 +233,13 @@ test("capture: notifications", async ({ page }) => {
   await page.goto("/notifications");
   await page.waitForTimeout(500);
   await shot(page, "10-notifications");
+});
+
+test("capture: notifications empty", async ({ page }) => {
+  await baseState(page, { notifications: [] });
+  await page.goto("/notifications");
+  await page.waitForTimeout(500);
+  await shot(page, "10c-notifications-empty");
 });
 
 // #1390: command palette had no capture coverage — added ahead of the Today section migration
@@ -272,6 +286,37 @@ test("capture: settings (profile, connected accounts, AI)", async ({ page }) => 
       await page.waitForTimeout(400);
       await shot(page, "14-settings-people");
     }
+  }
+});
+
+test("capture: settings appearance theme editor", async ({ page }) => {
+  await baseState(page);
+  await page.goto("/settings");
+  await page.waitForTimeout(500);
+
+  const appearance = page.getByRole("button", { name: "Appearance" });
+  await appearance.click();
+  await page.waitForTimeout(400);
+
+  const newTheme = page.getByRole("button", { name: "New theme" });
+  await newTheme.click();
+  await page.waitForTimeout(400);
+  await shot(page, "14b-settings-appearance-editor");
+});
+
+test("capture: settings delete-account dialog", async ({ page }) => {
+  await baseState(page);
+  await page.goto("/settings");
+  await page.waitForTimeout(500);
+
+  const deleteAccount = page.getByRole("button", { name: "Delete account" });
+  await deleteAccount.click();
+  await page.waitForTimeout(400);
+  await shot(page, "14c-settings-delete-dialog");
+
+  const cancel = page.getByRole("button", { name: "Cancel" });
+  if (await cancel.count()) {
+    await cancel.click();
   }
 });
 

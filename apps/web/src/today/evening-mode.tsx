@@ -23,7 +23,7 @@ import {
 } from "../locale/locale-format";
 import { BriefingFeedbackMenu } from "./briefing-feedback-menu";
 import { BriefingStaleBanner, parseBriefingFreshness } from "./briefing-freshness";
-import { joinClauses } from "./today-labels";
+import { eventCaptureText, joinClauses } from "./today-labels";
 
 export type TodayMode = "day" | "evening";
 
@@ -270,7 +270,11 @@ export function EveningSupportSections(props: {
             {props.tomorrowEvents.length > 0 ? (
               <div className="day-list">
                 {props.tomorrowEvents.slice(0, 3).map((event) => (
-                  <div className="day-ev" key={event.id}>
+                  <div
+                    className="day-ev"
+                    key={event.id}
+                    data-jarvis-capture-text={`Tomorrow: ${eventCaptureText(event, props.locale)}`}
+                  >
                     <div className="day-ev__t">
                       {timeLabel(event.startsAt, props.locale)}
                       <span className="ap"> {ampm(event.startsAt, props.locale)}</span>

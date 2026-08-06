@@ -14,7 +14,8 @@ export const JOB_SEARCH_TABLES = [
   "job_search_postings",
   "job_search_matches",
   "job_search_resumes",
-  "job_search_custom_sources"
+  "job_search_custom_sources",
+  "job_search_rescore_state"
 ] as const;
 
 // Task 24 (#1309): `source.add`'s "already a built-in source" rejection needs the module's own

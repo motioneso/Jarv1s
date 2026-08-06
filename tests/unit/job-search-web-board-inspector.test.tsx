@@ -326,23 +326,14 @@ describe("job-search web BoardScreen — inspector", () => {
     expect(link!.props.onClick).toBeUndefined();
   });
 
-  // Mockup rewrite (task #98/#99): the board now renders match-row.tsx's single-button
-  // `.jsm-row`s instead of KeyRow, and the row itself carries no score for either axis any more
-  // — Fit is a band word, Want doesn't render on the row at all (see the "shows Fit as a band
-  // word..." test above). Both replace the old K2-era "carries both numbers" case.
-
-  it("an opened, scored row renders both axis labels, Want's own number, and never a combined figure", async () => {
-    // K-D1 superseded (task #98): Fit's raw number (80) never renders anywhere any more — it's a
-    // band word only. This genuinely narrows the old invariant, which expected Fit to "keep its
-    // number" the same way Want does; that half no longer holds under the new design.
+  it("a scored row and its detail keep Fit and Want labelled and separate", async () => {
     fixtures.matchesItems = [match({ id: "m1", title: "Role A", fit: 80, want: 70 })];
     fixtures.matchGetResult = { match: matchDetail({ id: "m1", fit: 80, want: 70 }) };
     const renderer = await renderBoard();
     await flush(renderer);
 
-    // Before opening: a single Fit band word ("Good fit", 80 falls in [65,85)) and nothing of
-    // Want's — Want has no row-level rendering at all (match-row.tsx).
-    expect(text(renderer)).toMatch(/Good fit/);
+    expect(text(renderer)).toMatch(/Fit 80/);
+    expect(text(renderer)).toMatch(/Want 70/);
     expect(findByClass(renderer, "jds-score")).toEqual([]);
 
     await act(async () => {
@@ -350,14 +341,11 @@ describe("job-search web BoardScreen — inspector", () => {
     });
     await flush(renderer);
 
-    // Opened: both axis labels are present, and there is exactly one jds-score bar — Want's own,
-    // never a second one for Fit (fit and want are still never blended into one score, L9).
     expect(text(renderer)).toMatch(/Fit/);
     expect(text(renderer)).toMatch(/Want/);
-    expect(findByClass(renderer, "jds-score")).toHaveLength(1);
-    expect(text(renderer)).toMatch(/Good fit/);
+    expect(findByClass(renderer, "jds-score")).toHaveLength(2);
+    expect(text(renderer)).toMatch(/80/);
     expect(text(renderer)).toMatch(/70/);
-    expect(text(renderer)).not.toMatch(/\b80\b/);
   });
 
   // K-D1 superseded (task #98): the old "n-1 dividers for n rows" mechanism — KeyRow's own

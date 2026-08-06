@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactElement } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@jarv1s/settings-ui";
-import { ApiError } from "@jarv1s/module-web-sdk";
+import { ApiError, Button } from "@jarv1s/module-web-sdk";
 import type { NewsCustomTopicDto, NewsPersonalizationAvailabilityDto } from "@jarv1s/shared";
 
 import { createNewsTopic, deleteNewsTopic, updateNewsTopic } from "../web/news-client.js";
@@ -189,24 +189,24 @@ export function DescribeTopics(props: {
                 {topic.validationStatus !== "approved" ? (
                   <Badge tone="amber">Needs revalidation</Badge>
                 ) : null}
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--sm jds-btn--secondary"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   aria-label={`Edit ${topic.label}`}
                   disabled={pending || removing}
                   onClick={() => startEdit(topic)}
                 >
                   Edit
-                </button>
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--sm jds-btn--secondary"
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
                   aria-label={`Remove ${topic.label}`}
                   disabled={removing}
                   onClick={() => removeMutation.mutate(topic.id)}
                 >
                   Remove
-                </button>
+                </Button>
               </li>
             );
           })}
@@ -255,11 +255,7 @@ export function DescribeTopics(props: {
                 setStatusMessage(null);
               }}
             />
-            <button
-              type="submit"
-              className="jds-btn jds-btn--sm"
-              disabled={pending || !label.trim()}
-            >
+            <Button type="submit" size="sm" disabled={pending || !label.trim()}>
               {createMutation.isPending
                 ? "Checking…"
                 : updateMutation.isPending
@@ -267,28 +263,19 @@ export function DescribeTopics(props: {
                   : editingId
                     ? "Save changes"
                     : "Add topic"}
-            </button>
+            </Button>
             {editingId ? (
-              <button
-                type="button"
-                className="jds-btn jds-btn--sm jds-btn--secondary"
-                disabled={pending}
-                onClick={cancelEdit}
-              >
+              <Button variant="secondary" size="sm" disabled={pending} onClick={cancelEdit}>
                 Cancel
-              </button>
+              </Button>
             ) : null}
           </div>
         </form>
       ) : (
         <div className="nw-set__addrow">
-          <button
-            type="button"
-            className="jds-btn jds-btn--sm jds-btn--secondary nw-set__addbtn"
-            disabled
-          >
+          <Button variant="secondary" size="sm" disabled>
             Add topic
-          </button>
+          </Button>
           {props.availability ? (
             <PrereqGate requirement="Described topics need an AI model and web search." />
           ) : null}

@@ -69,6 +69,7 @@ import {
   driftOf,
   dueTs,
   durationLabel,
+  eventCaptureText,
   firstName,
   greeting,
   isToday,
@@ -412,7 +413,11 @@ export function TodayPage(props: {
             {todayEvents.length > 0 ? (
               <div className="day-list">
                 {todayEvents.map((event) => (
-                  <div className="day-ev" key={event.id}>
+                  <div
+                    className="day-ev"
+                    key={event.id}
+                    data-jarvis-capture-text={`Today: ${eventCaptureText(event, locale)}`}
+                  >
                     <div className="day-ev__t">
                       {timeLabel(event.startsAt, locale)}
                       <span className="ap"> {ampm(event.startsAt, locale)}</span>

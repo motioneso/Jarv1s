@@ -4,6 +4,7 @@
 // ModuleRegistryRowDto.state (spec §8) — no client-side state math beyond labels.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Button } from "@jarv1s/ui";
 import type { ExternalModuleDto, ModuleRegistryRowDto } from "@jarv1s/shared";
 
 import {
@@ -245,14 +246,13 @@ export function ModuleRegistrySection({
           <code>{"docker compose pull && docker compose up -d"}</code> (or restart the container).
         </Note>
       ) : null}
-      <button
-        type="button"
-        className="jds-btn jds-btn--quiet"
+      <Button
+        variant="quiet"
         onClick={() => refreshMutation.mutate()}
         disabled={refreshMutation.isPending}
       >
         {refreshMutation.isPending ? "Refreshing…" : "Refresh from registry"}
-      </button>
+      </Button>
       {data.modules.map((row) => {
         const action = libraryAction(row);
         return (
@@ -280,14 +280,9 @@ export function ModuleRegistrySection({
               control={
                 <div>
                   {action.kind === "install" ? (
-                    <button
-                      type="button"
-                      className="jds-btn jds-btn--primary"
-                      onClick={() => onInstall(row)}
-                      disabled={downloadMutation.isPending}
-                    >
+                    <Button onClick={() => onInstall(row)} disabled={downloadMutation.isPending}>
                       {action.label}
-                    </button>
+                    </Button>
                   ) : action.kind === "none" ? (
                     <span className="jds-caption">{action.label}</span>
                   ) : null}
@@ -304,31 +299,22 @@ export function ModuleRegistrySection({
                   ) : null}
                   {canRemove(row) ? (
                     <>
-                      <button
-                        type="button"
-                        className="jds-btn jds-btn--quiet"
-                        onClick={() => onRemove(row)}
-                      >
+                      <Button variant="quiet" onClick={() => onRemove(row)}>
                         Remove
-                      </button>
-                      <button
-                        type="button"
-                        className="jds-btn jds-btn--quiet"
-                        onClick={() => onRemovePurge(row)}
-                      >
+                      </Button>
+                      <Button variant="quiet" onClick={() => onRemovePurge(row)}>
                         Remove + purge
-                      </button>
+                      </Button>
                     </>
                   ) : null}
                   {row.purgePending ? (
-                    <button
-                      type="button"
-                      className="jds-btn jds-btn--quiet"
+                    <Button
+                      variant="quiet"
                       onClick={() => cancelPurgeMutation.mutate(row.id)}
                       disabled={cancelPurgeMutation.isPending}
                     >
                       Cancel purge
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
               }

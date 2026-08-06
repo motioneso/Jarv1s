@@ -94,6 +94,7 @@ export const MAX_INVOCATION_MS = 600_000;
 
 export type ModuleParamScalarSchema =
   | { readonly type: "uuid" | "identifier" | "timestamp" | "boolean" | "null" }
+  | { readonly type: "string"; readonly maxLength: number }
   | { readonly type: "integer" | "number"; readonly min: number; readonly max: number }
   | { readonly type: "enum"; readonly values: readonly string[] };
 

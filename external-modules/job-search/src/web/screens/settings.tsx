@@ -161,7 +161,7 @@ function RunNowControl(props: {
       type="button"
       className="jds-btn jds-btn--quiet jds-btn--sm"
       disabled={pending || settled || outcome?.kind === "disabled"}
-      title="Runs a check across every enabled board on this search, not only this one — job-search.crawl-run has no per-board scope."
+      title="Checks every enabled board in this search."
       onClick={handleClick}
     >
       {label}
@@ -354,10 +354,6 @@ export function SettingsScreen(props: { profile: Profile }): ReactNodeLike {
   return (
     <div className="jsm-settings">
       <h2 className="jds-section-title">Monitors</h2>
-      <p className="jds-hint jsm-monitor__lede">
-        Checks automatically and only surfaces roles that clear your bar. Nothing is applied on your
-        behalf.
-      </p>
 
       <section className="jsm-settings__group">
         <SectionHead label="Watched boards">
@@ -369,16 +365,7 @@ export function SettingsScreen(props: { profile: Profile }): ReactNodeLike {
       <div className="jsm-monitor__foot">
         {/* Stands in for the mockup's "Add a monitor" / "Edit query" buttons — the one way either
             action genuinely works today (source.ts's own header: assistantTools only, no queue). */}
-        <p className="jds-hint">
-          Add or edit a job board through chat — ask Jarvis to add or change one.
-        </p>
-
-        {/* The mockup's footer line, unchanged in substance: no icon (modules can't import
-            Lucide — keyline.tsx's own constraint list), plain text instead of a shield glyph. */}
-        <p className="jds-hint">
-          Sources are keyless public job-board APIs. Jarvis reads postings — it never submits
-          anything.
-        </p>
+        <p className="jds-hint">Add or edit a job board through chat.</p>
       </div>
     </div>
   );

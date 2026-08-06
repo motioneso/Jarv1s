@@ -82,7 +82,54 @@ export const MIGRATED_SECTION_PATHS: readonly string[] = [
   "apps/web/src/wellness/wellness-page.tsx",
   "apps/web/src/wellness/wellness-therapy-notes.tsx",
   "apps/web/src/wellness/wellness-today.tsx",
-  "apps/web/src/wellness/wellness-trends.tsx"
+  "apps/web/src/wellness/wellness-trends.tsx",
+  // #1393 Tasks + notifications.
+  "apps/web/src/tasks/task-capture.tsx",
+  "apps/web/src/tasks/task-details-dialog.tsx",
+  "apps/web/src/tasks/task-details-sections.tsx",
+  "apps/web/src/tasks/task-list-view.tsx",
+  "apps/web/src/tasks/task-matrix-view.tsx",
+  "apps/web/src/tasks/tasks-page.tsx",
+  "apps/web/src/notifications/notifications-page.tsx",
+  // #1394 Shipped modules: the news settings pane, whose 13 raw jds-btn elements became <Button>.
+  // Sports migrated CSS only (no TSX changed), so its .tsx files are deliberately absent — see the
+  // PR body. Note guard 5 is inert across both packages either way: the only raw jds-* strings
+  // remaining in packages/news and packages/sports are jds-brief and jds-input, and neither family
+  // is in CLASS_FAMILY_TO_COMPONENT. Guard 6 (inline styles) is what these entries actually buy.
+  "packages/news/src/settings/add-source.tsx",
+  "packages/news/src/settings/describe-topics.tsx",
+  "packages/news/src/settings/index.tsx",
+  // #1395 Settings: every apps/web/src/settings/*.tsx file touched by this section's Button/
+  // Dialog/IconButton/Segmented/Badge conversions (Tasks 1-3e) or the pine->forest rename/inline-
+  // style burn-down. packages/settings-ui's router/scanner/vite/priority half is #983's territory,
+  // out of scope here and deliberately absent, same treatment as #1394's sports CSS-only files.
+  "apps/web/src/settings/delete-account.tsx",
+  "apps/web/src/settings/module-credentials-section.tsx",
+  "apps/web/src/settings/settings-activity-pane.tsx",
+  "apps/web/src/settings/settings-admin-panes.tsx",
+  "apps/web/src/settings/settings-ai-admin-pane.tsx",
+  "apps/web/src/settings/settings-ai-edit-model-form.tsx",
+  "apps/web/src/settings/settings-ai-pane.tsx",
+  "apps/web/src/settings/settings-appearance-pane.tsx",
+  "apps/web/src/settings/settings-audit-pane.tsx",
+  "apps/web/src/settings/settings-feedback.tsx",
+  "apps/web/src/settings/settings-google-connect.tsx",
+  "apps/web/src/settings/settings-imap-connect.tsx",
+  "apps/web/src/settings/settings-memory-dashboard.tsx",
+  "apps/web/src/settings/settings-module-registry-section.tsx",
+  "apps/web/src/settings/settings-module-subviews.tsx",
+  "apps/web/src/settings/settings-people-pane.tsx",
+  "apps/web/src/settings/settings-personal-data-panes.tsx",
+  "apps/web/src/settings/settings-personal-panes.tsx",
+  "apps/web/src/settings/settings-profile-subviews.tsx",
+  "apps/web/src/settings/settings-provider-login-dialog.tsx",
+  "apps/web/src/settings/settings-skills-pane.tsx",
+  "apps/web/src/settings/settings-ui.tsx",
+  "apps/web/src/settings/settings-vault-chooser.tsx",
+  "apps/web/src/settings/settings-voice-config-group.tsx",
+  "apps/web/src/settings/settings-web-search-key-group.tsx",
+  "apps/web/src/settings/settings-yolo-admin-group.tsx",
+  "apps/web/src/settings/terminal-modal.tsx"
 ];
 
 // D6 #1392: per-instance runtime chart geometry stays inline (same treatment as the calendar
@@ -107,8 +154,11 @@ const CLASS_FAMILY_TO_COMPONENT: Readonly<Record<string, string>> = {
   "jds-chip": "Chip",
   "jds-dialog": "Dialog",
   "jds-divider": "Divider",
+  "jds-empty": "EmptyState",
+  "jds-field": "Field",
   "jds-iconbtn": "IconButton",
   "jds-indicator": "Indicator",
+  "jds-label": "FormLabel",
   "jds-masthead": "Masthead",
   "jds-menu": "Menu",
   "jds-segmented": "Segmented",

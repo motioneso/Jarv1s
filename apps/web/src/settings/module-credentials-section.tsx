@@ -12,6 +12,7 @@ import {
 import { Field } from "./settings-ui.js";
 import { useFeedback } from "./settings-feedback.js";
 import { readError } from "./settings-types.js";
+import { Button } from "@jarv1s/ui";
 
 /**
  * Module credential slots (#918). Docked under a module's row on both the admin surface
@@ -104,9 +105,9 @@ function CredentialField(props: {
         placeholder={credential.configured ? "•••••••• (stored)" : "Enter value"}
         aria-label={credential.displayName}
       />
-      <button
-        type="button"
-        className="jds-btn jds-btn--secondary jds-btn--sm"
+      <Button
+        variant="secondary"
+        size="sm"
         disabled={props.busy || draft.length === 0}
         onClick={() => {
           props.onSet(draft);
@@ -114,16 +115,11 @@ function CredentialField(props: {
         }}
       >
         {props.busy ? "Saving…" : "Save"}
-      </button>
+      </Button>
       {credential.configured ? (
-        <button
-          type="button"
-          className="jds-btn jds-btn--quiet jds-btn--sm"
-          disabled={props.busy}
-          onClick={props.onRevoke}
-        >
+        <Button variant="quiet" size="sm" disabled={props.busy} onClick={props.onRevoke}>
           Revoke
-        </button>
+        </Button>
       ) : null}
     </Field>
   );

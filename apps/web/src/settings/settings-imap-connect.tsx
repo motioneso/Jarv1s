@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, KeyRound, Mail, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
+import { Button } from "@jarv1s/ui";
 import { connectImapConnection, testImapConnection } from "../api/client";
 import { GOOGLE_CONNECT_SUCCESS_QUERY_KEYS } from "../connectors/use-google-connect-flow";
 import { IMAP_PROVIDERS, type ImapProvider } from "../onboarding/google-connector-step";
@@ -150,29 +151,24 @@ export function ImapConnect(props: {
           </span>
         </label>
         <div className="onb-cred__actions">
-          <button
-            className="jds-btn jds-btn--quiet jds-btn--sm"
-            type="button"
+          <Button
+            variant="quiet"
+            size="sm"
             disabled={!credsReady || testImap.isPending}
             onClick={() => testImap.mutate()}
           >
             Test connection
-          </button>
-          <button
-            className="jds-btn jds-btn--primary jds-btn--sm"
-            type="button"
+          </Button>
+          <Button
+            size="sm"
             disabled={!credsReady || connectImap.isPending}
             onClick={() => connectImap.mutate()}
           >
             Connect {provider.name}
-          </button>
-          <button
-            className="jds-btn jds-btn--quiet jds-btn--sm"
-            type="button"
-            onClick={props.onBack}
-          >
+          </Button>
+          <Button variant="quiet" size="sm" onClick={props.onBack}>
             Cancel
-          </button>
+          </Button>
           <span className="onb-cred__hint">
             Passwords are encrypted at rest and never shown in logs or briefings.
           </span>

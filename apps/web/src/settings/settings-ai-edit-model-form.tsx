@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
+import { Button } from "@jarv1s/ui";
 import { updateAiModel } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { readError } from "./settings-types";
@@ -104,20 +105,16 @@ export function EditModelForm(props: {
         ))}
       </div>
       <div className="ai-model-form__acts">
-        <button
+        <Button
           type="submit"
-          className="jds-btn jds-btn--primary jds-btn--sm"
+          size="sm"
           disabled={editMutation.isPending || !providerModelId.trim() || !displayName.trim()}
         >
           {editMutation.isPending ? "Saving…" : "Save"}
-        </button>
-        <button
-          type="button"
-          className="jds-btn jds-btn--quiet jds-btn--sm"
-          onClick={props.onClose}
-        >
+        </Button>
+        <Button variant="quiet" size="sm" onClick={props.onClose}>
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -10,7 +10,8 @@
  *   1. Raw input/textarea VALUES are NEVER read, at all, under any circumstance —
  *      there is no code path in this file that reads `.value` off a form control.
  *      Only structural text (headings, button labels, `<label>` text, plain visible
- *      text) is captured.
+ *      text) and text an app surface explicitly opts in via `data-jarvis-capture-text`
+ *      is captured.
  *   2. Password fields (`type="password"`), hidden fields (`type="hidden"`), and any
  *      field whose `autocomplete` attribute matches a secret-shaped token
  *      (current-password / new-password / one-time-code / cc-*) are excluded, along
@@ -41,6 +42,7 @@ const MAX_HEADINGS = 12;
 const MAX_BUTTONS = 20;
 const MAX_LABELS = 20;
 const MAX_VISIBLE_TEXT_ITEMS = 20;
+const MAX_DECLARED_TEXT_ITEMS = 16;
 const MAX_TEXT_LENGTH = 200;
 const MAX_ROUTE_LENGTH = 200;
 const MAX_TITLE_LENGTH = 200;
@@ -105,7 +107,7 @@ export function isHiddenElementSignals(signals: ElementPrivacySignals): boolean 
 
 // ─── Pure capping/truncation builder (DOM-independent, unit-tested directly) ───────
 
-export type PageContextCandidateKind = "heading" | "button" | "label" | "text";
+export type PageContextCandidateKind = "heading" | "button" | "label" | "text" | "declared";
 
 export interface PageContextCandidate {
   readonly kind: PageContextCandidateKind;
@@ -135,7 +137,8 @@ export function buildPageContextSnapshot(input: PageContextRawInput): PageContex
   const headings: string[] = [];
   const buttons: string[] = [];
   const labels: string[] = [];
-  const visibleText: string[] = [];
+  const declaredText: string[] = [];
+  const scrapedText: string[] = [];
 
   for (const candidate of input.candidates) {
     const text = truncate(candidate.text.trim(), MAX_TEXT_LENGTH);
@@ -150,11 +153,20 @@ export function buildPageContextSnapshot(input: PageContextRawInput): PageContex
       case "label":
         if (labels.length < MAX_LABELS) labels.push(text);
         break;
+      case "declared":
+        if (declaredText.length < MAX_DECLARED_TEXT_ITEMS) declaredText.push(text);
+        break;
       case "text":
-        if (visibleText.length < MAX_VISIBLE_TEXT_ITEMS) visibleText.push(text);
+        scrapedText.push(text);
         break;
     }
   }
+
+  // Declared items lead `visibleText` because both server-side bounds keep the head of the
+  // list: the 20-item re-projection cap takes the first entries, and the byte-budget
+  // backstop drops trailing ones (packages/chat/src/live/page-context.ts). Scraped prose
+  // therefore yields to opted-in content rather than crowding it out.
+  const visibleText = [...declaredText, ...scrapedText].slice(0, MAX_VISIBLE_TEXT_ITEMS);
 
   const focused: PageContextFocusedElementDto | null = input.focused
     ? {
@@ -232,7 +244,8 @@ function truncate(value: string, maxLength: number): string {
 
 // ─── Real-DOM adapter (thin, mechanical, not unit-tested directly) ─────────────────
 
-const CAPTURE_SELECTOR = "h1,h2,h3,h4,h5,h6,button,[role='button'],label,p,li";
+const DECLARED_TEXT_ATTRIBUTE = "data-jarvis-capture-text";
+const CAPTURE_SELECTOR = `h1,h2,h3,h4,h5,h6,button,[role='button'],label,p,li,[${DECLARED_TEXT_ATTRIBUTE}]`;
 const HEADING_TAGS = new Set(["H1", "H2", "H3", "H4", "H5", "H6"]);
 
 function elementPrivacySignals(el: Element): ElementPrivacySignals {
@@ -261,7 +274,8 @@ function elementPrivacySignals(el: Element): ElementPrivacySignals {
   };
 }
 
-function candidateKindForTag(el: Element): PageContextCandidateKind | null {
+function candidateKindFor(el: Element): PageContextCandidateKind | null {
+  if (el.hasAttribute(DECLARED_TEXT_ATTRIBUTE)) return "declared";
   if (HEADING_TAGS.has(el.tagName)) return "heading";
   if (el.tagName === "BUTTON" || el.getAttribute("role") === "button") return "button";
   if (el.tagName === "LABEL") return "label";
@@ -294,9 +308,10 @@ function collectPageContextCandidates(root: ParentNode): {
   for (const el of elements) {
     const signals = elementPrivacySignals(el);
     if (isSensitiveElementSignals(signals) || isHiddenElementSignals(signals)) continue;
-    const kind = candidateKindForTag(el);
+    const kind = candidateKindFor(el);
     if (!kind) continue;
-    const text = el.textContent?.trim();
+    const declared = kind === "declared" ? el.getAttribute(DECLARED_TEXT_ATTRIBUTE)?.trim() : null;
+    const text = declared || el.textContent?.trim();
     if (!text) continue;
     candidates.push({ kind, text });
   }

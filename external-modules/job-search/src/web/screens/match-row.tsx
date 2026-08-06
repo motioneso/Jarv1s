@@ -10,13 +10,7 @@
 // decision, this file only renders one `BoardMatch` it's handed and calls back through props.
 // No invokeTool/runQueue here.
 import { Fragment, h, type ReactNodeLike } from "../runtime";
-import {
-  FIT_BAND_EYEBROW,
-  FIT_BAND_LABEL,
-  FIT_BAND_RAIL,
-  fitBand,
-  formatPostedOn
-} from "../keyline";
+import { FIT_BAND_RAIL, fitBand, formatPostedOn } from "../keyline";
 import { isScored, type BoardMatch } from "../board-types";
 
 export interface MatchRowProps {
@@ -107,12 +101,22 @@ export function MatchRow(props: MatchRowProps): ReactNodeLike {
         <span className="jsm-row__aside">
           {scored ? (
             <span
-              className={band !== null ? FIT_BAND_EYEBROW[band] : "jds-eyebrow jds-eyebrow--muted"}
+              className="jsm-row__scores"
+              aria-label={`Fit ${item.fit ?? "not scored"}, Want ${item.want}`}
             >
-              {band !== null ? FIT_BAND_LABEL[band] : "—"}
+              <span className="jds-eyebrow">
+                Fit <strong>{item.fit ?? "—"}</strong>
+              </span>
+              <span className="jds-eyebrow">
+                Want <strong>{item.want}</strong>
+              </span>
             </span>
           ) : (
-            <span className="jds-eyebrow jds-eyebrow--muted">Not read yet</span>
+            <span className="jsm-row__scores">
+              <span className="jds-eyebrow jds-eyebrow--muted">Fit —</span>
+              <span className="jds-eyebrow jds-eyebrow--muted">Want —</span>
+              <span className="jds-eyebrow jds-eyebrow--muted">Not read yet</span>
+            </span>
           )}
           {/* No shared icon library reaches a module bundle (verified: nothing under apps/web/src
               exports one) — an inline stroke SVG, following finance's reports.tsx precedent, is the

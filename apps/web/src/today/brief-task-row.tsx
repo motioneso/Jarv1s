@@ -17,9 +17,14 @@ export function BriefTaskRow(props: {
   const done = optimisticDone;
   const drift = driftOf(task, locale.timezone);
   const p1 = (task.priority ?? 0) >= 4;
+  const captureParts = [`Task: ${task.title}`, done ? "done" : "open"];
+  if (drift) captureParts.push(drift === "overdue" ? "overdue" : "at risk");
+  if (task.dueAt) captureParts.push(`due ${shortDate(task.dueAt, locale)}`);
+  captureParts.push(`source ${task.source}`);
   return (
     <div
       className={`jds-task ${p1 ? "jds-task--p1" : "jds-task--p2"} ${done ? "jds-task--done" : ""}`}
+      data-jarvis-capture-text={captureParts.join(" — ")}
     >
       <span className="jds-task__prio" />
       <span className="jds-task__check">

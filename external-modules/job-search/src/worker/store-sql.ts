@@ -13,6 +13,7 @@
 import type {
   BoardCounts,
   BriefingDetail,
+  CriteriaRescoreEntry,
   CustomSource,
   JobSearchStore,
   Profile,
@@ -322,10 +323,86 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
       return mapProfile(row);
     },
 
+    async renameProfile(id: string, name: string): Promise<void> {
+      await db.query(
+        `UPDATE app.job_search_profiles SET name = $2, updated_at = now() WHERE id = $1`,
+        [id, name]
+      );
+    },
+
     async updateCriteria(id: string, criteria: SearchCriteria): Promise<void> {
       await db.query(
-        "UPDATE app.job_search_profiles SET criteria = $2::jsonb, updated_at = now() WHERE id = $1",
+        `WITH updated_profile AS (
+           UPDATE app.job_search_profiles
+              SET criteria = $2::jsonb, updated_at = now()
+            WHERE id = $1
+            RETURNING id, criteria
+         ), queued_rescore AS (
+           INSERT INTO app.job_search_rescore_state (owner_user_id, pending)
+           SELECT app.current_actor_user_id(), jsonb_build_object(id::text, criteria)
+             FROM updated_profile
+           ON CONFLICT (owner_user_id) DO UPDATE
+             SET pending = app.job_search_rescore_state.pending || excluded.pending,
+                 updated_at = now()
+           RETURNING 1
+         )
+         UPDATE app.job_search_matches
+            SET fit = NULL, want = NULL, fit_reason = NULL, want_reason = NULL,
+                outside_frame = false, state = 'unscored', scored_at = NULL
+          WHERE profile_id IN (SELECT id FROM updated_profile)
+            AND state IN ('unscored', 'new', 'seen')`,
         [id, JSON.stringify(criteria)]
+      );
+    },
+
+    async claimCriteriaRescore(leaseToken: string): Promise<CriteriaRescoreEntry[] | null> {
+      const claimed = await db.query<{ pending: unknown }>(
+        `UPDATE app.job_search_rescore_state
+            SET lease_token = $1, lease_until = now() + interval '11 minutes', updated_at = now()
+          WHERE owner_user_id = app.current_actor_user_id()
+            AND (lease_until IS NULL OR lease_until <= now())
+          RETURNING pending`,
+        [leaseToken]
+      );
+      const pending = claimed.rows[0]?.pending;
+      if (pending === undefined) {
+        const existing = await db.query<{ locked: boolean }>(
+          `SELECT lease_until > now() AS locked
+             FROM app.job_search_rescore_state
+            WHERE owner_user_id = app.current_actor_user_id()`
+        );
+        return existing.rows[0]?.locked ? null : [];
+      }
+      if (typeof pending !== "object" || pending === null || Array.isArray(pending)) return [];
+      return Object.entries(pending).map(([profileId, criteria]) => ({
+        profileId,
+        criteria: withCriteriaDefaults(criteria as Partial<SearchCriteria>)
+      }));
+    },
+
+    async finishCriteriaRescore(
+      leaseToken: string,
+      completed: readonly CriteriaRescoreEntry[]
+    ): Promise<void> {
+      const completedByProfile = Object.fromEntries(
+        completed.map((entry) => [entry.profileId, entry.criteria])
+      );
+      await db.query(
+        `UPDATE app.job_search_rescore_state
+            SET pending = COALESCE(
+                  (SELECT jsonb_object_agg(item.key, item.value)
+                     FROM jsonb_each(pending) AS item
+                    WHERE NOT (
+                      $2::jsonb ? item.key AND $2::jsonb -> item.key = item.value
+                    )),
+                  '{}'::jsonb
+                ),
+                lease_token = NULL,
+                lease_until = NULL,
+                updated_at = now()
+          WHERE owner_user_id = app.current_actor_user_id()
+            AND lease_token = $1`,
+        [leaseToken, JSON.stringify(completedByProfile)]
       );
     },
 
@@ -439,7 +516,10 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
                 p.posted_at
            FROM app.job_search_postings p
           WHERE p.profile_id = $1
-            AND NOT EXISTS (SELECT 1 FROM app.job_search_matches m WHERE m.posting_id = p.id)
+            AND NOT EXISTS (
+              SELECT 1 FROM app.job_search_matches m
+               WHERE m.posting_id = p.id AND m.state <> 'unscored'
+            )
           ORDER BY p.first_seen_at DESC
           LIMIT $2`,
         [profileId, limit]
@@ -459,7 +539,10 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
            FROM app.job_search_postings p
           WHERE p.profile_id = $1
             AND p.embedding IS NOT NULL
-            AND NOT EXISTS (SELECT 1 FROM app.job_search_matches m WHERE m.posting_id = p.id)
+            AND NOT EXISTS (
+              SELECT 1 FROM app.job_search_matches m
+               WHERE m.posting_id = p.id AND m.state <> 'unscored'
+            )
           ORDER BY p.first_seen_at DESC
           LIMIT $2`,
         [profileId, limit]
@@ -541,22 +624,38 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
     async upsertMatch(
       profileId: string,
       match: Omit<Match, "id">,
-      options?: { readonly preserveWant?: boolean }
-    ): Promise<void> {
+      options?: {
+        readonly preserveWant?: boolean;
+        readonly criteriaSnapshot?: SearchCriteria;
+      }
+    ): Promise<boolean> {
       // Idempotent on (profile, posting) so re-scoring updates rather than duplicating.
       // Re-scoring returns the row to 'new' deliberately: a changed score is news.
-      await db.query(
-        `INSERT INTO app.job_search_matches AS existing
+      // Every score pass carries the profile snapshot it scored against. Locking and checking that
+      // row in this SAME statement makes the match write a CAS: an older scorer can neither
+      // recreate nor overwrite scores after a newer criteria update invalidated them.
+      const result = await db.query(
+        `WITH criteria_guard AS (
+           SELECT 1
+             FROM app.job_search_profiles
+            WHERE id = $1 AND criteria = $9::jsonb
+            FOR SHARE
+         )
+         INSERT INTO app.job_search_matches AS existing
            (owner_user_id, profile_id, posting_id, fit, want, fit_reason, want_reason,
             outside_frame, state, scored_at)
-         VALUES (app.current_actor_user_id(), $1, $2, $3, $4, $5, $6, $7, 'new', now())
+         SELECT app.current_actor_user_id(), $1, $2, $3, $4, $5, $6, $7, 'new', now()
+          WHERE $9::jsonb IS NULL OR EXISTS (SELECT 1 FROM criteria_guard)
          ON CONFLICT (owner_user_id, profile_id, posting_id) DO UPDATE
            SET fit = excluded.fit,
                want = CASE WHEN $8 THEN existing.want ELSE excluded.want END,
                fit_reason = excluded.fit_reason,
                want_reason = CASE WHEN $8 THEN existing.want_reason ELSE excluded.want_reason END,
                outside_frame = excluded.outside_frame,
-               state = 'new', scored_at = now()`,
+               state = 'new', scored_at = now()
+         WHERE ($9::jsonb IS NULL OR EXISTS (SELECT 1 FROM criteria_guard))
+           AND ($8 OR existing.state = 'unscored')
+         RETURNING 1 AS applied`,
         [
           profileId,
           match.postingId,
@@ -565,9 +664,11 @@ export function createSqlStore(db: SqlDb, kv: SqlKv): JobSearchStore {
           match.fitReason,
           match.wantReason,
           match.outsideFrame,
-          options?.preserveWant ?? false
+          options?.preserveWant ?? false,
+          options?.criteriaSnapshot ? JSON.stringify(options.criteriaSnapshot) : null
         ]
       );
+      return result.rows.length > 0;
     },
 
     async setMatchState(matchId: string, state: Match["state"]): Promise<void> {

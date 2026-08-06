@@ -1,9 +1,24 @@
-import { useEffect, useRef, useState } from "react";
+import { Paperclip, X } from "lucide-react";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import type { ChatSurface } from "@jarv1s/shared";
 import { Button } from "@jarv1s/ui";
 
 import { sendChatTurn } from "../../api/client";
 import { BrandMark } from "../../shell/brand-mark";
+import "../../styles/kit-chat-attach.css";
+import {
+  ATTACHMENT_ACCEPT,
+  CLIENT_MAX_ATTACHMENTS_PER_TURN,
+  addPendingAttachment,
+  attachmentValidationError,
+  formatAttachmentSize,
+  hasUploadingAttachment,
+  markAttachmentError,
+  markAttachmentReady,
+  readyAttachmentDtos,
+  removePendingAttachment,
+  type PendingAttachment
+} from "../attachments";
 import { Thread } from "../message-row";
 import type { ChatRecordKind } from "../use-chat-stream";
 import type { AssistantSurfaceViewProps } from "./contracts";
@@ -21,7 +36,10 @@ const DEFAULT_RECORD_KINDS: ReadonlySet<ChatRecordKind> = new Set([
 export function AssistantSurface(props: AssistantSurfaceViewProps) {
   const { records, registerComposer } = useAssistantSurfaceHost(props.surface);
   const [draft, setDraft] = useState("");
+  const [pending, setPending] = useState<readonly PendingAttachment[]>([]);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const allowed = props.recordKinds ? new Set(props.recordKinds) : DEFAULT_RECORD_KINDS;
   const visibleRecords = records.filter((record) => allowed.has(record.kind));
 
@@ -36,14 +54,74 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
 
   const submit = () => {
     const text = draft.trim();
-    if (!text) return;
-    const outcome = props.composer?.onSubmitText?.(text) ?? "send";
+    const attachments = readyAttachmentDtos(pending);
+    if (!text && attachments.length === 0) return;
+    if (hasUploadingAttachment(pending)) return;
+    const attachmentIds = attachments.map((attachment) => attachment.id);
+    const onSubmitText = props.composer?.onSubmitText;
+    const outcome = onSubmitText
+      ? attachmentIds.length > 0
+        ? onSubmitText(text, attachmentIds)
+        : onSubmitText(text)
+      : "send";
     if (outcome === "send") {
       void (props.surface
-        ? sendChatTurn(text, undefined, undefined, props.surface as ChatSurface)
-        : sendChatTurn(text));
+        ? sendChatTurn(
+            text,
+            attachmentIds.length > 0 ? attachmentIds : undefined,
+            undefined,
+            props.surface as ChatSurface
+          )
+        : attachmentIds.length > 0
+          ? sendChatTurn(text, attachmentIds)
+          : sendChatTurn(text));
     }
     setDraft("");
+    setPending([]);
+    setAttachError(null);
+  };
+
+  const attachFiles = (files: readonly File[]) => {
+    const uploadAttachment = props.composer?.uploadAttachment;
+    if (!uploadAttachment || files.length === 0) return;
+    setAttachError(null);
+    let current = pending;
+    for (const file of files) {
+      if (current.length >= CLIENT_MAX_ATTACHMENTS_PER_TURN) {
+        setAttachError(
+          `You can attach up to ${CLIENT_MAX_ATTACHMENTS_PER_TURN} files per message.`
+        );
+        break;
+      }
+      const rejection = attachmentValidationError(file);
+      if (rejection) {
+        setAttachError(rejection);
+        continue;
+      }
+      const localId =
+        globalThis.crypto?.randomUUID?.() ??
+        `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+      const fileName = file.name || "attachment";
+      current = addPendingAttachment(current, {
+        localId,
+        fileName,
+        sizeBytes: file.size,
+        mimeType: file.type
+      });
+      void uploadAttachment(file)
+        .then(({ id }) => setPending((list) => markAttachmentReady(list, localId, id)))
+        .catch(() =>
+          setPending((list) =>
+            markAttachmentError(list, localId, "Upload failed. Please try again.")
+          )
+        );
+    }
+    setPending(current);
+  };
+
+  const onFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    attachFiles(Array.from(event.target.files ?? []));
+    event.target.value = "";
   };
 
   // Nothing said yet, by anyone — no records, no locally-injected rows, nobody typing, no control
@@ -89,6 +167,65 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
             submit();
           }}
         >
+          {attachError ? (
+            <p className="form-error assistant-surface__attach-error">{attachError}</p>
+          ) : null}
+          {pending.length > 0 ? (
+            <div className="chatd-attach__row" aria-label="Pending attachments">
+              {pending.map((item) => (
+                <span
+                  className={`chatd-attach__chip${item.status === "error" ? " is-error" : ""}${
+                    item.status === "uploading" ? " is-uploading" : ""
+                  }`}
+                  key={item.localId}
+                  title={item.status === "error" ? item.error : item.fileName}
+                >
+                  <Paperclip size={12} aria-hidden="true" />
+                  <span className="chatd-attach__name">{item.fileName}</span>
+                  <span className="chatd-attach__meta">
+                    {item.status === "uploading"
+                      ? "uploading…"
+                      : item.status === "error"
+                        ? "failed"
+                        : formatAttachmentSize(item.sizeBytes)}
+                  </span>
+                  <button
+                    aria-label={`Remove ${item.fileName}`}
+                    className="chatd-attach__x"
+                    type="button"
+                    onClick={() =>
+                      setPending((list) => removePendingAttachment(list, item.localId))
+                    }
+                  >
+                    <X size={12} aria-hidden="true" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {props.composer.uploadAttachment ? (
+            <>
+              <input
+                ref={fileInputRef}
+                accept={ATTACHMENT_ACCEPT}
+                aria-hidden="true"
+                className="chatd-attach__input"
+                multiple
+                tabIndex={-1}
+                type="file"
+                onChange={onFileInputChange}
+              />
+              <button
+                aria-label={props.composer.attachmentLabel ?? "Attach files"}
+                className="chatd-attach__btn"
+                title={props.composer.attachmentLabel ?? "Attach files"}
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Paperclip size={16} aria-hidden="true" />
+              </button>
+            </>
+          ) : null}
           <textarea
             ref={inputRef}
             aria-label="Message Jarvis"
@@ -103,7 +240,14 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
               }
             }}
           />
-          <Button variant="primary" type="submit">
+          <Button
+            variant="primary"
+            disabled={
+              (!draft.trim() && readyAttachmentDtos(pending).length === 0) ||
+              hasUploadingAttachment(pending)
+            }
+            type="submit"
+          >
             Send
           </Button>
         </form>

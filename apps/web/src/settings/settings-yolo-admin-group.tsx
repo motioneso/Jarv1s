@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { Button } from "@jarv1s/ui";
 import {
   getAdminYoloSettings,
   postAdminYoloAllowAll,
@@ -117,14 +118,14 @@ export function YoloAdminGroup() {
         name="Allow all current members"
         desc="Snapshot only. Future accounts still default off."
         control={
-          <button
-            type="button"
-            className="jds-btn jds-btn--quiet jds-btn--sm"
+          <Button
+            variant="quiet"
+            size="sm"
             disabled={yoloMutation.isPending}
             onClick={() => yoloMutation.mutate({ kind: "allowAll" })}
           >
             Allow all
-          </button>
+          </Button>
         }
       />
       <Row
@@ -152,15 +153,15 @@ export function YoloAdminGroup() {
                 <option key={u.id} value={u.email} label={roleLabel(u)} />
               ))}
             </datalist>
-            <button
-              type="button"
-              className="jds-btn jds-btn--secondary jds-btn--sm"
+            <Button
+              variant="secondary"
+              size="sm"
               aria-label="Add allowed member"
               disabled={!search || yoloMutation.isPending || activeCandidates.length === 0}
               onClick={handleAddClick}
             >
               Add
-            </button>
+            </Button>
           </div>
         }
       />
@@ -170,15 +171,15 @@ export function YoloAdminGroup() {
           name={user.name || user.email}
           desc={`${roleLabel(user)} · ${user.yoloEnabled ? "self-enabled" : "self off"}${user.yoloActive ? " · active" : ""}`}
           control={
-            <button
-              type="button"
-              className="jds-btn jds-btn--quiet jds-btn--sm"
+            <Button
+              variant="quiet"
+              size="sm"
               aria-label={`Remove YOLO allowance for ${user.email}`}
               disabled={yoloMutation.isPending}
               onClick={() => yoloMutation.mutate({ kind: "user", id: user.id, allowed: false })}
             >
               Remove
-            </button>
+            </Button>
           }
         />
       ))}

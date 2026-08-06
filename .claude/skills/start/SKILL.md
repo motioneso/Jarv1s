@@ -127,21 +127,26 @@ State the recommendation and why, then proceed (the user may redirect).
 Most full milestones → Workflow (sequential + any safe prefetch, as M-A1). A 1–3 task slice →
 inline. When in doubt, recommend Workflow for milestones and inline for slices, and say so.
 
-## GitHub reference (project "Jarv1s Roadmap")
+## GitHub reference (project "Issue and Roadmap Work")
+
+**The live board is project 2.** Project 1 ("Jarv1s Roadmap") and project 3 ("Jarv1s Phase 3") are
+archived — they stopped tracking at #1270 and #427. Never query those.
 
 ```
-project node id : PVT_kwHOADqkaM4BZ_60   (number 1, owner motioneso)
-Status field id : PVTSSF_lAHOADqkaM4BZ_60zhU6jwQ
-options         : Todo=f75ad846  In Progress=47fc9ee4  Done=98236657
+project node id : PVT_kwHOADqkaM4BarLA   (number 2, owner motioneso)
+Status field id : PVTSSF_lAHOADqkaM4BarLAzhVhA6I
+options         : Backlog=f75ad846  Ready=61e4505c  In progress=47fc9ee4
+                  In review=df73e18b  Done=98236657
 ```
 
 ```bash
 # find the project item id for an issue number
-gh project item-list 1 --owner motioneso --format json   # match content.number
+# --limit defaults low and short-reads SILENTLY; pass one above the item count (719 as of 2026-08-05)
+gh project item-list 2 --owner motioneso --format json --limit 800   # match content.number
 
 # move an item to a status
-gh project item-edit --project-id PVT_kwHOADqkaM4BZ_60 \
-  --id <ITEM_ID> --field-id PVTSSF_lAHOADqkaM4BZ_60zhU6jwQ \
+gh project item-edit --project-id PVT_kwHOADqkaM4BarLA \
+  --id <ITEM_ID> --field-id PVTSSF_lAHOADqkaM4BarLAzhVhA6I \
   --single-select-option-id <OPTION_ID>
 
 # close an epic / milestone at done

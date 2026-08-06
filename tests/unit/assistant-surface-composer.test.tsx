@@ -61,5 +61,55 @@ describe("AssistantSurface composer", () => {
     expect(onSubmitText).toHaveBeenLastCalledWith("ask Jarvis");
     expect(sendChatTurn).toHaveBeenCalledExactlyOnceWith("ask Jarvis");
     expect(textarea.props.value).toBe("");
+    expect(renderer!.root.findAllByType("input")).toHaveLength(0);
+  });
+
+  it("uploads a configured attachment and submits an attachment-only turn", async () => {
+    const onSubmitText = vi.fn<
+      (text: string, attachmentIds?: readonly string[]) => "handled" | "send"
+    >(() => "handled");
+    const uploadAttachment = vi.fn(async (file: File) => ({
+      id: "attachment-1",
+      fileName: file.name,
+      sizeBytes: file.size
+    }));
+    let renderer: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        createElement(
+          AssistantSurfaceHostProvider,
+          {
+            value: {
+              records: [],
+              registerComposer: () => () => undefined,
+              subscribeRecords: () => () => undefined
+            }
+          },
+          createElement(AssistantSurface, {
+            composer: {
+              onSubmitText,
+              uploadAttachment,
+              attachmentLabel: "Attach résumé"
+            }
+          })
+        )
+      );
+    });
+
+    const file = new File(["resume"], "resume.txt", { type: "text/plain" });
+    const input = renderer!.root.findByType("input");
+    await act(async () => {
+      input.props.onChange({ target: { files: [file], value: "resume.txt" } });
+      await Promise.resolve();
+    });
+
+    expect(uploadAttachment).toHaveBeenCalledExactlyOnceWith(file);
+    expect(renderer!.root.findByProps({ "aria-label": "Attach résumé" })).toBeTruthy();
+
+    const form = renderer!.root.findByType("form");
+    await act(async () => form.props.onSubmit({ preventDefault: vi.fn() }));
+    expect(onSubmitText).toHaveBeenCalledExactlyOnceWith("", ["attachment-1"]);
+    expect(sendChatTurn).not.toHaveBeenCalled();
   });
 });

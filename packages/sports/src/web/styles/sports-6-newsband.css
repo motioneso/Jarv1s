@@ -4,7 +4,6 @@
 
 /* News band: blurbed league headlines with a league filter (#839 task 9). */
 .sp-newsband {
-  border-top: 2px solid var(--border-strong);
   margin-top: var(--space-6);
   padding-top: var(--space-4);
 }
@@ -18,13 +17,6 @@
 .sp-newsband__filter {
   max-width: 160px;
   height: 24px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text-muted);
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
-  font-weight: 600;
 }
 /* Feature story (live feedback mrb47x3h): the band's single biggest story breaks the column
    grid — full-width split of art beside a display-size headline, closed by a rule before the
@@ -37,7 +29,6 @@
   align-items: center;
   padding-bottom: var(--space-4);
   margin-bottom: var(--space-4);
-  border-bottom: 1px solid var(--border);
 }
 .sp-newsband__featurebody {
   display: flex;
@@ -47,19 +38,13 @@
 }
 .sp-newsband__featurekicker {
   margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent);
 }
 .sp-newsband__title--feature {
-  font-size: var(--text-2xl);
   line-height: 1.15;
-  font-weight: var(--weight-black);
 }
 .sp-newsband__blurb--feature {
-  font-size: var(--text-md);
   -webkit-line-clamp: 3;
 }
 /* Cross-league mosaic (live feedback mrb5reqq, supersedes the mrb0wd68 one-column-per-league
@@ -78,26 +63,19 @@
   flex-direction: column;
   gap: var(--space-1);
   min-width: 0;
-  /* Per-story top rule replaces the old vertical column rules — a hairline that works no
-     matter how the spans land in the grid. */
-  border-top: 1px solid var(--border-subtle);
   padding-top: var(--space-3);
 }
 /* Every mosaic cell carries its own league tag now that the per-league section headers are
    gone (mrb5reqq) — same mono kicker voice as the feature's. */
 .sp-newsband__artkicker {
   margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent);
 }
 .sp-newsband__img {
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
-  border-radius: var(--radius-sm);
 }
 /* Feature art frame (Ben 2026-07-08 /sports annotation #6): a fixed 16/9 plate so the column
    layout stays put whatever the image's real pixels are. A true story photo fills it edge-to-edge
@@ -110,15 +88,12 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
 }
 .sp-newsband__imgframe .sp-newsband__img--feature {
   width: 100%;
   height: 100%;
   aspect-ratio: auto;
   object-fit: cover;
-  border-radius: 0;
 }
 .sp-newsband__imgframe--logo .sp-newsband__img--feature {
   /* max-width/height cap the crest to the plate while width/height:auto keep it at its own pixel
@@ -132,13 +107,9 @@
   padding: var(--space-5);
 }
 .sp-newsband__title {
-  font-weight: var(--weight-bold);
-  font-size: var(--text-md);
   margin: 0;
 }
 .sp-newsband__blurb {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -151,7 +122,6 @@
   grid-column: span 2;
 }
 .sp-newsband__art--major .sp-newsband__title {
-  font-size: var(--text-xl);
   line-height: 1.2;
 }
 .sp-newsband__art--major .sp-newsband__blurb {
@@ -163,25 +133,18 @@
   -webkit-line-clamp: 6;
 }
 .sp-newsband__more {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--accent);
   text-decoration: none;
 }
 /* Combined brief rail (mrb5reqq): the per-league "In brief" clusters merge into one
    full-width rail under the mosaic; CSS columns wrap the tail like agate type. */
 .sp-newsband__briefs {
-  border-top: 1px solid var(--border-subtle);
   margin-top: var(--space-5);
   padding-top: var(--space-2);
 }
 .sp-newsband__briefslabel {
   margin: 0 0 var(--space-1);
-  font-size: var(--text-2xs);
-  font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-muted);
 }
 .sp-newsband__brieflist {
   list-style: none;
@@ -196,25 +159,16 @@
   /* keep an item's hairline + text in one column */
   break-inside: avoid;
 }
-.sp-newsband__brief + .sp-newsband__brief {
-  border-top: 1px solid var(--border-subtle);
-}
 .sp-newsband__brieflink {
-  color: inherit;
   text-decoration: none;
-  font-size: var(--text-sm);
-  font-weight: 600;
 }
 .sp-newsband__brieflink:hover {
   text-decoration: underline;
 }
 /* League tag inline before the headline — the section header the briefs used to sit under */
 .sp-newsband__brieftag {
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-subtle);
   margin-right: var(--space-2);
 }
 /* Mosaic narrows track-by-track; majors keep their double span until the grid itself is

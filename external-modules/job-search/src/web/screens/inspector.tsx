@@ -36,7 +36,7 @@
 // ever captured at all.
 import { Fragment, h, useEffect, useRef, type ReactNodeLike } from "../runtime";
 import { Score } from "../score";
-import { FIT_BAND_EYEBROW, FIT_BAND_LABEL, SectionHead, fitBand, formatPostedOn } from "../keyline";
+import { SectionHead, formatPostedOn } from "../keyline";
 import { isScored, type BoardMatch, type MatchDetail } from "../board-types";
 
 export interface InspectorProps {
@@ -132,7 +132,6 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
   }
 
   const scored = isScored(match);
-  const band = scored && match.fit !== null ? fitBand(match.fit) : null;
   const posted = formatPostedOn(match.postedAt);
   const scoredAt = formatScoredAt(detail?.scoredAt ?? null);
   // Read off match.state, not a local optimistic flag — the same choice the old panel's
@@ -185,15 +184,7 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
         <h2 className="jds-display jds-display--md">{match.title}</h2>
 
         <div className="jsm-detail__meta">
-          {scored ? (
-            <span
-              className={band !== null ? FIT_BAND_EYEBROW[band] : "jds-eyebrow jds-eyebrow--muted"}
-            >
-              {band !== null ? FIT_BAND_LABEL[band] : "—"}
-            </span>
-          ) : (
-            <span className="jds-eyebrow jds-eyebrow--muted">Not read yet</span>
-          )}
+          {!scored ? <span className="jds-eyebrow jds-eyebrow--muted">Not read yet</span> : null}
           {match.location.length > 0
             ? h(
                 Fragment,
@@ -267,15 +258,9 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
                 <div className="jsm-detail-axis">
                   <span className="jds-eyebrow">Fit</span>
                   {match.fit === null ? (
-                    <p className="jsm-detail-axis__value">—</p>
+                    <span className="jds-hint">Not scored</span>
                   ) : (
-                    <span
-                      className={
-                        band !== null ? FIT_BAND_EYEBROW[band] : "jds-eyebrow jds-eyebrow--muted"
-                      }
-                    >
-                      {band !== null ? FIT_BAND_LABEL[band] : "—"}
-                    </span>
+                    <Score value={match.fit} size="lg" />
                   )}
                   {detail ? <p>{detail.fitReason}</p> : null}
                 </div>

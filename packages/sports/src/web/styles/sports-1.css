@@ -25,24 +25,17 @@
   gap: var(--space-6);
   flex-wrap: wrap;
   padding-bottom: var(--space-5);
-  border-bottom: 1px solid var(--border-subtle);
 }
 .sp-top__main {
   max-width: 56ch;
 }
 .sp-title {
-  font-family: var(--font-display);
-  font-size: var(--text-4xl);
-  font-weight: 600;
   letter-spacing: -0.014em;
   line-height: 1.08;
   margin: 0;
 }
 .sp-lede {
-  font-family: var(--font-sans);
-  font-size: var(--text-lg);
   line-height: 1.55;
-  color: var(--text-muted);
   margin: var(--space-2) 0 0;
 }
 /* ---- crest (image when available, token swatch fallback with initials) ---- */
@@ -52,8 +45,6 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  font-family: var(--font-sans);
-  font-weight: 800;
   letter-spacing: -0.02em;
 }
 .sp-crest__img {
@@ -61,47 +52,23 @@
   height: 100%;
   object-fit: contain;
 }
-.sp-crest--swatch {
-  background: var(--surface-2);
-  color: var(--text-subtle);
-}
 .sp-crest--sm {
   width: 26px;
   height: 26px;
-  border-radius: 7px;
-  font-size: var(--text-2xs);
 }
 .sp-crest--md {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
-  font-size: var(--text-xs);
 }
 .sp-crest--lg {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
-  font-size: var(--text-md);
 }
 /* ---- live indicator ---- */
 .sp-livedot {
   display: inline-block;
   width: 7px;
   height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 0 var(--focus-ring);
-}
-@keyframes sp-pulse {
-  0% {
-    box-shadow: 0 0 0 0 var(--focus-ring);
-  }
-  70% {
-    box-shadow: 0 0 0 6px transparent;
-  }
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
 }
 @media (prefers-reduced-motion: no-preference) {
   .sp-livedot {
@@ -112,12 +79,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
-  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--accent-fg);
 }
 
 /* ============================================================= HERO — edge-to-edge broadsheet block */
@@ -128,18 +91,7 @@
      the hero floats between rules the same way it does against the around-the-leagues strip
      above (live feedback mrb422s4). */
   margin-bottom: var(--space-4);
-  border: none;
-  border-radius: 0;
-  background: none;
   padding: var(--space-6) 0;
-}
-/* story hero (quiet day, now the front-page lead) */
-.sp-hero--story {
-  /* Was a filled surface panel — the single biggest "this is an ad" tell (mrbalm9x): a boxed
-     image-beside-copy rectangle is display-ad anatomy. A front-page lead sits ON the newsprint
-     like everything else, so no fill. Furniture (kicker) + top-alignment + a dominant headline
-     carry the hierarchy instead of a background box. */
-  background: none;
 }
 .sp-hero--split {
   display: grid;
@@ -167,11 +119,6 @@
     padding-left: var(--space-6);
     padding-right: var(--space-6);
   }
-  /* Display scale is a desktop luxury — at phone widths --text-4xl wraps every other word
-     (live feedback mrav5twh) */
-  .sp-hero__headline {
-    font-size: var(--text-2xl);
-  }
 }
 .sp-hero__storybody {
   display: flex;
@@ -190,30 +137,15 @@
   align-items: center;
   gap: var(--space-2);
   margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
 }
-.sp-hero__kicker-desk {
-  color: var(--accent-fg);
-  font-weight: 700;
-}
 .sp-hero__kicker-comp {
   padding-left: var(--space-2);
-  border-left: 1px solid var(--border-subtle);
-  color: var(--text-muted);
 }
 .sp-hero__headline {
-  font-family: var(--font-display);
-  /* Lead scale (mrbalm9x): the headline is the loudest thing on a front page, and the photo
-     supports it. Bumped 4xl→5xl so the lead dominates the photo instead of reading co-equal
-     with it (co-equal image+copy was part of the promo-card feel). Still 2-line clamped. */
-  font-size: var(--text-5xl);
-  font-weight: 600;
   line-height: 1.08;
   letter-spacing: -0.012em;
-  color: var(--text);
   margin: var(--space-3) 0 0;
   /* Was 30ch — wrapped ~600px into a ~1000px 1fr column, breaking lines earlier than the
      space allowed (mrb9z5dm). Widen to a real display measure so the headline uses the
@@ -233,11 +165,8 @@
 .sp-hero__more {
   align-self: flex-start;
   margin-top: var(--space-3);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
-  color: var(--accent-fg);
   text-decoration: none;
 }
 .sp-hero__more:hover {
@@ -247,10 +176,7 @@
    clamped so a long ESPN summary can't outgrow the hero art beside it */
 .sp-hero__dek {
   margin: var(--space-3) 0 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-md);
   line-height: 1.5;
-  color: var(--text-muted);
   max-width: 55ch;
   text-wrap: pretty;
   display: -webkit-box;
@@ -265,22 +191,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--surface-2);
-  background-image: repeating-linear-gradient(
-    135deg,
-    transparent 0 9px,
-    var(--border-subtle) 9px 10px
-  );
-  border: 1px solid var(--border-subtle);
-  border-radius: 0;
   overflow: hidden;
 }
 .sp-photo__cap {
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-faint);
   text-align: center;
   padding: 0 var(--space-2);
 }
@@ -312,22 +227,14 @@
   margin-bottom: var(--space-3);
 }
 .sp-sec__title {
-  font-family: var(--font-sans);
-  font-size: var(--text-md);
-  font-weight: 700;
   letter-spacing: -0.01em;
-  color: var(--text);
   margin: 0;
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
 }
 .sp-sec__title .sub {
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
-  font-weight: 500;
   letter-spacing: 0.04em;
-  color: var(--text-faint);
   text-transform: none;
 }
 
@@ -346,26 +253,7 @@
   justify-content: center;
   min-width: 1.2em;
   padding: 2px 3px;
-  border: 1px solid transparent;
-  border-radius: 2px;
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
-  font-weight: 700;
   line-height: 1;
-}
-.sp-formpip--w {
-  color: var(--forest-ink);
-  background: var(--forest-soft);
-  border-color: var(--forest);
-}
-.sp-formpip--d {
-  color: var(--steel-ink);
-  border-color: var(--border-subtle);
-}
-.sp-formpip--l {
-  color: var(--red-ink);
-  background: var(--red-soft);
-  border-color: var(--red);
 }
 /* Hover/focus result popup on a form pip (Ben 2026-07-09 /today follow-cards: "add the result of
    the last match when the user hovers over the L or W… a nice little stylized pop-up"). It opens
@@ -387,12 +275,7 @@
   gap: 2px;
   min-width: 8.5rem;
   padding: var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  box-shadow: var(--shadow-pop);
   text-align: left;
-  font-weight: 400;
   /* Hidden until hover/focus; the pip's aria-label carries the same text for AT. */
   opacity: 0;
   transform: translateY(-4px);
@@ -414,33 +297,17 @@
   gap: var(--space-2);
 }
 .sp-formpop__verb {
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
-  font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-muted);
 }
 .sp-formpop__score {
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--text);
 }
 .sp-formpop__opp {
   max-width: 11rem;
   overflow: hidden;
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--text);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.sp-formpop__date {
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
-  color: var(--text-subtle);
 }
 @media (prefers-reduced-motion: reduce) {
   .sp-formpop {
@@ -477,7 +344,6 @@
   bottom: 0;
   height: 40px;
   margin-top: -40px;
-  background: linear-gradient(to bottom, transparent, var(--surface));
   pointer-events: none;
   opacity: 0;
   transition: opacity 120ms ease;
@@ -494,17 +360,12 @@
      sticky title + division selector align to the standings grid instead of hanging var(--space-2)
      outside it on both edges — Ben 2026-07-08 "standings margin is off, particularly the header". */
   padding: var(--space-3) var(--space-2) var(--space-2);
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--text);
   /* The rail now scrolls internally (mrbah9gw): pin the title + division selector so they stay
      reachable while the standings rows scroll under them. Surface background hides rows passing
      behind the header. */
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--surface);
 }
 .sp-standings__title,
 .sp-standings__nav {
@@ -519,39 +380,17 @@
 }
 .sp-standings__select {
   height: 24px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text-muted);
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
-  font-weight: 600;
-}
-.sp-standings__hd svg {
-  color: var(--text-subtle);
 }
 .sp-iconbtn {
   width: 24px;
   height: 24px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-muted);
-  border-radius: var(--radius-sm);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: var(--transition-control);
 }
-.sp-iconbtn:hover {
-  background: var(--surface-2);
-  color: var(--text);
-}
 .sp-standings__count {
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
-  font-weight: 600;
-  color: var(--text-faint);
   min-width: 28px;
   text-align: center;
 }
@@ -560,15 +399,10 @@
   border-collapse: collapse;
 }
 .sp-tbl th {
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
-  font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--text-faint);
   text-align: right;
   padding: var(--space-1) var(--space-2) var(--space-1);
-  border-bottom: 1px solid var(--border-subtle);
 }
 .sp-tbl th.pos {
   width: 24px;
@@ -580,43 +414,21 @@
 }
 .sp-tbl td {
   padding: var(--space-2) var(--space-2);
-  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: var(--text-xs);
-  color: var(--text-muted);
   text-align: right;
-  border-bottom: 1px solid var(--border-subtle);
-}
-.sp-tbl tr:last-child td {
-  border-bottom: none;
 }
 .sp-tbl td.pos {
   position: relative;
   text-align: center;
-  color: var(--text-faint);
-  font-size: var(--text-2xs);
   padding-left: var(--space-2);
 }
 .sp-tbl td.tm {
   text-align: left;
 }
 .sp-tbl .nm {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  font-weight: 500;
-  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-/* Followed team: highlight the NAME only. The old row-level tint (forest-soft across every td)
-   spoke the same visual language as the qualification-zone tints — it read as "qualified for
-   whatever" — and, because td backgrounds paint over the tr's inline zone tint, it also HID the
-   real zone color on the followed row (Ben couldn't see Arsenal's Europa League tint at all).
-   (live feedback mrb4imes) */
-.sp-tbl tr.is-you .nm {
-  color: var(--accent);
-  font-weight: 700;
 }
 /* Visually-hidden note text for screen readers — same clip-rect technique as
    apps/web/src/styles/onboarding-connectors.css's .onb-json-upload input. */
@@ -632,12 +444,8 @@
 /* Knockout-round fixtures replace the standings table once a tournament's group stage is
    complete (#839 follow-up): away · score-or-kickoff · home on a hairline-ruled list. */
 .sp-knock__kicker {
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
-  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-muted);
   margin: var(--space-2) 0;
 }
 .sp-knock__list {
@@ -657,16 +465,8 @@
   align-items: baseline;
   gap: var(--space-2);
   padding: var(--space-2) 0;
-  border-bottom: 1px solid var(--border-subtle);
-}
-.sp-knock__row:last-child {
-  border-bottom: none;
 }
 .sp-knock__team {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -677,34 +477,15 @@
 .sp-knock__team--home {
   text-align: left;
 }
-/* Decided match: winner bold with a caret pointing at them, loser dimmed — score alone can't
-   say who advanced after penalties (live feedback mra2zo1o) */
-.sp-knock__team.is-winner {
-  font-weight: 700;
-}
-.sp-knock__team.is-loser {
-  color: var(--text-faint);
-  font-weight: 400;
-}
-.sp-knock__won {
-  color: var(--accent-fg);
-}
 .sp-knock__score {
-  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: var(--text-xs);
-  font-weight: 700;
-  color: var(--text);
   white-space: nowrap;
   /* Centered within its fixed 3.5rem track so "v" and "3–1" share one x across all rows (#5). */
   text-align: center;
 }
 .sp-knock__status {
-  font-family: var(--font-sans);
-  font-size: var(--text-2xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-faint);
   white-space: nowrap;
   /* Right-aligned within its fixed 6rem track so the status column is flush on every row (#5). */
   text-align: right;
@@ -729,25 +510,15 @@
   justify-content: center;
   width: 56px;
   height: 56px;
-  border-radius: 0;
-  background: none;
-  border: 1px solid var(--border-subtle);
-  color: var(--text-subtle);
   margin-bottom: var(--space-5);
 }
 .sp-empty__title {
-  font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  font-weight: 600;
   letter-spacing: -0.012em;
   line-height: 1.16;
   margin: 0;
 }
 .sp-empty__lede {
-  font-family: var(--font-sans);
-  font-size: var(--text-md);
   line-height: 1.55;
-  color: var(--text-muted);
   margin: var(--space-3) 0 var(--space-5);
   text-wrap: pretty;
 }
@@ -755,21 +526,10 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--accent-fg);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  font-weight: 600;
   padding: var(--space-2) var(--space-3);
-  border-radius: 0;
   cursor: pointer;
   transition: var(--transition-control);
   text-decoration: none;
-}
-.sp-nofollow__btn:hover {
-  background: var(--forest-soft);
-  border-color: var(--forest-soft-2);
 }
 .sp-emptyboard {
   display: grid;
@@ -777,6 +537,5 @@
   gap: var(--space-7);
   margin-top: var(--space-8);
   padding-top: var(--space-7);
-  border-top: 2px solid var(--border);
   align-items: start;
 }

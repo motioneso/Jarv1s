@@ -129,6 +129,52 @@ describe("buildPageContextSnapshot", () => {
     expect(snapshot.visibleText).toEqual(["real text"]);
   });
 
+  it("puts declared candidates ahead of scraped text in visibleText (#1438)", () => {
+    const snapshot = buildPageContextSnapshot({
+      route: "/today",
+      pageTitle: "Today",
+      candidates: [
+        { kind: "text", text: "Pulled from your tasks and recent notes." },
+        { kind: "declared", text: "Tomorrow: 9:00 am — Standup — Zoom — 30m" }
+      ],
+      focused: null,
+      selectedText: null
+    });
+    expect(snapshot.visibleText).toEqual([
+      "Tomorrow: 9:00 am — Standup — Zoom — 30m",
+      "Pulled from your tasks and recent notes."
+    ]);
+  });
+
+  it("keeps declared candidates when scraped text would fill the bucket (#1438)", () => {
+    const snapshot = buildPageContextSnapshot({
+      route: "/today",
+      pageTitle: "Today",
+      candidates: [
+        ...Array.from({ length: 40 }, (_, i) => ({ kind: "text" as const, text: `prose ${i}` })),
+        { kind: "declared" as const, text: "Tomorrow: 9:00 am — Standup" }
+      ],
+      focused: null,
+      selectedText: null
+    });
+    expect(snapshot.visibleText.length).toBe(20);
+    expect(snapshot.visibleText[0]).toBe("Tomorrow: 9:00 am — Standup");
+  });
+
+  it("caps declared candidates below the visibleText bucket size (#1438)", () => {
+    const snapshot = buildPageContextSnapshot({
+      route: "/today",
+      pageTitle: "Today",
+      candidates: Array.from({ length: 30 }, (_, i) => ({
+        kind: "declared" as const,
+        text: `declared ${i}`
+      })),
+      focused: null,
+      selectedText: null
+    });
+    expect(snapshot.visibleText.length).toBe(16);
+  });
+
   it("caps each bucket at its max count", () => {
     const candidates = Array.from({ length: 30 }, (_, i) => ({
       kind: "text" as const,

@@ -1,6 +1,8 @@
 import { lookup } from "node:dns/promises";
 import { request as httpsRequest } from "node:https";
 import { BlockList } from "node:net";
+import { promisify } from "node:util";
+import { brotliDecompress, gunzip, inflate } from "node:zlib";
 
 import { assertValidFetchHosts } from "./policy.js";
 
@@ -73,6 +75,51 @@ const HOP_HEADERS = new Set([
 ]);
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 export const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
+
+// This transport is typed `typeof fetch`, but it builds a raw https.request, so none of the
+// headers undici's fetch adds for free are present unless we add them. Bot-mitigation edges score
+// that bare shape as non-browser traffic: ESPN/Akamai answers 403 to any request missing
+// accept + user-agent + accept-encoding *together* — each one alone still 403s (verified live
+// 2026-08-05, prod sports outage; every dataset had silently degraded to its empty fallback).
+// The UA needs a Product/Version token to pass: "jarv1s-host-fetch" is rejected where
+// "Jarv1s/1.0 (+url)" is accepted, so keep the version and the URL. Callers override any of
+// these by setting the same header themselves.
+const DEFAULT_REQUEST_HEADERS: Readonly<Record<string, string>> = {
+  accept: "*/*",
+  "accept-encoding": "gzip, deflate, br",
+  "user-agent": "Jarv1s/1.0 (+https://github.com/motioneso/jarv1s)"
+};
+
+const gunzipAsync = promisify(gunzip);
+const inflateAsync = promisify(inflate);
+const brotliDecompressAsync = promisify(brotliDecompress);
+
+/**
+ * Decodes a `content-encoding` body. Advertising `accept-encoding` without decoding here would
+ * hand callers compressed bytes and break every `response.json()` — the two halves ship together.
+ *
+ * `maxOutputLength` re-applies the caller's response cap to the *decompressed* size: the streaming
+ * cap upstream only ever sees compressed bytes, so without this a small gzip bomb would expand
+ * past the limit the caller asked for.
+ */
+async function decodeBody(
+  body: Buffer,
+  encoding: string | undefined,
+  maxBytes: number
+): Promise<Buffer> {
+  const codec = encoding?.trim().toLowerCase();
+  if (!codec || codec === "identity" || body.byteLength === 0) return body;
+  const options = { maxOutputLength: maxBytes };
+  try {
+    if (codec === "gzip" || codec === "x-gzip") return await gunzipAsync(body, options);
+    if (codec === "deflate") return await inflateAsync(body, options);
+    if (codec === "br") return await brotliDecompressAsync(body, options);
+  } catch {
+    throw new HostPinnedFetchError("response_too_large");
+  }
+  // An encoding we never advertised: the peer ignored accept-encoding, so we cannot read it.
+  throw new HostPinnedFetchError("invalid_request");
+}
 const BLOCKED = new BlockList();
 for (const [network, prefix] of [
   ["0.0.0.0", 8],
@@ -155,7 +202,9 @@ export function createHostPinnedFetch(
               host: url.hostname,
               path: `${url.pathname}${url.search}`,
               method: method as "GET" | "POST",
-              headers: { ...headers, host: url.hostname },
+              // Defaults first so a caller's own header always wins. Applied per hop, not once:
+              // a cross-origin redirect clears `headers` below, and the next hop still needs them.
+              headers: { ...DEFAULT_REQUEST_HEADERS, ...headers, host: url.hostname },
               ...(body ? { body } : {})
             },
             controller.signal
@@ -194,13 +243,26 @@ export function createHostPinnedFetch(
           }
           chunks.push(chunk);
         }
-        return new Response(
-          [204, 205, 304].includes(response.status) ? null : Buffer.concat(chunks),
-          {
-            status: response.status,
-            headers: response.headers
-          }
+        if ([204, 205, 304].includes(response.status)) {
+          return new Response(null, { status: response.status, headers: response.headers });
+        }
+        const decoded = await decodeBody(
+          Buffer.concat(chunks),
+          response.headers["content-encoding"],
+          options.maxResponseBytes ?? 5 * 1024 * 1024
         );
+        // The body handed to the caller is decoded, so the encoding/length headers describing the
+        // wire form would now be lies — and `content-encoding` would make a fetch-shaped consumer
+        // try to inflate it a second time.
+        const responseHeaders = { ...response.headers };
+        delete responseHeaders["content-encoding"];
+        delete responseHeaders["content-length"];
+        // Re-wrapped because promisified zlib returns Buffer<ArrayBufferLike>, which BodyInit
+        // rejects (it could be backed by a SharedArrayBuffer).
+        return new Response(new Uint8Array(decoded), {
+          status: response.status,
+          headers: responseHeaders
+        });
       }
     } catch (error) {
       if (timedOut) throw new HostPinnedFetchError("fetch_timeout");

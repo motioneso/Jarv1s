@@ -41,6 +41,7 @@ import { queryKeys } from "../api/query-keys.js";
 import { formatDate, useUserLocale } from "../locale/locale-format.js";
 import { useFeedback } from "./settings-feedback.js";
 import { Badge, Group, Note, Row } from "./settings-ui.js";
+import { Button, ButtonLink } from "@jarv1s/ui";
 
 /* ----------------------------------------------------------- Data export */
 
@@ -106,20 +107,17 @@ export function DataExport() {
           {isFailed ? (
             <div className="dexp__bar">
               <div className="dexp__note">Export failed. Please try again.</div>
-              <button
-                type="button"
-                className="jds-btn jds-btn--primary jds-btn--sm"
+              <Button
+                size="sm"
                 onClick={() => {
                   reset();
                   startMutation.mutate(undefined);
                 }}
                 disabled={startMutation.isPending}
+                icon={<Download size={15} />}
               >
-                <span className="jds-btn__icon">
-                  <Download size={15} />
-                </span>
                 Try again
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="dexp__bar">
@@ -127,17 +125,14 @@ export function DataExport() {
                 <FileArchive size={13} aria-hidden="true" />A single archive — structured JSON plus
                 your original note files. Yours, in an open format.
               </div>
-              <button
-                type="button"
-                className="jds-btn jds-btn--primary jds-btn--sm"
+              <Button
+                size="sm"
                 onClick={() => startMutation.mutate(undefined)}
                 disabled={startMutation.isPending}
+                icon={<Download size={15} />}
               >
-                <span className="jds-btn__icon">
-                  <Download size={15} />
-                </span>
                 Prepare export
-              </button>
+              </Button>
             </div>
           )}
         </>
@@ -169,19 +164,18 @@ export function DataExport() {
             it.
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <a
+            <ButtonLink
               href={getDataExportDownloadUrl(jobId!)}
-              className="jds-btn jds-btn--primary jds-btn--sm"
+              variant="primary"
+              size="sm"
+              icon={<Download size={15} />}
               download
             >
-              <span className="jds-btn__icon">
-                <Download size={15} />
-              </span>
               Download
-            </a>
-            <button type="button" className="jds-btn jds-btn--quiet jds-btn--sm" onClick={reset}>
+            </ButtonLink>
+            <Button variant="quiet" size="sm" onClick={reset}>
               Prepare a new export
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}
@@ -330,17 +324,15 @@ export function Sessions() {
       desc="Devices signed in to your account. Sign out any you don't recognise."
       action={
         others.length ? (
-          <button
-            type="button"
-            className="jds-btn jds-btn--quiet jds-btn--sm"
+          <Button
+            variant="quiet"
+            size="sm"
             onClick={revokeAll}
             disabled={busy}
+            icon={<LogOut size={15} />}
           >
-            <span className="jds-btn__icon">
-              <LogOut size={15} />
-            </span>
             Sign out all others
-          </button>
+          </Button>
         ) : undefined
       }
     >
@@ -369,7 +361,7 @@ export function Sessions() {
                 <div className="sess__dev">
                   {s.deviceLabel}
                   {group.isCurrent ? (
-                    <Badge tone="pine" dot>
+                    <Badge tone="forest" dot>
                       This device
                     </Badge>
                   ) : null}

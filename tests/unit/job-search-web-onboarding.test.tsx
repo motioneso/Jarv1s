@@ -160,9 +160,43 @@ describe("OnboardingScreen", () => {
     expect(rendered[0].props.composer).toBeTruthy();
   });
 
+  it("enables résumé attachments in the onboarding composer", async () => {
+    let composer:
+      | {
+          attachmentLabel?: string;
+          uploadAttachment?: (file: File) => Promise<unknown>;
+        }
+      | undefined;
+    function SurfaceSpy(props: { composer?: typeof composer }) {
+      composer = props.composer;
+      return createElement("div");
+    }
+    const uploadAttachment = vi.fn(async (file: File) => ({
+      id: "attachment-1",
+      fileName: file.name,
+      sizeBytes: file.size
+    }));
+    const surface: AssistantSurfaceHandleV1 = {
+      setSurfaceKey: vi.fn(),
+      seedContext: vi.fn().mockResolvedValue(undefined),
+      seedComposer: vi.fn(),
+      Surface: SurfaceSpy,
+      submitTurn: vi.fn().mockResolvedValue(undefined),
+      uploadAttachment
+    };
+
+    await renderScreen(profile(), surface);
+
+    expect(composer?.attachmentLabel).toBe("Attach résumé");
+    expect(composer?.uploadAttachment).toBe(uploadAttachment);
+  });
+
   it("sends every onboarding answer with profile guidance after a host restart", async () => {
     let composer:
-      | { onSubmitText?: (text: string) => "handled" | "send"; placeholder?: string }
+      | {
+          onSubmitText?: (text: string, attachmentIds?: readonly string[]) => "handled" | "send";
+          placeholder?: string;
+        }
       | undefined;
     function SurfaceSpy(props: { composer?: typeof composer }) {
       composer = props.composer;
@@ -178,9 +212,12 @@ describe("OnboardingScreen", () => {
     const profileValue = profile({ completedSteps: ["role"] });
     await renderScreen(profileValue, surface);
 
-    expect(composer?.onSubmitText?.("I want hands-on platform work")).toBe("handled");
+    expect(composer?.onSubmitText?.("I want hands-on platform work", ["attachment-1"])).toBe(
+      "handled"
+    );
     expect(surface.submitTurn).toHaveBeenCalledWith({
       text: "I want hands-on platform work",
+      attachmentIds: ["attachment-1"],
       controlContext: {
         action: "continue-job-search-onboarding",
         values: {

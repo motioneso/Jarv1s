@@ -155,16 +155,11 @@ describe("OverviewScreen", () => {
     const renderer = await renderScreen(profile());
     await flush();
 
-    let figures = renderer.root.findAll(
-      (node) =>
-        typeof node.type === "string" &&
-        (node.props as { className?: string }).className === "jds-hero-figure"
-    );
-    expect(figures.map((f) => flatten(f.props.children))).toEqual(["0", "0", "0", "0"]);
+    expect(renderer.root.findAllByProps({ className: "jds-hero-figure" })).toHaveLength(0);
     expect(text(renderer)).toMatch(
       /Unreviewed.*Scored.*Queued.*Last successful check.*Source issues/i
     );
-    expect(text(renderer)).toMatch(/Checks automatically/i);
+    expect(text(renderer)).toMatch(/Search status Ready/i);
 
     mockInvoke({
       matches: [
@@ -179,13 +174,11 @@ describe("OverviewScreen", () => {
     const withMatches = await renderScreen(profile());
     await flush();
 
-    figures = withMatches.root.findAll(
-      (node) =>
-        typeof node.type === "string" &&
-        (node.props as { className?: string }).className === "jds-hero-figure"
-    );
+    const values = withMatches.root.findAllByProps({
+      className: "jds-fact__text jsm-field__value"
+    });
     // Unreviewed=2 (a,d), Scored=2 (b,c), Queued=1 (d), Source issues=0.
-    expect(figures.map((f) => flatten(f.props.children))).toEqual(["2", "2", "1", "0"]);
+    expect(values.map((value) => flatten(value.children))).toEqual(["2", "2", "1", "Not yet", "0"]);
     expect(text(withMatches)).toMatch(/Unreviewed/i);
     expect(text(withMatches)).not.toMatch(/\b25\b/);
   });

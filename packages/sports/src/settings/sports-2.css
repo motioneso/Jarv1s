@@ -8,29 +8,10 @@
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  border: 1px solid var(--border-subtle);
-  background: var(--surface);
-  border-radius: var(--radius-lg);
   padding: 9px 12px;
   margin-bottom: 10px;
   cursor: pointer;
-  font-family: var(--font-sans);
   transition: var(--transition-control);
-}
-.sp-whole:hover {
-  background: var(--surface-2);
-}
-.sp-whole.is-active {
-  background: var(--forest-soft);
-  border-color: var(--forest-soft-2);
-}
-.sp-whole__lbl {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink);
-}
-.sp-whole.is-active .sp-whole__lbl {
-  color: var(--forest-ink);
 }
 .sp-teamgrid {
   display: grid;
@@ -55,11 +36,7 @@
   flex: 1;
 }
 .sp-action-error {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 600;
   line-height: 1.35;
-  color: var(--danger);
   text-align: left;
 }
 .sp-team {
@@ -67,15 +44,8 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  border: 1px solid var(--border-subtle);
-  background: var(--surface);
-  border-radius: var(--radius-lg);
   padding: 7px 10px;
   cursor: pointer;
-  font-family: var(--font-sans);
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-muted);
   transition: var(--transition-control);
   text-align: left;
 }
@@ -86,22 +56,7 @@
   width: 100%;
 }
 .sp-team__state {
-  font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 700;
   letter-spacing: 0.03em;
-  color: var(--text-faint);
-}
-.sp-team.is-active .sp-team__state {
-  color: var(--forest-ink);
-}
-.sp-team:hover {
-  background: var(--surface-2);
-}
-.sp-team.is-active {
-  background: var(--forest-soft);
-  border-color: var(--forest-soft-2);
-  color: var(--forest-ink);
 }
 .sp-team:disabled,
 .sp-whole:disabled {
@@ -123,14 +78,8 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: 6px;
   overflow: hidden;
-  font-family: var(--font-sans);
-  font-size: 9px;
-  font-weight: 800;
   letter-spacing: -0.01em;
-  background: var(--surface-2);
-  color: var(--text-subtle);
 }
 .sp-pickcrest img {
   width: 100%;
@@ -146,22 +95,8 @@
 }
 .sp-search__input {
   width: 100%;
-  border: 1px solid var(--border-subtle);
-  background: var(--surface);
-  border-radius: var(--radius-lg);
   padding: 9px 12px;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  color: var(--ink);
   transition: var(--transition-control);
-}
-.sp-search__input::placeholder {
-  color: var(--text-faint);
-}
-.sp-search__input:focus {
-  outline: none;
-  border-color: var(--forest-soft-2);
-  background: var(--surface-2);
 }
 
 .sp-summary {
@@ -175,14 +110,7 @@
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  border: 1px solid var(--forest-soft-2);
-  background: var(--forest-soft);
-  border-radius: var(--radius-lg);
   padding: 4px 6px 4px 8px;
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--forest-ink);
 }
 .sp-chip .sp-action-error {
   flex-basis: 100%;
@@ -196,19 +124,9 @@
   justify-content: center;
   width: 18px;
   height: 18px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
   cursor: pointer;
-  font-family: var(--font-sans);
-  font-size: 14px;
-  font-weight: 700;
   line-height: 1;
-  color: var(--forest-ink);
   transition: var(--transition-control);
-}
-.sp-chip__remove:hover {
-  background: var(--surface-2);
 }
 .sp-chip__remove:disabled {
   opacity: 0.6;
@@ -222,24 +140,11 @@
   align-items: center;
   gap: 6px;
   width: 100%;
-  border: 1px solid var(--border-subtle);
-  background: var(--surface);
-  border-radius: var(--radius-lg);
   padding: 9px 12px;
   margin-bottom: 10px;
   cursor: pointer;
-  font-family: var(--font-sans);
-  font-size: 12.5px;
-  font-weight: 700;
   letter-spacing: 0.02em;
-  color: var(--text-muted);
   transition: var(--transition-control);
-}
-.sp-browse-toggle:hover {
-  background: var(--surface-2);
-}
-.sp-browse-toggle[aria-expanded="true"] {
-  color: var(--ink);
 }
 
 /* Confederation-grouped browse mode (#907): shown when the search box is empty, replacing the
@@ -248,15 +153,8 @@
 
 .sp-browse__conf {
   margin: 18px 0 8px;
-  /* Matches the .sp-team__state eyebrow above — NOT --font-mono, which Ben retired app-wide
-     2026-07-08 ("kill mono anywhere in the app"); --font-sans is the current eyebrow face
-     everywhere else in this file. */
-  font-family: var(--font-sans);
-  font-size: 10.5px;
-  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-faint);
 }
 .sp-browse__conf:first-child {
   margin-top: 0;
@@ -281,25 +179,10 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  border: 1px solid var(--border-subtle);
-  background: var(--surface);
-  border-radius: var(--radius-lg);
   padding: 9px 12px;
   cursor: pointer;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink);
   text-align: left;
   transition: var(--transition-control);
-}
-.sp-browse__league:hover {
-  background: var(--surface-2);
-}
-.sp-browse__league[aria-expanded="true"] {
-  background: var(--forest-soft);
-  border-color: var(--forest-soft-2);
-  color: var(--forest-ink);
 }
 
 /* Narrow-width pass (#989 Task 4), scoped to this pane only — not a shell breakpoint. */

@@ -58,6 +58,7 @@ import {
   Switch,
   type BadgeTone
 } from "./settings-ui";
+import { Button, IconButton } from "@jarv1s/ui";
 import {
   describeHerdrInstallOutcome,
   healthSummary,
@@ -76,7 +77,7 @@ function roleLabel(user: UserDto): string {
 }
 
 function diagnosticTone(status: HostDiagnosticStatus): BadgeTone {
-  return status === "pass" ? "pine" : status === "warn" ? "amber" : "red";
+  return status === "pass" ? "forest" : status === "warn" ? "amber" : "red";
 }
 
 function diagnosticLabel(status: HostDiagnosticStatus): string {
@@ -146,7 +147,7 @@ function PersonRow(props: {
             Deactivated
           </Badge>
         ) : (
-          <Badge tone="pine" dot>
+          <Badge tone="forest" dot>
             Active
           </Badge>
         )}
@@ -154,16 +155,15 @@ function PersonRow(props: {
       <div className="ppl__actions">
         {props.actions.length === 0 ? null : (
           <div className="ppl__menu" ref={menuRef}>
-            <button
-              type="button"
+            <IconButton
               ref={menuTriggerRef}
-              className="jds-iconbtn jds-iconbtn--sm"
+              size="sm"
               aria-label={`Actions for ${user.name || user.email}`}
               aria-expanded={menu}
               onClick={() => (menu ? closeMenu() : setMenu(true))}
             >
               <MoreHorizontal size={16} />
-            </button>
+            </IconButton>
             {menu ? (
               <div className="ppl__menupop" role="menu">
                 {canAdmin ? (
@@ -330,20 +330,12 @@ function PendingRow(props: {
         </div>
       </div>
       <div className="pend__actions">
-        <button
-          type="button"
-          className="jds-btn jds-btn--primary jds-btn--sm"
-          onClick={props.onApprove}
-        >
+        <Button size="sm" onClick={props.onApprove}>
           Approve
-        </button>
-        <button
-          type="button"
-          className="jds-btn jds-btn--quiet jds-btn--sm"
-          onClick={props.onDecline}
-        >
+        </Button>
+        <Button variant="quiet" size="sm" onClick={props.onDecline}>
           Decline
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -731,14 +723,14 @@ export function HostPane() {
         name="Herdr"
         desc="Not installed on this host."
         control={
-          <button
-            type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => installMutation.mutate()}
             disabled={installMutation.isPending}
           >
             {installMutation.isPending ? "Installing…" : "Install Herdr"}
-          </button>
+          </Button>
         }
       />
     );
@@ -771,7 +763,7 @@ export function HostPane() {
           name="tmux available"
           desc="Whether tmux is usable on this host."
           control={
-            <Badge tone={mux?.available.tmux ? "pine" : "neutral"} dot={mux?.available.tmux}>
+            <Badge tone={mux?.available.tmux ? "forest" : "neutral"} dot={mux?.available.tmux}>
               {mux?.available.tmux ? "Yes" : "No"}
             </Badge>
           }
@@ -780,7 +772,7 @@ export function HostPane() {
           name="herdr available"
           desc={herdrDesc}
           control={
-            <Badge tone={herdrAvailable ? "pine" : "neutral"} dot={herdrAvailable}>
+            <Badge tone={herdrAvailable ? "forest" : "neutral"} dot={herdrAvailable}>
               {herdrAvailable ? "Yes" : "No"}
             </Badge>
           }
@@ -792,17 +784,15 @@ export function HostPane() {
         title="Check system health"
         desc="A safe, read-only health check of this host. No secrets, env values, or paths."
         action={
-          <button
-            type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={runDiagnostics}
             disabled={diagQuery.isFetching}
+            icon={<Stethoscope size={15} />}
           >
-            <span className="jds-btn__icon">
-              <Stethoscope size={15} />
-            </span>
             {diagQuery.isFetching ? "Checking…" : "Check system health"}
-          </button>
+          </Button>
         }
       >
         {!ranDiagnostics ? (
@@ -845,7 +835,9 @@ export function HostPane() {
                     {diag.latestAvailableVersion &&
                       compareJarvisVersions(diag.latestAvailableVersion, diag.version ?? "") >
                         0 && (
-                        <Badge tone="pine">Update Available ({diag.latestAvailableVersion})</Badge>
+                        <Badge tone="forest">
+                          Update Available ({diag.latestAvailableVersion})
+                        </Badge>
                       )}
                   </div>
                 }

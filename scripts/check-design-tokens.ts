@@ -31,7 +31,24 @@ const allowList = new Set([
   // job-search's Score component (score.tsx) sets this as a 0-1 fraction inline — a caller-scoped
   // runtime value, not a design token. Want still renders through the jds-score bar everywhere Fit
   // doesn't (K-D1 covers Fit only), so this survives the Matches board rebuild.
-  "--jds-score"
+  "--jds-score",
+  // #1393 Tasks: avatar background color, hashed per-name in Ava (task-details-sections.tsx).
+  // Consuming var() lives in packages/ui/src/styles/components-tasks.css, outside this guard's
+  // apps/web/src scan root, so this entry documents intent rather than unblocking a violation.
+  "--tk-ava-bg",
+  // #1393 Tasks: avatar font-size, scaled from the size prop in Ava. Same components-tasks.css
+  // consumer, same out-of-scan-root note as --tk-ava-bg above.
+  "--tk-ava-fs",
+  // #1393 Tasks: shared per-instance swatch color for priority dots/bars (priorityColor()) and
+  // list dots (listColorMap()) in task-list-view.tsx. Same components-tasks.css consumer, same
+  // out-of-scan-root note as --tk-ava-bg above.
+  "--tk-swatch",
+  // #1395 Settings: runtime accent-ramp / staged-palette swatch color in settings-appearance-pane.
+  // Consuming var() is in apps/web/src/styles/settings-panes-3.css today; Task 4's CSS split moves
+  // it to packages/ui/src/styles/components-settings-*.css, same out-of-scan-root shape as
+  // --tk-swatch. Named --st-swatch (not --swatch) per the coordinator's ruling — every sectional
+  // runtime token here is scoped, and a bare name would be the one an ancestor could capture.
+  "--st-swatch"
 ]);
 
 export interface TokenViolation {
@@ -80,7 +97,30 @@ export const MIGRATED_SECTION_CSS_FILES: readonly string[] = [
   "apps/web/src/styles/onboarding-design.css",
   "apps/web/src/styles/wellness-1.css",
   "apps/web/src/styles/wellness-2.css",
-  "apps/web/src/styles/wellness-3.css"
+  "apps/web/src/styles/wellness-3.css",
+  "apps/web/src/styles/kit-tasks.css",
+  "apps/web/src/styles/kit-tasks-modal.css",
+  "apps/web/src/tasks/tasks.css",
+  // #1394 Shipped modules: news + sports. These live under packages/, outside checkTokens'
+  // apps/web/src walk root, but checkBannedProperties resolves each entry against the repo root
+  // directly, so the layout-only rule is enforced here just as it is for apps/web sections.
+  "packages/news/src/settings/news-settings.css",
+  "packages/news/src/web/styles/news-1.css",
+  "packages/news/src/web/styles/news-2.css",
+  "packages/sports/src/settings/sports-2.css",
+  "packages/sports/src/web/styles/sports-1.css",
+  "packages/sports/src/web/styles/sports-3.css",
+  "packages/sports/src/web/styles/sports-4-grid.css",
+  "packages/sports/src/web/styles/sports-5-editorial.css",
+  "packages/sports/src/web/styles/sports-6-newsband.css",
+  // #1395 Settings: Task 4's layout/visual split reduced these four to layout-only; the visual
+  // half moved to packages/ui/src/styles/components-settings-1.css and components-settings-2.css
+  // (component CSS, not screen CSS — deliberately NOT added here, since D2 only bans visual
+  // properties in a screen's own CSS).
+  "apps/web/src/styles/settings.css",
+  "apps/web/src/styles/settings-panes.css",
+  "apps/web/src/styles/settings-panes-2.css",
+  "apps/web/src/styles/settings-panes-3.css"
 ];
 
 let validTokensCache: Set<string> | undefined;

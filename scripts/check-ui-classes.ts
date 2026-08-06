@@ -18,10 +18,14 @@ import { fileURLToPath } from "node:url";
 
 const rootDirectory = process.cwd();
 
-const DEFINITION_FILES = [
+export const DEFINITION_FILES = [
   "packages/ui/src/styles/components-core.css",
+  "packages/ui/src/styles/components-empty.css",
+  "packages/ui/src/styles/components-forms.css",
   "packages/ui/src/styles/components-jarvis.css",
   "packages/ui/src/styles/components-jarvis-today.css",
+  "packages/ui/src/styles/components-settings-1.css",
+  "packages/ui/src/styles/components-settings-2.css",
   "apps/web/src/styles/command-palette.css",
   "apps/web/src/styles/components-forms.css",
   "apps/web/src/styles/components-keyline.css",

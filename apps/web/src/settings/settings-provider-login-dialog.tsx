@@ -1,6 +1,7 @@
 import { ExternalLink, Info, LoaderCircle, LogIn, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
+import { Button, Dialog } from "@jarv1s/ui";
 import type { AiProviderConfigDto, AiProviderKind } from "@jarv1s/shared";
 
 import { ApiError } from "../api/client";
@@ -211,132 +212,98 @@ export function ProviderLoginDialog(props: {
     if (state.authorizationUrl) void navigator.clipboard?.writeText(state.authorizationUrl);
   };
   const busy = state.phase === "beginning" || state.phase === "submitting";
+  const titleId = useId();
 
   return (
-    <div
-      className="jds-dialog-scrim"
-      role="presentation"
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !busy) close();
+    <Dialog
+      onClose={() => {
+        if (!busy) close();
       }}
-    >
-      <div
-        className="jds-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${provider.displayName} sign-in`}
-      >
-        <div className="jds-dialog__head">
-          <div className="jds-dialog__title">Sign in to {provider.displayName}</div>
-          <div className="jds-dialog__desc">
-            Complete the provider sign-in here; no terminal session or API key is required.
-          </div>
-        </div>
-
-        <div className="jds-dialog__body">
-          {state.phase === "beginning" || state.phase === "submitting" ? (
-            <div className="term-modal__prompt">
-              <LoaderCircle size={16} className="dexp__spin" aria-hidden="true" />
-              {state.phase === "beginning" ? "Starting sign-in…" : "Completing sign-in…"}
-            </div>
-          ) : null}
-
-          {state.phase === "awaiting-token" ? (
-            <>
-              <div className="term-modal__prompt">Approve access, then paste the code below.</div>
-              {state.authorizationUrl ? (
-                <p>
-                  <a href={state.authorizationUrl} target="_blank" rel="noreferrer">
-                    Open provider sign-in <ExternalLink size={13} aria-hidden="true" />
-                  </a>{" "}
-                  <button
-                    type="button"
-                    className="jds-btn jds-btn--quiet jds-btn--sm"
-                    onClick={copyUrl}
-                  >
-                    Copy link
-                  </button>
-                </p>
-              ) : null}
-              <input
-                className="jds-input"
-                type="text"
-                inputMode="text"
-                autoComplete="off"
-                placeholder="Paste sign-in code"
-                aria-label="Provider sign-in code"
-                value={state.token}
-                onChange={(event) =>
-                  setState((current) => ({ ...current, token: event.target.value }))
-                }
-              />
-            </>
-          ) : null}
-
-          {state.phase === "awaiting-authorization" || state.phase === "polling" ? (
-            <>
-              <div className="term-modal__prompt">
-                <LoaderCircle size={16} className="dexp__spin" aria-hidden="true" />
-                Approve access in the provider page; Jarvis is checking for completion.
-              </div>
-              {state.authorizationUrl ? (
-                <p>
-                  <a href={state.authorizationUrl} target="_blank" rel="noreferrer">
-                    Open provider sign-in <ExternalLink size={13} aria-hidden="true" />
-                  </a>{" "}
-                  <button
-                    type="button"
-                    className="jds-btn jds-btn--quiet jds-btn--sm"
-                    onClick={copyUrl}
-                  >
-                    Copy link
-                  </button>
-                </p>
-              ) : null}
-              {state.userCode ? (
-                <p>
-                  Device code: <code>{state.userCode}</code>
-                </p>
-              ) : null}
-            </>
-          ) : null}
-
-          {state.phase === "error" ? (
-            <div role="alert">
-              <p>
-                <Info size={15} aria-hidden="true" /> {state.error ?? "Login failed."}
-              </p>
-              <button
-                type="button"
-                className="jds-btn jds-btn--secondary jds-btn--sm"
-                onClick={() => void beginLogin()}
-              >
-                Try again
-              </button>
-            </div>
-          ) : null}
-
-          {state.phase === "success" ? (
-            <p role="status">Provider connected. Chat is ready.</p>
-          ) : null}
-        </div>
-
-        <div className="jds-dialog__foot">
-          <button type="button" className="jds-btn jds-btn--quiet" onClick={close} disabled={busy}>
+      aria-labelledby={titleId}
+      title={<span id={titleId}>Sign in to {provider.displayName}</span>}
+      description="Complete the provider sign-in here; no terminal session or API key is required."
+      footer={
+        <>
+          <Button variant="quiet" onClick={close} disabled={busy}>
             <X size={14} aria-hidden="true" /> Close
-          </button>
+          </Button>
           {state.phase === "awaiting-token" ? (
-            <button
-              type="button"
-              className="jds-btn jds-btn--primary"
-              onClick={() => void submitToken()}
-              disabled={!state.token || !state.loginId}
-            >
+            <Button onClick={() => void submitToken()} disabled={!state.token || !state.loginId}>
               <LogIn size={14} aria-hidden="true" /> Submit code
-            </button>
+            </Button>
           ) : null}
+        </>
+      }
+    >
+      {state.phase === "beginning" || state.phase === "submitting" ? (
+        <div className="term-modal__prompt">
+          <LoaderCircle size={16} className="dexp__spin" aria-hidden="true" />
+          {state.phase === "beginning" ? "Starting sign-in…" : "Completing sign-in…"}
         </div>
-      </div>
-    </div>
+      ) : null}
+
+      {state.phase === "awaiting-token" ? (
+        <>
+          <div className="term-modal__prompt">Approve access, then paste the code below.</div>
+          {state.authorizationUrl ? (
+            <p>
+              <a href={state.authorizationUrl} target="_blank" rel="noreferrer">
+                Open provider sign-in <ExternalLink size={13} aria-hidden="true" />
+              </a>{" "}
+              <Button variant="quiet" size="sm" onClick={copyUrl}>
+                Copy link
+              </Button>
+            </p>
+          ) : null}
+          <input
+            className="jds-input"
+            type="text"
+            inputMode="text"
+            autoComplete="off"
+            placeholder="Paste sign-in code"
+            aria-label="Provider sign-in code"
+            value={state.token}
+            onChange={(event) => setState((current) => ({ ...current, token: event.target.value }))}
+          />
+        </>
+      ) : null}
+
+      {state.phase === "awaiting-authorization" || state.phase === "polling" ? (
+        <>
+          <div className="term-modal__prompt">
+            <LoaderCircle size={16} className="dexp__spin" aria-hidden="true" />
+            Approve access in the provider page; Jarvis is checking for completion.
+          </div>
+          {state.authorizationUrl ? (
+            <p>
+              <a href={state.authorizationUrl} target="_blank" rel="noreferrer">
+                Open provider sign-in <ExternalLink size={13} aria-hidden="true" />
+              </a>{" "}
+              <Button variant="quiet" size="sm" onClick={copyUrl}>
+                Copy link
+              </Button>
+            </p>
+          ) : null}
+          {state.userCode ? (
+            <p>
+              Device code: <code>{state.userCode}</code>
+            </p>
+          ) : null}
+        </>
+      ) : null}
+
+      {state.phase === "error" ? (
+        <div role="alert">
+          <p>
+            <Info size={15} aria-hidden="true" /> {state.error ?? "Login failed."}
+          </p>
+          <Button variant="secondary" size="sm" onClick={() => void beginLogin()}>
+            Try again
+          </Button>
+        </div>
+      ) : null}
+
+      {state.phase === "success" ? <p role="status">Provider connected. Chat is ready.</p> : null}
+    </Dialog>
   );
 }

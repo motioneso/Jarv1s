@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { Button, IconButton } from "@jarv1s/ui";
 import {
   createAiProvider,
   getChatModelOverrideSettings,
@@ -215,7 +216,7 @@ function ProviderCard(props: {
         <div className="prov__id">
           <div className="prov__name">
             {provider.displayName}
-            <Badge tone="pine" dot>
+            <Badge tone="forest" dot>
               Connected
             </Badge>
             {/* #870/H1: one provider is the instance default that feeds mode-bound services. */}
@@ -224,13 +225,9 @@ function ProviderCard(props: {
                 Default
               </Badge>
             ) : (
-              <button
-                type="button"
-                className="jds-btn jds-btn--quiet jds-btn--sm"
-                onClick={props.onSetInstanceDefault}
-              >
+              <Button variant="quiet" size="sm" onClick={props.onSetInstanceDefault}>
                 Set as default
-              </button>
+              </Button>
             )}
           </div>
           <div className="prov__auth">
@@ -248,49 +245,39 @@ function ProviderCard(props: {
         </div>
         <div className="prov__acts">
           {canAutomateLogin ? (
-            <button
-              type="button"
-              className="jds-btn jds-btn--quiet jds-btn--sm"
-              onClick={props.onLogin}
-            >
-              <span className="jds-btn__icon">
-                <LogIn size={14} />
-              </span>
+            <Button variant="quiet" size="sm" onClick={props.onLogin} icon={<LogIn size={14} />}>
               Log in
-            </button>
+            </Button>
           ) : null}
-          <button
-            type="button"
-            className="jds-btn jds-btn--quiet jds-btn--sm"
+          <Button
+            variant="quiet"
+            size="sm"
             disabled={provider.authMethod === "cli" ? false : testMutation.isPending}
             onClick={() =>
               provider.authMethod === "cli" ? setTerminalOpen(true) : testMutation.mutate()
             }
+            icon={provider.authMethod === "cli" ? <Terminal size={14} /> : <Activity size={14} />}
           >
-            <span className="jds-btn__icon">
-              {provider.authMethod === "cli" ? <Terminal size={14} /> : <Activity size={14} />}
-            </span>
             {provider.authMethod === "cli"
               ? "Terminal"
               : testMutation.isPending
                 ? "Testing"
                 : "Test"}
-          </button>
-          <button
-            type="button"
-            className="jds-btn jds-btn--quiet jds-btn--sm"
+          </Button>
+          <Button
+            variant="quiet"
+            size="sm"
             onClick={() => props.onEdit(props.editing ? null : provider.id)}
           >
             {props.editing ? "Done" : "Edit"}
-          </button>
-          <button
-            type="button"
-            className="jds-iconbtn jds-iconbtn--sm"
+          </Button>
+          <IconButton
+            size="sm"
             aria-label={`Remove ${provider.displayName}`}
             onClick={props.onRemove}
           >
             <Trash2 size={15} />
-          </button>
+          </IconButton>
         </div>
       </div>
 
@@ -332,13 +319,13 @@ function ProviderCard(props: {
                   Routes through your authenticated subscription. No key stored.
                 </div>
               </div>
-              <button
-                type="button"
-                className="jds-btn jds-btn--quiet jds-btn--sm"
+              <Button
+                variant="quiet"
+                size="sm"
                 onClick={() => (canAutomateLogin ? props.onLogin() : setTerminalOpen(true))}
               >
                 {canAutomateLogin ? "Re-authenticate" : "Use terminal to sign in"}
-              </button>
+              </Button>
             </div>
           ) : (
             <>
@@ -360,9 +347,9 @@ function ProviderCard(props: {
                   placeholder={provider.hasCredential ? "•••••••• (stored)" : "sk-…"}
                   aria-label="API key"
                 />
-                <button
-                  type="button"
-                  className="jds-btn jds-btn--secondary jds-btn--sm"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   disabled={!apiKey.trim() && !baseUrl.trim()}
                   onClick={() => {
                     props.onCredential(provider.id, {
@@ -373,7 +360,7 @@ function ProviderCard(props: {
                   }}
                 >
                   Save
-                </button>
+                </Button>
               </Field>
             </>
           )}
@@ -699,16 +686,14 @@ export function AiProvidersPane() {
         title="Providers"
         desc="Add provider accounts for the whole instance. Jarvis reads each one's models automatically the moment it connects."
         action={
-          <button
-            type="button"
-            className="jds-btn jds-btn--secondary jds-btn--sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setPick((x) => !x)}
+            icon={<Plus size={15} />}
           >
-            <span className="jds-btn__icon">
-              <Plus size={15} />
-            </span>
             Add provider
-          </button>
+          </Button>
         }
       >
         {providers.length === 0 ? (

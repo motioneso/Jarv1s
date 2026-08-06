@@ -3,8 +3,8 @@
 > **FROZEN 2026-06-07.** This document is historical record only. Do not edit or continue adding
 > to it. The live continuation point is now:
 >
-> - **Status + next step:** the GitHub [project board](https://github.com/users/motioneso/projects/1)
->   ("In Progress" column). STATUS.md/ROADMAP.md were retired 2026-06-07.
+> - **Status + next step:** the GitHub [project board](https://github.com/users/motioneso/projects/2)
+>   ("In progress" column). STATUS.md/ROADMAP.md were retired 2026-06-07.
 > - **Roadmap + milestones:** GitHub Milestones + epic issues #2–#10 on `motioneso/Jarv1s`
 > - **Open work:** GitHub Issues #2–#10 (epic issues, one per milestone)
 > - **Architectural decisions:** `docs/architecture/decisions/`

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, KeyRound, LoaderCircle, TriangleAlert, X } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 // #xterm.js ships a stylesheet, not JS — a static CSS import is side-effect-only and safe
 // at module scope (unlike `new Terminal()`, which touches `document` and must never run
@@ -9,6 +9,7 @@ import "@xterm/xterm/css/xterm.css";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 
+import { Button, Dialog } from "@jarv1s/ui";
 import type { AiProviderConfigDto } from "@jarv1s/shared";
 
 import {
@@ -239,165 +240,134 @@ export function TerminalModal(props: {
     ticketMutation.mutate(password);
   };
 
-  return (
-    <div
-      className="jds-dialog-scrim"
-      role="presentation"
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !isLive) onClose();
+  const titleId = useId();
+
+  const body: ReactNode =
+    phase === null ? (
+      <LoaderCircle size={16} className="dexp__spin" aria-hidden="true" />
+    ) : phase.kind === "set-password" ? (
+      <>
+        <div className="term-modal__prompt">Set a terminal password</div>
+        <label className="deldlg__field">
+          <span className="deldlg__label">New terminal password</span>
+          <input
+            className="jds-input"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
+            disabled={setPasswordMutation.isPending}
+            aria-label="New terminal password"
+          />
+        </label>
+        <label className="deldlg__field">
+          <span className="deldlg__label">Confirm password</span>
+          <input
+            className="jds-input"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            autoComplete="new-password"
+            disabled={setPasswordMutation.isPending}
+            aria-label="Confirm terminal password"
+          />
+        </label>
+      </>
+    ) : phase.kind === "locked" ? (
+      <>
+        <div className="term-modal__prompt">Enter your terminal password</div>
+        <label className="deldlg__field">
+          <span className="deldlg__label">Terminal password</span>
+          <input
+            className="jds-input"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            disabled={ticketMutation.isPending}
+            aria-label="Terminal password"
+          />
+        </label>
+      </>
+    ) : (
+      <div className="term-modal__host" ref={termHostRef} />
+    );
+
+  const footer: ReactNode =
+    phase === null ? null : phase.kind === "set-password" ? (
+      <>
+        <Button variant="quiet" onClick={onClose} disabled={setPasswordMutation.isPending}>
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={setPasswordMutation.isPending || !password || password !== confirmPassword}
+        >
+          {setPasswordMutation.isPending ? (
+            <>
+              <LoaderCircle size={15} className="dexp__spin" aria-hidden="true" />
+              Setting…
+            </>
+          ) : (
+            "Set password"
+          )}
+        </Button>
+      </>
+    ) : phase.kind === "locked" ? (
+      <>
+        <Button variant="quiet" onClick={onClose} disabled={ticketMutation.isPending}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={ticketMutation.isPending || !password}>
+          {ticketMutation.isPending ? (
+            <>
+              <LoaderCircle size={15} className="dexp__spin" aria-hidden="true" />
+              Unlocking…
+            </>
+          ) : (
+            <>
+              <KeyRound size={15} aria-hidden="true" />
+              Unlock
+            </>
+          )}
+        </Button>
+      </>
+    ) : (
+      <>
+        <Button
+          variant="quiet"
+          onClick={() => void copyTerminalSelection()}
+          disabled={!hasTerminalSelection}
+        >
+          <Copy size={14} aria-hidden="true" />
+          Copy selected text
+        </Button>
+        <Button variant="quiet" onClick={onClose} icon={<X size={14} aria-hidden="true" />}>
+          Close
+        </Button>
+      </>
+    );
+
+  const dialog = (
+    <Dialog
+      className="terminal-modal"
+      onClose={() => {
+        if (!isLive) onClose();
       }}
+      aria-labelledby={titleId}
+      title={<span id={titleId}>{provider.displayName} terminal</span>}
+      description={
+        phase?.kind === "unlocked"
+          ? "Live session — this streams directly to the provider's CLI."
+          : "A terminal password gates this live session (separate from your account password)."
+      }
+      footer={footer}
     >
-      <div
-        className="jds-dialog terminal-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${provider.displayName} terminal`}
-      >
-        <div className="jds-dialog__head">
-          <div className="jds-dialog__title">{provider.displayName} terminal</div>
-          <div className="jds-dialog__desc">
-            {phase?.kind === "unlocked"
-              ? "Live session — this streams directly to the provider's CLI."
-              : "A terminal password gates this live session (separate from your account password)."}
-          </div>
-        </div>
-
-        {phase === null ? (
-          <div className="jds-dialog__body">
-            <LoaderCircle size={16} className="dexp__spin" aria-hidden="true" />
-          </div>
-        ) : null}
-
-        {phase?.kind === "set-password" ? (
-          <form onSubmit={onSubmitSetPassword}>
-            <div className="jds-dialog__body">
-              <div className="term-modal__prompt">Set a terminal password</div>
-              <label className="deldlg__field">
-                <span className="deldlg__label">New terminal password</span>
-                <input
-                  className="jds-input"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="new-password"
-                  disabled={setPasswordMutation.isPending}
-                  aria-label="New terminal password"
-                />
-              </label>
-              <label className="deldlg__field">
-                <span className="deldlg__label">Confirm password</span>
-                <input
-                  className="jds-input"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  autoComplete="new-password"
-                  disabled={setPasswordMutation.isPending}
-                  aria-label="Confirm terminal password"
-                />
-              </label>
-            </div>
-            <div className="jds-dialog__foot">
-              <button
-                type="button"
-                className="jds-btn jds-btn--quiet"
-                onClick={onClose}
-                disabled={setPasswordMutation.isPending}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="jds-btn jds-btn--primary"
-                disabled={
-                  setPasswordMutation.isPending || !password || password !== confirmPassword
-                }
-              >
-                {setPasswordMutation.isPending ? (
-                  <>
-                    <LoaderCircle size={15} className="dexp__spin" aria-hidden="true" />
-                    Setting…
-                  </>
-                ) : (
-                  "Set password"
-                )}
-              </button>
-            </div>
-          </form>
-        ) : null}
-
-        {phase?.kind === "locked" ? (
-          <form onSubmit={onSubmitUnlock}>
-            <div className="jds-dialog__body">
-              <div className="term-modal__prompt">Enter your terminal password</div>
-              <label className="deldlg__field">
-                <span className="deldlg__label">Terminal password</span>
-                <input
-                  className="jds-input"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  disabled={ticketMutation.isPending}
-                  aria-label="Terminal password"
-                />
-              </label>
-            </div>
-            <div className="jds-dialog__foot">
-              <button
-                type="button"
-                className="jds-btn jds-btn--quiet"
-                onClick={onClose}
-                disabled={ticketMutation.isPending}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="jds-btn jds-btn--primary"
-                disabled={ticketMutation.isPending || !password}
-              >
-                {ticketMutation.isPending ? (
-                  <>
-                    <LoaderCircle size={15} className="dexp__spin" aria-hidden="true" />
-                    Unlocking…
-                  </>
-                ) : (
-                  <>
-                    <KeyRound size={15} aria-hidden="true" />
-                    Unlock
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        ) : null}
-
-        {phase?.kind === "unlocked" ? (
-          <>
-            <div className="jds-dialog__body">
-              <div className="term-modal__host" ref={termHostRef} />
-            </div>
-            <div className="jds-dialog__foot">
-              <button
-                type="button"
-                className="jds-btn jds-btn--quiet"
-                onClick={() => void copyTerminalSelection()}
-                disabled={!hasTerminalSelection}
-              >
-                <Copy size={14} aria-hidden="true" />
-                Copy selected text
-              </button>
-              <button type="button" className="jds-btn jds-btn--quiet" onClick={onClose}>
-                <span className="jds-btn__icon">
-                  <X size={14} aria-hidden="true" />
-                </span>
-                Close
-              </button>
-            </div>
-          </>
-        ) : null}
-      </div>
-    </div>
+      {body}
+    </Dialog>
   );
+
+  if (phase?.kind === "set-password") return <form onSubmit={onSubmitSetPassword}>{dialog}</form>;
+  if (phase?.kind === "locked") return <form onSubmit={onSubmitUnlock}>{dialog}</form>;
+  return dialog;
 }

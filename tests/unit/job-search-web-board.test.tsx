@@ -189,21 +189,14 @@ describe("job-search web BoardScreen", () => {
     expect(rowTitles(renderer)).toEqual(["Role A", "Role C", "Role B"]);
   });
 
-  // Mockup rewrite (task #98, K-D1 superseded): Fit no longer draws a bar or keeps a raw number
-  // anywhere — twenty rows of bare digits all weighed the same before this rewrite, and the
-  // design already replaced that with a scannable rail colour plus a band word. Want is
-  // unchanged and still draws its own jds-score bar with the raw number, but only inside
-  // Inspector — match-row.tsx never renders Want at all, so the row itself has nothing left to
-  // assert about Want's bar (see the "row itself" assertions below), and reaching Want's bar
-  // means opening the row first.
-  it("shows Fit as a band word on the row (no bar, no number), and Want as a scored bar with its number once opened", async () => {
+  it("shows both labelled axes on the row and as separate score tracks once opened", async () => {
     fixtures.matchesItems = [match({ id: "m1", title: "Role A", fit: 90, want: 10 })];
     fixtures.matchGetResult = { match: matchDetail({ id: "m1", fit: 90, want: 10 }) };
     const renderer = await renderBoard();
     await flush(renderer);
 
-    // Fit: the row shows "Strong fit" (90 >= 85) — never a bar, never the raw number 90.
-    expect(text(renderer)).toMatch(/Strong fit/);
+    expect(text(renderer)).toMatch(/Fit 90/);
+    expect(text(renderer)).toMatch(/Want 10/);
     expect(findByClass(renderer, "jds-score")).toEqual([]);
 
     await act(async () => {
@@ -211,35 +204,30 @@ describe("job-search web BoardScreen", () => {
     });
     await flush(renderer);
 
-    // Opened: Want's bar is the one place either axis still draws one.
-    const fill = renderer.root.find(
+    const fills = renderer.root.findAll(
       (item) => (item.props as { className?: string }).className === "jds-score__fill"
     );
-    expect((fill.props as { style?: Record<string, unknown> }).style?.["--jds-score"]).toBe("0.1");
-    expect(text(renderer)).toMatch(/10/);
+    expect(fills.map((fill) => fill.props.style?.["--jds-score"])).toEqual(["0.9", "0.1"]);
   });
 
-  it("clamps Want's bar to the track when the score is out of range; Fit has no track left to overflow", async () => {
-    // Scores originate in a model-authored record, so a render path must treat 0-100 as an
-    // assumption it enforces, not one it trusts. Fit has nothing left to clamp — fitBand routes
-    // any value into a real band regardless of range (>=85 or <=0 both land on a real word, never
-    // a crash) — so the clamp that still matters is Want's own Score component, in Inspector.
+  it("clamps both axis tracks when model-authored scores are out of range", async () => {
     fixtures.matchesItems = [match({ id: "m1", title: "Role A", fit: 140, want: -20 })];
     fixtures.matchGetResult = { match: matchDetail({ id: "m1", fit: 140, want: -20 }) };
     const renderer = await renderBoard();
     await flush(renderer);
 
-    expect(text(renderer)).toMatch(/Strong fit/); // 140 >= 85, still a real band
+    expect(text(renderer)).toMatch(/Fit 140/);
+    expect(text(renderer)).toMatch(/Want -20/);
 
     await act(async () => {
       findRowButton(renderer, /Role A/)!.props.onClick();
     });
     await flush(renderer);
 
-    const fill = renderer.root.find(
+    const fills = renderer.root.findAll(
       (item) => (item.props as { className?: string }).className === "jds-score__fill"
     );
-    expect((fill.props as { style?: Record<string, unknown> }).style?.["--jds-score"]).toBe("0");
+    expect(fills.map((fill) => fill.props.style?.["--jds-score"])).toEqual(["1", "0"]);
   });
 
   it("renders dashes and a 'Not read yet' flag for an unscored row, and the inspector says queued not dropped", async () => {
@@ -300,18 +288,14 @@ describe("job-search web BoardScreen", () => {
       return flatten(aside.children);
     }
 
-    // Null Fit: a bare em dash, no band word, no digit anywhere in the fit-label slot.
     const noBasisAside = asideText(findRowButton(renderer, /No Basis/));
-    expect(noBasisAside).toMatch(/—/);
-    expect(noBasisAside).not.toMatch(/\d/);
-    expect(noBasisAside).not.toMatch(/fit/i);
+    expect(noBasisAside).toMatch(/Fit\s+—/);
+    expect(noBasisAside).toMatch(/Want\s+50/);
 
-    // fit: 0 is a real score, not "no basis" — it lands in the weak band and reads as a word, the
-    // same as any other real number would, never as the dash above and never as a raw digit.
     const rockBottomAside = asideText(findRowButton(renderer, /Rock Bottom/));
-    expect(rockBottomAside).toMatch(/Weak fit/);
+    expect(rockBottomAside).toMatch(/Fit\s+0/);
+    expect(rockBottomAside).toMatch(/Want\s+50/);
     expect(rockBottomAside).not.toMatch(/—/);
-    expect(rockBottomAside).not.toMatch(/\d/);
   });
 
   it("sorts unscored rows last regardless of the active sort direction", async () => {
@@ -563,7 +547,7 @@ describe("job-search web BoardScreen", () => {
     expect(rowTitles(renderer)).not.toContain("To Dismiss");
   });
 
-  it("restores a dismissed match with a plain message if the next read shows it still not dismissed", async () => {
+  it("does not restore a passed match merely because enqueue acceptance precedes the worker write", async () => {
     fixtures.matchesItems = [match({ id: "m1", title: "Bounces Back", state: "new" })];
     fixtures.matchGetResult = { match: matchDetail({ id: "m1" }) };
     const renderer = await renderBoard("p1");
@@ -580,18 +564,31 @@ describe("job-search web BoardScreen", () => {
         : [item.props.children];
       return children.some((child: unknown) => child === "Pass");
     });
-    // The optimistic hide-then-reconcile round trip is all microtask chaining (no macrotask
-    // boundary), so it fully drains within this one act() — the immediate-hide moment itself is
-    // covered separately by the never-resolving-runQueue test above. What this test verifies is
-    // the far side: fixtures.matchesItems is unchanged (still "new"), simulating a write that never
-    // actually landed, so the row must come back with a plain explanation, back on the list view.
     await act(async () => {
       passButton!.props.onClick();
     });
     await flush(renderer);
 
+    expect(rowTitles(renderer)).not.toContain("Bounces Back");
+    expect(text(renderer)).not.toMatch(/couldn.t be passed/i);
+  });
+
+  it("restores a passed match when enqueueing is rejected", async () => {
+    fixtures.matchesItems = [match({ id: "m1", title: "Bounces Back", state: "new" })];
+    vi.mocked(api.runQueue).mockResolvedValueOnce({ kind: "error", message: "unavailable" });
+    const renderer = await renderBoard("p1");
+    await flush(renderer);
+
+    const passButton = renderer.root
+      .findAllByType("button")
+      .find((item) => item.props["aria-label"] === "Pass on Bounces Back");
+    await act(async () => {
+      passButton!.props.onClick({ stopPropagation: vi.fn() });
+    });
+    await flush(renderer);
+
     expect(rowTitles(renderer)).toContain("Bounces Back");
-    expect(text(renderer)).toMatch(/dismissal didn.t go through/i);
+    expect(text(renderer)).toMatch(/couldn.t be passed/i);
   });
 
   it("renders an error state with a working retry that re-invokes matches.list", async () => {
