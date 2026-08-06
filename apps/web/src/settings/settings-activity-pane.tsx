@@ -107,7 +107,9 @@ export function ActivityPane(_props: PaneProps) {
     <div className="settings-section">
       <header className="settings-section__header">
         <h2 className="settings-section__title">Activity</h2>
-        <p className="settings-section__desc">Actions {assistantName} ran on your behalf, last 90 days.</p>
+        <p className="settings-section__desc">
+          Actions {assistantName} ran on your behalf, last 90 days.
+        </p>
       </header>
 
       <div className="audfilter">

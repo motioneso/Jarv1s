@@ -105,8 +105,7 @@ export function YoloAdminGroup() {
               enabled
                 ? confirm({
                     title: "Enable YOLO for this instance?",
-                    description:
-                      `This also enables YOLO for your admin account. ${assistantName} can run destructive chat actions without asking.`,
+                    description: `This also enables YOLO for your admin account. ${assistantName} can run destructive chat actions without asking.`,
                     confirmLabel: "Enable YOLO",
                     danger: true,
                     onConfirm: () => yoloMutation.mutate({ kind: "instance", enabled })

@@ -402,8 +402,7 @@ function YoloMode() {
   const enable = () =>
     confirm({
       title: "Enable YOLO mode?",
-      description:
-        `${assistantName} will perform actions, including permanent deletions, without asking. You accept responsibility.`,
+      description: `${assistantName} will perform actions, including permanent deletions, without asking. You accept responsibility.`,
       confirmLabel: "Enable YOLO",
       danger: true,
       onConfirm: () => mutation.mutate(true)

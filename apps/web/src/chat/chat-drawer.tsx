@@ -501,7 +501,11 @@ export function ChatDrawer(props: {
             />
           )}
           {isWaiting ? (
-            <div className="chatd-loading" aria-live="polite" aria-label={`${assistantName} is thinking`}>
+            <div
+              className="chatd-loading"
+              aria-live="polite"
+              aria-label={`${assistantName} is thinking`}
+            >
               <span className="chatd-msg__av">
                 <BrandMark size={14} />
               </span>

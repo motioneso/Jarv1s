@@ -322,8 +322,8 @@ export function ChatSettingsView(props: {
         />
       </Group>
       <Note icon={<MessageSquare size={13} />}>
-        {assistantName}'s voice and directness are set once in <b>Assistant &amp; AI</b> — these only
-        shape the chat surface.
+        {assistantName}'s voice and directness are set once in <b>Assistant &amp; AI</b> — these
+        only shape the chat surface.
       </Note>
     </ModuleSub>
   );

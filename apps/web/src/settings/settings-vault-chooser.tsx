@@ -152,8 +152,8 @@ export function VaultChooser(props: {
 
           {mode === "notes" && !loading && notesRootRecovery ? (
             <div className="vlist__empty">
-              No notes folders are available to Moss. Ask an operator to mount
-              /data/external-notes, set JARVIS_NOTES_ROOTS, and recreate the container.
+              No notes folders are available to Moss. Ask an operator to mount /data/external-notes,
+              set JARVIS_NOTES_ROOTS, and recreate the container.
               <a
                 href="/docs/operations/deploy.md#notes-mount"
                 target="_blank"

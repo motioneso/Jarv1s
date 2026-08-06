@@ -196,9 +196,9 @@ export function GoogleConnectorStep(props: {
               <ShieldCheck size={15} aria-hidden="true" />
             </span>
             <span>
-              {assistantName} connects to Google using an OAuth application under your control.
-              This ensures your calendar and email data never pass through third-party servers.
-              You only need to set this up once and copy two values.
+              {assistantName} connects to Google using an OAuth application under your control. This
+              ensures your calendar and email data never pass through third-party servers. You only
+              need to set this up once and copy two values.
             </span>
           </div>
           <ol className="onb-guide">

@@ -176,7 +176,10 @@ export function ProfilePane({ me }: PaneProps) {
             aria-label="Display name"
           />
         </Field>
-        <Field label={`How ${assistantName} addresses you`} hint="Used in the briefing and throughout the day.">
+        <Field
+          label={`How ${assistantName} addresses you`}
+          hint="Used in the briefing and throughout the day."
+        >
           <input
             className="jds-input"
             value={fields.addressed}

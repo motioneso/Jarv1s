@@ -85,8 +85,8 @@ export function CalendarPeek({ event, onClose }: CalendarPeekProps) {
         </div>
         {isBlock ? (
           <HeldBanner icon={<GitCommitHorizontal size={14} />}>
-            {assistantName} can move or shorten this block when your day changes. Hard events
-            always come first.
+            {assistantName} can move or shorten this block when your day changes. Hard events always
+            come first.
           </HeldBanner>
         ) : null}
       </PeekPanel>

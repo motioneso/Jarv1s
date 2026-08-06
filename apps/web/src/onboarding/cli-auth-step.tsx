@@ -395,8 +395,8 @@ export function ProviderCard(props: {
             model.userCode && model.authorizationUrl ? (
               <div className="onb-auth__outwrap">
                 <div className="onb-auth__hint">
-                  Open the sign-in page and enter this device code. {assistantName} will detect
-                  when you’re finished.
+                  Open the sign-in page and enter this device code. {assistantName} will detect when
+                  you’re finished.
                 </div>
                 <div className="onb-auth__outhd">
                   <a

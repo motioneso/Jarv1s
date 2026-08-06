@@ -406,9 +406,7 @@ export function FinishStep(props: {
           Finish setup <ArrowRight size={16} aria-hidden="true" />
         </button>
       </div>
-      <div className="onb-signoff">
-        {isMember ? "Welcome to Moss." : "Your setup is complete."}
-      </div>
+      <div className="onb-signoff">{isMember ? "Welcome to Moss." : "Your setup is complete."}</div>
     </div>
   );
 }

@@ -328,8 +328,7 @@ function ConnectedPane() {
               onRevoke={() =>
                 confirm({
                   title: `Revoke ${account.providerDisplayName} access?`,
-                  description:
-                    `${assistantName} will lose access to this account until you reconnect it. Nothing on the account itself is changed.`,
+                  description: `${assistantName} will lose access to this account until you reconnect it. Nothing on the account itself is changed.`,
                   confirmLabel: "Revoke",
                   danger: true,
                   onConfirm: () => revokeMutation.mutate(account.id)

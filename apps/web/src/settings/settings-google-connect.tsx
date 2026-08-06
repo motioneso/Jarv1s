@@ -109,8 +109,7 @@ export function GoogleConnect(props: { readonly onBack: () => void }) {
           </span>
           <span>
             {assistantName} reaches Google through <b>an OAuth app you own</b>, so your calendar and
-            email
-            never pass through anyone else's servers. You build it once and paste two values.
+            email never pass through anyone else's servers. You build it once and paste two values.
           </span>
         </div>
 
