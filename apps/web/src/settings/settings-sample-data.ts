@@ -66,7 +66,7 @@ export const VAULT_BEHAVIORS: readonly VaultBehavior[] = [
   {
     k: "writeback",
     name: "Write notes back",
-    desc: "Let Moss append summaries or notes to your folder.",
+    desc: "Let your assistant append summaries or notes to your folder.",
     on: false
   }
 ];
@@ -99,7 +99,7 @@ export const DEFAULT_BRIEFINGS: BriefingsSettings = {
     {
       k: "calendar",
       name: "Today's calendar",
-      desc: "Your events, and the gaps Moss is protecting.",
+      desc: "Your events, and the gaps your assistant is protecting.",
       on: true
     },
     {

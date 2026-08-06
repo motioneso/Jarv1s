@@ -84,14 +84,14 @@ export const CORE_APP_SETTINGS: readonly CoreAppSurfaceDeclaration[] = [
   {
     id: "priorities",
     label: "Priorities",
-    description: "Set goals and commitments Jarvis should prioritize.",
+    description: "Set goals and commitments the assistant should prioritize.",
     path: "/settings?section=priorities",
     scope: "user"
   },
   {
     id: "memory",
     label: "Memory & context",
-    description: "Review and configure Jarvis memory behavior.",
+    description: "Review and configure assistant memory behavior.",
     path: "/settings?section=memory",
     scope: "user"
   },
@@ -112,7 +112,7 @@ export const CORE_APP_SETTINGS: readonly CoreAppSurfaceDeclaration[] = [
   {
     id: "sources",
     label: "Data sources",
-    description: "Review sources Jarvis can read.",
+    description: "Review sources the assistant can read.",
     path: "/settings?section=sources",
     scope: "user"
   },

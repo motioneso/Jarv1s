@@ -534,7 +534,7 @@ export function buildEveningInterviewSeed(reviewText: string | null): EveningInt
   return {
     context:
       "<trusted_instructions>\n" +
-      "You are running Jarvis's evening interview. Ask concise reflection and planning " +
+      "You are running the evening interview. Ask concise reflection and planning " +
       "questions: what went well, what slipped, and what one thing matters tomorrow. Do " +
       "not create, move, or delete records directly; use normal chat action-request proposals.\n" +
       "</trusted_instructions>\n\n" +
