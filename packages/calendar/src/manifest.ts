@@ -101,7 +101,7 @@ export const calendarModuleManifest = {
       id: "calendar",
       name: "Calendar",
       description:
-        "What Jarvis is allowed to do with your calendar — independent of whichever service powers it.",
+        "What your assistant is allowed to do with your calendar — independent of whichever service powers it.",
       behaviors: [
         {
           id: "calendar.briefings",
@@ -112,7 +112,7 @@ export const calendarModuleManifest = {
         {
           id: "calendar.planning",
           name: "Use for planning",
-          description: "Jarvis schedules its own focus blocks around your events.",
+          description: "Your assistant schedules its own focus blocks around your events.",
           default: "coming-soon"
         },
         {
@@ -124,7 +124,7 @@ export const calendarModuleManifest = {
         {
           id: "calendar.writeback",
           name: "Write events back",
-          description: "Let Jarvis create and move calendar events for you.",
+          description: "Let your assistant create and move calendar events for you.",
           default: "coming-soon"
         }
       ]
@@ -161,14 +161,14 @@ export const calendarModuleManifest = {
     {
       id: "calendar_writeback",
       label: "Calendar writeback",
-      description: "Create Calendar-owned Jarvis blocks on the user's calendar.",
+      description: "Create Calendar-owned Moss blocks on the user's calendar.",
       defaultTier: "ask_each_time",
       allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
     },
     {
       id: "calendar_management",
       label: "Delete calendar events",
-      description: "Let Jarvis delete events from your calendar.",
+      description: "Let your assistant delete events from your calendar.",
       defaultTier: "always_confirm",
       allowedTiers: ["always_confirm", "trusted_auto"]
     }
@@ -269,7 +269,7 @@ export const calendarModuleManifest = {
         properties: {
           eventId: {
             type: "string",
-            description: "Jarvis calendar event id (uuid) from listVisibleEvents"
+            description: "Moss calendar event id (uuid) from listVisibleEvents"
           },
           displayTitle: {
             type: "string",

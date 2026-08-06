@@ -158,7 +158,7 @@ export function makeCliPresentProbe(
 }
 
 const PROVIDER_CHECK_PROMPT = "Reply with exactly OK.";
-const PROVIDER_CHECK_PERSONA = "You are running a Jarvis provider connection check.";
+const PROVIDER_CHECK_PERSONA = "You are running a Moss provider connection check.";
 const PROVIDER_CHECK_TIMEOUT_MS = 25_000;
 const PROVIDER_CHECK_POLL_MS = 250;
 const PROVIDER_PROMPT_ACK_MS = 1_000;

@@ -48,14 +48,14 @@ export default function TasksSettings() {
 
   return (
     <>
-      <PaneHead title="Tasks" desc="How Jarvis handles task changes from chat." />
-      <Group title="Jarvis actions">
+      <PaneHead title="Tasks" desc="How your assistant handles task changes from chat." />
+      <Group title="Assistant actions">
         <Row
-          name="Let Jarvis create and update tasks without asking"
-          desc="When off, Jarvis asks before creating, updating, scheduling, or completing tasks from chat."
+          name="Let your assistant create and update tasks without asking"
+          desc="When off, your assistant asks before creating, updating, scheduling, or completing tasks from chat."
           control={
             <Switch
-              ariaLabel="Let Jarvis create and update tasks without asking"
+              ariaLabel="Let your assistant create and update tasks without asking"
               checked={enabled}
               disabled={disabled}
               onChange={(value) => mutation.mutate(value)}

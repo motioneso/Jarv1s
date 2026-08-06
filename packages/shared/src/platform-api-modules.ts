@@ -422,7 +422,7 @@ export interface ModuleRegistryRowDto {
   /** Latest version in the registry index (null when the id is local-only). */
   readonly latestVersion: string | null;
   readonly stagedVersion: string | null;
-  /** Index compat range, for the "requires Jarvis ≥ X" copy on incompatible rows. */
+  /** Index compat range, for the "requires Moss ≥ X" copy on incompatible rows. */
   readonly requiresCore: string | null;
   /** null when the module is not in the registry index. */
   readonly capabilities: ModuleRegistryCapabilitiesDto | null;

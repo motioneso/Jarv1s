@@ -49,16 +49,16 @@ export default function WellnessSettings() {
 
   return (
     <>
-      <PaneHead title="Wellness" desc="What Jarvis can read from your Wellness data." />
+      <PaneHead title="Wellness" desc="What your assistant can read from your Wellness data." />
       <Group title="AI access">
         <Row
-          name="Allow Jarvis to read your wellness data"
-          desc="When on, Jarvis can read your mood check-ins and medication adherence to reference them in briefings and answer questions about them. Counts only - never a medication list. Turn off anytime; Jarvis will explain how to re-enable if asked."
+          name="Allow your assistant to read your wellness data"
+          desc="When on, your assistant can read your mood check-ins and medication adherence to reference them in briefings and answer questions about them. Counts only - never a medication list. Turn off anytime; your assistant will explain how to re-enable if asked."
           control={
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               {consent?.explicit === null ? <Badge tone="neutral">Inherited</Badge> : null}
               <Switch
-                ariaLabel="Allow Jarvis to read your wellness data"
+                ariaLabel="Allow your assistant to read your wellness data"
                 checked={checked}
                 disabled={disabled}
                 onChange={(value) => consentMutation.mutate(value)}
@@ -70,7 +70,7 @@ export default function WellnessSettings() {
       {error ? <Note>Could not save Wellness AI access. Try again.</Note> : null}
       <Note>
         Disabling this does not turn off the Wellness module itself - you'll still log check-ins and
-        meds; Jarvis just won't see them.
+        meds; your assistant just won't see them.
       </Note>
     </>
   );

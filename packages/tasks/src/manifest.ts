@@ -279,7 +279,7 @@ export const tasksModuleManifest = {
     {
       id: "tasks.module-settings",
       label: "Tasks",
-      description: "Choose task defaults and Jarvis task-action permissions.",
+      description: "Choose task defaults and assistant task-action permissions.",
       path: "/settings/modules/tasks",
       scope: "user",
       order: 10,

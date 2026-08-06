@@ -65,7 +65,7 @@ const defaultPolicyLookup: ActionPolicyLookup = {
 };
 const TASKS_FIRST_RUN_NOTICE_KEY = "tasks.agency_auto_execute.first_prompt_seen";
 const TASKS_FIRST_RUN_NOTICE =
-  'Jarvis now asks before creating tasks. Enable "create without asking" in Task settings to auto-run task changes.';
+  'Your assistant now asks before creating tasks. Enable "create without asking" in Task settings to auto-run task changes.';
 
 interface ExecutableTool {
   readonly tool: ModuleAssistantToolManifest;
@@ -254,7 +254,7 @@ export class AssistantToolGateway {
     const { actorUserId, chatSessionId } = this.deps.tokens.verify(token);
     const toolName = safeNativeToolName(request.toolName);
     if (toolName.startsWith("mcp__jarvis__") && toolName.length > "mcp__jarvis__".length) {
-      return { decision: "allow", reason: "First-party Jarvis MCP transport." };
+      return { decision: "allow", reason: "First-party Moss MCP transport." };
     }
     // #1158: read-only meta-tools return before any DB/timezone work — this is the hot path
     // (every conversation's first jarvis tool use goes through ToolSearch).

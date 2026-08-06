@@ -42,7 +42,7 @@ export const webModuleManifest = {
     {
       id: "web.research",
       label: "Use web research",
-      description: "Search and read public web sources through governed Jarvis tools.",
+      description: "Search and read public web sources through governed Moss tools.",
       scope: "user",
       actions: ["view"]
     }

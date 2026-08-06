@@ -74,7 +74,7 @@ export const settingsModuleManifest: JarvisModuleManifest = {
     {
       id: "priority-settings",
       label: "Priorities",
-      description: "Tell Jarvis which goals and commitments matter most.",
+      description: "Tell your assistant which goals and commitments matter most.",
       path: "/settings?section=priorities",
       scope: "user",
       order: 30,
