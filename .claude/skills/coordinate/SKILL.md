@@ -163,6 +163,11 @@ For each spec cleared to start (serialized specs wait for their predecessor to l
    git fetch origin main
    git worktree add .claude/worktrees/<slug> -b <slug> origin/main
    ```
+   **Always under `.claude/worktrees/`, never `/tmp`.** A `/tmp` worktree is invisible to anyone
+   sweeping the repo, survives the session that made it, and still registers in
+   `git worktree list` — the 2026-08-06 sweep found a dozen of them, one still running a dev API
+   and one whose orphaned worker chain a lane nearly mistook for something safe to `pkill`.
+   Each worktree costs ~2 GB once `pnpm install` runs; the box hit 97% disk.
 2. **Write the handoff doc** from `templates/handoff.md` (spec, worktree/branch, tier, coordinator
    label + session id, collision notes) → commit it so the agent can read it.
 3. **Spawn the build agent** into the run's shared **"Agents" tab**. `herdr agent start` takes
@@ -332,6 +337,26 @@ When an agent reports **done** (PR open + its own green evidence — which you d
    serialized successor. Manifest: `merged`. **Never delete a branch or worktree whose work you
    have not seen on `main`** — deleting unlanded work is how the 2026-07-26 cleanup lost nine
    live-verified commits.
+
+   **Run the four-gate test per worktree — all four, every time.** They are cheap and they are the
+   difference between reclaiming disk and destroying work:
+
+   ```bash
+   git -C <wt> rev-list --count origin/main..HEAD          # 0 = fully merged
+   git -C <wt> status --porcelain | grep -cv '^??'         # 0 = no tracked modifications
+   for p in $(ls /proc | grep -E '^[0-9]+$'); do readlink /proc/$p/cwd 2>/dev/null; done | grep -Fc <wt>
+   herdr pane list                                          # no pane cwd'd there
+   ```
+
+   Remove only when **all four** are clear. Untracked `node_modules` alone is not work — that is
+   what `--force` is for. Untracked *source or docs* is unsaved work: leave it and flag it.
+   A non-zero ahead-count does **not** prove unmerged work (a squash-merged branch still shows all
+   its commits), so treat ahead > 0 as "keep" rather than investigating.
+
+   **A lane's teardown is not done when its PR is green.** Before you reap it, the lane must also
+   have stopped any dev instance it started (**by explicit PID, never a name pattern**) and deleted
+   any rows it seeded (by recorded id, verifying the row count). Ask for that confirmation — a lane
+   that reports "CI green" has usually left a listener on `:3000` and a worktree behind.
 
 7. **Relay check (non-negotiable).** Increment `merges_since_relay`, then evaluate the **relay
    triggers** (Context discipline): meter warning, security merge, 2 routine/sensitive merges, or
