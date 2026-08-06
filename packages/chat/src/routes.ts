@@ -363,7 +363,11 @@ export function registerChatRoutes(
 
         try {
           // #1250 — gateway now returns outcome so we can distinguish expired (409) from success (204)
-          const outcome = await wiring.gateway.resolveActionRequest(access.actorUserId, id, rawStatus);
+          const outcome = await wiring.gateway.resolveActionRequest(
+            access.actorUserId,
+            id,
+            rawStatus
+          );
           if (outcome === "expired") {
             return reply.code(409).send({ error: "This request expired — ask again." });
           }

@@ -15,7 +15,9 @@ interface ActionRequestCardProps {
 }
 
 export function ActionRequestCard(props: ActionRequestCardProps) {
-  const [status, setStatus] = useState<"pending" | "loading" | "done" | "error" | "expired">("pending");
+  const [status, setStatus] = useState<"pending" | "loading" | "done" | "error" | "expired">(
+    "pending"
+  );
   const [decision, setDecision] = useState<"confirmed" | "rejected" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);

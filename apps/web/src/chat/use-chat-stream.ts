@@ -147,13 +147,17 @@ export function useChatStream(
         const history = recordsFromMessages(messages);
         // #1253 — re-hydrate pending action request cards (only "pending" status; others already resolved)
         const pendingActions = actionsResult.actions.filter((a) => a.status === "pending");
-        const actionRecords: TranscriptRecord[] = pendingActions.map((action) => ({
-          kind: "action_request",
-          text: action.inputSummary.text || "Approve this action?",
-          actionRequestId: action.id,
-          toolName: action.toolName
-          // preview is SSE-only; backend never persists it, so re-hydrated cards show no preview
-        }));
+        const actionRecords: TranscriptRecord[] = pendingActions.map((action) => {
+          const summaryText = action.inputSummary.text;
+          return {
+            kind: "action_request",
+            text:
+              typeof summaryText === "string" && summaryText ? summaryText : "Approve this action?",
+            actionRequestId: action.id,
+            toolName: action.toolName
+            // preview is SSE-only; backend never persists it, so re-hydrated cards show no preview
+          };
+        });
         setRecords((current) => (current.length === 0 ? [...history, ...actionRecords] : current));
       } catch {
         // The live stream remains authoritative; an unavailable history read must not block chat.
