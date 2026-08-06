@@ -71,13 +71,13 @@ test("opens the live chat drawer from the nav and renders the streamed records o
 
   await page.goto("/");
 
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await expect(drawer).toBeVisible();
 
   // Send a turn (the reply arrives over the SSE stream, which is the source of truth).
-  await drawer.getByLabel("Message Jarvis").fill("Hi there");
-  await drawer.getByLabel("Message Jarvis").press("Enter");
+  await drawer.getByLabel("Message Moss").fill("Hi there");
+  await drawer.getByLabel("Message Moss").press("Enter");
 
   // Both records arrive over the SSE stream and render exactly once each.
   await expect(drawer.getByText("Hi there")).toHaveCount(1);
@@ -127,16 +127,16 @@ test("private activation blocks send until the server confirms, then allows it",
   await page.route("**/api/chat/stream", () => new Promise<void>(() => {}));
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await expect(drawer).toBeVisible();
   await drawer.getByRole("button", { name: "Start private chat" }).click();
 
   // While the server confirmation is held open, the private banner must not show yet,
   // and attempting to send must not reach POST /api/chat/turn.
   await expect(drawer.locator(".chatd-private").filter({ hasText: "not saved" })).toHaveCount(0);
-  await drawer.getByLabel("Message Jarvis").fill("secret during race");
-  await drawer.getByLabel("Message Jarvis").press("Enter");
+  await drawer.getByLabel("Message Moss").fill("secret during race");
+  await drawer.getByLabel("Message Moss").press("Enter");
   await page.waitForTimeout(100);
   expect(turnCalled).toBe(false);
 
@@ -157,8 +157,8 @@ test("reloading the page restores private-mode indication from server truth", as
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await expect(drawer).toBeVisible();
 
   await expect(drawer.getByRole("button", { name: "Start private chat" })).toHaveAttribute(
@@ -208,9 +208,9 @@ test("stages next message while response is running and sends it after stop", as
   await page.route("**/api/chat/clear", (route) => route.fulfill({ status: 204, body: "" }));
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
-  const composerInput = drawer.getByLabel("Message Jarvis");
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
+  const composerInput = drawer.getByLabel("Message Moss");
   const queuedChip = drawer.locator(".chatd-next__text");
 
   await composerInput.fill("First question");
@@ -322,9 +322,9 @@ test("selecting a History row both opens and activates it — no separate resume
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
-  const composer = drawer.getByLabel("Message Jarvis");
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
+  const composer = drawer.getByLabel("Message Moss");
   const modelTrigger = drawer.locator(".chatd-model__trigger");
   await drawer.getByRole("button", { name: "Show chat history" }).click();
   await drawer.getByText("Old chat").click();
@@ -390,8 +390,8 @@ test("resuming a History thread while private clears the stale privateMode flag"
   );
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   const privateToggle = drawer.getByRole("button", { name: "Start private chat" });
 
   // Sanity: private mode really is active before the resume (server-truth restore, #1036).
@@ -405,7 +405,7 @@ test("resuming a History thread while private clears the stale privateMode flag"
   // thread is persisted (non-incognito), so the shield toggle must not show pressed.
   await expect(privateToggle).toHaveAttribute("aria-pressed", "false");
 
-  const composer = drawer.getByLabel("Message Jarvis");
+  const composer = drawer.getByLabel("Message Moss");
   await composer.fill("Continue here");
   await composer.press("Enter");
   await expect(drawer.getByText("Continued")).toBeVisible();
@@ -434,8 +434,8 @@ test("resume failure clears selection and reopens History", async ({ page }) => 
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await drawer.getByRole("button", { name: "Show chat history" }).click();
   await drawer.getByText("Old chat").click();
 
@@ -463,8 +463,8 @@ test("History hides the ordinary composer seeds while open", async ({ page }) =>
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await drawer.getByRole("button", { name: "Show chat history" }).click();
 
   await expect(drawer.locator(".chatd-empty")).toHaveCount(0);
@@ -482,8 +482,8 @@ test("empty History explains that there are no past conversations", async ({ pag
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await drawer.getByRole("button", { name: "Show chat history" }).click();
 
   await expect(drawer.getByText("No past conversations yet.")).toBeVisible();
@@ -529,8 +529,8 @@ test("renders assistant markdown as rich HTML (table, bold, code, list)", async 
   await streamReply(page, md);
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await expect(drawer).toBeVisible();
 
   // Markdown parsed into semantic elements (not literal source).
@@ -567,8 +567,8 @@ test("does not inject executable HTML from untrusted markdown", async ({ page })
   await streamReply(page, evil);
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await expect(drawer).toBeVisible();
   // Wait for the reply to render (the link text survives as plain text).
   await expect(drawer.getByText("click me")).toBeVisible();
@@ -637,9 +637,9 @@ test("#638: reopening the drawer scrolls to the newest message, not the top", as
 
   await page.goto("/");
 
-  const navToggle = page.getByRole("button", { name: "Chat with Jarvis" });
+  const navToggle = page.getByRole("button", { name: "Chat with Moss" });
   await navToggle.click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await expect(drawer).toBeVisible();
   await expect(drawer.getByText("Message number 29")).toBeVisible();
 
@@ -699,9 +699,9 @@ test("#664: a sent message renders after the prior turn, not at the top", async 
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
-  const composerInput = drawer.getByLabel("Message Jarvis");
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
+  const composerInput = drawer.getByLabel("Message Moss");
 
   // Send #1 — POST resolves, fallbackRecords becomes [user1, reply1]. SSE delivers nothing.
   await composerInput.fill("First message");
@@ -741,8 +741,8 @@ test("renders a large markdown reply without error", async ({ page }) => {
   await streamReply(page, big);
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await expect(drawer).toBeVisible();
 
   await expect(drawer.locator(".chatd-md h2")).toHaveCount(80);

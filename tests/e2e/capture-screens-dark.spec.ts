@@ -121,7 +121,7 @@ test("dark: today + chat", async ({ page }) => {
   await shot(page, "03-today");
   // unconditional: a missing button fails the capture instead of silently skipping it
   // (same trap as the light capture, D6 item 5 / plan C4).
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
   await page.waitForTimeout(600);
   await shot(page, "04-chat-drawer");
 });

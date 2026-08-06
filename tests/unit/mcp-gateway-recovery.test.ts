@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { AssistantToolGateway, ConfirmationRegistry, SessionTokenRegistry } from "@jarv1s/ai";
 
-describe("first-party Jarvis MCP transport", () => {
+describe("first-party Moss MCP transport", () => {
   it("auto-allows transport without consulting action policy", async () => {
     const tokens = new SessionTokenRegistry();
     const createPendingAssistantAction = vi.fn();
@@ -27,7 +27,7 @@ describe("first-party Jarvis MCP transport", () => {
         toolName: "  mcp__jarvis__demo_module_resume_import  ",
         toolInput: { attachmentId: "attachment-1" }
       })
-    ).resolves.toEqual({ decision: "allow", reason: "First-party Jarvis MCP transport." });
+    ).resolves.toEqual({ decision: "allow", reason: "First-party Moss MCP transport." });
     expect(createPendingAssistantAction).not.toHaveBeenCalled();
     expect(emit).not.toHaveBeenCalled();
     expect(resolveLocalTimezone).not.toHaveBeenCalled();

@@ -80,7 +80,7 @@ test.describe("External module host starter action (#916)", () => {
     await button.press("Enter");
 
     // The drawer opened and the composer holds the exact starter as an editable, focused draft.
-    const composer = page.getByRole("textbox", { name: "Message Jarvis" });
+    const composer = page.getByRole("textbox", { name: "Message Moss" });
     await expect(composer).toHaveValue("Help me start.");
     await expect(composer).toBeFocused();
 

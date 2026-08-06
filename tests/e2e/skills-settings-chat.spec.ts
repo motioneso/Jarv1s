@@ -97,9 +97,9 @@ test("skill autocomplete hides zero matches and keeps Escape dismissed", async (
   );
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
-  const composer = drawer.getByLabel("Message Jarvis");
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
+  const composer = drawer.getByLabel("Message Moss");
   await expect(drawer).toBeVisible();
 
   await composer.fill("/does-not-exist");

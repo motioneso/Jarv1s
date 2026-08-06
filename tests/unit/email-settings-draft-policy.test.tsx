@@ -53,7 +53,7 @@ describe("EmailSettings pane", () => {
     const html = renderToString(
       createElement(QueryClientProvider, { client }, createElement(EmailSettings))
     );
-    expect(html).toContain("Let Jarvis draft email replies without asking");
+    expect(html).toContain("Let your assistant draft email replies without asking");
     expect(html).toContain("Sending a reply always asks first");
   });
 });

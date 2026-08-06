@@ -97,7 +97,7 @@ describe("notification digest rendering", () => {
           actorUserId: "u1",
           recipientUserId: "u1",
           title: "Briefing ready",
-          body: "Open Jarvis",
+          body: "Open Moss",
           metadata: {
             accessToken: "SECRET-TOKEN",
             password: "SECRET-PASSWORD",
@@ -110,9 +110,9 @@ describe("notification digest rendering", () => {
       ]
     });
 
-    expect(rendered.subject).toBe("Jarvis notification digest");
+    expect(rendered.subject).toBe("Moss notification digest");
     expect(rendered.text).toContain("Briefing ready");
-    expect(rendered.text).toContain("Open Jarvis");
+    expect(rendered.text).toContain("Open Moss");
     expect(rendered.text).toContain("https://jarvis.example.test/settings?section=notifications");
     expect(`${rendered.text}\n${rendered.html}`).not.toContain("SECRET-TOKEN");
     expect(`${rendered.text}\n${rendered.html}`).not.toContain("SECRET-PASSWORD");

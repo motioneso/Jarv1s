@@ -140,7 +140,7 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
     const request = emitted.find((entry) => entry.record.kind === "action_request")?.record;
     expect(request?.toolName).toBe("tasks.create");
     if (!request || request.kind !== "action_request") throw new Error("expected request");
-    expect(request.summary).toContain("Jarvis now asks before creating tasks");
+    expect(request.summary).toContain("Your assistant now asks before creating tasks");
 
     const taskBeforeApproval = await runner.withDataContext(
       { actorUserId: ids.userA, requestId: "check-before-task-approval" },
@@ -166,7 +166,7 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
     const firstRequest = emitted.find((entry) => entry.record.kind === "action_request")?.record;
     if (!firstRequest || firstRequest.kind !== "action_request")
       throw new Error("expected first request");
-    expect(firstRequest.summary).toContain("Jarvis now asks before creating tasks");
+    expect(firstRequest.summary).toContain("Your assistant now asks before creating tasks");
     await gateway.resolveActionRequest(ids.userA, firstRequest.actionRequestId, "confirmed");
     await call1;
 
@@ -182,7 +182,7 @@ describe("Tasks agency tools through AssistantToolGateway", () => {
     const secondRequest = emitted.find((entry) => entry.record.kind === "action_request")?.record;
     if (!secondRequest || secondRequest.kind !== "action_request")
       throw new Error("expected second request");
-    expect(secondRequest.summary).not.toContain("Jarvis now asks before creating tasks");
+    expect(secondRequest.summary).not.toContain("Your assistant now asks before creating tasks");
     await gateway.resolveActionRequest(ids.userA, secondRequest.actionRequestId, "confirmed");
     await call2;
   });

@@ -18,20 +18,20 @@ test("bootstrap owner with incomplete onboarding sees the wizard, then the app s
   });
 
   await page.goto("/");
-  await expect(page.getByText("Jarvis setup")).toBeVisible();
+  await expect(page.getByText("Moss setup")).toBeVisible();
   await expect(page.getByLabel("Onboarding progress").getByText("Owner")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Let’s get your Jarvis set up." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s get your Moss set up." })).toBeVisible();
   await expect(page.getByText("A secure, inspectable connection to your machine.")).toBeVisible();
   await expect(page.getByText("Skip setup and open the app.")).toBeVisible();
   await expect(page.getByText("Tweaks")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Ask Jarvis/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Ask Moss/ })).toHaveCount(0);
 
   await page.getByRole("button", { name: /Start setup/ }).click();
   const continueButton = page.getByRole("button", { name: /Continue/ });
   while (await continueButton.isVisible()) {
     await continueButton.click();
   }
-  await expect(page.getByRole("heading", { name: "Jarvis is ready." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Moss is ready." })).toBeVisible();
   // v0.1.3 founder flow: welcome → Assistant (cliAuth) → Google (connectors) → Finish.
   // The multiplexer "Control channel" step is gone; the finish recap shows Provider + Google.
   await expect(
@@ -46,7 +46,7 @@ test("bootstrap owner with incomplete onboarding sees the wizard, then the app s
 
   // After finish the status mock returns state:"completed"; the app.tsx branch falls through.
   await expect(
-    page.getByRole("heading", { name: "Let’s get your Jarvis set up." })
+    page.getByRole("heading", { name: "Let’s get your Moss set up." })
   ).not.toBeVisible();
 });
 
@@ -69,14 +69,14 @@ test("Skip setup on the first step reaches the app shell", async ({ page }) => {
   });
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Let’s get your Jarvis set up." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Let’s get your Moss set up." })).toBeVisible();
   await page.getByRole("button", { name: "Skip setup" }).first().click();
   await page
     .getByRole("dialog", { name: "Skip setup without connecting a provider?" })
     .getByRole("button", { name: "Skip anyway" })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Let’s get your Jarvis set up." })
+    page.getByRole("heading", { name: "Let’s get your Moss set up." })
   ).not.toBeVisible();
   await expect(page.locator(".module-nav").getByRole("link", { name: "Today" })).toBeVisible();
 });
@@ -126,7 +126,7 @@ test("a non-owner never sees the wizard", async ({ page }) => {
 
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Let’s get your Jarvis set up." })
+    page.getByRole("heading", { name: "Let’s get your Moss set up." })
   ).not.toBeVisible();
 });
 
@@ -151,7 +151,7 @@ test("a status-endpoint error falls through to the app shell", async ({ page }) 
 
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Let’s get your Jarvis set up." })
+    page.getByRole("heading", { name: "Let’s get your Moss set up." })
   ).not.toBeVisible();
 });
 

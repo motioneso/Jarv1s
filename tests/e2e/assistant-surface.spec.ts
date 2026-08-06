@@ -43,16 +43,16 @@ test("embedded assistant owns chat presence and restores the drawer on unmount (
   });
 
   await page.goto("/");
-  const chatToggle = page.getByRole("button", { name: "Chat with Jarvis" });
+  const chatToggle = page.getByRole("button", { name: "Chat with Moss" });
   await chatToggle.click();
-  await expect(page.getByRole("dialog", { name: "Chat with Jarvis" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Chat with Moss" })).toBeVisible();
 
   await page.getByRole("link", { name: "Demo Module" }).click();
 
   const surface = page.locator(".assistant-surface");
   await expect(surface).toBeVisible();
   await expect(chatToggle).toBeEnabled();
-  await expect(page.getByRole("dialog", { name: "Chat with Jarvis" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Chat with Moss" })).toHaveCount(0);
   // `.first()` throughout: the mocked SSE response ends, so EventSource reconnects and replays
   // these records. Real streams stay open — the replay is a fixture artifact, not host behavior.
   await expect(surface.locator(".chatd-md strong").first()).toHaveText("Embedded reply");
@@ -61,19 +61,19 @@ test("embedded assistant owns chat presence and restores the drawer on unmount (
   await expect(surface.locator(".assistant-surface__row").nth(1)).toContainText("Scripted answer");
   await expect(
     surface.locator(".assistant-surface__row--assistant .assistant-surface__identity").first()
-  ).toContainText("Jarvis");
+  ).toContainText("Moss");
   await expect(
     surface.locator(".assistant-surface__typing-row .assistant-surface__identity")
-  ).toContainText("Jarvis");
+  ).toContainText("Moss");
   await expect(
     surface.locator(".assistant-surface__row--control .assistant-surface__identity")
-  ).toContainText("Jarvis");
+  ).toContainText("Moss");
 
   await surface.getByRole("button", { name: "Route draft inline" }).click();
-  const composer = surface.getByRole("textbox", { name: "Message Jarvis" });
+  const composer = surface.getByRole("textbox", { name: "Message Moss" });
   await expect(composer).toHaveValue("Draft routed inline");
   await expect(composer).toBeFocused();
-  await expect(page.getByRole("dialog", { name: "Chat with Jarvis" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Chat with Moss" })).toHaveCount(0);
 
   await composer.fill("Enter sends once");
   await composer.press("Enter");
@@ -101,7 +101,7 @@ test("embedded assistant owns chat presence and restores the drawer on unmount (
     .toEqual(["Enter sends once", "Line one\nLine two", "Composing text"]);
 
   await chatToggle.click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await expect(drawer).toBeVisible();
   // One shell-owned stream means the drawer shows the SAME transcript the embedded surface does.
   // Isolating a module's transcript from the drawer is a rebuild decision, not host behavior today.

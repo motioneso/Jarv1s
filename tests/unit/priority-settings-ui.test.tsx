@@ -122,7 +122,7 @@ describe("PrioritySettings", () => {
       </QueryClientProvider>
     );
 
-    expect(html).toContain("Sources Jarvis may prioritize");
+    expect(html).toContain("Sources your assistant may prioritize");
     expect(html).toContain(
       "These choices affect ranking only; they do not change source access or data visibility."
     );

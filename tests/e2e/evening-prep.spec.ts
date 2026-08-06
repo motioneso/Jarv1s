@@ -59,7 +59,7 @@ test("#891: evening Prep-for-tomorrow opens the chat drawer even when the seed i
   await prepButton.click();
 
   // The drawer opens on click, not gated behind the (failed) seed POST.
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await expect(drawer).toBeVisible();
 
   // The seed interview was still attempted.
@@ -90,7 +90,7 @@ test("#891: evening Prep-for-tomorrow opens the drawer before the seed POST reso
   await page.goto("/today");
   await page.locator("button.evening-prep__btn").click();
 
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await expect(drawer).toBeVisible(); // open while the seed POST is still pending
 
   releaseSeed();
