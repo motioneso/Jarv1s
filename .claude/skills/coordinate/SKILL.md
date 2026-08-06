@@ -165,22 +165,54 @@ For each spec cleared to start (serialized specs wait for their predecessor to l
    ```
 2. **Write the handoff doc** from `templates/handoff.md` (spec, worktree/branch, tier, coordinator
    label + session id, collision notes) → commit it so the agent can read it.
-3. **Spawn the build agent** into the run's shared **"Agents" tab**:
+3. **Spawn the build agent** into the run's shared **"Agents" tab**. `herdr agent start` takes
+   **only** `--kind`, `--pane` and `--timeout` — there is no `--cwd` and no `--tab`. The pane must
+   already exist, be at a shell prompt, and be in the right directory, so **split first, start
+   second**:
+
    ```bash
-   herdr agent start "<Label>" --tab w1:<agents-tab> --cwd $(pwd)/.claude/worktrees/<slug> --no-focus \
-     -- claude --model sonnet --permission-mode bypassPermissions \
-     "Build <slug> in this fresh worktree. STEP 1 pnpm install. STEP 2 read your handoff doc docs/.../<handoff>.md (it's short — that's the point) and follow the coordinated-build skill. Read the spec/plan by SECTION for your current task only — never in full; full-reads bloat a fresh context and trigger premature relays. Reading is not progress: BUILD, commit per task, relay only after real work past ~80%. Begin now."
+   # 1. make the pane, in the worktree — --cwd lives on split, not on agent start
+   herdr pane split <agents-tab-pane> --direction down --cwd $(pwd)/.claude/worktrees/<slug> --no-focus
+   # 2. start the agent in that pane; everything after `--` goes to claude
+   herdr agent start <name> --kind claude --pane <new-pane> \
+     -- --model sonnet --permission-mode bypassPermissions "<boot>"
    ```
+
+   Two argument rules, both of which fail loudly and waste a spawn:
+   - **`<name>` is lowercase letters/digits/`-`/`_`, 1–32 chars.** `"Batch1 Fix"` is rejected with
+     `invalid_agent_name`. The human-readable label is set separately, in step 4.
+   - **The boot string must be shell-encodable by herdr.** A multi-line prompt, or one containing
+     backticks or quotes, is rejected with `invalid_agent_argument` — that is herdr refusing to
+     guess, not a transient error, so don't retry it. Write the full brief to a file and pass a
+     one-line pointer: `"Read the file <path>/boot-<slug>.txt in full. It is your task brief.
+     Follow it exactly."` Keep the brief **outside the worktree** — an untracked file inside it
+     reds that agent's own gate.
+
+   The brief file carries what used to live in the inline prompt:
+
+   > Build `<slug>` in this fresh worktree. STEP 1 `pnpm install`. STEP 2 read your handoff doc
+   > `docs/.../<handoff>.md` (it's short — that's the point) and follow the coordinated-build
+   > skill. Read the spec/plan by SECTION for your current task only — never in full; full-reads
+   > bloat a fresh context and trigger premature relays. Reading is not progress: BUILD, commit per
+   > task, relay only after real work past ~80%. Begin now.
+
    **Tab discipline (Ben, 2026-06-10/27):** ALL build + QA agents share one agents tab, which must
    live in Jarvis workspace `w1`; your coordinator window stays coordinator-only (the ONLY thing
    you may spawn there is your own relay successor). If the agents tab doesn't exist, create it:
    `herdr pane move <first-pane> --new-tab --workspace w1 --label "agents"`. At 4+ panes, open an
-   `"agents 2"` overflow tab. Grid: 2×2 for 4-agent waves, 3×1 for 3
-   (`herdr pane split <pane> --direction down|right --cwd <path> --no-focus`).
-4. **Verify it started AND on the right model:** `herdr pane read <pane> --source recent
+   `"agents 2"` overflow tab. Grid: 2×2 for 4-agent waves, 3×1 for 3.
+4. **Name the agent both ways (Ben, 2026-08-06)** — a spawned pane is anonymous in *two* separate
+   namespaces, and Ben has to be able to tell lanes apart at a glance:
+   ```bash
+   herdr pane rename <pane> "<PR1437 typecheck fix>"   # the label `herdr pane list` + FleetView show
+   herdr pane run <pane> "/rename pr1437-typecheck-fix" # the header shown inside the agent's own pane
+   ```
+   Setting one leaves the other blank. Name for the **work**, not the wave (`PR1437 typecheck fix`,
+   not `build-3`). Record both names in the manifest.
+5. **Verify it started AND on the right model:** `herdr pane read <pane> --source recent
    --lines 12` — answer trust prompts with `herdr pane send-keys <pane> Enter`; confirm the pane
    says **"Sonnet"** (Opus = herdr default leaked through — respawn with `--model sonnet`).
-5. **Record** label/pane/branch in the manifest; status `building`.
+6. **Record** label/pane/branch in the manifest; status `building`.
 
 **Messaging agents — preferred path:** `herdr pane run <pane> "<msg>"` (types + submits in one
 command), or `herdr agent prompt <name-or-pane> "<msg>"` when the target is a named agent — then
@@ -309,8 +341,8 @@ When an agent reports **done** (PR open + its own green evidence — which you d
 ## Phase 4 — reap & report
 
 - **Close the panes you opened.** The reap half of pane hygiene is the half that gets skipped —
-  Ben has raised it repeatedly. Kill spent panes, prune merged worktrees (only after step 6's
-  landed-on-`main` check), keep manifest + GitHub consistent (no drift).
+  Ben has raised it repeatedly. Kill spent panes, prune merged worktrees (only after Phase 3
+  step 6's landed-on-`main` check), keep manifest + GitHub consistent (no drift).
 - **Report to Ben, in this order:**
   1. **Anything in `docs/coordination/AWAITING-BEN.md`** — lead with it whenever that file is
      non-empty. A decision he hasn't seen blocks more than a status line does. Park pending-Ben
@@ -371,7 +403,8 @@ Fired by the relay triggers (Context discipline / Phase 3 step 7):
 | ---- | --------------- |
 | Manifest / handoff templates | `.claude/skills/coordinate/templates/{manifest,handoff}.md` |
 | Isolated worktree | `git worktree add .claude/worktrees/<slug> -b <slug> origin/main` |
-| Spawn build agent | `herdr agent start "<Label>" --tab w1:<agents-tab> --cwd <path> --no-focus -- claude --model sonnet --permission-mode bypassPermissions "<boot>"` → confirm pane says "Sonnet" |
+| Spawn build agent | `herdr pane split <pane> --direction down --cwd <worktree> --no-focus` → `herdr agent start <lowercase-name> --kind claude --pane <new-pane> -- --model sonnet --permission-mode bypassPermissions "<one-line pointer to a brief file>"` → confirm pane says "Sonnet" |
+| Name a lane (both namespaces) | `herdr pane rename <pane> "<Human Label>"` **and** `herdr pane run <pane> "/rename <slug>"` |
 | Spawn QA agent | `Agent(description, subagent_type: "coordinated-qa", isolation: "worktree", model: opus for security only, prompt)` |
 | Spawn relay coordinator (SAME tab as yours) | `… -- claude --model sonnet --permission-mode bypassPermissions "<boot>"` or `… -- codex -s danger-full-access -a never "<boot>"` |
 | Talk to an agent | `herdr pane run <pane> "<msg>"` → bounded read to verify → `send-keys Enter` if unsubmitted |
