@@ -418,12 +418,15 @@ export class AssistantToolGateway {
     }
   }
 
-  /** Called by the Approve/Deny endpoint (and tests). Persists the resolution and unblocks the call. */
+  /**
+   * Called by the Approve/Deny endpoint (and tests). Persists the resolution and unblocks the call.
+   * #1250: returns outcome so caller knows if request expired (409) vs succeeded (204).
+   */
   async resolveActionRequest(
     actorUserId: string,
     actionRequestId: string,
     status: "confirmed" | "rejected" | "cancelled"
-  ): Promise<void> {
+  ): Promise<"resolved" | "expired" | "not_found"> {
     // Confirm-after-timeout guard (fail-closed): a "confirmed" only means anything while the
     // blocked call is still awaiting. After the confirm timeout the waiter is gone, the call
     // already returned "timed out", and the tool can NEVER execute — so persisting 'confirmed'
@@ -432,7 +435,7 @@ export class AssistantToolGateway {
     // an honest "still pending" rather than a phantom success). A reject/cancel stays terminal
     // regardless: declining a no-longer-runnable action is always safe and correct.
     if (status === "confirmed" && !this.deps.confirmations.isAwaiting(actionRequestId)) {
-      return;
+      return "expired";
     }
 
     const access: AccessContext = { actorUserId, requestId: `mcp_${randomUUID()}` };
@@ -441,8 +444,9 @@ export class AssistantToolGateway {
     );
     // Only unblock the pending call if the DB row was actually updated (owner matches + still pending).
     // Without this guard a logged-in user could unblock another user's tool call via a guessed ID.
-    if (!resolved) return;
+    if (!resolved) return "not_found";
     this.deps.confirmations.resolve(actionRequestId, status);
+    return "resolved";
   }
 
   /**

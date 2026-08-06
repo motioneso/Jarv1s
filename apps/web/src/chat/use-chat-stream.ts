@@ -3,7 +3,12 @@ import { useCallback, useEffect, useState } from "react";
 
 import type { AnswerSourceSupportCard, ChatAttachmentDto } from "@jarv1s/shared";
 
-import { chatStreamUrl, listChatThreadMessages, listChatThreads } from "../api/client.js";
+import {
+  chatStreamUrl,
+  listChatThreadMessages,
+  listChatThreads,
+  listPendingActionRequests
+} from "../api/client.js";
 
 export type ChatRecordKind =
   | "user"
@@ -99,6 +104,8 @@ export function useChatStream(
     const source = new EventSource(chatStreamUrl(surface), { withCredentials: true });
 
     source.onmessage = (event) => {
+      // #1135 — reset error count on successful message so transient errors don't lock private chat
+      setStreamErrorCount(0);
       const record = parseRecord(event.data);
       if (record) {
         setRecords((current) => {
@@ -127,13 +134,27 @@ export function useChatStream(
     let active = true;
     void (async () => {
       try {
-        const { threads } = await listChatThreads(surface);
+        const [threadsResult, actionsResult] = await Promise.all([
+          listChatThreads(surface),
+          // #1253 — fetch pending action requests to re-hydrate approval cards on page reload
+          listPendingActionRequests().catch(() => ({ actions: [] }))
+        ]);
+        const { threads } = threadsResult;
         const thread = threads[0];
         if (!thread) return;
         const { messages } = await listChatThreadMessages(thread.id, surface);
         if (!active) return;
         const history = recordsFromMessages(messages);
-        setRecords((current) => (current.length === 0 ? history : current));
+        // #1253 — re-hydrate pending action request cards (only "pending" status; others already resolved)
+        const pendingActions = actionsResult.actions.filter((a) => a.status === "pending");
+        const actionRecords: TranscriptRecord[] = pendingActions.map((action) => ({
+          kind: "action_request",
+          text: action.inputSummary.text || "Approve this action?",
+          actionRequestId: action.id,
+          toolName: action.toolName
+          // preview is SSE-only; backend never persists it, so re-hydrated cards show no preview
+        }));
+        setRecords((current) => (current.length === 0 ? [...history, ...actionRecords] : current));
       } catch {
         // The live stream remains authoritative; an unavailable history read must not block chat.
       }

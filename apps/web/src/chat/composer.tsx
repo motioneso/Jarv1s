@@ -158,7 +158,8 @@ export function Composer(props: {
           );
         });
     }
-    setPending(current);
+    // #1415 fix (B): use functional update to avoid race with upload callbacks
+    setPending((list) => [...list, ...current.slice(list.length)]);
   };
 
   const onFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -225,8 +226,9 @@ export function Composer(props: {
     if (!composedText && readyAttachments.length === 0) return;
     if (hasUploadingAttachment(pending)) return;
     if (props.isSending) {
-      // Queued sends stay text-only (the drain path replays just the text); chips stay
-      // staged for the next manual send rather than riding along invisibly.
+      // #1415 fix (A): block send-while-streaming when attachments are pending, since the
+      // drain path can't replay attachments (they would be silently lost).
+      if (readyAttachments.length > 0) return;
       if (!composedText) return;
       setQueuedText(composedText);
       setText("");

@@ -2,6 +2,7 @@ import type { JarvisGoal } from "@jarv1s/goals";
 import type {
   AddTaskActivityRequest,
   AssignTaskTagRequest,
+  AiAssistantActionDto,
   CreateAiConfiguredModelRequest,
   CreateAiConfiguredModelResponse,
   CreateAiProviderConfigRequest,
@@ -965,6 +966,7 @@ export async function resolveActionRequest(
   actionRequestId: string,
   status: "confirmed" | "rejected" | "cancelled"
 ): Promise<void> {
+  // #1250 — server returns 409 for expired requests; let card handle it
   await requestJson<unknown>(
     `/api/chat/action-requests/${encodeURIComponent(actionRequestId)}/resolve`,
     { method: "POST", body: { status } }
@@ -1029,6 +1031,11 @@ export async function discoverAiModels(id: string): Promise<AiDiscoverModelsResp
 
 export async function listAiModels(): Promise<ListAiConfiguredModelsResponse> {
   return requestJson<ListAiConfiguredModelsResponse>("/api/ai/models");
+}
+
+// #1253 — fetch pending action requests for re-hydration on page reload
+export async function listPendingActionRequests(): Promise<{ actions: AiAssistantActionDto[] }> {
+  return requestJson<{ actions: AiAssistantActionDto[] }>("/api/ai/assistant-actions");
 }
 
 export async function createAiModel(
