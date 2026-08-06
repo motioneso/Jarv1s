@@ -1,35 +1,35 @@
-# Jarvis Brand Questionnaire
+# Moss Brand Questionnaire
 
 Date: 2026-06-06
 
-This questionnaire is for refining Jarvis brand, voice, personality, onboarding, and design
+This questionnaire is for refining Moss brand, voice, personality, onboarding, and design
 language. It is not a product requirements document.
 
 ## Relationship
 
-1. What should Jarvis feel like in its relationship to the user?
+1. What should Moss feel like in its relationship to the user?
    - Trusted chief of staff
    - Personal operating system
    - Calm companion
    - Private command center
 
-2. When Jarvis helps the user stay on top of life, what mode should dominate?
+2. When Moss helps the user stay on top of life, what mode should dominate?
    - Quiet prevention
    - Morning command center
    - Gentle recovery
    - Adaptive mix
 
-3. What should Jarvis never make the user feel?
+3. What should Moss never make the user feel?
 
 ## Personality
 
-4. How much personality should default Jarvis have?
+4. How much personality should default Moss have?
    - Mostly invisible
    - Warm but restrained
    - Distinct character
    - Mode-dependent
 
-5. How much dry humor should default Jarvis use?
+5. How much dry humor should default Moss use?
    - Barely there
    - Light
    - Medium
@@ -39,7 +39,7 @@ language. It is not a product requirements document.
 
 ## Values
 
-7. What should Jarvis optimize for when values conflict?
+7. What should Moss optimize for when values conflict?
    - Productivity
    - Cognitive calm
    - Reliability/trust
@@ -47,27 +47,27 @@ language. It is not a product requirements document.
 
 8. What actions or tones would break trust?
 
-9. How should Jarvis communicate privacy without making privacy the brand headline?
+9. How should Moss communicate privacy without making privacy the brand headline?
 
 ## Recovery
 
-10. How should Jarvis handle missed tasks, drift, or falling behind?
+10. How should Moss handle missed tasks, drift, or falling behind?
     - Neutral reset
     - Gentle encouragement
     - Dry but kind
     - Direct accountability
     - User-configurable
 
-11. What language should Jarvis avoid in recovery states?
+11. What language should Moss avoid in recovery states?
 
 12. What does a successful recovery moment feel like?
 
 ## Whole-Life Context
 
-13. Should Jarvis blend work and personal life by default, keep them separated, or let the user
+13. Should Moss blend work and personal life by default, keep them separated, or let the user
     decide?
 
-14. What parts of life should Jarvis understand first?
+14. What parts of life should Moss understand first?
     - responsibilities and open loops
     - values and priorities
     - interests and hobbies
@@ -102,11 +102,11 @@ language. It is not a product requirements document.
 
 20. Should onboarding be required, skippable, or progressive?
 
-21. What should Jarvis ask early to get useful fast?
+21. What should Moss ask early to get useful fast?
 
-22. What should Jarvis learn slowly over time?
+22. What should Moss learn slowly over time?
 
-23. How should users inspect and correct what Jarvis believes about them?
+23. How should users inspect and correct what Moss believes about them?
 
 ## Visual Direction
 
@@ -116,7 +116,7 @@ language. It is not a product requirements document.
     - personal field journal
     - adaptive hybrid
 
-25. What visual styles should Jarvis avoid?
+25. What visual styles should Moss avoid?
     - generic AI glow
     - corporate SaaS dashboard
     - Claude-like editorial clone
@@ -132,8 +132,8 @@ language. It is not a product requirements document.
 
 ## Current Working Answers
 
-- Jarvis is the chief of staff for your whole life.
-- Jarvis is a private, adaptive daily briefing and personal OS.
+- Moss is the chief of staff for your whole life.
+- Moss is a private, adaptive daily briefing and personal OS.
 - The daily briefing answers: "What are my priorities today, and how can I prepare for tomorrow?"
 - Trust always wins.
 - Calm comes before speed.

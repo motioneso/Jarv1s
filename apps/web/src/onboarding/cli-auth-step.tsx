@@ -19,6 +19,7 @@ import {
   pollOnboardingProviderLogin,
   submitOnboardingProviderLoginToken
 } from "../api/onboarding-connect-client";
+import { useAssistantName } from "../api/use-assistant-name";
 import {
   deriveCardModel,
   IDLE_LOGIN,
@@ -95,6 +96,7 @@ export function CliAuthStep(props: {
   readonly step: OnboardingCliAuthStepDto;
   readonly onRecheck: () => Promise<unknown> | void;
 }) {
+  const assistantName = useAssistantName();
   const [states, setStates] = useState<Partial<Record<OnboardingProviderKind, ConnectState>>>({});
 
   const stateFor = (kind: OnboardingProviderKind): ConnectState => states[kind] ?? DEFAULT_STATE;
@@ -256,7 +258,7 @@ export function CliAuthStep(props: {
       <StepHeader
         eyebrow="Step 2 · Your provider"
         title="Connect your AI provider."
-        lede="Pick a provider and Jarvis installs it and signs you in — no terminal, no API keys. When it’s connected, chat is ready."
+        lede={`Pick a provider and ${assistantName} installs it and signs you in — no terminal, no API keys. When it’s connected, chat is ready.`}
       />
       <div className="onb-scan">
         <span className="onb-scan__ic">
@@ -285,6 +287,7 @@ export function CliAuthStep(props: {
               key={provider.kind}
               model={model}
               label={PROVIDER_LABELS[provider.kind] ?? provider.kind}
+              assistantName={assistantName}
               onConnect={() => void connect(provider.kind)}
               onLogin={() => void beginLogin(provider.kind)}
               onSubmitToken={(code) => void submitToken(provider.kind, code)}
@@ -306,13 +309,16 @@ export function CliAuthStep(props: {
 export function ProviderCard(props: {
   readonly model: CardModel;
   readonly label: string;
+  /** Defaults to "Moss" so existing callers (e.g. unit tests rendering this pure component
+   *  standalone via react-dom/server) don't need to thread the live persona query through. */
+  readonly assistantName: string;
   readonly onConnect: () => void;
   readonly onLogin: () => void;
   readonly onSubmitToken: (code: string) => void;
   readonly tokenValue: string;
   readonly onTokenChange: (value: string) => void;
 }) {
-  const { model, label } = props;
+  const { model, label, assistantName } = props;
   const ready = model.status === "ready";
 
   return (
@@ -389,8 +395,8 @@ export function ProviderCard(props: {
             model.userCode && model.authorizationUrl ? (
               <div className="onb-auth__outwrap">
                 <div className="onb-auth__hint">
-                  Open the sign-in page and enter this device code. Jarvis will detect when you’re
-                  finished.
+                  Open the sign-in page and enter this device code. {assistantName} will detect
+                  when you’re finished.
                 </div>
                 <div className="onb-auth__outhd">
                   <a

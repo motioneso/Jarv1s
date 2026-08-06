@@ -7,6 +7,7 @@ import { getNotesSourceDirectories } from "../api/notes-client";
 import { getPeopleNotesDirectories } from "../api/people-client";
 import { queryKeys } from "../api/query-keys";
 import { ApiError } from "../api/client";
+import { useAssistantName } from "../api/use-assistant-name";
 import { readError } from "./settings-types";
 
 export function shouldShowNotesRootRecovery(error: unknown, rootCount: number): boolean {
@@ -22,6 +23,7 @@ export function VaultChooser(props: {
 }) {
   const [path, setPath] = useState<string | null>(props.current || null);
   const mode = props.mode ?? "notes";
+  const assistantName = useAssistantName();
   const rootsQuery = useQuery({
     queryKey:
       mode === "people"
@@ -150,7 +152,7 @@ export function VaultChooser(props: {
 
           {mode === "notes" && !loading && notesRootRecovery ? (
             <div className="vlist__empty">
-              No notes folders are available to Jarv1s. Ask an operator to mount
+              No notes folders are available to Moss. Ask an operator to mount
               /data/external-notes, set JARVIS_NOTES_ROOTS, and recreate the container.
               <a
                 href="/docs/operations/deploy.md#notes-mount"
@@ -171,7 +173,7 @@ export function VaultChooser(props: {
             <FolderCheck size={15} aria-hidden="true" />
             {path ?? "No folder selected"}
           </div>
-          <div className="vselect__meta">Jarvis reads this folder and its text files.</div>
+          <div className="vselect__meta">{assistantName} reads this folder and its text files.</div>
         </div>
         <div className="vselect__acts">
           <Button variant="quiet" size="sm" onClick={props.onCancel}>

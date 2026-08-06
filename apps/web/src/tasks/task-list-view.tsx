@@ -12,6 +12,7 @@ import {
 } from "@jarv1s/shared";
 import { Button } from "@jarv1s/ui";
 
+import { useAssistantName } from "../api/use-assistant-name.js";
 import { formatDate, useUserLocale } from "../locale/locale-format.js";
 import { effortLabels } from "./task-format.js";
 
@@ -116,6 +117,7 @@ export function TaskListView(props: {
   readonly onAccept?: (task: TaskDto) => void;
   readonly onDismiss?: (task: TaskDto) => void;
 }) {
+  const assistantName = useAssistantName();
   const groups = groupByPriority(props.tasks).filter((group) => group.tasks.length > 0);
   const listMeta = listColorMap(props.lists);
   const jarvisCount = props.tasks.filter(
@@ -159,8 +161,8 @@ export function TaskListView(props: {
           <span className="ic">
             <GitCommitHorizontal size={14} aria-hidden="true" />
           </span>
-          Jarvis is tracking {jarvisCount} {jarvisCount === 1 ? "task" : "tasks"} it created for you
-          — all marked by source.
+          {assistantName} is tracking {jarvisCount} {jarvisCount === 1 ? "task" : "tasks"} it
+          created for you — all marked by source.
         </div>
       ) : null}
     </div>
@@ -178,6 +180,7 @@ export function TaskRow(props: {
   readonly onDismiss?: (task: TaskDto) => void;
 }) {
   const { task, compact = false } = props;
+  const assistantName = useAssistantName();
   const locale = useUserLocale();
   const [optimisticDone, setOptimisticDone] = useState(task.status === "done");
   const done = optimisticDone;
@@ -194,7 +197,7 @@ export function TaskRow(props: {
       />
       <span className="tk-task__check">
         {suggested ? (
-          <span className="tk-task__src" title="Suggested by Jarvis">
+          <span className="tk-task__src" title={`Suggested by ${assistantName}`}>
             <GitCommitHorizontal size={13} aria-hidden="true" />
           </span>
         ) : (
@@ -301,7 +304,7 @@ export function TaskRow(props: {
   );
 }
 
-/** A task Jarvis created carries a non-user source (chat, email, briefing, connector…). */
+/** A task the assistant created carries a non-user source (chat, email, briefing, connector…). */
 function isJarvisSource(source: string): boolean {
   const s = source.toLowerCase();
   return s !== "" && s !== "user" && s !== "manual";

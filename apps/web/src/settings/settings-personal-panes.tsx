@@ -11,6 +11,7 @@ import {
   updateMyProfile
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { useAssistantName } from "../api/use-assistant-name";
 import { DeleteAccount } from "./delete-account";
 import { useFeedback } from "./settings-feedback";
 import { DataExport, Sessions } from "./settings-profile-subviews";
@@ -116,6 +117,7 @@ export function ProfilePane({ me }: PaneProps) {
   });
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
+  const assistantName = useAssistantName();
   const localeQuery = useQuery({
     queryKey: queryKeys.settings.locale,
     queryFn: getLocaleSettings,
@@ -153,7 +155,7 @@ export function ProfilePane({ me }: PaneProps) {
     <>
       <PaneHead
         title="Account & preferences"
-        desc="Who you are to Jarvis — your identity and account status. How Jarvis sounds and behaves lives in Assistant & AI."
+        desc={`Who you are to ${assistantName} — your identity and account status. How ${assistantName} sounds and behaves lives in Assistant & AI.`}
       />
       <Group title="Identity" action={<SaveStatusChip status={status} />}>
         <div className="prof">
@@ -174,12 +176,12 @@ export function ProfilePane({ me }: PaneProps) {
             aria-label="Display name"
           />
         </Field>
-        <Field label="How Jarvis addresses you" hint="Used in the briefing and throughout the day.">
+        <Field label={`How ${assistantName} addresses you`} hint="Used in the briefing and throughout the day.">
           <input
             className="jds-input"
             value={fields.addressed}
             onChange={(e) => set({ addressed: e.target.value })}
-            aria-label="How Jarvis addresses you"
+            aria-label={`How ${assistantName} addresses you`}
           />
         </Field>
       </Group>
@@ -254,7 +256,7 @@ export function ProfilePane({ me }: PaneProps) {
 
       <Group
         title="Quiet hours"
-        desc="Jarvis stays silent during these hours — no nudges unless something is genuinely urgent."
+        desc={`${assistantName} stays silent during these hours — no nudges unless something is genuinely urgent.`}
       >
         <Row
           name="Enable quiet hours"

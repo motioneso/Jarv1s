@@ -12,6 +12,7 @@ import {
   putPersonaSettings
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { useAssistantName } from "../api/use-assistant-name";
 import { useFeedback } from "./settings-feedback";
 import {
   applyGuidedPersonaText,
@@ -44,7 +45,7 @@ const DEFAULT_PERSONA_DIALS = {
 
 function initialPersona(): PersonaState {
   return createPersonaDraft(
-    { assistantName: "Jarvis", personaText: DEFAULT_DESCRIPTION },
+    { assistantName: "Moss", personaText: DEFAULT_DESCRIPTION },
     DEFAULT_PERSONA_DIALS
   );
 }
@@ -52,6 +53,7 @@ function initialPersona(): PersonaState {
 function Persona({ who }: { readonly who: string }) {
   const { toast } = useFeedback();
   const queryClient = useQueryClient();
+  const assistantName = useAssistantName();
   const [p, setP] = useState<PersonaState>(initialPersona);
   const [saved, setSaved] = useState<PersonaSnapshot>(p);
   const [mode, setMode] = useState<"authored" | "guided">("authored");
@@ -136,7 +138,7 @@ function Persona({ who }: { readonly who: string }) {
   return (
     <Group
       title="Persona"
-      desc="How Jarvis sounds and carries itself — write it yourself, or set it with the dials below. The preview shows the effect."
+      desc={`How ${assistantName} sounds and carries itself — write it yourself, or set it with the dials below. The preview shows the effect.`}
     >
       <Field
         label="Assistant name"
@@ -172,7 +174,7 @@ function Persona({ who }: { readonly who: string }) {
       {mode === "authored" ? (
         <Field
           label="In your own words"
-          hint="How should Jarvis interact with you? Its style, what to lean into, what to avoid."
+          hint={`How should ${assistantName} interact with you? Its style, what to lean into, what to avoid.`}
         >
           <textarea
             className="jds-textarea"
@@ -209,7 +211,7 @@ function Persona({ who }: { readonly who: string }) {
           <Choice
             key={`rec${rev}`}
             label="Recovery & accountability"
-            hint="How Jarvis responds when you fall behind. Never shaming: that's a promise of the product."
+            hint={`How ${assistantName} responds when you fall behind. Never shaming: that's a promise of the product.`}
             value={p.recovery}
             options={["Encouraging", "Matter-of-fact", "Firm"]}
             onChange={(v) => set("recovery", v as RecoveryDial)}
@@ -228,7 +230,7 @@ function Persona({ who }: { readonly who: string }) {
       <div className="ppv">
         <div className="ppv__hd">
           <GitCommitHorizontal size={13} aria-hidden="true" />
-          How {p.assistantName || "Jarvis"} would sound
+          How {p.assistantName || "Moss"} would sound
         </div>
         <div className="ppv__bubble ppv__bubble--main">
           <div className="ppv__cap">{previewReply ? "Response preview" : "Morning briefing"}</div>
@@ -253,7 +255,7 @@ function Persona({ who }: { readonly who: string }) {
           ) : (
             <Check size={14} aria-hidden="true" />
           )}
-          {dirty ? "Unsaved changes" : "Saved. This is Jarvis's current voice."}
+          {dirty ? "Unsaved changes" : `Saved. This is ${assistantName}'s current voice.`}
         </span>
         <span className="psona-save__acts">
           <Button
@@ -285,6 +287,7 @@ function Persona({ who }: { readonly who: string }) {
 function ChatModel() {
   const { toast } = useFeedback();
   const queryClient = useQueryClient();
+  const assistantName = useAssistantName();
   const settingsQuery = useQuery({
     queryKey: queryKeys.ai.chatModelOverride,
     queryFn: getChatModelOverrideSettings,
@@ -321,7 +324,7 @@ function ChatModel() {
   return (
     <Group
       title="Chat model"
-      desc="The assistant that answers when you chat with Jarvis. Admins manage providers and routing."
+      desc={`The assistant that answers when you chat with ${assistantName}. Admins manage providers and routing.`}
     >
       {defaultModel ? (
         <>
@@ -367,8 +370,8 @@ function ChatModel() {
           <div className="ai-empty__main">
             <div className="ai-empty__t">No assistant configured yet</div>
             <div className="ai-empty__d">
-              An admin needs to add an AI provider before Jarvis can chat. Ask whoever set up this
-              instance. If that's you, add one under <b>Admin → Assistant &amp; AI</b>.
+              An admin needs to add an AI provider before {assistantName} can chat. Ask whoever set
+              up this instance. If that's you, add one under <b>Admin → Assistant &amp; AI</b>.
             </div>
           </div>
         </div>
@@ -380,6 +383,7 @@ function ChatModel() {
 function YoloMode() {
   const { toast, confirm } = useFeedback();
   const queryClient = useQueryClient();
+  const assistantName = useAssistantName();
   const query = useQuery({
     queryKey: queryKeys.settings.yolo,
     queryFn: getYoloSettings,
@@ -399,7 +403,7 @@ function YoloMode() {
     confirm({
       title: "Enable YOLO mode?",
       description:
-        "Jarvis will perform actions, including permanent deletions, without asking. You accept responsibility.",
+        `${assistantName} will perform actions, including permanent deletions, without asking. You accept responsibility.`,
       confirmLabel: "Enable YOLO",
       danger: true,
       onConfirm: () => mutation.mutate(true)
@@ -433,11 +437,12 @@ function YoloMode() {
 
 export function AssistantPane({ me }: PaneProps) {
   const who = (me.user.name ?? "").split(/\s+/)[0] || "there";
+  const assistantName = useAssistantName();
   return (
     <>
       <PaneHead
         title="Assistant & AI"
-        desc="Tune how Jarvis sounds, and choose which assistant powers your chat."
+        desc={`Tune how ${assistantName} sounds, and choose which assistant powers your chat.`}
       />
       <Persona who={who} />
       <ChatModel />

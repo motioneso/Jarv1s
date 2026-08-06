@@ -1,8 +1,8 @@
-# Jarv1s Development Standards
+# Moss Development Standards
 
 Date: 2026-06-06
 
-Jarv1s uses a strict maintainability bar based on the `thermo-nuclear-code-quality-review` standard. Passing tests is required, but it is not enough. A change should leave the codebase simpler to reason about, not merely working.
+Moss uses a strict maintainability bar based on the `thermo-nuclear-code-quality-review` standard. Passing tests is required, but it is not enough. A change should leave the codebase simpler to reason about, not merely working.
 
 ## Approval Bar
 
@@ -71,7 +71,7 @@ settle delay, because the disable happens _after_ the enable returns 200.
 
 ## Design System Guardrails
 
-Jarv1s UI must keep the authored design-system shape:
+Moss UI must keep the authored design-system shape:
 
 - headings use `--font-display` (Neue Haas Grotesk, interim Helvetica stack); body uses
   `--font-sans`. **No mono and no serif** — mono was retired 2026-07-08 (eyebrows, labels, and data

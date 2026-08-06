@@ -37,7 +37,7 @@ const STATE_LABELS: Record<ModuleRegistryRowDto["state"], string> = {
   "update-pending-restart": "Update downloaded — restart to apply",
   "install-failed": "Install failed",
   "declared-not-present": "Declared in compose — will install on restart",
-  incompatible: "Incompatible with this Jarvis version"
+  incompatible: "Incompatible with this Moss version"
 };
 
 // #1187 decision 4: lead the pre-download confirm with a plain consequence sentence built
@@ -112,7 +112,7 @@ export function libraryAction(row: ModuleRegistryRowDto): LibraryAction {
       return {
         kind: "none",
         label: STATE_LABELS.incompatible,
-        reason: row.requiresCore ? `Requires Jarvis ${row.requiresCore}.` : undefined
+        reason: row.requiresCore ? `Requires Moss ${row.requiresCore}.` : undefined
       };
   }
 }
@@ -142,7 +142,7 @@ export function ModuleRegistrySection({
       downloadRegistryModule(input.id, input.version),
     onSuccess: (result) => {
       invalidate();
-      toast(`${result.module.name} downloaded — restart Jarvis to apply`, { tone: "ready" });
+      toast(`${result.module.name} downloaded — restart Moss to apply`, { tone: "ready" });
     },
     onError: (error) => toast(readError(error), { tone: "drift" })
   });

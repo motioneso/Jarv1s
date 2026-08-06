@@ -1,6 +1,6 @@
 /* Deterministic persona voice preview. No model call — turns the four dials
-   into a concrete sample of how Jarvis would sound, so the abstract controls
-   have a visible effect. Ported verbatim from the design kit (personaSample).
+   into a concrete sample of how the configured assistant would sound, so the
+   abstract controls have a visible effect. Ported verbatim from the design kit (personaSample).
    The real voice will be system-prompt-driven once persona is persisted (🔌). */
 
 export type ToneDial = "Warm" | "Neutral" | "Crisp";

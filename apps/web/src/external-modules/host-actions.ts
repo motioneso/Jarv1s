@@ -1,7 +1,7 @@
 /**
  * #916 — external module host starter action.
  *
- * The one generic seam an enabled external web module uses to ask the Jarv1s host to open the
+ * The one generic seam an enabled external web module uses to ask the Moss host to open the
  * existing assistant drawer with a stable, module-authored starter prompt. The host validates and
  * caps the prompt, then inserts it as an EDITABLE DRAFT — it never submits a turn or runs a tool
  * (that stays a manual user action, identical to typed text).

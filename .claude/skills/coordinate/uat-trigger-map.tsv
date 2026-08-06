@@ -40,6 +40,14 @@ blocking	external-modules/finance/**	tests/uat/specs/finance-budget.uat.spec.ts
 blocking	external-modules/finance/**	tests/uat/specs/finance-feed.uat.spec.ts
 blocking	external-modules/finance/**	tests/uat/specs/finance-reports.uat.spec.ts
 blocking	external-modules/finance/**	tests/uat/specs/finance-shared.uat.spec.ts
+# #1441 Moss rename phase 2: assistant-name threading + product-name independence, proven live
+# across settings, chat drawer/composer, calendar and auth chrome in one run.
+blocking	apps/web/src/settings/settings-ai-pane.tsx	tests/uat/specs/moss-assistant-name.uat.spec.ts
+blocking	apps/web/src/api/use-assistant-name.ts	tests/uat/specs/moss-assistant-name.uat.spec.ts
+blocking	apps/web/src/chat/**	tests/uat/specs/moss-assistant-name.uat.spec.ts
+blocking	apps/web/src/calendar/**	tests/uat/specs/moss-assistant-name.uat.spec.ts
+blocking	apps/web/src/shell/app-shell.tsx	tests/uat/specs/moss-assistant-name.uat.spec.ts
+blocking	apps/web/src/auth/auth-screen.tsx	tests/uat/specs/moss-assistant-name.uat.spec.ts
 # #1311 install-time grant self-heal (granted_at_install families never getting their trust grant
 # without an explicit enable action). Only the tasks self-heal-on-read half runs live here — the
 # chat-dispatch half is test.fixme'd pending #1121's scriptable UAT chat engine.

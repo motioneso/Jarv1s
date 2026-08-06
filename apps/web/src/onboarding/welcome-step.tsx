@@ -6,8 +6,8 @@ export function WelcomeStep(props: { readonly onSkipAll: () => void }) {
   return (
     <section className="onb-step" aria-labelledby="onboarding-welcome-title">
       <StepHeader
-        eyebrow="Setting up Jarvis"
-        title="Let’s get your Jarvis set up."
+        eyebrow="Setting up Moss"
+        title="Let’s get your Moss set up."
         lede={
           <>
             You just need to configure a couple of things: a secure connection to your computer, and

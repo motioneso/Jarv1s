@@ -7,11 +7,11 @@ export function MemberWelcomeStep(props: { readonly onSkipAll: () => void }) {
     <section className="onb-step" aria-labelledby="member-welcome-title">
       <StepHeader
         eyebrow="Welcome"
-        title="You’ve got your own Jarvis."
+        title="You’ve got your own Moss."
         lede={
           <>
-            Your team or administrator has set up Jarvis and added your account. The shared
-            environment is ready, so you can start using Jarvis right away. Your tasks, calendar,
+            Your team or administrator has set up Moss and added your account. The shared
+            environment is ready, so you can start using Moss right away. Your tasks, calendar,
             wellness data, and preferences are private to you.
           </>
         }
@@ -24,7 +24,7 @@ export function MemberWelcomeStep(props: { readonly onSkipAll: () => void }) {
           <div className="onb-ahead__main">
             <div className="onb-ahead__label">Already working</div>
             <div className="onb-ahead__sub">
-              No installation required. Jarvis runs on the shared host.
+              No installation required. Moss runs on the shared host.
             </div>
           </div>
           <span className="onb-ahead__n">01</span>

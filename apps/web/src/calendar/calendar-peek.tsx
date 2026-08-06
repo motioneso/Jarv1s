@@ -1,5 +1,6 @@
 import { CalendarCheck, Clock, GitCommitHorizontal, MapPin, Users, X } from "lucide-react";
 import { CategoryDot, HeldBanner, PeekCloseButton, PeekPanel } from "@jarv1s/ui";
+import { useAssistantName } from "../api/use-assistant-name.js";
 import { fmtDateLabel, fmtDur, fmtTime, type CalendarViewEvent } from "./calendar-model.js";
 
 interface CalendarPeekProps {
@@ -8,6 +9,7 @@ interface CalendarPeekProps {
 }
 
 export function CalendarPeek({ event, onClose }: CalendarPeekProps) {
+  const assistantName = useAssistantName();
   if (!event) return null;
   const isBlock = event.kind === "block";
   const isTentative = event.status === "needsAction" || event.status === "tentative";
@@ -21,7 +23,7 @@ export function CalendarPeek({ event, onClose }: CalendarPeekProps) {
           {isBlock ? (
             <span className="cal-peek__kind cal-peek__kind--block">
               <GitCommitHorizontal size={13} />
-              Jarvis is holding this
+              {assistantName} is holding this
             </span>
           ) : (
             <span className="cal-peek__kind">
@@ -77,14 +79,14 @@ export function CalendarPeek({ event, onClose }: CalendarPeekProps) {
               <CategoryDot color={evColor} />
             </span>
             <div className="cal-peek__rowmain">
-              {isBlock ? "Jarvis focus block" : isTentative ? "Pending RSVP" : "Accepted"}
+              {isBlock ? `${assistantName} focus block` : isTentative ? "Pending RSVP" : "Accepted"}
             </div>
           </div>
         </div>
         {isBlock ? (
           <HeldBanner icon={<GitCommitHorizontal size={14} />}>
-            Jarvis can move or shorten this block when your day changes. Hard events always come
-            first.
+            {assistantName} can move or shorten this block when your day changes. Hard events
+            always come first.
           </HeldBanner>
         ) : null}
       </PeekPanel>

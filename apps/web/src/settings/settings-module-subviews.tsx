@@ -5,7 +5,7 @@ import type { ChatResponseStyle, NotificationDigestCadenceDto } from "@jarv1s/sh
 
 import {
   DEFAULT_NOTIFICATIONS,
-  NOTIFICATION_SENSITIVITY_HINT,
+  notificationSensitivityHint,
   type NotificationSensitivity,
   type NotificationsSettings
 } from "./settings-sample-data";
@@ -26,6 +26,7 @@ import {
   updateBriefingDefinition
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { useAssistantName } from "../api/use-assistant-name";
 import {
   createDefinitionRequest,
   findDefinition,
@@ -97,6 +98,7 @@ function readError(error: unknown): string {
 
 export function BriefingSettings(props: { readonly onBack: () => void }) {
   const queryClient = useQueryClient();
+  const assistantName = useAssistantName();
   const definitionsQuery = useQuery({
     queryKey: queryKeys.briefings.definitions,
     queryFn: listBriefingDefinitions
@@ -182,7 +184,7 @@ export function BriefingSettings(props: { readonly onBack: () => void }) {
       {error ? <NotWired>{readError(error)}</NotWired> : null}
       <Group
         title="Cadence"
-        desc="When Jarvis prepares your reading. It waits for you — nothing is pushed before this."
+        desc={`When ${assistantName} prepares your reading. It waits for you — nothing is pushed before this.`}
       >
         <Field
           label="Morning briefing"
@@ -253,6 +255,7 @@ export function ChatSettingsView(props: {
   readonly onCat?: (id: string) => void;
 }) {
   const queryClient = useQueryClient();
+  const assistantName = useAssistantName();
   const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
   const settingsQuery = useQuery({
     queryKey: queryKeys.chat.settings,
@@ -278,7 +281,7 @@ export function ChatSettingsView(props: {
     <ModuleSub
       icon={<MessagesSquare size={21} aria-hidden="true" />}
       name="Chat"
-      sub="How Jarvis talks with you"
+      sub={`How ${assistantName} talks with you`}
       onBack={props.onBack}
     >
       {error ? <NotWired>{readError(error)}</NotWired> : null}
@@ -319,8 +322,8 @@ export function ChatSettingsView(props: {
         />
       </Group>
       <Note icon={<MessageSquare size={13} />}>
-        Jarvis's voice and directness are set once in <b>Assistant &amp; AI</b> — these only shape
-        the chat surface.
+        {assistantName}'s voice and directness are set once in <b>Assistant &amp; AI</b> — these only
+        shape the chat surface.
       </Note>
     </ModuleSub>
   );
@@ -332,6 +335,7 @@ export function NotificationSettings(props: {
   readonly onModuleSettings?: (id: "briefings") => void;
 }) {
   const queryClient = useQueryClient();
+  const assistantName = useAssistantName();
   const [state, setState] = useState<NotificationsSettings>(DEFAULT_NOTIFICATIONS);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<NotificationsSettings>) => setState((s) => ({ ...s, ...patch }));
@@ -444,7 +448,7 @@ export function NotificationSettings(props: {
       sub="What's worth surfacing, and how loudly"
       onBack={props.onBack}
     >
-      <Group title="Sensitivity" desc="How readily Jarvis interrupts you.">
+      <Group title="Sensitivity" desc={`How readily ${assistantName} interrupts you.`}>
         <div className="nsens">
           <Segmented<NotificationSensitivity>
             value={state.sensitivity}
@@ -456,14 +460,16 @@ export function NotificationSettings(props: {
             ariaLabel="Sensitivity"
             onChange={(v) => set({ sensitivity: v })}
           />
-          <div className="nsens__hint">{NOTIFICATION_SENSITIVITY_HINT[state.sensitivity]}</div>
+          <div className="nsens__hint">
+            {notificationSensitivityHint(assistantName)[state.sensitivity]}
+          </div>
         </div>
       </Group>
 
       <Group title="Channels" desc="Where notifications reach you.">
         <Row
           name="In-app"
-          desc="The notification center inside Jarvis."
+          desc={`The notification center inside ${assistantName}.`}
           control={<Badge tone="forest">Enabled</Badge>}
         />
         <Row name="Push" desc="System notifications on this device." comingIssue={743} />
@@ -573,7 +579,8 @@ export function NotificationSettings(props: {
         )}
       </Group>
       <Note icon={<MoonStar size={13} />}>
-        Quiet hours always win — Jarvis stays silent then unless something is urgent. Set them in{" "}
+        Quiet hours always win — {assistantName} stays silent then unless something is urgent. Set
+        them in{" "}
         <button type="button" className="note__link" onClick={() => props.onCat?.("general")}>
           General
         </button>

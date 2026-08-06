@@ -20,6 +20,7 @@ import {
   sendChatTurn
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { useAssistantName } from "../api/use-assistant-name";
 import type { ChatAttachmentDto, ChatMessageDto, LocaleSettingsDto } from "@jarv1s/shared";
 import { formatDate, useUserLocale } from "../locale/locale-format";
 import { ChatModelPill } from "./chat-model-pill";
@@ -46,7 +47,7 @@ export function ChatDrawer(props: {
   /** #369: the founder set the instance up — tailors the empty-chat connect copy. */
   readonly isFounder: boolean;
   /**
-   * #368: optional pre-filled composer text (the onboarding "Ask Jarvis" setup-check starter).
+   * #368: optional pre-filled composer text (the onboarding setup-check starter).
    * Seeds the input on mount only; it is NEVER auto-sent — the user reviews and presses send.
    */
   readonly initialText?: string;
@@ -54,6 +55,7 @@ export function ChatDrawer(props: {
   readonly onActionRequestFocused?: () => void;
 }) {
   const queryClient = useQueryClient();
+  const assistantName = useAssistantName();
   const [reviewThreadId, setReviewThreadId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [privateMode, setPrivateMode] = useState(false);
@@ -395,13 +397,13 @@ export function ChatDrawer(props: {
   };
 
   return (
-    <aside className="chatd" role="dialog" aria-label="Chat with Jarvis">
+    <aside className="chatd" role="dialog" aria-label={`Chat with ${assistantName}`}>
       <div className="chatd__head">
         <span className="chatd__mark">
           <BrandMark size={16} />
         </span>
         <div className="chatd__id">
-          <div className="chatd__name">Jarvis</div>
+          <div className="chatd__name">{assistantName}</div>
           <div className="chatd__status">Here when you need me</div>
         </div>
         <button
@@ -499,7 +501,7 @@ export function ChatDrawer(props: {
             />
           )}
           {isWaiting ? (
-            <div className="chatd-loading" aria-live="polite" aria-label="Jarvis is thinking">
+            <div className="chatd-loading" aria-live="polite" aria-label={`${assistantName} is thinking`}>
               <span className="chatd-msg__av">
                 <BrandMark size={14} />
               </span>

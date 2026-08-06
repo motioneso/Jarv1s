@@ -14,6 +14,7 @@ import {
   setExternalModuleEnabled
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { useAssistantName } from "../api/use-assistant-name";
 import { useFeedback } from "./settings-feedback";
 import { ModuleCredentialsSection } from "./module-credentials-section";
 import { ModuleRegistrySection } from "./settings-module-registry-section";
@@ -44,6 +45,7 @@ export function registryIndexIds(rows: readonly ModuleRegistryRowDto[]): Readonl
 export function InstanceModulesPane() {
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
+  const assistantName = useAssistantName();
   const modulesQuery = useQuery({
     queryKey: queryKeys.settings.adminModules,
     queryFn: listAdminModules,
@@ -113,7 +115,7 @@ export function InstanceModulesPane() {
             <Row
               key={module.id}
               name={module.name}
-              desc={moduleDescription(module.id)}
+              desc={moduleDescription(module.id, assistantName)}
               control={
                 <Switch
                   ariaLabel={module.name}
@@ -159,7 +161,7 @@ export function InstanceModulesPane() {
                 the same access as built-in features. Uses the authored <Note> primitive (no
                 `tone` prop exists) with a warning icon. */}
             <Note icon={<AlertTriangle size={13} aria-hidden="true" />}>
-              External modules are not reviewed by Jarvis. Only enable modules you authored or fully
+              External modules are not reviewed by Moss. Only enable modules you authored or fully
               trust — an enabled module runs with the same access as built-in features.
             </Note>
             {undeclaredExternalModules.map((module) => {

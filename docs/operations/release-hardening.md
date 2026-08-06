@@ -47,7 +47,7 @@ Production requires these secrets:
 - `JARVIS_CONNECTOR_SECRET_KEY` for connector token encryption
 - `JARVIS_AI_SECRET_KEY` for AI provider credential encryption
 
-Keep `JARVIS_AUTH_BASE_URL` and `JARVIS_AUTH_TRUSTED_ORIGINS` aligned with the deployed Jarv1s
+Keep `JARVIS_AUTH_BASE_URL` and `JARVIS_AUTH_TRUSTED_ORIGINS` aligned with the deployed Moss
 origin before enabling browser login or external identity providers. OAuth/OIDC variables configure
 login identity only; connector scopes remain separate from login scopes.
 
@@ -211,7 +211,7 @@ docker compose -f infra/docker-compose.yml down
 Use `down -v` only when you intentionally want to delete the local Postgres volume.
 
 Production smoke builds one `ghcr.io/motioneso/jarv1s` image, starts `postgres` and `jarv1s`, and
-polls readiness through the public Jarv1s port:
+polls readiness through the public Moss port:
 
 ```txt
 JARVIS_IMAGE_TAG=smoke pnpm smoke:compose:prod

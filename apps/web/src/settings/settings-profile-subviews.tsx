@@ -38,6 +38,7 @@ import {
   type ExportJobStatus
 } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
+import { useAssistantName } from "../api/use-assistant-name.js";
 import { formatDate, useUserLocale } from "../locale/locale-format.js";
 import { useFeedback } from "./settings-feedback.js";
 import { Badge, Group, Note, Row } from "./settings-ui.js";
@@ -57,6 +58,7 @@ const INCLUDED: readonly { readonly icon: LucideIcon; readonly name: string }[] 
 
 export function DataExport() {
   const { toast } = useFeedback();
+  const assistantName = useAssistantName();
   const [jobId, setJobId] = useState<string | null>(null);
 
   const statusQuery = useQuery<ExportJobStatus>({
@@ -89,7 +91,7 @@ export function DataExport() {
   return (
     <Group
       title="Your data"
-      desc="Everything Jarvis holds about you, packaged as a portable archive you can keep or take elsewhere."
+      desc={`Everything ${assistantName} holds about you, packaged as a portable archive you can keep or take elsewhere.`}
     >
       {!jobId || isFailed ? (
         <>
@@ -260,6 +262,7 @@ export function Sessions() {
   const { toast, confirm } = useFeedback();
   const locale = useUserLocale();
   const queryClient = useQueryClient();
+  const assistantName = useAssistantName();
   const sessionsQuery = useQuery<ListMySessionsResponse>({
     queryKey: queryKeys.settings.sessions,
     queryFn: listMySessions
@@ -300,8 +303,8 @@ export function Sessions() {
       title: `Sign out ${group.display.deviceLabel}?`,
       description:
         group.count > 1
-          ? "Those devices will need to sign in again to reach Jarvis. Anyone using them right now is signed out immediately."
-          : "That device will need to sign in again to reach Jarvis. Anyone using it right now is signed out immediately.",
+          ? `Those devices will need to sign in again to reach ${assistantName}. Anyone using them right now is signed out immediately.`
+          : `That device will need to sign in again to reach ${assistantName}. Anyone using it right now is signed out immediately.`,
       confirmLabel: group.count > 1 ? `Sign out ${group.count} sessions` : "Sign out device",
       danger: true,
       onConfirm: () => revokeOne.mutate(group.ids)

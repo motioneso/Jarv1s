@@ -8,11 +8,12 @@ import { copyText, ProviderCard } from "../../apps/web/src/onboarding/cli-auth-s
 // This repo ships no DOM test environment — exercise the REAL presentational <ProviderCard/> by
 // rendering each derived CardModel to an HTML string (mirrors onboarding-multiplexer-step.test.tsx).
 const noop = () => undefined;
-function render(model: CardModel, label = "Claude"): string {
+function render(model: CardModel, label = "Claude", assistantName = "Alfred"): string {
   return renderToString(
     createElement(ProviderCard, {
       model,
       label,
+      assistantName,
       onConnect: noop,
       onLogin: noop,
       onSubmitToken: noop,

@@ -1,4 +1,4 @@
-# Jarvis Onboarding Process — Designer Brief
+# Moss Onboarding Process — Designer Brief
 
 **Date:** 2026-06-14  
 **Grounded on:** `5084be7` plus current onboarding files in the shared working tree  
@@ -15,7 +15,7 @@ Onboarding has two jobs:
 
 1. **Founder setup:** help the bootstrap owner provision the shared household instance: choose a
    terminal multiplexer, authenticate a host CLI, and optionally connect Google.
-2. **Member setup:** help a secondary user understand that Jarvis already works for them, then let
+2. **Member setup:** help a secondary user understand that Moss already works for them, then let
    them optionally add a personal AI key, connect their own accounts, and take a short product tour.
 
 Every step is optional. Onboarding should reduce anxiety, not create a gate. If status checks fail,
@@ -69,7 +69,7 @@ Member terminal state:
 
 - **Existing frontend presentation is not design-approved.** Treat the current UI as functional
   wireframe behavior only.
-- **Chat is secondary.** The optional "Ask Jarvis" overlay exists only for founder onboarding and
+- **Chat is secondary.** The optional "Ask Moss" overlay exists only for founder onboarding and
   stays disabled until a usable CLI chat path exists. Do not make chat the spine of onboarding.
 - **Privacy is quiet but real.** Member onboarding must make per-user privacy clear without fear
   language or lock-icon theater.
@@ -89,9 +89,9 @@ Member terminal state:
    intro state before technical setup, or change resume logic so first-time founders see the welcome
    once.
 
-2. **Reframe founder setup as "make Jarvis reachable" rather than "install tooling."** The current
+2. **Reframe founder setup as "make Moss reachable" rather than "install tooling."** The current
    first useful screen is terminal multiplexer setup, which is technical and abrupt. Lead with the
-   outcome: Jarvis needs a safe host control channel so it can run the assistant for this household.
+   outcome: Moss needs a safe host control channel so it can run the assistant for this household.
 
 3. **Separate "detected" from "ready."** For CLI auth, the app can only detect the binary. The UI
    should show states like `Not installed`, `Detected`, and `You still need to sign in on the host`
@@ -118,7 +118,7 @@ Member terminal state:
    reused wholesale. Consider a lighter onboarding wrapper that explains why Google helps, then
    opens the full connector flow only when the user chooses to continue.
 
-9. **Make disabled "Ask Jarvis" explain itself without becoming a nag.** It should be a small
+9. **Make disabled "Ask Moss" explain itself without becoming a nag.** It should be a small
    secondary affordance with a tooltip/help line. Avoid bot/AI-first treatment.
 
 10. **Review section coverage against actual modules.** The Phase 4 spec mentions Email, Briefings,
@@ -137,7 +137,7 @@ Design the onboarding experience as two role-specific journeys that share a comm
 - CLI setup with installation vs sign-in distinction
 - Optional Google connection wrapper
 - Finish / skipped / error-fallthrough states
-- Optional "Ask Jarvis" secondary overlay affordance
+- Optional "Ask Moss" secondary overlay affordance
 
 ### Member screens
 
@@ -168,7 +168,7 @@ Good:
 - "You can skip this and configure it later."
 - "Detected on this host. Sign in there if you have not already."
 - "Your connected accounts are private to you."
-- "Jarvis already works with the shared household setup."
+- "Moss already works with the shared household setup."
 
 Avoid:
 

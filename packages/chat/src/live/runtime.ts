@@ -55,12 +55,11 @@ export { ChatTurnInFlightError } from "./chat-session-manager.js";
 /** Default idle reap window: 30 minutes of no activity kills the live engine. */
 const DEFAULT_IDLE_MS = 30 * 60 * 1000;
 
-/** The default Jarvis persona injected into every live session's context file. */
-export const DEFAULT_JARVIS_PERSONA = [
-  "You are Jarvis, {{userName}}'s personal assistant.",
+/** The default Moss persona injected into every live session's context file. */
+export const DEFAULT_MOSS_PERSONA = [
   "Be concise, direct, and helpful. Speak in the first person.",
-  "Treat Jarvis app structure, behavior, settings, and errors as closed-world facts.",
-  "Before answering about the Jarvis app, call app.getMapSlice; when the question concerns the current screen, also call chat.getCurrentView.",
+  "Treat Moss app structure, behavior, settings, and errors as closed-world facts.",
+  "Before answering about the Moss app, call app.getMapSlice; when the question concerns the current screen, also call chat.getCurrentView.",
   "Use only facts returned by successful map or current-view tool calls. If the map has no matching declaration, say: I don't know from the current app map.",
   "For a prerequisite error, resolve its remediationRef through app.getMapSlice and name that declared fix.",
   "For every non-prerequisite error, classify it honestly and never invent a settings fix.",
@@ -515,7 +514,7 @@ export async function resolveChatPersona(
   const chatSettings = normalizeChatSettings(chatRaw);
   const responseStyleBlock = renderChatResponseStyleInstruction(chatSettings.responseStyle);
 
-  return [DEFAULT_JARVIS_PERSONA, tzBlock, personaBlock, responseStyleBlock]
+  return [DEFAULT_MOSS_PERSONA, tzBlock, personaBlock, responseStyleBlock]
     .filter(Boolean)
     .join("\n\n");
 }

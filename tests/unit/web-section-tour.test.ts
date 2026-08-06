@@ -11,7 +11,8 @@ describe("member onboarding section tour", () => {
         moduleWithNav("briefings", "Briefings", "/briefings"),
         moduleWithNav("calendar", "Calendar", "/calendar")
       ],
-      []
+      [],
+      "Alfred"
     );
 
     expect(sections.map((section) => section.path)).toEqual([
@@ -28,7 +29,8 @@ describe("member onboarding section tour", () => {
         moduleWithNav("tasks", "Tasks", "/tasks"),
         moduleWithNav("wellness", "Wellness", "/wellness")
       ],
-      ["wellness"]
+      ["wellness"],
+      "Alfred"
     );
 
     expect(sections.map((section) => section.path)).toEqual(["/today", "/tasks", "/settings"]);

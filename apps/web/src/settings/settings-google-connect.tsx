@@ -12,6 +12,7 @@ import {
 import { useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 
+import { useAssistantName } from "../api/use-assistant-name";
 import { importCredentialsJson } from "../connectors/google-credentials";
 import { useGoogleConnectFlow } from "../connectors/use-google-connect-flow";
 import { useFeedback } from "./settings-feedback";
@@ -59,6 +60,7 @@ function CredField(props: {
 export function GoogleConnect(props: { readonly onBack: () => void }) {
   const [jsonImportStatus, setJsonImportStatus] = useState<string | null>(null);
   const { toast } = useFeedback();
+  const assistantName = useAssistantName();
   const google = useGoogleConnectFlow({
     onConnected: () => {
       toast("Connected Google — calendar and email are syncing", { icon: <Check size={17} /> });
@@ -106,7 +108,8 @@ export function GoogleConnect(props: { readonly onBack: () => void }) {
             <ShieldCheck size={15} aria-hidden="true" />
           </span>
           <span>
-            Jarvis reaches Google through <b>an OAuth app you own</b>, so your calendar and email
+            {assistantName} reaches Google through <b>an OAuth app you own</b>, so your calendar and
+            email
             never pass through anyone else's servers. You build it once and paste two values.
           </span>
         </div>
@@ -245,7 +248,7 @@ export function GoogleConnect(props: { readonly onBack: () => void }) {
         </div>
 
         <div className="onb-cred gflow__phase">
-          <div className="onb-cred__hd">2 · Authorize Jarvis</div>
+          <div className="onb-cred__hd">2 · Authorize {assistantName}</div>
           <p className="gflow__p">
             Open Google's consent screen, sign in, and grant access. Google then redirects to a{" "}
             <code>http://localhost:1/…</code> address that won't load — that's expected.

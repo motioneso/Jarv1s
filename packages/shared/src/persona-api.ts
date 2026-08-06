@@ -40,11 +40,11 @@ export function sanitizePersonaName(rawName: string): string {
 
 export function normalizePersonaSettings(value: unknown): PersonaSettingsDto {
   if (!value || typeof value !== "object") {
-    return { assistantName: "Jarvis", personaText: "" };
+    return { assistantName: "Moss", personaText: "" };
   }
   const record = value as Record<string, unknown>;
   const assistantName =
-    typeof record.assistantName === "string" ? sanitizePersonaName(record.assistantName) : "Jarvis";
+    typeof record.assistantName === "string" ? sanitizePersonaName(record.assistantName) : "Moss";
   const personaText =
     typeof record.personaText === "string"
       ? record.personaText.slice(0, MAX_PERSONA_TEXT_LENGTH)

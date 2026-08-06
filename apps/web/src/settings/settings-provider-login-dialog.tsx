@@ -11,6 +11,7 @@ import {
   pollOnboardingProviderLogin,
   submitOnboardingProviderLoginToken
 } from "../api/onboarding-connect-client";
+import { useAssistantName } from "../api/use-assistant-name";
 
 export type AutomatedLoginProviderKind = Extract<AiProviderKind, "anthropic" | "openai-compatible">;
 
@@ -65,6 +66,7 @@ export function ProviderLoginDialog(props: {
   readonly onSuccess: () => void;
 }) {
   const { provider, onSuccess } = props;
+  const assistantName = useAssistantName();
   const [state, setState] = useState<LoginState>(INITIAL_STATE);
   const closedRef = useRef(false);
   const sessionRef = useRef<{ providerKind: AutomatedLoginProviderKind; loginId: string } | null>(
@@ -272,7 +274,7 @@ export function ProviderLoginDialog(props: {
         <>
           <div className="term-modal__prompt">
             <LoaderCircle size={16} className="dexp__spin" aria-hidden="true" />
-            Approve access in the provider page; Jarvis is checking for completion.
+            Approve access in the provider page; {assistantName} is checking for completion.
           </div>
           {state.authorizationUrl ? (
             <p>

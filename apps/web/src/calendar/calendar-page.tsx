@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Inbox, LoaderCircle } from "lucide-react";
 import { Button, IconButton, LegendSwatch, Segmented } from "@jarv1s/ui";
 import { listCalendarEvents } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
+import { useAssistantName } from "../api/use-assistant-name.js";
 import "../styles/kit-calendar.css";
 import {
   buildWeekDays,
@@ -26,6 +27,7 @@ import { CalendarPeek } from "./calendar-peek.js";
 const HOUR_H = 58;
 
 export function CalendarPage() {
+  const assistantName = useAssistantName();
   const [view, setView] = useState<CalendarView>(loadPersistedView);
   const [cursor, setCursor] = useState<Date>(loadPersistedCursor);
   const [workWeek, setWorkWeek] = useState<boolean>(loadPersistedWorkWeek);
@@ -157,12 +159,12 @@ export function CalendarPage() {
           </span>
           <span className="cal-legend__item">
             <LegendSwatch tone="hold" />
-            Jarvis holding
+            {assistantName} holding
           </span>
           {view === "day" && isToday(cursor) && heldToday > 0 ? (
             <span className="cal-legend__note">
-              Jarvis is holding {heldToday} block{heldToday === 1 ? "" : "s"} around what matters
-              today.
+              {assistantName} is holding {heldToday} block{heldToday === 1 ? "" : "s"} around what
+              matters today.
             </span>
           ) : null}
         </div>

@@ -31,6 +31,7 @@ import {
 import { NavLink, useLocation, useNavigate } from "react-router";
 
 import { listNotifications, listThemes, sendChatTurn, signOut } from "../api/client";
+import { useAssistantName } from "../api/use-assistant-name";
 import { getWeatherToday } from "../api/weather-client";
 import { buildShellNavigation, resolvePageHeading } from "../app-route-metadata";
 import { useUserLocale } from "../locale/locale-format";
@@ -91,6 +92,7 @@ const iconMap: Record<string, ComponentType<{ readonly size?: number }>> = {
 
 export function AppShell(props: AppShellProps) {
   usePageContextSync();
+  const assistantName = useAssistantName();
   const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
@@ -311,7 +313,7 @@ export function AppShell(props: AppShellProps) {
           <span className="brand-mark">
             <BrandMark />
           </span>
-          <span className="brand-wordmark">Jarvis</span>
+          <span className="brand-wordmark">Moss</span>
         </div>
 
         <nav className="module-nav" aria-label="Modules">
@@ -379,10 +381,10 @@ export function AppShell(props: AppShellProps) {
 
           <div className="topbar-actions">
             <button
-              aria-label="Chat with Jarvis"
+              aria-label={`Chat with ${assistantName}`}
               aria-pressed={chatOpen}
               className={`icon-button ${chatOpen ? "active" : ""}`}
-              title="Ask Jarvis"
+              title={`Ask ${assistantName}`}
               type="button"
               onClick={() => setChatOpen((open) => !open)}
             >

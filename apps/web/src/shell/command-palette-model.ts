@@ -44,6 +44,7 @@ export function buildCommandPaletteCommands(input: {
   readonly modules: readonly ModuleDto[];
   readonly disabledModuleIds: readonly string[];
   readonly themes: ListThemesResponse | undefined;
+  readonly assistantName: string;
 }): readonly CommandPaletteCommand[] {
   const enabledModules = input.modules.filter(
     (module) => !input.disabledModuleIds.includes(module.id)
@@ -143,7 +144,7 @@ export function buildCommandPaletteCommands(input: {
       id: "settings:sources",
       group: "Settings",
       label: "Open data sources",
-      description: "Choose what Jarvis can read",
+      description: `Choose what ${input.assistantName} can read`,
       keywords: ["settings", "sources", "email", "calendar", "notes"],
       icon: "database",
       action: { kind: "navigate", to: settingsSectionHref("sources") }

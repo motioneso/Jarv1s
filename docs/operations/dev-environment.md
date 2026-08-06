@@ -1,6 +1,6 @@
 # Dev Environment & Infrastructure Notes
 
-Operational notes for running Jarv1s locally. For the full command list see `CLAUDE.md` →
+Operational notes for running Moss locally. For the full command list see `CLAUDE.md` →
 _Commands_; for release/ops scripts see `docs/operations/release-hardening.md`.
 
 ## Local / LAN dev run
