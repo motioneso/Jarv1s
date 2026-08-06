@@ -1,13 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 
 import { ConnectProviderEmpty } from "../../apps/web/src/chat/connect-provider-empty.js";
 
+// ConnectProviderEmpty reads the configured assistant name via useAssistantName (react-query), so
+// rendering it needs a QueryClientProvider ancestor. No cache priming here — none of these
+// assertions inspect the assistant name, only the explainer copy and settings deep-link.
 function render(props: { isFounder: boolean }): string {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return renderToString(
-    createElement(MemoryRouter, null, createElement(ConnectProviderEmpty, props))
+    createElement(
+      QueryClientProvider,
+      { client },
+      createElement(MemoryRouter, null, createElement(ConnectProviderEmpty, props))
+    )
   );
 }
 

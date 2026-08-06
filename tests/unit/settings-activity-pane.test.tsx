@@ -20,7 +20,11 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 vi.mock("../../apps/web/src/api/client.js", () => ({
-  listActionAuditLog: vi.fn()
+  listActionAuditLog: vi.fn(),
+  // ActivityPane resolves the configured assistant name via useAssistantName, which imports
+  // getPersonaSettings from this module — the mock must define it or the import throws. useQuery
+  // is mocked below (ignores queryFn), so this is never actually called.
+  getPersonaSettings: vi.fn()
 }));
 
 vi.mock("../../apps/web/src/locale/locale-format.js", () => ({
