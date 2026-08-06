@@ -124,12 +124,29 @@ Via `herdr-pane-message` to your coordinator label:
 > "<slug> DONE. PR: <link>. VF_EXIT=0 AUDIT_EXIT=0 (full suite, gate DB jarvis_gate_<slug>).
 > Live-path: <proof comment posted | n/a, no user-facing surface | NOT MET — code-complete,
 > unverified because <reason>>. Branch <b> pushed, rebased on origin/main as of <sha>.
-> Deferred: <none | issue #NN>. Ready for QA + merge."
+> Deferred: <none | issue #NN>. Teardown: <instance stopped PIDs … | none started>, <N seed rows
+> deleted | none seeded>, worktree reapable. Ready for QA + merge."
 
 Then stop. **Do not** move the board, close the issue/milestone, or merge — the coordinator owns
 QA, merge order, conflict resolution, and all GitHub bookkeeping.
 
-### 5. Durable memory (only if you discovered something non-obvious)
+### 5. Tear down everything you stood up — then say so
+
+**Your work is not finished when the PR is green.** Anything you started outside your own worktree
+is still running until you stop it, and the next lane inherits the mess. Before you report done:
+
+- **Dev instances: stop by explicit PID, never by name pattern.** Record the PIDs when you start
+  them. `pkill -f worker` matches prod's containerised worker, which shows up in host `ps` as a
+  bare `node dist/worker.js` — a broad pattern kill hits production and nothing else.
+- **Seeded rows: delete by recorded id, and check the row counts.** The dev DB is shared. Never
+  `TRUNCATE`, never a seeded reset.
+- **Your worktree: tell the coordinator it is reapable** (branch pushed, tree clean, nothing
+  running in it), or say plainly what you are leaving behind and why.
+
+Then state teardown explicitly in your report — "instance stopped (PIDs 1234/1235), 3 seed rows
+deleted, worktree reapable". Silence reads as done, and it usually isn't.
+
+### 6. Durable memory (only if you discovered something non-obvious)
 
 If you hit a real trap or made a non-obvious decision, `memory_save` (`project: "jarv1s"`) now —
 or tell the coordinator so it's captured. Don't store secrets.
@@ -147,6 +164,9 @@ or tell the coordinator so it's captured. Don't store secrets.
 - **Reporting a user-facing PR "done" with no live-path proof comment** — the honest status is
   *code-complete, unverified*, and saying "done" instead is the failure the gate exists to stop.
 - Letting deferred scope evaporate (no follow-up issue).
+- **Reporting done with a dev instance still listening or seed rows still in the shared DB.** A
+  green PR is not a finished lane; leaving `:3000` held is how the next lane loses an hour.
+- **Killing anything by name pattern.** Prod's worker looks like a stray dev process in `ps`.
 
 ## Quick reference
 
