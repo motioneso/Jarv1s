@@ -123,3 +123,22 @@ its verdict.
 The telegraph-style compression saved few tokens and mangled exactly the messages that need
 precision — plan approvals and `[SECURITY]` escalations. → Report terse and result-first in
 normal English; do not compress into caveman/telegraph style.
+
+## 2026-08-06 — spawned lanes were anonymous, in two namespaces at once
+
+Two lanes spawned for PRs #1437 and #1379 showed up as bare pane ids with an empty label, so Ben
+could not tell which was which without reading each pane. → Every spawn is named **twice**:
+`herdr pane rename <pane> "<Human Label>"` sets what `herdr pane list` and FleetView display;
+`herdr pane run <pane> "/rename <slug>"` sets the header inside the agent's own pane. Setting one
+leaves the other blank. Name for the work (`PR1437 typecheck fix`), not the wave.
+
+## 2026-08-06 — this skill's spawn command had drifted from the herdr CLI
+
+`herdr agent start` accepts only `--kind`, `--pane` and `--timeout`; the documented `--cwd` and
+`--tab` no longer exist, so the recorded command could not spawn anything. → Split the pane first
+(`herdr pane split … --cwd <worktree>`), then start the agent into that pane. Two argument rules
+that each cost a spawn: the agent name must be 1–32 chars of lowercase/digits/`-`/`_`
+(`invalid_agent_name`), and the bootstrap must be shell-encodable — newlines, backticks or quotes
+are rejected with `invalid_agent_argument`, which is herdr refusing to guess, not a transient
+error. Pass a one-line pointer to a brief file kept **outside** the agent's worktree, since an
+untracked file inside it reds that agent's own gate.
