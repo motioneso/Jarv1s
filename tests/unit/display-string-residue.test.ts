@@ -4,6 +4,14 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import {
+  extractStringLiterals,
+  FILE_SCOPED_EXCEPTIONS,
+  isAllowedNonDisplaySpelling,
+  isFileScopedException,
+  NON_DISPLAY_SPELLINGS
+} from "./helpers/display-string-guard.js";
+
 // Static regression guard for #1441 (Moss rename PR1 — display strings).
 // The rename lane scoped its greps to `apps/web/src` and therefore MISSED six
 // user/model-visible strings that live in `packages/` (app-map-core.ts and
@@ -28,7 +36,7 @@ function extractDisplayStrings(source: string): string[] {
   return [...source.matchAll(DISPLAY_STRING_PATTERN)].map((match) => match[1]!);
 }
 
-describe("display-string residue (static) — #1441", () => {
+describe("display-string residue (static) — #1441 / #1456", () => {
   it("app-map-core.ts label/description literals carry no hardcoded Jarvis", () => {
     const path = resolve(here, "../../packages/shared/src/app-map-core.ts");
     const source = readFileSync(path, "utf8");
@@ -94,6 +102,90 @@ describe("display-string residue (static) — #1441", () => {
       `evening interview trusted preamble must not hardcode "Jarvis": "${trustedLiteral}"`
     ).not.toMatch(/Jarvis/i);
   });
+
+  it("data-export-async-routes.ts JSON download filename carries no hardcoded Jarvis", () => {
+    // #1456: the user's JSON data-export download filename is a `const filename = \`...\`;`
+    // template literal, not a label:/description: field, so DISPLAY_STRING_PATTERN can't see it,
+    // and it is not swallowed by the narrowed NON_DISPLAY_SPELLINGS below because it ends in a
+    // file-extension shape (see display-string-guard.ts). The file has TWO `const filename = ...`
+    // template literals (the wellness HTML export's is first) — anchor on the `date` identifier
+    // used only by the JSON branch so this test targets the right one. It fails against the
+    // pre-#1456 source, which read `jarvis-export-${date}.json`.
+    const path = resolve(here, "../../packages/settings/src/data-export-async-routes.ts");
+    const source = readFileSync(path, "utf8");
+
+    const filenameMatch = source.match(/const filename = `([^`]*\$\{date\}[^`]*)`;/);
+    expect(filenameMatch, "JSON export filename literal must be present").not.toBeNull();
+
+    const filenameLiteral = filenameMatch![1]!;
+    expect(
+      filenameLiteral,
+      `JSON export download filename must not hardcode "Jarvis": "${filenameLiteral}"`
+    ).not.toMatch(/Jarvis/i);
+  });
+
+  it("plaid.ts link token client_name carries no hardcoded Jarvis", () => {
+    // #1456: `client_name` is rendered inside Plaid Link's own dialog, mid-flow, while the user is
+    // connecting a bank account. Confirmed via Plaid's /link/token/create docs that client_name is
+    // free-form Link display text (max 30 chars) with no Plaid Dashboard registration requirement,
+    // so renaming it carries no external-dependency risk. This test fails against the pre-#1456
+    // source, which read `client_name: "Jarvis"`.
+    const path = resolve(here, "../../external-modules/finance/src/adapters/plaid.ts");
+    const source = readFileSync(path, "utf8");
+
+    const clientNameMatch = source.match(/client_name:\s*"([^"]*)"/);
+    expect(clientNameMatch, "client_name literal must be present").not.toBeNull();
+
+    const clientNameLiteral = clientNameMatch![1]!;
+    expect(
+      clientNameLiteral,
+      `Plaid Link client_name must not hardcode "Jarvis": "${clientNameLiteral}"`
+    ).not.toMatch(/Jarvis/i);
+  });
+});
+
+describe("display-string residue guard classification (unit) — #1456", () => {
+  // Direct unit tests of the NON_DISPLAY_SPELLINGS patterns themselves, independent of what the
+  // live source tree currently contains. The prior guard allowlisted the whole `/jarvis[._-]/`
+  // class — broad enough that its own comment named "filenames" among the internal identifiers it
+  // was meant to exempt, which is exactly how the #1456 export filename survived tier A. Run
+  // against that prior pattern, the first assertion below fails: the literal below is allowlisted
+  // when it must be flagged. That is the guard's teeth.
+  it("flags a user-visible filename shape as an offender, not an allowed identifier", () => {
+    expect(isAllowedNonDisplaySpelling("jarvis-export-2026-08-06.json")).toBe(false);
+    expect(isAllowedNonDisplaySpelling("moss-branding-notes.csv")).toBe(false);
+  });
+
+  it("still allowlists the legitimate internal identifiers the old catch-all protected", () => {
+    // Dotted namespace identifiers: localStorage keys, module/event ids, manifest filename.
+    expect(isAllowedNonDisplaySpelling("jarvis.settings:v1")).toBe(true);
+    expect(isAllowedNonDisplaySpelling("jarvis.goals")).toBe(true);
+    expect(isAllowedNonDisplaySpelling("jarvis.module.json")).toBe(true);
+    // Snake_case Postgres roles/tables/columns and migration/queue references.
+    expect(isAllowedNonDisplaySpelling("jarvis_migration_owner")).toBe(true);
+    expect(isAllowedNonDisplaySpelling("app.jarvis_action_audit_log")).toBe(true);
+    // Hyphenated identifiers with no file-extension ending: window target name, frozen archive
+    // format marker (the wire contract this PR must NOT touch).
+    expect(isAllowedNonDisplaySpelling("jarvis-google-consent")).toBe(true);
+    expect(isAllowedNonDisplaySpelling("jarvis-archive/v1")).toBe(true);
+  });
+
+  it("no longer carries a file-scoped exception for the Plaid client_name string", () => {
+    // #1456 fixed the string instead of exempting it; the exception mechanism stays available
+    // for a genuine future case, but must not currently list this one.
+    expect(isFileScopedException("external-modules/finance/src/adapters/plaid.ts", "Jarvis")).toBe(
+      false
+    );
+  });
+
+  it("NON_DISPLAY_SPELLINGS no longer contains a blanket jarvis[._-] pattern", () => {
+    // Guards against silently re-widening the allowlist back to the old catch-all: a pattern that
+    // matches the export-filename shape without requiring the extension-ending distinction would
+    // reopen exactly the hole #1456 closed.
+    expect(
+      NON_DISPLAY_SPELLINGS.some((pattern) => pattern.test("jarvis-export-2026-08-06.json"))
+    ).toBe(false);
+  });
 });
 
 /* The three tests above name individual files, which is how ~50 display strings survived the first
@@ -107,122 +199,9 @@ const SOURCE_ROOTS = [
   resolve(repoRoot, "external-modules")
 ];
 
-/* Spellings that are NOT display strings. Each is a repository-level identifier tracked separately
-   by #1442-#1444, and most would corrupt data or break a wire contract if renamed here:
-   - `<!-- jarvis:...` markers are written into users' real note files on disk; renaming orphans
-     every marker in every existing vault.
-   - `jarvis.*` localStorage keys hold the user's saved view, theme and colour mode; renaming
-     silently discards every existing preference.
-   - `jarvis-archive/v1` is stamped into every archive already exported; renaming makes those
-     archives unreadable to a future importer that keys on the string.
-   - `jarvis_*_runtime` are PostgreSQL roles, which are cluster-global.
-   - `mcp__jarvis__*`, `jarvis.module.json`, `x-jarvis-*`, `virtual:jarvis-*` and the
-     `Jarvis-*` HTTP user-agents are contracts with clients, the bundler, and third-party servers.
-   - `data-jarvis-capture-text` is the page-context opt-in attribute (#1438).
-   - `sql/0127_jarvis_*.sql` are applied migration filenames, which are hash-checked and can
-     never be edited.
-   - `client_name: "Jarvis"` (external-modules/finance/src/adapters/plaid.ts) is registered with
-     Plaid and rendered inside Plaid Link, a UI this repo does not control; renaming it risks
-     breaking the connector against a registration Plaid holds under the old name.
-   Add to this list only with a reason, and only when the string genuinely never reaches a user. */
-const NON_DISPLAY_SPELLINGS = [
-  /@jarv1s\//,
-  /[Jj]arvis[A-Z]/, // identifiers: MossModuleManifest, MossDatabase, jarvisPersonId
-  /JsonJarvis/,
-  /isJarvis|compareJarvis/,
-  /JARVIS_/, // env vars and globals
-  /virtual:jarvis-/,
-  /x-jarvis-/,
-  /data-jarvis-/,
-  /mcp__jarvis__/, // MCP tool-name prefix
-  /jarvis[._-]/, // storage keys, module ids, role names, filenames, format ids, bundle names
-  /jarvis:[a-z]/, // event names and note markers: "jarvis:open-command-palette", "jarvis:people:start"
-  /\.jarvis\b/, // dot-directory names: ".jarvis", ".jarvis/cli-tokens"
-  /Jarvis-[A-Z]/, // outward network identity: Jarvis-Upgrade-Checker, Jarvis-WebResearch
-  /^jarvis$/ // bare identifier: DB role, MCP server name
-];
-
-/* One exception is scoped to a single file rather than added to the list above, because the
-   spelling it allows is a bare "Jarvis" — the exact shape a missed display string takes. A global
-   pattern for it would silently swallow every future one, which is how the seven external-modules
-   strings survived six phases of this rename in the first place. */
-const FILE_SCOPED_EXCEPTIONS: ReadonlyArray<{ file: string; literal: string }> = [
-  { file: "external-modules/finance/src/adapters/plaid.ts", literal: "Jarvis" }
-];
-
-/* Walks the source once, returning the text of every string literal — double-quoted,
-   single-quoted, and the literal chunks of a template. Three reasons this is a walker rather
-   than the regex the file uses above:
-   - It skips comments. Two comments legitimately quote the former name: a GitHub issue title in
-     `apps/web/src/chat/page-context.ts`, and Ben's verbatim 2026-07-26 ruling in
-     `packages/email/src/manifest.ts`. Editing a quotation to fit a rename falsifies the record,
-     so the guard must not ask anyone to.
-   - It sees single-quoted strings. Prettier switches to single quotes when a string contains a
-     double quote, which is exactly what `TASKS_FIRST_RUN_NOTICE` does — a regex over `"..."`
-     cannot see that string at all.
-   - It sees templates. `` `Jarvis ${version} is available` `` is a shipped notification title.
-   Inside `${...}` the walker skips to the matching brace and keeps whatever text it passes over;
-   that text is expression source, not copy, so anything it contributes is an identifier the
-   allowlist above already filters. Over-scanning is safe here; under-scanning is not. */
-function extractStringLiterals(source: string): string[] {
-  const out: string[] = [];
-  let i = 0;
-
-  while (i < source.length) {
-    const ch = source[i]!;
-    const next = source[i + 1];
-
-    if (ch === "/" && next === "/") {
-      const end = source.indexOf("\n", i);
-      i = end === -1 ? source.length : end + 1;
-    } else if (ch === "/" && next === "*") {
-      const end = source.indexOf("*/", i + 2);
-      i = end === -1 ? source.length : end + 2;
-    } else if (ch === '"' || ch === "'") {
-      let j = i + 1;
-      let value = "";
-      while (j < source.length && source[j] !== ch) {
-        if (source[j] === "\\") {
-          value += source[j + 1] ?? "";
-          j += 2;
-        } else if (source[j] === "\n") {
-          break; // unterminated: not a literal, bail rather than swallow the file
-        } else {
-          value += source[j];
-          j += 1;
-        }
-      }
-      out.push(value);
-      i = j + 1;
-    } else if (ch === "`") {
-      let j = i + 1;
-      let value = "";
-      while (j < source.length && source[j] !== "`") {
-        if (source[j] === "\\") {
-          value += source[j + 1] ?? "";
-          j += 2;
-        } else if (source[j] === "$" && source[j + 1] === "{") {
-          let depth = 1;
-          j += 2;
-          while (j < source.length && depth > 0) {
-            if (source[j] === "{") depth += 1;
-            else if (source[j] === "}") depth -= 1;
-            j += 1;
-          }
-        } else {
-          value += source[j];
-          j += 1;
-        }
-      }
-      out.push(value);
-      i = j + 1;
-    } else {
-      i += 1;
-    }
-  }
-
-  return out;
-}
+// NON_DISPLAY_SPELLINGS, FILE_SCOPED_EXCEPTIONS and extractStringLiterals live in
+// ./helpers/display-string-guard.ts (imported above) so the classification patterns can be
+// unit-tested directly — see the "display-string residue guard classification" describe block.
 
 function collectSourceFiles(dir: string, out: string[]): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

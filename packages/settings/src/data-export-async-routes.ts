@@ -131,7 +131,7 @@ export function registerDataExportAsyncRoutes(
       }
 
       const date = new Date().toISOString().slice(0, 10);
-      const filename = `jarvis-export-${date}.json`;
+      const filename = `moss-export-${date}.json`;
 
       void reply.header("Content-Type", "application/json");
       void reply.header("Content-Disposition", `attachment; filename="${filename}"`);
