@@ -227,7 +227,7 @@ function FeedBody(props: {
     return (
       <EmptyState
         title="Connect a bank"
-        body="Finance syncs accounts and transactions once a bank is connected. Ask Jarvis to connect one — the assistant walks you through the secure Plaid link."
+        body="Finance syncs accounts and transactions once a bank is connected. Ask your assistant to connect one — it walks you through the secure Plaid link."
         action={
           <button
             type="button"
@@ -236,7 +236,7 @@ function FeedBody(props: {
               props.hostActions.openAssistant({ starterPrompt: "Connect my bank account" })
             }
           >
-            Connect with Jarvis
+            Connect with your assistant
           </button>
         }
       />

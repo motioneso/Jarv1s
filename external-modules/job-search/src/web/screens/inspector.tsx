@@ -247,7 +247,7 @@ export function Inspector(props: InspectorProps): ReactNodeLike {
         </section>
 
         <section className="jsm-detail__read">
-          <SectionHead label="Jarvis's read" />
+          <SectionHead label="Your assistant's read" />
           <p className="jds-hint jsm-detail__axis-definition">
             Fit measures résumé evidence for the role; Want measures alignment with the work you
             said you want, independently.

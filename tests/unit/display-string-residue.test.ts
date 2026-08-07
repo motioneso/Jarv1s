@@ -101,7 +101,11 @@ describe("display-string residue (static) — #1441", () => {
    ones they did not. The sweep below is scoped to a directory tree instead, so a newly added
    package is covered the day it appears rather than the day someone remembers to list it. */
 
-const SOURCE_ROOTS = [resolve(repoRoot, "apps/web/src"), resolve(repoRoot, "packages")];
+const SOURCE_ROOTS = [
+  resolve(repoRoot, "apps/web/src"),
+  resolve(repoRoot, "packages"),
+  resolve(repoRoot, "external-modules")
+];
 
 /* Spellings that are NOT display strings. Each is a repository-level identifier tracked separately
    by #1442-#1444, and most would corrupt data or break a wire contract if renamed here:
@@ -117,6 +121,9 @@ const SOURCE_ROOTS = [resolve(repoRoot, "apps/web/src"), resolve(repoRoot, "pack
    - `data-jarvis-capture-text` is the page-context opt-in attribute (#1438).
    - `sql/0127_jarvis_*.sql` are applied migration filenames, which are hash-checked and can
      never be edited.
+   - `client_name: "Jarvis"` (external-modules/finance/src/adapters/plaid.ts) is registered with
+     Plaid and rendered inside Plaid Link, a UI this repo does not control; renaming it risks
+     breaking the connector against a registration Plaid holds under the old name.
    Add to this list only with a reason, and only when the string genuinely never reaches a user. */
 const NON_DISPLAY_SPELLINGS = [
   /@jarv1s\//,
@@ -133,6 +140,14 @@ const NON_DISPLAY_SPELLINGS = [
   /\.jarvis\b/, // dot-directory names: ".jarvis", ".jarvis/cli-tokens"
   /Jarvis-[A-Z]/, // outward network identity: Jarvis-Upgrade-Checker, Jarvis-WebResearch
   /^jarvis$/ // bare identifier: DB role, MCP server name
+];
+
+/* One exception is scoped to a single file rather than added to the list above, because the
+   spelling it allows is a bare "Jarvis" — the exact shape a missed display string takes. A global
+   pattern for it would silently swallow every future one, which is how the seven external-modules
+   strings survived six phases of this rename in the first place. */
+const FILE_SCOPED_EXCEPTIONS: ReadonlyArray<{ file: string; literal: string }> = [
+  { file: "external-modules/finance/src/adapters/plaid.ts", literal: "Jarvis" }
 ];
 
 /* Walks the source once, returning the text of every string literal — double-quoted,
@@ -242,12 +257,19 @@ describe("no product-name residue anywhere in shipped source (#1441)", () => {
     for (const file of files) {
       const source = readFileSync(file, "utf8");
       if (!/jarvis/i.test(source)) continue;
+      const relativePath = relative(repoRoot, file);
 
       for (const literal of extractStringLiterals(source)) {
         stringsScanned += 1;
         if (!/jarvis/i.test(literal)) continue;
         if (NON_DISPLAY_SPELLINGS.some((pattern) => pattern.test(literal))) continue;
-        offenders.push(`${relative(repoRoot, file)}: "${literal}"`);
+        if (
+          FILE_SCOPED_EXCEPTIONS.some(
+            (exception) => exception.file === relativePath && exception.literal === literal
+          )
+        )
+          continue;
+        offenders.push(`${relativePath}: "${literal}"`);
       }
     }
 

@@ -180,7 +180,7 @@ const BUCKETS: ReadonlyArray<{ key: MatchBucket; label: string }> = [
 const BUCKET_EMPTY: Record<MatchBucket, string> = {
   unreviewed: "Nothing credible has landed here yet. New matches appear after monitors run.",
   saved:
-    "Ask Jarvis to save an opportunity and it lands here — decisions happen in the conversation.",
+    "Ask your assistant to save an opportunity and it lands here — decisions happen in the conversation.",
   passed: "Roles you've passed on file here, with the reason kept."
 };
 
