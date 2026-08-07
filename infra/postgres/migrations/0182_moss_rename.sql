@@ -1,9 +1,13 @@
--- #1444 (Moss rename, Phase 1b — database half). Plan:
+-- #1444 (Moss rename, database half). Plan:
 -- docs/superpowers/plans/2026-08-06-moss-1444-database-cutover.md §3.4, §1.2.
 --
--- DO NOT MERGE ALONE: this migration lands only in the #1444 cutover window, in the same deploy
--- as the `moss_*` role rename (out-of-band script, not here) and the ROLE_URL_SOURCES repo change.
--- Applied against the OLD role names still in place, so no role identifier appears below.
+-- DO NOT MERGE ALONE: this migration lands only in the #1444 cutover window, together with the
+-- database rename jarv1s -> moss and the accompanying config/image changes. The currently
+-- deployed app still queries these tables by their old names, so merging this alone breaks it.
+--
+-- The four Postgres roles (jarvis_*) are not renamed by this migration or by any other change in
+-- scope for #1444 -- they stay jarvis_* permanently. No role identifier appears below, and that
+-- is a permanent property of this file, not a timing accident.
 --
 -- Renames the four app.jarvis_* tables and every dependent named object enumerated from the live
 -- catalogue (pg_indexes / pg_constraint / pg_policies / pg_trigger / pg_proc), plus CREATE OR
