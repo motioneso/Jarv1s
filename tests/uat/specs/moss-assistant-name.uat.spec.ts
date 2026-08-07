@@ -152,11 +152,14 @@ test.describe
   test("product name reads Moss on the auth/product chrome, independent of the assistant name", async ({
     page
   }) => {
-    await expect(page).toHaveTitle("Moss");
-
     // Signed-out auth screen eyebrow (auth-screen.tsx:46) — proves the product literal never
     // reads the per-user assistant name even before any user is authenticated.
     await page.goto(requireBaseURL());
+
+    // Asserted after the navigation, not before: each test gets a fresh page fixture even inside
+    // a serial describe, so a title assertion above the goto reads "" off about:blank and fails
+    // no matter what the product is called.
+    await expect(page).toHaveTitle("Moss");
     await expect(page.locator(".eyebrow")).toHaveText("Moss");
     expect(await page.locator(".eyebrow").innerText()).not.toBe(ASSISTANT_NAME);
 
