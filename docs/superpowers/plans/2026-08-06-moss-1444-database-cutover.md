@@ -24,18 +24,18 @@ hold. **Four are wrong, and one of the four changes the size of the job.**
 
 ### 1.1 Verified correct
 
-| Claim | Citation | Status |
-|---|---|---|
-| Applied migrations are sha256-hash-checked over the whole file | `packages/db/src/migrations/sql-runner.ts:62-63,173` | ✅ |
-| Version collision aborts before any migration runs | `sql-runner.ts:145` `assertUniqueMigrationVersions` | ✅ |
-| Each migration file is its own transaction | `sql-runner.ts:70`, `:124` | ✅ |
-| Migrate opens many sequential connections, most as `urls.migration` | `sql-runner.ts:39`, `:115`; `scripts/migrate.ts:23,36,43,52,53` | ✅ |
-| `CREATE SCHEMA … AUTHORIZATION jarvis_migration_owner` is hardcoded | `sql-runner.ts:186` | ✅ **still present post-tier-B** |
-| Role names come from a hardcoded table, not from the URLs | `packages/db/src/role-bootstrap.ts` `ROLE_URL_SOURCES` | ✅ |
-| Gate databases are created fresh on the shared cluster | `scripts/run-gate.sh:145,172`; `scripts/test-integration.ts:61` | ✅ |
-| Backup dumps `-Fc --no-owner --no-privileges` | `scripts/backup-full.sh:87` | ✅ |
-| Next free global migration version is `0182` | max version on tree = `0181`, 191 files | ✅ |
-| Cluster hash method is SCRAM, not MD5 | live: `password_encryption = scram-sha-256`; all four runtime roles `SCRAM` | ✅ **resolves spec open item #5 for dev** |
+| Claim                                                               | Citation                                                                    | Status                                    |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------- |
+| Applied migrations are sha256-hash-checked over the whole file      | `packages/db/src/migrations/sql-runner.ts:62-63,173`                        | ✅                                        |
+| Version collision aborts before any migration runs                  | `sql-runner.ts:145` `assertUniqueMigrationVersions`                         | ✅                                        |
+| Each migration file is its own transaction                          | `sql-runner.ts:70`, `:124`                                                  | ✅                                        |
+| Migrate opens many sequential connections, most as `urls.migration` | `sql-runner.ts:39`, `:115`; `scripts/migrate.ts:23,36,43,52,53`             | ✅                                        |
+| `CREATE SCHEMA … AUTHORIZATION jarvis_migration_owner` is hardcoded | `sql-runner.ts:186`                                                         | ✅ **still present post-tier-B**          |
+| Role names come from a hardcoded table, not from the URLs           | `packages/db/src/role-bootstrap.ts` `ROLE_URL_SOURCES`                      | ✅                                        |
+| Gate databases are created fresh on the shared cluster              | `scripts/run-gate.sh:145,172`; `scripts/test-integration.ts:61`             | ✅                                        |
+| Backup dumps `-Fc --no-owner --no-privileges`                       | `scripts/backup-full.sh:87`                                                 | ✅                                        |
+| Next free global migration version is `0182`                        | max version on tree = `0181`, 191 files                                     | ✅                                        |
+| Cluster hash method is SCRAM, not MD5                               | live: `password_encryption = scram-sha-256`; all four runtime roles `SCRAM` | ✅ **resolves spec open item #5 for dev** |
 
 ### 1.2 Wrong in the spec — corrected here
 
@@ -43,18 +43,18 @@ hold. **Four are wrong, and one of the four changes the size of the job.**
 ~5 indexes, 2 check constraints, ~12 RLS policies and 1 trigger". Enumerated from the live
 catalogue:
 
-| Object class | Spec estimate | Actual | Notes |
-|---|---|---|---|
-| Tables | 4 | **4** | ✅ |
-| Standalone indexes | ~5 | **5** | ✅ |
-| CHECK constraints | 2 | **25** | ❌ off by 23 |
-| FOREIGN KEY constraints | — | **5** | ❌ not mentioned |
-| PRIMARY KEY constraints | — | **4** | index-backed, renames with the constraint |
-| UNIQUE constraints | — | **1** | `jarvis_goals_owner_user_id_id_key` |
-| RLS policies | ~12 | **15** | ❌ off by 3 |
-| Triggers | 1 | **1** | ✅ |
-| Function names containing `jarvis` | — | **2** | ❌ not mentioned |
-| Function **bodies** referencing `jarvis` | flagged as a risk | **3** | ❌ risk is real, see (b) |
+| Object class                             | Spec estimate     | Actual | Notes                                     |
+| ---------------------------------------- | ----------------- | ------ | ----------------------------------------- |
+| Tables                                   | 4                 | **4**  | ✅                                        |
+| Standalone indexes                       | ~5                | **5**  | ✅                                        |
+| CHECK constraints                        | 2                 | **25** | ❌ off by 23                              |
+| FOREIGN KEY constraints                  | —                 | **5**  | ❌ not mentioned                          |
+| PRIMARY KEY constraints                  | —                 | **4**  | index-backed, renames with the constraint |
+| UNIQUE constraints                       | —                 | **1**  | `jarvis_goals_owner_user_id_id_key`       |
+| RLS policies                             | ~12               | **15** | ❌ off by 3                               |
+| Triggers                                 | 1                 | **1**  | ✅                                        |
+| Function names containing `jarvis`       | —                 | **2**  | ❌ not mentioned                          |
+| Function **bodies** referencing `jarvis` | flagged as a risk | **3**  | ❌ risk is real, see (b)                  |
 
 **Total named objects to rename: 62.** Not 29. The spec was right that grep would mislead — it
 undercounted its own estimate.
@@ -62,7 +62,7 @@ undercounted its own estimate.
 **(b) `app.record_anonymous_error` is the sharpest object in the whole job, and nothing named it.**
 It is `SECURITY DEFINER`, owned by `jarvis_migration_owner`, `search_path = app, public`, and its
 **body** references `app.jarvis_error_log`. Its own name contains no `jarv`, so every name-based
-search — including the spec's own `pg_proc` note, which was framed around renamed *functions* —
+search — including the spec's own `pg_proc` note, which was framed around renamed _functions_ —
 misses it.
 
 `prosrc` is stored as text. `ALTER TABLE … RENAME` does **not** rewrite it. After the table rename
@@ -163,16 +163,16 @@ are the same event.** Two things in that draft are not inert:
 
 The split is therefore **by what an existing install can survive**, not by subject matter:
 
-| | Merges to `main` when ready | Lands only in the cutover window |
-|---|---|---|
-| Baseline `0000_baseline.sql` | ✅ applies only to an empty ledger | |
-| `scripts/rename-roles.ts` | ✅ inert until invoked | |
-| Allowlist guard + `.github/jarv-allowlist.txt` | ✅ test-only | |
-| `sql-runner.ts:186` → `CURRENT_USER` | ✅ equivalent today — migrate already connects as the owning role | |
-| `smoke-compose.ts`, `backup-full.sh` read+write sides | ✅ neither runs on deploy | |
-| Migration `0182` + every caller of a renamed table | | ❌ must be one atomic deploy |
-| `ROLE_URL_SOURCES` → `moss_*` | | ❌ boot-time auth |
-| Env carve-out vars, image names, `/moss` URLs | | ❌ boot-time config |
+|                                                       | Merges to `main` when ready                                       | Lands only in the cutover window |
+| ----------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------- |
+| Baseline `0000_baseline.sql`                          | ✅ applies only to an empty ledger                                |                                  |
+| `scripts/rename-roles.ts`                             | ✅ inert until invoked                                            |                                  |
+| Allowlist guard + `.github/jarv-allowlist.txt`        | ✅ test-only                                                      |                                  |
+| `sql-runner.ts:186` → `CURRENT_USER`                  | ✅ equivalent today — migrate already connects as the owning role |                                  |
+| `smoke-compose.ts`, `backup-full.sh` read+write sides | ✅ neither runs on deploy                                         |                                  |
+| Migration `0182` + every caller of a renamed table    |                                                                   | ❌ must be one atomic deploy     |
+| `ROLE_URL_SOURCES` → `moss_*`                         |                                                                   | ❌ boot-time auth                |
+| Env carve-out vars, image names, `/moss` URLs         |                                                                   | ❌ boot-time config              |
 
 Phase 1b is built, reviewed and gate-green on its branch, and **merged as step 9 of the cutover
 runbook**, not before. Its PR carries `DO NOT MERGE — lands in the #1444 cutover window` until then.
@@ -229,18 +229,18 @@ nothing.
 **3.7 Tests.** Stated as behaviour + why they fail against a broken implementation:
 
 - Baseline applies to an empty ledger and the resulting schema matches a fully migrated database
-  object-for-object. *Fails if the dump is stale or a directory was missed.*
-- Baseline is skipped when the ledger is non-empty. *Fails if an existing install would re-run DDL.*
-- Ledger seed count equals the file-set count. *Fails if a module directory is unseeded — the defect
-  that would replay 19 directories against an existing schema.*
-- `pgboss` schema is absent from the baseline. *Fails if `migratePgBoss` would skip creation.*
-- `renameRoles` is a no-op on an already-renamed cluster. *Fails if re-running the runbook breaks it.*
-- `renameRoles` leaves the eight `jarvis_mod_*` roles untouched. *Fails if the pattern is too greedy —
-  which would silently uninstall every external module's grants.*
-- Reverse rename restores logins. *Fails if passwords are not re-assigned with the rename.*
-- Every `pg_proc.prosrc` in `app` is free of `jarv` after the migration. *Fails on
-  `record_anonymous_error`, the §1.2(b) trap.*
-- The allowlist check fails on a newly introduced unfrozen occurrence. *Fails if the guard has no teeth.*
+  object-for-object. _Fails if the dump is stale or a directory was missed._
+- Baseline is skipped when the ledger is non-empty. _Fails if an existing install would re-run DDL._
+- Ledger seed count equals the file-set count. _Fails if a module directory is unseeded — the defect
+  that would replay 19 directories against an existing schema._
+- `pgboss` schema is absent from the baseline. _Fails if `migratePgBoss` would skip creation._
+- `renameRoles` is a no-op on an already-renamed cluster. _Fails if re-running the runbook breaks it._
+- `renameRoles` leaves the eight `jarvis_mod_*` roles untouched. _Fails if the pattern is too greedy —
+  which would silently uninstall every external module's grants._
+- Reverse rename restores logins. _Fails if passwords are not re-assigned with the rename._
+- Every `pg_proc.prosrc` in `app` is free of `jarv` after the migration. _Fails on
+  `record_anonymous_error`, the §1.2(b) trap._
+- The allowlist check fails on a newly introduced unfrozen occurrence. _Fails if the guard has no teeth._
 
 **3.8 e2e for Phase 1** — provision a **fresh** database from the baseline on a **test cluster with
 the roles already renamed**, then run the full gate against it. This is the path the baseline exists
@@ -263,7 +263,7 @@ restored snapshot, not patched forward.
 0. **Take prod off the rolling tag before anything else.** Prod follows `:edge` with Watchtower
    unscoped, so merging Phase 1b to `main` builds an image that Watchtower deploys **on its next
    poll** — mid-cutover, or before it starts. Pin `JARVIS_IMAGE_TAG` to the current known-good
-   digest and confirm Watchtower is stopped, *then* merge Phase 1b and let CI build. Step 9 pulls
+   digest and confirm Watchtower is stopped, _then_ merge Phase 1b and let CI build. Step 9 pulls
    that build explicitly by tag. Restore `:edge` only after step 12 passes.
 
    Verify the pin took: the running container's image digest must match the pinned one, not
@@ -357,16 +357,16 @@ comment renders as `+--` and the pattern excludes it.
 ## 8. Open questions — owner named, not absorbed into steps
 
 1. **Prod cluster hash method** — unverified; prod is off-limits from this session. Read-only check
-   at runbook step 2. *Owner: whoever runs the cutover.*
+   at runbook step 2. _Owner: whoever runs the cutover._
 2. **`jarv1s-prod` compose project name and the systemd units** — frozen here per spec §4.8. Renaming
    them needs stop/disable/install/`daemon-reload`/enable/remove-old plus a checkout-directory
-   migration. *Separate follow-up issue. Owner: Ben.*
+   migration. _Separate follow-up issue. Owner: Ben._
 3. **`~/Jarv1s` checkout path** — frozen; embedded in three systemd units as `WorkingDirectory` and in
-   every `ExecStart`. *Same follow-up.*
+   every `ExecStart`. _Same follow-up._
 4. **Deferred renames**, each needing a dual-read plus a data migration or restage: module IDs,
    `jarvis.module.json`, `compatibility.jarv1s`, `mcp__jarvis__`, `jarvis_mod_*` roles, the five
    advisory-lock strings, `actor_kind='jarvis'`, `jarvis-emotion-v1` (live in
-   `app.wellness_checkins.wheel_version` as a column default). *Separate issues under #1440.*
+   `app.wellness_checkins.wheel_version` as a column default). _Separate issues under #1440._
 5. **Tier C shim removal** — the `JARVIS_*` fallbacks in `packages/db/src/env.ts`. Fold into this PR's
    follow-up rather than waiting an arbitrary release.
 
@@ -376,13 +376,13 @@ comment renders as `+--` and the pattern excludes it.
 
 Facts established here, with evidence, so nobody re-derives them:
 
-| # | Ruling | Evidence |
-|---|---|---|
-| R1 | 62 named database objects need renaming, not ~29 | live `pg_indexes`/`pg_constraint`/`pg_policies`/`pg_trigger`/`pg_proc` |
-| R2 | `record_anonymous_error` breaks at call time after the table rename; its name contains no `jarv` | `pg_proc.prosrc`, `packages/ai/src/repository.ts:2040` |
-| R3 | Eight volumes + one network are frozen, not three | `infra/docker-compose.prod.yml` volumes block |
-| R4 | Backup prune matches `jarv1s-*` — renaming one side fails silently | `scripts/backup-full.sh:30,44,101` |
-| R5 | Dev cluster is SCRAM; rename preserves the hashes | `SHOW password_encryption`, `pg_authid` |
-| R6 | Goals tables are referenced outside their module | `packages/settings/src/data-export-queries.ts` |
-| R7 | `jarv1s:last-active-admin` has two call sites that must agree | `packages/settings/src/repository.ts:860`, `scripts/delete-user-data.ts:168` |
-| R8 | Seed the ledger from `getBuiltInSqlMigrationDirectories()`, not a literal count | `scripts/migrate.ts:30-33`; the 20-vs-21 dispute is unresolvable by hand |
+| #   | Ruling                                                                                           | Evidence                                                                     |
+| --- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| R1  | 62 named database objects need renaming, not ~29                                                 | live `pg_indexes`/`pg_constraint`/`pg_policies`/`pg_trigger`/`pg_proc`       |
+| R2  | `record_anonymous_error` breaks at call time after the table rename; its name contains no `jarv` | `pg_proc.prosrc`, `packages/ai/src/repository.ts:2040`                       |
+| R3  | Eight volumes + one network are frozen, not three                                                | `infra/docker-compose.prod.yml` volumes block                                |
+| R4  | Backup prune matches `jarv1s-*` — renaming one side fails silently                               | `scripts/backup-full.sh:30,44,101`                                           |
+| R5  | Dev cluster is SCRAM; rename preserves the hashes                                                | `SHOW password_encryption`, `pg_authid`                                      |
+| R6  | Goals tables are referenced outside their module                                                 | `packages/settings/src/data-export-queries.ts`                               |
+| R7  | `jarv1s:last-active-admin` has two call sites that must agree                                    | `packages/settings/src/repository.ts:860`, `scripts/delete-user-data.ts:168` |
+| R8  | Seed the ledger from `getBuiltInSqlMigrationDirectories()`, not a literal count                  | `scripts/migrate.ts:30-33`; the 20-vs-21 dispute is unresolvable by hand     |

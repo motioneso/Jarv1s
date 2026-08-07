@@ -199,10 +199,7 @@ describe("export-worker-grants (#1077) — jarvis_worker_runtime SELECT on the 4
       { actorUserId: ownerUserId, requestId: "req:worker-write-denied-audit-log" },
       (scopedDb) =>
         expect(
-          scopedDb.db
-            .deleteFrom("app.moss_action_audit_log")
-            .where("id", "=", auditLogId)
-            .execute()
+          scopedDb.db.deleteFrom("app.moss_action_audit_log").where("id", "=", auditLogId).execute()
         ).rejects.toThrow(/permission denied/i)
     );
   });
