@@ -2,14 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import { NotificationsRepository } from "@jarv1s/notifications";
-import type { ListNotificationPreferencesResponse } from "@jarv1s/shared";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import { NotificationsRepository } from "@moss/notifications";
+import type { ListNotificationPreferencesResponse } from "@moss/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 describe("notification preferences", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;

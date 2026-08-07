@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { NewsSourcePreviewResponse } from "@jarv1s/shared";
+import type { NewsSourcePreviewResponse } from "@moss/shared";
 import {
   UAT_ADMIN_EMAIL,
   UAT_ADMIN_PASSWORD,

@@ -1,12 +1,12 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { join } from "node:path";
 
-import { MAX_INVOCATION_MS, MODULE_WORKER_CONTRACT_VERSION } from "@jarv1s/module-sdk";
+import { MAX_INVOCATION_MS, MODULE_WORKER_CONTRACT_VERSION } from "@moss/module-sdk";
 
 import type { ExternalModuleDiscovery } from "./types.js";
 
 // #1286 Task 2e: re-export so callers of this (node-only) module don't also need to
-// import from @jarv1s/module-sdk directly. The constant itself lives in module-sdk
+// import from @moss/module-sdk directly. The constant itself lives in module-sdk
 // because validate.ts (browser-safe, re-exported from this package's browser entry)
 // needs it too and cannot pull in this file's node:child_process import.
 export { MAX_INVOCATION_MS };

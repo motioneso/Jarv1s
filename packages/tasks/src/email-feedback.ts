@@ -1,4 +1,4 @@
-import type { AccessContext, DataContextDb, DataContextRunner, Task, TaskStatus } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner, Task, TaskStatus } from "@moss/db";
 
 /**
  * Structural port for recording accept/reject feedback when a user resolves an

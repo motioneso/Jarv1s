@@ -1,13 +1,13 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import { sendJob } from "@jarv1s/jobs";
-import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
-import { postNotesSyncRouteSchema, type PostNotesSyncResponse } from "@jarv1s/shared";
-import type { PreferencesRepository } from "@jarv1s/structured-state";
+import type { AccessContext, DataContextRunner } from "@moss/db";
+import { sendJob } from "@moss/jobs";
+import { HttpError, handleRouteError } from "@moss/module-sdk";
+import { postNotesSyncRouteSchema, type PostNotesSyncResponse } from "@moss/shared";
+import type { PreferencesRepository } from "@moss/structured-state";
 
-import { NOTES_SOURCE_PREFERENCE_KEY } from "@jarv1s/settings";
+import { NOTES_SOURCE_PREFERENCE_KEY } from "@moss/settings";
 import { NOTES_SYNC_QUEUE } from "./manifest.js";
 import type { NotesSyncJobPayload } from "./jobs.js";
 

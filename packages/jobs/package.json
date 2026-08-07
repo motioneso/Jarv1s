@@ -1,5 +1,5 @@
 {
-  "name": "@jarv1s/jobs",
+  "name": "@moss/jobs",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,9 +10,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@jarv1s/db": "workspace:*",
-    "@jarv1s/module-sdk": "workspace:*",
-    "@jarv1s/notifications": "workspace:*",
+    "@moss/db": "workspace:*",
+    "@moss/module-sdk": "workspace:*",
+    "@moss/notifications": "workspace:*",
     "kysely": "^0.29.2",
     "pg-boss": "^12.18.2"
   }

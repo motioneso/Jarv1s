@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { formatInZone, isValidTimeZone, type LocaleSettingsDto } from "@jarv1s/shared";
+import { formatInZone, isValidTimeZone, type LocaleSettingsDto } from "@moss/shared";
 
 import { getLocaleSettings } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
@@ -17,7 +17,7 @@ import { queryKeys } from "../api/query-keys.js";
  * `check:no-ambient-dates` gate enforces it.
  *
  * Timestamps stay UTC at rest — only their *presentation* is zoned here. Core
- * Intl-wrapping delegates to `@jarv1s/shared`'s `formatInZone`/`isValidTimeZone`
+ * Intl-wrapping delegates to `@moss/shared`'s `formatInZone`/`isValidTimeZone`
  * (the single source of truth for timezone-aware formatting, #636); day-bucketing
  * call sites use shared `localDay` directly instead of a local wrapper.
  */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { serializeEmailMessage } from "@jarv1s/email";
+import { serializeEmailMessage } from "@moss/email";
 
 describe("serializeEmailMessage summary/signals (C2)", () => {
   it("serializes summary + signals onto EmailMessageDto", () => {

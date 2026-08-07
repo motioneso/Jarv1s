@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CheckinDto } from "@jarv1s/shared";
+import type { CheckinDto } from "@moss/shared";
 import { todaysCheckins } from "../../apps/web/src/wellness/wellness-today.js";
 
 // Regression for #636 — the named bug: WellnessToday's todays-checkins filter did

@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import type { DataContextDb } from "@jarv1s/db";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { PreferenceRevisionConflictError } from "@jarv1s/structured-state";
+import type { DataContextDb } from "@moss/db";
+import type { MossModuleManifest } from "@moss/module-sdk";
+import { PreferenceRevisionConflictError } from "@moss/structured-state";
 import { setNotificationPreferenceEnabled } from "../../packages/settings/src/notification-preference-application.js";
 import type { NotificationPreferenceApplicationDeps } from "../../packages/settings/src/notification-preference-application.js";
 
 const scopedDb = {} as DataContextDb;
 
-function manifest(overrides: Partial<JarvisModuleManifest> = {}): JarvisModuleManifest {
+function manifest(overrides: Partial<MossModuleManifest> = {}): MossModuleManifest {
   return {
     id: "news",
     name: "News",
@@ -18,12 +18,12 @@ function manifest(overrides: Partial<JarvisModuleManifest> = {}): JarvisModuleMa
     compatibility: { jarv1s: "*" },
     notifications: { supported: true },
     ...overrides
-  } as JarvisModuleManifest;
+  } as MossModuleManifest;
 }
 
 function deps(
   overrides: Partial<NotificationPreferenceApplicationDeps> & {
-    manifests?: readonly JarvisModuleManifest[];
+    manifests?: readonly MossModuleManifest[];
     denyRows?: readonly { scope: "instance" | "user"; module_id: string; user_id: string | null }[];
   } = {}
 ): NotificationPreferenceApplicationDeps {

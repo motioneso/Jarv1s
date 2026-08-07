@@ -3,8 +3,8 @@ import {
   AuthSessionResolver,
   DataContextRunner,
   createDatabase,
-  type JarvisDatabase
-} from "@jarv1s/db";
+  type MossDatabase
+} from "@moss/db";
 import Fastify from "fastify";
 import type { Kysely } from "kysely";
 import {
@@ -15,7 +15,7 @@ import {
   type ImapProbeClient,
   type ImapProbeInput,
   type ImapProbeResult
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const CREDENTIALS = {
@@ -31,7 +31,7 @@ function fakeProbeClient(result: ImapProbeResult): ImapProbeClient {
 }
 
 describe("imap connect routes", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let server: ReturnType<typeof Fastify>;
 

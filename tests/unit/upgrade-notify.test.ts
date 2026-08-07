@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { handleUpgradeNotifyJob } from "@jarv1s/jobs";
+import { handleUpgradeNotifyJob } from "@moss/jobs";
 
 const job = {
   id: "job-1",

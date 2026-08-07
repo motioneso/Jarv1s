@@ -3,7 +3,7 @@ import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
-import type { AiActionPolicyDto } from "@jarv1s/shared";
+import type { AiActionPolicyDto } from "@moss/shared";
 import EmailSettings, {
   draftAutoChecked,
   draftAutoTierFromChecked,

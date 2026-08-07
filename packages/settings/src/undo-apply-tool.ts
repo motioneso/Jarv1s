@@ -1,6 +1,6 @@
-import { assertDataContextDb } from "@jarv1s/db";
-import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
-import { PreferenceRevisionConflictError, PreferencesRepository } from "@jarv1s/structured-state";
+import { assertDataContextDb } from "@moss/db";
+import type { ToolExecute, ToolResult } from "@moss/module-sdk";
+import { PreferenceRevisionConflictError, PreferencesRepository } from "@moss/structured-state";
 
 import { settingsUndoStack } from "./undo-stack.js";
 

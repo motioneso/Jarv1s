@@ -1,8 +1,8 @@
 import { useState, type FormEvent, type ReactElement } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Badge } from "@jarv1s/settings-ui";
-import { ApiError, Button } from "@jarv1s/module-web-sdk";
-import type { NewsCustomTopicDto, NewsPersonalizationAvailabilityDto } from "@jarv1s/shared";
+import { Badge } from "@moss/settings-ui";
+import { ApiError, Button } from "@moss/module-web-sdk";
+import type { NewsCustomTopicDto, NewsPersonalizationAvailabilityDto } from "@moss/shared";
 
 import { createNewsTopic, deleteNewsTopic, updateNewsTopic } from "../web/news-client.js";
 import { newsQueryKeys } from "../web/query-keys.js";

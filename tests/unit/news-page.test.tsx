@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import type { NewsHeadline, NewsOverviewResponse } from "@jarv1s/shared";
+import type { NewsHeadline, NewsOverviewResponse } from "@moss/shared";
 import { NewsPage, matchesTopic } from "../../packages/news/src/web/news-page.js";
 import { newsQueryKeys } from "../../packages/news/src/web/query-keys.js";
 

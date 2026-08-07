@@ -3,13 +3,13 @@ import type { OutgoingHttpHeaders } from "node:http";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { createDatabase, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import type {
   GetWeatherTodayResponse,
   GetWeatherLocationResponse,
   WeatherTodayDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import {
   connectionStrings,
   resetEmptyFoundationDatabase,
@@ -47,7 +47,7 @@ function makeIpWhoIsResponse(lat: number, lon: number, city: string, country: st
 }
 
 describe("weather integration", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let ownerCookie: string;
   let memberCookie: string;

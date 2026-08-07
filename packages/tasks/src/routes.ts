@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type { AccessContext, DataContextRunner, PreferencesPort, TaskStatus } from "@jarv1s/db";
+import type { AccessContext, DataContextRunner, PreferencesPort, TaskStatus } from "@moss/db";
 import {
   addTaskActivityRouteSchema,
   assignTaskTagRouteSchema,
@@ -31,11 +31,11 @@ import {
   updateTaskAgencyAutoExecuteRouteSchema,
   updateTaskPreferencesRouteSchema,
   updateTaskRouteSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
-import { sendJob } from "@jarv1s/jobs";
+import { sendJob } from "@moss/jobs";
 
-import { handleRouteError } from "@jarv1s/module-sdk";
+import { handleRouteError } from "@moss/module-sdk";
 
 import { HttpError } from "./errors.js";
 import { resolveTriageVerdict, type EmailTriageFeedbackPort } from "./email-feedback.js";

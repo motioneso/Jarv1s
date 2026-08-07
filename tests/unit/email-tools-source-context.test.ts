@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { dataContextBrand, type DataContextDb } from "@jarv1s/db";
-import type { ToolContext } from "@jarv1s/module-sdk";
+import { dataContextBrand, type DataContextDb } from "@moss/db";
+import type { ToolContext } from "@moss/module-sdk";
 import { emailListVisibleMessagesExecute } from "../../packages/email/src/tools.js";
 
 const scopedDb = { db: {} as never, [dataContextBrand]: true } satisfies DataContextDb;

@@ -3,15 +3,15 @@ import type { Kysely } from "kysely";
 import Fastify, { type FastifyInstance } from "fastify";
 import pg from "pg";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { getBuiltInModuleManifests, getModuleDeletionTables } from "@jarv1s/module-registry";
-import { HttpError } from "@jarv1s/module-sdk";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { getBuiltInModuleManifests, getModuleDeletionTables } from "@moss/module-registry";
+import { HttpError } from "@moss/module-sdk";
+import { PreferencesRepository } from "@moss/structured-state";
 import type {
   AestheticThemeTokens,
   ListThemesResponse,
   PutCustomThemeResponse
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import { registerSettingsRoutes } from "../../packages/settings/src/routes.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -37,7 +37,7 @@ function userHeaders(sessionId: string): Record<string, string> {
 }
 
 describe("settings theme preferences", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let server: FastifyInstance;
 
   beforeAll(async () => {

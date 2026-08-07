@@ -1,19 +1,13 @@
-import type {
-  ActionRequestPreview,
-  JarvisModuleManifest,
-  ToolResultMedia
-} from "@jarv1s/module-sdk";
+import type { ActionRequestPreview, MossModuleManifest, ToolResultMedia } from "@moss/module-sdk";
 
 /**
  * Resolves the modules whose tools are exposed for a user. The enablement SEAM
  * (ADR 0009 §3): the real resolver (createActiveModulesResolver in
- * @jarv1s/module-registry) reads the app.module_enablement deny-list under
+ * @moss/module-registry) reads the app.module_enablement deny-list under
  * withDataContext, so a disabled module's tools vanish from the surface with no
  * change to the gateway or any module. Async because it does a DB round-trip.
  */
-export type ActiveModulesResolver = (
-  actorUserId: string
-) => Promise<readonly JarvisModuleManifest[]>;
+export type ActiveModulesResolver = (actorUserId: string) => Promise<readonly MossModuleManifest[]>;
 
 /**
  * A record the gateway pushes into a chat session's live stream (out-of-band from

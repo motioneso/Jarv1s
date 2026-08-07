@@ -42,8 +42,8 @@ import {
   type RpcCancelSubmitParams,
   type RpcSubmitParams,
   type RpcSubmitLoginTokenResult
-} from "@jarv1s/chat/live";
-import type { Multiplexer, ProviderKind, TmuxIo } from "@jarv1s/ai";
+} from "@moss/chat/live";
+import type { Multiplexer, ProviderKind, TmuxIo } from "@moss/ai";
 
 import { Mutex } from "./mutex.js";
 import type { InstallService } from "./install-service.js";

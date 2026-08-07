@@ -6,7 +6,7 @@ import {
   setWebSearchKeyResolver,
   setWebSearchProviderForTests,
   type WebSearchKeyResolver
-} from "@jarv1s/web-research";
+} from "@moss/web-research";
 
 const BRAVE_KEY = "secret-brave-key-do-not-leak-9876543210";
 

@@ -1,7 +1,7 @@
 import type { PgBoss } from "pg-boss";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import type { ToolExecute, ToolResult, ToolSummarize } from "@jarv1s/module-sdk";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
+import type { ToolExecute, ToolResult, ToolSummarize } from "@moss/module-sdk";
 
 import type { NewsAiPort, NewsSafeFetchPort, NewsWebSearchPort } from "./discovery/ports.js";
 import { validateTopic } from "./discovery/policy-validation.js";

@@ -1,6 +1,6 @@
-import type { DatasetClient } from "@jarv1s/datasets";
-import { assertDataContextDb } from "@jarv1s/db";
-import type { ToolExecute, ToolResult, ToolSummarize } from "@jarv1s/module-sdk";
+import type { DatasetClient } from "@moss/datasets";
+import { assertDataContextDb } from "@moss/db";
+import type { ToolExecute, ToolResult, ToolSummarize } from "@moss/module-sdk";
 
 import { SportsFollowsRepository } from "./repository.js";
 import { SportsService, type SportsFollowsWriter } from "./sports-service.js";
@@ -30,7 +30,7 @@ export function configureSportsChatTools(
 
 /**
  * Test-only: restores the module-wide singleton to its unconfigured state (same convention as
- * @jarv1s/web-research's setWebFetchForTests et al). A test that calls configureSportsChatTools
+ * @moss/web-research's setWebFetchForTests et al). A test that calls configureSportsChatTools
  * must call this in an afterEach, or the fake writer/dataset client it installed leaks into
  * whatever test runs next in the same worker.
  */

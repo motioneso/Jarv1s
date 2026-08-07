@@ -488,7 +488,7 @@ export interface AiAssistantActionRequestsTable {
   updated_at: TimestampColumn;
 }
 
-export interface JarvisActionAuditLogTable {
+export interface MossActionAuditLogTable {
   id: string;
   owner_user_id: string;
   tool_module_id: string;
@@ -505,7 +505,7 @@ export interface JarvisActionAuditLogTable {
   occurred_at: TimestampColumn;
 }
 
-export interface JarvisErrorLogTable {
+export interface MossErrorLogTable {
   id: string;
   owner_user_id: string | null;
   occurred_at: TimestampColumn;
@@ -1080,7 +1080,7 @@ export interface NewsPolicyVerdictsTable {
   expires_at: TimestampColumn;
 }
 
-export interface JarvisDatabase {
+export interface MossDatabase {
   "app.schema_migrations": SchemaMigrationsTable;
   "app.users": UsersTable;
   "app.member_onboarding": MemberOnboardingTable;
@@ -1116,8 +1116,8 @@ export interface JarvisDatabase {
   "app.ai_provider_configs": AiProviderConfigsTable;
   "app.ai_configured_models": AiConfiguredModelsTable;
   "app.ai_assistant_action_requests": AiAssistantActionRequestsTable;
-  "app.jarvis_action_audit_log": JarvisActionAuditLogTable;
-  "app.jarvis_error_log": JarvisErrorLogTable;
+  "app.jarvis_action_audit_log": MossActionAuditLogTable;
+  "app.jarvis_error_log": MossErrorLogTable;
   "app.chat_threads": ChatThreadsTable;
   "app.chat_messages": ChatMessagesTable;
   "app.chat_skills": ChatSkillsTable;
@@ -1178,8 +1178,8 @@ export type ConnectorProvider = Selectable<ConnectorDefinitionsTable>;
 export type CalendarEvent = Selectable<CalendarEventsTable>;
 export type EmailMessage = Selectable<EmailMessagesTable>;
 export type AiAssistantActionRequest = Selectable<AiAssistantActionRequestsTable>;
-export type JarvisActionAuditLog = Selectable<JarvisActionAuditLogTable>;
-export type JarvisErrorLog = Selectable<JarvisErrorLogTable>;
+export type MossActionAuditLog = Selectable<MossActionAuditLogTable>;
+export type MossErrorLog = Selectable<MossErrorLogTable>;
 export type ChatThread = Selectable<ChatThreadsTable>;
 export type ChatMessage = Selectable<ChatMessagesTable>;
 export type ChatSkill = Selectable<ChatSkillsTable>;

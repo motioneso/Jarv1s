@@ -1,6 +1,6 @@
 import { Parser } from "htmlparser2";
 
-import type { ExternalSourceAdapter, ExternalSourceAdapterContext } from "@jarv1s/module-sdk";
+import type { ExternalSourceAdapter, ExternalSourceAdapterContext } from "@moss/module-sdk";
 
 import { sourceEntry, type NewsSourceEntry } from "./catalog.js";
 import {

@@ -2,15 +2,15 @@ import { randomUUID } from "node:crypto";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
-import type { UsefulnessFeedbackRepository } from "@jarv1s/usefulness-feedback";
+import type { UsefulnessFeedbackRepository } from "@moss/usefulness-feedback";
 
-import { listAssistantToolsFromManifests } from "@jarv1s/ai";
-import type { AccessContext, BriefingDefinition, BriefingRun, DataContextRunner } from "@jarv1s/db";
+import { listAssistantToolsFromManifests } from "@moss/ai";
+import type { AccessContext, BriefingDefinition, BriefingRun, DataContextRunner } from "@moss/db";
 import {
   HttpError,
   handleRouteError as handleModuleRouteError,
-  type JarvisModuleManifest
-} from "@jarv1s/module-sdk";
+  type MossModuleManifest
+} from "@moss/module-sdk";
 import {
   createBriefingDefinitionRouteSchema,
   listBriefingDefinitionsRouteSchema,
@@ -24,9 +24,9 @@ import {
   type BriefingType,
   type RunBriefingDefinitionRequest,
   type UpdateBriefingDefinitionRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
-import { sendJob } from "@jarv1s/jobs";
+import { sendJob } from "@moss/jobs";
 
 import { type BriefingRunPayload } from "./jobs.js";
 import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
@@ -37,7 +37,7 @@ import { deriveBriefingFeedbackItems } from "./feedback-targets.js";
 export interface BriefingsRoutesDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly dataContext: DataContextRunner;
-  readonly listModuleManifests: () => readonly JarvisModuleManifest[];
+  readonly listModuleManifests: () => readonly MossModuleManifest[];
   readonly boss: PgBoss;
   readonly repository?: BriefingsRepository;
   readonly feedbackRepository?: Pick<
@@ -335,7 +335,7 @@ function validateScheduleMetadata(
 
 function parseCreateDefinitionBody(
   body: unknown,
-  moduleManifests: readonly JarvisModuleManifest[]
+  moduleManifests: readonly MossModuleManifest[]
 ): CreateBriefingDefinitionInput {
   const value = requireObject(body);
   const briefingType = optionalBriefingType(value.briefingType) ?? "morning";
@@ -367,7 +367,7 @@ function parseCreateDefinitionBody(
 
 function parseUpdateDefinitionBody(
   body: unknown,
-  moduleManifests: readonly JarvisModuleManifest[]
+  moduleManifests: readonly MossModuleManifest[]
 ): UpdateBriefingDefinitionRequest {
   const value = requireObject(body);
   const selectedToolNames =
@@ -404,7 +404,7 @@ function parseRunDefinitionBody(body: unknown): RunBriefingDefinitionRequest {
 function requiredReadToolNames(
   value: unknown,
   fieldName: string,
-  moduleManifests: readonly JarvisModuleManifest[]
+  moduleManifests: readonly MossModuleManifest[]
 ): string[] {
   if (!Array.isArray(value) || value.length === 0) {
     throw new HttpError(400, `${fieldName} must be a non-empty array`);

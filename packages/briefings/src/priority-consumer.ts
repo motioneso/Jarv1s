@@ -6,9 +6,9 @@
  * results.
  */
 
-import type { PriorityCandidate, PriorityModelPreferenceV1 } from "@jarv1s/priority";
-import { PriorityPreferencesRepository } from "@jarv1s/priority";
-import type { DataContextDb } from "@jarv1s/db";
+import type { PriorityCandidate, PriorityModelPreferenceV1 } from "@moss/priority";
+import { PriorityPreferencesRepository } from "@moss/priority";
+import type { DataContextDb } from "@moss/db";
 
 const PRIORITY_MODEL_KEY = "priority.model.v1";
 const priorityPreferences = new PriorityPreferencesRepository();

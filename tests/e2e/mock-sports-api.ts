@@ -5,7 +5,7 @@ import type {
   Headline,
   SportsOverviewResponse,
   StandingsGroup
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 // Fixture + route registration for the broadsheet redesign screenshot sweep (#829 Task 5).
 // Deliberately NOT wired into the shared MockApiState/mockApi() contract used by every other

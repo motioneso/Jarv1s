@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
 
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
 import { connectionStrings, ids } from "./test-database.js";
 
 describe("SettingsRepository external-module state (app.external_modules, #917)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let runner: DataContextRunner;
   let repo: SettingsRepository;
 

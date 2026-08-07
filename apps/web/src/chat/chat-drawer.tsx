@@ -21,7 +21,7 @@ import {
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { useAssistantName } from "../api/use-assistant-name";
-import type { ChatAttachmentDto, ChatMessageDto, LocaleSettingsDto } from "@jarv1s/shared";
+import type { ChatAttachmentDto, ChatMessageDto, LocaleSettingsDto } from "@moss/shared";
 import { formatDate, useUserLocale } from "../locale/locale-format";
 import { ChatModelPill } from "./chat-model-pill";
 import { Composer } from "./composer";

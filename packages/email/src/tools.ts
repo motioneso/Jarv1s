@@ -1,4 +1,4 @@
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
 import type {
   ActionRequestPreview,
   ToolContext,
@@ -6,8 +6,8 @@ import type {
   ToolPreview,
   ToolResult,
   ToolServices
-} from "@jarv1s/module-sdk";
-import { nullableStringSchema } from "@jarv1s/shared";
+} from "@moss/module-sdk";
+import { nullableStringSchema } from "@moss/shared";
 
 import type { EmailWriteService, ReplyInput } from "./email-write-service.js";
 import { deriveReplyTarget } from "./reply-mime.js";
@@ -81,7 +81,7 @@ export const emailToolMessageOutputSchema = {
   }
 } as const;
 
-// Structural interfaces — no @jarv1s/connectors import (module isolation). Shapes mirror
+// Structural interfaces — no @moss/connectors import (module isolation). Shapes mirror
 // the connectors SourceContextService email surface.
 interface SourceAccountMetaShape {
   readonly connectorAccountId: string;

@@ -1,4 +1,4 @@
-import { Badge, type BadgeTone } from "@jarv1s/ui";
+import { Badge, type BadgeTone } from "@moss/ui";
 
 import type { FeedTone, TodayFeed } from "./feed-source";
 

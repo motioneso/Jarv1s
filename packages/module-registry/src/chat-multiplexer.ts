@@ -4,12 +4,12 @@ import { join } from "node:path";
 
 import type { Kysely } from "kysely";
 
-import type { JarvisDatabase } from "@jarv1s/db";
+import type { MossDatabase } from "@moss/db";
 import type {
   ChatMultiplexerChoice,
   OnboardingProviderCheckResponse,
   OnboardingProviderKind
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import {
   cliAvailable,
   createBinaryProbe,
@@ -20,14 +20,14 @@ import {
   type MultiplexerKind,
   type MultiplexerSource,
   type TmuxIo
-} from "@jarv1s/ai";
+} from "@moss/ai";
 import {
   CliChatUnavailableError,
   createRealEngineFactory,
   unavailableEngineFactory,
   type ChatEngineFactory,
   type RpcConnection
-} from "@jarv1s/chat";
+} from "@moss/chat";
 
 export interface ChatMultiplexerAvailability {
   readonly tmux: boolean;
@@ -62,7 +62,7 @@ async function boundedProbe(p: Promise<boolean>, ms = 1500): Promise<boolean> {
  * Per-kind availability is therefore direct:
  *   tmux  ⇔ tmux binary present
  *   herdr ⇔ herdr binary present AND a Root workspace is resolvable — via the ONE
- *           shared `isRootWorkspaceConfigured` predicate (@jarv1s/ai/root-workspace)
+ *           shared `isRootWorkspaceConfigured` predicate (@moss/ai/root-workspace)
  *           that `decideMultiplexer` also applies in multiplexer-resolve.ts, so the
  *           two can never disagree (#993). The only host I/O is the synchronous PATH
  * `has(bin)` inside createBinaryProbe, still wrapped so the contract is uniformly
@@ -379,9 +379,7 @@ function sleep(ms: number): Promise<void> {
  * by this slice). The admin GET/PUT routes (Task 12) still go through DataContextDb
  * + assertAdminUser; only this boot read bypasses it, and only for the allowlist.
  */
-async function readMultiplexerChoice(
-  appDb: Kysely<JarvisDatabase>
-): Promise<ChatMultiplexerChoice> {
+async function readMultiplexerChoice(appDb: Kysely<MossDatabase>): Promise<ChatMultiplexerChoice> {
   const key = "chat.multiplexer";
   if (!PREAUTH_READABLE_SETTING_KEYS.has(key)) {
     throw new Error(`pre-auth instance-setting read not allowed for key "${key}"`);
@@ -403,7 +401,7 @@ async function readMultiplexerChoice(
  * crashed.
  */
 export async function resolveChatEngineFactory(deps: {
-  appDb: Kysely<JarvisDatabase>;
+  appDb: Kysely<MossDatabase>;
   env?: NodeJS.ProcessEnv;
   log?: (msg: string) => void;
 }): Promise<ChatEngineFactory> {

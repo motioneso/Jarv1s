@@ -1,20 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { dataContextBrand } from "@jarv1s/db";
-import type { DataContextDb } from "@jarv1s/db";
-import type { ProactiveMonitorProvider } from "@jarv1s/module-sdk";
+import { dataContextBrand } from "@moss/db";
+import type { DataContextDb } from "@moss/db";
+import type { ProactiveMonitorProvider } from "@moss/module-sdk";
 import type {
   AntiSpamPolicy,
   CardRepository,
   MonitorStateRepository,
   ProactiveMonitoringPreferencesRepository
-} from "@jarv1s/proactive-monitoring";
-import { ProactiveScanner } from "@jarv1s/proactive-monitoring";
-import type { PriorityPreferencesRepository } from "@jarv1s/priority";
-import { rankPriorityCandidates } from "@jarv1s/priority";
-import { defaultProactiveMonitoringPreference } from "@jarv1s/shared";
+} from "@moss/proactive-monitoring";
+import { ProactiveScanner } from "@moss/proactive-monitoring";
+import type { PriorityPreferencesRepository } from "@moss/priority";
+import { rankPriorityCandidates } from "@moss/priority";
+import { defaultProactiveMonitoringPreference } from "@moss/shared";
 
-vi.mock("@jarv1s/priority", async (importOriginal) => {
+vi.mock("@moss/priority", async (importOriginal) => {
   const mod = (await importOriginal()) as Record<string, unknown>;
   return { ...mod, rankPriorityCandidates: vi.fn() };
 });

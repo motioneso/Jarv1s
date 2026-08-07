@@ -10,8 +10,8 @@ import {
   collectExternalBriefingContributions,
   MAX_ITEMS,
   type BriefingContribution
-} from "@jarv1s/briefings";
-import type { JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
+} from "@moss/briefings";
+import type { JsonMossModuleManifest } from "@moss/module-sdk";
 
 // Same base shape as tests/unit/external-module-briefing-manifest.test.ts, so both files agree
 // on what a real validated manifest looks like.
@@ -24,7 +24,7 @@ const baseManifest = {
   runtime: { workerEntrypoint: "dist/worker.js", workerContractVersion: 1 as const }
 };
 
-const moduleWithBriefing: JsonJarvisModuleManifest = {
+const moduleWithBriefing: JsonMossModuleManifest = {
   ...baseManifest,
   id: "job-search",
   name: "Job Search",
@@ -35,7 +35,7 @@ const moduleWithBriefing: JsonJarvisModuleManifest = {
   }
 };
 
-const moduleWithoutBriefing: JsonJarvisModuleManifest = {
+const moduleWithoutBriefing: JsonMossModuleManifest = {
   ...baseManifest,
   id: "no-briefing",
   name: "No Briefing"
@@ -91,7 +91,7 @@ describe("collectExternalBriefingContributions (#1282)", () => {
   });
 
   it("skips a module that does not declare this section", async () => {
-    const morningOnly: JsonJarvisModuleManifest = {
+    const morningOnly: JsonMossModuleManifest = {
       ...moduleWithBriefing,
       briefing: { ...moduleWithBriefing.briefing!, sections: ["morning"] }
     };

@@ -1,6 +1,6 @@
 // tests/unit/module-web-sdk-ui-smoke.test.tsx
-// #1388 Foundation task 11: proves a @jarv1s/ui component renders live through
-// @jarv1s/module-web-sdk's re-export + JSX shim, using a test-only fixture module
+// #1388 Foundation task 11: proves a @moss/ui component renders live through
+// @moss/module-web-sdk's re-export + JSX shim, using a test-only fixture module
 // (tests/fixtures/module-web-sdk-ui-smoke) rather than editing finance's or job-search's
 // real screens. Two halves: bundle hygiene (mirrors
 // tests/unit/external-module-finance-bundle.test.ts's web-bundle assertions) and a live
@@ -37,7 +37,7 @@ describe("module-web-sdk UI smoke (#1388 Foundation task 11)", () => {
     expect(source).not.toMatch(/react[./-]dom|react\.development|react\.production/);
   });
 
-  it("renders a live @jarv1s/ui Button and Chip through the built bundle", async () => {
+  it("renders a live @moss/ui Button and Chip through the built bundle", async () => {
     // Cache-bust: a bare path import() would hit Node's ESM module cache on a re-run within
     // the same process (e.g. vitest watch mode) even though beforeAll rebuilt the file.
     const mod = (await import(

@@ -8,7 +8,7 @@ import type {
   RpcWriteTerminalParams,
   RpcResizeTerminalParams,
   RpcKillTerminalParams
-} from "@jarv1s/chat/live";
+} from "@moss/chat/live";
 
 export interface TerminalSink {
   data(terminalId: string, bytes: Buffer): void;

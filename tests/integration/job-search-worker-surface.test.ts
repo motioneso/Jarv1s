@@ -25,20 +25,20 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 
-import { collectExternalBriefingContributions } from "@jarv1s/briefings";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient } from "@jarv1s/jobs";
+import { collectExternalBriefingContributions } from "@moss/briefings";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createPgBossClient } from "@moss/jobs";
 import {
   validateExternalModuleManifest,
   type ExternalModuleDiscovery
-} from "@jarv1s/module-registry";
+} from "@moss/module-registry";
 import {
   ExternalModuleWorkerRuntime,
   hashCanonicalManifest,
   hashExternalPackage
-} from "@jarv1s/module-registry/node";
-import type { JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
-import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
+} from "@moss/module-registry/node";
+import type { JsonMossModuleManifest } from "@moss/module-sdk";
+import { createModuleCredentialSecretCipher } from "@moss/settings";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
@@ -74,12 +74,12 @@ describe("job-search module through the real API + worker RPC surface (#1305, te
   const sourceDir = fileURLToPath(new URL("../../external-modules/job-search", import.meta.url));
 
   let root: string;
-  let appDb: Kysely<JarvisDatabase>;
-  let heavyWorkerDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let heavyWorkerDb: Kysely<MossDatabase>;
   let server: ReturnType<typeof createApiServer>;
   let adminCookie: string;
   let adminUserId: string;
-  let realManifest: JsonJarvisModuleManifest;
+  let realManifest: JsonMossModuleManifest;
   let realDiscovery: ExternalModuleDiscovery;
   let expectedManifestHash: string;
   let workerRuntime: ExternalModuleWorkerRuntime;

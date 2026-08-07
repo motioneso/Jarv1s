@@ -7,7 +7,7 @@ import type {
   StandingsRow,
   StandingsSection,
   SportsStandingsResponse
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { SPORTS_CATALOG, catalogEntry } from "../source/catalog.js";
 import { getStandingsByLeague } from "./sports-client.js";

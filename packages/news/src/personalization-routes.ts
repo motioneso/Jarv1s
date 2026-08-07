@@ -1,8 +1,8 @@
 import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
-import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@moss/db";
+import { HttpError, handleRouteError } from "@moss/module-sdk";
 import {
   confirmNewsSourceSchema,
   createNewsSourceExclusionSchema,
@@ -27,7 +27,7 @@ import {
   type NewsSourcePreviewResponse,
   type NewsSnapshotMetaDto,
   type UpdateNewsTopicRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { resolveSourceInput } from "./discovery/source-resolution.js";
 import { validateTopic } from "./discovery/policy-validation.js";

@@ -3,12 +3,12 @@ import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 import pg from "pg";
 
-import type { GenerateChatInput } from "@jarv1s/ai";
-import { type BriefingsRepository } from "@jarv1s/briefings";
-import type { DataContextRunner } from "@jarv1s/db";
-import type { JarvisDatabase, BriefingRun } from "@jarv1s/db";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
-import { EVENING_SECTION_HEADERS, EVENING_FALLBACK_QUESTIONS } from "@jarv1s/shared";
+import type { GenerateChatInput } from "@moss/ai";
+import { type BriefingsRepository } from "@moss/briefings";
+import type { DataContextRunner } from "@moss/db";
+import type { MossDatabase, BriefingRun } from "@moss/db";
+import { getBuiltInModuleManifests } from "@moss/module-registry";
+import { EVENING_SECTION_HEADERS, EVENING_FALLBACK_QUESTIONS } from "@moss/shared";
 import { connectionStrings, ids } from "./test-database.js";
 import {
   makeComposeDeps,
@@ -20,14 +20,14 @@ import {
   type BriefingsTestHarness
 } from "./briefings.helpers.js";
 import { defaultToolNamesFor } from "../../packages/briefings/src/routes.js";
-import { TasksRepository } from "@jarv1s/tasks";
+import { TasksRepository } from "@moss/tasks";
 
 const { Client } = pg;
 const moduleManifests = getBuiltInModuleManifests();
 
 describe("evening briefing compose (spec 2026-07-02, #695)", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let workerDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let workerDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: BriefingsRepository;
   let appBoss: PgBoss;

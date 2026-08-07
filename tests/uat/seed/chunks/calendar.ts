@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import type { DataContextRunner } from "@jarv1s/db";
-import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
-import { CalendarRepository } from "@jarv1s/calendar";
+import type { DataContextRunner } from "@moss/db";
+import { ConnectorsRepository, createConnectorSecretCipher } from "@moss/connectors";
+import { CalendarRepository } from "@moss/calendar";
 import { UAT_SEED_BASE_TIMESTAMP, daysAfter, daysBefore } from "../timestamps.js";
 
 /**

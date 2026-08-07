@@ -1,5 +1,5 @@
 import type { PgBoss } from "pg-boss";
-import { assertMetadataOnlyPayload, sendJob } from "@jarv1s/jobs";
+import { assertMetadataOnlyPayload, sendJob } from "@moss/jobs";
 import type { PersonSourceKind } from "./types.js";
 
 export const PERSON_INDEX_QUEUE = "person-index";

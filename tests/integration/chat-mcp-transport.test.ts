@@ -14,10 +14,10 @@ import {
   ConfirmationRegistry,
   SessionTokenRegistry,
   type GatewaySessionRecord
-} from "@jarv1s/ai";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { SettingsRepository } from "@jarv1s/settings";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+} from "@moss/ai";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { SettingsRepository } from "@moss/settings";
+import { PreferencesRepository } from "@moss/structured-state";
 import {
   gatewayResponseToMcp,
   registerMcpTransportRoute,
@@ -88,7 +88,7 @@ function registerResolveRoute(
 }
 
 describe("MCP HTTP transport", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let app: FastifyInstance;
   let tokens: SessionTokenRegistry;
   let gateway: AssistantToolGateway;
@@ -348,7 +348,7 @@ describe("MCP HTTP transport", () => {
 });
 
 describe("HTTP resolve endpoint", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let appA: FastifyInstance;
   let appB: FastifyInstance;
   let tokens: SessionTokenRegistry;
@@ -486,7 +486,7 @@ describe("HTTP resolve endpoint", () => {
 });
 
 describe("native permission YOLO", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let tokens: SessionTokenRegistry;
   let confirmations: ConfirmationRegistry;
   let runner: DataContextRunner;

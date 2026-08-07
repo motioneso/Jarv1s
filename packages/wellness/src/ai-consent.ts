@@ -1,6 +1,6 @@
-import type { DataContextDb } from "@jarv1s/db";
-import type { ToolResult, ToolServices } from "@jarv1s/module-sdk";
-import type { PreferencesRepository } from "@jarv1s/structured-state";
+import type { DataContextDb } from "@moss/db";
+import type { ToolResult, ToolServices } from "@moss/module-sdk";
+import type { PreferencesRepository } from "@moss/structured-state";
 
 export const WELLNESS_AI_CONSENT_PREFERENCE_KEY = "wellness.ai_consent_granted";
 

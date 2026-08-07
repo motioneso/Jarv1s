@@ -1,4 +1,4 @@
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 import type { EmbeddingProvider } from "./embedding-provider.js";
 import type { MemoryRepository, RetrievedChunk } from "./repository.js";

@@ -19,13 +19,13 @@
  *
  * MODULE ISOLATION: this module defines the transition LOGIC + a {@link ProviderInstallStateStore}
  * PORT; the concrete `DataContextDb`-backed repository lives in the settings/onboarding module (state
- * lives there, base §9.2), which wires the port. This file does NOT import `@jarv1s/db` machinery; it
+ * lives there, base §9.2), which wires the port. This file does NOT import `@moss/db` machinery; it
  * only names the `AccessContext` shape it threads through to the store.
  *
  * Grounded-on: install-contract spec FROZEN v2/R6 §A.4/§A.4.1/§A.4.2; base RPC contract FROZEN v2.
  */
 
-import type { ProviderInstallState } from "@jarv1s/shared";
+import type { ProviderInstallState } from "@moss/shared";
 
 import type { RpcInstallProviderParams, RpcInstallProviderResult } from "./install-contract.js";
 import type { LoginFlowStatus } from "./login-contract.js";

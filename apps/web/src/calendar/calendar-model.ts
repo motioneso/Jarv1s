@@ -1,4 +1,4 @@
-import type { CalendarEventDto } from "@jarv1s/shared";
+import type { CalendarEventDto } from "@moss/shared";
 
 export type CalendarView = "day" | "week" | "month";
 
@@ -111,7 +111,7 @@ export function dtoToViewEvent(dto: CalendarEventDto): CalendarViewEvent | null 
   return {
     id: dto.id,
     title: dto.title,
-    kind: dto.isJarvisBlock ? "block" : "event",
+    kind: dto.isMossBlock ? "block" : "event",
     allDay: dto.allDay,
     startMin,
     endMin,
@@ -247,13 +247,27 @@ export function packDay(evs: CalendarViewEvent[]): CalendarViewEvent[] {
   return items;
 }
 
+// Legacy `jarvis.cal.*` keys are read once and migrated to their `moss.cal.*`
+// replacements so a browser that persisted state before the rename doesn't
+// silently reset to defaults. New writes only ever touch the new key.
+function migrateLegacyKey(oldKey: string, newKey: string): string | null {
+  const current = localStorage.getItem(newKey);
+  if (current !== null) return current;
+  const legacy = localStorage.getItem(oldKey);
+  if (legacy !== null) {
+    localStorage.setItem(newKey, legacy);
+    localStorage.removeItem(oldKey);
+  }
+  return legacy;
+}
+
 export function loadPersistedView(): CalendarView {
-  const v = localStorage.getItem("jarvis.cal.view");
+  const v = migrateLegacyKey("jarvis.cal.view", "moss.cal.view");
   return v === "week" || v === "month" ? v : "day";
 }
 
 export function loadPersistedCursor(): Date {
-  const s = localStorage.getItem("jarvis.cal.cursor");
+  const s = migrateLegacyKey("jarvis.cal.cursor", "moss.cal.cursor");
   if (s) {
     const d = new Date(s);
     if (!Number.isNaN(d.getTime())) return d;
@@ -262,5 +276,5 @@ export function loadPersistedCursor(): Date {
 }
 
 export function loadPersistedWorkWeek(): boolean {
-  return localStorage.getItem("jarvis.cal.workweek") === "1";
+  return migrateLegacyKey("jarvis.cal.workweek", "moss.cal.workweek") === "1";
 }

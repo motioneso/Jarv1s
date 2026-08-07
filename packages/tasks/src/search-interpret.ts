@@ -5,7 +5,7 @@ import {
   type InterpretTaskSearchResponse,
   type TaskSearchDueIntent,
   type TaskSearchIntent
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { HttpError } from "./errors.js";
 

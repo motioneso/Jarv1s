@@ -9,9 +9,9 @@ import type {
   ConnectorProvider,
   DataContextDb,
   DataContextRunner
-} from "@jarv1s/db";
-import { sendJob } from "@jarv1s/jobs";
-import { recordAuditEvent } from "@jarv1s/settings";
+} from "@moss/db";
+import { sendJob } from "@moss/jobs";
+import { recordAuditEvent } from "@moss/settings";
 import { reconcileGoogleAccountSchedule } from "./google-schedule.js";
 import { reconcileImapAccountSchedule } from "./imap-schedule.js";
 import { reconcileMonitorSchedules } from "./monitor-schedule.js";
@@ -38,9 +38,9 @@ import {
   type ImapConnectRequest,
   type UpdateFeatureGrantsRequest,
   type UpdateConnectorAccountRequest
-} from "@jarv1s/shared";
-import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+} from "@moss/shared";
+import { HttpError, handleRouteError as handleModuleRouteError } from "@moss/module-sdk";
+import { PreferencesRepository } from "@moss/structured-state";
 
 import { createConnectorSecretCipher, type ConnectorSecretCipher } from "./crypto.js";
 import {

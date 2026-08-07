@@ -1,8 +1,8 @@
 // tests/unit/sports-service-follows.test.ts
 import { describe, expect, it } from "vitest";
 
-import type { CreateSportsFollowRequest, SportsFollowDto } from "@jarv1s/shared";
-import type { DataContextDb } from "@jarv1s/db";
+import type { CreateSportsFollowRequest, SportsFollowDto } from "@moss/shared";
+import type { DataContextDb } from "@moss/db";
 
 import {
   SportsService,

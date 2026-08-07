@@ -1,6 +1,6 @@
 import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
-import { wellnessExportRequestSchema, wellnessExportResponseSchema } from "@jarv1s/shared";
+import { wellnessExportRequestSchema, wellnessExportResponseSchema } from "@moss/shared";
 
 // Schemas are exercised through a real Fastify instance (the same ajv path that runs in
 // prod) so the assertions match what the boundary actually does. With Fastify's default

@@ -1,5 +1,5 @@
-import type { GameSide, GameSummary, IsoDate, StandingsRow } from "@jarv1s/shared";
-import type { ExternalSourceAdapter, ExternalSourceAdapterContext } from "@jarv1s/module-sdk";
+import type { GameSide, GameSummary, IsoDate, StandingsRow } from "@moss/shared";
+import type { ExternalSourceAdapter, ExternalSourceAdapterContext } from "@moss/module-sdk";
 
 import { catalogEntry } from "./catalog.js";
 import type { SourceHeadline, SourceTeamRef, StandingsTable } from "./sports-source.js";

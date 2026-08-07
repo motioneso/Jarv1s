@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextDb, DataContextRunner, User } from "@jarv1s/db";
-import { HttpError, sessionRateLimitKey } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextDb, DataContextRunner, User } from "@moss/db";
+import { HttpError, sessionRateLimitKey } from "@moss/module-sdk";
 import {
   getPersonaSettingsRouteSchema,
   normalizePersonaSettings,
@@ -10,7 +10,7 @@ import {
   putPersonaSettingsRouteSchema,
   type PreviewPersonaRequest,
   type PutPersonaSettingsRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import type { ProfilePreferencesPort, PersonaPreviewInput } from "./preferences-port.js";
 import type { SettingsRepository } from "./repository.js";

@@ -2,7 +2,7 @@ import { readdir } from "node:fs/promises";
 
 import { describe, expect, it } from "vitest";
 
-import { chatModuleManifest } from "@jarv1s/chat";
+import { chatModuleManifest } from "@moss/chat";
 
 describe("chatModuleManifest", () => {
   it("lists every chat SQL migration file in order", async () => {

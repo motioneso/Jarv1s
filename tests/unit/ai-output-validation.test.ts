@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { sanitizeAssistantToolResult } from "../../packages/ai/src/gateway/output-validation.js";
-import type { JsonSchema, ToolResult } from "@jarv1s/module-sdk";
+import type { JsonSchema, ToolResult } from "@moss/module-sdk";
 
 // Direct unit tests for sanitizeAssistantToolResult. Before this file, the function had NO
 // dedicated coverage anywhere in the repo — every existing exerciser (gateway-read-tool.test.ts,

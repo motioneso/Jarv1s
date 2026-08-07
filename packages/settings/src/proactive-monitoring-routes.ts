@@ -1,13 +1,13 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import { HttpError, sessionRateLimitKey } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextRunner } from "@moss/db";
+import { HttpError, sessionRateLimitKey } from "@moss/module-sdk";
 import {
   ProactiveMonitoringPreferencesRepository,
   validateProactiveMonitoringPreference
-} from "@jarv1s/proactive-monitoring";
-import type { ProactiveMonitoringPreferenceV1, ProactiveSource } from "@jarv1s/shared";
-import { defaultProactiveMonitoringPreference, parsePositiveIntEnv } from "@jarv1s/shared";
+} from "@moss/proactive-monitoring";
+import type { ProactiveMonitoringPreferenceV1, ProactiveSource } from "@moss/shared";
+import { defaultProactiveMonitoringPreference, parsePositiveIntEnv } from "@moss/shared";
 
 const PROACTIVE_SETTINGS_MAX = parsePositiveIntEnv(
   process.env.JARVIS_RL_PROACTIVE_SETTINGS_MAX,

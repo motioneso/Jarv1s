@@ -24,10 +24,10 @@ import {
   registerDataContextWorker,
   type ActorScopedJobPayload,
   type RlsProbeJobPayload
-} from "@jarv1s/jobs";
-import type { DataContextRunner } from "@jarv1s/db";
-import { ExternalModuleJobReconciler } from "@jarv1s/module-registry/node";
-import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
+} from "@moss/jobs";
+import type { DataContextRunner } from "@moss/db";
+import { ExternalModuleJobReconciler } from "@moss/module-registry/node";
+import type { ExternalModuleDiscovery } from "@moss/module-registry";
 import { resolveExternalWorkerConfig } from "../../apps/worker/src/worker.js";
 
 // ---------------------------------------------------------------------------

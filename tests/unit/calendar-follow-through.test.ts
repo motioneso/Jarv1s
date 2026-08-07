@@ -4,7 +4,7 @@ import {
   calendarFollowThroughSourceRef,
   isCalendarFollowThroughEvent,
   isCalendarFollowThroughTask
-} from "@jarv1s/calendar";
+} from "@moss/calendar";
 
 describe("Calendar follow-through provenance", () => {
   it("builds stable Calendar-owned source refs for briefing items", () => {

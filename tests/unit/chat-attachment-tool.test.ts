@@ -14,8 +14,8 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { DataContextDb } from "@jarv1s/db";
-import { VaultContextRunner } from "@jarv1s/vault";
+import type { DataContextDb } from "@moss/db";
+import { VaultContextRunner } from "@moss/vault";
 
 import { chatReadAttachmentExecute } from "../../packages/chat/src/attachment-tool.js";
 import { ChatAttachmentsService } from "../../packages/chat/src/attachments-service.js";

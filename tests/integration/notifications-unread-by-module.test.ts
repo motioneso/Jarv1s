@@ -5,19 +5,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 import type { Kysely } from "kysely";
 
-import {
-  createDatabase,
-  DataContextRunner,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { NotificationsRepository } from "@jarv1s/notifications";
+import { createDatabase, DataContextRunner, type AccessContext, type MossDatabase } from "@moss/db";
+import { NotificationsRepository } from "@moss/notifications";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
 
 describe("notifications unread-by-module count (#1285)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: NotificationsRepository;
 

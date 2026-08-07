@@ -20,13 +20,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql, type Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { setModuleKvValue } from "@jarv1s/settings";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { setModuleKvValue } from "@moss/settings";
 import {
   validateExternalModuleManifest,
   type ExternalModuleDiscovery
-} from "@jarv1s/module-registry";
-import { ExternalModuleJobReconciler } from "@jarv1s/module-registry/node";
+} from "@moss/module-registry";
+import { ExternalModuleJobReconciler } from "@moss/module-registry/node";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
@@ -37,8 +37,8 @@ const sourceDir = fileURLToPath(new URL("../../external-modules/finance", import
 
 let root: string;
 let modulesDir: string;
-let appDb: Kysely<JarvisDatabase>;
-let workerDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
+let workerDb: Kysely<MossDatabase>;
 let server: ReturnType<typeof createApiServer>;
 let adminCookie: string;
 let adminUserId: string;

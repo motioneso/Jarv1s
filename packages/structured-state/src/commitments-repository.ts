@@ -1,5 +1,5 @@
 import { sql } from "kysely";
-import { assertDataContextDb, type Commitment, type DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type Commitment, type DataContextDb } from "@moss/db";
 import type { CommitmentSourceKind, CommitmentStatus, ProvenanceKind } from "./types.js";
 
 export interface CreateCommitmentInput {

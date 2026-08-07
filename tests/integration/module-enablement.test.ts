@@ -3,34 +3,34 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import pg from "pg";
 import type { Kysely } from "kysely";
 
-import { AiRepository, grantSelfOperationForModule } from "@jarv1s/ai";
+import { AiRepository, grantSelfOperationForModule } from "@moss/ai";
 import {
   LEGACY_AGENCY_AUTO_EXECUTE_KEY,
   TASK_CHANGES_POLICY_KEY,
   TasksCompatibilityHelper,
   tasksModuleManifest
-} from "@jarv1s/tasks";
+} from "@moss/tasks";
 import {
   DataContextRunner,
   createDatabase,
   type AdminAuditEvent,
   type DataContextDb,
-  type JarvisDatabase
-} from "@jarv1s/db";
+  type MossDatabase
+} from "@moss/db";
 import {
   createActiveModulesResolver,
   getBuiltInModuleRegistrations,
   getModuleDeletionTables,
   resolveGrantSelfOperationForModule,
   type BuiltInRouteDependencies
-} from "@jarv1s/module-registry";
+} from "@moss/module-registry";
 import {
   HttpError,
-  type JarvisModuleManifest,
-  type JsonJarvisModuleManifest,
+  type MossModuleManifest,
+  type JsonMossModuleManifest,
   type ModuleAssistantToolManifest
-} from "@jarv1s/module-sdk";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+} from "@moss/module-sdk";
+import { PreferencesRepository } from "@moss/structured-state";
 
 import {
   registerSettingsRoutes,
@@ -141,7 +141,7 @@ describe("module-enablement store (app.module_enablement)", () => {
 });
 
 describe("SettingsRepository deny-list methods", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let runner: DataContextRunner;
   let repo: SettingsRepository;
 
@@ -386,7 +386,7 @@ describe("SettingsRepository deny-list methods", () => {
 });
 
 describe("createActiveModulesResolver", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let runner: DataContextRunner;
   let repo: SettingsRepository;
 
@@ -494,12 +494,12 @@ describe("createActiveModulesResolver", () => {
 });
 
 describe("module enable routes grant self-operation policy (#1263 Task 15)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let aiRepo: AiRepository;
   let server: FastifyInstance;
 
-  const grantableManifest: JarvisModuleManifest = {
+  const grantableManifest: MossModuleManifest = {
     id: "grantable-fixture",
     name: "Grantable Fixture",
     version: "0.1.0",
@@ -528,7 +528,7 @@ describe("module enable routes grant self-operation policy (#1263 Task 15)", () 
         actionFamilyId: "ext-fixture.family"
       })
     ]
-  } as unknown as JsonJarvisModuleManifest;
+  } as unknown as JsonMossModuleManifest;
 
   const externalModules: ExternalModulesDependencies = {
     enabled: true,
@@ -696,7 +696,7 @@ describe("module enable routes grant self-operation policy (#1263 Task 15)", () 
 describe("tasks legacy agency_auto_execute opt-out survives install grant (#1263)", () => {
   const userNeitherKey = "00000000-0000-4000-8000-000000000004";
 
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let prefs: PreferencesRepository;
   let tasksCompat: TasksCompatibilityHelper;
@@ -795,7 +795,7 @@ describe("tasks legacy agency_auto_execute opt-out survives install grant (#1263
     // sends tasksModuleManifest through this generic path instead of the compat helper, it would
     // really clobber userA's legacy opt-out below (flipping the resolved policy to
     // trusted_auto), not just fail a "was it called" check.
-    const genericGrant = vi.fn((scopedDb: DataContextDb, manifest: JarvisModuleManifest) =>
+    const genericGrant = vi.fn((scopedDb: DataContextDb, manifest: MossModuleManifest) =>
       grantSelfOperationForModule(scopedDb, aiRepo, manifest)
     );
     const resolved = resolveGrantSelfOperationForModule(genericGrant);
@@ -819,11 +819,11 @@ describe("tasks legacy agency_auto_execute opt-out survives install grant (#1263
     // Same real-implementation wrapper as the test above -- a mis-route here would skip the
     // generic grant path (and the DB write it performs for the manifest's granted_at_install
     // tools) entirely, which the "not called" assertion below catches directly.
-    const genericGrant = vi.fn((scopedDb: DataContextDb, manifest: JarvisModuleManifest) =>
+    const genericGrant = vi.fn((scopedDb: DataContextDb, manifest: MossModuleManifest) =>
       grantSelfOperationForModule(scopedDb, aiRepo, manifest)
     );
     const resolved = resolveGrantSelfOperationForModule(genericGrant);
-    const otherManifest = { id: "not-tasks-fixture" } as JarvisModuleManifest;
+    const otherManifest = { id: "not-tasks-fixture" } as MossModuleManifest;
 
     await dataContext.withDataContext(
       // userNeitherKey has no canonical or legacy task_changes row (unlike ids.userA/userB/
@@ -864,12 +864,12 @@ describe("tasks legacy agency_auto_execute opt-out survives install grant (#1263
 // registration through getBuiltInModuleRegistrations() so a regression to the raw pass-through
 // is caught at the wiring site, not just in the routing helper's own unit coverage.
 describe("settings module registration wires grantSelfOperationForModule through resolveGrantSelfOperationForModule (#1263)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let server: FastifyInstance;
   let grantSpy: ReturnType<typeof vi.fn>;
 
-  const controlManifest: JarvisModuleManifest = {
+  const controlManifest: MossModuleManifest = {
     id: "wiring-control-fixture",
     name: "Wiring Control Fixture",
     version: "0.1.0",

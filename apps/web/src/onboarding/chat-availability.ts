@@ -1,4 +1,4 @@
-import type { OnboardingStatusResponse } from "@jarv1s/shared";
+import type { OnboardingStatusResponse } from "@moss/shared";
 
 import { ApiError } from "../api/client.js";
 

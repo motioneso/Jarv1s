@@ -1,6 +1,6 @@
 import { sql, type Kysely } from "kysely";
 
-import type { JarvisDatabase } from "@jarv1s/db";
+import type { MossDatabase } from "@moss/db";
 
 /**
  * Bootstrap helper — uses the raw root Kysely handle intentionally.
@@ -17,7 +17,7 @@ import type { JarvisDatabase } from "@jarv1s/db";
  * in DEVELOPMENT_STANDARDS.md.)
  */
 export class BootstrapHelper {
-  constructor(private readonly rootDb: Kysely<JarvisDatabase>) {}
+  constructor(private readonly rootDb: Kysely<MossDatabase>) {}
 
   async bootstrapOwnerExists(): Promise<boolean> {
     const result = await sql<{ exists: boolean }>`

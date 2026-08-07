@@ -1,23 +1,23 @@
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
-import { ChatAttachmentsService } from "@jarv1s/chat";
-import type { JarvisModuleManifest, ToolResult } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@moss/db";
+import { ChatAttachmentsService } from "@moss/chat";
+import type { MossModuleManifest, ToolResult } from "@moss/module-sdk";
 import {
   createNotificationPreferencePort,
   createRuntimeEmbeddingProvider,
   reconcileExternalModules,
   type ExternalModuleDiscovery,
   type ReconciledExternalModule
-} from "@jarv1s/module-registry";
+} from "@moss/module-registry";
 import {
   createExternalModuleRpcHandler,
   createExternalToolManifests,
   ExternalModuleWorkerRuntime,
   type ExternalModuleAiRequest,
   type ExternalModuleAiResult
-} from "@jarv1s/module-registry/node";
-import { NotificationsRepository } from "@jarv1s/notifications";
-import { createModuleCredentialSecretCipher, type SettingsRepository } from "@jarv1s/settings";
-import { getVaultBaseDir, VaultContextRunner } from "@jarv1s/vault";
+} from "@moss/module-registry/node";
+import { NotificationsRepository } from "@moss/notifications";
+import { createModuleCredentialSecretCipher, type SettingsRepository } from "@moss/settings";
+import { getVaultBaseDir, VaultContextRunner } from "@moss/vault";
 
 export function createExternalModuleTools(input: {
   readonly discoveries: readonly ExternalModuleDiscovery[];
@@ -26,7 +26,7 @@ export function createExternalModuleTools(input: {
   readonly settingsRepository: SettingsRepository;
   readonly logger: { warn(data: Record<string, unknown>, message?: string): void };
   // ctx.ai bridge (#932, spec D6): injected from server.ts so module-registry never
-  // imports @jarv1s/ai. Only this synchronous tool-dispatch path gets it — the
+  // imports @moss/ai. Only this synchronous tool-dispatch path gets it — the
   // queued-jobs handler (apps/worker) is built without it and fails closed.
   readonly ai?: (
     scopedDb: DataContextDb,
@@ -35,7 +35,7 @@ export function createExternalModuleTools(input: {
   ) => Promise<ExternalModuleAiResult>;
 }): {
   readonly runtime?: ExternalModuleWorkerRuntime;
-  readonly manifests: readonly JarvisModuleManifest[];
+  readonly manifests: readonly MossModuleManifest[];
 } {
   if (!input.workerDataContext) return { manifests: [] };
   const runtime = new ExternalModuleWorkerRuntime({ logger: input.logger });
@@ -143,10 +143,10 @@ export function createActiveExternalModulesResolverForApi(input: {
 }
 
 export function createExternalActiveModulesResolver(
-  resolveEnabledModules: (actorUserId: string) => Promise<readonly JarvisModuleManifest[]>,
+  resolveEnabledModules: (actorUserId: string) => Promise<readonly MossModuleManifest[]>,
   externalModuleIds: ReadonlySet<string>,
   getActiveExternalModules: (actorUserId: string) => Promise<readonly { id: string }[]>
-): (actorUserId: string) => Promise<readonly JarvisModuleManifest[]> {
+): (actorUserId: string) => Promise<readonly MossModuleManifest[]> {
   if (externalModuleIds.size === 0) return resolveEnabledModules;
   return async (actorUserId) => {
     const [enabled, activeExternal] = await Promise.all([

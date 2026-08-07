@@ -2,7 +2,7 @@
 // Deliberately NOT tmux: a genuine PTY emits the raw escape-sequence byte stream
 // xterm.js expects, sidestepping the pane-scraping that broke under claude 2.1.183.
 // #1059: node-pty is loaded LAZILY (via createRequire), not as a top-level import.
-// The api/worker bundles reach this module through the @jarv1s/cli-runner barrel
+// The api/worker bundles reach this module through the @moss/cli-runner barrel
 // (for PROVIDER_CATALOG/LOGIN_ADAPTERS) but never construct a TerminalSession, so
 // esbuild should tree-shake this class out entirely. But node-pty lives nested
 // under packages/cli-runner/node_modules (pnpm layout) and is in esbuild's EXTERNAL

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Badge, Group, Note, PaneHead, Row, Switch } from "@jarv1s/settings-ui";
-import type { PutWellnessAiConsentRequest, WellnessAiConsentResponse } from "@jarv1s/shared";
+import { Badge, Group, Note, PaneHead, Row, Switch } from "@moss/settings-ui";
+import type { PutWellnessAiConsentRequest, WellnessAiConsentResponse } from "@moss/shared";
 
 const AI_CONSENT_KEY = ["wellness", "ai-consent"] as const;
 

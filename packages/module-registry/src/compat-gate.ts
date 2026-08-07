@@ -1,4 +1,4 @@
-import { CORE_VERSION, satisfiesCoreVersion, type JarvisModuleManifest } from "@jarv1s/module-sdk";
+import { CORE_VERSION, satisfiesCoreVersion, type MossModuleManifest } from "@moss/module-sdk";
 
 /**
  * Validate-then-enable at the composition root (ADR 0009 §3): refuse to wire any
@@ -10,7 +10,7 @@ import { CORE_VERSION, satisfiesCoreVersion, type JarvisModuleManifest } from "@
  * mechanism the deny-only store does not provide (out of scope — see the spec),
  * so it is rejected here rather than silently mis-resolved.
  */
-export function assertModulesCompatible(manifests: readonly JarvisModuleManifest[]): void {
+export function assertModulesCompatible(manifests: readonly MossModuleManifest[]): void {
   for (const manifest of manifests) {
     const range = manifest.compatibility.jarv1s;
     if (!satisfiesCoreVersion(range)) {

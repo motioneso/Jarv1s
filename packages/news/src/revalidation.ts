@@ -5,7 +5,7 @@
 // verdict is only meaningful under the fingerprint it was computed with. Runs under the
 // worker data context; all writes go through the actor-scoped repository so RLS keeps the
 // run inside the owning user's rows. Pure orchestration — no direct SQL here.
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 import { extractListingHeadlines, sampleFeedHeadlines } from "./discovery/feed-discovery.js";
 import { decideSourcePolicy, validateTopic } from "./discovery/policy-validation.js";

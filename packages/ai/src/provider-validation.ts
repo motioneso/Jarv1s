@@ -5,7 +5,7 @@ import type {
   AiProviderDiscoveredModelDto,
   AiProviderKind,
   AiProviderTestResultDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 export interface ProviderValidationInput {
   readonly providerKind: AiProviderKind;

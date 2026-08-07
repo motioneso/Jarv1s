@@ -11,8 +11,8 @@ import {
   ensureModuleRoles,
   generateModuleTableRlsSql,
   ModuleQueryError,
-  type JarvisDatabase
-} from "@jarv1s/db";
+  type MossDatabase
+} from "@moss/db";
 import {
   connectionStrings,
   dropModuleRolesAtTeardown,
@@ -22,7 +22,7 @@ import {
 const moduleId = "storage-rpc-fixture";
 
 describe("createModuleStorageRpc", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
 
   beforeAll(async () => {

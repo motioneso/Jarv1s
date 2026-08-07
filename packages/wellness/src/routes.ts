@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
-import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@moss/db";
+import { HttpError, handleRouteError } from "@moss/module-sdk";
 import {
   createCheckinRouteSchema,
   createMedicationLogRouteSchema,
@@ -26,8 +26,8 @@ import {
   type MedicationFrequencyTypeApi,
   type MedicationLogStatusApi,
   type WellnessEmotionCore as WellnessFeelingCore
-} from "@jarv1s/shared";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+} from "@moss/shared";
+import { PreferencesRepository } from "@moss/structured-state";
 
 import {
   readWellnessAiConsentState,

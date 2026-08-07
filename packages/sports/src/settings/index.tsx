@@ -1,6 +1,6 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Note, PaneHead } from "@jarv1s/settings-ui";
+import { Note, PaneHead } from "@moss/settings-ui";
 import type {
   CompetitionRef,
   Confederation,
@@ -11,8 +11,8 @@ import type {
   SportsLeagueTeamsResponse,
   SportsTeamSearchResponse,
   TeamRef
-} from "@jarv1s/shared";
-import { requestJson } from "@jarv1s/module-web-sdk";
+} from "@moss/shared";
+import { requestJson } from "@moss/module-web-sdk";
 
 import { sportsQueryKeys } from "../web/query-keys.js";
 import "./sports-2.css";

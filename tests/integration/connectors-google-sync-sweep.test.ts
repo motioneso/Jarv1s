@@ -1,10 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
 import { sql, type Kysely } from "kysely";
 import {
   CALENDAR_SCOPE,
@@ -15,7 +10,7 @@ import {
   handleGoogleSyncSweepJob,
   listConnectedGoogleCalendarAccounts,
   type ConnectorAccountSafeRow
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -23,8 +18,8 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 // database with no connector accounts at all, so it must not depend on any other test's
 // state. Every other test below explicitly revokes what it connects in its own cleanup.
 describe("google sync sweep (#792)", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let rootDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let rootDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: ConnectorsRepository;
   const userA = (): AccessContext => ({ actorUserId: ids.userA, requestId: "req:a" });

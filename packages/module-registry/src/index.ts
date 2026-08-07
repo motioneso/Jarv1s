@@ -12,7 +12,7 @@ import {
   commitmentsModuleSqlMigrationDirectory,
   COMMITMENT_EXTRACTION_QUEUE,
   CommitmentsRepository
-} from "@jarv1s/commitments";
+} from "@moss/commitments";
 import {
   peopleModuleManifest,
   peopleModuleSqlMigrationDirectory,
@@ -23,10 +23,10 @@ import {
   registerSyncPersonMemoryWorker,
   PERSON_INDEX_QUEUE,
   SYNC_PERSON_MEMORY_QUEUE
-} from "@jarv1s/people";
-import { getVaultBaseDir, VaultContextRunner } from "@jarv1s/vault";
-import { registerCommitmentsRoutes } from "@jarv1s/commitments/routes";
-import { registerCommitmentExtractionWorker } from "@jarv1s/commitments/workers";
+} from "@moss/people";
+import { getVaultBaseDir, VaultContextRunner } from "@moss/vault";
+import { registerCommitmentsRoutes } from "@moss/commitments/routes";
+import { registerCommitmentExtractionWorker } from "@moss/commitments/workers";
 import {
   AI_QUEUE_DEFINITIONS,
   AiAutoRegisterService,
@@ -41,7 +41,7 @@ import {
   type ProviderKind,
   type TerminalRpcConnectOptions,
   type TerminalRpcHandle
-} from "@jarv1s/ai";
+} from "@moss/ai";
 import {
   GraphMemoryRecallService,
   ManualMemoryCandidateService,
@@ -53,13 +53,13 @@ import {
   memorySqlMigrationDirectory,
   registerMemoryDashboardRoutes,
   registerMemoryGraphRoutes
-} from "@jarv1s/memory";
+} from "@moss/memory";
 import {
   PreferencesRepository,
   structuredStateModuleManifest,
   structuredStateSqlMigrationDirectory
-} from "@jarv1s/structured-state";
-import { isBehaviorEnabled, type SourceBehaviorPreferencesPort } from "@jarv1s/source-behaviors";
+} from "@moss/structured-state";
+import { isBehaviorEnabled, type SourceBehaviorPreferencesPort } from "@moss/source-behaviors";
 import {
   BRIEFINGS_QUEUE_DEFINITIONS,
   BriefingsRepository,
@@ -70,7 +70,7 @@ import {
   registerBriefingsRoutes,
   type ComposeDeps,
   type ExternalBriefingInvoker
-} from "@jarv1s/briefings";
+} from "@moss/briefings";
 import {
   CalendarRepository,
   calendarFollowThroughSourceRef,
@@ -81,7 +81,7 @@ import {
   CALENDAR_QUEUE_DEFINITIONS,
   registerCalendarRoutes,
   registerCalendarJobWorkers
-} from "@jarv1s/calendar";
+} from "@moss/calendar";
 import {
   CHAT_QUEUE_DEFINITIONS,
   ChatEngineRpcClient,
@@ -99,15 +99,15 @@ import {
   type ChatEngineFactory,
   type ChatRoutesDependencies,
   type RpcConnection
-} from "@jarv1s/chat";
+} from "@moss/chat";
 // #1059 — terminal-rpc-client lives under chat's "./live" subpath (public.ts), not the package
-// root. This is the composition-root injection point for TerminalRpcClient into @jarv1s/ai's
-// terminal-routes.ts: packages/ai deliberately does NOT depend on @jarv1s/chat (that edge was
+// root. This is the composition-root injection point for TerminalRpcClient into @moss/ai's
+// terminal-routes.ts: packages/ai deliberately does NOT depend on @moss/chat (that edge was
 // tried and reverted — it creates real dependency cycles caught by check-package-deps.ts, since
-// @jarv1s/chat itself depends on @jarv1s/ai). module-registry already depends on BOTH @jarv1s/ai
-// and @jarv1s/chat with no cycle (same fan-in pattern already used for ChatEngineFactory below),
+// @moss/chat itself depends on @moss/ai). module-registry already depends on BOTH @moss/ai
+// and @moss/chat with no cycle (same fan-in pattern already used for ChatEngineFactory below),
 // so it's the correct place to bridge the two.
-import { TerminalRpcClient } from "@jarv1s/chat/live";
+import { TerminalRpcClient } from "@moss/chat/live";
 import {
   ConnectorsRepository,
   EmailActionSuppressionRepository,
@@ -137,29 +137,29 @@ import {
   type EmailTaskCreationPort,
   type GoogleApiClient,
   type GoogleConnectionService
-} from "@jarv1s/connectors";
-import type { ActiveModulesResolver } from "@jarv1s/ai";
-import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
-import { resolveTimeZone, type ProactiveSource } from "@jarv1s/shared";
+} from "@moss/connectors";
+import type { ActiveModulesResolver } from "@moss/ai";
+import type { AccessContext, DataContextDb, DataContextRunner, MossDatabase } from "@moss/db";
+import { resolveTimeZone, type ProactiveSource } from "@moss/shared";
 import {
   emailModuleManifest,
   emailModuleSqlMigrationDirectory,
   EmailRepository,
   registerEmailRoutes
-} from "@jarv1s/email";
+} from "@moss/email";
 import {
   assertMetadataOnlyPayload,
   FOUNDATION_QUEUES,
   registerDataContextWorker,
   type QueueDefinition
-} from "@jarv1s/jobs";
-import { createModuleLogger } from "@jarv1s/module-sdk";
+} from "@moss/jobs";
+import { createModuleLogger } from "@moss/module-sdk";
 import type {
-  JarvisModuleManifest,
-  JsonJarvisModuleManifest,
+  MossModuleManifest,
+  JsonMossModuleManifest,
   RegisteredFocusSignal,
   RegisteredProactiveMonitorProvider
-} from "@jarv1s/module-sdk";
+} from "@moss/module-sdk";
 import {
   NotificationsRepository,
   DIGEST_COMPOSE_QUEUE,
@@ -169,13 +169,13 @@ import {
   notificationsModuleSqlMigrationDirectory,
   registerNotificationsRoutes,
   type NotificationDigestSender
-} from "@jarv1s/notifications";
+} from "@moss/notifications";
 import {
   type AuthProviderStatusDto,
   type ChatMultiplexerChoice,
   type OnboardingProviderCheckResponse,
   type OnboardingProviderKind
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import {
   EXPORT_QUEUE_DEFINITIONS,
   createWebSearchSecretCipher,
@@ -202,7 +202,7 @@ import {
   type AppMapReadService,
   loadAppMap,
   createAppMapReadService
-} from "@jarv1s/settings";
+} from "@moss/settings";
 import {
   TASKS_QUEUE_DEFINITIONS,
   TasksRepository,
@@ -212,7 +212,7 @@ import {
   tasksModuleManifest,
   tasksModuleSqlMigrationDirectory,
   type EmailTriageFeedbackPort
-} from "@jarv1s/tasks";
+} from "@moss/tasks";
 import {
   goalsModuleManifest,
   goalsModuleSqlMigrationDirectory,
@@ -222,7 +222,7 @@ import {
   GoalsRepository,
   GOALS_MEMORY_SYNC_QUEUE,
   GOALS_MEMORY_SYNC_RECONCILE_QUEUE
-} from "@jarv1s/goals";
+} from "@moss/goals";
 import {
   createHostRateLimiter,
   createRobotsGate,
@@ -232,7 +232,7 @@ import {
   resolveWebSearchProvider,
   setWebSearchKeyResolver,
   webModuleManifest
-} from "@jarv1s/web-research";
+} from "@moss/web-research";
 import {
   registerWellnessRoutes,
   registerWellnessExportRoutes,
@@ -240,8 +240,8 @@ import {
   WELLNESS_EXPORT_QUEUE_DEFINITIONS,
   wellnessModuleManifest,
   wellnessModuleSqlMigrationDirectory
-} from "@jarv1s/wellness";
-import { registerWeatherRoutes, weatherModuleManifest } from "@jarv1s/weather";
+} from "@moss/wellness";
+import { registerWeatherRoutes, weatherModuleManifest } from "@moss/weather";
 import {
   configureSportsBriefingService,
   configureSportsChatTools,
@@ -249,7 +249,7 @@ import {
   registerSportsRoutes,
   sportsModuleManifest,
   sportsModuleSqlMigrationDirectory
-} from "@jarv1s/sports";
+} from "@moss/sports";
 import {
   configureNewsBriefingService,
   createRssDatasetAdapter,
@@ -260,8 +260,8 @@ import {
   registerNewsJobWorkers,
   registerNewsRoutes,
   type NewsRoutesDependencies
-} from "@jarv1s/news";
-import { assertValidFetchHosts, createDatasetClient } from "@jarv1s/datasets";
+} from "@moss/news";
+import { assertValidFetchHosts, createDatasetClient } from "@moss/datasets";
 import {
   notesModuleManifest,
   notesCommitmentProvider,
@@ -270,13 +270,13 @@ import {
   reconcileNotesSchedule,
   registerNotesSyncRoutes,
   registerNotesJobWorkers
-} from "@jarv1s/notes";
+} from "@moss/notes";
 import {
   FeedbackTargetVerifierRegistry,
   registerUsefulnessFeedbackRoutes,
   usefulnessFeedbackModuleManifest,
   usefulnessFeedbackModuleSqlMigrationDirectory
-} from "@jarv1s/usefulness-feedback";
+} from "@moss/usefulness-feedback";
 import {
   CardRepository,
   makeProactiveCardVerifier,
@@ -286,7 +286,7 @@ import {
   registerProactiveMonitoringRoutes,
   registerProactiveMonitoringWorkers,
   type ProactiveScanSourceJobPayload
-} from "@jarv1s/proactive-monitoring";
+} from "@moss/proactive-monitoring";
 
 import {
   createDefaultPersonaPreview,
@@ -323,18 +323,18 @@ declare module "fastify" {
   }
 }
 
-export type { ChatEngineFactory } from "@jarv1s/chat";
-export type { TerminalRpcConnectOptions, TerminalRpcHandle } from "@jarv1s/ai";
-export type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-export { aggregateFocusSignals } from "@jarv1s/module-sdk";
+export type { ChatEngineFactory } from "@moss/chat";
+export type { TerminalRpcConnectOptions, TerminalRpcHandle } from "@moss/ai";
+export type { MossModuleManifest } from "@moss/module-sdk";
+export { aggregateFocusSignals } from "@moss/module-sdk";
 // Re-exported for the two external-module rpc construction sites (#1281): they
 // need the same embedder seam built-in modules use, without naming a provider.
 export { createRuntimeEmbeddingProvider } from "./built-in-module-helpers.js";
 // Re-exported for apps/worker's module AI bridge, which must supply the same CLI structured
 // adapter apps/api does or every module worker AI call fails `needs_config` against a
 // CLI-authenticated provider. The worker reaches chat internals through this package rather than
-// taking a direct @jarv1s/chat dependency, exactly as it does for the embedder above.
-export { createCliStructuredAdapterFactory } from "@jarv1s/chat";
+// taking a direct @moss/chat dependency, exactly as it does for the embedder above.
+export { createCliStructuredAdapterFactory } from "@moss/chat";
 
 export * from "./external/validate.js";
 export * from "./external/types.js";
@@ -380,10 +380,10 @@ export interface BuiltInRouteDependencies {
   // DataContextDb (connectors' admin check was converted off appDb in Audit B3) — plus
   // the bounded pre-auth non-secret instance-config reads documented in
   // DEVELOPMENT_STANDARDS.md (registration gate + `chat.multiplexer` boot resolution).
-  readonly rootDb: Kysely<JarvisDatabase>;
+  readonly rootDb: Kysely<MossDatabase>;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly listConfiguredAuthProviders: () => readonly AuthProviderStatusDto[];
-  readonly listModuleManifests: () => readonly JarvisModuleManifest[];
+  readonly listModuleManifests: () => readonly MossModuleManifest[];
   /**
    * Async, actor-filtered resolver (the enablement SEAM). Used by the tool surfaces
    * (MCP gateway + AI REST tools) and the route guard. Distinct from
@@ -483,8 +483,8 @@ export interface BuiltInRouteDependencies {
   readonly createCliStructuredAdapter?: ReturnType<typeof createCliStructuredAdapterFactory>;
   /**
    * Bounded, live onboarding probes (Phase 2). Built inside registerBuiltInApiRoutes (sync,
-   * no boot-time probing) and forwarded to the settings module so it keeps no @jarv1s/ai /
-   * @jarv1s/connectors PACKAGE dependency (module isolation). Each probes lazily, per request.
+   * no boot-time probing) and forwarded to the settings module so it keeps no @moss/ai /
+   * @moss/connectors PACKAGE dependency (module isolation). Each probes lazily, per request.
    */
   readonly onboardingProbes?: {
     readonly cliPresent: (kind: OnboardingProviderKind) => Promise<boolean>;
@@ -495,7 +495,7 @@ export interface BuiltInRouteDependencies {
   };
   /**
    * #342 §A.5 install seam, built inside registerBuiltInApiRoutes on the socket path and forwarded
-   * to the settings module (module isolation — settings never imports @jarv1s/chat / cli-runner).
+   * to the settings module (module isolation — settings never imports @moss/chat / cli-runner).
    * Absent on the host-dev / in-process path ⇒ the install route fails closed (500).
    */
   readonly onboardingInstall?: OnboardingInstallDependencies;
@@ -525,16 +525,16 @@ export interface BuiltInRouteDependencies {
   /**
    * #1263 Task 15: install-time self-operation grant port, built by the API composition root
    * over its one AiRepository instance and forwarded to the settings module (module isolation —
-   * settings never imports @jarv1s/ai). Threaded straight through to registerSettingsRoutes.
+   * settings never imports @moss/ai). Threaded straight through to registerSettingsRoutes.
    */
   readonly grantSelfOperationForModule?: (
     scopedDb: DataContextDb,
-    manifest: JarvisModuleManifest
+    manifest: MossModuleManifest
   ) => Promise<void>;
 }
 
 export interface BuiltInWorkerDependencies {
-  readonly rootDb: Kysely<JarvisDatabase>;
+  readonly rootDb: Kysely<MossDatabase>;
   readonly dataContext: DataContextRunner;
   readonly focusSignals?: BuiltInRouteDependencies["focusSignals"];
   /**
@@ -551,7 +551,7 @@ export interface BuiltInWorkerDependencies {
    * no external discovery and no external worker runtime, so building them in this file
    * would violate module isolation (J2).
    */
-  readonly externalBriefingManifests?: readonly JsonJarvisModuleManifest[];
+  readonly externalBriefingManifests?: readonly JsonMossModuleManifest[];
   readonly invokeExternalBriefing?: ExternalBriefingInvoker;
 }
 
@@ -571,7 +571,7 @@ export function createStructuredChatEngineFactory(options: {
 }
 
 export interface BuiltInModuleRegistration {
-  readonly manifest: JarvisModuleManifest;
+  readonly manifest: MossModuleManifest;
   readonly sqlMigrationDirectories: readonly string[];
   readonly queueDefinitions: readonly QueueDefinition[];
   readonly registerRoutes?: (
@@ -1051,7 +1051,7 @@ const peopleManifest: typeof peopleModuleManifest = {
  */
 export function resolveGrantSelfOperationForModule(
   genericGrant: BuiltInRouteDependencies["grantSelfOperationForModule"]
-): (scopedDb: DataContextDb, manifest: JarvisModuleManifest) => Promise<void> {
+): (scopedDb: DataContextDb, manifest: MossModuleManifest) => Promise<void> {
   return (scopedDb, manifest) =>
     manifest.id === tasksModuleManifest.id
       ? new TasksCompatibilityHelper(new PreferencesRepository()).grantInstallTimeTrustIfUnset(
@@ -1101,8 +1101,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         notificationUnreadPort: new NotificationsRepository(),
         boss: deps.boss,
         // #449: wire the per-actor 15-min notes-sync heartbeat. Injected as a hook
-        // (not imported in @jarv1s/settings) because @jarv1s/notes already depends
-        // on @jarv1s/settings for resolveNotesRoots — a direct import would cycle.
+        // (not imported in @moss/settings) because @moss/notes already depends
+        // on @moss/settings for resolveNotesRoots — a direct import would cycle.
         reconcileNotesSchedule: deps.boss
           ? (actorUserId, hasPath) => reconcileNotesSchedule(deps.boss!, actorUserId, hasPath)
           : undefined,
@@ -1329,7 +1329,7 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
             : {}),
           appMap: deps.appMapService!
         },
-        // #1059 — the actual @jarv1s/chat dependency for the owner-terminal WS relay lives HERE,
+        // #1059 — the actual @moss/chat dependency for the owner-terminal WS relay lives HERE,
         // not in packages/ai (see the import comment above for why). TerminalRpcClient.connect
         // opens the Unix-domain-socket RPC connection to the cli-runner's terminal host.
         // deps.connectTerminalRpc is the TEST-ONLY override (see BuiltInRouteDependencies) —
@@ -1825,7 +1825,7 @@ function assertAppMapDescription(owner: string, kind: string, id: string, value:
   }
 }
 
-function assertAppMapDeclarations(manifest: JarvisModuleManifest): void {
+function assertAppMapDeclarations(manifest: MossModuleManifest): void {
   for (const surface of manifest.navigation ?? []) {
     assertAppMapDescription(manifest.id, "navigation", surface.id, surface.description);
   }
@@ -1972,7 +1972,7 @@ export function getBuiltInModuleRegistrations(): readonly BuiltInModuleRegistrat
   return BUILT_IN_MODULES;
 }
 
-export function getBuiltInModuleManifests(): readonly JarvisModuleManifest[] {
+export function getBuiltInModuleManifests(): readonly MossModuleManifest[] {
   return BUILT_IN_MODULES.map((module) => module.manifest);
 }
 
@@ -1988,12 +1988,12 @@ export interface ResolvedModuleDeletionTable {
  * Flattens every built-in module's `dataLifecycle.deletion.tables` into the resolved
  * (default-applied) list `scripts/delete-user-data.ts` sweeps for its before/after counts.
  * Used both by the settings composition root below (API path) and by the deletion script's
- * dynamic `import("@jarv1s/module-registry")` inside its `import.meta.url`-guarded `main()` —
- * never call this from a statically-imported context in `@jarv1s/settings` (that would
+ * dynamic `import("@moss/module-registry")` inside its `import.meta.url`-guarded `main()` —
+ * never call this from a statically-imported context in `@moss/settings` (that would
  * recreate the package cycle the dynamic import exists to avoid).
  */
 export function getModuleDeletionTables(
-  manifests: readonly JarvisModuleManifest[] = getBuiltInModuleManifests()
+  manifests: readonly MossModuleManifest[] = getBuiltInModuleManifests()
 ): readonly ResolvedModuleDeletionTable[] {
   return manifests.flatMap((manifest) =>
     (manifest.dataLifecycle?.deletion.tables ?? []).map((entry) => ({
@@ -2018,7 +2018,7 @@ export const MODULE_DELETION_TABLES: readonly ResolvedModuleDeletionTable[] =
  * reads installed manifests at run time, not from a static import-time snapshot.
  */
 export function getExternalModuleDeletionTables(
-  installedManifests: readonly JarvisModuleManifest[]
+  installedManifests: readonly MossModuleManifest[]
 ): readonly ResolvedModuleDeletionTable[] {
   return installedManifests.flatMap((manifest) =>
     (manifest.database?.ownedTables ?? []).map((table) => ({
@@ -2034,7 +2034,7 @@ export function getExternalModuleDeletionTables(
  * Generic: any module that declares `focusSignal` participates; no module is special-cased.
  */
 export function focusSignalProvidersFor(
-  manifests: readonly JarvisModuleManifest[]
+  manifests: readonly MossModuleManifest[]
 ): RegisteredFocusSignal[] {
   return manifests.flatMap((manifest) =>
     manifest.focusSignal ? [{ moduleId: manifest.id, provider: manifest.focusSignal }] : []
@@ -2076,7 +2076,7 @@ function extractStoredTimeZone(value: unknown): string | undefined {
  * `proactiveMonitor` participates. Pass per-actor active manifests to exclude disabled modules.
  */
 export function proactiveMonitorProvidersFor(
-  manifests: readonly JarvisModuleManifest[]
+  manifests: readonly MossModuleManifest[]
 ): RegisteredProactiveMonitorProvider[] {
   return manifests.flatMap((manifest) =>
     manifest.proactiveMonitor

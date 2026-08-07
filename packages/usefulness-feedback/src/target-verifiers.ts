@@ -1,6 +1,6 @@
-import type { FeedbackSurface, FeedbackTargetKind, UsefulnessFeedbackKind } from "@jarv1s/shared";
+import type { FeedbackSurface, FeedbackTargetKind, UsefulnessFeedbackKind } from "@moss/shared";
 
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 export interface FeedbackTargetVerification {
   readonly ownerUserId: string;

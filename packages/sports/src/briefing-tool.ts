@@ -1,6 +1,6 @@
-import type { DatasetClient } from "@jarv1s/datasets";
-import { assertDataContextDb } from "@jarv1s/db";
-import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
+import type { DatasetClient } from "@moss/datasets";
+import { assertDataContextDb } from "@moss/db";
+import type { ToolExecute, ToolResult } from "@moss/module-sdk";
 
 import { SportsFollowsRepository } from "./repository.js";
 import { SportsService } from "./sports-service.js";

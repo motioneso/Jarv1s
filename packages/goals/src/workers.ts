@@ -1,11 +1,11 @@
-import type { DataContextRunner } from "@jarv1s/db";
-import { registerDataContextWorker, sendJob, type PgBoss } from "@jarv1s/jobs";
-import type { MemoryGraphRepository } from "@jarv1s/memory";
+import type { DataContextRunner } from "@moss/db";
+import { registerDataContextWorker, sendJob, type PgBoss } from "@moss/jobs";
+import type { MemoryGraphRepository } from "@moss/memory";
 
 import type { GoalsRepository } from "./repository.js";
 import { GOALS_MEMORY_SYNC_QUEUE, GOALS_MEMORY_SYNC_RECONCILE_QUEUE } from "./manifest.js";
 import type { GoalMemorySyncPayload, GoalMemorySyncReconcilePayload } from "./jobs.js";
-import type { JarvisGoal, JarvisGoalEvidence } from "./types.js";
+import type { MossGoal, MossGoalEvidence } from "./types.js";
 
 export function registerGoalsMemorySyncWorker(
   boss: PgBoss,
@@ -127,7 +127,7 @@ export function registerGoalsMemorySyncReconcileWorker(
   );
 }
 
-function formatGoalBriefing(goal: JarvisGoal, evidence: JarvisGoalEvidence[]): string {
+function formatGoalBriefing(goal: MossGoal, evidence: MossGoalEvidence[]): string {
   const parts: string[] = [];
 
   parts.push(`Desired Outcome: ${goal.desiredOutcome}`);

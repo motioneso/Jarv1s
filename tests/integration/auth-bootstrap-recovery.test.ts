@@ -3,14 +3,10 @@ import { sql, type Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import {
-  createJarvisAuthRuntime,
-  type BootstrapSettings,
-  type JarvisAuthRuntime
-} from "@jarv1s/auth";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import { recordBootstrapOwnerAuditEvent } from "@jarv1s/settings";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createMossAuthRuntime, type BootstrapSettings, type MossAuthRuntime } from "@moss/auth";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import { recordBootstrapOwnerAuditEvent } from "@moss/settings";
 import {
   connectionStrings,
   resetEmptyFoundationDatabase,
@@ -18,8 +14,8 @@ import {
 } from "./test-database.js";
 
 describe("owner bootstrap recovery", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let authRuntime: JarvisAuthRuntime;
+  let appDb: Kysely<MossDatabase>;
+  let authRuntime: MossAuthRuntime;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
 
@@ -40,7 +36,7 @@ describe("owner bootstrap recovery", () => {
       maxConnections: 2,
       connectionTimeoutMillis: 25_000
     });
-    authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
+    authRuntime = createMossAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
     // #1124: see multi-user-isolation.test.ts for rationale — override pg-boss's default
     // 10s connectionTimeoutMillis so a slow-but-healthy CI connection isn't killed early.
     boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
@@ -267,7 +263,7 @@ describe("owner bootstrap recovery", () => {
       recordBootstrapOwnerAuditEvent,
       recordAuditEvent: vi.fn().mockRejectedValue(new Error("simulated audit failure"))
     };
-    authRuntime = createJarvisAuthRuntime({
+    authRuntime = createMossAuthRuntime({
       appDb,
       runner: new DataContextRunner(appDb),
       _settingsOverride: throwingSettings

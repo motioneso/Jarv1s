@@ -5,9 +5,9 @@ import type {
   GatewayToolResponse,
   NativeToolPermissionRequest,
   SessionTokenRegistry
-} from "@jarv1s/ai";
-import { mcpSessionRateLimitKey } from "@jarv1s/module-sdk";
-import { parsePositiveIntEnv, type AiAssistantToolDto } from "@jarv1s/shared";
+} from "@moss/ai";
+import { mcpSessionRateLimitKey } from "@moss/module-sdk";
+import { parsePositiveIntEnv, type AiAssistantToolDto } from "@moss/shared";
 
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 
-import type { OnboardingStatusResponse } from "@jarv1s/shared";
+import type { OnboardingStatusResponse } from "@moss/shared";
 import { SkipConfirmDialog, needsSkipConfirm } from "../../apps/web/src/onboarding/skip-confirm.js";
 
 const noop = () => undefined;

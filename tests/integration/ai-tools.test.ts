@@ -4,20 +4,15 @@ import Fastify from "fastify";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { AiRepository, registerAiRoutes } from "@jarv1s/ai";
-import { CalendarRepository } from "@jarv1s/calendar";
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { EmailRepository } from "@jarv1s/email";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { getAllQueueDefinitions } from "@jarv1s/module-registry";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
-import { NotificationsRepository } from "@jarv1s/notifications";
-import { TasksRepository } from "@jarv1s/tasks";
+import { AiRepository, registerAiRoutes } from "@moss/ai";
+import { CalendarRepository } from "@moss/calendar";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
+import { EmailRepository } from "@moss/email";
+import type { MossModuleManifest } from "@moss/module-sdk";
+import { getAllQueueDefinitions } from "@moss/module-registry";
+import { getBuiltInModuleManifests } from "@moss/module-registry";
+import { NotificationsRepository } from "@moss/notifications";
+import { TasksRepository } from "@moss/tasks";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -89,7 +84,7 @@ interface AssistantActionsResponse {
 }
 
 describe("AI read-only assistant tool execution foundation", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let tasksRepository: TasksRepository;
   let aiRepository: AiRepository;
@@ -531,7 +526,7 @@ describe("AI read-only assistant tool execution foundation", () => {
   });
 
   it("sanitizes REST assistant tool output before returning it to the frontend", async () => {
-    const module: JarvisModuleManifest = {
+    const module: MossModuleManifest = {
       id: "security-probe",
       name: "Security Probe",
       version: "1.0.0",
@@ -637,7 +632,7 @@ describe("AI read-only assistant tool execution foundation", () => {
   });
 
   it("caps oversized REST assistant tool output after sanitizing it", async () => {
-    const module: JarvisModuleManifest = {
+    const module: MossModuleManifest = {
       id: "security-cap-probe",
       name: "Security Cap Probe",
       version: "1.0.0",

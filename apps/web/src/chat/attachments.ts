@@ -1,4 +1,4 @@
-import type { ChatAttachmentDto } from "@jarv1s/shared";
+import type { ChatAttachmentDto } from "@moss/shared";
 
 /**
  * #1133 — client-side pending-attachment state for the chat composer.

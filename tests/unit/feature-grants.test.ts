@@ -6,7 +6,7 @@ import {
   GMAIL_SCOPE,
   isFeatureGranted,
   resolveEffectiveGrants
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 
 describe("featureGrantsPrefKey", () => {
   it("builds the owner-scoped preference key for an account", () => {

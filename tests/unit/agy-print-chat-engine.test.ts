@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgyPrintChatEngine } from "../../packages/chat/src/live/agy-print-chat-engine.js";
 import { AGY_SESSION_LOG_FILENAME } from "../../packages/chat/src/live/private-transcript-cleanup.js";
 import { createRealEngineFactory } from "../../packages/chat/src/live/runtime.js";
-import type { Multiplexer, MuxHandle, TmuxIo } from "@jarv1s/ai";
+import type { Multiplexer, MuxHandle, TmuxIo } from "@moss/ai";
 
 const spawnMock = vi.hoisted(() => vi.fn());
 

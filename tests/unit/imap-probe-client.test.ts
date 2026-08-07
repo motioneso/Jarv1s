@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { mapProbeError, smtpTransportOptions } from "@jarv1s/connectors";
-import { IMAP_PRESETS } from "@jarv1s/connectors/presets";
+import { mapProbeError, smtpTransportOptions } from "@moss/connectors";
+import { IMAP_PRESETS } from "@moss/connectors/presets";
 
 describe("mapProbeError", () => {
   it("maps auth rejections to auth_failed", () => {

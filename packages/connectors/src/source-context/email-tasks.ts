@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 import {
   DEFAULT_EMAIL_TASK_MODE,
   EMAIL_TASK_CREATION_MODES,
@@ -8,11 +8,11 @@ import {
   type TaskSuggestionMetadataV1,
   parseEmailTaskMode,
   type EmailTaskCreationMode
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import type { EmailContextItem } from "./types.js";
 
-// Canonical mode contract lives in @jarv1s/shared (route schemas need it); re-exported here so
+// Canonical mode contract lives in @moss/shared (route schemas need it); re-exported here so
 // engine consumers (monitors, tests) get everything from one module.
 export {
   DEFAULT_EMAIL_TASK_MODE,

@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 import { SettingsSkillsPane } from "../../apps/web/src/settings/settings-skills-pane.js";
 import { FeedbackProvider } from "../../apps/web/src/settings/settings-feedback.js";
-import type { ChatSkillDto } from "@jarv1s/shared";
+import type { ChatSkillDto } from "@moss/shared";
 
 function renderWithQuery(node: React.ReactNode, client: QueryClient): string {
   return renderToString(

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { projectNotificationMetadata } from "@jarv1s/notifications";
+import { projectNotificationMetadata } from "@moss/notifications";
 
 // Verification bullet 2 — Metadata bounding at input.
 // Direct unit-style tests against the pure helper covering: non-object input, >16 keys,

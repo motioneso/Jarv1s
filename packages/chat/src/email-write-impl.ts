@@ -1,11 +1,11 @@
-import { assertDataContextDb, type DataContextDb, type EmailMessage } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb, type EmailMessage } from "@moss/db";
 import {
   deriveReplyTarget,
   type EmailWriteProvider,
   type EmailWriteResult,
   type EmailWriteService,
   type ReplyInput
-} from "@jarv1s/email";
+} from "@moss/email";
 import {
   featureGrantsPrefKey,
   isFeatureGranted,
@@ -13,11 +13,11 @@ import {
   type ConnectorSecretCipher,
   type GoogleApiClient,
   type GoogleConnectionService
-} from "@jarv1s/connectors";
-import { GoogleEmailWriteProvider } from "@jarv1s/connectors";
-import { ImapEmailWriteProvider } from "@jarv1s/connectors";
-import type { ToolContext } from "@jarv1s/module-sdk";
-import type { PreferencesRepository } from "@jarv1s/structured-state";
+} from "@moss/connectors";
+import { GoogleEmailWriteProvider } from "@moss/connectors";
+import { ImapEmailWriteProvider } from "@moss/connectors";
+import type { ToolContext } from "@moss/module-sdk";
+import type { PreferencesRepository } from "@moss/structured-state";
 
 export interface EmailWriteImplDeps {
   readonly emailRepository: {

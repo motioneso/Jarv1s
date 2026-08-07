@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { OnboardingStatusResponse } from "@jarv1s/shared";
+import type { OnboardingStatusResponse } from "@moss/shared";
 import {
   hasConnectedProvider,
   isNoActiveChatModelError

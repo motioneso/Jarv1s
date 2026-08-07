@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { GitCommitHorizontal } from "lucide-react";
-import { AllDayChip, EventChip, NowLine, TodayPill, type EventChipVariant } from "@jarv1s/ui";
+import { AllDayChip, EventChip, NowLine, TodayPill, type EventChipVariant } from "@moss/ui";
 
 import {
   DOW_SHORT,

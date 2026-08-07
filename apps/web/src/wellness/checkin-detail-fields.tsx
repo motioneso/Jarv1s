@@ -1,4 +1,4 @@
-import { EMOTIONS, moodIndex, moodBand } from "@jarv1s/shared";
+import { EMOTIONS, moodIndex, moodBand } from "@moss/shared";
 import { emVars, MOOD_BAND_LABELS, type WellnessEmotionCore, type Theme } from "./emotion-taxonomy";
 
 interface Props {

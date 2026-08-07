@@ -1,5 +1,5 @@
-import type { PgBoss } from "@jarv1s/jobs";
-import { assertMetadataOnlyPayload } from "@jarv1s/jobs";
+import type { PgBoss } from "@moss/jobs";
+import { assertMetadataOnlyPayload } from "@moss/jobs";
 
 export const EXPORT_CLEANUP_QUEUE = "export.cleanup";
 export const EXPORT_CLEANUP_CRON = "17 * * * *";

@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Group, Note, PaneHead, Row, Switch } from "@jarv1s/settings-ui";
+import { Group, Note, PaneHead, Row, Switch } from "@moss/settings-ui";
 import type {
   TaskAgencyAutoExecuteResponse,
   UpdateTaskAgencyAutoExecuteRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 const AGENCY_AUTO_EXECUTE_KEY = ["tasks", "agency-auto-execute"] as const;
 

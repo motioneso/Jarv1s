@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import { assertDataContextDb } from "@jarv1s/db";
-import type { ToolExecute, ToolResult, ToolServices } from "@jarv1s/module-sdk";
+import { assertDataContextDb } from "@moss/db";
+import type { ToolExecute, ToolResult, ToolServices } from "@moss/module-sdk";
 
 import type { NotificationPreferenceWriteService } from "./notification-preference-application.js";
 import { settingsUndoStack } from "./undo-stack.js";

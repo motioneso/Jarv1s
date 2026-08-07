@@ -2,8 +2,8 @@
  * §L.5 onboarding-login seam wiring (#342 Phase 3, login-contract §L.2/§L.4/§L.5).
  *
  * The composition root assembles the login seam that `packages/settings/src/onboarding-routes.ts`
- * declares as injected PORTS (module isolation — settings never imports @jarv1s/chat or
- * @jarv1s/cli-runner). Mirrors `buildOnboardingInstall` (§A.5):
+ * declares as injected PORTS (module isolation — settings never imports @moss/chat or
+ * @moss/cli-runner). Mirrors `buildOnboardingInstall` (§A.5):
  *
  *   - loginability ← the cli-runner LOGIN-ADAPTER registry (the auth-flow allowlist, §L.1). A
  *                    provider with no adapter (agy, or codex if its headless smoke failed) is
@@ -18,11 +18,11 @@
  * CLIs live in the cli-runner container); absent ⇒ the login routes fail closed (500).
  */
 
-import type { AiAutoRegisterPort } from "@jarv1s/ai";
-import { CliChatUnavailableError, type RpcConnection } from "@jarv1s/chat";
-import { LOGIN_ADAPTERS } from "@jarv1s/cli-runner";
-import type { AiProviderKind } from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
+import type { AiAutoRegisterPort } from "@moss/ai";
+import { CliChatUnavailableError, type RpcConnection } from "@moss/chat";
+import { LOGIN_ADAPTERS } from "@moss/cli-runner";
+import type { AiProviderKind } from "@moss/db";
+import { HttpError } from "@moss/module-sdk";
 import type {
   OnboardingLoginDependencies,
   ProviderLoginabilityPort,
@@ -30,8 +30,8 @@ import type {
   ProviderLoginOutcome,
   ProviderLoginStateStore,
   SettingsRepository
-} from "@jarv1s/settings";
-import type { OnboardingProviderKind } from "@jarv1s/shared";
+} from "@moss/settings";
+import type { OnboardingProviderKind } from "@moss/shared";
 
 /** Map an RPC login result onto the route's outcome shape (omit absent optionals). */
 function mapOutcome(r: {
@@ -88,7 +88,7 @@ export function buildOnboardingLogin(deps: {
     return conn;
   };
 
-  // The Settings module deliberately does not depend on @jarv1s/chat, so its shared route
+  // The Settings module deliberately does not depend on @moss/chat, so its shared route
   // mapper cannot recognize CliChatUnavailableError directly. Translate runner transport/busy
   // failures at this composition seam into the canonical route error before they cross the
   // module boundary; otherwise a retryable runner outage is exposed as a misleading 500.

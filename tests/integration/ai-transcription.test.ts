@@ -3,14 +3,9 @@ import type { Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import { AiRepository } from "@jarv1s/ai";
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import { AiRepository } from "@moss/ai";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -24,7 +19,7 @@ const { Client } = pg;
 // anywhere in the pipeline (defense in depth, since this route uniquely accepts a raw binary body —
 // a naive implementation could easily leak it into an error message or log line).
 describe("AI voice transcription route (#738)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: AiRepository;
   let server: ReturnType<typeof createApiServer>;

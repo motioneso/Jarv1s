@@ -10,11 +10,11 @@ import pg from "pg";
 import Fastify from "fastify";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import type { GetNotesSourceResponse, PostNotesSyncResponse } from "@jarv1s/shared";
-import { StubEmbeddingProvider } from "@jarv1s/memory";
-import { NOTES_SOURCE_PREFERENCE_KEY, resolveNotesRoots } from "@jarv1s/settings";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import type { GetNotesSourceResponse, PostNotesSyncResponse } from "@moss/shared";
+import { StubEmbeddingProvider } from "@moss/memory";
+import { NOTES_SOURCE_PREFERENCE_KEY, resolveNotesRoots } from "@moss/settings";
+import { PreferencesRepository } from "@moss/structured-state";
 import {
   assertWithinRoot,
   NotesPathError,
@@ -24,7 +24,7 @@ import {
   registerNotesSyncRoutes,
   NOTES_SYNC_QUEUE,
   type NotesSyncJobPayload
-} from "@jarv1s/notes";
+} from "@moss/notes";
 import { notesSearchExecute } from "../../packages/notes/src/tools.js";
 // notesMonitorProvider is internal wiring (registered via notesModuleManifest), not part of the
 // package's public API — imported directly from source, same pattern as notesSearchExecute above.
@@ -86,7 +86,7 @@ describe("resolveNotesRoots", () => {
 
 // ── shared API server setup ───────────────────────────────────────────────────
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let ownerCookie: string;
 let notesDir: string;
 
@@ -334,7 +334,7 @@ describe("POST /api/notes/sync", () => {
 
 describe("handleNotesSyncJob", () => {
   let dataContext: DataContextRunner;
-  let workerDb: Kysely<JarvisDatabase>;
+  let workerDb: Kysely<MossDatabase>;
   let workerDataContext: DataContextRunner;
   const provider = new StubEmbeddingProvider();
   const prefsRepo = new PreferencesRepository();

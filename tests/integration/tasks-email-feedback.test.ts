@@ -5,11 +5,11 @@ import Fastify from "fastify";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { emailSourceRef } from "@jarv1s/connectors";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { EmailRepository } from "@jarv1s/email";
-import { createEmailTriageFeedbackPort } from "@jarv1s/module-registry";
-import { registerTasksRoutes, TasksRepository, type EmailTriageFeedbackPort } from "@jarv1s/tasks";
+import { emailSourceRef } from "@moss/connectors";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { EmailRepository } from "@moss/email";
+import { createEmailTriageFeedbackPort } from "@moss/module-registry";
+import { registerTasksRoutes, TasksRepository, type EmailTriageFeedbackPort } from "@moss/tasks";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -21,7 +21,7 @@ const OTHER_CONNECTOR_ACCOUNT_ID = "e7f1a4a0-9b2c-4d3e-8f10-000000000730";
 const EMAIL_EXTERNAL_ID = "gmail-msg-feedback-1";
 
 describe("Tasks — email triage feedback on suggested-task accept/reject (spec #729 §6)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   const tasksRepository = new TasksRepository();
   const emailRepository = new EmailRepository();

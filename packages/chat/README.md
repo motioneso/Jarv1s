@@ -1,7 +1,7 @@
-# @jarv1s/chat
+# @moss/chat
 
 The chat module: REST + live (terminal-CLI-backed) chat. Live sessions are driven through a portable
-`Multiplexer` seam (`@jarv1s/ai`) so a deployed instance can use whichever multiplexer the host
+`Multiplexer` seam (`@moss/ai`) so a deployed instance can use whichever multiplexer the host
 provides (tmux or herdr), selected by the admin `chat.multiplexer` instance setting with PATH
 auto-detection (ADR 0008).
 

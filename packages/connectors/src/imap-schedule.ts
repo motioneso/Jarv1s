@@ -1,6 +1,6 @@
 import type { PgBoss } from "pg-boss";
 
-import { assertMetadataOnlyPayload } from "@jarv1s/jobs";
+import { assertMetadataOnlyPayload } from "@moss/jobs";
 
 import { IMAP_SYNC_QUEUE, type ImapSyncPayload } from "./imap-sync-jobs.js";
 

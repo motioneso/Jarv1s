@@ -15,10 +15,10 @@ import {
   type AiProviderKind,
   type AiProviderStatus,
   type DataContextDb,
-  type JarvisActionAuditLog,
-  type JarvisErrorLog,
-  type JarvisDatabase
-} from "@jarv1s/db";
+  type MossActionAuditLog,
+  type MossErrorLog,
+  type MossDatabase
+} from "@moss/db";
 import {
   MODULE_WORKER_SERVICE_KEY,
   isModuleServiceKey,
@@ -31,10 +31,10 @@ import {
   type AiServiceKey,
   type ModuleServiceBindingMap,
   type ModuleServiceKey
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import type { EncryptedAiSecret } from "./crypto.js";
-import type { JarvisActionPermissionTier } from "@jarv1s/module-sdk";
+import type { MossActionPermissionTier } from "@moss/module-sdk";
 import { parseCapabilityRouteMap } from "./capability-route-map.js";
 import { parseModuleServiceBindingMap, parseServiceBindingMap } from "./service-binding-map.js";
 import {
@@ -1768,7 +1768,7 @@ export class AiRepository {
   }
 
   async cancelStalePendingAssistantActions(
-    appDb: Kysely<JarvisDatabase>,
+    appDb: Kysely<MossDatabase>,
     input: { readonly olderThan: Date }
   ): Promise<number> {
     const result = await sql<{ count: number }>`
@@ -1893,7 +1893,7 @@ export class AiRepository {
 
   async listActionPolicies(
     scopedDb: DataContextDb
-  ): Promise<{ moduleId: string; actionFamilyId: string; tier: JarvisActionPermissionTier }[]> {
+  ): Promise<{ moduleId: string; actionFamilyId: string; tier: MossActionPermissionTier }[]> {
     assertDataContextDb(scopedDb);
     const rows = await scopedDb.db
       .selectFrom("app.preferences")
@@ -1909,7 +1909,7 @@ export class AiRepository {
         actionFamilyId: parts.slice(1).join("."),
         tier:
           typeof r.value_json === "string"
-            ? (r.value_json as JarvisActionPermissionTier)
+            ? (r.value_json as MossActionPermissionTier)
             : "ask_each_time"
       };
     });
@@ -1919,7 +1919,7 @@ export class AiRepository {
     scopedDb: DataContextDb,
     moduleId: string,
     actionFamilyId: string,
-    tier: JarvisActionPermissionTier
+    tier: MossActionPermissionTier
   ): Promise<void> {
     assertDataContextDb(scopedDb);
     const key = `assistant.action_policy.v1.${moduleId}.${actionFamilyId}`;
@@ -1950,7 +1950,7 @@ export class AiRepository {
     scopedDb: DataContextDb,
     moduleId: string,
     actionFamilyId: string,
-    tier: JarvisActionPermissionTier
+    tier: MossActionPermissionTier
   ): Promise<boolean> {
     assertDataContextDb(scopedDb);
     const key = `assistant.action_policy.v1.${moduleId}.${actionFamilyId}`;
@@ -1992,7 +1992,7 @@ export class AiRepository {
   async listActionAuditLog(
     scopedDb: DataContextDb,
     opts: ListAuditLogOptions
-  ): Promise<JarvisActionAuditLog[]> {
+  ): Promise<MossActionAuditLog[]> {
     assertDataContextDb(scopedDb);
     let query = scopedDb.db
       .selectFrom("app.jarvis_action_audit_log")
@@ -2010,7 +2010,7 @@ export class AiRepository {
     return query.execute();
   }
 
-  async purgeActionAuditLog(appDb: Kysely<JarvisDatabase>, olderThan: Date): Promise<number> {
+  async purgeActionAuditLog(appDb: Kysely<MossDatabase>, olderThan: Date): Promise<number> {
     const result = await sql<{ count: number }>`
       SELECT app.purge_jarvis_action_audit_log(${olderThan}) AS count
     `.execute(appDb);
@@ -2035,10 +2035,7 @@ export class AiRepository {
       .execute();
   }
 
-  async recordAnonymousError(
-    appDb: Kysely<JarvisDatabase>,
-    input: RecordErrorInput
-  ): Promise<void> {
+  async recordAnonymousError(appDb: Kysely<MossDatabase>, input: RecordErrorInput): Promise<void> {
     await sql`
       SELECT app.record_anonymous_error(
         ${input.id}::uuid,
@@ -2056,7 +2053,7 @@ export class AiRepository {
   async listRecentErrors(
     scopedDb: DataContextDb,
     opts: ListRecentErrorsOptions
-  ): Promise<JarvisErrorLog[]> {
+  ): Promise<MossErrorLog[]> {
     assertDataContextDb(scopedDb);
     const since = opts.since ?? new Date(Date.now() - 24 * 60 * 60 * 1000);
     const q = opts.query?.trim().toLowerCase();
@@ -2081,7 +2078,7 @@ export class AiRepository {
     return query.execute();
   }
 
-  async purgeErrorLog(appDb: Kysely<JarvisDatabase>, olderThan: Date): Promise<number> {
+  async purgeErrorLog(appDb: Kysely<MossDatabase>, olderThan: Date): Promise<number> {
     const result = await sql<{ count: number }>`
       SELECT app.purge_jarvis_error_log(${olderThan}) AS count
     `.execute(appDb);

@@ -1,4 +1,4 @@
-# @jarv1s/sports
+# @moss/sports
 
 Sports follows, scores, standings, headlines, and a briefing hook. See
 `docs/superpowers/specs/2026-06-30-sports-module.md` for the full design and
@@ -11,7 +11,7 @@ loader yet. Tagged `// LOADER-SEAM(sports):` in code where the seam is a single 
 listed here as the ledger for the seams that are cross-file.
 
 1. **`BUILT_IN_MODULES` entry** — `packages/module-registry/src/index.ts` (static import
-   of `@jarv1s/sports` + registration object: manifest, `sqlMigrationDirectories`,
+   of `@moss/sports` + registration object: manifest, `sqlMigrationDirectories`,
    `registerRoutes`). Tagged `LOADER-SEAM(sports) 1`.
 2. **`registerSportsRoutes` DI wiring** — same file, same registration object:
    `dataContext`, `resolveAccessContext`, and construction of the `SportsSource` adapter
@@ -24,7 +24,7 @@ listed here as the ledger for the seams that are cross-file.
    label/match) and `apps/web/src/app.tsx` (lazy import + `ModuleGatedRoute`); the
    settings entry is manifest-driven (`manifest.settings[0].entry`) but the package
    `exports["./settings"]` subpath in `packages/sports/package.json` is the seam the
-   settings scanner's dynamic `import("@jarv1s/sports/settings")` resolves against.
+   settings scanner's dynamic `import("@moss/sports/settings")` resolves against.
 5. **`packages/shared/src/sports-api.ts`** — shared TS contracts (`TeamRef`,
    `CompetitionRef`, `SportsFollowDto`, `SportsCatalogResponse`, `SportsOverviewResponse`,
    route JSON schemas) added to the shared bundle consumed by both `apps/web` and

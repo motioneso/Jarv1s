@@ -2,7 +2,7 @@
 -- and re-run on every `pnpm db:migrate`, so embedding password literals would let a
 -- production migration silently reset runtime roles to development credentials.
 -- Each role's password is assigned by the migration runner (applyRolePasswords in
--- @jarv1s/db) from the configured connection URLs, which are the single source of
+-- @moss/db) from the configured connection URLs, which are the single source of
 -- truth and fail closed in production. See docs/operations/release-hardening.md.
 DO $$
 BEGIN

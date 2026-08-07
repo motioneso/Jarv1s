@@ -121,7 +121,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ["@jarv1s/*/src/*"],
+              group: ["@moss/*/src/*"],
               message: "Deep import into another package's src. Use its public exports."
             },
             {
@@ -160,7 +160,7 @@ export default tseslint.config(
           ],
           patterns: [
             {
-              group: ["@jarv1s/*/src/*"],
+              group: ["@moss/*/src/*"],
               message: "Deep import into another package's src. Use its public exports."
             },
             {

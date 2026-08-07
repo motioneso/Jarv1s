@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextDb, DataContextRunner, User } from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
-import { getHostDiagnosticsRouteSchema } from "@jarv1s/shared";
+import type { AccessContext, DataContextDb, DataContextRunner, User } from "@moss/db";
+import { HttpError } from "@moss/module-sdk";
+import { getHostDiagnosticsRouteSchema } from "@moss/shared";
 
 import { buildHostDiagnostics, type HostDiagnosticsProvider } from "./host-diagnostics.js";
 import type { SettingsRepository } from "./repository.js";

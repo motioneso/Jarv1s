@@ -11,7 +11,7 @@ export interface CalendarEventDto {
   readonly summary: string | null;
   readonly bodyExcerpt: string | null;
   readonly externalId: string;
-  readonly isJarvisBlock: boolean;
+  readonly isMossBlock: boolean;
   readonly allDay: boolean;
   readonly attendeeCount: number;
   readonly status: string | null;
@@ -49,7 +49,7 @@ export const calendarEventDtoSchema = {
     "summary",
     "bodyExcerpt",
     "externalId",
-    "isJarvisBlock",
+    "isMossBlock",
     "allDay",
     "attendeeCount",
     "status",
@@ -67,7 +67,7 @@ export const calendarEventDtoSchema = {
     summary: nullableStringSchema,
     bodyExcerpt: nullableStringSchema,
     externalId: { type: "string" },
-    isJarvisBlock: { type: "boolean" },
+    isMossBlock: { type: "boolean" },
     allDay: { type: "boolean" },
     attendeeCount: { type: "number" },
     status: nullableStringSchema,

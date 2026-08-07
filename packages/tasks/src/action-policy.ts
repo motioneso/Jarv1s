@@ -1,6 +1,6 @@
 import { sql } from "kysely";
-import { assertDataContextDb, type DataContextDb, type PreferencesPort } from "@jarv1s/db";
-import type { JarvisActionPermissionTier } from "@jarv1s/module-sdk";
+import { assertDataContextDb, type DataContextDb, type PreferencesPort } from "@moss/db";
+import type { MossActionPermissionTier } from "@moss/module-sdk";
 
 export const TASK_CHANGES_POLICY_KEY = "assistant.action_policy.v1.tasks.task_changes";
 export const LEGACY_AGENCY_AUTO_EXECUTE_KEY = "tasks.agency_auto_execute";
@@ -8,8 +8,8 @@ export const LEGACY_AGENCY_AUTO_EXECUTE_KEY = "tasks.agency_auto_execute";
 export class TasksCompatibilityHelper {
   constructor(private readonly prefs: PreferencesPort) {}
 
-  async getResolvedTaskChangesPolicy(db: DataContextDb): Promise<JarvisActionPermissionTier> {
-    const canonical = await this.prefs.getWithMetadata<JarvisActionPermissionTier>(
+  async getResolvedTaskChangesPolicy(db: DataContextDb): Promise<MossActionPermissionTier> {
+    const canonical = await this.prefs.getWithMetadata<MossActionPermissionTier>(
       db,
       TASK_CHANGES_POLICY_KEY
     );
@@ -38,16 +38,16 @@ export class TasksCompatibilityHelper {
    * (packages/ai/src/gateway/self-operation.ts:495-519). Exposed (not private) so tests can
    * exercise the both-absent code path directly against a pre-seeded row.
    */
-  async healInstallGrantAndReread(db: DataContextDb): Promise<JarvisActionPermissionTier> {
+  async healInstallGrantAndReread(db: DataContextDb): Promise<MossActionPermissionTier> {
     await this.grantInstallTimeTrustIfUnset(db);
-    const reread = await this.prefs.getWithMetadata<JarvisActionPermissionTier>(
+    const reread = await this.prefs.getWithMetadata<MossActionPermissionTier>(
       db,
       TASK_CHANGES_POLICY_KEY
     );
     return reread?.value ?? "ask_each_time";
   }
 
-  async setTaskChangesPolicy(db: DataContextDb, tier: JarvisActionPermissionTier): Promise<void> {
+  async setTaskChangesPolicy(db: DataContextDb, tier: MossActionPermissionTier): Promise<void> {
     await this.prefs.upsert(db, TASK_CHANGES_POLICY_KEY, tier);
     const legacyBoolean = tier === "trusted_auto";
     await this.prefs.upsert(db, LEGACY_AGENCY_AUTO_EXECUTE_KEY, legacyBoolean);

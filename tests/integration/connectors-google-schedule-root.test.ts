@@ -1,14 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
 import {
   CALENDAR_SCOPE,
   ConnectorsRepository,
   createConnectorSecretCipher,
   GOOGLE_SYNC_QUEUE,
   registerGoogleSyncSweepWorker
-} from "@jarv1s/connectors";
-import { assertMetadataOnlyPayload, createPgBossClient, type Job, type PgBoss } from "@jarv1s/jobs";
+} from "@moss/connectors";
+import { assertMetadataOnlyPayload, createPgBossClient, type Job, type PgBoss } from "@moss/jobs";
 import type { Kysely } from "kysely";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -16,8 +16,8 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 const { Client } = pg;
 
 describe("Google schedule to root job", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let rootDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let rootDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let boss: PgBoss;
 

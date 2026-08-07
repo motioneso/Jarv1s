@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { computeInsights } from "@jarv1s/wellness";
+import { computeInsights } from "@moss/wellness";
 
 // Regression for #772 — the low-adherence insight used to unconditionally append a fixed,
 // fabricated specific ("a few evening doses slipped") whenever adherence dropped below 85%,

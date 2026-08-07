@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Group, Note, PaneHead, Row, Select, Switch } from "@jarv1s/settings-ui";
+import { Group, Note, PaneHead, Row, Select, Switch } from "@moss/settings-ui";
 import type {
   CalendarAutomationMode,
   GetCalendarBriefingSettingsResponse,
@@ -8,7 +8,7 @@ import type {
   PutSourceBehaviorResponse,
   UpdateCalendarBriefingSettingsRequest,
   UpdateCalendarBriefingSettingsResponse
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 const CALENDAR_BEHAVIOR_ID = "calendar.briefings";
 const SOURCE_BEHAVIORS_KEY = ["settings", "source-behaviors"] as const;

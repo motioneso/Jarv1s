@@ -1,4 +1,4 @@
-import type { WellnessExportCategory } from "@jarv1s/shared";
+import type { WellnessExportCategory } from "@moss/shared";
 
 import { requestJson } from "./client";
 import type { ExportJobStatus } from "./client";

@@ -6,8 +6,8 @@ import {
   sendJob
 } from "./pg-boss.js";
 import type { Kysely } from "kysely";
-import type { JarvisDatabase } from "@jarv1s/db";
-import { compareJarvisVersions } from "@jarv1s/module-sdk";
+import type { MossDatabase } from "@moss/db";
+import { compareMossVersions } from "@moss/module-sdk";
 
 const UPGRADE_CHECK_CRON = "0 0 * * *"; // Daily at midnight
 const UPGRADE_CHECK_KEY = "system.upgrade-check";
@@ -28,7 +28,7 @@ export interface UpgradeNotifyPayload {
 }
 
 export async function handleUpgradeCheckJob(
-  workerDb: Kysely<JarvisDatabase>,
+  workerDb: Kysely<MossDatabase>,
   boss?: PgBoss
 ): Promise<void> {
   const currentVersion = process.env.JARVIS_APP_VERSION;
@@ -58,7 +58,7 @@ export async function handleUpgradeCheckJob(
     throw new Error("Invalid release response: missing tag_name");
   }
 
-  if (compareJarvisVersions(release.tag_name, currentVersion) > 0) {
+  if (compareMossVersions(release.tag_name, currentVersion) > 0) {
     const value = {
       version: release.tag_name,
       notes: release.body || ""

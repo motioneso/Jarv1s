@@ -1,11 +1,11 @@
 import type { FastifyInstance } from "fastify";
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 import {
   getAiSummaryRouteSchema,
   listAiConfiguredModelsRouteSchema,
   listAiProviderConfigsRouteSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import type { AiSecretCipher } from "./crypto.js";
 import { discoverAndPersistModels } from "./discover-and-persist-models.js";

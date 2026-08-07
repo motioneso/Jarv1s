@@ -1,9 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import { handleRouteError } from "@jarv1s/module-sdk";
-import type { ProactiveSource } from "@jarv1s/shared";
+import type { AccessContext, DataContextRunner } from "@moss/db";
+import { handleRouteError } from "@moss/module-sdk";
+import type { ProactiveSource } from "@moss/shared";
 
 import { CardRepository, serializeCard } from "./card-repository.js";
 import { enqueueProactiveScan } from "./jobs.js";

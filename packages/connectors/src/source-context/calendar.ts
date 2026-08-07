@@ -1,4 +1,4 @@
-import type { CalendarEvent, DataContextDb } from "@jarv1s/db";
+import type { CalendarEvent, DataContextDb } from "@moss/db";
 
 import type { ConnectorAccountSafeRow } from "../repository.js";
 import type { GoogleCalendarEvent } from "../google-api-client.js";

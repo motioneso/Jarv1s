@@ -3,9 +3,9 @@ import type { OutgoingHttpHeaders } from "node:http";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import type { GetChatSettingsResponse } from "@jarv1s/shared";
+import { createDatabase, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import type { GetChatSettingsResponse } from "@moss/shared";
 
 import {
   connectionStrings,
@@ -24,7 +24,7 @@ function cookieHeader(headers: OutgoingHttpHeaders): string {
 }
 
 describe("chat settings", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let ownerCookie: string;

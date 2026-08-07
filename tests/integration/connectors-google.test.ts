@@ -4,8 +4,8 @@ import {
   DataContextRunner,
   createDatabase,
   type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
+  type MossDatabase
+} from "@moss/db";
 import Fastify from "fastify";
 import type { Kysely } from "kysely";
 import {
@@ -25,8 +25,8 @@ import {
   makeGmailSearchLiveExecute,
   registerConnectorsRoutes,
   connectorsModuleManifest
-} from "@jarv1s/connectors";
-import type { ToolContext } from "@jarv1s/module-sdk";
+} from "@moss/connectors";
+import type { ToolContext } from "@moss/module-sdk";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 describe("GoogleOAuthClient.buildAuthUrl", () => {
@@ -201,7 +201,7 @@ describe("GoogleOAuthClient.refreshAccessToken", () => {
 });
 
 describe("Google connection repository", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: ConnectorsRepository;
   const userA = (): AccessContext => ({ actorUserId: ids.userA, requestId: "req:a" });
@@ -265,7 +265,7 @@ describe("Google connection repository", () => {
 });
 
 describe("GoogleConnectionService", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   const userA = (): AccessContext => ({ actorUserId: ids.userA, requestId: "req:a" });
 
@@ -558,7 +558,7 @@ describe("GoogleConnectionService", () => {
 });
 
 describe("google connect routes", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let server: ReturnType<typeof Fastify>;
 
@@ -725,7 +725,7 @@ describe("connectors.startGoogleGuidance tool", () => {
 });
 
 describe("live Google assistant tools", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   const liveAccountId = "00000000-0000-0000-0000-00000000fa00";
   const access = (): AccessContext => ({ actorUserId: ids.userA, requestId: "req:live-google" });

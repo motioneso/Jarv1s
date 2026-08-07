@@ -1,4 +1,4 @@
-import type { FeedbackTargetVerifier } from "@jarv1s/usefulness-feedback";
+import type { FeedbackTargetVerifier } from "@moss/usefulness-feedback";
 
 import { ChatRepository } from "./repository.js";
 

@@ -1,8 +1,8 @@
 import { sql } from "kysely";
 
-import type { DataContextDb } from "@jarv1s/db";
-import { assertDataContextDb } from "@jarv1s/db";
-import { cronExprFor, timezoneFor, type NotificationDto } from "@jarv1s/shared";
+import type { DataContextDb } from "@moss/db";
+import { assertDataContextDb } from "@moss/db";
+import { cronExprFor, timezoneFor, type NotificationDto } from "@moss/shared";
 
 import { NotificationsRepository, type NotificationPreferencePort } from "./repository.js";
 import { serializeNotification } from "./routes.js";

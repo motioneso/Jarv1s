@@ -4,7 +4,7 @@ import {
   filterUndeclaredExternalModules,
   registryIndexIds
 } from "../../apps/web/src/settings/settings-instance-modules-pane.js";
-import type { ExternalModuleDto, ModuleRegistryRowDto } from "@jarv1s/shared";
+import type { ExternalModuleDto, ModuleRegistryRowDto } from "@moss/shared";
 
 function ext(id: string): ExternalModuleDto {
   return {

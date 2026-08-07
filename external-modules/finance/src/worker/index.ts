@@ -6,8 +6,8 @@
 // handler_failed at the protocol layer, no accidental message leak). The
 // registry lives in registry.ts because defineModuleWorker is side-effecting
 // at import time (stdin readline) — tests import the registry, never this.
-import { defineModuleWorker } from "@jarv1s/module-sdk/worker";
-import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import { defineModuleWorker } from "@moss/module-sdk/worker";
+import type { ModuleWorkerContext } from "@moss/module-sdk/worker";
 
 import { fetchFromWorkerContext } from "../adapters/index.js";
 import { createPlaid } from "../adapters/plaid.js";

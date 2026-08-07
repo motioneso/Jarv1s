@@ -1,4 +1,4 @@
-import { localDay, type CheckinDto } from "@jarv1s/shared";
+import { localDay, type CheckinDto } from "@moss/shared";
 
 /**
  * Count the consecutive-day streak ending yesterday (exclusive of today).

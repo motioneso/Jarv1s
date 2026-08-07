@@ -1,7 +1,7 @@
 import { Check, GitCommitHorizontal } from "lucide-react";
 import { useState } from "react";
 
-import type { TaskDto } from "@jarv1s/shared";
+import type { TaskDto } from "@moss/shared";
 
 import { useUserLocale } from "../locale/locale-format";
 import { driftOf, shortDate } from "./today-labels";

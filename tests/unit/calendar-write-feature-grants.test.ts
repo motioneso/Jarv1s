@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { dataContextBrand, type DataContextDb } from "@jarv1s/db";
-import { buildCalendarWriteService } from "@jarv1s/chat";
-import { GoogleApiError } from "@jarv1s/connectors";
+import { dataContextBrand, type DataContextDb } from "@moss/db";
+import { buildCalendarWriteService } from "@moss/chat";
+import { GoogleApiError } from "@moss/connectors";
 
 const scopedDb = { db: {} as never, [dataContextBrand]: true } satisfies DataContextDb;
 

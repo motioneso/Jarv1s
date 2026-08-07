@@ -3,7 +3,7 @@
  *
  * After a provider's login settles `ready`, the founder should have a working chat model with ZERO
  * manual entry (no Admin → Add provider → Add model detour). This service, called from the login
- * chokepoint (`persistLoginTerminal` ready branch, wired in @jarv1s/module-registry), idempotently
+ * chokepoint (`persistLoginTerminal` ready branch, wired in @moss/module-registry), idempotently
  * ensures an AI provider config + a default chat model exist for the provider.
  *
  * PROVIDER-AGNOSTIC (CLAUDE.md Hard Invariant): the default lives in the per-provider data map
@@ -11,8 +11,8 @@
  * new map entry — no new code path. No provider/model is hardcoded in a code path.
  */
 
-import type { AiModelCapability } from "@jarv1s/shared";
-import type { AiModelTier, AiProviderKind, DataContextDb } from "@jarv1s/db";
+import type { AiModelCapability } from "@moss/shared";
+import type { AiModelTier, AiProviderKind, DataContextDb } from "@moss/db";
 
 import type { AiSecretCipher } from "./crypto.js";
 import { discoverAndPersistModels } from "./discover-and-persist-models.js";

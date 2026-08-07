@@ -1,5 +1,5 @@
 {
-  "name": "@jarv1s/notes",
+  "name": "@moss/notes",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,13 +10,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@jarv1s/db": "workspace:*",
-    "@jarv1s/jobs": "workspace:*",
-    "@jarv1s/memory": "workspace:*",
-    "@jarv1s/module-sdk": "workspace:*",
-    "@jarv1s/settings": "workspace:*",
-    "@jarv1s/shared": "workspace:*",
-    "@jarv1s/structured-state": "workspace:*",
+    "@moss/db": "workspace:*",
+    "@moss/jobs": "workspace:*",
+    "@moss/memory": "workspace:*",
+    "@moss/module-sdk": "workspace:*",
+    "@moss/settings": "workspace:*",
+    "@moss/shared": "workspace:*",
+    "@moss/structured-state": "workspace:*",
     "fastify": "^5.6.2",
     "pg-boss": "^12.18.2"
   }

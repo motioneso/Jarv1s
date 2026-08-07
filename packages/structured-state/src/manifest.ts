@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 
 import { commitmentsListVisibleExecute } from "./tools.js";
 
@@ -9,7 +9,7 @@ export const structuredStateSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
 );
 
-export const structuredStateModuleManifest: JarvisModuleManifest = {
+export const structuredStateModuleManifest: MossModuleManifest = {
   id: STRUCTURED_STATE_MODULE_ID,
   name: "Structured State",
   version: "0.1.0",

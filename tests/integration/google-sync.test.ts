@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "kysely";
-import type { DataContextRunner, JarvisDatabase } from "@jarv1s/db";
+import type { DataContextRunner, MossDatabase } from "@moss/db";
 import type { Kysely } from "kysely";
 import {
   ConnectorsRepository,
@@ -9,9 +9,9 @@ import {
   parseEmail,
   resolveEmailMessageCap,
   type EmailExtractDeps
-} from "@jarv1s/connectors";
-import { CalendarRepository } from "@jarv1s/calendar";
-import { EmailRepository } from "@jarv1s/email";
+} from "@moss/connectors";
+import { CalendarRepository } from "@moss/calendar";
+import { EmailRepository } from "@moss/email";
 import { ids } from "./test-database.js";
 import {
   seedGoogleAccount as seedGoogleAccountWith,
@@ -20,7 +20,7 @@ import {
   type GoogleSyncDatabaseHandles
 } from "./helpers/google-sync-shared.js";
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let dataContext: DataContextRunner;
 let workerDataContext: DataContextRunner;
 

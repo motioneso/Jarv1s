@@ -1,6 +1,6 @@
 import { useCallback, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { Headline, LeagueNewsGroup } from "@jarv1s/shared";
+import type { Headline, LeagueNewsGroup } from "@moss/shared";
 import { useAutoAdvance } from "./use-auto-advance.js";
 // Ranking now lives in a shared pure module (#857) so the server computes the SAME featured pick
 // it needs to fetch the article body for. Re-export `isFollowed` because sports-around-ticker /

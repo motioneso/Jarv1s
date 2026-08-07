@@ -1,5 +1,5 @@
 {
-  "name": "@jarv1s/datasets",
+  "name": "@moss/datasets",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@jarv1s/host-fetch": "workspace:*",
-    "@jarv1s/module-sdk": "workspace:*"
+    "@moss/host-fetch": "workspace:*",
+    "@moss/module-sdk": "workspace:*"
   }
 }

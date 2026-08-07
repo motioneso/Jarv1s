@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { RecallService } from "@jarv1s/chat";
+import { RecallService } from "@moss/chat";
 
 type RecallServiceDeps = ConstructorParameters<typeof RecallService>;
 

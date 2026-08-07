@@ -9,14 +9,14 @@ import {
   PostgresQueryCompiler
 } from "kysely";
 
-import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
-import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
+import type { AccessContext, DataContextDb, DataContextRunner, MossDatabase } from "@moss/db";
+import type { ExternalModuleDiscovery } from "@moss/module-registry";
 import {
   AI_CALLS_PER_INVOCATION_CAP,
   createExternalModuleRpcHandler,
   type ExternalModuleAiResult
-} from "@jarv1s/module-registry/node";
-import type { CreateNotificationInput } from "@jarv1s/notifications";
+} from "@moss/module-registry/node";
+import type { CreateNotificationInput } from "@moss/notifications";
 
 describe("external worker ctx.notify port (Task 2b, #1283)", () => {
   const module = {
@@ -169,7 +169,7 @@ describe("external worker ctx.notify port (Task 2b, #1283)", () => {
       aiCallCount += 1;
       return { ok: true, object: {} };
     };
-    const scopedDb = new Kysely<JarvisDatabase>({
+    const scopedDb = new Kysely<MossDatabase>({
       dialect: {
         createAdapter: () => new PostgresAdapter(),
         createDriver: () => new DummyDriver(),

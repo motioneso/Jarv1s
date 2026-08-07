@@ -1,4 +1,4 @@
-import { isValidTimeZone } from "@jarv1s/shared";
+import { isValidTimeZone } from "@moss/shared";
 
 /** Extract an IANA timezone string from a raw locale preference blob. Returns null on any invalid input. */
 export function extractTimezone(raw: unknown): string | null {

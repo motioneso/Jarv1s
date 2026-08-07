@@ -30,8 +30,8 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import type { AccessContext } from "@jarv1s/db";
-import { sessionRateLimitKey } from "@jarv1s/module-sdk";
+import type { AccessContext } from "@moss/db";
+import { sessionRateLimitKey } from "@moss/module-sdk";
 import {
   type ChatSurface,
   normalizeChatSurface,
@@ -40,7 +40,7 @@ import {
   type GetChatPrivacyStateResponse,
   getChatPrivacyStateRouteSchema,
   parsePositiveIntEnv
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import {
   type ChatAttachmentsService,

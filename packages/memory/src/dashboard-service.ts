@@ -1,4 +1,4 @@
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
 
 import type { MemoryCandidateRecord } from "./candidates-repository.js";
 import { MemoryCandidatesRepository } from "./candidates-repository.js";

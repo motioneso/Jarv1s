@@ -17,17 +17,17 @@ import {
   type GoogleSyncChunkOutcome,
   type GoogleSyncContinuationPayload,
   type GoogleSyncPayload
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 import {
   ALLOWED_PAYLOAD_KEYS,
   createPgBossClient,
   hasInFlightJob,
   type Job,
   type PgBoss
-} from "@jarv1s/jobs";
-import { getAllQueueDefinitions } from "@jarv1s/module-registry";
-import { googleSyncRouteSchema, type GoogleSyncResponse } from "@jarv1s/shared";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+} from "@moss/jobs";
+import { getAllQueueDefinitions } from "@moss/module-registry";
+import { googleSyncRouteSchema, type GoogleSyncResponse } from "@moss/shared";
+import { PreferencesRepository } from "@moss/structured-state";
 import { connectionStrings, ids } from "./test-database.js";
 import {
   featureGrantsPrefKey,

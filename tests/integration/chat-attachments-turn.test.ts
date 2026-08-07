@@ -16,8 +16,8 @@ import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { VaultContextRunner } from "@jarv1s/vault";
-import type { AccessContext } from "@jarv1s/db";
+import { VaultContextRunner } from "@moss/vault";
+import type { AccessContext } from "@moss/db";
 
 import { registerChatLiveRoutes } from "../../packages/chat/src/live-routes.js";
 import {

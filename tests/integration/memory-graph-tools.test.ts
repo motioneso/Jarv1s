@@ -3,9 +3,9 @@ import type { Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import { memoryModuleManifest } from "@jarv1s/memory";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import { memoryModuleManifest } from "@moss/memory";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -32,7 +32,7 @@ interface InvocationResponse {
 }
 
 describe("memory graph assistant tools", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let runner: DataContextRunner;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
@@ -129,7 +129,7 @@ describe("memory graph assistant tools", () => {
   it("gateway auto-runs memory.remember under trusted_auto but still confirms memory.forget (destructive floor)", async () => {
     const emitted: unknown[] = [];
     const { AiRepository, AssistantToolGateway, ConfirmationRegistry, SessionTokenRegistry } =
-      await import("@jarv1s/ai");
+      await import("@moss/ai");
     const repository = new AiRepository();
     const tokens = new SessionTokenRegistry();
     const confirmations = new ConfirmationRegistry();

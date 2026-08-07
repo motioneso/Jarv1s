@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import { calendarMonitorProvider } from "./monitor-provider.js";
 import {
   getCalendarBriefingSettingsResponseSchema,
@@ -8,7 +8,7 @@ import {
   listCalendarEventsResponseSchema,
   updateCalendarBriefingSettingsRequestSchema,
   deleteCalendarEventResponseSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import {
   calendarListVisibleEventsExecute,
@@ -287,4 +287,4 @@ export const calendarModuleManifest = {
     }
   ],
   proactiveMonitor: calendarMonitorProvider
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

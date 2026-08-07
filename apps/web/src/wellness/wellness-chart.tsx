@@ -3,7 +3,7 @@ import {
   moodBand,
   type CheckinDto,
   type AdherenceDoseSummaryItemDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import { emoColor, MOOD_BAND_LABELS, type Theme } from "./emotion-taxonomy";
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 

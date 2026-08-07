@@ -16,19 +16,19 @@ import {
   AuthSessionResolver,
   DataContextRunner,
   createDatabase,
-  type JarvisDatabase
-} from "@jarv1s/db";
+  type MossDatabase
+} from "@moss/db";
 import {
   getBuiltInModuleManifests,
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
-} from "@jarv1s/module-registry";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+} from "@moss/module-registry";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import {
   NotificationsRepository,
   notificationsModuleManifest,
   registerNotificationsRoutes
-} from "@jarv1s/notifications";
+} from "@moss/notifications";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import {
   notificationIds,
@@ -44,7 +44,7 @@ const { Client } = pg;
 const nonexistentNotificationId = randomUUID();
 
 describe("Notifications module M5", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
   let repository: NotificationsRepository;

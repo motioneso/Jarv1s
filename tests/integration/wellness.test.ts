@@ -7,19 +7,14 @@ import { sql, type Kysely } from "kysely";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
 import {
   WELLNESS_EMOTION_CORES,
   createCheckinRequestSchema,
   EMOTIONS,
   BODY_SENSATIONS,
   isValidFeelingPath
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import {
   WellnessRepository,
   computeSchedule,
@@ -31,19 +26,19 @@ import {
   deriveEnergyTrend,
   WellnessRecallContributor,
   wellnessFocusSignal
-} from "@jarv1s/wellness";
-import type { Medication, MedicationLog } from "@jarv1s/db";
-import type { ToolContext } from "@jarv1s/module-sdk";
+} from "@moss/wellness";
+import type { Medication, MedicationLog } from "@moss/db";
+import type { ToolContext } from "@moss/module-sdk";
 import {
   aggregateFocusSignals,
   type FocusSignal,
   type FocusSignalContextRunner
-} from "@jarv1s/module-sdk";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
-import { TasksRepository, registerTasksRoutes } from "@jarv1s/tasks";
-import { BriefingsRepository } from "@jarv1s/briefings";
-import { ChatMemoryFactsRepository } from "@jarv1s/memory";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+} from "@moss/module-sdk";
+import { getBuiltInModuleManifests } from "@moss/module-registry";
+import { TasksRepository, registerTasksRoutes } from "@moss/tasks";
+import { BriefingsRepository } from "@moss/briefings";
+import { ChatMemoryFactsRepository } from "@moss/memory";
+import { PreferencesRepository } from "@moss/structured-state";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 import { makeComposeDeps } from "./briefings.helpers.js";
@@ -57,7 +52,7 @@ function ctx(actorUserId: string): AccessContext {
   return { actorUserId, requestId: "req:wellness-test" };
 }
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let dataContext: DataContextRunner;
 
 beforeAll(async () => {
@@ -741,7 +736,7 @@ describe("focus-signal contribution point", () => {
     const poisons = async (scopedDb: unknown) => {
       // Issue a guaranteed-failing statement to abort THIS provider's transaction, then a
       // follow-up read that would 25P02 if the txn were shared with the healthy provider.
-      const db = (scopedDb as { db: Kysely<JarvisDatabase> }).db;
+      const db = (scopedDb as { db: Kysely<MossDatabase> }).db;
       await sql`select * from definitely_no_such_table_xyz`.execute(db).catch(() => {
         // swallow the original error; the point is the transaction is now aborted.
       });
@@ -804,8 +799,8 @@ describe("focus consumer down-weights when readiness is low (generic)", () => {
 describe("focus providers honor per-user enablement (Phase-2 seam is LANDED)", () => {
   it("focusSignalProvidersFor(active) excludes a module the actor disabled", async () => {
     const { createActiveModulesResolver, focusSignalProvidersFor, getBuiltInModuleManifests } =
-      await import("@jarv1s/module-registry");
-    const { SettingsRepository } = await import("@jarv1s/settings");
+      await import("@moss/module-registry");
+    const { SettingsRepository } = await import("@moss/settings");
 
     const resolveActive = createActiveModulesResolver({
       dataContext,
@@ -842,7 +837,7 @@ describe("focus providers honor per-user enablement (Phase-2 seam is LANDED)", (
   });
 });
 
-describe("feelings taxonomy (browser-safe, in @jarv1s/shared)", () => {
+describe("feelings taxonomy (browser-safe, in @moss/shared)", () => {
   it("has the six emotion cores, each with feelings+sensations", () => {
     expect(EMOTIONS.map((e) => e.core)).toEqual([
       "happy",
@@ -955,21 +950,21 @@ describe("computeInsights — low-data guard (Q1)", () => {
 describe("module isolation: wellness ⇄ tasks", () => {
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
-  it("@jarv1s/wellness package.json does NOT depend on @jarv1s/tasks", () => {
+  it("@moss/wellness package.json does NOT depend on @moss/tasks", () => {
     const pkg = JSON.parse(
       readFileSync(join(repoRoot, "packages/wellness/package.json"), "utf8")
     ) as { dependencies?: Record<string, string> };
-    expect(Object.keys(pkg.dependencies ?? {})).not.toContain("@jarv1s/tasks");
+    expect(Object.keys(pkg.dependencies ?? {})).not.toContain("@moss/tasks");
   });
 
-  it("@jarv1s/tasks package.json does NOT depend on @jarv1s/wellness", () => {
+  it("@moss/tasks package.json does NOT depend on @moss/wellness", () => {
     const pkg = JSON.parse(readFileSync(join(repoRoot, "packages/tasks/package.json"), "utf8")) as {
       dependencies?: Record<string, string>;
     };
-    expect(Object.keys(pkg.dependencies ?? {})).not.toContain("@jarv1s/wellness");
+    expect(Object.keys(pkg.dependencies ?? {})).not.toContain("@moss/wellness");
   });
 
-  it("no wellness source file imports @jarv1s/tasks", () => {
+  it("no wellness source file imports @moss/tasks", () => {
     const files = [
       "manifest.ts",
       "repository.ts",
@@ -983,7 +978,7 @@ describe("module isolation: wellness ⇄ tasks", () => {
     ];
     for (const file of files) {
       const src = readFileSync(join(repoRoot, "packages/wellness/src", file), "utf8");
-      expect(src.includes("@jarv1s/tasks")).toBe(false);
+      expect(src.includes("@moss/tasks")).toBe(false);
     }
   });
 });

@@ -19,7 +19,7 @@ import {
   vaultFileExists,
   writeVaultFile,
   writeVaultFileBytes
-} from "@jarv1s/vault";
+} from "@moss/vault";
 
 // ── resolveVaultPath ──────────────────────────────────────────────────────────
 

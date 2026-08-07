@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import {
   goalListExecute,
   goalGetExecute,
@@ -15,7 +15,7 @@ export const GOALS_MEMORY_SYNC_RECONCILE_QUEUE = "goals-memory-sync-reconcile";
 
 export const goalsModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
-export const goalsModuleManifest: JarvisModuleManifest = {
+export const goalsModuleManifest: MossModuleManifest = {
   id: GOALS_MODULE_ID,
   name: "Goals",
   publisher: "jarv1s",

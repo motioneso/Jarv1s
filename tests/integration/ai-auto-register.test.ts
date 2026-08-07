@@ -9,14 +9,9 @@ import {
   ModelDiscoveryService,
   createAiSecretCipher,
   type AiSecretCipher
-} from "@jarv1s/ai";
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { SettingsRepository } from "@jarv1s/settings";
+} from "@moss/ai";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
+import { SettingsRepository } from "@moss/settings";
 
 import { discoverAndPersistModels } from "../../packages/ai/src/discover-and-persist-models.js";
 import { buildOnboardingLogin } from "../../packages/module-registry/src/onboarding-login.js";
@@ -25,7 +20,7 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 const { Client } = pg;
 
 describe("AI auto-register default chat model on login (#367)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: AiRepository;
   let cipher: AiSecretCipher;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { EmailMessage } from "@jarv1s/db";
-import { buildReplyMime, deriveReplyTarget } from "@jarv1s/email";
+import type { EmailMessage } from "@moss/db";
+import { buildReplyMime, deriveReplyTarget } from "@moss/email";
 
 function makeMessage(overrides: Partial<EmailMessage>): EmailMessage {
   return {

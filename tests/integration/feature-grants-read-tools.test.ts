@@ -17,15 +17,15 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
 import type { Kysely } from "kysely";
-import { EmailRepository, emailListVisibleMessagesExecute } from "@jarv1s/email";
-import { calendarListVisibleEventsExecute } from "@jarv1s/calendar";
+import { EmailRepository, emailListVisibleMessagesExecute } from "@moss/email";
+import { calendarListVisibleEventsExecute } from "@moss/calendar";
 import {
   buildFeatureGrantService,
   featureGrantsPrefKey,
   ConnectorsRepository
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 
 import {
   buildTestSourceContextService,
@@ -66,7 +66,7 @@ function readGaps(
 }
 
 describe("Feature-grants read-tool filtering", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let emailRepository: EmailRepository;
   let cachedEmailId: string;

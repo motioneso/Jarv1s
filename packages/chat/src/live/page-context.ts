@@ -14,8 +14,8 @@
  * text on a per-turn basis and never passed to `persistence.recordTurn`, so it never reaches
  * the `chat_messages` table, the rolling summary, or a pg-boss job payload.
  */
-import type { PageContextFocusedElementDto, PageContextSnapshotDto } from "@jarv1s/shared";
-import type { JarvisError, JarvisErrorClass } from "@jarv1s/module-sdk";
+import type { PageContextFocusedElementDto, PageContextSnapshotDto } from "@moss/shared";
+import type { MossError, MossErrorClass } from "@moss/module-sdk";
 
 const MAX_ROUTE_LENGTH = 200;
 const MAX_TITLE_LENGTH = 200;
@@ -25,7 +25,7 @@ const MAX_LIST_ITEMS = 20;
 const MAX_SERIALIZED_BYTES = 6000;
 const MAX_ERROR_STRING_LENGTH = 160;
 const MAX_ERRORS = 10;
-const ERROR_CLASSES = new Set<JarvisErrorClass>([
+const ERROR_CLASSES = new Set<MossErrorClass>([
   "prerequisite",
   "transient",
   "validation",
@@ -108,7 +108,7 @@ function boundedFocused(value: unknown): PageContextFocusedElementDto | null {
 
 /**
  * Re-project a raw error entry (already a plain object member of `source.errors`) into
- * a {@link JarvisError}, matching the client-side allow-list in
+ * a {@link MossError}, matching the client-side allow-list in
  * apps/web/src/chat/page-context.ts so a malicious or malformed request body can't
  * smuggle extra keys or an unclassified error through the server. Never drops
  * structured errors ahead of visible prose in {@link capToByteBudget} — the error code
@@ -116,15 +116,15 @@ function boundedFocused(value: unknown): PageContextFocusedElementDto | null {
  */
 function boundedErrors(value: unknown): PageContextSnapshotDto["errors"] {
   if (!Array.isArray(value)) return [];
-  const errors: JarvisError[] = [];
+  const errors: MossError[] = [];
   for (const entry of value) {
     if (errors.length === MAX_ERRORS) break;
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
     const source = entry as Record<string, unknown>;
     const code = boundedString(source.code, MAX_ERROR_STRING_LENGTH);
     const errorClass =
-      typeof source.class === "string" && ERROR_CLASSES.has(source.class as JarvisErrorClass)
-        ? (source.class as JarvisErrorClass)
+      typeof source.class === "string" && ERROR_CLASSES.has(source.class as MossErrorClass)
+        ? (source.class as MossErrorClass)
         : null;
     if (!code || !errorClass) continue;
     if (errorClass === "prerequisite") {

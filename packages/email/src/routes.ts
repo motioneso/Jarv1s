@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import { handleRouteError } from "@jarv1s/module-sdk";
-import type { AccessContext, DataContextRunner, EmailMessage, PreferencesPort } from "@jarv1s/db";
+import { handleRouteError } from "@moss/module-sdk";
+import type { AccessContext, DataContextRunner, EmailMessage, PreferencesPort } from "@moss/db";
 import {
   EMAIL_TASK_MODE_PREF_KEY,
   getEmailBriefingSettingsRouteSchema,
@@ -14,8 +14,8 @@ import {
   type UpdateEmailTaskCreationModeRequest,
   updateEmailBriefingSettingsRouteSchema,
   updateEmailTaskCreationModeRouteSchema
-} from "@jarv1s/shared";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+} from "@moss/shared";
+import { PreferencesRepository } from "@moss/structured-state";
 
 import { EmailRepository } from "./repository.js";
 

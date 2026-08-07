@@ -9,9 +9,9 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { renderToolResult } from "@jarv1s/module-sdk";
-import type { JsonSchema } from "@jarv1s/module-sdk";
-import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import { renderToolResult } from "@moss/module-sdk";
+import type { JsonSchema } from "@moss/module-sdk";
+import type { ModuleWorkerContext } from "@moss/module-sdk/worker";
 import { sanitizeAssistantToolResult } from "../../packages/ai/src/gateway/output-validation.js";
 
 import {

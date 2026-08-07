@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { dataContextBrand, type DataContextDb } from "@jarv1s/db";
-import { buildCalendarFollowThroughPort } from "@jarv1s/module-registry";
+import { dataContextBrand, type DataContextDb } from "@moss/db";
+import { buildCalendarFollowThroughPort } from "@moss/module-registry";
 
 const scopedDb = { db: {} as never, [dataContextBrand]: true } satisfies DataContextDb;
 

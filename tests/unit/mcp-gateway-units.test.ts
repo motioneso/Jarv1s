@@ -11,8 +11,8 @@ import {
   resolvePolicy,
   SessionTokenRegistry,
   type ActionPolicyLookup
-} from "@jarv1s/ai";
-import type { ModuleAssistantToolManifest, ToolContext, ToolResult } from "@jarv1s/module-sdk";
+} from "@moss/ai";
+import type { ModuleAssistantToolManifest, ToolContext, ToolResult } from "@moss/module-sdk";
 
 describe("module-sdk tool contract", () => {
   it("lets a module declare a tool with an execute handler", async () => {

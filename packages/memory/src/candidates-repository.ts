@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
 
 export type MemoryCandidateKind = "entity" | "fact" | "alias" | "supersession" | "conflict";
 export type MemoryCandidateAction = "create" | "update" | "link" | "supersede" | "reject";

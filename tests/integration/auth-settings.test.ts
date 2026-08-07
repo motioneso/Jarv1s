@@ -4,15 +4,15 @@ import { sql, type Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import type { ListAdminAuditEventsResponse, ListModulesResponse, MeResponse } from "@jarv1s/shared";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import type { ListAdminAuditEventsResponse, ListModulesResponse, MeResponse } from "@moss/shared";
 import {
   connectionStrings,
   resetEmptyFoundationDatabase,
   setInstanceSetting
 } from "./test-database.js";
-import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
+import { createMossAuthRuntime, type MossAuthRuntime } from "@moss/auth";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
 import { deleteUserData, LastActiveAdminError } from "../../scripts/delete-user-data.js";
 
@@ -26,7 +26,7 @@ describe("M3 auth, users, settings", () => {
     "JARVIS_AUTH_OIDC_CLIENT_SECRET",
     "JARVIS_AUTH_OIDC_DISCOVERY_URL"
   ] as const;
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let server: ReturnType<typeof createApiServer>;
   let boss: PgBoss;
   let originalAuthEnv: Record<(typeof authEnvKeys)[number], string | undefined>;
@@ -185,7 +185,7 @@ describe("M3 auth, users, settings", () => {
   it("recordAuditEvent writes an audit row via the public settings API", async () => {
     // ownerUserId is set by the preceding bootstrap test — use it as the actor so
     // the GUC-scoped insert passes RLS on app.admin_audit_events.
-    const { recordAuditEvent } = await import("@jarv1s/settings");
+    const { recordAuditEvent } = await import("@moss/settings");
     const runner = new DataContextRunner(appDb);
     await runner.withDataContext(
       { actorUserId: ownerUserId, requestId: "test:record-audit" },
@@ -424,8 +424,8 @@ describe("M3 auth, users, settings", () => {
 });
 
 describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let authRuntime: JarvisAuthRuntime;
+  let appDb: Kysely<MossDatabase>;
+  let authRuntime: MossAuthRuntime;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
 
@@ -441,7 +441,7 @@ describe("multi-user registration + lifecycle (Phase 2 Slice A)", () => {
   beforeEach(async () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
+    authRuntime = createMossAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
     // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
     // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
     // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-

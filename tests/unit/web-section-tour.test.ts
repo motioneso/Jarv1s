@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildTourSections } from "../../apps/web/src/onboarding/section-tour-model.js";
-import type { ModuleDto } from "@jarv1s/shared";
+import type { ModuleDto } from "@moss/shared";
 
 describe("member onboarding section tour", () => {
   it("omits manifest navigation for frontend routes that are not served by the app", () => {

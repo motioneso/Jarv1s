@@ -8,10 +8,10 @@ import {
   moduleInstallRoleName,
   moduleRuntimeRoleName
 } from "../../packages/db/src/module-role-broker.js";
-import { getJarvisDatabaseUrls } from "../../packages/db/src/urls.js";
+import { getMossDatabaseUrls } from "../../packages/db/src/urls.js";
 import { dropModuleRolesAtTeardown, resetEmptyFoundationDatabase } from "./test-database.js";
 
-const urls = getJarvisDatabaseUrls();
+const urls = getMossDatabaseUrls();
 const moduleId = "role-broker-fixture";
 
 // ensureModuleRoles now grants schema/table-level ACLs on schema app (#914 Task 7), so this

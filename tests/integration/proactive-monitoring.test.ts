@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 import pg from "pg";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { CardRepository } from "@jarv1s/proactive-monitoring";
-import { defaultProactiveMonitoringPreference } from "@jarv1s/shared";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { CardRepository } from "@moss/proactive-monitoring";
+import { defaultProactiveMonitoringPreference } from "@moss/shared";
 import { connectionStrings, ids, resetEmptyFoundationDatabase } from "./test-database.js";
 
 const USER_C_ID = "00000000-0000-4000-8000-000000000099";
@@ -28,8 +28,8 @@ const PROBE_CARD_BASE = {
 };
 
 describe("Proactive Monitoring — integration", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let workerDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let workerDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let cardRepo: CardRepository;
 
@@ -170,7 +170,7 @@ describe("Proactive Monitoring — integration", () => {
 
   describe("Anti-spam: daily owner cap", () => {
     it("inserts up to 8 active cards; a 9th stable key returns suppressed verdict", async () => {
-      const { AntiSpamPolicy } = await import("@jarv1s/proactive-monitoring");
+      const { AntiSpamPolicy } = await import("@moss/proactive-monitoring");
       // Use userC so no cards from other tests interfere with the global daily cap
       const ctx = { actorUserId: USER_C_ID, requestId: "test:antispam-day-cap" };
       const source = "email" as const;
@@ -218,7 +218,7 @@ describe("Proactive Monitoring — integration", () => {
 
   describe("Anti-spam: per-source hourly cap", () => {
     it("1/source/hour cap suppresses second card for same source within an hour", async () => {
-      const { AntiSpamPolicy } = await import("@jarv1s/proactive-monitoring");
+      const { AntiSpamPolicy } = await import("@moss/proactive-monitoring");
       // Use userC with calendar (userC has no calendar cards yet)
       const ctx = { actorUserId: USER_C_ID, requestId: "test:antispam-hour-cap" };
       const source = "calendar" as const;

@@ -9,7 +9,7 @@ import {
 } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
 import { useDismissableMenu } from "../shared/use-dismissable-menu.js";
-import type { AiConfiguredModelDto, ChatModelOverrideSettingsDto } from "@jarv1s/shared";
+import type { AiConfiguredModelDto, ChatModelOverrideSettingsDto } from "@moss/shared";
 import "./chat-model-pill.css";
 
 type ModelChoice = {

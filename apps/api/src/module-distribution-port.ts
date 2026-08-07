@@ -8,15 +8,15 @@ import {
   fetchRegistryIndex,
   ModuleDownloadError,
   parseModulesEnsure
-} from "@jarv1s/module-registry/node";
-import type { ModuleDistributionDependencies, ModuleRegistryEntryLike } from "@jarv1s/settings";
+} from "@moss/module-registry/node";
+import type { ModuleDistributionDependencies, ModuleRegistryEntryLike } from "@moss/settings";
 
 import type { ApiServerConfig, CreateApiServerOptions } from "./server.js";
 
 /**
  * #964/#996 — module-distribution port for the settings registry routes, extracted from
  * server.ts (Task 6 pushed server.ts over the 1000-line file-size cap; #9.5 restores
- * it). Network + filesystem composition only; DB writes stay in @jarv1s/settings, so
+ * it). Network + filesystem composition only; DB writes stay in @moss/settings, so
  * this file never needs a database handle (module-isolation invariant). The index
  * cache is per-process (10 min, spec §6); a failed refetch returns null (degrade) and
  * leaves any previous cache untouched so the next request can retry. Always-on since

@@ -1,5 +1,5 @@
-import type { AiModelCapability, AiModelTier, AiProviderDiscoveredModelDto } from "@jarv1s/shared";
-import type { AiAuthMethod, AiProviderKind } from "@jarv1s/db";
+import type { AiModelCapability, AiModelTier, AiProviderDiscoveredModelDto } from "@moss/shared";
+import type { AiAuthMethod, AiProviderKind } from "@moss/db";
 
 const CACHE_TTL_MS = 3_600_000; // 1 hour
 

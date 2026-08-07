@@ -17,7 +17,7 @@ import type {
   SourceFreshnessV1,
   UsefulnessFeedbackDto,
   UsefulnessFeedbackKind
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { queryKeys } from "../api/query-keys";
 import {

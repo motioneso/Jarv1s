@@ -1,6 +1,6 @@
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb, type TaskPreferences } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb, type TaskPreferences } from "@moss/db";
 
 export class TaskPreferencesRepository {
   async getOrCreate(db: DataContextDb): Promise<TaskPreferences> {

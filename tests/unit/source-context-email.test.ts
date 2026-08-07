@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { dataContextBrand, type DataContextDb, type EmailMessage } from "@jarv1s/db";
+import { dataContextBrand, type DataContextDb, type EmailMessage } from "@moss/db";
 import type { ConnectorAccountSafeRow } from "../../packages/connectors/src/repository.js";
 import type {
   EmailReadProvider,

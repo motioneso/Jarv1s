@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { FollowedNextMatch, LocaleSettingsDto } from "@jarv1s/shared";
+import type { FollowedNextMatch, LocaleSettingsDto } from "@moss/shared";
 
 import { nextMatchIsToday } from "../../packages/sports/src/web/sports-ticker.js";
 

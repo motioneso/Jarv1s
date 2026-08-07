@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Job, PgBoss } from "pg-boss";
 
-import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type { DataContextDb, DataContextRunner } from "@moss/db";
 
 import {
   NEWS_REFRESH_QUEUE,

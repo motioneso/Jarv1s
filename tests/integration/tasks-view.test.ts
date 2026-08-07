@@ -8,7 +8,7 @@ import {
   TASK_QUADRANT_AXES,
   TASK_URGENCY_WINDOW_HOURS,
   type TaskDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 function task(partial: Partial<TaskDto>): TaskDto {
   return {

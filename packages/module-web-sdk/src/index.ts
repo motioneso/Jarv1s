@@ -6,21 +6,21 @@ import type { ReactNode } from "react";
  * without apps/web hand-wiring per-module imports (docs/superpowers/specs/2026-07-04-module-web-registry.md).
  *
  * This package is bundled into the browser build. It must never import `node:*` modules or
- * anything that transitively reaches fastify/kysely/node — the same constraint `@jarv1s/shared`
+ * anything that transitively reaches fastify/kysely/node — the same constraint `@moss/shared`
  * already carries (see CLAUDE.md "Secrets never escape" / module isolation).
  *
  * A module exposes its contribution as the default export of `src/web/index.ts(x)`, declared in
  * `package.json` under the `"./web"` subpath export. The build-time scanner
- * (`@jarv1s/settings-ui`'s `virtual:jarvis-module-web`) discovers every package declaring that
+ * (`@moss/settings-ui`'s `virtual:moss-module-web`) discovers every package declaring that
  * subpath and lazily loads its contribution.
  *
- * Also re-exports the full @jarv1s/ui component surface and the JSX runtime shim (#1388
+ * Also re-exports the full @moss/ui component surface and the JSX runtime shim (#1388
  * Foundation) so an external module can author screens with the authored `jds-*` component set
  * without its own React dependency: `scripts/build-external-module.ts`'s web build aliases the
  * bare "react"/"react-dom" specifiers to `./runtime`/`./react-dom-runtime` and injects
  * `./runtime`'s `h`/`Fragment` as the JSX pragma target.
  */
-export * from "@jarv1s/ui";
+export * from "@moss/ui";
 export * from "./runtime.js";
 export interface ModuleWebContribution {
   /** Must match the module's backend manifest `id` — asserted at scan/test time. */

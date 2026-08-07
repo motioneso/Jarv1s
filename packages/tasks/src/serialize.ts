@@ -1,12 +1,12 @@
-import type { Task, TaskActivity, TaskList, TaskPreferences, TaskTag } from "@jarv1s/db";
+import type { Task, TaskActivity, TaskList, TaskPreferences, TaskTag } from "@moss/db";
 import type {
   TaskActivityDto,
   TaskDto,
   TaskListDto,
   TaskPreferencesDto,
   TaskTagDto
-} from "@jarv1s/shared";
-import type { TaskSuggestionMetadataV1 } from "@jarv1s/shared";
+} from "@moss/shared";
+import type { TaskSuggestionMetadataV1 } from "@moss/shared";
 
 export function serializeDate(value: Date | string | null): string | null {
   if (value === null) {

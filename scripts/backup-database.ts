@@ -5,7 +5,7 @@ import { dirname, resolve } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
-import { getJarvisDatabaseUrls } from "@jarv1s/db";
+import { getMossDatabaseUrls } from "@moss/db";
 
 const POSTGRES_CONTAINER = "jarv1s-postgres";
 
@@ -23,7 +23,7 @@ export interface BackupPlan {
 }
 
 export function createBackupPlan(input: BackupPlanInput = {}): BackupPlan {
-  const url = new URL(input.connectionString ?? getJarvisDatabaseUrls().bootstrap);
+  const url = new URL(input.connectionString ?? getMossDatabaseUrls().bootstrap);
   const outputFile = input.outputFile ?? defaultBackupFile(input.now ?? new Date());
   const database = url.pathname.replace(/^\//, "");
   const username = decodeURIComponent(url.username);

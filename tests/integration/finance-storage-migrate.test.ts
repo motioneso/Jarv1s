@@ -21,17 +21,17 @@ import {
   createDatabase,
   createModuleStorageRpc,
   type DataContextDb,
-  type JarvisDatabase
-} from "@jarv1s/db";
+  type MossDatabase
+} from "@moss/db";
 import {
   deleteModuleKvKey,
   getModuleKvValue,
   listModuleKvKeys,
   setModuleKvValue
-} from "@jarv1s/settings";
+} from "@moss/settings";
 
 import { installModule } from "../../scripts/module-install.js";
-import { getJarvisDatabaseUrls } from "../../packages/db/src/urls.js";
+import { getMossDatabaseUrls } from "../../packages/db/src/urls.js";
 import type {
   AccountRecord,
   FinanceDb,
@@ -56,7 +56,7 @@ import {
   resetFoundationDatabase
 } from "./test-database.js";
 
-const urls = getJarvisDatabaseUrls();
+const urls = getMossDatabaseUrls();
 const moduleId = "finance";
 const ownedTables = [
   "app.finance_items",
@@ -70,8 +70,8 @@ const NOW_1 = "2026-07-18T12:00:00.000Z";
 const NOW_2 = "2026-07-18T14:00:00.000Z";
 
 let bootstrap: Client;
-let appDb: Kysely<JarvisDatabase>;
-let workerDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
+let workerDb: Kysely<MossDatabase>;
 let appDataContext: DataContextRunner;
 let workerDataContext: DataContextRunner;
 

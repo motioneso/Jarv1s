@@ -1,5 +1,5 @@
-import type { DataContextDb } from "@jarv1s/db";
-import type { ImapTestResult } from "@jarv1s/shared";
+import type { DataContextDb } from "@moss/db";
+import type { ImapTestResult } from "@moss/shared";
 
 import type { ConnectorSecretCipher } from "./crypto.js";
 import { getImapPreset, type ImapPreset } from "./imap-presets.js";

@@ -3,10 +3,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  ExternalModuleWorkerError,
-  ExternalModuleWorkerRuntime
-} from "@jarv1s/module-registry/node";
+import { ExternalModuleWorkerError, ExternalModuleWorkerRuntime } from "@moss/module-registry/node";
 import type { ExternalModuleDiscovery } from "../../packages/module-registry/src/external/types.js";
 
 const dirs: string[] = [];

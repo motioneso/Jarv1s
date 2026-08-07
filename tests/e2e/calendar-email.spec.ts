@@ -39,8 +39,8 @@ test("Calendar page renders real cached events grouped by day", async ({ page })
 
   // Park the calendar's Day view on the event's date so it lands in the grid.
   await page.addInitScript(() => {
-    localStorage.setItem("jarvis.cal.view", "day");
-    localStorage.setItem("jarvis.cal.cursor", "2030-06-06T16:00:00.000Z");
+    localStorage.setItem("moss.cal.view", "day");
+    localStorage.setItem("moss.cal.cursor", "2030-06-06T16:00:00.000Z");
   });
 
   await signIn(page);

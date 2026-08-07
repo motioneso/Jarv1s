@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import {
   aiDiscoverModelsResponseSchema,
   createAiConfiguredModelRequestSchema,
@@ -41,7 +41,7 @@ import {
   patchAiActionPolicyRequestSchema,
   patchAiActionPolicyResponseSchema,
   listActionAuditLogRouteSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { aiExplainRecentErrorsExecute } from "./error-tools.js";
 
@@ -390,4 +390,4 @@ export const aiModuleManifest = {
       execute: aiExplainRecentErrorsExecute
     }
   ]
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

@@ -4,9 +4,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   MAX_CLIENT_STACK_CHARS,
   type ClientErrorsRouteOptions,
-  type JarvisErrorHandlerOptions,
+  type MossErrorHandlerOptions,
   registerClientErrorsRoute,
-  setJarvisErrorHandler
+  setMossErrorHandler
 } from "../../apps/api/src/error-handling.js";
 
 /**
@@ -25,12 +25,12 @@ const SECRET_MARKERS = ["hunter2", "postgres://u:p@host/db", "BETTER_AUTH_SECRET
 function makeServer(
   options: {
     readonly clientErrors?: ClientErrorsRouteOptions;
-    readonly errorHandler?: JarvisErrorHandlerOptions;
+    readonly errorHandler?: MossErrorHandlerOptions;
   } = {}
 ): FastifyInstance {
   const server = Fastify({ logger: false });
   registerClientErrorsRoute(server, options.clientErrors);
-  setJarvisErrorHandler(server, options.errorHandler);
+  setMossErrorHandler(server, options.errorHandler);
   return server;
 }
 
@@ -98,7 +98,7 @@ describe("POST /api/errors", () => {
   });
 });
 
-describe("central error handler (setJarvisErrorHandler)", () => {
+describe("central error handler (setMossErrorHandler)", () => {
   let server: FastifyInstance;
   afterEach(async () => {
     await server?.close();
@@ -110,7 +110,7 @@ describe("central error handler (setJarvisErrorHandler)", () => {
       throw new Error("internal detail with password=hunter2");
     });
     registerClientErrorsRoute(server);
-    setJarvisErrorHandler(server);
+    setMossErrorHandler(server);
 
     const res = await server.inject({ method: "GET", url: "/boom" });
     expect(res.statusCode).toBe(500);
@@ -125,7 +125,7 @@ describe("central error handler (setJarvisErrorHandler)", () => {
     server.get("/missing", async (_req, reply) => {
       return reply.code(404).send({ error: "Not Found Here" });
     });
-    setJarvisErrorHandler(server);
+    setMossErrorHandler(server);
 
     const res = await server.inject({ method: "GET", url: "/missing" });
     expect(res.statusCode).toBe(404);
@@ -138,7 +138,7 @@ describe("central error handler (setJarvisErrorHandler)", () => {
       const err = Object.assign(new Error("I am a teapot"), { statusCode: 418 });
       throw err;
     });
-    setJarvisErrorHandler(server);
+    setMossErrorHandler(server);
 
     const res = await server.inject({ method: "GET", url: "/teapot" });
     expect(res.statusCode).toBe(418);
@@ -161,7 +161,7 @@ describe("central error handler (setJarvisErrorHandler)", () => {
       );
       throw err;
     });
-    setJarvisErrorHandler(server);
+    setMossErrorHandler(server);
 
     const res = await server.inject({ method: "GET", url: "/secret" });
     expect(res.statusCode).toBe(500);
@@ -232,7 +232,7 @@ describe("central error handler (setJarvisErrorHandler)", () => {
       });
       throw err;
     });
-    setJarvisErrorHandler(server, {
+    setMossErrorHandler(server, {
       recordRequestError: async (event) => {
         recorded.push(event);
       }

@@ -1,16 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
 import {
   AiRepository,
   AssistantToolGateway,
   ConfirmationRegistry,
   SessionTokenRegistry,
   type GatewaySessionRecord
-} from "@jarv1s/ai";
-import { emailModuleManifest, EmailRepository } from "@jarv1s/email";
-import { buildEmailWriteService } from "@jarv1s/chat";
+} from "@moss/ai";
+import { emailModuleManifest, EmailRepository } from "@moss/email";
+import { buildEmailWriteService } from "@moss/chat";
 import {
   ConnectorsRepository,
   createConnectorSecretCipher,
@@ -18,9 +18,9 @@ import {
   GoogleApiClient,
   GoogleConnectionService,
   GoogleOAuthClient
-} from "@jarv1s/connectors";
-import { PreferencesRepository } from "@jarv1s/structured-state";
-import type { JarvisActionPermissionTier } from "@jarv1s/module-sdk";
+} from "@moss/connectors";
+import { PreferencesRepository } from "@moss/structured-state";
+import type { MossActionPermissionTier } from "@moss/module-sdk";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -46,7 +46,7 @@ const SENDER = "original.sender@example.test";
 const THREAD_ID = "gmail-thread-abc123";
 
 describe("email reply tools — gateway acceptance", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: AiRepository;
 
@@ -175,7 +175,7 @@ describe("email reply tools — gateway acceptance", () => {
 
   // ── Gateway harness ──────────────────────────────────────────────────────────
 
-  function buildGateway(services: Record<string, unknown>, tier: JarvisActionPermissionTier) {
+  function buildGateway(services: Record<string, unknown>, tier: MossActionPermissionTier) {
     const tokens = new SessionTokenRegistry();
     const confirmations = new ConfirmationRegistry();
     const emitted: { chatSessionId: string; record: GatewaySessionRecord }[] = [];

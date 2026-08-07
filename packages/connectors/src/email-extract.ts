@@ -1,5 +1,5 @@
 import type { GmailMessageFull, GmailPayloadPart } from "./google-api-client.js";
-import type { StructuredRunPriority, StructuredRunScope, StructuredTelemetry } from "@jarv1s/ai";
+import type { StructuredRunPriority, StructuredRunScope, StructuredTelemetry } from "@moss/ai";
 
 /** Max decoded body length sent to the LLM (bounded to protect prompt limits, spec risk #6). */
 export const MAX_BODY_CHARS = 20_000;

@@ -38,7 +38,7 @@ import {
 } from "./settings-storage";
 import type { PaneProps } from "./settings-types";
 import { PrioritySettings, Segmented } from "./settings-ui";
-import { CORE_APP_SETTINGS, type MeResponse } from "@jarv1s/shared";
+import { CORE_APP_SETTINGS, type MeResponse } from "@moss/shared";
 
 type SettingsPane = ComponentType<PaneProps>;
 

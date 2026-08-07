@@ -15,11 +15,11 @@ export {
 };
 
 export function jarvisModuleSettingsPlugin(options: { readonly rootDir?: string } = {}) {
-  const virtualId = "virtual:jarvis-module-settings";
+  const virtualId = "virtual:moss-module-settings";
   const resolvedId = `\0${virtualId}`;
 
   return {
-    name: "jarvis-module-settings",
+    name: "moss-module-settings",
     resolveId(id: string) {
       return id === virtualId ? resolvedId : undefined;
     },
@@ -33,11 +33,11 @@ export function jarvisModuleSettingsPlugin(options: { readonly rootDir?: string 
 }
 
 export function jarvisModuleWebPlugin(options: { readonly rootDir?: string } = {}) {
-  const virtualId = "virtual:jarvis-module-web";
+  const virtualId = "virtual:moss-module-web";
   const resolvedId = `\0${virtualId}`;
 
   return {
-    name: "jarvis-module-web",
+    name: "moss-module-web",
     resolveId(id: string) {
       return id === virtualId ? resolvedId : undefined;
     },

@@ -2,12 +2,12 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { CommitmentsRepository } from "@jarv1s/commitments";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { CommitmentsRepository } from "@moss/commitments";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let dataContext: DataContextRunner;
 let repo: CommitmentsRepository;
 

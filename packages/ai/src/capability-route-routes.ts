@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 
-import type { DataContextDb } from "@jarv1s/db";
-import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
+import type { DataContextDb } from "@moss/db";
+import { HttpError, handleRouteError as handleModuleRouteError } from "@moss/module-sdk";
 import {
   AI_MODEL_CAPABILITIES,
   MODULE_WORKER_SERVICE_KEY,
@@ -14,7 +14,7 @@ import {
   type AiModelCapability,
   type AiServiceBinding,
   type AiServiceKey
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import type { AiRepository } from "./repository.js";
 import { type AiRoutesDependencies, serializeModel, serializeProvider } from "./routes.js";

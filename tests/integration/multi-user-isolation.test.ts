@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { OutgoingHttpHeaders } from "node:http";
 import pg from "pg";
 
-import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { createMossAuthRuntime, type MossAuthRuntime } from "@moss/auth";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import { sql, type Kysely } from "kysely";
 import { createApiServer } from "../../apps/api/src/server.js";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
@@ -15,8 +15,8 @@ import {
 } from "./test-database.js";
 
 describe("multi-user isolation", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let authRuntime: JarvisAuthRuntime;
+  let appDb: Kysely<MossDatabase>;
+  let authRuntime: MossAuthRuntime;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
 
@@ -61,7 +61,7 @@ describe("multi-user isolation", () => {
   beforeEach(async () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
+    authRuntime = createMossAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
     // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
     // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
     // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
@@ -709,7 +709,7 @@ describe("multi-user isolation", () => {
 
     const dataCtx = new DataContextRunner(appDb);
 
-    // memory_chunks is registered on JarvisDatabase → typed select.
+    // memory_chunks is registered on MossDatabase → typed select.
     for (const actor of [bob.id, admin.id]) {
       const seen = await dataCtx.withDataContext(
         { actorUserId: actor, requestId: `iso-6-chunks-${actor}` },
@@ -723,7 +723,7 @@ describe("multi-user isolation", () => {
       expect(seen).toEqual([]);
     }
 
-    // chat_memory_facts is NOT in JarvisDatabase → assert via raw SQL under each actor's GUC.
+    // chat_memory_facts is NOT in MossDatabase → assert via raw SQL under each actor's GUC.
     for (const actor of [bob.id, admin.id]) {
       const seen = await dataCtx.withDataContext(
         { actorUserId: actor, requestId: `iso-6-facts-${actor}` },

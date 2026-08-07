@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
 
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
 import {
@@ -12,7 +12,7 @@ import {
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 describe("external-module staging + purge state (#964)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let runner: DataContextRunner;
   let repo: SettingsRepository;
 

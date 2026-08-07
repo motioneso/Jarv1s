@@ -175,7 +175,7 @@ export function FieldPair(props: FieldPairProps): ReactNodeLike {
           (<p>) nested here is invalid HTML. React said so out loud in the browser console:
           "In HTML, <div> cannot be a descendant of <p>" and "<p> cannot be a descendant of <p>",
           both pointing at this element. `jds-fact__text` is a plain class selector
-          (components-jarvis.css), so the element type carries no styling of its own and the row
+          (components-moss.css), so the element type carries no styling of its own and the row
           looks identical either way.
         */}
         <div className="jds-fact__text jsm-field__value">{props.children}</div>

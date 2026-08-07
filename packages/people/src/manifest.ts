@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import { PEOPLE_TOOLS } from "./tools.js";
 
 export const PEOPLE_MODULE_ID = "people";
@@ -7,7 +7,7 @@ export const PEOPLE_MODULE_VERSION = "0.1.0";
 
 export const peopleModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
-export const peopleModuleManifest: JarvisModuleManifest = {
+export const peopleModuleManifest: MossModuleManifest = {
   id: PEOPLE_MODULE_ID,
   name: "People & Context",
   publisher: "jarv1s",

@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatThread } from "@jarv1s/db";
+import type { ChatMessage, ChatThread } from "@moss/db";
 import type {
   ChatActivityEventDto,
   ChatMessageDto,
@@ -7,7 +7,7 @@ import type {
   FreshnessKind,
   SourceFreshnessEntry,
   SourceFreshnessV1
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { readAttachments } from "./attachments-routes.js";
 import { readStoredProvenance, provenanceCards } from "./live/answer-provenance.js";

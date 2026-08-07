@@ -5,9 +5,9 @@ import type { Kysely } from "kysely";
 import { WebSocket } from "ws";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import type { TerminalRpcHandle } from "@jarv1s/ai";
+import { createDatabase, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import type { TerminalRpcHandle } from "@moss/ai";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
 // #1059 — owner-gated terminal control plane: password/status/ticket HTTP routes + a WS relay
@@ -24,7 +24,7 @@ import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database
 // to a nonexistent socket failing) rather than 1008 ("unauthorized"). Distinct close codes make
 // that gate-passed proof possible without a running backend.
 describe("terminal routes (#1059)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let adminCookie: string;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseAiApiKeyCredential } from "@jarv1s/ai";
+import { parseAiApiKeyCredential } from "@moss/ai";
 
 describe("parseAiApiKeyCredential", () => {
   it("accepts a non-empty apiKey string", () => {

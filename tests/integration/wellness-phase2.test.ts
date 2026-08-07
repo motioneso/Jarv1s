@@ -3,11 +3,11 @@ import { sql } from "kysely";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { DataContextRunner, createDatabase, type AccessContext } from "@jarv1s/db";
-import { ChatMemoryFactsRepository } from "@jarv1s/memory";
-import { moodIndex, moodBand } from "@jarv1s/shared";
-import { WellnessRepository, registerWellnessRoutes } from "@jarv1s/wellness";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import { DataContextRunner, createDatabase, type AccessContext } from "@moss/db";
+import { ChatMemoryFactsRepository } from "@moss/memory";
+import { moodIndex, moodBand } from "@moss/shared";
+import { WellnessRepository, registerWellnessRoutes } from "@moss/wellness";
+import { PreferencesRepository } from "@moss/structured-state";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 

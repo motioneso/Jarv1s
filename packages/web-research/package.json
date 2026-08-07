@@ -1,5 +1,5 @@
 {
-  "name": "@jarv1s/web-research",
+  "name": "@moss/web-research",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,6 +10,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@jarv1s/module-sdk": "workspace:*"
+    "@moss/module-sdk": "workspace:*"
   }
 }

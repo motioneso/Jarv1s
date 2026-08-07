@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import type { ModuleWorkerContext } from "@moss/module-sdk/worker";
 
 import { CONTEXT_SUMMARY_MAX } from "../../external-modules/job-search/src/domain/criteria.js";
 import type { SearchCriteria } from "../../external-modules/job-search/src/domain/records.js";

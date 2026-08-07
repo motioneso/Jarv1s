@@ -7,7 +7,7 @@ export {
 
 export { sessionRateLimitKey, mcpSessionRateLimitKey } from "./rate-limit-key.js";
 
-export { CORE_VERSION, compareJarvisVersions, satisfiesCoreVersion } from "./core-version.js";
+export { CORE_VERSION, compareMossVersions, satisfiesCoreVersion } from "./core-version.js";
 
 export { createModuleLogger } from "./logger.js";
 export * from "./module-params.js";
@@ -19,10 +19,10 @@ export type ModuleScope = "user" | "admin" | "system";
 export type ModulePermissionAction = "view" | "create" | "update" | "delete" | "manage" | "execute";
 export type ModuleAssistantToolRisk = "read" | "write" | "destructive";
 export type ModuleAssistantToolExecutionPolicy = "auto" | "confirm";
-export type JarvisActionPermissionTier = "ask_each_time" | "trusted_auto" | "always_confirm";
+export type MossActionPermissionTier = "ask_each_time" | "trusted_auto" | "always_confirm";
 /**
  * Declares whether Jarvis may perform this write/destructive tool on its own behalf
- * (self-operation) without a per-call approval card. Distinct from JarvisActionPermissionTier:
+ * (self-operation) without a per-call approval card. Distinct from MossActionPermissionTier:
  * this is a manifest-level declaration checked by the build-time exclusion assertion, not a
  * user-configurable policy tier. Read tools do not declare it.
  *
@@ -42,7 +42,7 @@ export interface ModuleAssistantActionFamilyManifest {
   readonly label: string;
   readonly description: string;
   readonly defaultTier: "ask_each_time" | "always_confirm";
-  readonly allowedTiers: readonly JarvisActionPermissionTier[];
+  readonly allowedTiers: readonly MossActionPermissionTier[];
 }
 
 export interface JsonSchema {
@@ -286,7 +286,7 @@ export interface FocusSignalAggregateOptions {
 /**
  * Runs a single provider's work inside a FRESH, per-provider data context. The composition
  * root supplies this (wrapping `DataContextRunner.withDataContext`) so module-sdk stays free
- * of a `@jarv1s/db` dependency. Each provider MUST get its own context/transaction — see
+ * of a `@moss/db` dependency. Each provider MUST get its own context/transaction — see
  * aggregateFocusSignals for why a shared one is unsafe.
  */
 export type FocusSignalContextRunner = <T>(work: (scopedDb: unknown) => Promise<T>) => Promise<T>;
@@ -418,7 +418,7 @@ export interface ModuleNotificationManifest {
   readonly supported: true;
 }
 
-// #1110 regression fix: moved to ./ai-capabilities.ts (a node-clean leaf) so @jarv1s/shared can
+// #1110 regression fix: moved to ./ai-capabilities.ts (a node-clean leaf) so @moss/shared can
 // import the AI_MODEL_CAPABILITIES value via the ./ai-capabilities subpath instead of this barrel,
 // which eagerly re-exports rate-limit-key.js (node:crypto) below and would leak it into the
 // apps/web browser bundle. Re-exported here so existing barrel consumers are unaffected.
@@ -432,8 +432,8 @@ import type { AiModelCapability, AiModelTier } from "./ai-capabilities.js";
 // #1110 regression fix: moved to ./errors.ts (a node-clean leaf) for the same reason as
 // ai-capabilities.ts above — see that leaf's docstring. Re-exported here so existing barrel
 // consumers are unaffected.
-export type { JarvisError, JarvisErrorClass } from "./errors.js";
-import type { JarvisError } from "./errors.js";
+export type { MossError, MossErrorClass } from "./errors.js";
+import type { MossError } from "./errors.js";
 
 export interface ModuleAiRequirementManifest {
   readonly service: `module.${string}`;
@@ -447,7 +447,7 @@ export interface ModuleRemediationManifest {
   readonly path: string;
 }
 
-export interface ModuleErrorManifest extends JarvisError {
+export interface ModuleErrorManifest extends MossError {
   readonly description: string;
 }
 
@@ -490,7 +490,7 @@ export interface ModuleSettingsSurfaceManifest {
  *   uses this yet; forward-compat for opt-in behaviors, exercised by source-behaviors.test.ts.
  * - `coming-soon`: shown but not yet available (not toggleable).
  *
- * Mirrored in @jarv1s/shared source-behaviors-api.ts — keep both in sync.
+ * Mirrored in @moss/shared source-behaviors-api.ts — keep both in sync.
  */
 export type SourceBehaviorDefault = "default-on" | "default-off" | "coming-soon";
 
@@ -569,7 +569,7 @@ export interface ModuleAssistantToolManifest {
   readonly affectsQueryKeys?: readonly string[];
 }
 
-export interface JarvisModuleManifest {
+export interface MossModuleManifest {
   readonly id: string;
   readonly name: string;
   readonly version: string;
@@ -612,7 +612,7 @@ export {
   EMBED_BATCH_MAX,
   MAX_INVOCATION_MS,
   MODULE_WORKER_CONTRACT_VERSION,
-  type ExternalJarvisModulePackage,
+  type ExternalMossModulePackage,
   type ExternalModuleAssistantToolDeclaration,
   type ExternalModuleBriefingDeclaration,
   type ExternalModuleDatabaseDeclaration,
@@ -623,7 +623,7 @@ export {
   type ExternalModuleWorkerDeclaration,
   type ExternalSourceAdapter,
   type ExternalSourceAdapterContext,
-  type JsonJarvisModuleManifest,
+  type JsonMossModuleManifest,
   type ModuleAuthDeclaration,
   type ModuleDatasetManifest,
   type ModuleExternalSourceCredential,
@@ -662,7 +662,7 @@ export interface ModuleExportSection {
   readonly displayName: string;
   /**
    * Runs under the actor's own DataContextDb (RLS-scoped). `scopedDb` stays `unknown`
-   * here — module-sdk has no @jarv1s/db dependency; modules narrow it via
+   * here — module-sdk has no @moss/db dependency; modules narrow it via
    * assertDataContextDb, the established pattern for assistant tools. Returns the
    * JSON-serializable section object (nested sub-keys included).
    */

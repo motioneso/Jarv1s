@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { formatInZone, isValidTimeZone, type LocaleSettingsDto } from "@jarv1s/shared";
-import { requestJson } from "@jarv1s/module-web-sdk";
+import { formatInZone, isValidTimeZone, type LocaleSettingsDto } from "@moss/shared";
+import { requestJson } from "@moss/module-web-sdk";
 
 /**
  * Self-contained subset of `apps/web/src/locale/locale-format.ts` for the sports module's web
@@ -9,7 +9,7 @@ import { requestJson } from "@jarv1s/module-web-sdk";
  *
  * Packages cannot import `apps/web/src/*` internals (module isolation — see CLAUDE.md "Module
  * isolation" / docs/superpowers/specs/2026-07-04-module-web-registry.md), so this duplicates only
- * what sports needs, delegating the actual timezone math to `@jarv1s/shared`'s
+ * what sports needs, delegating the actual timezone math to `@moss/shared`'s
  * `formatInZone`/`isValidTimeZone` (the single source of truth both copies share). The query key
  * below is a value-identical literal to apps/web's `queryKeys.settings.locale` (not imported) so
  * this hook's fetch shares its React-Query cache entry with the rest of the app.

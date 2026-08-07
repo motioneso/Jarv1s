@@ -3,14 +3,9 @@ import type { Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import { AiRepository } from "@jarv1s/ai";
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import { AiRepository } from "@moss/ai";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
 import { ids, connectionStrings, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -38,7 +33,7 @@ function installNetworkStub(): () => void {
 // is created through the HTTP API as the instance admin (adminUser/sessionAdmin); pin behaviour lives
 // in ai-admin-pin.test.ts.
 describe("AI service bindings + instance-default resolver", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: AiRepository;
   let server: ReturnType<typeof createApiServer>;
@@ -320,7 +315,7 @@ function adminContext(): AccessContext {
 // entirely once a unified service binding is saved. Fresh DB so no service binding masks the legacy
 // path (the sibling suite binds chat/voice for its own assertions).
 describe("AI legacy capability-route read-through (H2)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: AiRepository;
   let server: ReturnType<typeof createApiServer>;

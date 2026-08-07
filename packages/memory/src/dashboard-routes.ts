@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@moss/db";
 import {
   deleteMemoryEntityDashboardRouteSchema,
   getMemoryDashboardRouteSchema,
@@ -9,8 +9,8 @@ import {
   postMemoryCandidateAcceptRouteSchema,
   postMemoryCandidateRejectRouteSchema,
   postMemoryCandidateSuppressRouteSchema
-} from "@jarv1s/shared";
-import { RuntimeConfigResolver } from "@jarv1s/settings";
+} from "@moss/shared";
+import { RuntimeConfigResolver } from "@moss/settings";
 
 import { MemoryDashboardService } from "./dashboard-service.js";
 import type {

@@ -17,7 +17,7 @@ import type {
   ListModuleCredentialsResponse,
   ListModulesResponse,
   ModuleRegistryRowDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 import { InstanceModulesPane } from "../../apps/web/src/settings/settings-instance-modules-pane.js";

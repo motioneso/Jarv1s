@@ -15,7 +15,7 @@ import {
   Upload
 } from "lucide-react";
 import type { ChangeEvent } from "react";
-import { Button, ButtonLink } from "@jarv1s/ui";
+import { Button, ButtonLink } from "@moss/ui";
 
 import {
   connectImapConnection,

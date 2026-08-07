@@ -11,7 +11,7 @@
  * In-memory only: no DB table, no pg-boss payload. A view is ephemeral UI state, not
  * a record worth persisting, and never needs to survive a process restart.
  */
-import type { PageContextSnapshotDto } from "@jarv1s/shared";
+import type { PageContextSnapshotDto } from "@moss/shared";
 
 import {
   projectPageContextSnapshot,

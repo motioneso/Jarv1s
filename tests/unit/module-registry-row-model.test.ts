@@ -6,7 +6,7 @@
 // (non-goal: no weakening of install risk information).
 import { describe, expect, it } from "vitest";
 
-import type { ModuleRegistryRowDto } from "@jarv1s/shared";
+import type { ModuleRegistryRowDto } from "@moss/shared";
 
 import {
   describeCapabilityConsequences,

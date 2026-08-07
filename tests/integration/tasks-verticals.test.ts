@@ -4,20 +4,15 @@ import type { PgBoss } from "pg-boss";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import {
-  DataContextRunner,
-  SharesRepository,
-  createDatabase,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { createPgBossClient } from "@jarv1s/jobs";
+import { DataContextRunner, SharesRepository, createDatabase, type MossDatabase } from "@moss/db";
+import { createPgBossClient } from "@moss/jobs";
 import {
   TaskBreakdownRepository,
   TaskDriftRepository,
   TaskListsRepository,
   TasksRepository,
   rollForwardOwnedSeries
-} from "@jarv1s/tasks";
+} from "@moss/tasks";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import {
   handleNextRecurrenceJob,
@@ -30,8 +25,8 @@ import {
 const { Client } = pg;
 
 describe("Tasks module M1 — recurrence, tags, list/tag management", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let workerDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let workerDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: TasksRepository;
   let sharesRepository: SharesRepository;

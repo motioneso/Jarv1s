@@ -10,25 +10,25 @@ import {
   grantSelfOperationForModule,
   type GatewaySessionRecord,
   type SelfOperationManifestInput
-} from "@jarv1s/ai";
-import { calendarModuleManifest } from "@jarv1s/calendar";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
-import { SETTINGS_MODULE_ID, settingsModuleManifest } from "@jarv1s/settings";
+} from "@moss/ai";
+import { calendarModuleManifest } from "@moss/calendar";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { getBuiltInModuleManifests } from "@moss/module-registry";
+import { SETTINGS_MODULE_ID, settingsModuleManifest } from "@moss/settings";
 import {
   configureSportsChatTools,
   resetSportsChatToolsForTests,
   sportsModuleManifest,
   type SportsFollowsWriter
-} from "@jarv1s/sports";
-import type { CreateSportsFollowRequest, SportsFollowDto } from "@jarv1s/shared";
+} from "@moss/sports";
+import type { CreateSportsFollowRequest, SportsFollowDto } from "@moss/shared";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import { exampleToolCalls, exampleToolModule } from "./fixtures/example-tool-module.js";
 
 describe("AssistantToolGateway self-operation", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let bootstrapDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let bootstrapDb: Kysely<MossDatabase>;
   let runner: DataContextRunner;
   let repository: AiRepository;
   let tokens: SessionTokenRegistry;

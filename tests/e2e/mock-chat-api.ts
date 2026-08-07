@@ -8,7 +8,7 @@ import type {
   ChatSelectedToolMetadataDto,
   ChatThreadDto,
   CreateChatThreadRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 export interface MockChatApiState {
   aiModels?: AiConfiguredModelDto[];

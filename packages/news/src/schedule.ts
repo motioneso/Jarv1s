@@ -1,8 +1,8 @@
 import type { FastifyBaseLogger } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type { DataContextDb } from "@jarv1s/db";
-import { assertMetadataOnlyPayload } from "@jarv1s/jobs";
+import type { DataContextDb } from "@moss/db";
+import { assertMetadataOnlyPayload } from "@moss/jobs";
 
 import { NEWS_REVALIDATE_QUEUE } from "./jobs.js";
 import type { NewsPersonalizationRepository } from "./personalization-repository.js";

@@ -1,5 +1,5 @@
 {
-  "name": "@jarv1s/calendar",
+  "name": "@moss/calendar",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,12 +11,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@jarv1s/db": "workspace:*",
-    "@jarv1s/jobs": "workspace:*",
-    "@jarv1s/module-sdk": "workspace:*",
-    "@jarv1s/settings-ui": "workspace:*",
-    "@jarv1s/shared": "workspace:*",
-    "@jarv1s/structured-state": "workspace:*",
+    "@moss/db": "workspace:*",
+    "@moss/jobs": "workspace:*",
+    "@moss/module-sdk": "workspace:*",
+    "@moss/settings-ui": "workspace:*",
+    "@moss/shared": "workspace:*",
+    "@moss/structured-state": "workspace:*",
     "@tanstack/react-query": "^5.0.0",
     "react": "^19.0.0",
     "fastify": "^5.6.2",

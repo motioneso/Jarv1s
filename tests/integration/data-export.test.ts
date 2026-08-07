@@ -4,26 +4,26 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import type { Job } from "@jarv1s/jobs";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import type { Job } from "@moss/jobs";
 import type { Kysely } from "kysely";
-import { VaultContextRunner, readVaultFile, writeVaultFile } from "@jarv1s/vault";
+import { VaultContextRunner, readVaultFile, writeVaultFile } from "@moss/vault";
 
 import { fastify, type FastifyInstance } from "fastify";
-import { getBuiltInModuleManifests, getModuleDeletionTables } from "@jarv1s/module-registry";
+import { getBuiltInModuleManifests, getModuleDeletionTables } from "@moss/module-registry";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import type { ExportBuildJobPayload } from "../../packages/settings/src/data-export-jobs.js";
 import { registerSettingsRoutes } from "../../packages/settings/src/routes.js";
 import pg from "pg";
 
-import { HttpError } from "@jarv1s/module-sdk";
+import { HttpError } from "@moss/module-sdk";
 
 const { Client } = pg;
 
 describe("Data export", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let authDb: Kysely<JarvisDatabase>;
-  let workerDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let authDb: Kysely<MossDatabase>;
+  let workerDb: Kysely<MossDatabase>;
   let server: FastifyInstance;
 
   beforeAll(async () => {
@@ -108,7 +108,7 @@ describe("Data export", () => {
   });
 
   // #801 Phase A golden test: wellness's dataLifecycle.exportSections collector (in
-  // @jarv1s/wellness) now produces the `wellness` archive section instead of settings reading
+  // @moss/wellness) now produces the `wellness` archive section instead of settings reading
   // app.wellness_checkins / app.wellness_therapy_notes directly. Byte-compat is the acceptance
   // bar — this pins the exact shape (column names, ordering, null handling) both the sync flat
   // `tables.*` surface and the async nested `sections.wellness` surface must still produce.

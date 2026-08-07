@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { GenerateChatInput } from "@jarv1s/ai";
-import type { ToolExecute } from "@jarv1s/module-sdk";
+import type { GenerateChatInput } from "@moss/ai";
+import type { ToolExecute } from "@moss/module-sdk";
 
 import {
   composeBriefing,

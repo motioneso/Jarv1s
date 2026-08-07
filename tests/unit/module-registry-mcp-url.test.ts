@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const registerChatRoutes = vi.fn();
 
-vi.mock("@jarv1s/chat", () => ({
+vi.mock("@moss/chat", () => ({
   CHAT_QUEUE_DEFINITIONS: [],
   CliChatUnavailableError: class CliChatUnavailableError extends Error {},
   chatModuleManifest: {
@@ -27,7 +27,7 @@ describe("module-registry chat MCP URL wiring", () => {
 
   it("passes the composition-root MCP server URL instead of reading PORT", async () => {
     vi.stubEnv("PORT", "9999");
-    const { getBuiltInModuleRegistrations } = await import("@jarv1s/module-registry");
+    const { getBuiltInModuleRegistrations } = await import("@moss/module-registry");
     const chatRegistration = getBuiltInModuleRegistrations().find(
       (registration) => registration.manifest.id === "chat"
     );

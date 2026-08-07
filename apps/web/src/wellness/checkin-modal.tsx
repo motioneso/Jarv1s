@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { EMOTIONS } from "@jarv1s/shared";
+import { EMOTIONS } from "@moss/shared";
 import { emVars, coreLabel, type WellnessEmotionCore, type Theme } from "./emotion-taxonomy";
 import { CheckinDetailFields } from "./checkin-detail-fields";
 import { RadialDial } from "./radial-dial";

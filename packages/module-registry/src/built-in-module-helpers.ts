@@ -5,20 +5,20 @@ import {
   parseAiApiKeyCredential,
   type ProviderKind,
   type StructuredProviderAdapter
-} from "@jarv1s/ai";
-import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
+} from "@moss/ai";
+import type { DataContextDb, DataContextRunner } from "@moss/db";
 import {
   MemoryRepository,
   MemoryRetriever,
   createEmbeddingProvider,
   getEmbeddingProviderConfig
-} from "@jarv1s/memory";
-import { HttpError } from "@jarv1s/module-sdk";
-import { PreferencesRepository } from "@jarv1s/structured-state";
-import type { QuietHoursPort } from "@jarv1s/notifications";
-import { renderPersonaText } from "@jarv1s/shared";
-import { RuntimeConfigResolver, type PersonaPreviewInput } from "@jarv1s/settings";
-import { UsefulnessFeedbackRepository } from "@jarv1s/usefulness-feedback";
+} from "@moss/memory";
+import { HttpError } from "@moss/module-sdk";
+import { PreferencesRepository } from "@moss/structured-state";
+import type { QuietHoursPort } from "@moss/notifications";
+import { renderPersonaText } from "@moss/shared";
+import { RuntimeConfigResolver, type PersonaPreviewInput } from "@moss/settings";
+import { UsefulnessFeedbackRepository } from "@moss/usefulness-feedback";
 
 export async function createRuntimeEmbeddingProvider(scopedDb: DataContextDb) {
   return createEmbeddingProvider(

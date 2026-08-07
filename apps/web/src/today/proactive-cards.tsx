@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, X } from "lucide-react";
 
-import type { ProactiveCardDto } from "@jarv1s/shared";
+import type { ProactiveCardDto } from "@moss/shared";
 
 import { getProactiveCards } from "../api/client";
 import { createUsefulnessFeedback } from "../api/usefulness-feedback-client";

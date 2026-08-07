@@ -2,7 +2,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { VaultContextRunner, getVaultBaseDir, listVaultFilesRecursive } from "@jarv1s/vault";
+import { VaultContextRunner, getVaultBaseDir, listVaultFilesRecursive } from "@moss/vault";
 import { createAppRuntimeRunner, createMigrationOwnerDb } from "../connections.js";
 import { seedSoloAdmin } from "../admin.js";
 import { seedNotesChunk } from "./notes.js";

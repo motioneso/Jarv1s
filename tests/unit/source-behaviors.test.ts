@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 import type {
-  JarvisModuleManifest,
+  MossModuleManifest,
   SourceBehaviorSourceDecl,
   SourceBehaviorDefault
-} from "@jarv1s/module-sdk";
-import { calendarModuleManifest } from "@jarv1s/calendar";
-import { emailModuleManifest } from "@jarv1s/email";
+} from "@moss/module-sdk";
+import { calendarModuleManifest } from "@moss/calendar";
+import { emailModuleManifest } from "@moss/email";
 import {
   collectSourceBehaviorSources,
   isBehaviorEnabled,
   SOURCE_BEHAVIOR_PREFERENCE_KEY,
   type SourceBehaviorPreferencesPort
-} from "@jarv1s/source-behaviors";
+} from "@moss/source-behaviors";
 
 const fakeScopedDb = { db: {} } as unknown as DataContextDb;
 
@@ -22,7 +22,7 @@ function manifestWithBehavior(
   sourceName: string,
   behaviorId: string,
   defaultValue: SourceBehaviorDefault
-): JarvisModuleManifest {
+): MossModuleManifest {
   return {
     id: moduleId,
     name: sourceName,

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 import type { NewsAiPort, NewsSafeFetchPort } from "../../packages/news/src/discovery/ports.js";
 import { resolveSourceInput } from "../../packages/news/src/discovery/source-resolution.js";

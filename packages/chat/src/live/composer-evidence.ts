@@ -1,4 +1,4 @@
-import type { ProviderKind } from "@jarv1s/ai";
+import type { ProviderKind } from "@moss/ai";
 
 // eslint-disable-next-line no-control-regex -- terminal panes contain ANSI CSI escapes by design.
 const ANSI_PATTERN = /\u001b\[[0-?]*[ -/]*[@-~]/g;

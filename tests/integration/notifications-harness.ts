@@ -6,7 +6,7 @@
 // notifications-unread-by-module.test.ts — and imports only the fixed pieces below, which
 // are byte-for-byte identical to what notifications.test.ts declared inline before this split.
 import pg from "pg";
-import type { AccessContext } from "@jarv1s/db";
+import type { AccessContext } from "@moss/db";
 import { connectionStrings, ids } from "./test-database.js";
 
 const { Client } = pg;

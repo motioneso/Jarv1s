@@ -4,7 +4,7 @@ import type {
   BriefingType,
   CreateBriefingDefinitionRequest,
   UpdateBriefingDefinitionRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 export function findDefinition(
   definitions: readonly BriefingDefinitionDto[],

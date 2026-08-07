@@ -6,16 +6,16 @@
 // threading, handleRouteError, admin-authorize-first discipline).
 import type { FastifyInstance } from "fastify";
 
-import type { AccessContext, DataContextDb, User } from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
-import type { ModuleAuthDeclaration } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextDb, User } from "@moss/db";
+import { HttpError } from "@moss/module-sdk";
+import type { ModuleAuthDeclaration } from "@moss/module-sdk";
 import {
   listModuleCredentialsRouteSchema,
   revokeModuleCredentialRouteSchema,
   setModuleCredentialRouteSchema,
   type ListModuleCredentialsResponse,
   type ModuleCredentialStatusDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import type { ModuleCredentialCipher } from "./module-credential-crypto.js";
 import type { SettingsRepository } from "./repository.js";

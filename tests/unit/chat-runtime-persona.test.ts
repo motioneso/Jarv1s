@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { AccessContext, DataContextDb, DataContextRunner, PreferencesPort } from "@jarv1s/db";
-import { CHAT_SETTINGS_PREFERENCE_KEY, normalizePersonaSettings } from "@jarv1s/shared";
+import type { AccessContext, DataContextDb, DataContextRunner, PreferencesPort } from "@moss/db";
+import { CHAT_SETTINGS_PREFERENCE_KEY, normalizePersonaSettings } from "@moss/shared";
 import { DEFAULT_MOSS_PERSONA, resolveChatPersona } from "../../packages/chat/src/live/runtime.js";
 
 describe("DEFAULT_MOSS_PERSONA", () => {

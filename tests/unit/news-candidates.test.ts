@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 import { collectCandidates } from "../../packages/news/src/compilation/candidates.js";
 

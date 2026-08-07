@@ -1,6 +1,6 @@
 import { sql } from "kysely";
 
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 export type FactCategory = "preference" | "fact" | "profile" | "goal";
 export type FactStatus = "active" | "superseded";

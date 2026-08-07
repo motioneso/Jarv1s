@@ -1,6 +1,6 @@
 // external-modules/finance/src/web/api.ts
 // FIN-02 (#1147) Task 11: module-local request helpers, ported from
-// job-search's web contract. Deliberately NOT @jarv1s/module-web-sdk
+// job-search's web contract. Deliberately NOT @moss/module-web-sdk
 // requestJson — the invoke contract carries its payload
 // ({invocation:{blockedReason,...}}) on 403, and requestJson throws away
 // non-2xx bodies. Only risk:read tools are ever invoked here (D4: the REST

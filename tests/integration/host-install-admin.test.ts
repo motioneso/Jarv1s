@@ -3,13 +3,13 @@ import type { OutgoingHttpHeaders } from "node:http";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import type { HerdrInstallResultDto } from "@jarv1s/shared";
+import { createDatabase, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import type { HerdrInstallResultDto } from "@moss/shared";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
 describe("POST /api/admin/host/install (HTTP route)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let appWithFailingInstaller: ReturnType<typeof createApiServer>;

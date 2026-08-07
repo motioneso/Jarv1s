@@ -1,7 +1,7 @@
 /**
  * esbuild bundler for the production image's RESIDENT services (api, worker).
  * Produces a single runnable file per entrypoint under dist/, resolving the
- * @jarv1s/* SOURCE-ONLY workspace graph at build time so the api/worker runtime
+ * @moss/* SOURCE-ONLY workspace graph at build time so the api/worker runtime
  * is plain `node dist/...` (no tsx, no per-start pnpm install — deployable-stack §1/§2).
  *
  * migrate is intentionally NOT a target here: it runs as `tsx scripts/migrate.ts`
@@ -33,7 +33,7 @@ const ENTRYPOINTS: Record<Target, { entry: string; outfile: string }> = {
 // Packages that must NOT be bundled: they load native binaries or read files
 // relative to their own package dir at runtime. Resolved from node_modules instead.
 // #1059: node-pty MUST be external. The api/worker entrypoints reach the
-// @jarv1s/cli-runner barrel (module-registry onboarding imports PROVIDER_CATALOG/
+// @moss/cli-runner barrel (module-registry onboarding imports PROVIDER_CATALOG/
 // LOGIN_ADAPTERS), and the barrel re-exports `main` → TerminalHost → TerminalSession
 // → `import "node-pty"`. node-pty is a native module: its loader resolves pty.node
 // via prebuilds/ paths relative to its own dir, which esbuild COLLAPSES when inlined,
@@ -89,7 +89,7 @@ async function buildTarget(target: Target): Promise<void> {
     target: "node24",
     format: "esm",
     sourcemap: true,
-    // Resolve @jarv1s/* via the workspace symlinks in node_modules (preferred) or
+    // Resolve @moss/* via the workspace symlinks in node_modules (preferred) or
     // fall back to the tsconfig path aliases; esbuild follows node resolution by
     // default through the symlinked workspace packages.
     external: EXTERNAL,

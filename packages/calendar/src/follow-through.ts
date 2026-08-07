@@ -1,4 +1,4 @@
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 export interface CalendarFollowThroughRefs {
   readonly targetRef: string;

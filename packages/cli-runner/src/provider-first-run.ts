@@ -20,7 +20,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { ProviderKind } from "@jarv1s/ai";
+import type { ProviderKind } from "@moss/ai";
 
 const CLAUDE_CONFIG = ".claude.json";
 const CODEX_CONFIG_DIR = ".codex";

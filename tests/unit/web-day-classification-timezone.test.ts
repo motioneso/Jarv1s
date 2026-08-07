@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LocaleSettingsDto, TaskDto } from "@jarv1s/shared";
+import type { LocaleSettingsDto, TaskDto } from "@moss/shared";
 import { isAtRisk, isDoneToday, matchesFocus } from "../../apps/web/src/tasks/focus.js";
 import { dueInfo } from "../../apps/web/src/tasks/task-list-view.js";
 import { deriveTaskFilters } from "../../apps/web/src/tasks/task-view-model.js";

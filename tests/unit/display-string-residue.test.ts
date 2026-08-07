@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 // chat/manifest.ts). Those were hand-fixed; this test makes sure the miss can't
 // silently come back. It is intentionally NOT a whole-file grep for "Jarvis":
 // these files legitimately contain out-of-scope identifiers such as
-// `JarvisModuleManifest`, and a naive whole-file assertion would fail on those
+// `MossModuleManifest`, and a naive whole-file assertion would fail on those
 // forever, teaching everyone to ignore the guard. Instead it extracts only the
 // `label:`/`description:` string literals — the actual shipped display-string
 // surfaces — and checks those for a hardcoded "Jarvis" literal. Per the #1441
@@ -48,11 +48,11 @@ describe("display-string residue (static) — #1441", () => {
     const source = readFileSync(path, "utf8");
     const strings = extractDisplayStrings(source);
 
-    // The file legitimately contains `JarvisModuleManifest` (a type import/assertion)
+    // The file legitimately contains `MossModuleManifest` (a type import/assertion)
     // outside of label/description literals — confirm the extraction is scoped
     // correctly by asserting that identifier is present in the raw source but did
     // not leak into the extracted display strings.
-    expect(source).toContain("JarvisModuleManifest");
+    expect(source).toContain("MossModuleManifest");
     expect(strings.length).toBeGreaterThan(5);
 
     for (const value of strings) {
@@ -127,7 +127,7 @@ const SOURCE_ROOTS = [
    Add to this list only with a reason, and only when the string genuinely never reaches a user. */
 const NON_DISPLAY_SPELLINGS = [
   /@jarv1s\//,
-  /[Jj]arvis[A-Z]/, // identifiers: JarvisModuleManifest, JarvisDatabase, jarvisPersonId
+  /[Jj]arvis[A-Z]/, // identifiers: MossModuleManifest, MossDatabase, jarvisPersonId
   /JsonJarvis/,
   /isJarvis|compareJarvis/,
   /JARVIS_/, // env vars and globals

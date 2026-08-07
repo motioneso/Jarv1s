@@ -63,7 +63,7 @@ describe("migratePgBoss queue convergence (#158)", () => {
   });
 
   it("uses the shared constructor path and honors caller overrides", async () => {
-    const { migratePgBoss } = await import("@jarv1s/jobs");
+    const { migratePgBoss } = await import("@moss/jobs");
 
     await migratePgBoss("postgres://migration", [], { schedule: true });
 
@@ -78,7 +78,7 @@ describe("migratePgBoss queue convergence (#158)", () => {
   });
 
   it("creates first and then applies updatable options so concurrent migrators converge", async () => {
-    const { migratePgBoss } = await import("@jarv1s/jobs");
+    const { migratePgBoss } = await import("@moss/jobs");
 
     await migratePgBoss("postgres://migration", [
       {
@@ -105,7 +105,7 @@ describe("migratePgBoss queue convergence (#158)", () => {
   });
 
   it("exports a dedicated module-job sender", async () => {
-    const jobs = await import("@jarv1s/jobs");
+    const jobs = await import("@moss/jobs");
     expect(jobs.sendModuleJob).toBeTypeOf("function");
     expect(jobs.assertModuleJobPayload).toBeTypeOf("function");
     expect(jobs.sendModuleControl).toBeTypeOf("function");
@@ -113,7 +113,7 @@ describe("migratePgBoss queue convergence (#158)", () => {
   });
 
   it("binds the actor and trusted module metadata when sending", async () => {
-    const { sendModuleJob } = await import("@jarv1s/jobs");
+    const { sendModuleJob } = await import("@moss/jobs");
     const boss = new PgBossMock({});
     const jobId = await sendModuleJob(
       boss as unknown as PgBoss,
@@ -152,7 +152,7 @@ describe("migratePgBoss queue convergence (#158)", () => {
   });
 
   it("validates the dedicated module envelope without widening the global allowlist", async () => {
-    const { ALLOWED_PAYLOAD_KEYS, assertModuleJobPayload } = await import("@jarv1s/jobs");
+    const { ALLOWED_PAYLOAD_KEYS, assertModuleJobPayload } = await import("@moss/jobs");
     const queue = {
       name: "fixture.sync",
       handler: "sync",
@@ -181,7 +181,7 @@ describe("migratePgBoss queue convergence (#158)", () => {
     ["schema-invalid params", { params: { resourceId: "not-a-uuid" } }],
     ["unknown params", { params: { privateText: "secret" } }]
   ])("rejects module payloads with %s", async (_name, patch) => {
-    const { assertModuleJobPayload } = await import("@jarv1s/jobs");
+    const { assertModuleJobPayload } = await import("@moss/jobs");
     const queue = {
       name: "fixture.sync",
       handler: "sync",
@@ -199,7 +199,7 @@ describe("migratePgBoss queue convergence (#158)", () => {
   });
 
   it("sends only exact metadata-only module control messages", async () => {
-    const { sendModuleControl } = await import("@jarv1s/jobs");
+    const { sendModuleControl } = await import("@moss/jobs");
     const boss = new PgBossMock({});
     await expect(
       sendModuleControl(boss as unknown as PgBoss, {

@@ -1,7 +1,7 @@
 // #964: where the registry lives and how we talk to it. The index URL and host list
 // are HARDCODED — an env override exists for tests only and is refused outright in
 // production so no runtime configuration can redirect module downloads.
-import { createHostPinnedFetch } from "@jarv1s/host-fetch";
+import { createHostPinnedFetch } from "@moss/host-fetch";
 
 import { validateRegistryIndex, type ModuleRegistryIndex } from "./index-schema.js";
 

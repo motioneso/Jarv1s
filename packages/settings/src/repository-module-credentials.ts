@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
 
 import type { EncryptedModuleCredentialSecret } from "./module-credential-crypto.js";
 import type { ExternalModuleAuditWriter } from "./repository-external-modules.js";

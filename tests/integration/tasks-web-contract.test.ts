@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { TASK_STATUSES, type TaskApiStatus } from "@jarv1s/shared";
+import { TASK_STATUSES, type TaskApiStatus } from "@moss/shared";
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase } from "@jarv1s/db";
-import { createPgBossClient } from "@jarv1s/jobs";
+import { createDatabase } from "@moss/db";
+import { createPgBossClient } from "@moss/jobs";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 describe("tasks status contract (Plan 3 narrowing + #729 suggested)", () => {

@@ -3,12 +3,12 @@ import type { OutgoingHttpHeaders } from "node:http";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import type { HostDiagnosticsDto } from "@jarv1s/shared";
+import { createDatabase, type MossDatabase } from "@moss/db";
+import type { HostDiagnosticsDto } from "@moss/shared";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
 describe("GET /api/admin/host/diagnostics (HTTP route)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let server: ReturnType<typeof createApiServer>;
   let adminCookie: string;
   let memberCookie: string;

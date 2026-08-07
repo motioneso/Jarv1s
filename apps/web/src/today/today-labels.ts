@@ -3,7 +3,7 @@ import {
   type CalendarEventDto,
   type LocaleSettingsDto,
   type TaskDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { formatDate, formatTime } from "../locale/locale-format";
 import type { TodayMode } from "./evening-mode";

@@ -5,7 +5,7 @@ import type {
   DataExportJob,
   DataExportJobFormat,
   DataExportJobStatus
-} from "@jarv1s/db";
+} from "@moss/db";
 
 export class DataExportRepository {
   async createJob(

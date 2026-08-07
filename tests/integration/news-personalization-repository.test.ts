@@ -1,9 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import pg from "pg";
 
-import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { createMossAuthRuntime, type MossAuthRuntime } from "@moss/auth";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import type { Kysely } from "kysely";
 import { createApiServer } from "../../apps/api/src/server.js";
 import {
@@ -166,8 +166,8 @@ describe("news personalization schema posture (#953)", () => {
 // Slice 2 owns custom source/topic writes, so those rows are seeded via the bootstrap
 // superuser connection (the only actor that bypasses FORCE RLS by design).
 describe("news personalization repository (#953 Task 3)", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let authRuntime: JarvisAuthRuntime;
+  let appDb: Kysely<MossDatabase>;
+  let authRuntime: MossAuthRuntime;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let dataCtx: DataContextRunner;
@@ -204,7 +204,7 @@ describe("news personalization repository (#953 Task 3)", () => {
   beforeEach(async () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
+    authRuntime = createMossAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
     // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
     // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
     // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-
@@ -440,9 +440,9 @@ describe("news personalization repository (#953 Task 3)", () => {
 // column-scoped grants plus owner-scoped RLS policies allow exactly the owner's rows and
 // nothing more. Every cross-owner/admin negative is paired with an owner positive control.
 describe("news validation state repository (#975 Slice 4)", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let workerDb: Kysely<JarvisDatabase>;
-  let authRuntime: JarvisAuthRuntime;
+  let appDb: Kysely<MossDatabase>;
+  let workerDb: Kysely<MossDatabase>;
+  let authRuntime: MossAuthRuntime;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let dataCtx: DataContextRunner;
@@ -508,7 +508,7 @@ describe("news validation state repository (#975 Slice 4)", () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
     workerDb = createDatabase({ connectionString: connectionStrings.worker, maxConnections: 1 });
-    authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
+    authRuntime = createMossAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
     // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
     // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
     // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-

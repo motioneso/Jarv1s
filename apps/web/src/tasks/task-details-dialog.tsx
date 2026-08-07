@@ -7,8 +7,8 @@ import {
   type TaskApiStatus,
   type TaskEffort,
   type TaskListDto
-} from "@jarv1s/shared";
-import { Button, Dialog, Field, FormLabel, Segmented, Select } from "@jarv1s/ui";
+} from "@moss/shared";
+import { Button, Dialog, Field, FormLabel, Segmented, Select } from "@moss/ui";
 
 import {
   addTaskActivity,

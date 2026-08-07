@@ -5,7 +5,7 @@ import type {
   ConnectorProviderType,
   CreateConnectorAccountRequest,
   UpdateConnectorAccountRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 export interface MockConnectorsApiState {
   connectorAccounts: ConnectorAccountDto[];

@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import {
   createCheckinRequestSchema,
   createCheckinResponseSchema,
@@ -21,7 +21,7 @@ import {
   wellnessAiConsentResponseSchema,
   wellnessExportRequestSchema,
   wellnessInsightsRouteSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { collectWellnessExportSection } from "./data-lifecycle.js";
 import { wellnessFocusSignal } from "./focus-signal.js";
@@ -259,7 +259,7 @@ export const wellnessModuleManifest = {
     // Full-account export (#801 Phase A): reproduces today's sections.wellness = { checkins,
     // therapy_notes } exactly (byte-compat golden test in tests/integration/data-export.test.ts).
     // medications / medication_logs feed the archive's separate structured_state section and
-    // are read there in @jarv1s/settings — not required here (only deletion.tables must cover
+    // are read there in @moss/settings — not required here (only deletion.tables must cover
     // every ownedTables entry).
     exportSections: [
       {
@@ -278,4 +278,4 @@ export const wellnessModuleManifest = {
       ]
     }
   }
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

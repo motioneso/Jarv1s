@@ -3,7 +3,7 @@
 // NEVER red.
 import { useState, type ReactNode } from "react";
 
-import type { FollowedFormEntry } from "@jarv1s/shared";
+import type { FollowedFormEntry } from "@moss/shared";
 
 import { formatDate, useUserLocale } from "./locale.js";
 

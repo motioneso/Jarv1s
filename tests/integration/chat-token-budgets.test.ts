@@ -10,9 +10,9 @@ import { beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 import type { Kysely } from "kysely";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { AiRepository } from "@jarv1s/ai";
-import { ChatRepository } from "@jarv1s/chat";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { AiRepository } from "@moss/ai";
+import { ChatRepository } from "@moss/chat";
 import { DataContextChatPersistence } from "../../packages/chat/src/live/persistence.js";
 import {
   estimateTokens,
@@ -106,7 +106,7 @@ describe("trimToTokenBudget", () => {
 // ─── Task 3: ChatRepository.updateConversationSummary ─────────────────────────
 
 describe("ChatRepository.updateConversationSummary", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: ChatRepository;
 
@@ -142,7 +142,7 @@ describe("ChatRepository.updateConversationSummary", () => {
 // ─── Task 4: DataContextChatPersistence listPriorTurns + recordTurn ───────────
 
 describe("DataContextChatPersistence.listPriorTurns bounded replay", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let chatRepo: ChatRepository;
   let persistence: DataContextChatPersistence;
@@ -238,7 +238,7 @@ describe("DataContextChatPersistence.listPriorTurns bounded replay", () => {
 });
 
 describe("DataContextChatPersistence.recordTurn rolling summary", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let chatRepo: ChatRepository;
   let persistence: DataContextChatPersistence;

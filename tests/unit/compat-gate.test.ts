@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { CORE_VERSION } from "@jarv1s/module-sdk";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+import type { MossModuleManifest } from "@moss/module-sdk";
+import { CORE_VERSION } from "@moss/module-sdk";
+import { getBuiltInModuleManifests } from "@moss/module-registry";
 
 import { assertModulesCompatible } from "../../packages/module-registry/src/compat-gate.js";
 
-function manifest(overrides: Partial<JarvisModuleManifest>): JarvisModuleManifest {
+function manifest(overrides: Partial<MossModuleManifest>): MossModuleManifest {
   return {
     id: "fixture",
     name: "Fixture",

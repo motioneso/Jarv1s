@@ -10,18 +10,18 @@
 // under the same scoped DataContext (RLS owner-only), and the vault write is owner-scoped. No
 // admin bypass. Audit metadata-only (jobId/from/to/categories — no health content).
 
-import type { Job } from "@jarv1s/jobs";
+import type { Job } from "@moss/jobs";
 import {
   type ActorScopedJobPayload,
   type PgBoss,
   type QueueDefinition,
   registerDataContextWorker,
   sendJob
-} from "@jarv1s/jobs";
-import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
-import { VaultContextRunner, getVaultBaseDir, writeVaultFile } from "@jarv1s/vault";
-import { recordAuditEvent } from "@jarv1s/settings";
-import type { WellnessInsightDto } from "@jarv1s/shared";
+} from "@moss/jobs";
+import type { DataContextDb, DataContextRunner } from "@moss/db";
+import { VaultContextRunner, getVaultBaseDir, writeVaultFile } from "@moss/vault";
+import { recordAuditEvent } from "@moss/settings";
+import type { WellnessInsightDto } from "@moss/shared";
 
 import { computeInsights } from "./insights.js";
 import { DataExportRepository } from "./data-export-port.js";

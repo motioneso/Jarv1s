@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PgBoss } from "pg-boss";
 
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 import {
   computeNextOccurrenceDate,
   advanceDate,
@@ -11,7 +11,7 @@ import {
   parseRecurrenceSpec,
   rollForwardRecurringSeries,
   rollForwardOwnedSeries
-} from "@jarv1s/tasks";
+} from "@moss/tasks";
 
 describe("recurrence date helpers", () => {
   it("computeNextOccurrenceDate advances weekly by interval", () => {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { localDay, type CheckinDto } from "@jarv1s/shared";
+import { localDay, type CheckinDto } from "@moss/shared";
 import { computeStreak, localDayOffset } from "../../apps/web/src/wellness/wellness-date-utils.js";
 
 // Regression for issue #579 — UTC+12/+13/+14 streak correctness.

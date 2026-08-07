@@ -1,13 +1,13 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextRunner } from "@moss/db";
+import { HttpError } from "@moss/module-sdk";
 import {
   getRuntimeConfigRouteSchema,
   putRuntimeConfigRouteSchema,
   type PutRuntimeConfigRequest,
   type RuntimeConfigStatusDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import {
   getRuntimeConfigEntry,

@@ -7,14 +7,14 @@ import {
   type MedicationLog,
   type WellnessCheckin,
   type WellnessTherapyNote
-} from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
+} from "@moss/db";
+import { HttpError } from "@moss/module-sdk";
 import type {
   MedicationFrequencyTypeApi,
   MedicationLogStatusApi,
   WellnessEmotionCore as WellnessFeelingCore
-} from "@jarv1s/shared";
-import { isValidFeelingPath, localDay } from "@jarv1s/shared";
+} from "@moss/shared";
+import { isValidFeelingPath, localDay } from "@moss/shared";
 
 export interface CreateCheckinInput {
   readonly feelingCore: WellnessFeelingCore;

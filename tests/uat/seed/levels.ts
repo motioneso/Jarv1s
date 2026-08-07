@@ -1,4 +1,4 @@
-import { SharesRepository } from "@jarv1s/db";
+import { SharesRepository } from "@moss/db";
 import { createAppRuntimeRunner, createMigrationOwnerDb } from "./connections.js";
 import { seedSecondOwner, seedSoloAdmin } from "./admin.js";
 import { seedOnboardingChunk } from "./chunks/onboarding.js";

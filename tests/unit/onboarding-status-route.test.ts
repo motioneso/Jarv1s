@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextDb, User } from "@jarv1s/db";
-import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
-import type { OnboardingProviderKind } from "@jarv1s/shared";
+import type { AccessContext, DataContextDb, User } from "@moss/db";
+import { HttpError, handleRouteError } from "@moss/module-sdk";
+import type { OnboardingProviderKind } from "@moss/shared";
 
 import {
   registerOnboardingRoutes,

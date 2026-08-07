@@ -13,7 +13,7 @@ import type {
   Headline,
   OverviewHero,
   SportsOverviewResponse
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { getSportsOverview } from "./sports-client.js";
 import { sportsQueryKeys } from "./query-keys.js";

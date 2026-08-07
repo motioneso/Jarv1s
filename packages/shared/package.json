@@ -1,5 +1,5 @@
 {
-  "name": "@jarv1s/shared",
+  "name": "@moss/shared",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@jarv1s/module-sdk": "workspace:*",
-    "@jarv1s/priority": "workspace:*"
+    "@moss/module-sdk": "workspace:*",
+    "@moss/priority": "workspace:*"
   }
 }

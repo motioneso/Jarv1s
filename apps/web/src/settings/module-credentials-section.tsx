@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Trash2 } from "lucide-react";
 import { useState } from "react";
 
-import type { ModuleCredentialStatusDto } from "@jarv1s/shared";
+import type { ModuleCredentialStatusDto } from "@moss/shared";
 
 import {
   listModuleCredentials,
@@ -12,7 +12,7 @@ import {
 import { Field } from "./settings-ui.js";
 import { useFeedback } from "./settings-feedback.js";
 import { readError } from "./settings-types.js";
-import { Button } from "@jarv1s/ui";
+import { Button } from "@moss/ui";
 
 /**
  * Module credential slots (#918). Docked under a module's row on both the admin surface

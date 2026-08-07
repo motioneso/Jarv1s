@@ -2,7 +2,7 @@
 //
 // Task 5 (#1289): the shared vocabulary. Every later task in Phases 2-6 imports its types
 // from this one file. This is pure domain code — no SDK imports, no network, no database
-// access. If a later task needs `@jarv1s/module-sdk`, that import does not belong here.
+// access. If a later task needs `@moss/module-sdk`, that import does not belong here.
 //
 // Two invariants are structural to this file, not decoration:
 //

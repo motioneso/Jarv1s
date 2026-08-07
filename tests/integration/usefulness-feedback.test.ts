@@ -8,16 +8,16 @@ import {
   DataContextRunner,
   type AccessContext,
   type DataContextDb,
-  type JarvisDatabase
-} from "@jarv1s/db";
+  type MossDatabase
+} from "@moss/db";
 import {
   buildCalendarFollowThroughSideEffects,
   getBuiltInModuleManifests,
   getBuiltInModuleRegistrations
-} from "@jarv1s/module-registry";
-import { CalendarRepository, calendarFollowThroughSourceRef } from "@jarv1s/calendar";
-import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
-import { TasksRepository } from "@jarv1s/tasks";
+} from "@moss/module-registry";
+import { CalendarRepository, calendarFollowThroughSourceRef } from "@moss/calendar";
+import { ConnectorsRepository, createConnectorSecretCipher } from "@moss/connectors";
+import { TasksRepository } from "@moss/tasks";
 import {
   FeedbackTargetVerifierRegistry,
   registerUsefulnessFeedbackRoutes,
@@ -34,7 +34,7 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 
 const { Client } = pg;
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 
 interface MemoryCandidateTestRow {
   readonly id: string;
@@ -788,7 +788,7 @@ describe("briefing feedback target helpers", () => {
 });
 
 async function buildFeedbackTestServer(
-  appDb: Kysely<JarvisDatabase>,
+  appDb: Kysely<MossDatabase>,
   verifier?: FeedbackTargetVerifier
 ): Promise<{ server: FastifyInstance; dataContext: DataContextRunner }> {
   const dataContext = new DataContextRunner(appDb);

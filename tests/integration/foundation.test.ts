@@ -9,10 +9,10 @@ import {
   assertUniqueMigrationVersions,
   createDatabase,
   type AccessContext,
-  type JarvisDatabase,
+  type MossDatabase,
   type MigrationFile
-} from "@jarv1s/db";
-import { RlsProbeRepository } from "@jarv1s/db/probes";
+} from "@moss/db";
+import { RlsProbeRepository } from "@moss/db/probes";
 import {
   RLS_PROBE_QUEUE,
   createPgBossClient,
@@ -20,20 +20,20 @@ import {
   sendJob,
   type ActorScopedJobPayload,
   type RlsProbeJobPayload
-} from "@jarv1s/jobs";
+} from "@moss/jobs";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
 
-async function selectVisibleProbeIds(rootDb: Kysely<JarvisDatabase>): Promise<string[]> {
+async function selectVisibleProbeIds(rootDb: Kysely<MossDatabase>): Promise<string[]> {
   const rows = await rootDb.selectFrom("app.rls_probe_items").select("id").orderBy("id").execute();
 
   return rows.map((row) => row.id);
 }
 
 describe("MVP foundation scaffold", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let workerDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let workerDb: Kysely<MossDatabase>;
   let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
   let repository: RlsProbeRepository;

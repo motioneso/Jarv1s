@@ -1,8 +1,8 @@
 import { afterAll, beforeAll } from "vitest";
-import { featureGrantsPrefKey, runGoogleSync, runGoogleSyncChunk } from "@jarv1s/connectors";
-import { CalendarRepository, isCalendarFollowThroughEvent } from "@jarv1s/calendar";
-import { EmailRepository } from "@jarv1s/email";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import { featureGrantsPrefKey, runGoogleSync, runGoogleSyncChunk } from "@moss/connectors";
+import { CalendarRepository, isCalendarFollowThroughEvent } from "@moss/calendar";
+import { EmailRepository } from "@moss/email";
+import { PreferencesRepository } from "@moss/structured-state";
 import { ids } from "../test-database.js";
 import {
   seedGoogleAccount,

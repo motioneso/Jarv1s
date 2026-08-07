@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { DEFAULT_MODEL_SENTINEL, parseTranscript, redactSecrets, type TmuxIo } from "@jarv1s/ai";
+import { DEFAULT_MODEL_SENTINEL, parseTranscript, redactSecrets, type TmuxIo } from "@moss/ai";
 
 import { CliChatUnavailableError } from "./errors.js";
 import type { EngineLaunchOpts } from "./types.js";

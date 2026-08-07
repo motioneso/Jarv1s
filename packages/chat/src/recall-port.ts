@@ -1,10 +1,10 @@
-import type { DataContextRunner } from "@jarv1s/db";
+import type { DataContextRunner } from "@moss/db";
 import {
   ChatMemoryFactsRepository,
   MemoryRepository,
   type EmbeddingProvider,
   type RetrievedChunk
-} from "@jarv1s/memory";
+} from "@moss/memory";
 
 import { ChatUserMemorySettingsRepository } from "./memory-settings-repository.js";
 import { ChatRepository } from "./repository.js";

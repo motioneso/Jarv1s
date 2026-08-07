@@ -2,19 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 import { type Kysely } from "kysely";
 
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
 import {
   ChatMemoryFactsRepository,
   ChatMemorySuppressionsRepository,
   createMemoryFactSignature
-} from "@jarv1s/memory";
-import { ChatRepository, ChatUserMemorySettingsRepository } from "@jarv1s/chat";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+} from "@moss/memory";
+import { ChatRepository, ChatUserMemorySettingsRepository } from "@moss/chat";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import { createApiServer } from "../../apps/api/src/server.js";
 import {
   connectionStrings,
@@ -229,7 +224,7 @@ describe("Phase 3 Recall migrations", () => {
 describe("ChatMemoryFactsRepository", () => {
   const repo = new ChatMemoryFactsRepository();
   const userId = ids.userA;
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
 
   beforeAll(async () => {
@@ -347,7 +342,7 @@ describe("ChatMemoryFactsRepository", () => {
 describe("ChatUserMemorySettingsRepository", () => {
   const repo = new ChatUserMemorySettingsRepository();
   const userId = ids.userA;
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
 
   beforeAll(async () => {
@@ -655,7 +650,7 @@ describe("worker_runtime RLS policies on memory tables (#98)", () => {
 // ── Task 9: Memory controls REST API ─────────────────────────────────────────
 
 describe("Memory controls REST API", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   const factsRepo = new ChatMemoryFactsRepository();

@@ -1,11 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { Type, type Static } from "@sinclair/typebox";
 import type { PgBoss } from "pg-boss";
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextRunner } from "@moss/db";
 import { GoalsRepository } from "./repository.js";
-import { sendJob } from "@jarv1s/jobs";
+import { sendJob } from "@moss/jobs";
 import { GOALS_MEMORY_SYNC_QUEUE } from "./manifest.js";
-import type { JarvisGoalEvidenceKind, JarvisGoalSourceKind } from "./types.js";
+import type { MossGoalEvidenceKind, MossGoalSourceKind } from "./types.js";
 
 export interface GoalsRouteDependencies {
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
@@ -194,8 +194,8 @@ export function registerGoalsRoutes(app: FastifyInstance, deps: GoalsRouteDepend
 
       const evidence = await deps.dataContext.withDataContext(accessContext, async (scopedDb) => {
         return repository.addEvidence(scopedDb, accessContext.actorUserId, id, {
-          evidenceKind: data.evidenceKind as JarvisGoalEvidenceKind,
-          sourceKind: data.sourceKind as JarvisGoalSourceKind,
+          evidenceKind: data.evidenceKind as MossGoalEvidenceKind,
+          sourceKind: data.sourceKind as MossGoalSourceKind,
           sourceRef: data.sourceRef,
           sourceLabel: data.sourceLabel,
           summary: data.summary,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { passesPrefilter } from "@jarv1s/commitments/prefilter";
+import { passesPrefilter } from "@moss/commitments/prefilter";
 
 describe("passesPrefilter", () => {
   it("passes text with deadline trigger phrases", () => {

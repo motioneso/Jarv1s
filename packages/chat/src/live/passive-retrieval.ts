@@ -1,5 +1,5 @@
-import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
-import type { MemoryRecallItem, MemoryRecallResult } from "@jarv1s/memory";
+import type { DataContextDb, DataContextRunner } from "@moss/db";
+import type { MemoryRecallItem, MemoryRecallResult } from "@moss/memory";
 
 import { ChatUserMemorySettingsRepository } from "../memory-settings-repository.js";
 import type { UserMemorySettings } from "../memory-settings-repository.js";

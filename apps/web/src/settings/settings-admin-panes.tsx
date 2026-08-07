@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { compareJarvisVersions } from "@jarv1s/module-sdk/core-version";
+import { compareMossVersions } from "@moss/module-sdk/core-version";
 import {
   KeyRound,
   LogOut,
@@ -58,7 +58,7 @@ import {
   Switch,
   type BadgeTone
 } from "./settings-ui";
-import { Button, IconButton } from "@jarv1s/ui";
+import { Button, IconButton } from "@moss/ui";
 import {
   describeHerdrInstallOutcome,
   healthSummary,
@@ -70,7 +70,7 @@ import type {
   PutAiAdminUserPinRequest,
   RegistrationSettingsDto,
   UserDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 function roleLabel(user: UserDto): string {
   return user.isBootstrapOwner ? "Owner" : user.isInstanceAdmin ? "Admin" : "Member";
@@ -833,8 +833,7 @@ export function HostPane() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     {diag.version ?? "—"}
                     {diag.latestAvailableVersion &&
-                      compareJarvisVersions(diag.latestAvailableVersion, diag.version ?? "") >
-                        0 && (
+                      compareMossVersions(diag.latestAvailableVersion, diag.version ?? "") > 0 && (
                         <Badge tone="forest">
                           Update Available ({diag.latestAvailableVersion})
                         </Badge>

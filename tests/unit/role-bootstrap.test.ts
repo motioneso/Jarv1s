@@ -8,12 +8,12 @@ import {
   RUNTIME_ROLE_PASSWORD_DEFAULTS,
   buildAlterRoleStatement,
   buildRolePasswordPlan,
-  getJarvisDatabaseUrls
-} from "@jarv1s/db";
+  getMossDatabaseUrls
+} from "@moss/db";
 
 describe("buildRolePasswordPlan", () => {
   it("derives runtime role passwords from local dev fallback URLs", () => {
-    const plan = buildRolePasswordPlan(getJarvisDatabaseUrls({} as NodeJS.ProcessEnv));
+    const plan = buildRolePasswordPlan(getMossDatabaseUrls({} as NodeJS.ProcessEnv));
     expect(plan).toEqual([
       { role: "jarvis_migration_owner", password: "migration_password" },
       { role: "jarvis_app_runtime", password: "app_password" },
@@ -31,7 +31,7 @@ describe("buildRolePasswordPlan", () => {
       JARVIS_AUTH_DATABASE_URL: "postgres://jarvis_auth_runtime:auth-secret@db/prod",
       JARVIS_WORKER_DATABASE_URL: "postgres://jarvis_worker_runtime:worker-secret@db/prod"
     } as NodeJS.ProcessEnv;
-    const plan = buildRolePasswordPlan(getJarvisDatabaseUrls(env), env);
+    const plan = buildRolePasswordPlan(getMossDatabaseUrls(env), env);
     expect(plan.map((e) => e.password)).toEqual([
       "mig-secret",
       "app-secret",
@@ -53,7 +53,7 @@ describe("buildRolePasswordPlan", () => {
       JARVIS_AUTH_DATABASE_URL: "postgres://jarvis_auth_runtime:auth-secret@db/prod",
       JARVIS_WORKER_DATABASE_URL: "postgres://jarvis_worker_runtime:worker-secret@db/prod"
     } as NodeJS.ProcessEnv;
-    const plan = buildRolePasswordPlan(getJarvisDatabaseUrls(env), env);
+    const plan = buildRolePasswordPlan(getMossDatabaseUrls(env), env);
     const migration = plan.find((e) => e.role === "jarvis_migration_owner");
     expect(migration?.password).toBe("p@ss:w%rd");
   });
@@ -67,7 +67,7 @@ describe("buildRolePasswordPlan", () => {
       JARVIS_AUTH_DATABASE_URL: "postgres://jarvis_auth_runtime:auth-secret@db/prod",
       JARVIS_WORKER_DATABASE_URL: "postgres://jarvis_worker_runtime:worker-secret@db/prod"
     } as NodeJS.ProcessEnv;
-    expect(() => buildRolePasswordPlan(getJarvisDatabaseUrls(env), env)).toThrow(
+    expect(() => buildRolePasswordPlan(getMossDatabaseUrls(env), env)).toThrow(
       /jarvis_migration_owner/
     );
   });
@@ -81,7 +81,7 @@ describe("buildRolePasswordPlan", () => {
       JARVIS_AUTH_DATABASE_URL: "postgres://jarvis_auth_runtime:auth-secret@db/prod",
       JARVIS_WORKER_DATABASE_URL: "postgres://jarvis_worker_runtime:worker-secret@db/prod"
     } as NodeJS.ProcessEnv;
-    expect(() => buildRolePasswordPlan(getJarvisDatabaseUrls(env), env)).toThrow(
+    expect(() => buildRolePasswordPlan(getMossDatabaseUrls(env), env)).toThrow(
       /jarvis_migration_owner.*development-default/
     );
     expect(RUNTIME_ROLE_PASSWORD_DEFAULTS.has("app_password")).toBe(true);

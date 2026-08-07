@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { createDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import { connectionStrings, resetFoundationDatabase } from "./test-database.js";
 
 describe("Rate limiting", () => {

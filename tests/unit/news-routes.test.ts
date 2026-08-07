@@ -1,9 +1,9 @@
 import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
 
-import type { DatasetClient, DatasetEnvelope } from "@jarv1s/datasets";
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
+import type { DatasetClient, DatasetEnvelope } from "@moss/datasets";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@moss/db";
+import { HttpError } from "@moss/module-sdk";
 import type {
   CreateNewsPrefRequest,
   NewsCustomSourceDto,
@@ -11,7 +11,7 @@ import type {
   NewsPrefDto,
   NewsRefreshStateDto,
   NewsSourceExclusionDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { NewsPersonalizationLimitError } from "../../packages/news/src/personalization-repository.js";
 import type { NewsPersonalizationStore } from "../../packages/news/src/personalization-routes.js";

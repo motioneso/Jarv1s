@@ -1,14 +1,14 @@
 // packages/module-sdk/src/external-module.ts
 //
 // The external (downloadable) module ABI — auth/storage/web/worker declarations, the queue/
-// schedule/reconcile-job shapes, JsonJarvisModuleManifest, and the dataset-connector adapter
+// schedule/reconcile-job shapes, JsonMossModuleManifest, and the dataset-connector adapter
 // surface (#917/#918/#964/#1019). Lifted verbatim out of index.ts to bring that barrel back
 // under the file-size cap — same extraction pattern as
 // apps/worker/src/external-module-job-handler.ts. Pure type/const surface, no logic or
 // signature changes.
 //
 // index.ts re-exports everything below, so no import site anywhere in the repo changes: every
-// existing `import { X } from "@jarv1s/module-sdk"` still resolves, because @jarv1s/module-sdk
+// existing `import { X } from "@moss/module-sdk"` still resolves, because @moss/module-sdk
 // IS index.ts (package root / tsconfig path / vitest alias all point at it).
 //
 // Merge note (epic #1280 → main): main and the job-search branch performed this same split
@@ -85,7 +85,7 @@ export const EMBED_BATCH_MAX = 128;
  * Ceiling on any worker queue's declared `timeoutMs` (#1286 Task 2e). Declared here
  * rather than in worker-runtime.ts (which needs `node:child_process`) so that
  * validate.ts — the browser-safe manifest validator re-exported from
- * @jarv1s/module-registry's browser entry — can import and enforce it without
+ * @moss/module-registry's browser entry — can import and enforce it without
  * pulling a node:* dependency into a bundle apps/web also consumes. worker-runtime.ts
  * imports and re-exports this same constant so the runtime and the validator can
  * never drift.
@@ -249,14 +249,14 @@ export interface ExternalModuleBriefingDeclaration {
 }
 
 /**
- * The JSON-serializable subset of {@link JarvisModuleManifest} that an EXTERNAL
+ * The JSON-serializable subset of {@link MossModuleManifest} that an EXTERNAL
  * (non-compiled) module ships as `jarvis.module.json` (#917). It deliberately omits
  * every function-valued or executable-surface field of the compiled manifest —
  * external modules contribute identity/compat metadata only in Slice 1. `auth` and
  * `storage` are declaration-only and REJECTED at load in this slice (see the
  * metadata-only invariant); they are typed here for forward compatibility.
  */
-export interface JsonJarvisModuleManifest {
+export interface JsonMossModuleManifest {
   /**
    * On-disk envelope contract version (#917, spec revision 2026-07-10 for PR #924). Slice 1
    * ships a FLAT metadata-only manifest with a single top-level `schemaVersion: 1`, validated
@@ -311,15 +311,15 @@ export interface JsonJarvisModuleManifest {
  * (manifest + dist/worker.js + dist/web/**). Drift in `packageHash` from the value
  * recorded at admin-enable auto-disables the module.
  */
-export interface ExternalJarvisModulePackage {
-  readonly manifest: JsonJarvisModuleManifest;
+export interface ExternalMossModulePackage {
+  readonly manifest: JsonMossModuleManifest;
   readonly manifestHash: string;
   readonly packageHash: string;
 }
 
 /**
  * Dataset connector SDK (docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md).
- * A module declares external HTTP data sources it needs here; the `@jarv1s/datasets` runtime
+ * A module declares external HTTP data sources it needs here; the `@moss/datasets` runtime
  * host executes fetches under the declared constraints (host pinning, TTL caching, staleness
  * policy). Adapters never call global `fetch` directly — they receive a pinned `fetchFn` via
  * {@link ExternalSourceAdapterContext}.

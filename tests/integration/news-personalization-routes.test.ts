@@ -4,10 +4,10 @@ import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 import pg from "pg";
 
-import type { DatasetClient } from "@jarv1s/datasets";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient } from "@jarv1s/jobs";
-import { HttpError } from "@jarv1s/module-sdk";
+import type { DatasetClient } from "@moss/datasets";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createPgBossClient } from "@moss/jobs";
+import { HttpError } from "@moss/module-sdk";
 
 import type { NewsImageFetchPort } from "../../packages/news/src/discovery/ports.js";
 import { NewsPersonalizationRepository } from "../../packages/news/src/personalization-repository.js";
@@ -17,7 +17,7 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 const feed = `<?xml version="1.0"?><rss><channel><title>Example News</title><item><title>Verified publisher headline</title><link>https://example.com/story</link><pubDate>Fri, 11 Jul 2026 12:00:00 GMT</pubDate></item></channel></rss>`;
 
 describe("news personalization routes", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
 
   beforeEach(async () => {
     await resetFoundationDatabase();

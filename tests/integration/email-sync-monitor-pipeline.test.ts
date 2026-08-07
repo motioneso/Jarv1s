@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
-import { createCliStructuredAdapterFactory, type ChatEngineFactory } from "@jarv1s/chat";
+import { AiRepository, createAiSecretCipher } from "@moss/ai";
+import { createCliStructuredAdapterFactory, type ChatEngineFactory } from "@moss/chat";
 import {
   buildEmailExtractDeps,
   runEmailMonitor,
   type EmailExtractDeps,
   type EmailTaskCreationPort
-} from "@jarv1s/connectors";
-import { PreferencesRepository } from "@jarv1s/structured-state";
-import { TaskListsRepository, TasksRepository } from "@jarv1s/tasks";
+} from "@moss/connectors";
+import { PreferencesRepository } from "@moss/structured-state";
+import { TaskListsRepository, TasksRepository } from "@moss/tasks";
 
 import {
   handles,

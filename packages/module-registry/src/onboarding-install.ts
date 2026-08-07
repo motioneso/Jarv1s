@@ -3,7 +3,7 @@
  *
  * The composition root owns the cross-module wiring of the install seam that
  * `packages/settings/src/onboarding-routes.ts` declares as injected PORTS (module isolation —
- * settings never imports @jarv1s/chat or @jarv1s/cli-runner). This file assembles the concrete
+ * settings never imports @moss/chat or @moss/cli-runner). This file assembles the concrete
  * implementations from the three lanes:
  *
  *   - installability  ← the cli-runner recipe CATALOG (the supply-chain allowlist, §A.1). A
@@ -22,22 +22,22 @@
  *                       crash-left `installing` row is corrected + surfaced on the status load.
  */
 
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 import {
   reconcileInstallingRow,
   type ProviderCatalog,
   type ProviderInstallStateStore as ChatInstallStateStore,
   type RpcConnection
-} from "@jarv1s/chat";
-import { PROVIDER_CATALOG } from "@jarv1s/cli-runner";
+} from "@moss/chat";
+import { PROVIDER_CATALOG } from "@moss/cli-runner";
 import type {
   OnboardingInstallDependencies,
   ProviderInstallabilityPort,
   ProviderInstallClient,
   ProviderInstallStateStore,
   SettingsRepository
-} from "@jarv1s/settings";
-import type { OnboardingProviderKind, ProviderInstallState } from "@jarv1s/shared";
+} from "@moss/settings";
+import type { OnboardingProviderKind, ProviderInstallState } from "@moss/shared";
 
 const INSTALL_PROVIDER_KINDS: readonly OnboardingProviderKind[] = [
   "anthropic",

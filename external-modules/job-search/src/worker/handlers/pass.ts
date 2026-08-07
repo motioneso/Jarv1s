@@ -10,7 +10,7 @@
 // composed and where the AI-call budget is actually rationed — the stages only ever see a
 // `budget` number and an `ai` port; they have no idea whether they are one profile out of one or
 // one profile out of twenty.
-import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import type { ModuleWorkerContext } from "@moss/module-sdk/worker";
 
 import { customPortal } from "../../adapters/custom.js";
 import { freehirePortal } from "../../adapters/freehire.js";

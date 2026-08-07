@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { computeInsights } from "@jarv1s/wellness";
+import { computeInsights } from "@moss/wellness";
 
 // Regression for #326/#771 — weekday attribution (hardest/strongest day insight) must use the
 // check-in's *local* calendar day, never the UTC day. The old code called `.getUTCDay()` on

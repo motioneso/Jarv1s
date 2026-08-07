@@ -5,7 +5,7 @@ import {
   createHostPinnedFetch,
   HostPinningViolationError,
   isPinnableHost
-} from "@jarv1s/datasets";
+} from "@moss/datasets";
 
 describe("isPinnableHost", () => {
   it("accepts a plain lowercase hostname", () => {

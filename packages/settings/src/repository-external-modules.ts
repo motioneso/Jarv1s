@@ -9,9 +9,9 @@
 // audit write still routes through the class's private insertAuditEvent (unchanged behavior).
 //
 // These symbols are re-exported from ./repository.js (and thus from the package index) so the
-// @jarv1s/settings public export surface is byte-for-byte unchanged — every existing
-// `import { ExternalModuleState, ... } from "@jarv1s/settings"` / "./repository.js" resolves.
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+// @moss/settings public export surface is byte-for-byte unchanged — every existing
+// `import { ExternalModuleState, ... } from "@moss/settings"` / "./repository.js" resolves.
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
 
 export interface SetModuleDisabledInput {
   readonly moduleId: string;
@@ -39,8 +39,8 @@ export interface SetExternalModuleDisabledInput {
 
 /**
  * One persisted app.external_modules row, narrowed to what the reconcile step consumes (#917).
- * Defined locally rather than imported from @jarv1s/module-registry to avoid a package
- * dependency cycle (module-registry already depends on @jarv1s/settings). Structurally
+ * Defined locally rather than imported from @moss/module-registry to avoid a package
+ * dependency cycle (module-registry already depends on @moss/settings). Structurally
  * identical to module-registry's ExternalModuleStateInput — the app-layer wiring (a later
  * task) passes these rows straight into reconcileExternalModules by structural compatibility.
  */

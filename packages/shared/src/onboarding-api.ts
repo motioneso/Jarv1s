@@ -25,7 +25,7 @@ export type OnboardingProviderKind = "anthropic" | "openai-compatible" | "google
  *
  * Phase 1 only freezes the enum + the optional DTO field below; the backing table
  * (app.provider_install_state) and the install/login services that write it are Phase 2/3.
- * State lives in the settings/onboarding module (module isolation), never in @jarv1s/chat
+ * State lives in the settings/onboarding module (module isolation), never in @moss/chat
  * or the token registry. NOTE: `multiplexer_unavailable` is intentionally ABSENT here — it
  * is a transient cli-runner-wide probe condition, not a per-provider lifecycle state, so it
  * stays only in {@link OnboardingProviderCheckStatus}.

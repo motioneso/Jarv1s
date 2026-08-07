@@ -1,4 +1,4 @@
-import type { ToolExecute } from "@jarv1s/module-sdk";
+import type { ToolExecute } from "@moss/module-sdk";
 import type { CurrentViewReadService } from "./live/current-view.js";
 
 const stringArray = { type: "array", items: { type: "string" } } as const;

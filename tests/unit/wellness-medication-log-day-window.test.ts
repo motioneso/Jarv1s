@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MedicationLog } from "@jarv1s/db";
+import type { MedicationLog } from "@moss/db";
 import { medicationLogBelongsToDate } from "../../packages/wellness/src/repository.js";
 
 // Regression pin for issue #877 finding 6 (wellness medication day-window).

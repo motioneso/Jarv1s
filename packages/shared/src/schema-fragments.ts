@@ -2,7 +2,7 @@
 //
 // These were previously duplicated as file-local `const`s across the per-module *-api.ts files.
 // They are consolidated here so the contract is defined once. This module is part of the
-// Vite-bundled @jarv1s/shared package — keep it free of `node:*` imports.
+// Vite-bundled @moss/shared package — keep it free of `node:*` imports.
 
 /** Canonical error envelope for non-2xx responses: `{ error: string }`, closed to extra keys. */
 export const errorResponseSchema = {

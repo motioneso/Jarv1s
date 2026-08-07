@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TaskDefaultView, TaskDto, TaskSearchIntent } from "@jarv1s/shared";
-import { Chip, EmptyState, Segmented } from "@jarv1s/ui";
+import type { TaskDefaultView, TaskDto, TaskSearchIntent } from "@moss/shared";
+import { Chip, EmptyState, Segmented } from "@moss/ui";
 import {
   CheckCheck,
   ChevronDown,

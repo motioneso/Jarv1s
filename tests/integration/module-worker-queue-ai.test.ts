@@ -3,16 +3,16 @@
 // tests/integration/module-worker-rpc.test.ts proves the rpc-host invariants
 // with STUB ai callbacks; this suite proves them end-to-end on the queued-jobs
 // path: the extracted worker job handler + the REAL worker ai bridge
-// (@jarv1s/ai generateStructured), exactly as composed in apps/worker.
+// (@moss/ai generateStructured), exactly as composed in apps/worker.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 import type { Job } from "pg-boss";
 
-import { AiRepository } from "@jarv1s/ai";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import type { ExternalModuleJobPayload } from "@jarv1s/jobs";
-import { AI_CALLS_PER_INVOCATION_CAP } from "@jarv1s/module-registry/node";
-import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
+import { AiRepository } from "@moss/ai";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import type { ExternalModuleJobPayload } from "@moss/jobs";
+import { AI_CALLS_PER_INVOCATION_CAP } from "@moss/module-registry/node";
+import { createModuleCredentialSecretCipher } from "@moss/settings";
 import type { Kysely } from "kysely";
 
 import { createModuleWorkerAiBridge } from "../../apps/worker/src/external-module-ai-bridge.js";
@@ -29,7 +29,7 @@ const HASH = `sha256:${"a".repeat(64)}`;
 const CREDENTIAL_SECRET = "queue-ai-runtime-secret";
 
 let bootstrap: pg.Client;
-let workerDb: Kysely<JarvisDatabase>;
+let workerDb: Kysely<MossDatabase>;
 let previousAiSecretKey: string | undefined;
 
 const moduleA = {
@@ -196,7 +196,7 @@ describe("queue-path ctx.ai (real bridge)", () => {
   it("fails closed with typed needs_config when no provider is configured", async () => {
     const rpc = await capturedRpc();
     // No ai provider/model/binding rows exist: the real bridge resolves through
-    // @jarv1s/ai and must surface the typed error, never throw.
+    // @moss/ai and must surface the typed error, never throw.
     await expect(
       rpc("ai.generateStructured", { schema: { type: "object" }, prompt: "hi" }, () => undefined)
     ).resolves.toEqual({ ok: false, error: "needs_config" });

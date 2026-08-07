@@ -8,10 +8,10 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { installModule } from "../../scripts/module-install.js";
 import { moduleRuntimeRoleName } from "../../packages/db/src/module-role-broker.js";
-import { getJarvisDatabaseUrls } from "../../packages/db/src/urls.js";
+import { getMossDatabaseUrls } from "../../packages/db/src/urls.js";
 import { dropModuleRolesAtTeardown, resetEmptyFoundationDatabase } from "./test-database.js";
 
-const urls = getJarvisDatabaseUrls();
+const urls = getMossDatabaseUrls();
 const moduleId = "install-fixture";
 let dir: string;
 
@@ -57,7 +57,7 @@ describe("installModule", () => {
     const result = await installModule({
       moduleId,
       // installModule's manifest param is intentionally structural (#964) and only reads
-      // database.ownedTables — trimmed to that instead of a full JarvisModuleManifest fixture.
+      // database.ownedTables — trimmed to that instead of a full MossModuleManifest fixture.
       manifest: {
         database: { ownedTables: ["app.install_fixture_widgets"] }
       },

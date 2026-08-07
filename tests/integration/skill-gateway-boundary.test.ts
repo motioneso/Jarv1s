@@ -7,9 +7,9 @@ import {
   ConfirmationRegistry,
   SessionTokenRegistry,
   type GatewaySessionRecord
-} from "@jarv1s/ai";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import type { ChatSkillDto } from "@jarv1s/shared";
+} from "@moss/ai";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import type { ChatSkillDto } from "@moss/shared";
 
 import { composeTurnText } from "../../apps/web/src/chat/skill-autocomplete.js";
 import { renderPersona, type PersonaFs } from "../../packages/chat/src/live/persona.js";
@@ -60,8 +60,8 @@ function fakePersonaFs(): { fs: PersonaFs; writes: Record<string, string>; calls
 }
 
 describe("skill-sourced turns at the gateway boundary (#760 Task 6)", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let bootstrapDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let bootstrapDb: Kysely<MossDatabase>;
   let runner: DataContextRunner;
   let repository: AiRepository;
   let tokens: SessionTokenRegistry;

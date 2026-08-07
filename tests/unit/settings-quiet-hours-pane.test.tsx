@@ -3,11 +3,11 @@ import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { GetQuietHoursSettingsResponse, MeResponse } from "@jarv1s/shared";
+import type { GetQuietHoursSettingsResponse, MeResponse } from "@moss/shared";
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 import { isValidQuietHoursTime } from "../../apps/web/src/settings/settings-personal-panes.js";
 
-vi.mock("virtual:jarvis-module-settings", () => ({
+vi.mock("virtual:moss-module-settings", () => ({
   MODULE_SETTINGS_SURFACES: [],
   MODULE_SETTINGS_COMPONENTS: {}
 }));

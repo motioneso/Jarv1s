@@ -1,4 +1,4 @@
-import { DEFAULT_MODEL_SENTINEL, redactSecrets } from "@jarv1s/ai";
+import { DEFAULT_MODEL_SENTINEL, redactSecrets } from "@moss/ai";
 
 import type { EngineLaunchOpts } from "./types.js";
 

@@ -6,13 +6,13 @@
 // them behind its validation pipeline; Slice 1 only reads/exports what exists.
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
 import type {
   NewsCustomSourceDto,
   NewsCustomTopicDto,
   NewsRefreshStateDto,
   NewsSourceExclusionDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import {
   assertSnapshotPayload,

@@ -10,7 +10,7 @@
 // use.
 import { describe, expect, it } from "vitest";
 
-import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import type { ModuleWorkerContext } from "@moss/module-sdk/worker";
 
 import { JOB_SEARCH_STATIC_FETCH_HOSTS } from "../../external-modules/job-search/src/db/tables.js";
 import type {

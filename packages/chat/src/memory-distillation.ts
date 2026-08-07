@@ -1,4 +1,4 @@
-import type { MemoryEntityKind, MemoryFactPredicate } from "@jarv1s/memory";
+import type { MemoryEntityKind, MemoryFactPredicate } from "@moss/memory";
 
 const ENTITY_KINDS = new Set<MemoryEntityKind>([
   "person",

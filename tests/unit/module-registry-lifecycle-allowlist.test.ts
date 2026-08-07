@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { LIFECYCLE_MIGRATION_PENDING } from "@jarv1s/module-registry";
+import { LIFECYCLE_MIGRATION_PENDING } from "@moss/module-registry";
 
 /**
  * Pins the exact contents of the LIFECYCLE_MIGRATION_PENDING allowlist (#801 Phase A). The

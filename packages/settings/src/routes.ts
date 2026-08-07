@@ -1,13 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
 
-import type {
-  AccessContext,
-  DataContextDb,
-  DataContextRunner,
-  JarvisDatabase,
-  User
-} from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner, MossDatabase, User } from "@moss/db";
 import {
   adminDeleteUserRouteSchema,
   adminRejectUserRouteSchema,
@@ -37,11 +31,11 @@ import {
   type MultiplexerKind,
   type MultiplexerSource,
   type UpsertInstanceSettingRequest
-} from "@jarv1s/shared";
-import type { JarvisModuleManifest, JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
-import { HttpError } from "@jarv1s/module-sdk";
+} from "@moss/shared";
+import type { MossModuleManifest, JsonMossModuleManifest } from "@moss/module-sdk";
+import { HttpError } from "@moss/module-sdk";
 
-import type { PgBoss } from "@jarv1s/jobs";
+import type { PgBoss } from "@moss/jobs";
 
 import { deleteUserData, LastActiveAdminError } from "../../../scripts/delete-user-data.js";
 import { BootstrapHelper } from "./bootstrap.js";
@@ -108,9 +102,9 @@ export type GetChatMultiplexerStatus = (configured: ChatMultiplexerChoice) => Pr
   readonly envOverride: MultiplexerKind | null;
 }>;
 
-// #917 — LOCAL mirrors of @jarv1s/module-registry's external-module types. Settings does
-// NOT (and must not) depend on @jarv1s/module-registry — that package already depends on
-// @jarv1s/settings, so importing back would create a dependency cycle and violate module
+// #917 — LOCAL mirrors of @moss/module-registry's external-module types. Settings does
+// NOT (and must not) depend on @moss/module-registry — that package already depends on
+// @moss/settings, so importing back would create a dependency cycle and violate module
 // isolation. These are structurally identical to the registry's ExternalModuleDiscovery /
 // ExternalModuleRejection; the composition root (apps/api) passes the REAL registry values
 // in and TypeScript's structural typing accepts them. Keep in sync with
@@ -118,7 +112,7 @@ export type GetChatMultiplexerStatus = (configured: ChatMultiplexerChoice) => Pr
 export interface ExternalModuleDiscovery {
   readonly id: string;
   readonly dir: string;
-  readonly manifest: JsonJarvisModuleManifest;
+  readonly manifest: JsonMossModuleManifest;
   readonly manifestHash: string;
   readonly packageHash: string;
 }
@@ -140,8 +134,8 @@ export interface ExternalModulesDependencies {
   readonly rejected: readonly ExternalModuleRejection[];
   /**
    * #917 — reconcile port injected by the composition root (apps/api). Settings CANNOT import
-   * @jarv1s/module-registry (reconcileExternalModules lives there; that package already depends
-   * on @jarv1s/settings, so a direct import cycles + breaks module isolation — same discipline as
+   * @moss/module-registry (reconcileExternalModules lives there; that package already depends
+   * on @moss/settings, so a direct import cycles + breaks module isolation — same discipline as
    * reconcileNotesSchedule). apps/api closes this over the boot discovery snapshot, so callers pass
    * only the persisted states. `modules` are already reconciled + DTO-shaped (ReconciledExternalModule
    * is field-identical to ExternalModuleDto), drift-inactive already applied; `driftDisable` is the
@@ -186,15 +180,15 @@ export interface ModuleDistributionDependencies {
 
 export interface SettingsRoutesDependencies {
   // Kysely exemption: only BootstrapHelper uses rootDb before any actor/session exists.
-  readonly rootDb: Kysely<JarvisDatabase>;
+  readonly rootDb: Kysely<MossDatabase>;
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly listConfiguredAuthProviders?: () => readonly AuthProviderStatusDto[];
-  readonly listModuleManifests: () => readonly JarvisModuleManifest[];
+  readonly listModuleManifests: () => readonly MossModuleManifest[];
   /**
    * Derived module-owned deletion tables (Phase A, #801), flattened by the composition
    * root from every built-in module's `dataLifecycle.deletion.tables` (see
-   * @jarv1s/module-registry's `getModuleDeletionTables`/`MODULE_DELETION_TABLES`).
+   * @moss/module-registry's `getModuleDeletionTables`/`MODULE_DELETION_TABLES`).
    * Threaded to `deleteUserData` so migrated modules' rows come off this package's
    * hardcoded `userScopedCountQueries` list.
    */
@@ -235,7 +229,7 @@ export interface SettingsRoutesDependencies {
    * §A.5 install seam (#342 Phase 2): the catalog installability port, the cli-runner
    * `installProvider` RPC client, the admin-actor state store, and the §A.4.2 reconcile
    * port. Injected by the composition root (module isolation — settings never imports
-   * @jarv1s/chat / cli-runner). Absent ⇒ the install route fails closed (500) and the
+   * @moss/chat / cli-runner). Absent ⇒ the install route fails closed (500) and the
    * status route serves the Phase-1 presence-only surface.
    */
   readonly onboardingInstall?: OnboardingInstallDependencies;
@@ -253,7 +247,7 @@ export interface SettingsRoutesDependencies {
   readonly boss?: PgBoss;
   /**
    * #449: per-actor 15-min notes-sync heartbeat reconcile hook. Injected by the
-   * composition root (lives in @jarv1s/notes; injected here to avoid a circular
+   * composition root (lives in @moss/notes; injected here to avoid a circular
    * import). Absent ⇒ no heartbeat (manual sync still works).
    */
   readonly reconcileNotesSchedule?: ReconcileNotesScheduleFn;
@@ -261,7 +255,7 @@ export interface SettingsRoutesDependencies {
   readonly reconcileProactiveSchedule?: ReconcileProactiveScheduleFn;
   readonly notificationUnreadPort?: NotificationUnreadPort;
   /**
-   * #1263 Task 15: install-time self-operation grant port (settings never imports @jarv1s/ai
+   * #1263 Task 15: install-time self-operation grant port (settings never imports @moss/ai
    * directly — module isolation). Called on built-in module ENABLE only (user + admin routes),
    * inside the same actor-scoped transaction as the enable write, after it succeeds. Absent ⇒
    * enable proceeds with no grant (matches pre-#1263 behavior). External module enable
@@ -269,7 +263,7 @@ export interface SettingsRoutesDependencies {
    */
   readonly grantSelfOperationForModule?: (
     scopedDb: DataContextDb,
-    manifest: JarvisModuleManifest
+    manifest: MossModuleManifest
   ) => Promise<void>;
 }
 

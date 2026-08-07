@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { sql, type Kysely, type Transaction } from "kysely";
 
-import type { JarvisDatabase } from "./types.js";
+import type { MossDatabase } from "./types.js";
 
 export interface AccessContext {
   readonly actorUserId: string;
@@ -29,15 +29,15 @@ export function assertUuid(value: string, label: string): void {
 export const dataContextBrand: unique symbol = Symbol("DataContextDb");
 
 export interface DataContextDb {
-  readonly db: Transaction<JarvisDatabase>;
+  readonly db: Transaction<MossDatabase>;
   readonly [dataContextBrand]: true;
 }
 
 /**
  * A scoped key/value preferences accessor over a DataContextDb. The single shared
  * shape for "read/write a user's stored preference blob" — features alias this rather
- * than re-declaring the same two methods (e.g. ProfilePreferencesPort in @jarv1s/settings,
- * SourceBehaviorPreferencesPort in @jarv1s/source-behaviors).
+ * than re-declaring the same two methods (e.g. ProfilePreferencesPort in @moss/settings,
+ * SourceBehaviorPreferencesPort in @moss/source-behaviors).
  */
 export interface PreferencesPort {
   get(scopedDb: DataContextDb, key: string): Promise<unknown>;
@@ -49,7 +49,7 @@ export interface PreferencesPort {
 }
 
 export class DataContextRunner {
-  constructor(private readonly rootDb: Kysely<JarvisDatabase>) {}
+  constructor(private readonly rootDb: Kysely<MossDatabase>) {}
 
   async withDataContext<T>(
     accessContext: AccessContext,
@@ -83,7 +83,7 @@ export function assertDataContextDb(value: unknown): asserts value is DataContex
 }
 
 async function setLocal(
-  transaction: Transaction<JarvisDatabase>,
+  transaction: Transaction<MossDatabase>,
   name: "app.actor_user_id" | "app.request_id",
   value: string
 ): Promise<void> {

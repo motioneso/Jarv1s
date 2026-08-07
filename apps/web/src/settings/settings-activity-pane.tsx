@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { Button } from "@jarv1s/ui";
+import { Button } from "@moss/ui";
 import { listActionAuditLog } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
 import { useAssistantName } from "../api/use-assistant-name.js";
 import { formatDateTime, useUserLocale } from "../locale/locale-format.js";
 import type { PaneProps } from "./settings-types.js";
 import { Badge, Select } from "./settings-ui.js";
-import type { ActionAuditLogEntryDto } from "@jarv1s/shared";
+import type { ActionAuditLogEntryDto } from "@moss/shared";
 
 type DateRange = "today" | "7d" | "30d" | "90d";
 

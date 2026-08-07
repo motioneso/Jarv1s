@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { scanModuleWeb, SHELL_RESERVED_WEB_PATHS } from "../../packages/settings-ui/src/vite.js";
 import { webRoutes } from "../../apps/web/src/app-route-metadata.js";
-import { MODULE_WEB_ROUTES } from "virtual:jarvis-module-web";
+import { MODULE_WEB_ROUTES } from "virtual:moss-module-web";
 
 let roots: string[] = [];
 
@@ -16,7 +16,7 @@ afterEach(async () => {
 });
 
 async function makeRoot() {
-  const rootDir = await mkdtemp(join(tmpdir(), "jarvis-module-web-reserved-"));
+  const rootDir = await mkdtemp(join(tmpdir(), "moss-module-web-reserved-"));
   roots.push(rootDir);
   return rootDir;
 }
@@ -27,7 +27,7 @@ async function makeFixturePackage(rootDir: string, manifestBody: string) {
   await writeFile(
     join(packageDir, "package.json"),
     JSON.stringify({
-      name: "@jarv1s/fixture",
+      name: "@moss/fixture",
       type: "module",
       exports: { ".": "./src/index.ts", "./web": "./src/web/index.tsx" }
     }),

@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
 import type {
   ProactiveMonitorInput,
   ProactiveMonitorProvider,
   ProactiveMonitorResult,
   ProactiveMonitorSignal
-} from "@jarv1s/module-sdk";
+} from "@moss/module-sdk";
 
 import { EmailRepository } from "./repository.js";
 

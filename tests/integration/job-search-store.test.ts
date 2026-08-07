@@ -10,7 +10,7 @@ import {
   moduleInstallRoleName,
   moduleRuntimeRoleName
 } from "../../packages/db/src/module-role-broker.js";
-import { getJarvisDatabaseUrls } from "../../packages/db/src/urls.js";
+import { getMossDatabaseUrls } from "../../packages/db/src/urls.js";
 import { JOB_SEARCH_TABLES } from "../../external-modules/job-search/src/db/tables.js";
 import { createSqlStore } from "../../external-modules/job-search/src/worker/store-sql.js";
 import { BODY_MAX_CHARS } from "../../external-modules/job-search/src/domain/records.js";
@@ -22,7 +22,7 @@ import type {
 } from "../../external-modules/job-search/src/domain/records.js";
 import { resetEmptyFoundationDatabase } from "./test-database.js";
 
-const urls = getJarvisDatabaseUrls();
+const urls = getMossDatabaseUrls();
 const moduleId = "job-search";
 const runtimeRole = moduleRuntimeRoleName(moduleId);
 const ownedTables = JOB_SEARCH_TABLES.map((table) => `app.${table}`);

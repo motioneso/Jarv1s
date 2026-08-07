@@ -5,7 +5,7 @@ import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
-import type { LookupAiCapabilityRouteResponse } from "@jarv1s/shared";
+import type { LookupAiCapabilityRouteResponse } from "@moss/shared";
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 import { Composer, mergeTranscriptIntoText } from "../../apps/web/src/chat/composer.js";
 

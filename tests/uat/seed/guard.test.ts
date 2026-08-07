@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
-import type { JarvisDatabase } from "@jarv1s/db";
+import type { MossDatabase } from "@moss/db";
 import {
   UAT_ADMIN_EMAIL,
   UAT_ADMIN_ID,
@@ -19,7 +19,7 @@ const REAL_USER_ID = "00000000-0000-4000-8000-000000001083";
 const TEST_USER_IDS = [UAT_ADMIN_ID, UAT_SECOND_OWNER_ID, REAL_BOOTSTRAP_ID, REAL_USER_ID] as const;
 
 async function insertUser(
-  db: Kysely<JarvisDatabase>,
+  db: Kysely<MossDatabase>,
   input: { readonly id: string; readonly email: string; readonly bootstrapOwner?: boolean }
 ): Promise<void> {
   await db

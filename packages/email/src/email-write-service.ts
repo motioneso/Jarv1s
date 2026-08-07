@@ -1,4 +1,4 @@
-import type { ToolContext } from "@jarv1s/module-sdk";
+import type { ToolContext } from "@moss/module-sdk";
 
 /**
  * The tool-side input for a reply. This is the ONLY thing the model supplies: which cached

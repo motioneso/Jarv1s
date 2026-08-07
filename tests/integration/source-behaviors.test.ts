@@ -3,10 +3,10 @@ import Fastify, { type FastifyInstance } from "fastify";
 import pg from "pg";
 import type { Kysely } from "kysely";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { getBuiltInModuleManifests, getModuleDeletionTables } from "@jarv1s/module-registry";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { getBuiltInModuleManifests, getModuleDeletionTables } from "@moss/module-registry";
+import type { MossModuleManifest } from "@moss/module-sdk";
+import { PreferencesRepository } from "@moss/structured-state";
 
 import { registerSettingsRoutes } from "../../packages/settings/src/routes.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -25,7 +25,7 @@ function userBHeaders(): Record<string, string> {
   return userHeaders(ids.sessionB);
 }
 
-function testManifest(): JarvisModuleManifest {
+function testManifest(): MossModuleManifest {
   return {
     id: "test-source",
     name: "Test source",
@@ -71,7 +71,7 @@ function findBehavior(body: unknown, behaviorId: string): Record<string, unknown
 }
 
 describe("source behavior settings API", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let server: FastifyInstance;
 
   beforeAll(async () => {

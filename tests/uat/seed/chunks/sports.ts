@@ -1,5 +1,5 @@
-import type { DataContextRunner } from "@jarv1s/db";
-import { SportsFollowsRepository } from "@jarv1s/sports";
+import type { DataContextRunner } from "@moss/db";
+import { SportsFollowsRepository } from "@moss/sports";
 
 // #1025 "lived-in account": whole-competition follows only. Individual team keys are
 // not a static catalog in packages/sports/src (`SPORTS_CATALOG` in source/catalog.ts

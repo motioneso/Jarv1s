@@ -1,4 +1,4 @@
-import type { HerdrInstallResultDto, HostDiagnosticCheckDto } from "@jarv1s/shared";
+import type { HerdrInstallResultDto, HostDiagnosticCheckDto } from "@moss/shared";
 
 /**
  * #1088 F3 — POST /api/admin/host/install always resolves 200 (the route only ever

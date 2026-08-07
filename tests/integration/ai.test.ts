@@ -3,24 +3,19 @@ import type { Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import {
   AiRepository,
   aiModuleManifest,
   createAiSecretCipher,
   type EncryptedAiSecret
-} from "@jarv1s/ai";
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
+} from "@moss/ai";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
 import {
   getBuiltInModuleManifests,
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
-} from "@jarv1s/module-registry";
+} from "@moss/module-registry";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -30,7 +25,7 @@ const actionRequestIds = {
 } as const;
 
 describe("AI provider foundation", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: AiRepository;
   let server: ReturnType<typeof createApiServer>;
@@ -800,7 +795,7 @@ async function readEncryptedCredential(providerId: string): Promise<EncryptedAiS
 }
 
 describe("AI capability tier routing", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: AiRepository;
   let server: ReturnType<typeof createApiServer>;

@@ -11,7 +11,7 @@ import {
   createNewsSourceExclusionSchema,
   deleteNewsSourceExclusionSchema,
   getNewsPersonalizationSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 // #953 Task 2 — pure domain normalization and the provisional snapshot storage guard.
 // The normalizer is the single parse path for publisher domains (exclusions in Slice 1,

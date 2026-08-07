@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { NewsHeadline, NewsSourceGroup } from "@jarv1s/shared";
+import type { NewsHeadline, NewsSourceGroup } from "@moss/shared";
 
 import { featureEligible } from "../ranking.js";
 

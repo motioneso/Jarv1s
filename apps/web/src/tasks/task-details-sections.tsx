@@ -7,8 +7,8 @@ import type {
   TaskApiStatus,
   TaskDto,
   TaskTagDto
-} from "@jarv1s/shared";
-import { Button, Chip, EmptyState } from "@jarv1s/ui";
+} from "@moss/shared";
+import { Button, Chip, EmptyState } from "@moss/ui";
 
 import { formatDate, useUserLocale } from "../locale/locale-format";
 import { useDismissableMenu } from "../shared/use-dismissable-menu.js";

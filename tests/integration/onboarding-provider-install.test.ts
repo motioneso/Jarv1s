@@ -9,18 +9,18 @@ import {
   DataContextRunner,
   type AccessContext,
   type DataContextDb,
-  type JarvisDatabase,
+  type MossDatabase,
   type User
-} from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
+} from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import { HttpError, handleRouteError } from "@moss/module-sdk";
 import {
   registerOnboardingRoutes,
   SettingsRepository,
   type OnboardingProbes,
   type OnboardingRoutesDependencies
-} from "@jarv1s/settings";
-import type { RpcConnection } from "@jarv1s/chat";
+} from "@moss/settings";
+import type { RpcConnection } from "@moss/chat";
 import { buildOnboardingInstall } from "../../packages/module-registry/src/onboarding-install.js";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -76,7 +76,7 @@ function makeFakeConnection(state: FakeRpc): RpcConnection {
 
 describe("Phase 2 onboarding — provider-install seam (REAL wiring)", () => {
   let bootstrapServer: ReturnType<typeof createApiServer>;
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let dataContext: DataContextRunner;
   let repository: SettingsRepository;
@@ -300,7 +300,7 @@ describe("Phase 2 onboarding — provider-install seam (REAL wiring)", () => {
 // ---------------------------------------------------------------------------
 describe("#1081 H2 — binaryChanged forwarding + session-drop trigger (REAL wiring)", () => {
   let bootstrapServer: ReturnType<typeof createApiServer>;
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let dataContext: DataContextRunner;
   let repository: SettingsRepository;

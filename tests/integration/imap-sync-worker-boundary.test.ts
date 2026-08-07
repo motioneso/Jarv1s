@@ -15,12 +15,12 @@
 import { describe, expect, it } from "vitest";
 import type { Job, PgBoss, WorkHandler } from "pg-boss";
 
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@moss/db";
 import {
   registerImapSyncWorker,
   type ImapSyncPayload,
   type ImapSyncResult
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 
 import { reconcileImapAccountSchedule } from "../../packages/connectors/src/imap-schedule.js";
 

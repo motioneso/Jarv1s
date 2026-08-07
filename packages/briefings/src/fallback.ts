@@ -1,4 +1,4 @@
-import type { BriefingStructuredPayloadV1, SourceFreshnessV1 } from "@jarv1s/shared";
+import type { BriefingStructuredPayloadV1, SourceFreshnessV1 } from "@moss/shared";
 
 import type { BriefingGap, ComposeResult, Section } from "./compose.js";
 

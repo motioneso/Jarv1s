@@ -6,10 +6,10 @@ import { sql } from "kysely";
 import {
   DataContextRunner,
   createDatabase,
-  getJarvisDatabaseUrls,
+  getMossDatabaseUrls,
   type AccessContext
-} from "@jarv1s/db";
-import { RlsProbeRepository } from "@jarv1s/db/probes";
+} from "@moss/db";
+import { RlsProbeRepository } from "@moss/db/probes";
 import {
   RLS_PROBE_QUEUE,
   UPGRADE_CHECK_QUEUE,
@@ -23,7 +23,7 @@ import {
   type ExternalModuleJobPayload,
   type ModuleControlPayload,
   type RlsProbeJobPayload
-} from "@jarv1s/jobs";
+} from "@moss/jobs";
 import {
   aggregateFocusSignals,
   createActiveModulesResolver,
@@ -32,18 +32,18 @@ import {
   getAllQueueDefinitions,
   getBuiltInModuleManifests,
   registerBuiltInModuleWorkers
-} from "@jarv1s/module-registry";
+} from "@moss/module-registry";
 import {
   ExternalModuleJobReconciler,
   ExternalModuleWorkerRuntime,
   getExternalModuleRegistrations,
   resolveModulesDir
-} from "@jarv1s/module-registry/node";
-import { AiRepository } from "@jarv1s/ai";
-import { ChatAttachmentsService } from "@jarv1s/chat";
-import { NotificationsRepository, type CreateNotificationInput } from "@jarv1s/notifications";
-import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
-import { getVaultBaseDir, VaultContextRunner } from "@jarv1s/vault";
+} from "@moss/module-registry/node";
+import { AiRepository } from "@moss/ai";
+import { ChatAttachmentsService } from "@moss/chat";
+import { NotificationsRepository, type CreateNotificationInput } from "@moss/notifications";
+import { createModuleCredentialSecretCipher } from "@moss/settings";
+import { getVaultBaseDir, VaultContextRunner } from "@moss/vault";
 
 import { createModuleWorkerAiBridge } from "./external-module-ai-bridge.js";
 import { createExternalBriefingInvoker } from "./external-module-invoke.js";
@@ -102,7 +102,7 @@ export function resolveExternalWorkerConfig(env: NodeJS.ProcessEnv = process.env
  * and keeps the same observable behaviour.
  */
 export async function buildWorker(deps?: { connectionString?: string }): Promise<WorkerHandle> {
-  const urls = getJarvisDatabaseUrls();
+  const urls = getMossDatabaseUrls();
   const connectionString = deps?.connectionString ?? urls.worker;
 
   // Structured logger for worker-path module diagnostics (#413). Threaded into

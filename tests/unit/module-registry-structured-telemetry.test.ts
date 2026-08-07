@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type * as ConnectorsModule from "@jarv1s/connectors";
-import { getBuiltInModuleRegistrations } from "@jarv1s/module-registry";
+import type * as ConnectorsModule from "@moss/connectors";
+import { getBuiltInModuleRegistrations } from "@moss/module-registry";
 
 const connectorWorkerCapture = vi.hoisted(() => ({
   deps: undefined as unknown
 }));
 
-vi.mock("@jarv1s/connectors", async (importOriginal) => {
+vi.mock("@moss/connectors", async (importOriginal) => {
   const actual = await importOriginal<typeof ConnectorsModule>();
   return {
     ...actual,

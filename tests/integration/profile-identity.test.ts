@@ -2,9 +2,9 @@ import type { OutgoingHttpHeaders } from "node:http";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { createMossAuthRuntime, type MossAuthRuntime } from "@moss/auth";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import { type Kysely } from "kysely";
 import { createApiServer } from "../../apps/api/src/server.js";
 import {
@@ -14,8 +14,8 @@ import {
 } from "./test-database.js";
 
 describe("profile identity", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let authRuntime: JarvisAuthRuntime;
+  let appDb: Kysely<MossDatabase>;
+  let authRuntime: MossAuthRuntime;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
 
@@ -55,7 +55,7 @@ describe("profile identity", () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 2 });
     const runner = new DataContextRunner(appDb);
-    authRuntime = createJarvisAuthRuntime({ appDb, runner });
+    authRuntime = createMossAuthRuntime({ appDb, runner });
     // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
     // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
     // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-

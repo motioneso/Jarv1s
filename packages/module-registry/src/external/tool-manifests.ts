@@ -1,10 +1,10 @@
 import type {
   ExternalModuleAssistantToolDeclaration,
-  JarvisModuleManifest,
+  MossModuleManifest,
   ToolContext,
   ToolInput,
   ToolResult
-} from "@jarv1s/module-sdk";
+} from "@moss/module-sdk";
 
 import type { ExternalModuleDiscovery } from "./types.js";
 
@@ -29,7 +29,7 @@ function synthesizeRequiresConfirmation(
 export function createExternalToolManifests(
   discoveries: readonly ExternalModuleDiscovery[],
   invoke: ExternalToolInvoker
-): JarvisModuleManifest[] {
+): MossModuleManifest[] {
   return discoveries
     .filter((module) => module.manifest.runtime && module.manifest.assistantTools?.length)
     .map((module) => ({

@@ -1,14 +1,14 @@
 import type { PgBoss } from "pg-boss";
 
-import type { DataContextRunner } from "@jarv1s/db";
+import type { DataContextRunner } from "@moss/db";
 import {
   assertMetadataOnlyPayload,
   registerDataContextWorker,
   sendJob,
   type ActorScopedJobPayload,
   type QueueDefinition
-} from "@jarv1s/jobs";
-import type { NotificationsRepository } from "@jarv1s/notifications";
+} from "@moss/jobs";
+import type { NotificationsRepository } from "@moss/notifications";
 
 import {
   compilePersonalizedNews,

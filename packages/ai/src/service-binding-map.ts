@@ -6,7 +6,7 @@ import {
   type AiServiceBinding,
   type AiServiceBindingMapDto,
   type ModuleServiceBindingMap
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 // #870 Slice 1: tolerant parser for the `ai.service_bindings` blob in `app.instance_settings`.
 // Mirrors `capability-route-map.ts` — we never trust the stored JSON shape (an older release, a

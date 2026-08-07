@@ -1,4 +1,4 @@
-import type { GetWeatherTodayResponse } from "@jarv1s/shared";
+import type { GetWeatherTodayResponse } from "@moss/shared";
 
 import { requestJson } from "./client.js";
 

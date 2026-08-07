@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { validateExternalModuleManifest } from "@jarv1s/module-registry";
+import { validateExternalModuleManifest } from "@moss/module-registry";
 
 import {
   JOB_SEARCH_STATIC_FETCH_HOSTS,

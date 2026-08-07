@@ -1,6 +1,6 @@
-declare module "virtual:jarvis-module-settings" {
+declare module "virtual:moss-module-settings" {
   import type { LazyExoticComponent, ComponentType } from "react";
-  import type { GeneratedSettingsSurface, ModuleSettingsSurfaceProps } from "@jarv1s/settings-ui";
+  import type { GeneratedSettingsSurface, ModuleSettingsSurfaceProps } from "@moss/settings-ui";
 
   export const MODULE_SETTINGS_SURFACES: readonly GeneratedSettingsSurface[];
   export const MODULE_SETTINGS_COMPONENTS: Readonly<
@@ -8,8 +8,8 @@ declare module "virtual:jarvis-module-settings" {
   >;
 }
 
-declare module "virtual:jarvis-module-web" {
-  import type { ModuleWebContribution } from "@jarv1s/module-web-sdk";
+declare module "virtual:moss-module-web" {
+  import type { ModuleWebContribution } from "@moss/module-web-sdk";
 
   export interface GeneratedWebRoute {
     readonly moduleId: string;

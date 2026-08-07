@@ -5,7 +5,7 @@ import {
   briefingStructuredPayloadV1Schema,
   taskDtoSchema,
   taskSuggestionMetadataV1Schema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 async function validate(schema: unknown, payload: Record<string, unknown>): Promise<number> {
   const app = Fastify();

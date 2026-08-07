@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildCandidateSignature } from "@jarv1s/commitments/signature";
+import { buildCandidateSignature } from "@moss/commitments/signature";
 
 describe("buildCandidateSignature", () => {
   it("produces deterministic signature for same inputs", () => {

@@ -2,11 +2,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { getBuiltInModuleManifests, getModuleDeletionTables } from "@jarv1s/module-registry";
-import { HttpError } from "@jarv1s/module-sdk";
-import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { getBuiltInModuleManifests, getModuleDeletionTables } from "@moss/module-registry";
+import { HttpError } from "@moss/module-sdk";
+import type { PriorityModelPreferenceV1 } from "@moss/priority";
+import { PreferencesRepository } from "@moss/structured-state";
 
 import { registerSettingsRoutes } from "../../packages/settings/src/routes.js";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -16,7 +16,7 @@ function userHeaders(sessionId: string): Record<string, string> {
 }
 
 describe("priority model API", () => {
-  let appDb: Kysely<JarvisDatabase> | undefined;
+  let appDb: Kysely<MossDatabase> | undefined;
   let server: FastifyInstance | undefined;
 
   beforeAll(async () => {

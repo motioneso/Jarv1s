@@ -1,4 +1,4 @@
-import type { FeatureGrantsResponse, UpdateFeatureGrantsRequest } from "@jarv1s/shared";
+import type { FeatureGrantsResponse, UpdateFeatureGrantsRequest } from "@moss/shared";
 
 import { requestJson } from "./client";
 

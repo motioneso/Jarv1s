@@ -1,4 +1,4 @@
-import type { ProactiveSource } from "@jarv1s/shared";
+import type { ProactiveSource } from "@moss/shared";
 
 /** Provider signal types allowed per source in V1. */
 const SOURCE_ALLOWLISTS: Record<ProactiveSource, ReadonlySet<string>> = {

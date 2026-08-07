@@ -12,8 +12,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { ProviderKind } from "@jarv1s/ai";
-import { sanitizePersonaName } from "@jarv1s/shared";
+import type { ProviderKind } from "@moss/ai";
+import { sanitizePersonaName } from "@moss/shared";
 
 import { resolveChatHome } from "./chat-home.js";
 

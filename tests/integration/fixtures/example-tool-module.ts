@@ -1,5 +1,5 @@
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import type { JarvisModuleManifest, ToolContext, ToolInput, ToolResult } from "@jarv1s/module-sdk";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
+import type { MossModuleManifest, ToolContext, ToolInput, ToolResult } from "@moss/module-sdk";
 
 /** Records every execute call so tests can assert a handler did/did not run. */
 export const exampleToolCalls: { name: string; input: ToolInput; actorUserId: string }[] = [];
@@ -15,7 +15,7 @@ async function record(
   return { data: { ok: true, name, echo: input.value ?? null, actor: ctx.actorUserId } };
 }
 
-export const exampleToolModule: JarvisModuleManifest = {
+export const exampleToolModule: MossModuleManifest = {
   id: "example",
   name: "Example",
   version: "0.0.0",

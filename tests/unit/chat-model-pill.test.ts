@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { activeChatModel, buildChatModelChoices } from "../../apps/web/src/chat/chat-model-pill.js";
-import type { AiConfiguredModelDto, ChatModelOverrideSettingsDto } from "@jarv1s/shared";
+import type { AiConfiguredModelDto, ChatModelOverrideSettingsDto } from "@moss/shared";
 
 function model(overrides: Partial<AiConfiguredModelDto>): AiConfiguredModelDto {
   return {

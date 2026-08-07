@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PassThrough } from "node:stream";
 
-import type { Multiplexer, MuxHandle, TmuxIo } from "@jarv1s/ai";
+import type { Multiplexer, MuxHandle, TmuxIo } from "@moss/ai";
 
 import { ClaudePrintChatEngine } from "../../packages/chat/src/live/claude-print-chat-engine.js";
 

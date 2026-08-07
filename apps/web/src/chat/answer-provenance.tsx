@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AnswerSourceSupportCard } from "@jarv1s/shared";
+import type { AnswerSourceSupportCard } from "@moss/shared";
 import { formatDate, useUserLocale } from "../locale/locale-format";
 
 /** Matches [[S1]] through [[S99]] — same regex as backend. */

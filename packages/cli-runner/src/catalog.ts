@@ -8,7 +8,7 @@
  *
  * This module is SERVER-SIDE ONLY (cli-runner) — it touches `node:fs` to validate the
  * committed lockfiles at load, so it must NEVER be imported into the browser bundle.
- * The shared TYPES live in `@jarv1s/chat/live` (packages/chat/src/live/install-contract.ts).
+ * The shared TYPES live in `@moss/chat/live` (packages/chat/src/live/install-contract.ts).
  *
  * Pinned 2026-06-20 (Catalog stage, #342 Phase 2). The version literals, the per-arch
  * native-binary package names, the committed lockfiles, and the concrete
@@ -28,7 +28,7 @@ import type {
   NpmInstallRecipe,
   ProviderCatalog,
   RpcProviderKind
-} from "@jarv1s/chat/live";
+} from "@moss/chat/live";
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 

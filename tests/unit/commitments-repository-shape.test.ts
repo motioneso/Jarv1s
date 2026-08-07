@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CommitmentsRepository } from "@jarv1s/commitments";
+import { CommitmentsRepository } from "@moss/commitments";
 
 describe("CommitmentsRepository", () => {
   it("exports CommitmentsRepository with expected methods", () => {

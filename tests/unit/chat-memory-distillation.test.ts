@@ -7,8 +7,8 @@ import {
   parseMemoryCandidates,
   memoryCandidateContainsSensitiveText,
   shouldDistillTurn
-} from "@jarv1s/chat";
-import { createMemoryCandidateSignature } from "@jarv1s/memory";
+} from "@moss/chat";
+import { createMemoryCandidateSignature } from "@moss/memory";
 
 describe("chat memory distillation helpers", () => {
   it("skips social chatter", () => {

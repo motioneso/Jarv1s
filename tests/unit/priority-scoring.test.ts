@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { rankPriorityCandidates } from "@jarv1s/priority";
+import { rankPriorityCandidates } from "@moss/priority";
 import type {
   PriorityModelPreferenceV1,
   PriorityCandidate,
   FocusSignalInput
-} from "@jarv1s/priority";
+} from "@moss/priority";
 
 const DEFAULT_MODEL: PriorityModelPreferenceV1 = {
   version: 1,

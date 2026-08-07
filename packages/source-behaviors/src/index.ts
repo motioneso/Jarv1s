@@ -1,10 +1,10 @@
-import type { DataContextDb, PreferencesPort } from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
+import type { DataContextDb, PreferencesPort } from "@moss/db";
+import { HttpError } from "@moss/module-sdk";
 import type {
-  JarvisModuleManifest,
+  MossModuleManifest,
   SourceBehaviorDecl,
   SourceBehaviorSourceDecl
-} from "@jarv1s/module-sdk";
+} from "@moss/module-sdk";
 
 export const SOURCE_BEHAVIOR_PREFERENCE_KEY = "sourceBehaviors";
 
@@ -12,7 +12,7 @@ export const SOURCE_BEHAVIOR_PREFERENCE_KEY = "sourceBehaviors";
 export type SourceBehaviorPreferencesPort = PreferencesPort;
 
 export interface SourceBehaviorPolicyDeps {
-  readonly manifests: readonly JarvisModuleManifest[];
+  readonly manifests: readonly MossModuleManifest[];
   readonly preferencesRepository: SourceBehaviorPreferencesPort;
 }
 
@@ -30,7 +30,7 @@ export interface SourceBehaviorSourceState {
 
 /** Sources across all manifests, sorted by source display name. */
 export function collectSourceBehaviorSources(
-  manifests: readonly JarvisModuleManifest[]
+  manifests: readonly MossModuleManifest[]
 ): SourceBehaviorSourceDecl[] {
   return manifests
     .flatMap((manifest) => manifest.sourceBehaviors ?? [])
@@ -39,7 +39,7 @@ export function collectSourceBehaviorSources(
 }
 
 function findBehavior(
-  manifests: readonly JarvisModuleManifest[],
+  manifests: readonly MossModuleManifest[],
   behaviorId: string
 ): SourceBehaviorDecl | undefined {
   return manifests

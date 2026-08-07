@@ -5,21 +5,16 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
 import type { Kysely } from "kysely";
-import { VaultContextRunner, writeVaultFile } from "@jarv1s/vault";
+import { VaultContextRunner, writeVaultFile } from "@moss/vault";
 import {
   IngestionService,
   LocalEmbeddingProvider,
   MemoryIngestPipeline,
   MemoryRepository,
   MemoryRetriever
-} from "@jarv1s/memory";
+} from "@moss/memory";
 import { connectionStrings, resetEmptyFoundationDatabase } from "../integration/test-database.js";
 
 const { Client } = pg;
@@ -44,7 +39,7 @@ function ctx(actorUserId: string): AccessContext {
   return { actorUserId, requestId: "req:local-embed-test" };
 }
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let dataContext: DataContextRunner;
 
 beforeAll(async () => {

@@ -1,11 +1,11 @@
 import type { PgBoss, WorkOptions } from "pg-boss";
 
-import type { ActorScopedJobPayload, QueueDefinition } from "@jarv1s/jobs";
-import { registerDataContextWorker } from "@jarv1s/jobs";
-import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
-import { EmailRepository } from "@jarv1s/email";
-import { PreferencesRepository } from "@jarv1s/structured-state";
-import { localDay } from "@jarv1s/shared";
+import type { ActorScopedJobPayload, QueueDefinition } from "@moss/jobs";
+import { registerDataContextWorker } from "@moss/jobs";
+import type { DataContextDb, DataContextRunner } from "@moss/db";
+import { EmailRepository } from "@moss/email";
+import { PreferencesRepository } from "@moss/structured-state";
+import { localDay } from "@moss/shared";
 
 import { EmailActionSuppressionRepository } from "./action-suppression-repository.js";
 import {

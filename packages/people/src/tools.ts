@@ -1,5 +1,5 @@
-import { assertDataContextDb } from "@jarv1s/db";
-import type { ModuleAssistantToolManifest, ToolExecute } from "@jarv1s/module-sdk";
+import { assertDataContextDb } from "@moss/db";
+import type { ModuleAssistantToolManifest, ToolExecute } from "@moss/module-sdk";
 import { PeopleRepository } from "./repository.js";
 import { PersonContextService } from "./service.js";
 

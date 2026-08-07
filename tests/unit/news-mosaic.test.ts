@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { composeMosaic, interleaveGroups } from "../../packages/news/src/web/news-mosaic.js";
-import type { NewsHeadline, NewsSourceGroup } from "@jarv1s/shared";
+import type { NewsHeadline, NewsSourceGroup } from "@moss/shared";
 
 // #897: composeMosaic is pure layout planning — which headline gets the feature slot, which get
 // major (art) cards, which fall to standards/briefs. Pin it here so a CSS-era refactor can't

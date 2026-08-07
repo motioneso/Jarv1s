@@ -22,9 +22,9 @@ import {
 } from "kysely";
 import type { Job } from "pg-boss";
 
-import type { DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
-import type { ExternalModuleJobPayload } from "@jarv1s/jobs";
-import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
+import type { DataContextDb, DataContextRunner, MossDatabase } from "@moss/db";
+import type { ExternalModuleJobPayload } from "@moss/jobs";
+import type { ExternalModuleDiscovery } from "@moss/module-registry";
 import {
   createExternalModuleRpcHandler,
   DEADLINE_MARGIN_MS,
@@ -32,9 +32,9 @@ import {
   MAX_INVOCATION_MS,
   resolveHardTimeout,
   validateExternalModuleManifest
-} from "@jarv1s/module-registry/node";
-import type { ExternalModuleQueueDeclaration } from "@jarv1s/module-sdk";
-import type { ModuleCredentialCipher } from "@jarv1s/settings";
+} from "@moss/module-registry/node";
+import type { ExternalModuleQueueDeclaration } from "@moss/module-sdk";
+import type { ModuleCredentialCipher } from "@moss/settings";
 
 import { createExternalModuleJobHandler } from "../../apps/worker/src/external-module-job-handler.js";
 import { createExternalBriefingInvoker } from "../../apps/worker/src/external-module-invoke.js";
@@ -429,7 +429,7 @@ describe("worker queue timeoutMs validation (validate.ts, #1286 Task 2e)", () =>
 
 function fakeWorkerDb(
   row: { status: string; manifest_hash: string; package_hash: string } | undefined
-): Kysely<JarvisDatabase> {
+): Kysely<MossDatabase> {
   // A minimal chainable stand-in for the one query createVerifiedExternalModuleInvoker
   // runs (selectFrom/select/where/executeTakeFirst) — a full Kysely instance would need
   // a real Postgres connection this unit test has no business opening.
@@ -439,7 +439,7 @@ function fakeWorkerDb(
     where: () => builder,
     executeTakeFirst: async () => row
   };
-  return builder as unknown as Kysely<JarvisDatabase>;
+  return builder as unknown as Kysely<MossDatabase>;
 }
 
 function verifiedInvokerDeps(
@@ -554,7 +554,7 @@ function fakeScopedDb(): DataContextDb {
   // DummyDriver backs a real (but connectionless) Kysely instance, satisfying
   // worker-rpc-host.ts's `sql\`...\`.execute(scopedDb.db)` call without opening a
   // real Postgres connection — this stays a unit test.
-  const db = new Kysely<JarvisDatabase>({
+  const db = new Kysely<MossDatabase>({
     dialect: {
       createAdapter: () => new PostgresAdapter(),
       createDriver: () => new DummyDriver(),

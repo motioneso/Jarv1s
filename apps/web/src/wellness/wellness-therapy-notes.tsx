@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { LocaleSettingsDto, WellnessEmotionCore } from "@jarv1s/shared";
+import type { LocaleSettingsDto, WellnessEmotionCore } from "@moss/shared";
 import { queryKeys } from "../api/query-keys";
 import { listTherapyNotes, createTherapyNote, deleteTherapyNote } from "../api/client";
 import { formatDate, useUserLocale } from "../locale/locale-format";

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { chatCommitmentProvider } from "@jarv1s/chat";
-import { notesCommitmentProvider } from "@jarv1s/notes";
+import { chatCommitmentProvider } from "@moss/chat";
+import { notesCommitmentProvider } from "@moss/notes";
 
 describe("commitment extraction providers", () => {
   it("chatCommitmentProvider has correct sourceKind", () => {

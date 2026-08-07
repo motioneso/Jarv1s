@@ -6,7 +6,7 @@
  * The engine is multiplexer-neutral: session lifecycle (open/submit/isAlive/kill)
  * is delegated to an injected `Multiplexer` (tmux by default, herdr alternative),
  * and the engine stores the OPAQUE handle that `open()` returns. The engine keeps
- * owning file/transcript I/O via the shared `TmuxIo` seam from @jarv1s/ai, so it
+ * owning file/transcript I/O via the shared `TmuxIo` seam from @moss/ai, so it
  * is unit-testable without a real tmux/herdr binary, a real CLI install, or
  * Postgres. With no `mux` opt it defaults to a TmuxMultiplexer over the same io,
  * reproducing the exact legacy tmux verb sequence.
@@ -42,8 +42,8 @@ import {
   type AckProviderKind,
   type ProviderKind,
   type TmuxIo
-} from "@jarv1s/ai";
-import type { AiProviderExecutionMode } from "@jarv1s/shared";
+} from "@moss/ai";
+import type { AiProviderExecutionMode } from "@moss/shared";
 
 import { CliChatUnavailableError } from "./errors.js";
 import { CodexExecSession } from "./codex-exec-session.js";

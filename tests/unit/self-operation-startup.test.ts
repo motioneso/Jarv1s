@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { assertBuiltInSelfOperationManifests } from "@jarv1s/ai";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
-import type { ModuleAssistantToolManifest } from "@jarv1s/module-sdk";
+import { assertBuiltInSelfOperationManifests } from "@moss/ai";
+import { getBuiltInModuleManifests } from "@moss/module-registry";
+import type { ModuleAssistantToolManifest } from "@moss/module-sdk";
 
 /**
  * Regression coverage for the `assertBuiltInSelfOperationManifests(getBuiltInModuleManifests())`

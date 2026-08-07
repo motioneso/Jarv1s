@@ -1,7 +1,7 @@
 import type {
   FeedbackTargetVerifier,
   UsefulnessFeedbackRepository
-} from "@jarv1s/usefulness-feedback";
+} from "@moss/usefulness-feedback";
 
 import { BriefingsRepository } from "./repository.js";
 

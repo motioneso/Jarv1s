@@ -1,5 +1,5 @@
-import type { DataContextDb } from "@jarv1s/db";
-import type { AiAuthMethod, AiProviderKind } from "@jarv1s/shared";
+import type { DataContextDb } from "@moss/db";
+import type { AiAuthMethod, AiProviderKind } from "@moss/shared";
 
 import { hasCliStaticModels, type ModelDiscoveryService } from "./model-discovery.js";
 import type { AiRepository } from "./repository.js";

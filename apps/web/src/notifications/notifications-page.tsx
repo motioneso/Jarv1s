@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { LocaleSettingsDto, NotificationDto } from "@jarv1s/shared";
-import { Button, buttonLinkClassName, EmptyState, IconButton, Segmented } from "@jarv1s/ui";
+import type { LocaleSettingsDto, NotificationDto } from "@moss/shared";
+import { Button, buttonLinkClassName, EmptyState, IconButton, Segmented } from "@moss/ui";
 import { Bell, Check, CheckCheck, Inbox, LoaderCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";

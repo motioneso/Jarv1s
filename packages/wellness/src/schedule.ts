@@ -1,5 +1,5 @@
-import type { Medication, MedicationLog } from "@jarv1s/db";
-import type { ScheduleSlotDto } from "@jarv1s/shared";
+import type { Medication, MedicationLog } from "@moss/db";
+import type { ScheduleSlotDto } from "@moss/shared";
 
 /**
  * Pure: given the actor's medications, their same-day dose logs, and a target date,

@@ -14,24 +14,24 @@ import {
   grantSelfOperationForModule,
   type TerminalRpcConnectOptions,
   type TerminalRpcHandle
-} from "@jarv1s/ai";
-import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
-import { createCliStructuredAdapterFactory } from "@jarv1s/chat";
+} from "@moss/ai";
+import { createMossAuthRuntime, type MossAuthRuntime } from "@moss/auth";
+import { createCliStructuredAdapterFactory } from "@moss/chat";
 import {
   ConnectorsRepository,
   GoogleConnectionService,
   GoogleOAuthClient,
   GoogleApiClient,
   createConnectorSecretCipher
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 import {
   DataContextRunner,
   createDatabase,
-  getJarvisDatabaseUrls,
+  getMossDatabaseUrls,
   type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { createPgBossClient, sendModuleControl } from "@jarv1s/jobs";
+  type MossDatabase
+} from "@moss/db";
+import { createPgBossClient, sendModuleControl } from "@moss/jobs";
 import {
   aggregateFocusSignals,
   createActiveModulesResolver,
@@ -44,33 +44,33 @@ import {
   assertRouteCoverage,
   PLATFORM_UNGUARDED_ROUTES,
   type ChatEngineFactory,
-  type JarvisModuleManifest,
+  type MossModuleManifest,
   type ReconciledExternalModule
-} from "@jarv1s/module-registry";
+} from "@moss/module-registry";
 import {
   listModulesRouteSchema,
   isValidTimeZone,
   parsePositiveIntEnv,
   type HostDiagnosticsInfo
-} from "@jarv1s/shared";
-import { createModuleLogger, CORE_VERSION } from "@jarv1s/module-sdk";
+} from "@moss/shared";
+import { createModuleLogger, CORE_VERSION } from "@moss/module-sdk";
 // #917: /api/modules reads enablement through the public settings API; this is legitimate
 // composition-root wiring, not a module cross-import.
-import { SettingsRepository } from "@jarv1s/settings";
+import { SettingsRepository } from "@moss/settings";
 import {
   type ExternalModuleWorkerRuntime,
   getExternalModuleRegistrations,
   resolveModulesDir
-} from "@jarv1s/module-registry/node";
-import type { ExternalModuleLoadResult } from "@jarv1s/module-registry";
+} from "@moss/module-registry/node";
+import type { ExternalModuleLoadResult } from "@moss/module-registry";
 
 import { createModuleAiBridge } from "./external-module-ai-bridge.js";
 import { createModuleDistributionPort } from "./module-distribution-port.js";
 import { resolveHerdrInstall } from "./herdr-install-port.js";
 import { mapEnvMode, resolveDeployMode, restartCommandFor } from "./host-diagnostics-env.js";
-import type { HerdrInstallDependencies } from "@jarv1s/settings";
+import type { HerdrInstallDependencies } from "@moss/settings";
 import { registerStaticWeb } from "./static-web.js";
-import { registerClientErrorsRoute, setJarvisErrorHandler } from "./error-handling.js";
+import { registerClientErrorsRoute, setMossErrorHandler } from "./error-handling.js";
 import { registerExternalModuleWebAssetRoute } from "./external-module-web-route.js";
 import {
   reconcileExternalModuleUserJobs,
@@ -83,7 +83,7 @@ import {
 } from "./external-module-tools.js";
 import { serializeExternalModule, serializeModule } from "./module-dto.js";
 
-// `FastifyRequest.timeZone` is declared in `@jarv1s/module-registry` (#801 Phase A),
+// `FastifyRequest.timeZone` is declared in `@moss/module-registry` (#801 Phase A),
 // not here: module-registry is the composition root that both the writer (this
 // file's onRequest hook) and every module-side reader (e.g. wellness routes)
 // already import, whereas this file is invisible to TS programs that don't include
@@ -92,10 +92,10 @@ import { serializeExternalModule, serializeModule } from "./module-dto.js";
 // reach it.
 
 export interface CreateApiServerOptions {
-  readonly appDb?: Kysely<JarvisDatabase>;
-  readonly workerDb?: Kysely<JarvisDatabase>;
+  readonly appDb?: Kysely<MossDatabase>;
+  readonly workerDb?: Kysely<MossDatabase>;
   readonly boss?: PgBoss;
-  readonly authRuntime?: JarvisAuthRuntime;
+  readonly authRuntime?: MossAuthRuntime;
   readonly logger?: boolean;
   readonly apiServerConfig?: ApiServerConfig;
   /** Override the live-chat engine factory (tests inject a fake); defaults to real tmux. */
@@ -116,7 +116,7 @@ export interface CreateApiServerOptions {
    * `active.some(m => m.id === syntheticId)` is false → 404. No deny-row seeding needed.
    */
   readonly __testExtraGuardedRoutes?: {
-    readonly manifests: readonly JarvisModuleManifest[];
+    readonly manifests: readonly MossModuleManifest[];
     readonly routes: readonly { method: string; url: string }[];
   };
   /** TEST-ONLY. Injected fetch for weather HTTP calls. */
@@ -196,15 +196,15 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   const appDb =
     options.appDb ??
     createDatabase({
-      connectionString: getJarvisDatabaseUrls().app,
+      connectionString: getMossDatabaseUrls().app,
       maxConnections: Number(process.env.JARVIS_API_DB_POOL_SIZE ?? 4)
     });
-  const boss = options.boss ?? createPgBossClient(getJarvisDatabaseUrls().app);
+  const boss = options.boss ?? createPgBossClient(getMossDatabaseUrls().app);
   const ownsAppDb = options.appDb === undefined;
   const workerDb =
     options.workerDb ??
     createDatabase({
-      connectionString: getJarvisDatabaseUrls().worker,
+      connectionString: getMossDatabaseUrls().worker,
       maxConnections: Number(process.env.JARVIS_API_WORKER_DB_POOL_SIZE ?? 2)
     });
   const ownsWorkerDb = options.workerDb === undefined;
@@ -221,7 +221,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   });
   const authRuntime =
     options.authRuntime ??
-    createJarvisAuthRuntime({
+    createMossAuthRuntime({
       appDb,
       runner: dataContext,
       // Surfaces the legacy session-bearer observability event (#113) into the API logs.
@@ -296,7 +296,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   // 404s an inactive module's route on the REAL server. Undefined in production. The
   // accessor lets the onReady coverage hook (which runs after after()) see the synthetic
   // manifests so it does not flag the synthetic route as an orphan.
-  const guardManifestsForCoverage = (): readonly JarvisModuleManifest[] => [
+  const guardManifestsForCoverage = (): readonly MossModuleManifest[] => [
     ...getBuiltInModuleManifests(),
     ...(options.__testExtraGuardedRoutes?.manifests ?? [])
   ];
@@ -451,7 +451,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     // Host diagnostics (#255): a read-only, secret-safe runtime-facts provider injected
     // into the settings admin route. info() returns only explicit, non-secret config
     // values (never env-var values or connection strings); pgBossInstalled() is a cheap
-    // connectivity probe. The DTO is assembled + secret-guarded inside @jarv1s/settings.
+    // connectivity probe. The DTO is assembled + secret-guarded inside @moss/settings.
     const hostDiagnostics = {
       info: (): HostDiagnosticsInfo => {
         const manifests = getBuiltInModuleManifests();
@@ -530,7 +530,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       meSessions: authRuntime.meSessions,
       verifySelfPassword: authRuntime.verifySelfPassword,
       hasPasswordCredential: authRuntime.hasPasswordCredential,
-      bootstrapConnectionString: ownsAppDb ? getJarvisDatabaseUrls().bootstrap : undefined,
+      bootstrapConnectionString: ownsAppDb ? getMossDatabaseUrls().bootstrap : undefined,
       googleConnectionService,
       googleApiClient,
       connectorsRepository,
@@ -549,7 +549,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       moduleDistribution,
       // #1263 Task 15: install-time self-operation grants also apply on (re-)enable. Built here
       // over the one AiRepository instance this file already owns, so settings never imports
-      // @jarv1s/ai directly (module isolation).
+      // @moss/ai directly (module isolation).
       grantSelfOperationForModule: (scopedDb, manifest) =>
         grantSelfOperationForModule(scopedDb, aiRepository, manifest),
       reconcileExternalModuleJobs: async (change) => {
@@ -589,7 +589,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   // here. Logs a structured allowlisted line and returns a safe body (fixed
   // "Internal Server Error" on 5xx — no stack/internal detail). See
   // error-handling.ts for the secrets-never-escape invariant.
-  setJarvisErrorHandler(server, {
+  setMossErrorHandler(server, {
     recordRequestError: async (event, request) => {
       const input = { id: randomUUID(), ...event };
       if (!hasAuthMaterial(request)) {
@@ -788,7 +788,7 @@ function authPrincipalRateLimitKey(request: FastifyRequest): string {
 
 function registerBetterAuthRoutes(
   server: FastifyInstance,
-  authRuntime: JarvisAuthRuntime,
+  authRuntime: MossAuthRuntime,
   authMax: number
 ): void {
   server.route({
@@ -826,7 +826,7 @@ function registerBetterAuthRoutes(
 
 function registerPlatformRoutes(
   server: FastifyInstance,
-  authRuntime: JarvisAuthRuntime,
+  authRuntime: MossAuthRuntime,
   // #996/#860: always-on provider of the ACTIVE external modules for the actor.
   getActiveExternalModules: (
     accessContext: AccessContext
@@ -857,7 +857,7 @@ function registerPlatformRoutes(
 async function handleBetterAuthRequest(
   request: FastifyRequest,
   reply: FastifyReply,
-  authRuntime: JarvisAuthRuntime
+  authRuntime: MossAuthRuntime
 ) {
   const response = await authRuntime.auth.handler(toWebRequest(request));
 

@@ -1,4 +1,4 @@
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 /**
  * Provider-neutral live-first source context (spec #729). Every item and per-account result

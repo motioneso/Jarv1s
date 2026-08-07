@@ -17,7 +17,7 @@ export default defineConfig({
     }
   ],
   webServer: {
-    command: "pnpm --filter @jarv1s/web exec vite --host 127.0.0.1 --port 4173",
+    command: "pnpm --filter @moss/web exec vite --host 127.0.0.1 --port 4173",
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
     url: "http://127.0.0.1:4173"

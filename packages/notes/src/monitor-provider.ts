@@ -1,14 +1,14 @@
 import { createHash } from "node:crypto";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import { MemoryRepository } from "@jarv1s/memory";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
+import { MemoryRepository } from "@moss/memory";
 import type {
   ProactiveMonitorInput,
   ProactiveMonitorPriorityAnchor,
   ProactiveMonitorProvider,
   ProactiveMonitorResult,
   ProactiveMonitorSignal
-} from "@jarv1s/module-sdk";
+} from "@moss/module-sdk";
 
 function stableHash(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);

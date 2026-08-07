@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner, DataContextDb } from "@jarv1s/db";
+import type { AccessContext, DataContextRunner, DataContextDb } from "@moss/db";
 import {
   getMemoryGraphCoreRouteSchema,
   getMemoryGraphRecallRouteSchema,
@@ -12,8 +12,8 @@ import {
   postMemoryGraphPinRouteSchema,
   postMemoryGraphStatusRouteSchema,
   postMemoryGraphSupersedeRouteSchema
-} from "@jarv1s/shared";
-import { RuntimeConfigResolver } from "@jarv1s/settings";
+} from "@moss/shared";
+import { RuntimeConfigResolver } from "@moss/settings";
 
 import {
   createEmbeddingProvider,

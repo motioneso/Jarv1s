@@ -8,10 +8,10 @@ import { Client } from "pg";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { installModule } from "../../scripts/module-install.js";
-import { getJarvisDatabaseUrls } from "../../packages/db/src/urls.js";
+import { getMossDatabaseUrls } from "../../packages/db/src/urls.js";
 import { dropModuleRolesAtTeardown, resetEmptyFoundationDatabase } from "./test-database.js";
 
-const urls = getJarvisDatabaseUrls();
+const urls = getMossDatabaseUrls();
 const moduleId = "finance";
 const ownedTables = [
   "app.finance_items",

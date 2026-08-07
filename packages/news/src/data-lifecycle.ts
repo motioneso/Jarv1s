@@ -1,7 +1,7 @@
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import type { ModuleLifecycleContext } from "@jarv1s/module-sdk";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
+import type { ModuleLifecycleContext } from "@moss/module-sdk";
 
 type JsonPrimitive = boolean | null | number | string;
 type JsonValue = JsonPrimitive | JsonValue[] | { readonly [key: string]: JsonValue };
@@ -89,7 +89,7 @@ export async function collectNewsExportSection(
 
 // Duplicated from packages/settings/src/data-export.ts's normalizeRow/normalizeValue (same
 // rationale as packages/wellness/src/data-lifecycle.ts): no shared utility package exists,
-// and importing @jarv1s/settings from a module (or vice versa) would create a package cycle.
+// and importing @moss/settings from a module (or vice versa) would create a package cycle.
 function normalizeRow(row: Record<string, unknown>): ExportRow {
   return Object.fromEntries(
     Object.entries(row).map(([key, value]) => [key, normalizeValue(value)])

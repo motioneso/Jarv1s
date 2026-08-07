@@ -1,5 +1,5 @@
-import type { AccessContext, DataContextRunner, PreferencesPort } from "@jarv1s/db";
-import type { WeatherLocationDto, WeatherTodayDto } from "@jarv1s/shared";
+import type { AccessContext, DataContextRunner, PreferencesPort } from "@moss/db";
+import type { WeatherLocationDto, WeatherTodayDto } from "@moss/shared";
 import { fetchOpenMeteoForecast } from "./open-meteo.js";
 import { geocodeIp } from "./ip-geocoder.js";
 import { WeatherCache } from "./weather-cache.js";

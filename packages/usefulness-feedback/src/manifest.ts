@@ -1,11 +1,11 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import {
   createUsefulnessFeedbackRequestSchema,
   createUsefulnessFeedbackResponseSchema,
   listUsefulnessFeedbackResponseSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 export const USEFULNESS_FEEDBACK_MODULE_ID = "usefulness-feedback";
 export const usefulnessFeedbackModuleSqlMigrationDirectory = fileURLToPath(
@@ -60,4 +60,4 @@ export const usefulnessFeedbackModuleManifest = {
       permissionId: "usefulness-feedback.manage"
     }
   ]
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

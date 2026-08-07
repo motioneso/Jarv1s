@@ -12,16 +12,16 @@ import type { Kysely } from "kysely";
 import Fastify from "fastify";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { ChatRepository, CliChatUnavailableError, registerChatLiveRoutes } from "@jarv1s/chat";
+import { ChatRepository, CliChatUnavailableError, registerChatLiveRoutes } from "@moss/chat";
 import { PageContextStore } from "../../packages/chat/src/live/page-context-store.js";
-import type { ChatEngineFactory } from "@jarv1s/module-registry";
+import type { ChatEngineFactory } from "@moss/module-registry";
 import {
   DataContextRunner,
   SharesRepository,
   createDatabase,
   type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
+  type MossDatabase
+} from "@moss/db";
 import { ChatStreamLimitError } from "../../packages/chat/src/live/chat-session-manager.js";
 import { normalizeChatSurface } from "../../packages/chat/src/live/chat-surface.js";
 import type {
@@ -77,7 +77,7 @@ const fakeEngineFactory: ChatEngineFactory = (provider, sessionKey) =>
   new FakeLiveEngine(provider, sessionKey);
 
 describe("Chat live API (turn / clear / switch / stream)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: ChatRepository;
   let shares: SharesRepository;
@@ -380,7 +380,7 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
     // We exercise this through the public manager API by reaching the runtime that
     // the routes built. The simplest deterministic assertion: subscribe two actors
     // and confirm records only fan out to the matching actor.
-    const { createChatSessionRuntime } = await import("@jarv1s/chat");
+    const { createChatSessionRuntime } = await import("@moss/chat");
     const runtime = createChatSessionRuntime({
       dataContext,
       engineFactory: fakeEngineFactory
@@ -404,7 +404,7 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
   });
 
   it("keeps drawer and surface sessions independent, including their persisted transcripts", async () => {
-    const { createChatSessionRuntime } = await import("@jarv1s/chat");
+    const { createChatSessionRuntime } = await import("@moss/chat");
     const drawerSurface = normalizeChatSurface("drawer");
     const jobSearchSurface = normalizeChatSurface("job-search");
     const runtime = createChatSessionRuntime({
@@ -632,7 +632,7 @@ describe("Chat live API (turn / clear / switch / stream)", () => {
 });
 
 describe("Chat live API — no multiplexer available", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let server: ReturnType<typeof createApiServer>;
   let originalSecretKey: string | undefined;
 
@@ -757,7 +757,7 @@ describe("Chat live API — no multiplexer available", () => {
 
 describe("Chat live API — engine factory selection (RPC vs in-process)", () => {
   it("selects the RPC client when JARVIS_CLI_RUNNER_SOCKET is set", async () => {
-    const { selectEngineFactory, ChatEngineRpcClient } = await import("@jarv1s/chat");
+    const { selectEngineFactory, ChatEngineRpcClient } = await import("@moss/chat");
     const { factory, connection } = selectEngineFactory({
       env: {
         JARVIS_CLI_RUNNER_SOCKET: "/run/jarv1s/cli-runner.sock",
@@ -775,7 +775,7 @@ describe("Chat live API — engine factory selection (RPC vs in-process)", () =>
   });
 
   it("falls back to the in-process engine when the socket env is absent", async () => {
-    const { selectEngineFactory, ChatEngineRpcClient } = await import("@jarv1s/chat");
+    const { selectEngineFactory, ChatEngineRpcClient } = await import("@moss/chat");
     const { factory, connection } = selectEngineFactory({ env: {} as NodeJS.ProcessEnv });
     const engine = factory("anthropic", ids.userA);
     expect(engine).not.toBeInstanceOf(ChatEngineRpcClient);

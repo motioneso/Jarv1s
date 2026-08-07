@@ -11,7 +11,7 @@ import {
   skillCommandName,
   splitBareNameToken
 } from "../../apps/web/src/chat/skill-autocomplete.js";
-import type { ChatSkillDto } from "@jarv1s/shared";
+import type { ChatSkillDto } from "@moss/shared";
 
 function skill(overrides: Partial<ChatSkillDto> = {}): ChatSkillDto {
   return {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { OnboardingCliProviderDto } from "@jarv1s/shared";
+import type { OnboardingCliProviderDto } from "@moss/shared";
 
 import {
   deriveCardModel,

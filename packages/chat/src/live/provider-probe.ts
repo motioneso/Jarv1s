@@ -1,4 +1,4 @@
-import type { ProviderKind, TmuxIo } from "@jarv1s/ai";
+import type { ProviderKind, TmuxIo } from "@moss/ai";
 
 export type ProbeProviderStatus =
   | "ready"

@@ -1,4 +1,4 @@
-import { JsonSecretCipher, resolveKeyring, type EncryptedSecret, type Keyring } from "@jarv1s/db";
+import { JsonSecretCipher, resolveKeyring, type EncryptedSecret, type Keyring } from "@moss/db";
 
 /**
  * AES-256-GCM envelope stored in app.module_credentials.encrypted_secret (#918).

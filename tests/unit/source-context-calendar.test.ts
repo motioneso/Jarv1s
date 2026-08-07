@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { dataContextBrand, type CalendarEvent, type DataContextDb } from "@jarv1s/db";
+import { dataContextBrand, type CalendarEvent, type DataContextDb } from "@moss/db";
 import type { ConnectorAccountSafeRow } from "../../packages/connectors/src/repository.js";
 import type { GoogleCalendarEvent } from "../../packages/connectors/src/google-api-client.js";
 import {

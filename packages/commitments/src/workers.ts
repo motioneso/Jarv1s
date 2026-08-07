@@ -1,9 +1,9 @@
 import type { PgBoss } from "pg-boss";
-import { HttpApiAdapter, parseAiApiKeyCredential } from "@jarv1s/ai";
-import type { AiRepository, AiSecretCipher, ProviderKind, GenerateChatInput } from "@jarv1s/ai";
-import type { DataContextRunner } from "@jarv1s/db";
-import { registerDataContextWorker, assertMetadataOnlyPayload } from "@jarv1s/jobs";
-import type { CommitmentExtractionProvider } from "@jarv1s/module-sdk";
+import { HttpApiAdapter, parseAiApiKeyCredential } from "@moss/ai";
+import type { AiRepository, AiSecretCipher, ProviderKind, GenerateChatInput } from "@moss/ai";
+import type { DataContextRunner } from "@moss/db";
+import { registerDataContextWorker, assertMetadataOnlyPayload } from "@moss/jobs";
+import type { CommitmentExtractionProvider } from "@moss/module-sdk";
 import { COMMITMENT_EXTRACTION_QUEUE } from "./manifest.js";
 import type { CommitmentsRepository } from "./repository.js";
 import { extractCommitmentsFromText } from "./extractor.js";

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { AssistantToolGateway, ConfirmationRegistry, SessionTokenRegistry } from "@jarv1s/ai";
+import { AssistantToolGateway, ConfirmationRegistry, SessionTokenRegistry } from "@moss/ai";
 
 describe("first-party Moss MCP transport", () => {
   it("auto-allows transport without consulting action policy", async () => {

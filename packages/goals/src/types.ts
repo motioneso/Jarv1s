@@ -1,21 +1,15 @@
-export type JarvisGoalStatus = "active" | "paused" | "blocked" | "completed" | "archived";
+export type MossGoalStatus = "active" | "paused" | "blocked" | "completed" | "archived";
 
-export type JarvisGoalReviewCadence =
-  | "none"
-  | "daily"
-  | "weekly"
-  | "biweekly"
-  | "monthly"
-  | "custom";
+export type MossGoalReviewCadence = "none" | "daily" | "weekly" | "biweekly" | "monthly" | "custom";
 
-export interface JarvisGoal {
+export interface MossGoal {
   readonly id: string;
   readonly ownerUserId: string;
   readonly title: string;
   readonly desiredOutcome: string;
-  readonly status: JarvisGoalStatus;
+  readonly status: MossGoalStatus;
   readonly priority: 1 | 2 | 3 | 4 | 5;
-  readonly reviewCadence: JarvisGoalReviewCadence;
+  readonly reviewCadence: MossGoalReviewCadence;
   readonly nextReviewAt: string | null;
   readonly targetAt: string | null;
   readonly lastProgressSummary: string | null;
@@ -28,7 +22,7 @@ export interface JarvisGoal {
   readonly archivedAt: string | null;
 }
 
-export type JarvisGoalEvidenceKind =
+export type MossGoalEvidenceKind =
   | "context"
   | "task"
   | "status"
@@ -38,7 +32,7 @@ export type JarvisGoalEvidenceKind =
   | "checkpoint"
   | "suggested_action";
 
-export type JarvisGoalSourceKind =
+export type MossGoalSourceKind =
   | "goal"
   | "task"
   | "note"
@@ -48,12 +42,12 @@ export type JarvisGoalSourceKind =
   | "memory"
   | "manual";
 
-export interface JarvisGoalEvidence {
+export interface MossGoalEvidence {
   readonly id: string;
   readonly ownerUserId: string;
   readonly goalId: string;
-  readonly evidenceKind: JarvisGoalEvidenceKind;
-  readonly sourceKind: JarvisGoalSourceKind;
+  readonly evidenceKind: MossGoalEvidenceKind;
+  readonly sourceKind: MossGoalSourceKind;
   readonly sourceRef: string | null;
   readonly sourceLabel: string;
   readonly summary: string;
@@ -61,21 +55,21 @@ export interface JarvisGoalEvidence {
   readonly createdAt: string;
 }
 
-export interface CreateJarvisGoalRequest {
+export interface CreateMossGoalRequest {
   readonly title: string;
   readonly desiredOutcome: string;
   readonly priority?: 1 | 2 | 3 | 4 | 5;
-  readonly reviewCadence?: JarvisGoalReviewCadence;
+  readonly reviewCadence?: MossGoalReviewCadence;
   readonly nextReviewAt?: string | null;
   readonly targetAt?: string | null;
 }
 
-export interface PatchJarvisGoalRequest {
+export interface PatchMossGoalRequest {
   readonly title?: string;
   readonly desiredOutcome?: string;
-  readonly status?: JarvisGoalStatus;
+  readonly status?: MossGoalStatus;
   readonly priority?: 1 | 2 | 3 | 4 | 5;
-  readonly reviewCadence?: JarvisGoalReviewCadence;
+  readonly reviewCadence?: MossGoalReviewCadence;
   readonly nextReviewAt?: string | null;
   readonly targetAt?: string | null;
   readonly lastProgressSummary?: string | null;
@@ -84,9 +78,9 @@ export interface PatchJarvisGoalRequest {
   readonly nextSuggestedAction?: string | null;
 }
 
-export interface CreateJarvisGoalEvidenceRequest {
-  readonly evidenceKind: JarvisGoalEvidenceKind;
-  readonly sourceKind: JarvisGoalSourceKind;
+export interface CreateMossGoalEvidenceRequest {
+  readonly evidenceKind: MossGoalEvidenceKind;
+  readonly sourceKind: MossGoalSourceKind;
   readonly sourceRef?: string | null;
   readonly sourceLabel: string;
   readonly summary: string;

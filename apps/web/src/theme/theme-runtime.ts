@@ -2,7 +2,7 @@ import {
   AESTHETIC_THEME_TOKEN_KEYS,
   type AestheticThemeTokenKey,
   type AestheticThemeTokens
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 export interface CSSStyleDeclarationLike {
   setProperty(name: string, value: string): void;

@@ -1,7 +1,7 @@
 import type { PgBoss, QueueOptions } from "pg-boss";
 
-import type { ExternalModuleQueueDeclaration } from "@jarv1s/module-sdk";
-import { assertModuleJobPayload, type ExternalModuleJobPayload } from "@jarv1s/jobs";
+import type { ExternalModuleQueueDeclaration } from "@moss/module-sdk";
+import { assertModuleJobPayload, type ExternalModuleJobPayload } from "@moss/jobs";
 
 import type { ExternalModuleDiscovery } from "./types.js";
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DatasetCache } from "@jarv1s/datasets";
+import { DatasetCache } from "@moss/datasets";
 
 describe("DatasetCache", () => {
   it("returns a fresh hit before expiresAt", () => {

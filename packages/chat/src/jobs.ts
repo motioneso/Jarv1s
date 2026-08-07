@@ -8,9 +8,9 @@ import {
   createAiSecretCipher,
   HttpApiAdapter,
   parseAiApiKeyCredential
-} from "@jarv1s/ai";
-import type { AiSecretCipher, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
-import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
+} from "@moss/ai";
+import type { AiSecretCipher, GenerateChatInput, ProviderKind } from "@moss/ai";
+import type { DataContextDb, DataContextRunner } from "@moss/db";
 import {
   createMemoryCandidateSignature,
   MemoryCandidatesRepository,
@@ -20,12 +20,12 @@ import {
   type MemoryCandidateRecord,
   type MemoryRecordKind,
   type NewChunkData
-} from "@jarv1s/memory";
+} from "@moss/memory";
 import {
   registerDataContextWorker,
   type ActorScopedJobPayload,
   type QueueDefinition
-} from "@jarv1s/jobs";
+} from "@moss/jobs";
 
 import { ChatRepository } from "./repository.js";
 import {

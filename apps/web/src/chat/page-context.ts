@@ -30,11 +30,11 @@
  * touches real browser APIs.
  */
 import type {
-  JarvisError,
-  JarvisErrorClass,
+  MossError,
+  MossErrorClass,
   PageContextFocusedElementDto,
   PageContextSnapshotDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { resolvePageHeading } from "../app-route-metadata.js";
 
@@ -49,7 +49,7 @@ const MAX_TITLE_LENGTH = 200;
 const MAX_SELECTED_TEXT_LENGTH = 500;
 const MAX_CONTEXT_ERRORS = 10;
 
-const ERROR_CLASSES = new Set<JarvisErrorClass>([
+const ERROR_CLASSES = new Set<MossErrorClass>([
   "prerequisite",
   "transient",
   "validation",
@@ -126,7 +126,7 @@ export interface PageContextRawInput {
   readonly candidates: readonly PageContextCandidate[];
   readonly focused: PageContextFocusInfo | null;
   readonly selectedText: string | null;
-  readonly errors?: readonly JarvisError[];
+  readonly errors?: readonly MossError[];
 }
 
 /**
@@ -195,7 +195,7 @@ export function buildPageContextSnapshot(input: PageContextRawInput): PageContex
 }
 
 /**
- * Project one candidate `data-jarvis-error-*` attribute triple into a {@link JarvisError},
+ * Project one candidate `data-jarvis-error-*` attribute triple into a {@link MossError},
  * or `null` when it's structurally invalid. A `prerequisite` error without a
  * `remediationRef` is dropped rather than surfaced without a fix (the map/tool contract
  * requires `class:"prerequisite"` to resolve to a named remediation).
@@ -204,9 +204,9 @@ export function projectPageContextErrorAttributes(input: {
   readonly code: string | null;
   readonly errorClass: string | null;
   readonly remediationRef: string | null;
-}): JarvisError | null {
+}): MossError | null {
   const code = input.code?.trim().slice(0, 160);
-  const errorClass = input.errorClass as JarvisErrorClass | null;
+  const errorClass = input.errorClass as MossErrorClass | null;
   const remediationRef = input.remediationRef?.trim().slice(0, 160);
   if (!code || !errorClass || !ERROR_CLASSES.has(errorClass)) return null;
   if (errorClass === "prerequisite") {
@@ -221,8 +221,8 @@ export function projectPageContextErrorAttributes(input: {
  * visible error surface into page context by setting those attributes; nothing here
  * infers an error from visible prose.
  */
-export function collectPageContextErrors(root: ParentNode): readonly JarvisError[] {
-  const errors: JarvisError[] = [];
+export function collectPageContextErrors(root: ParentNode): readonly MossError[] {
+  const errors: MossError[] = [];
   const nodes = root.querySelectorAll<HTMLElement>(
     "[data-jarvis-error-code][data-jarvis-error-class]"
   );
@@ -301,7 +301,7 @@ function collectPageContextCandidates(root: ParentNode): {
   candidates: PageContextCandidate[];
   focused: PageContextFocusInfo | null;
   selectedText: string | null;
-  errors: readonly JarvisError[];
+  errors: readonly MossError[];
 } {
   const candidates: PageContextCandidate[] = [];
   const elements = root.querySelectorAll(CAPTURE_SELECTOR);

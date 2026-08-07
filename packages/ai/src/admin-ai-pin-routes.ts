@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 
 import type { FastifyInstance } from "fastify";
-import { recordAuditEvent } from "@jarv1s/settings";
+import { recordAuditEvent } from "@moss/settings";
 import {
   getAiAdminUserPinRouteSchema,
   putAiAdminUserPinRouteSchema,
   type PutAiAdminUserPinRequest
-} from "@jarv1s/shared";
-import { HttpError } from "@jarv1s/module-sdk";
+} from "@moss/shared";
+import { HttpError } from "@moss/module-sdk";
 
 import type { AiRepository, AiConfiguredModelSafeRow } from "./repository.js";
 import {

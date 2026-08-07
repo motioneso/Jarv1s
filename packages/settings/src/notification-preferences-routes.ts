@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
-import { HttpError, type JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@moss/db";
+import { HttpError, type MossModuleManifest } from "@moss/module-sdk";
 import {
   listNotificationPreferencesRouteSchema,
   getNotificationDigestPreferenceRouteSchema,
@@ -11,17 +11,17 @@ import {
   type NotificationPreferenceDto,
   type PutNotificationDigestPreferenceRequest,
   type PutNotificationPreferenceRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import {
   NOTIFICATION_DIGEST_PREFERENCE_KEY,
   digestPreferenceFromRaw,
   digestPreferenceToRaw,
   reconcileDigestSchedule,
   type NotificationDigestPreference
-} from "@jarv1s/notifications";
-import type { PgBoss } from "@jarv1s/jobs";
+} from "@moss/notifications";
+import type { PgBoss } from "@moss/jobs";
 
-import { PreferenceRevisionConflictError } from "@jarv1s/structured-state";
+import { PreferenceRevisionConflictError } from "@moss/structured-state";
 
 import { setNotificationPreferenceEnabled } from "./notification-preference-application.js";
 import type { NotificationPreferencesPort } from "./preferences-port.js";
@@ -38,7 +38,7 @@ export interface NotificationUnreadPort {
 interface NotificationPreferencesRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
-  readonly listModuleManifests: () => readonly JarvisModuleManifest[];
+  readonly listModuleManifests: () => readonly MossModuleManifest[];
   readonly preferencesRepository: NotificationPreferencesPort;
   readonly repository: SettingsRepository;
   readonly notificationUnreadPort?: NotificationUnreadPort;
@@ -181,7 +181,7 @@ async function listPreferences(
 async function toPreferenceDto(
   scopedDb: DataContextDb,
   dependencies: NotificationPreferencesRoutesDependencies,
-  manifest: JarvisModuleManifest,
+  manifest: MossModuleManifest,
   actorUserId: string
 ): Promise<NotificationPreferenceDto | null> {
   if (manifest.notifications?.supported !== true) return null;

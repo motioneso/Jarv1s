@@ -1,14 +1,14 @@
 import type { FastifyReply } from "fastify";
 
-import type { AdminAuditEvent, DataContextDb, InstanceSetting, User } from "@jarv1s/db";
-import type { AdminAuditEventDto, InstanceSettingDto, MyModuleDto, UserDto } from "@jarv1s/shared";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
+import type { AdminAuditEvent, DataContextDb, InstanceSetting, User } from "@moss/db";
+import type { AdminAuditEventDto, InstanceSettingDto, MyModuleDto, UserDto } from "@moss/shared";
+import type { MossModuleManifest } from "@moss/module-sdk";
+import { handleRouteError as handleModuleRouteError } from "@moss/module-sdk";
 
 import { HttpRepositoryError, type SettingsRepository } from "./repository.js";
 
 export function toMyModuleDto(
-  manifest: JarvisModuleManifest,
+  manifest: MossModuleManifest,
   instanceDisabled: boolean,
   userDisabled: boolean
 ): MyModuleDto {
@@ -37,7 +37,7 @@ export function toMyModuleDto(
 export async function computeMyModuleDto(
   repository: SettingsRepository,
   scopedDb: DataContextDb,
-  manifest: JarvisModuleManifest,
+  manifest: MossModuleManifest,
   actorUserId: string
 ): Promise<MyModuleDto> {
   const rows = await repository.listModuleDenyRowsForActor(scopedDb);

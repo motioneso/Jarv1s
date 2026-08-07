@@ -10,7 +10,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import type { ProviderInstallState } from "@jarv1s/shared";
+import type { ProviderInstallState } from "@moss/shared";
 import {
   INSTALL_TRANSITIONS,
   loginFlowStatusToState,

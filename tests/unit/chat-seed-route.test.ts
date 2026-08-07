@@ -9,7 +9,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 
 import { registerChatLiveRoutes } from "../../packages/chat/src/live-routes.js";
 import { PageContextStore } from "../../packages/chat/src/live/page-context-store.js";
-import type { AccessContext } from "@jarv1s/db";
+import type { AccessContext } from "@moss/db";
 
 const ACTOR_ID = "11111111-1111-4111-8111-111111111111";
 

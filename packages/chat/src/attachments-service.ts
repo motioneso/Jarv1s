@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 
-import type { AccessContext } from "@jarv1s/db";
+import type { AccessContext } from "@moss/db";
 import {
   type VaultContext,
   type VaultContextRunner,
@@ -11,7 +11,7 @@ import {
   readVaultFileBytes,
   writeVaultFile,
   writeVaultFileBytes
-} from "@jarv1s/vault";
+} from "@moss/vault";
 import JSZip from "jszip";
 import mammoth from "mammoth";
 

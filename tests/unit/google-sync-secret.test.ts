@@ -5,8 +5,8 @@ import {
   loadGoogleSyncActiveAccount,
   type ConnectorsRepository,
   type SyncLogger
-} from "@jarv1s/connectors";
-import type { DataContextDb } from "@jarv1s/db";
+} from "@moss/connectors";
+import type { DataContextDb } from "@moss/db";
 
 describe("loadGoogleSyncActiveAccount", () => {
   it("treats malformed stored Google secrets as no usable account without logging secret fields", async () => {

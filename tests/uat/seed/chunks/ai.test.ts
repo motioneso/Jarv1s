@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createAppRuntimeRunner, createMigrationOwnerDb } from "../connections.js";
 import { seedSoloAdmin } from "../admin.js";
 import { seedAiProviderChunk } from "./ai.js";
-import { AiRepository } from "@jarv1s/ai";
+import { AiRepository } from "@moss/ai";
 
 describe("seedAiProviderChunk", () => {
   it("binds a provider+model to module.news so news settings don't 503", async () => {

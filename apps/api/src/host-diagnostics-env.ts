@@ -1,4 +1,4 @@
-import type { HostDiagnosticsInfo } from "@jarv1s/shared";
+import type { HostDiagnosticsInfo } from "@moss/shared";
 
 // #993/#9.5: factored out of server.ts to restore the file-size cap. Pure env/mode
 // mappers used only by the host diagnostics info() handler.

@@ -1,6 +1,6 @@
 import type { Kysely } from "kysely";
 
-import type { JarvisDatabase } from "@jarv1s/db";
+import type { MossDatabase } from "@moss/db";
 import {
   UAT_ADMIN_EMAIL,
   UAT_ADMIN_ID,
@@ -17,7 +17,7 @@ const UAT_SEED_EMAILS = [UAT_ADMIN_EMAIL, UAT_SECOND_OWNER_EMAIL] as const;
  * fixed UAT fixtures so a copied token cannot seed a loginable bootstrap owner
  * into a real instance. The known UAT owner remains allowed for safe re-seeding.
  */
-export async function assertTargetIsEphemeral(db: Kysely<JarvisDatabase>): Promise<void> {
+export async function assertTargetIsEphemeral(db: Kysely<MossDatabase>): Promise<void> {
   const realOrBootstrapUser = await db
     .selectFrom("app.users")
     .select("id")

@@ -1,10 +1,10 @@
-import type { JsonSchema, ToolResult } from "@jarv1s/module-sdk";
-import { renderToolResult } from "@jarv1s/module-sdk";
+import type { JsonSchema, ToolResult } from "@moss/module-sdk";
+import { renderToolResult } from "@moss/module-sdk";
 
 const MAX_RENDERED_TOOL_RESULT_CHARS = 16_000;
 
 // Strip injection-vector sentinel tokens before wrapping external content.
-// These patterns mirror the set used in @jarv1s/briefings sanitizeExternal.
+// These patterns mirror the set used in @moss/briefings sanitizeExternal.
 const SENTINEL_PATTERN =
   /<\/?tool_result[^>]*>|<\/?trusted_instructions[^>]*>|<\/?external_source[^>]*>/gi;
 

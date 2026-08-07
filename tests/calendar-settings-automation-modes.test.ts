@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
-import { CALENDAR_AUTOMATION_MODES } from "@jarv1s/shared";
+import { CALENDAR_AUTOMATION_MODES } from "@moss/shared";
 
 it("keeps every Calendar automation mode reachable from Calendar settings", () => {
   const source = readFileSync("packages/calendar/src/settings/index.tsx", "utf8");

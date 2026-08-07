@@ -3,7 +3,7 @@
 // module-credential DTOs/schemas and pushed platform-api.ts over the cap. This is a
 // PURE MOVE — the module-enablement (admin + self-service), external-module admin, and
 // module-credential contracts keep the same shape and order. platform-api.ts re-exports
-// this file's surface (`export * from "./platform-api-modules.js"`) so `@jarv1s/shared`
+// this file's surface (`export * from "./platform-api-modules.js"`) so `@moss/shared`
 // consumers see no change.
 import { errorResponseSchema } from "./schema-fragments.js";
 

@@ -1,18 +1,14 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
-import {
-  CORE_APP_SCREENS,
-  CORE_APP_SETTINGS,
-  type CoreAppSurfaceDeclaration
-} from "@jarv1s/shared";
+import type { MossModuleManifest } from "@moss/module-sdk";
+import { getBuiltInModuleManifests } from "@moss/module-registry";
+import { CORE_APP_SCREENS, CORE_APP_SETTINGS, type CoreAppSurfaceDeclaration } from "@moss/shared";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 export interface BuildAppMapInput {
-  readonly manifests: readonly JarvisModuleManifest[];
+  readonly manifests: readonly MossModuleManifest[];
   readonly coreScreens: readonly CoreAppSurfaceDeclaration[];
   readonly coreSettings: readonly CoreAppSurfaceDeclaration[];
   readonly version: string;

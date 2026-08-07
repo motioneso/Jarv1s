@@ -6,7 +6,7 @@ import {
   setWebSearchKeyResolver,
   setWebSearchProviderForTests,
   type WebSearchProvider
-} from "@jarv1s/web-research";
+} from "@moss/web-research";
 
 const ENV_KEY = "JARVIS_BRAVE_SEARCH_API_KEY";
 

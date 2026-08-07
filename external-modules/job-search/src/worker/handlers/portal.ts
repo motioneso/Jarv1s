@@ -7,7 +7,7 @@
 //
 // `set-enabled`, not `toggle`: the tool names the state it writes, not the transition, so a
 // retry or a double-click is idempotent instead of flipping the portal back off.
-import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import type { ModuleWorkerContext } from "@moss/module-sdk/worker";
 
 import type { PortalState } from "../../domain/records.js";
 import type { JobSearchStore } from "../../domain/store-port.js";

@@ -5,14 +5,9 @@ import type { Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import { AiRepository, createAiSecretCipher } from "@moss/ai";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -35,7 +30,7 @@ const { Client } = pg;
 // No test here drives the actual STT POST (that lives in ai-transcription.test.ts, which stubs
 // `fetch`); these exercise config + resolution only, so no network call fires.
 describe("AI Voice (STT) endpoint (#874)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: AiRepository;
   let server: ReturnType<typeof createApiServer>;

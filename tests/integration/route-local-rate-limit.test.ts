@@ -17,8 +17,8 @@ import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { SessionTokenRegistry } from "@jarv1s/ai";
-import type { AccessContext } from "@jarv1s/db";
+import { SessionTokenRegistry } from "@moss/ai";
+import type { AccessContext } from "@moss/db";
 
 import { PageContextStore } from "../../packages/chat/src/live/page-context-store.js";
 

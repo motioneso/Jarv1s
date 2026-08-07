@@ -1,5 +1,5 @@
-import type { AiModelCapability, AppBuildInfo, CurrentViewSnapshotDto } from "@jarv1s/shared";
-import type { DataContextDb } from "@jarv1s/db";
+import type { AiModelCapability, AppBuildInfo, CurrentViewSnapshotDto } from "@moss/shared";
+import type { DataContextDb } from "@moss/db";
 import type { PageContextStore } from "./page-context-store.js";
 
 export interface CurrentViewReadService {

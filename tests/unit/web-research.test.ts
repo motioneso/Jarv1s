@@ -14,8 +14,8 @@ import {
   webModuleManifest,
   webReadExecute,
   webSearchExecute
-} from "@jarv1s/web-research";
-import type { ModuleAssistantToolManifest } from "@jarv1s/module-sdk";
+} from "@moss/web-research";
+import type { ModuleAssistantToolManifest } from "@moss/module-sdk";
 
 afterEach(() => {
   setWebFetchForTests(undefined);

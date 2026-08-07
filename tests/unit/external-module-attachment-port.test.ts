@@ -5,11 +5,11 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { DataContextRunner } from "@jarv1s/db";
-import { StubEmbeddingProvider } from "@jarv1s/memory";
-import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
-import { createExternalModuleRpcHandler } from "@jarv1s/module-registry/node";
-import { VaultContextRunner } from "@jarv1s/vault";
+import type { DataContextRunner } from "@moss/db";
+import { StubEmbeddingProvider } from "@moss/memory";
+import type { ExternalModuleDiscovery } from "@moss/module-registry";
+import { createExternalModuleRpcHandler } from "@moss/module-registry/node";
+import { VaultContextRunner } from "@moss/vault";
 
 import { ChatAttachmentsService } from "../../packages/chat/src/attachments-service.js";
 

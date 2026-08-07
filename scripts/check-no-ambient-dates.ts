@@ -157,7 +157,7 @@ if (ambientNowViolations.length > 0) {
   console.error(
     "\nAmbient-NOW day bucketing (#877 finding 5 — derives a calendar-day key from the " +
       "server/browser clock instead of the actor's persisted timezone; use localDay(input, tz) " +
-      "from @jarv1s/shared instead):"
+      "from @moss/shared instead):"
   );
   for (const violation of ambientNowViolations) {
     console.error(`- ${violation.path}:${violation.line}  ${violation.text}`);

@@ -5,13 +5,9 @@
  * Ranks already-loaded candidates without triggering new source reads.
  */
 
-import { PriorityPreferencesRepository, rankPriorityCandidates } from "@jarv1s/priority";
-import type {
-  PriorityCandidate,
-  PriorityModelPreferenceV1,
-  PriorityResult
-} from "@jarv1s/priority";
-import type { DataContextDb } from "@jarv1s/db";
+import { PriorityPreferencesRepository, rankPriorityCandidates } from "@moss/priority";
+import type { PriorityCandidate, PriorityModelPreferenceV1, PriorityResult } from "@moss/priority";
+import type { DataContextDb } from "@moss/db";
 
 const PRIORITY_MODEL_KEY = "priority.model.v1";
 const priorityPreferences = new PriorityPreferencesRepository();

@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest, ModuleAiRequirementManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest, ModuleAiRequirementManifest } from "@moss/module-sdk";
 import {
   confirmNewsSourceSchema,
   createNewsPrefRequestSchema,
@@ -19,7 +19,7 @@ import {
   triggerNewsRefreshSchema,
   triggerNewsRevalidationSchema,
   updateNewsTopicSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { newsTopHeadlinesTodayExecute } from "./briefing-tool.js";
 import {
@@ -465,4 +465,4 @@ export const newsModuleManifest = {
       ]
     }
   ]
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

@@ -1,13 +1,13 @@
 // tests/fixtures/module-web-sdk-ui-smoke/src/web/index.ts
-// #1388 Foundation task 11: proves a @jarv1s/ui component renders live through
-// @jarv1s/module-web-sdk's re-export + JSX shim (tests/unit/module-web-sdk-ui-smoke.test.ts),
+// #1388 Foundation task 11: proves a @moss/ui component renders live through
+// @moss/module-web-sdk's re-export + JSX shim (tests/unit/module-web-sdk-ui-smoke.test.ts),
 // without touching finance's or job-search's real screens (Foundation "no screen
 // changes" constraint). Calls h() directly instead of JSX so this file needs no
 // jsx pragma of its own — build-external-module.ts's esbuild call still forces the
-// classic h/Fragment transform on @jarv1s/ui's own *.tsx sources when it bundles them.
+// classic h/Fragment transform on @moss/ui's own *.tsx sources when it bundles them.
 // Button exercises the `inject`ed h/Fragment path; Chip (which renders lucide-react's
 // X icon) exercises the `alias`ed bare "react" import path.
-import { Button, Chip, h } from "@jarv1s/module-web-sdk";
+import { Button, Chip, h } from "@moss/module-web-sdk";
 
 function Root() {
   return h(

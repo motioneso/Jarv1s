@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { MeSessionDto } from "@jarv1s/shared";
+import type { MeSessionDto } from "@moss/shared";
 import { groupSessions } from "../../apps/web/src/settings/settings-profile-subviews.js";
 
 function session(overrides: Partial<MeSessionDto>): MeSessionDto {

@@ -1,7 +1,7 @@
 /**
  * Single source of truth for timezone-aware day/time derivation (#579, #636).
  *
- * Pure and node-free so it lives in the browser-bundled @jarv1s/shared package —
+ * Pure and node-free so it lives in the browser-bundled @moss/shared package —
  * also consumed by Node server packages (chat, tasks, wellness) that need the
  * same Intl-only logic without duplicating it.
  *

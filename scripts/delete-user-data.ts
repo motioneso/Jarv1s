@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import pg from "pg";
 
-import { getJarvisDatabaseUrls } from "@jarv1s/db";
-import { deleteUserVaultDir, getVaultBaseDir } from "@jarv1s/vault";
+import { getMossDatabaseUrls } from "@moss/db";
+import { deleteUserVaultDir, getVaultBaseDir } from "@moss/vault";
 
 const { Client } = pg;
 
@@ -18,9 +18,9 @@ export interface DeleteUserDataOptions {
   /**
    * Module-owned deletion tables derived from `dataLifecycle.deletion.tables`
    * (#801 Phase A). API callers get this from the composition root
-   * (`@jarv1s/module-registry`'s `getModuleDeletionTables`/`MODULE_DELETION_TABLES`);
+   * (`@moss/module-registry`'s `getModuleDeletionTables`/`MODULE_DELETION_TABLES`);
    * the CLI entrypoint (`scripts/delete-user-data-cli.ts`) derives it there — this
-   * library file must never reference `@jarv1s/module-registry` in any form (see
+   * library file must never reference `@moss/module-registry` in any form (see
    * the CLI file's header for the bundle mis-emit + ESM deadlock that causes).
    * Defaults to empty so existing callers/tests are unaffected until they opt in.
    */
@@ -134,7 +134,7 @@ export async function deleteUserData(
   }
 
   const client = new Client({
-    connectionString: options.bootstrapConnectionString ?? getJarvisDatabaseUrls().bootstrap
+    connectionString: options.bootstrapConnectionString ?? getMossDatabaseUrls().bootstrap
   });
 
   const moduleDeletionTables = options.moduleDeletionTables ?? [];
@@ -277,7 +277,7 @@ async function readCounts(
 
 // NOTE: no CLI entry here. The `pnpm delete:user` entrypoint lives in
 // `scripts/delete-user-data-cli.ts` — this file is a pure library (imported by
-// packages/settings) and must never reference `@jarv1s/module-registry` in any
+// packages/settings) and must never reference `@moss/module-registry` in any
 // form (static, or even a guarded dynamic import): see the header comment in the
 // CLI file for the esbuild bundle mis-emit and the ESM top-level-await deadlock
 // that referencing it from here causes (#801 Phase A, QA on PR #816).

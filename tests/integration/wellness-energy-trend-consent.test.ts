@@ -2,14 +2,9 @@ import { type Kysely } from "kysely";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { WellnessRepository, WellnessRecallContributor } from "@jarv1s/wellness";
-import { ChatMemoryFactsRepository } from "@jarv1s/memory";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
+import { WellnessRepository, WellnessRecallContributor } from "@moss/wellness";
+import { ChatMemoryFactsRepository } from "@moss/memory";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -22,7 +17,7 @@ function ctx(actorUserId: string): AccessContext {
   return { actorUserId, requestId: "req:wellness-energy-trend-consent-test" };
 }
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let dataContext: DataContextRunner;
 
 beforeAll(async () => {

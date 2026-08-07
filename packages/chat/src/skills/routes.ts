@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import type { AccessContext, ChatSkill, DataContextRunner } from "@jarv1s/db";
-import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
+import type { AccessContext, ChatSkill, DataContextRunner } from "@moss/db";
+import { HttpError, handleRouteError as handleModuleRouteError } from "@moss/module-sdk";
 import {
   createChatSkillRouteSchema,
   deleteChatSkillRouteSchema,
@@ -13,7 +13,7 @@ import {
   type CreateChatSkillRequest,
   type SetChatSkillEnabledRequest,
   type UpdateChatSkillRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { parseSkillFile } from "./frontmatter.js";
 import { ChatSkillsRepository } from "./repository.js";

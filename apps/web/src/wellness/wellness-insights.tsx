@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "../api/query-keys";
 import { getWellnessInsights } from "../api/client";
 
-function JarvisMarkIcon() {
+function MossMarkIcon() {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -159,7 +159,7 @@ export function WellnessInsights({ onReviewNotes }: Props) {
     <div className="wl-insights">
       <div className="wl-insights__hd">
         <span className="ic">
-          <JarvisMarkIcon />
+          <MossMarkIcon />
         </span>
         <span className="t">What this month is telling you</span>
         <span className="meta">30 days</span>

@@ -4,8 +4,8 @@
  * are re-exported from cli-chat-engine.ts so existing import paths keep working.
  */
 
-import type { Multiplexer } from "@jarv1s/ai";
-import type { AiProviderExecutionMode } from "@jarv1s/shared";
+import type { Multiplexer } from "@moss/ai";
+import type { AiProviderExecutionMode } from "@moss/shared";
 
 /**
  * #1157: out-of-band observability signal from the engine. `composer_discarded` fires when a

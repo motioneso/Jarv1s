@@ -6,8 +6,8 @@ import {
   type PointerEvent as ReactPointerEvent
 } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { FollowedLeagueCard, FollowedNextMatch, FollowedTeamCard } from "@jarv1s/shared";
-import { localDay, type LocaleSettingsDto } from "@jarv1s/shared";
+import type { FollowedLeagueCard, FollowedNextMatch, FollowedTeamCard } from "@moss/shared";
+import { localDay, type LocaleSettingsDto } from "@moss/shared";
 
 import { TOURNAMENT_COMPETITIONS } from "./competitions.js";
 import { formatDate, formatTime, useUserLocale } from "./locale.js";

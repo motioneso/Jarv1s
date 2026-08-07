@@ -3,7 +3,7 @@ import { nullableStringSchema } from "./schema-fragments.js";
 /**
  * A bounded primitive value permitted inside notification metadata.
  * Producers may only emit these JSON primitives; nested objects / arrays are dropped by
- * the projection helper (see `projectNotificationMetadata` in @jarv1s/notifications).
+ * the projection helper (see `projectNotificationMetadata` in @moss/notifications).
  */
 export type NotificationMetadataValue = string | number | boolean | null;
 

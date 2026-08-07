@@ -4,14 +4,14 @@ import {
   type EmailWriteProvider,
   type EmailWriteResult,
   type NewEmailInput
-} from "@jarv1s/email";
-import type { DataContextDb, EmailMessage } from "@jarv1s/db";
+} from "@moss/email";
+import type { DataContextDb, EmailMessage } from "@moss/db";
 import {
   GoogleApiError,
   GoogleConnectError,
   type GoogleApiClient,
   type GoogleConnectionService
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 
 const MSG_NO_CONNECTION = "Connect Google in Settings first.";
 const MSG_REFRESH_FAILED = "Couldn't refresh your Google access — reconnect in Settings.";

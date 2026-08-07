@@ -8,7 +8,7 @@
 // body would end up on the wrong article). Deliberately clock-free so SSR and tests stay
 // deterministic; ties fall back to feed order (roughly ESPN's editorial prominence).
 
-import type { Headline, LeagueNewsGroup } from "@jarv1s/shared";
+import type { Headline, LeagueNewsGroup } from "@moss/shared";
 
 export function isFollowed(
   pairs: ReadonlySet<string>,

@@ -1,4 +1,4 @@
-import type { ToolExecute } from "@jarv1s/module-sdk";
+import type { ToolExecute } from "@moss/module-sdk";
 
 import type { ChatAttachmentsService } from "./attachments-service.js";
 

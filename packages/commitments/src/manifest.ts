@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import {
   commitmentListExecute,
   commitmentGetExecute,
@@ -15,7 +15,7 @@ export const commitmentsModuleSqlMigrationDirectory = fileURLToPath(
   new URL("../sql", import.meta.url)
 );
 
-export const commitmentsModuleManifest: JarvisModuleManifest = {
+export const commitmentsModuleManifest: MossModuleManifest = {
   id: COMMITMENTS_MODULE_ID,
   name: "Commitments",
   publisher: "jarv1s",

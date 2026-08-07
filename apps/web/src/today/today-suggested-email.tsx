@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { GitCommitHorizontal } from "lucide-react";
 
-import type { LocaleSettingsDto, TaskDto } from "@jarv1s/shared";
-import { Button } from "@jarv1s/ui";
+import type { LocaleSettingsDto, TaskDto } from "@moss/shared";
+import { Button } from "@moss/ui";
 
 import { updateTask } from "../api/client";
 import { queryKeys } from "../api/query-keys";

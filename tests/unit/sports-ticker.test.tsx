@@ -3,7 +3,7 @@ import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
-import type { FollowedTeamCard, FollowedTeamNews } from "@jarv1s/shared";
+import type { FollowedTeamCard, FollowedTeamNews } from "@moss/shared";
 
 import { SportsTicker, TickerTeam } from "../../packages/sports/src/web/sports-ticker.js";
 

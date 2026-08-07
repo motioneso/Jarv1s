@@ -6,7 +6,7 @@
 // cannot reach instance scope (the instance `finance.settings` key is read
 // through the separate InstanceSettingsPort wired in the composition root),
 // undeclared namespaces are rejected by the host fail-closed, and no
-// @jarv1s/* import is needed, keeping the domain bundler-independent.
+// @moss/* import is needed, keeping the domain bundler-independent.
 //
 // SECRET BOUNDARY: none of these namespaces may ever hold Plaid access
 // tokens — tokens live only in app.module_credentials via ctx.auth

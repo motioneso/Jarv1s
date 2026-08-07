@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest, ToolExecute } from "@jarv1s/module-sdk";
+import type { MossModuleManifest, ToolExecute } from "@moss/module-sdk";
 import {
   calendarListLiveEventsInputSchema,
   calendarListLiveEventsResponseSchema,
@@ -19,7 +19,7 @@ import {
   revokeConnectorAccountResponseSchema,
   updateConnectorAccountRequestSchema,
   updateConnectorAccountResponseSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import {
   calendarListLiveEventsExecute,
@@ -259,4 +259,4 @@ export const connectorsModuleManifest = {
       execute: calendarListLiveEventsExecute
     }
   ]
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

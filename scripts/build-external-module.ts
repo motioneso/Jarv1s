@@ -25,18 +25,18 @@ export async function buildExternalModule(moduleDir: string): Promise<void> {
     target: "node20",
     sourcemap: false,
     logLevel: "silent",
-    alias: { "@jarv1s/module-sdk/worker": join(repoRoot, "packages/module-sdk/src/worker.ts") }
+    alias: { "@moss/module-sdk/worker": join(repoRoot, "packages/module-sdk/src/worker.ts") }
   });
   // Web: browser ESM; must stay react-free (JSX compiles to `h`/`Fragment`, either the
   // module's own src/web/runtime.ts, explicitly imported by hand-authored files, or — for
-  // @jarv1s/ui components bundled in via @jarv1s/module-web-sdk, which never import h/Fragment
+  // @moss/ui components bundled in via @moss/module-web-sdk, which never import h/Fragment
   // themselves — the `inject`ed reactRuntimeShim below. Both delegate to the host React on the
   // frozen runtime global — asserted by the bundle-hygiene test). A bare "react"/"react-dom"
-  // import (e.g. lucide-react, a runtime dependency of @jarv1s/ui's chip/select icons) is
+  // import (e.g. lucide-react, a runtime dependency of @moss/ui's chip/select icons) is
   // aliased to the same shims rather than left to resolve real npm react (#1388 Foundation).
-  // "@jarv1s/module-web-sdk" is aliased to source too — external-modules/* sits outside the
+  // "@moss/module-web-sdk" is aliased to source too — external-modules/* sits outside the
   // pnpm workspace (no node_modules symlink), same reason the worker build below aliases
-  // "@jarv1s/module-sdk/worker" to source instead of relying on package resolution.
+  // "@moss/module-sdk/worker" to source instead of relying on package resolution.
   // Optional: worker-only modules (finance FIN-01, #1146) have no web surface
   // yet — `web` is an optional manifest section, so the build must not demand
   // an entrypoint the manifest never declares.
@@ -57,7 +57,7 @@ export async function buildExternalModule(moduleDir: string): Promise<void> {
     jsx: "transform",
     jsxFactory: "h",
     jsxFragment: "Fragment",
-    // Forces classic transform for EVERY file esbuild bundles, including @jarv1s/ui's own
+    // Forces classic transform for EVERY file esbuild bundles, including @moss/ui's own
     // *.tsx sources — without this, esbuild's per-file nearest-tsconfig.json auto-discovery
     // finds packages/ui/tsconfig.json's "jsx": "react-jsx" and emits automatic-runtime
     // `import ... from "react/jsx-runtime"` for those files regardless of the jsx/jsxFactory
@@ -70,7 +70,7 @@ export async function buildExternalModule(moduleDir: string): Promise<void> {
     alias: {
       react: reactRuntimeShim,
       "react-dom": reactDomRuntimeShim,
-      "@jarv1s/module-web-sdk": moduleWebSdk
+      "@moss/module-web-sdk": moduleWebSdk
     },
     // Task 18 (#1302): job-search's web surface injects its layout CSS via one <style> tag
     // (finance keeps the same string in a .ts constant instead); the `text` loader turns a

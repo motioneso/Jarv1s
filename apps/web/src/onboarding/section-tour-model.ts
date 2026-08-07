@@ -1,5 +1,5 @@
 import { webRoutePath } from "../app-route-metadata.js";
-import type { ModuleDto } from "@jarv1s/shared";
+import type { ModuleDto } from "@moss/shared";
 
 export interface TourSection {
   readonly path: string;

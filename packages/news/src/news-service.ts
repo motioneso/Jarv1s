@@ -1,5 +1,5 @@
-import type { DatasetClient } from "@jarv1s/datasets";
-import type { AccessContext, DataContextDb } from "@jarv1s/db";
+import type { DatasetClient } from "@moss/datasets";
+import type { AccessContext, DataContextDb } from "@moss/db";
 import type {
   NewsCatalogResponse,
   NewsCustomSourceDto,
@@ -10,7 +10,7 @@ import type {
   NewsSourceExclusionDto,
   NewsSourceGroup,
   NewsTopicKey
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import {
   assertSnapshotPayload,
@@ -47,7 +47,7 @@ export interface NewsServiceDependencies {
   /**
    * The dataset-connector-SDK runtime client bound to the news module's `newsfeeds` external
    * source (composition root: packages/module-registry/src/index.ts). TTL, staleness policy,
-   * and host pinning live in the manifest declaration + `@jarv1s/datasets` runtime, not here.
+   * and host pinning live in the manifest declaration + `@moss/datasets` runtime, not here.
    */
   readonly datasetClient: DatasetClient;
   readonly dataContext: NewsDataContext;

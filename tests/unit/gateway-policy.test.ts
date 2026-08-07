@@ -3,12 +3,12 @@ import { resolvePolicy, type ActionPolicyLookup } from "../../packages/ai/src/ga
 import type {
   ModuleAssistantToolManifest,
   ModuleAssistantActionFamilyManifest,
-  JarvisActionPermissionTier
+  MossActionPermissionTier
 } from "../../packages/module-sdk/src/index.js";
 
 describe("gateway policy resolver", () => {
   const createMockLookup = (
-    tier: JarvisActionPermissionTier | null,
+    tier: MossActionPermissionTier | null,
     manifest: ModuleAssistantActionFamilyManifest | null
   ): ActionPolicyLookup => ({
     getFamilyTier: async () => tier,

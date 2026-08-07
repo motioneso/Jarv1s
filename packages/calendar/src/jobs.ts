@@ -4,8 +4,8 @@ import {
   type ActorScopedJobPayload,
   type QueueDefinition,
   type PgBoss
-} from "@jarv1s/jobs";
-import type { DataContextRunner } from "@jarv1s/db";
+} from "@moss/jobs";
+import type { DataContextRunner } from "@moss/db";
 import { CalendarRepository } from "./repository.js";
 
 export const CALENDAR_CACHE_EVICT_QUEUE = "calendar.cache-evict-event";

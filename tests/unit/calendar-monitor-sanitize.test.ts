@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { dataContextBrand } from "@jarv1s/db";
-import type { DataContextDb } from "@jarv1s/db";
+import { dataContextBrand } from "@moss/db";
+import type { DataContextDb } from "@moss/db";
 
 const { mockListVisible } = vi.hoisted(() => ({ mockListVisible: vi.fn() }));
 

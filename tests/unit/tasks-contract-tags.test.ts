@@ -8,8 +8,8 @@ import {
   deleteTaskListRequestSchema,
   renameTaskTagRequestSchema,
   taskTagParamsSchema
-} from "@jarv1s/shared";
-import type { TaskDto } from "@jarv1s/shared";
+} from "@moss/shared";
+import type { TaskDto } from "@moss/shared";
 
 describe("TaskDto.tags contract", () => {
   it("taskDtoSchema requires tags", () => {

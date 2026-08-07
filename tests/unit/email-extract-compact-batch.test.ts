@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { GenerateStructuredProviderInput } from "@jarv1s/ai";
-import type { DataContextDb } from "@jarv1s/db";
+import type { GenerateStructuredProviderInput } from "@moss/ai";
+import type { DataContextDb } from "@moss/db";
 
 import { buildEmailExtractDeps } from "../../packages/connectors/src/extract-deps.js";
 import { projectActionRows } from "../../packages/briefings/src/action-rows.js";

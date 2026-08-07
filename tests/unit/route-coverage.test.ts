@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+import { getBuiltInModuleManifests } from "@moss/module-registry";
 
 function manifestPaths(id: string): { method: string; path: string }[] {
   const manifest = getBuiltInModuleManifests().find((m) => m.id === id);

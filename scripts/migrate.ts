@@ -5,16 +5,16 @@ import {
   applyRolePasswords,
   assertUniqueMigrationVersions,
   buildRolePasswordPlan,
-  getJarvisDatabaseUrls,
+  getMossDatabaseUrls,
   loadMigrationFiles,
   runSqlFiles,
   runSqlMigrations
-} from "@jarv1s/db";
-import { migratePgBoss } from "@jarv1s/jobs";
-import { getAllQueueDefinitions, getBuiltInSqlMigrationDirectories } from "@jarv1s/module-registry";
+} from "@moss/db";
+import { migratePgBoss } from "@moss/jobs";
+import { getAllQueueDefinitions, getBuiltInSqlMigrationDirectories } from "@moss/module-registry";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const urls = getJarvisDatabaseUrls();
+const urls = getMossDatabaseUrls();
 
 const bootstrapDirectory = join(root, "infra/postgres/bootstrap");
 const migrationsDirectory = join(root, "infra/postgres/migrations");

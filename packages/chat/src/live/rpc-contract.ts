@@ -8,14 +8,14 @@
  *
  * `TranscriptRecord` / `ChatRecordKind` continue to live in `./types` (reused verbatim, §4.0) and
  * are re-exported here for convenience — NOT re-declared. `ProviderKind` similarly comes from
- * `@jarv1s/ai` via `./types`.
+ * `@moss/ai` via `./types`.
  *
  * Framing (§3.2): each message is a 4-byte big-endian uint32 length prefix followed by exactly that
  * many bytes of UTF-8 JSON. `MAX_FRAME_BYTES` bounds an individual frame; an over-size frame is a
  * malformed frame and the receiver closes the connection (§3.7).
  */
 
-import type { AiProviderExecutionMode } from "@jarv1s/shared";
+import type { AiProviderExecutionMode } from "@moss/shared";
 
 import type { TranscriptRecord, ChatRecordKind } from "./types.js";
 
@@ -25,7 +25,7 @@ export type { TranscriptRecord, ChatRecordKind };
 
 /**
  * Provider selector mirrored across the wire. This is the SAME value set as `ProviderKind`
- * from `@jarv1s/ai` ("anthropic" | "openai-compatible" | "google"); spelled out here as a literal
+ * from `@moss/ai` ("anthropic" | "openai-compatible" | "google"); spelled out here as a literal
  * union so the wire contract does not pull a cross-package import into every consumer. Re-exported
  * from `./types` as the canonical `ProviderKind` for engine code.
  */

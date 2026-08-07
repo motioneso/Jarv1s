@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import type { ToolContext } from "@jarv1s/module-sdk";
-import { PreferencesRepository } from "@jarv1s/structured-state";
-import { CHAT_SETTINGS_PREFERENCE_KEY } from "@jarv1s/shared";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import type { ToolContext } from "@moss/module-sdk";
+import { PreferencesRepository } from "@moss/structured-state";
+import { CHAT_SETTINGS_PREFERENCE_KEY } from "@moss/shared";
 import {
   chatSetResponseStyleExecute,
   chatSetResponseStyleInputSchema
@@ -17,7 +17,7 @@ function toolCtx(actorUserId: string): ToolContext {
 }
 
 describe("chat.setResponseStyle tool", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   const preferences = new PreferencesRepository();
 

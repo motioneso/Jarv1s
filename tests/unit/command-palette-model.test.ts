@@ -5,7 +5,7 @@ import {
   filterCommandPaletteCommands,
   moduleSettingsHref
 } from "../../apps/web/src/shell/command-palette-model.js";
-import type { ModuleDto } from "@jarv1s/shared";
+import type { ModuleDto } from "@moss/shared";
 
 describe("command palette model", () => {
   it("builds grouped commands from real shell routes, themes, and safe settings targets", () => {

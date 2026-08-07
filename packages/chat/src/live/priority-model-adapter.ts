@@ -1,5 +1,5 @@
-import type { DataContextRunner } from "@jarv1s/db";
-import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
+import type { DataContextRunner } from "@moss/db";
+import type { PriorityModelPreferenceV1 } from "@moss/priority";
 
 import { readPriorityModel, type PriorityPreferenceReader } from "../priority-consumer.js";
 

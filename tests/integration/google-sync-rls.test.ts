@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
 import type { Kysely } from "kysely";
-import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
-import { CalendarRepository } from "@jarv1s/calendar";
-import { EmailRepository } from "@jarv1s/email";
+import { ConnectorsRepository, createConnectorSecretCipher } from "@moss/connectors";
+import { CalendarRepository } from "@moss/calendar";
+import { EmailRepository } from "@moss/email";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 // I1.E self-review gap-fill (split out of google-sync.test.ts to stay under the 1000-line file
@@ -18,9 +18,9 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
 const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let appDataContext: DataContextRunner;
-let workerDb: Kysely<JarvisDatabase>;
+let workerDb: Kysely<MossDatabase>;
 let workerDataContext: DataContextRunner;
 
 beforeAll(async () => {

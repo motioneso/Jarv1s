@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 import type { ConnectorSecretCipher, EncryptedConnectorSecret } from "./crypto.js";
 import {

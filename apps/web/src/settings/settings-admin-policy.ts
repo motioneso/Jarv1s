@@ -1,4 +1,4 @@
-import type { UserDto } from "@jarv1s/shared";
+import type { UserDto } from "@moss/shared";
 
 export type AdminUserActionPolicyUser = UserDto;
 export type AdminUserAction = "admin" | "deactivate" | "reactivate" | "remove" | "revokeSessions";

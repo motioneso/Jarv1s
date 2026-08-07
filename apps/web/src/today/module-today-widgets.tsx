@@ -1,5 +1,5 @@
 import { Fragment, lazy, Suspense, type ReactNode } from "react";
-import { MODULE_WEB_CONTRIBUTIONS } from "virtual:jarvis-module-web";
+import { MODULE_WEB_CONTRIBUTIONS } from "virtual:moss-module-web";
 
 /**
  * Generic Today-widget docking (#799 module-web-registry Phase A).
@@ -8,7 +8,7 @@ import { MODULE_WEB_CONTRIBUTIONS } from "virtual:jarvis-module-web";
  * declares a `./web` contribution with `todayWidgets` now renders on Today automatically,
  * without this file needing per-module knowledge. Each module's contribution is lazily loaded
  * once (stable `lazy()` identity, computed at module scope from the static
- * `virtual:jarvis-module-web` scan) and wrapped in its own `<Suspense fallback={null}>` boundary
+ * `virtual:moss-module-web` scan) and wrapped in its own `<Suspense fallback={null}>` boundary
  * so one module's load never blocks another's.
  */
 const widgetComponents = MODULE_WEB_CONTRIBUTIONS.map((entry) => ({

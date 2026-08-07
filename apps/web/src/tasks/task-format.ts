@@ -1,4 +1,4 @@
-import { localDay, type TaskApiStatus, type TaskDto, type TaskEffort } from "@jarv1s/shared";
+import { localDay, type TaskApiStatus, type TaskDto, type TaskEffort } from "@moss/shared";
 
 export const statusLabels: Record<TaskApiStatus, string> = {
   todo: "Open",

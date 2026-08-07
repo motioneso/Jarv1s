@@ -5,11 +5,11 @@ import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import { type Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { Job } from "@jarv1s/jobs";
+import type { Job } from "@moss/jobs";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { VaultContextRunner, getVaultBaseDir, readVaultFile } from "@jarv1s/vault";
-import { HttpError } from "@jarv1s/module-sdk";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { VaultContextRunner, getVaultBaseDir, readVaultFile } from "@moss/vault";
+import { HttpError } from "@moss/module-sdk";
 
 import {
   handleWellnessExportJob,
@@ -29,9 +29,9 @@ const routeUserId = "00000000-0000-4000-8000-000000000082";
 const workerRoleUserId = "00000000-0000-4000-8000-000000000083";
 const adherenceUserId = "00000000-0000-4000-8000-000000000085";
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let dataContext: DataContextRunner;
-let workerDb: Kysely<JarvisDatabase>;
+let workerDb: Kysely<MossDatabase>;
 let workerDataContext: DataContextRunner;
 let prevVaultBase: string | undefined;
 

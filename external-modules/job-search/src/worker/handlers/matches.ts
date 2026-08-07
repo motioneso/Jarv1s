@@ -3,7 +3,7 @@
 // Task 15 (#1299): matches.list and match.set-state — the board's only route to the database.
 // Until these are registered, `apps/web/src/external-modules/loader.ts` hands the web bundle
 // only `{hostActions, assistantSurface?}` and it has no database access of any kind.
-import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import type { ModuleWorkerContext } from "@moss/module-sdk/worker";
 
 import { capPostingBody, MATCHES_LIST_MAX_LIMIT } from "../../domain/records.js";
 import type { Match } from "../../domain/records.js";

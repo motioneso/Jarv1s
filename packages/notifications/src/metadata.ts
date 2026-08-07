@@ -12,7 +12,7 @@
 // relax later than the reverse. Nested objects / arrays are dropped ENTIRELY (key and
 // value), not coerced — projection never invents content.
 
-import type { NotificationMetadata } from "@jarv1s/shared";
+import type { NotificationMetadata } from "@moss/shared";
 
 const MAX_KEYS = 16;
 const MAX_STRING_LENGTH = 256;

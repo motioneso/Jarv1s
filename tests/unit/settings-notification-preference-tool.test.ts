@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dataContextBrand, type DataContextDb } from "@jarv1s/db";
+import { dataContextBrand, type DataContextDb } from "@moss/db";
 import type { NotificationPreferenceWriteService } from "../../packages/settings/src/notification-preference-application.js";
 import { notificationPreferenceSetEnabledExecute } from "../../packages/settings/src/notification-preference-tool.js";
 import { settingsUndoStack } from "../../packages/settings/src/undo-stack.js";

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import type { PersonContextProvider, PersonContextSignal } from "@jarv1s/module-sdk";
+import type { PersonContextProvider, PersonContextSignal } from "@moss/module-sdk";
 
 it("PersonContextProvider type is exported from module-sdk", () => {
   const _: PersonContextProvider = {

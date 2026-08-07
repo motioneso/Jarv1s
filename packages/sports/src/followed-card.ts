@@ -6,7 +6,7 @@ import type {
   FollowedTeamNews,
   GameSide,
   GameSummary
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import type { SourceHeadline, StandingsTable } from "./source/sports-source.js";
 

@@ -1,8 +1,8 @@
 import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
 
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@moss/db";
+import { HttpError } from "@moss/module-sdk";
 
 import {
   NEWS_IMAGE_MAX_BYTES,

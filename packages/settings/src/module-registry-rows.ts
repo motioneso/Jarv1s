@@ -2,19 +2,19 @@
 // No I/O here — the route feeds it the cached index, the BOOT discovery snapshot,
 // a LIVE on-disk id listing (so remove/download reflect immediately, before the
 // restart that refreshes the boot snapshot), the app.external_modules admin state,
-// and the JARVIS_MODULES_ENSURE ids. Settings must not import @jarv1s/module-registry
+// and the JARVIS_MODULES_ENSURE ids. Settings must not import @moss/module-registry
 // (dependency cycle — see ExternalModuleDiscovery's doc-comment in routes.ts), so the
 // index entry is a structural mirror of Task 1's ModuleRegistryEntry subset.
-import { compareJarvisVersions, satisfiesCoreVersion } from "@jarv1s/module-sdk/core-version";
+import { compareMossVersions, satisfiesCoreVersion } from "@moss/module-sdk/core-version";
 import type {
   ModuleRegistryCapabilitiesDto,
   ModuleRegistryLifecycleState,
   ModuleRegistryRowDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import type { ExternalModuleAdminState } from "./repository-external-modules.js";
 
-/** Structural subset of @jarv1s/module-registry's ModuleRegistryEntry (Task 1). */
+/** Structural subset of @moss/module-registry's ModuleRegistryEntry (Task 1). */
 export interface ModuleRegistryEntryLike {
   readonly id: string;
   readonly name: string;
@@ -82,7 +82,7 @@ export function deriveModuleRegistryRows(input: ModuleRegistryDeriveInput): Modu
     } else if (present && discovery) {
       if (state?.status === "enabled") {
         lifecycle =
-          entry && compareJarvisVersions(entry.version, discovery.version) > 0
+          entry && compareMossVersions(entry.version, discovery.version) > 0
             ? "update-available"
             : "installed-enabled";
       } else {

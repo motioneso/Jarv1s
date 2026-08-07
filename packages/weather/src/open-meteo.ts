@@ -1,4 +1,4 @@
-import type { WeatherIcon, WeatherTodayDto } from "@jarv1s/shared";
+import type { WeatherIcon, WeatherTodayDto } from "@moss/shared";
 
 // WMO Weather interpretation codes → condition label + icon
 // https://open-meteo.com/en/docs#weathervariables

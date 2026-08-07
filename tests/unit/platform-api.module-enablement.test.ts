@@ -5,7 +5,7 @@ import {
   listAdminModulesRouteSchema,
   listMyModulesRouteSchema,
   patchModuleEnablementRouteSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 describe("module-enablement route schemas", () => {
   it("admin list response requires a modules array", () => {

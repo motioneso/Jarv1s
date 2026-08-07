@@ -24,7 +24,7 @@ async function makePackage(
 }
 
 async function makeRoot() {
-  const rootDir = await mkdtemp(join(tmpdir(), "jarvis-module-settings-"));
+  const rootDir = await mkdtemp(join(tmpdir(), "moss-module-settings-"));
   roots.push(rootDir);
   return rootDir;
 }
@@ -40,7 +40,7 @@ describe("module settings scanner", () => {
     await makePackage(
       rootDir,
       "fixture",
-      "@jarv1s/fixture",
+      "@moss/fixture",
       `export const fixtureModuleManifest = {
         id: "fixture",
         name: "Fixture",
@@ -59,7 +59,7 @@ describe("module settings scanner", () => {
     await makePackage(
       rootDir,
       "declarative",
-      "@jarv1s/declarative",
+      "@moss/declarative",
       `export const declarativeModuleManifest = {
         id: "declarative",
         name: "Declarative",
@@ -98,7 +98,7 @@ describe("module settings scanner", () => {
         hasEntry: true
       }
     ]);
-    expect(result.components.fixture).toContain('import("@jarv1s/fixture/settings")');
+    expect(result.components.fixture).toContain('import("@moss/fixture/settings")');
     expect(result.components.declarative).toBeUndefined();
   });
 
@@ -117,8 +117,8 @@ describe("module settings scanner", () => {
         }
       ]
     };`;
-    await makePackage(rootDir, "fixture-one", "@jarv1s/fixture-one", manifest("one"));
-    await makePackage(rootDir, "fixture-two", "@jarv1s/fixture-two", manifest("two"));
+    await makePackage(rootDir, "fixture-one", "@moss/fixture-one", manifest("one"));
+    await makePackage(rootDir, "fixture-two", "@moss/fixture-two", manifest("two"));
 
     expect(() => scanModuleSettings({ rootDir })).toThrow(
       /duplicate settings path "\/settings\/modules\/fixture"/i
@@ -130,7 +130,7 @@ describe("module settings scanner", () => {
     await makePackage(
       rootDir,
       "fixture",
-      "@jarv1s/fixture",
+      "@moss/fixture",
       `export const fixtureModuleManifest = {
         id: "fixture",
         name: "Fixture",
@@ -150,6 +150,6 @@ describe("module settings scanner", () => {
 
     expect(moduleSource).toContain("export const MODULE_SETTINGS_SURFACES");
     expect(moduleSource).toContain("export const MODULE_SETTINGS_COMPONENTS");
-    expect(moduleSource).toContain('lazy(() => import("@jarv1s/fixture/settings"))');
+    expect(moduleSource).toContain('lazy(() => import("@moss/fixture/settings"))');
   });
 });

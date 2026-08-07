@@ -1,5 +1,5 @@
-import type { Medication, MedicationLog, WellnessCheckin, WellnessTherapyNote } from "@jarv1s/db";
-import type { CheckinDto, MedicationDto, MedicationLogDto, TherapyNoteDto } from "@jarv1s/shared";
+import type { Medication, MedicationLog, WellnessCheckin, WellnessTherapyNote } from "@moss/db";
+import type { CheckinDto, MedicationDto, MedicationLogDto, TherapyNoteDto } from "@moss/shared";
 
 function toIso(value: Date | string | null | undefined): string | null {
   if (value === null || value === undefined) return null;

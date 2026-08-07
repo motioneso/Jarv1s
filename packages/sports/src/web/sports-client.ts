@@ -5,9 +5,9 @@ import type {
   SportsFollowsResponse,
   SportsOverviewResponse,
   SportsStandingsResponse
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
-import { requestJson } from "@jarv1s/module-web-sdk";
+import { requestJson } from "@moss/module-web-sdk";
 
 export async function getSportsOverview(): Promise<SportsOverviewResponse> {
   return requestJson<SportsOverviewResponse>("/api/sports/overview");

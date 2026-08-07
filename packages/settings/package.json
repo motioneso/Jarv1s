@@ -1,5 +1,5 @@
 {
-  "name": "@jarv1s/settings",
+  "name": "@moss/settings",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,17 +10,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@jarv1s/db": "workspace:*",
-    "@jarv1s/jobs": "workspace:*",
-    "@jarv1s/module-sdk": "workspace:*",
-    "@jarv1s/notifications": "workspace:*",
-    "@jarv1s/priority": "workspace:*",
-    "@jarv1s/shared": "workspace:*",
-    "@jarv1s/source-behaviors": "workspace:*",
-    "@jarv1s/structured-state": "workspace:*",
-    "@jarv1s/vault": "workspace:*",
+    "@moss/db": "workspace:*",
+    "@moss/jobs": "workspace:*",
+    "@moss/module-sdk": "workspace:*",
+    "@moss/notifications": "workspace:*",
+    "@moss/priority": "workspace:*",
+    "@moss/shared": "workspace:*",
+    "@moss/source-behaviors": "workspace:*",
+    "@moss/structured-state": "workspace:*",
+    "@moss/vault": "workspace:*",
     "fastify": "^5.6.2",
     "kysely": "^0.29.2",
-    "@jarv1s/proactive-monitoring": "workspace:*"
+    "@moss/proactive-monitoring": "workspace:*"
   }
 }

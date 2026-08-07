@@ -1,4 +1,4 @@
-import type { ListSourceBehaviorsResponse, SourceBehaviorSourceDto } from "@jarv1s/shared";
+import type { ListSourceBehaviorsResponse, SourceBehaviorSourceDto } from "@moss/shared";
 
 import { queryKeys } from "../api/query-keys.js";
 

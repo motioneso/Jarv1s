@@ -1,4 +1,4 @@
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 import type { NewsAiPort, NewsSafeFetchPort, NewsWebSearchPort } from "../discovery/ports.js";
 import type { NewsPrefsReader } from "../news-service.js";

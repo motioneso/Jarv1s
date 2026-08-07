@@ -10,7 +10,7 @@ import type {
   StructuredProviderResult,
   StructuredRunPriority,
   StructuredTelemetryEvent
-} from "@jarv1s/ai";
+} from "@moss/ai";
 
 import { CliChatUnavailableError } from "./errors.js";
 import { selectEngineFactory, type ChatEngineFactory } from "./runtime.js";

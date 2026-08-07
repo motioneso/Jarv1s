@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import type { AccessContext, DataContextRunner, PreferencesPort } from "@jarv1s/db";
-import { handleRouteError } from "@jarv1s/module-sdk";
-import { getWeatherTodayRouteSchema } from "@jarv1s/shared";
+import type { AccessContext, DataContextRunner, PreferencesPort } from "@moss/db";
+import { handleRouteError } from "@moss/module-sdk";
+import { getWeatherTodayRouteSchema } from "@moss/shared";
 import { WeatherService } from "./weather-service.js";
 
 interface WeatherRoutesDependencies {

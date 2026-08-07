@@ -2,13 +2,8 @@ import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { ChatSkillsRepository } from "@jarv1s/chat";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
+import { ChatSkillsRepository } from "@moss/chat";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -21,7 +16,7 @@ function ctx(actorUserId: string): AccessContext {
   return { actorUserId, requestId: "req:chat-skills-test" };
 }
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let dataContext: DataContextRunner;
 
 beforeAll(async () => {

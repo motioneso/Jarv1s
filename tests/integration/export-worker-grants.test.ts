@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Kysely } from "kysely";
 import pg from "pg";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -20,9 +20,9 @@ const entityId = "00000000-0000-4000-8000-000000000903";
 const actionRequestId = "00000000-0000-4000-8000-000000000904";
 const auditLogId = "00000000-0000-4000-8000-000000000905";
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let appDataContext: DataContextRunner;
-let workerDb: Kysely<JarvisDatabase>;
+let workerDb: Kysely<MossDatabase>;
 let workerDataContext: DataContextRunner;
 
 beforeAll(async () => {

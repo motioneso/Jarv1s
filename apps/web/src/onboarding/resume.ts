@@ -1,4 +1,4 @@
-import type { MeResponse, OnboardingStatusResponse } from "@jarv1s/shared";
+import type { MeResponse, OnboardingStatusResponse } from "@moss/shared";
 
 export const STEP_KEYS = ["welcome", "cliAuth", "connectors"] as const;
 export type StepKey = (typeof STEP_KEYS)[number];

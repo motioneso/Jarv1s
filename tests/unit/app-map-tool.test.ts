@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { sanitizeAssistantToolResult } from "@jarv1s/ai";
+import { sanitizeAssistantToolResult } from "@moss/ai";
 import {
   APP_MAP_SLICE_LOOKUP_KEYS,
   createAppMapReadService,
   appGetMapSliceExecute,
   appGetMapSliceInputSchema,
   appGetMapSliceOutputSchema
-} from "@jarv1s/settings";
+} from "@moss/settings";
 
 const artifact = {
   schemaVersion: 1,

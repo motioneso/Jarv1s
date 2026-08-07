@@ -1,4 +1,4 @@
-import type { ToolContext } from "@jarv1s/module-sdk";
+import type { ToolContext } from "@moss/module-sdk";
 
 export interface FocusBlockWindow {
   readonly start: Date;

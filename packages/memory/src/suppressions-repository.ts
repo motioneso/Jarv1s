@@ -1,6 +1,6 @@
 import { sql } from "kysely";
 
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 import type { FactCategory } from "./facts-repository.js";
 

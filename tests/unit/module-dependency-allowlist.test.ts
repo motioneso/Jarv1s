@@ -23,15 +23,15 @@ import { describe, expect, it } from "vitest";
  *
  * Classification (platform vs. feature) is architectural judgment, not derived from any single
  * metadata field — `ModuleManifest` exports exist on both platform and feature packages (e.g.
- * `@jarv1s/ai`, `@jarv1s/memory`, `@jarv1s/settings` all register one), so manifest presence
+ * `@moss/ai`, `@moss/memory`, `@moss/settings` all register one), so manifest presence
  * alone doesn't distinguish them. The criterion used here: a package is **platform** if it is
  * cross-cutting infrastructure with no independent, end-user-visible product domain of its own
  * (storage, job queue, auth, generic settings/preferences plumbing, AI routing, ranking/scoring
  * primitives, the composition root) — consumed broadly across feature packages and by other
  * platform packages. A package is **feature** if it represents a distinct product capability a
  * user recognizes as its own area (calendar, chat, connectors, notes, tasks, sports, weather...).
- * Platform packages sometimes depend on feature packages (e.g. `@jarv1s/jobs`, platform, depends
- * on `@jarv1s/notifications`, feature, to write an upgrade notice) — that's expected of hub
+ * Platform packages sometimes depend on feature packages (e.g. `@moss/jobs`, platform, depends
+ * on `@moss/notifications`, feature, to write an upgrade notice) — that's expected of hub
  * packages and is intentionally *not* tracked here; only feature -> feature edges are pinned.
  */
 
@@ -39,48 +39,48 @@ const packagesRoot = join(process.cwd(), "packages");
 
 /** Platform: cross-cutting infrastructure, no independent end-user product domain. */
 const PLATFORM_PACKAGES = new Set([
-  "@jarv1s/ai", // provider-agnostic AI capability router (CLAUDE.md invariant), not a feature
-  "@jarv1s/auth",
-  "@jarv1s/datasets", // dataset connector SDK runtime host (host pinning, cache, TTL) — infra, not a product domain
-  "@jarv1s/db",
-  "@jarv1s/host-fetch", // shared server-only outbound network policy/transport
-  "@jarv1s/jobs",
-  "@jarv1s/memory",
-  "@jarv1s/module-css-confine", // host-only CSS scoping for module contributions (#1388/D9), no product domain
-  "@jarv1s/module-registry", // composition root; wires every module together
-  "@jarv1s/module-sdk",
-  "@jarv1s/module-web-sdk", // browser-safe frontend contribution SDK (routes/widgets/palette), infra not a product domain
-  "@jarv1s/priority", // ranking/ordering primitive; consumed by @jarv1s/shared itself
-  "@jarv1s/settings", // generic settings/audit-log hub — "platform packages are expected hubs"
-  "@jarv1s/settings-ui",
-  "@jarv1s/shared",
-  "@jarv1s/source-behaviors", // cross-cutting input-signal weighting for briefings/settings
-  "@jarv1s/structured-state", // generic preferences/state store used across features
-  "@jarv1s/ui", // authored jds-* component library (#1388), no independent product domain
-  "@jarv1s/usefulness-feedback", // cross-cutting feedback-loop signal, no product page of its own
-  "@jarv1s/vault"
+  "@moss/ai", // provider-agnostic AI capability router (CLAUDE.md invariant), not a feature
+  "@moss/auth",
+  "@moss/datasets", // dataset connector SDK runtime host (host pinning, cache, TTL) — infra, not a product domain
+  "@moss/db",
+  "@moss/host-fetch", // shared server-only outbound network policy/transport
+  "@moss/jobs",
+  "@moss/memory",
+  "@moss/module-css-confine", // host-only CSS scoping for module contributions (#1388/D9), no product domain
+  "@moss/module-registry", // composition root; wires every module together
+  "@moss/module-sdk",
+  "@moss/module-web-sdk", // browser-safe frontend contribution SDK (routes/widgets/palette), infra not a product domain
+  "@moss/priority", // ranking/ordering primitive; consumed by @moss/shared itself
+  "@moss/settings", // generic settings/audit-log hub — "platform packages are expected hubs"
+  "@moss/settings-ui",
+  "@moss/shared",
+  "@moss/source-behaviors", // cross-cutting input-signal weighting for briefings/settings
+  "@moss/structured-state", // generic preferences/state store used across features
+  "@moss/ui", // authored jds-* component library (#1388), no independent product domain
+  "@moss/usefulness-feedback", // cross-cutting feedback-loop signal, no product page of its own
+  "@moss/vault"
 ]);
 
 /** Feature: a distinct, user-recognizable product capability. */
 const FEATURE_PACKAGES = new Set([
-  "@jarv1s/briefings",
-  "@jarv1s/calendar",
-  "@jarv1s/chat",
-  "@jarv1s/cli-runner",
-  "@jarv1s/commitments",
-  "@jarv1s/connectors",
-  "@jarv1s/email",
-  "@jarv1s/goals",
-  "@jarv1s/news",
-  "@jarv1s/notes",
-  "@jarv1s/notifications",
-  "@jarv1s/people",
-  "@jarv1s/proactive-monitoring",
-  "@jarv1s/sports",
-  "@jarv1s/tasks",
-  "@jarv1s/weather",
-  "@jarv1s/web-research",
-  "@jarv1s/wellness"
+  "@moss/briefings",
+  "@moss/calendar",
+  "@moss/chat",
+  "@moss/cli-runner",
+  "@moss/commitments",
+  "@moss/connectors",
+  "@moss/email",
+  "@moss/goals",
+  "@moss/news",
+  "@moss/notes",
+  "@moss/notifications",
+  "@moss/people",
+  "@moss/proactive-monitoring",
+  "@moss/sports",
+  "@moss/tasks",
+  "@moss/weather",
+  "@moss/web-research",
+  "@moss/wellness"
 ]);
 
 /**
@@ -89,18 +89,18 @@ const FEATURE_PACKAGES = new Set([
  * known-incomplete). Adding an edge here is a visible act requiring review.
  */
 const SANCTIONED_FEATURE_COUPLINGS = [
-  "@jarv1s/briefings -> @jarv1s/notifications",
-  "@jarv1s/chat -> @jarv1s/calendar",
-  "@jarv1s/chat -> @jarv1s/connectors",
-  "@jarv1s/chat -> @jarv1s/email",
-  "@jarv1s/chat -> @jarv1s/notes",
-  "@jarv1s/chat -> @jarv1s/tasks",
-  "@jarv1s/cli-runner -> @jarv1s/chat",
-  "@jarv1s/connectors -> @jarv1s/calendar",
-  "@jarv1s/connectors -> @jarv1s/email",
+  "@moss/briefings -> @moss/notifications",
+  "@moss/chat -> @moss/calendar",
+  "@moss/chat -> @moss/connectors",
+  "@moss/chat -> @moss/email",
+  "@moss/chat -> @moss/notes",
+  "@moss/chat -> @moss/tasks",
+  "@moss/cli-runner -> @moss/chat",
+  "@moss/connectors -> @moss/calendar",
+  "@moss/connectors -> @moss/email",
   // #975 Slice 4: revalidation writes its one owner-facing summary through the
   // Notifications public boundary (same shape as briefings -> notifications above).
-  "@jarv1s/news -> @jarv1s/notifications"
+  "@moss/news -> @moss/notifications"
 ].sort();
 
 interface PackageManifest {
@@ -135,7 +135,7 @@ function listWorkspacePackages(): PackageManifest[] {
       dependencyNames: [
         ...Object.keys(parsed.dependencies ?? {}),
         ...Object.keys(parsed.peerDependencies ?? {})
-      ].filter((dep) => dep.startsWith("@jarv1s/"))
+      ].filter((dep) => dep.startsWith("@moss/"))
     });
   }
 

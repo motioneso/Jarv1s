@@ -1,4 +1,4 @@
-import type { MemoryCorrection, MemoryFact } from "@jarv1s/memory";
+import type { MemoryCorrection, MemoryFact } from "@moss/memory";
 import type { UserMemorySettings } from "./memory-settings-repository.js";
 
 export function toIsoString(value: Date | string): string {

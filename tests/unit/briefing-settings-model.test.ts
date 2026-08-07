@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { AiAssistantToolDto, BriefingDefinitionDto } from "@jarv1s/shared";
+import type { AiAssistantToolDto, BriefingDefinitionDto } from "@moss/shared";
 
 import {
   createDefinitionRequest,

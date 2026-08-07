@@ -15,8 +15,8 @@
  * two roots cannot disagree again.
  */
 
-import type { Multiplexer, ProviderKind, TmuxIo } from "@jarv1s/ai";
-import type { AiProviderExecutionMode } from "@jarv1s/shared";
+import type { Multiplexer, ProviderKind, TmuxIo } from "@moss/ai";
+import type { AiProviderExecutionMode } from "@moss/shared";
 
 import { AgyPrintChatEngine } from "./agy-print-chat-engine.js";
 import { ClaudePrintChatEngine } from "./claude-print-chat-engine.js";

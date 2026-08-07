@@ -1,5 +1,5 @@
-import type { DataContextRunner } from "@jarv1s/db";
-import { SettingsRepository } from "@jarv1s/settings";
+import type { DataContextRunner } from "@moss/db";
+import { SettingsRepository } from "@moss/settings";
 
 /**
  * #1026: without this, the seeded bootstrap-owner has no "onboarding.state"

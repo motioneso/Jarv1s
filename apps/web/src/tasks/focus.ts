@@ -1,4 +1,4 @@
-import { localDay, quadrantOf, type TaskDto } from "@jarv1s/shared";
+import { localDay, quadrantOf, type TaskDto } from "@moss/shared";
 
 /** Today-stat → Tasks filter presets. Applied via the `?focus=` query param so the
     filter works in either List or Matrix view (no hardcoded view). */

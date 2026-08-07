@@ -1,7 +1,7 @@
 import { seedChat, sendChatTurn, uploadChatAttachment } from "../../api/client";
 import { moduleChatSurface } from "../../shell/chat-surface-key";
 import { useSyncExternalStore } from "react";
-import type { ChatSurface } from "@jarv1s/shared";
+import type { ChatSurface } from "@moss/shared";
 
 import type { AssistantSurfaceHandleV1, AssistantSurfaceViewProps } from "./contracts";
 import { AssistantSurface } from "./surface";

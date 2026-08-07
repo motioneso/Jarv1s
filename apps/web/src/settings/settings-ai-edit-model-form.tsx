@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
-import { Button } from "@jarv1s/ui";
+import { Button } from "@moss/ui";
 import { updateAiModel } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { readError } from "./settings-types";
@@ -13,7 +13,7 @@ import {
   type AiConfiguredModelDto,
   type AiModelCapability,
   type AiModelTier
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 const ALL_CAPABILITIES: readonly AiModelCapability[] = AI_MODEL_CAPABILITIES;
 

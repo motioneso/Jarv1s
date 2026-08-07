@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import { notesMonitorProvider } from "./monitor-provider.js";
 import {
   notesCreateInputSchema,
@@ -10,7 +10,7 @@ import {
   postNotesSyncRouteSchema,
   notesSearchInputSchema,
   notesSearchResponseSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { notesSearchExecute } from "./tools.js";
 import { notesCreateExecute, notesDeleteExecute, notesEditExecute } from "./write-tools.js";
@@ -160,4 +160,4 @@ export const notesModuleManifest = {
     }
   ],
   proactiveMonitor: notesMonitorProvider
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

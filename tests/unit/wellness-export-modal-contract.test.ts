@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import Fastify from "fastify";
-import { wellnessExportRequestSchema, WELLNESS_EXPORT_CATEGORIES } from "@jarv1s/shared";
+import { wellnessExportRequestSchema, WELLNESS_EXPORT_CATEGORIES } from "@moss/shared";
 
 // Mirrors the body the web client builds in WellnessExportModal → requestWellnessExport. We
 // exercise the shared request schema (the server's validation contract) against the exact shape

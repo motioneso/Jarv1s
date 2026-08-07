@@ -9,7 +9,7 @@
  *    logged, so the endpoint cannot be turned into an attacker-controlled log
  *    channel.
  *
- * 2. `setJarvisErrorHandler` — the central Fastify error handler. Every unhandled
+ * 2. `setMossErrorHandler` — the central Fastify error handler. Every unhandled
  *    route error is logged as a structured line and returned to the client with a
  *    safe body. On 5xx the body is the fixed string "Internal Server Error" (no
  *    stack, no internal message, no error-derived detail). On 4xx the error
@@ -65,7 +65,7 @@ export interface ClientErrorsRouteOptions {
   ) => Promise<void>;
 }
 
-export interface JarvisErrorHandlerOptions {
+export interface MossErrorHandlerOptions {
   readonly recordRequestError?: (
     event: PersistableErrorEvent,
     request: FastifyRequest
@@ -177,9 +177,9 @@ export function registerClientErrorsRoute(
  * registered. The handler is the single place every unhandled request error
  * flows through; it logs a structured line and returns a safe client response.
  */
-export function setJarvisErrorHandler(
+export function setMossErrorHandler(
   server: FastifyInstance,
-  options: JarvisErrorHandlerOptions = {}
+  options: MossErrorHandlerOptions = {}
 ): void {
   server.setErrorHandler(async (error: unknown, request, reply) => {
     // Narrow defensively. Fastify 5 types the handler error as `unknown`; a real

@@ -4,8 +4,8 @@ import {
   gatewayResponseToMcp,
   registerNativePermissionRoute
 } from "../../packages/chat/src/mcp-transport.js";
-import type { GatewayToolResponse } from "@jarv1s/ai";
-import { SessionTokenRegistry } from "@jarv1s/ai";
+import type { GatewayToolResponse } from "@moss/ai";
+import { SessionTokenRegistry } from "@moss/ai";
 
 describe("gatewayResponseToMcp", () => {
   it("maps ok=true response to non-error content (reads pre-rendered .text)", () => {

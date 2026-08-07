@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import { parsePositiveIntEnv } from "@jarv1s/shared";
+import { parsePositiveIntEnv } from "@moss/shared";
 
 // Per-user rate-limit key for the assistant-tools invoke endpoint via the shared module-sdk
 // helper: a UUID-shaped session bearer or a valid session cookie is hashed (a one-way
@@ -11,20 +11,15 @@ import { parsePositiveIntEnv } from "@jarv1s/shared";
 // Override the limit via env: JARVIS_RL_AI_TOOLS_MAX=<n> (requests per minute, default 60).
 const AI_TOOLS_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_AI_TOOLS_MAX, 60);
 
-import type {
-  AccessContext,
-  DataContextDb,
-  DataContextRunner,
-  JarvisActionAuditLog
-} from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner, MossActionAuditLog } from "@moss/db";
 import {
   HttpError,
   handleRouteError as handleModuleRouteError,
   sessionRateLimitKey,
-  type JarvisActionPermissionTier,
+  type MossActionPermissionTier,
   type ToolResult,
   type ToolServices
-} from "@jarv1s/module-sdk";
+} from "@moss/module-sdk";
 
 import type { ActiveModulesResolver } from "./gateway/types.js";
 import {
@@ -66,7 +61,7 @@ import {
   listActionAuditLogRouteSchema,
   type ActionAuditLogEntryDto,
   type ListActionAuditLogResponse
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import {
   findAssistantToolFromManifests,
@@ -113,13 +108,13 @@ export interface AiRoutesDependencies {
   readonly secretCipher?: AiSecretCipher;
   readonly modelDiscovery?: ModelDiscoveryService;
   readonly tasksCompatibility?: {
-    getResolvedTaskChangesPolicy: (db: DataContextDb) => Promise<JarvisActionPermissionTier>;
-    setTaskChangesPolicy: (db: DataContextDb, tier: JarvisActionPermissionTier) => Promise<void>;
+    getResolvedTaskChangesPolicy: (db: DataContextDb) => Promise<MossActionPermissionTier>;
+    setTaskChangesPolicy: (db: DataContextDb, tier: MossActionPermissionTier) => Promise<void>;
   };
   /** Passed to read-tool execute on the REST invoke path; gates email/calendar reads to granted accounts. */
   readonly readToolServices?: ToolServices;
   // #1059 — injected by the composition root (packages/module-registry) so packages/ai never
-  // needs a direct @jarv1s/chat dependency (that edge was tried and reverted: it creates real
+  // needs a direct @moss/chat dependency (that edge was tried and reverted: it creates real
   // cycles, see terminal-routes.ts's file-header comment). Absent in tests/deployments that
   // don't wire a cli-runner — the WS handler degrades gracefully (close code 1011) rather than
   // crashing when this is undefined.
@@ -1131,7 +1126,7 @@ function toIsoString(value: Date | string | null): string | null {
   return value instanceof Date ? value.toISOString() : value;
 }
 
-function serializeAuditLogEntry(row: JarvisActionAuditLog): ActionAuditLogEntryDto {
+function serializeAuditLogEntry(row: MossActionAuditLog): ActionAuditLogEntryDto {
   return {
     id: row.id,
     ownerUserId: row.owner_user_id,

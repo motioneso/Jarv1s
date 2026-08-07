@@ -1,6 +1,6 @@
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import { RuntimeConfigResolver } from "@jarv1s/settings";
-import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
+import { RuntimeConfigResolver } from "@moss/settings";
+import type { ToolExecute, ToolResult } from "@moss/module-sdk";
 
 import {
   createEmbeddingProvider,

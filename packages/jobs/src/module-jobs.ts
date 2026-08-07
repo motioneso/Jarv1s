@@ -1,7 +1,7 @@
 import type { PgBoss, SendOptions } from "pg-boss";
 
-import type { AccessContext } from "@jarv1s/db";
-import { matchesModuleParamsSchema, type ExternalModuleQueueDeclaration } from "@jarv1s/module-sdk";
+import type { AccessContext } from "@moss/db";
+import { matchesModuleParamsSchema, type ExternalModuleQueueDeclaration } from "@moss/module-sdk";
 import { PLATFORM_MODULE_CONTROL_QUEUE } from "./pg-boss.js";
 
 export interface ExternalModuleJobPayload {

@@ -8,7 +8,7 @@
  *      (HERDR_ENV=1), else tmux, else the other, else unavailable.
  * decideMultiplexer is pure (no io); resolveMultiplexer binds the chosen backend.
  */
-import type { ChatMultiplexerChoice } from "@jarv1s/shared";
+import type { ChatMultiplexerChoice } from "@moss/shared";
 
 import type { TmuxIo } from "./tmux-bridge.js";
 import type { Multiplexer } from "./multiplexer.js";

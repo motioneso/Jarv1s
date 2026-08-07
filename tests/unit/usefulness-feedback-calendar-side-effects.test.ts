@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
 
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@moss/db";
 import {
   FeedbackTargetVerifierRegistry,
   registerUsefulnessFeedbackRoutes

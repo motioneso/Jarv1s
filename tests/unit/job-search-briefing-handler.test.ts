@@ -15,7 +15,7 @@
 // before it could fail at runtime.
 import { describe, expect, it, vi } from "vitest";
 
-import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import type { ModuleWorkerContext } from "@moss/module-sdk/worker";
 
 import { createBriefingContributeHandler } from "../../external-modules/job-search/src/worker/handlers/briefing.js";
 import type { Match, Posting } from "../../external-modules/job-search/src/domain/records.js";

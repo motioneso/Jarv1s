@@ -4,8 +4,8 @@ import {
   type SelfOperationManifestInput
 } from "../../packages/ai/src/gateway/self-operation.js";
 import type { AiRepository } from "../../packages/ai/src/repository.js";
-import type { DataContextDb } from "@jarv1s/db";
-import type { ModuleAssistantToolManifest } from "@jarv1s/module-sdk";
+import type { DataContextDb } from "@moss/db";
+import type { ModuleAssistantToolManifest } from "@moss/module-sdk";
 
 function tool(overrides: Partial<ModuleAssistantToolManifest> = {}): ModuleAssistantToolManifest {
   return {

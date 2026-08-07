@@ -26,8 +26,8 @@ import {
   ConfirmationRegistry,
   SessionTokenRegistry,
   type GatewaySessionRecord
-} from "@jarv1s/ai";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+} from "@moss/ai";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
 
 import { configureNewsChatTools } from "../../packages/news/src/chat-tools.js";
 import { createPreviewStore } from "../../packages/news/src/discovery/preview-store.js";
@@ -70,7 +70,7 @@ type PreviewPayload = {
 
 describe("news chat tools — previewSource/confirmSource via assistant gateway (#975)", () => {
   let bootstrap: pg.Client;
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
 
   beforeAll(async () => {
     await resetFoundationDatabase();

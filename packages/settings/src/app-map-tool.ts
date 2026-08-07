@@ -1,4 +1,4 @@
-import type { ToolExecute } from "@jarv1s/module-sdk";
+import type { ToolExecute } from "@moss/module-sdk";
 import type { AppMapReadService, AppMapQuery } from "./app-map.js";
 
 /** The lookup keys, at least one of which every call must supply. */

@@ -8,9 +8,9 @@ import {
   rankChatContext,
   readPriorityModel,
   reorderByPriority
-} from "@jarv1s/chat/priority-consumer";
-import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
-import type { DataContextDb } from "@jarv1s/db";
+} from "@moss/chat/priority-consumer";
+import type { PriorityModelPreferenceV1 } from "@moss/priority";
+import type { DataContextDb } from "@moss/db";
 
 describe("chat priority consumer", () => {
   it("converts cross-tool candidates to priority candidates", () => {

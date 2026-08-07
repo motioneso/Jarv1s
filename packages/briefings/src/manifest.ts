@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import {
   briefingRunPayloadSchema,
   createBriefingDefinitionRequestSchema,
@@ -11,7 +11,7 @@ import {
   runBriefingDefinitionResponseSchema,
   updateBriefingDefinitionRequestSchema,
   updateBriefingDefinitionResponseSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 export const BRIEFINGS_MODULE_ID = "briefings";
 export const BRIEFINGS_RUN_QUEUE = "briefings-run";
@@ -142,4 +142,4 @@ export const briefingsModuleManifest = {
       permissionId: "briefings.run"
     }
   ]
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

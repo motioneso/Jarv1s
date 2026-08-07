@@ -1,5 +1,5 @@
-import type { CalendarEvent } from "@jarv1s/db";
-import type { CalendarEventDto } from "@jarv1s/shared";
+import type { CalendarEvent } from "@moss/db";
+import type { CalendarEventDto } from "@moss/shared";
 
 const JFB_PATTERN = /^jfb[0-9a-v]{32}$/;
 
@@ -9,7 +9,7 @@ export function serializeCalendarEvent(event: CalendarEvent): CalendarEventDto {
       ? (event.external_metadata as Record<string, unknown>)
       : {};
 
-  const isJarvisBlock = JFB_PATTERN.test(event.external_id);
+  const isMossBlock = JFB_PATTERN.test(event.external_id);
   const allDay = md.allDay === true;
   const attendeeCount =
     typeof md.attendeeCount === "number" && Number.isFinite(md.attendeeCount)
@@ -28,7 +28,7 @@ export function serializeCalendarEvent(event: CalendarEvent): CalendarEventDto {
     summary: event.summary,
     bodyExcerpt: event.body_excerpt,
     externalId: event.external_id,
-    isJarvisBlock,
+    isMossBlock,
     allDay,
     attendeeCount,
     status,

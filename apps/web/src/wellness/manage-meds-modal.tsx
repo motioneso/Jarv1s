@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { MedicationFrequencyTypeApi } from "@jarv1s/shared";
+import type { MedicationFrequencyTypeApi } from "@moss/shared";
 import { createMedication, listMedications, updateMedication } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import { medColor, type Theme } from "./emotion-taxonomy";

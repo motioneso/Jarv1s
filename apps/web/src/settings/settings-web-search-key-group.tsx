@@ -8,7 +8,7 @@ import { useAssistantName } from "../api/use-assistant-name";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
 import { Field, Group, Note } from "./settings-ui";
-import { Button } from "@jarv1s/ui";
+import { Button } from "@moss/ui";
 
 export function WebSearchKeyGroup() {
   const queryClient = useQueryClient();

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const styles = readFileSync("packages/ui/src/styles/components-jarvis-today.css", "utf8");
+const styles = readFileSync("packages/ui/src/styles/components-moss-today.css", "utf8");
 
 describe("Today narrow masthead", () => {
   it("stacks masthead content instead of squeezing lead copy beside the folio", () => {

@@ -1,11 +1,11 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import {
   listNotificationsResponseSchema,
   markAllNotificationsReadResponseSchema,
   markNotificationReadResponseSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { notificationsListVisibleExecute } from "./tools.js";
 
@@ -132,4 +132,4 @@ export const notificationsModuleManifest = {
       execute: notificationsListVisibleExecute
     }
   ]
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

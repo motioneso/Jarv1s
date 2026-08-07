@@ -3,8 +3,8 @@ import type {
   ToolExecute,
   ToolServices,
   ModuleAssistantToolManifest,
-  JarvisModuleManifest
-} from "@jarv1s/module-sdk";
+  MossModuleManifest
+} from "@moss/module-sdk";
 import {
   AiRepository,
   AssistantToolGateway,
@@ -13,13 +13,13 @@ import {
   type GatewaySessionRecord,
   type GatewayToolResponse,
   type SessionNotifier
-} from "@jarv1s/ai";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+} from "@moss/ai";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
 import {
   ConnectorsRepository,
   GoogleApiClient,
   createConnectorSecretCipher
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 import type { Kysely } from "kysely";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import { captureFetch, okText } from "./focus-time-helpers.js";
@@ -60,7 +60,7 @@ describe("Group A — tool-service injection seam (module-sdk types)", () => {
 });
 
 describe("Group A — gateway passes toolServices as the 4th execute argument", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
 
   beforeAll(async () => {
@@ -72,7 +72,7 @@ describe("Group A — gateway passes toolServices as the 4th execute argument", 
     await appDb.destroy();
   });
 
-  function gatewayWith(modules: JarvisModuleManifest[], toolServices: Record<string, unknown>) {
+  function gatewayWith(modules: MossModuleManifest[], toolServices: Record<string, unknown>) {
     const tokens = new SessionTokenRegistry();
     const emitted: GatewaySessionRecord[] = [];
     const notifier: SessionNotifier = {
@@ -119,7 +119,7 @@ describe("Group A — gateway passes toolServices as the 4th execute argument", 
   }
 
   it("a WRITE tool declaring requiresServices receives the registered service (after approve)", async () => {
-    const module: JarvisModuleManifest = {
+    const module: MossModuleManifest = {
       id: "demo",
       name: "Demo",
       version: "0",
@@ -153,7 +153,7 @@ describe("Group A — gateway passes toolServices as the 4th execute argument", 
   });
 
   it("a legacy 3-arg read tool still dispatches when toolServices is empty", async () => {
-    const module: JarvisModuleManifest = {
+    const module: MossModuleManifest = {
       id: "legacy",
       name: "Legacy",
       version: "0",
@@ -182,7 +182,7 @@ describe("Group A — gateway passes toolServices as the 4th execute argument", 
   });
 
   it("a WRITE tool receives ONLY its declared services, never the whole registry (HIGH #1)", async () => {
-    const module: JarvisModuleManifest = {
+    const module: MossModuleManifest = {
       id: "iso",
       name: "Iso",
       version: "0",
@@ -225,7 +225,7 @@ describe("Group A — gateway passes toolServices as the 4th execute argument", 
     // A read tool dispatches WITHOUT confirmAndRun; handing it a (possibly write-capable) service
     // would bypass the write→confirm floor. The gateway must hide it at listing AND withhold the
     // service if somehow invoked. Both are asserted here.
-    const module: JarvisModuleManifest = {
+    const module: MossModuleManifest = {
       id: "sneaky",
       name: "Sneaky",
       version: "0",
@@ -262,7 +262,7 @@ describe("Group A — gateway passes toolServices as the 4th execute argument", 
   });
 
   it("a WRITE tool whose required service is NOT registered is not listed or invokable (HIGH #2)", async () => {
-    const module: JarvisModuleManifest = {
+    const module: MossModuleManifest = {
       id: "needs",
       name: "Needs",
       version: "0",
@@ -400,7 +400,7 @@ describe("Group B — GoogleApiClient.freeBusy + insertEvent", () => {
 });
 
 describe("Group B — hasCalendarWriteScope (owner-scoped, read-only)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
 
   beforeAll(async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ModuleSettingsSurfaceManifest } from "@jarv1s/module-sdk";
-import { formatTimestamp } from "@jarv1s/settings-ui";
+import type { ModuleSettingsSurfaceManifest } from "@moss/module-sdk";
+import { formatTimestamp } from "@moss/settings-ui";
 
 describe("settings UI package contract", () => {
   it("allows module manifests to declare a settings entry", () => {

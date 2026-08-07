@@ -5,10 +5,10 @@ import type { Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import type { MeResponse } from "@jarv1s/shared";
-import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import type { MeResponse } from "@moss/shared";
+import { createMossAuthRuntime, type MossAuthRuntime } from "@moss/auth";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import {
   connectionStrings,
   resetEmptyFoundationDatabase,
@@ -22,8 +22,8 @@ import {
  * anonymization of retained audit/notification rows.
  */
 describe("#239 account self-service deletion", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let authRuntime: JarvisAuthRuntime;
+  let appDb: Kysely<MossDatabase>;
+  let authRuntime: MossAuthRuntime;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
 
@@ -40,7 +40,7 @@ describe("#239 account self-service deletion", () => {
     await resetEmptyFoundationDatabase();
     await setInstanceSetting("registration.requires_approval", { value: false });
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
+    authRuntime = createMossAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
     // #1124: see multi-user-isolation.test.ts for rationale — override pg-boss's default
     // 10s connectionTimeoutMillis so a slow-but-healthy CI connection isn't killed early.
     boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });

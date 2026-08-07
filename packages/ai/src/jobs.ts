@@ -2,8 +2,8 @@ import type { PgBoss } from "pg-boss";
 
 import type { Kysely } from "kysely";
 
-import type { JarvisDatabase } from "@jarv1s/db";
-import { type QueueDefinition } from "@jarv1s/jobs";
+import type { MossDatabase } from "@moss/db";
+import { type QueueDefinition } from "@moss/jobs";
 
 import { AiRepository } from "./repository.js";
 
@@ -18,7 +18,7 @@ export const AI_QUEUE_DEFINITIONS: readonly QueueDefinition[] = [
 
 export async function registerAiMaintenanceWorkers(
   boss: PgBoss,
-  rootDb: Kysely<JarvisDatabase>
+  rootDb: Kysely<MossDatabase>
 ): Promise<string[]> {
   const repository = new AiRepository();
 
