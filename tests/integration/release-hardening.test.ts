@@ -686,9 +686,11 @@ describe("M7 release hardening lifecycle scripts", () => {
     expect(workflow).toContain("pnpm smoke:compose:prod");
     expect(workflow).toContain('JARVIS_API_PORT: "3099"');
     expect(workflow).toContain('JARVIS_WEB_PORT: "5180"');
-    expect(workflow).toContain("ghcr.io/motioneso/jarv1s:");
+    expect(workflow).toContain("ghcr.io/motioneso/moss:");
     expect(workflow).not.toContain("jarv1s-api:");
     expect(workflow).not.toContain("jarv1s-web:");
+    expect(workflow).not.toContain("moss-api:");
+    expect(workflow).not.toContain("moss-web:");
     expect(workflow).toContain("docker compose -f infra/docker-compose.yml down -v");
   });
 
@@ -701,6 +703,8 @@ describe("M7 release hardening lifecycle scripts", () => {
       const text = await readFile(rel, "utf8");
       expect(text).not.toContain("ghcr.io/motioneso/jarv1s-api");
       expect(text).not.toContain("ghcr.io/motioneso/jarv1s-web");
+      expect(text).not.toContain("ghcr.io/motioneso/moss-api");
+      expect(text).not.toContain("ghcr.io/motioneso/moss-web");
     }
   });
 });

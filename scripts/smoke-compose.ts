@@ -41,7 +41,7 @@ export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): Compo
     ? [
         {
           command: "docker",
-          args: ["build", "-t", `ghcr.io/motioneso/jarv1s:${imageTag}`, "-f", "Dockerfile", "."],
+          args: ["build", "-t", `ghcr.io/motioneso/moss:${imageTag}`, "-f", "Dockerfile", "."],
           description: "Build the Moss image locally and tag it to the prod GHCR ref"
         }
       ]

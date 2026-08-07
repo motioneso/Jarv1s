@@ -22,7 +22,7 @@ services:
       - jarv1s-postgres:/var/lib/postgresql/data
 
   jarv1s:
-    image: ghcr.io/motioneso/jarv1s:stable
+    image: ghcr.io/motioneso/moss:stable
     restart: unless-stopped
     depends_on:
       - postgres
@@ -65,7 +65,7 @@ docker compose pull
 docker compose up -d
 ```
 
-The default image channel should be `ghcr.io/motioneso/jarv1s:stable`. Version tags remain useful for rollback and debugging, but users should not have to edit a tag for routine upgrades.
+The default image channel should be `ghcr.io/motioneso/moss:stable`. Version tags remain useful for rollback and debugging, but users should not have to edit a tag for routine upgrades.
 
 ### CLI tool version drift (#1081)
 

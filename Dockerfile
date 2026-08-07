@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---------------------------------------------------------------------------
-# Jarv1s image (ghcr.io/motioneso/jarv1s).
+# Moss image (ghcr.io/motioneso/moss).
 # One multi-stage image runs the supervisor, which migrates then starts API,
 # worker, and cli-runner; the API serves the built web assets.
 # ---------------------------------------------------------------------------

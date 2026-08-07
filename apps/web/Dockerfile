@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---------------------------------------------------------------------------
-# Jarv1s static-web image (ghcr.io/motioneso/jarv1s-web) — deployable-stack §4.
+# Moss static-web image (ghcr.io/motioneso/moss-web) — deployable-stack §4.
 # Build the Vite SPA bundle, then serve it from nginx with /api + /health proxy.
 # Built from the repo root context (so the workspace + lockfile are available).
 # ---------------------------------------------------------------------------

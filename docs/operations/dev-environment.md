@@ -71,7 +71,7 @@ runs `infra/postgres/bootstrap` first, so a brand-new database self-provisions o
 
 The deploy artifact is `infra/docker-compose.prod.yml` (NOT the dev
 `infra/docker-compose.yml`, which bind-mounts source and runs `tsx` for everything). It
-runs one app image (`ghcr.io/motioneso/jarv1s`) plus Postgres. The `jarv1s` container
+runs one app image (`ghcr.io/motioneso/moss`) plus Postgres. The `jarv1s` container
 runs migrations, starts the internal cli-runner, starts the worker, and serves the API
 plus built web assets on one public port.
 
