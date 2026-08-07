@@ -15,7 +15,13 @@
 import type { Job } from "pg-boss";
 import type { Kysely } from "kysely";
 
-import type { AccessContext, DataContextDb, DataContextRunner, MossDatabase } from "@moss/db";
+import {
+  resolveMossEnv,
+  type AccessContext,
+  type DataContextDb,
+  type DataContextRunner,
+  type MossDatabase
+} from "@moss/db";
 import { HostPinningViolationError } from "@moss/host-fetch";
 import { assertModuleJobPayload, type ExternalModuleJobPayload } from "@moss/jobs";
 import type { ExternalModuleDiscovery } from "@moss/module-registry";
@@ -72,8 +78,8 @@ import { createVerifiedExternalModuleInvoker } from "./external-module-invoke.js
 export function resolveE2eFetchOverride(env: NodeJS.ProcessEnv = process.env): {
   readonly createFetch?: (allowedHosts: readonly string[]) => typeof fetch;
 } {
-  const e2eMode = env.JARVIS_RUNTIME_MODE === "e2e";
-  const fixtureBase = env.JARVIS_E2E_MODULE_FETCH_BASE;
+  const e2eMode = resolveMossEnv(env, "JARVIS_RUNTIME_MODE") === "e2e";
+  const fixtureBase = resolveMossEnv(env, "JARVIS_E2E_MODULE_FETCH_BASE");
 
   if (fixtureBase && !e2eMode) {
     throw new Error(

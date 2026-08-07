@@ -1,3 +1,5 @@
+import { resolveMossEnv } from "@moss/db";
+
 export interface WebSearchProviderInput {
   readonly query: string;
   readonly limit: number;
@@ -166,7 +168,7 @@ export async function resolveWebSearchProvider(scopedDb: unknown): Promise<WebSe
     }
   }
   if (!apiKey) {
-    apiKey = process.env["JARVIS_BRAVE_SEARCH_API_KEY"] || null;
+    apiKey = resolveMossEnv(process.env, "JARVIS_BRAVE_SEARCH_API_KEY") || null;
   }
   if (!apiKey) return unavailableSearchProvider;
   return providerForKey(apiKey);

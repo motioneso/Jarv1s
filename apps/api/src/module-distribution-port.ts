@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import type { FastifyInstance } from "fastify";
 
+import { resolveMossEnv } from "@moss/db";
 import {
   downloadAndStageModule,
   fetchRegistryIndex,
@@ -80,6 +81,8 @@ export function createModuleDistributionPort(
       const dirents = await readdir(externalModulesDir, { withFileTypes: true }).catch(() => []);
       return dirents.filter((d) => d.isDirectory() && !d.name.startsWith(".")).map((d) => d.name);
     },
-    ensureIds: parseModulesEnsure(process.env.JARVIS_MODULES_ENSURE).entries.map((e) => e.id)
+    ensureIds: parseModulesEnsure(resolveMossEnv(process.env, "JARVIS_MODULES_ENSURE")).entries.map(
+      (e) => e.id
+    )
   };
 }

@@ -26,6 +26,7 @@ import { realpath } from "node:fs/promises";
 import { resolve as resolvePath, sep } from "node:path";
 
 import type { ProviderKind } from "@moss/ai";
+import { resolveMossEnv } from "@moss/db";
 import { parsePositiveIntEnv } from "@moss/shared";
 import type { AiProviderExecutionMode } from "@moss/shared";
 
@@ -224,7 +225,10 @@ export class RpcConnection {
     this.reconnectMaxMs = opts.reconnectMaxMs ?? RECONNECT_MAX_MS;
     this.turnTimeoutMs =
       opts.callTimeoutMs ??
-      parsePositiveIntEnv(process.env.JARVIS_CLI_RUNNER_RPC_TIMEOUT_MS, DEFAULT_RPC_TIMEOUT_MS);
+      parsePositiveIntEnv(
+        resolveMossEnv(process.env, "JARVIS_CLI_RUNNER_RPC_TIMEOUT_MS"),
+        DEFAULT_RPC_TIMEOUT_MS
+      );
   }
 
   /**

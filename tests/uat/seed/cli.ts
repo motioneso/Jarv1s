@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { persistProviderToken } from "@moss/cli-runner";
+import { resolveMossEnv } from "@moss/db";
 import { createMigrationOwnerDb } from "./connections.js";
 import { assertTargetIsEphemeral } from "./guard.js";
 import { parseUatExcludeChunks, parseUatSeedLevel } from "./level-validation.js";
@@ -20,8 +21,8 @@ const DEFAULT_CLI_HOME_BASE = "/data/cli-auth";
  * seed behavior is unchanged. Never logs the token.
  */
 export async function maybePersistRealChatToken(
-  homeBase = process.env.JARVIS_CLI_HOME_BASE ??
-    process.env.JARVIS_CLI_HOME ??
+  homeBase = resolveMossEnv(process.env, "JARVIS_CLI_HOME_BASE") ??
+    resolveMossEnv(process.env, "JARVIS_CLI_HOME") ??
     DEFAULT_CLI_HOME_BASE
 ): Promise<void> {
   const token = process.env.CLAUDE_CODE_OAUTH_TOKEN;
@@ -72,10 +73,12 @@ async function main(): Promise<void> {
   // guard first.
   const level = parseUatSeedLevel(process.env.JARVIS_UAT_SEED_LEVEL ?? "bare");
   const excludeChunks = parseUatExcludeChunks(process.env.JARVIS_UAT_SEED_EXCLUDE_CHUNKS ?? "");
-  const withoutNewsJsonBinding = process.env.JARVIS_UAT_WITHOUT_NEWS_JSON_BINDING === "1";
+  const withoutNewsJsonBinding =
+    resolveMossEnv(process.env, "JARVIS_UAT_WITHOUT_NEWS_JSON_BINDING") === "1";
   // N42/#57: empty string (unset — composeSeedHook always passes the var) reads as absent, same
   // as every other optional docker -e value here.
-  const jobSearchAiProviderBaseUrl = process.env.JARVIS_UAT_JOB_SEARCH_AI_BASE_URL || undefined;
+  const jobSearchAiProviderBaseUrl =
+    resolveMossEnv(process.env, "JARVIS_UAT_JOB_SEARCH_AI_BASE_URL") || undefined;
 
   await seedLevel({ level, excludeChunks, withoutNewsJsonBinding, jobSearchAiProviderBaseUrl });
   console.log(

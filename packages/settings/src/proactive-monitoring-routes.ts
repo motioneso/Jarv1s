@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner } from "@moss/db";
+import { resolveMossEnv, type AccessContext, type DataContextRunner } from "@moss/db";
 import { HttpError, sessionRateLimitKey } from "@moss/module-sdk";
 import {
   ProactiveMonitoringPreferencesRepository,
@@ -10,7 +10,7 @@ import type { ProactiveMonitoringPreferenceV1, ProactiveSource } from "@moss/sha
 import { defaultProactiveMonitoringPreference, parsePositiveIntEnv } from "@moss/shared";
 
 const PROACTIVE_SETTINGS_MAX = parsePositiveIntEnv(
-  process.env.JARVIS_RL_PROACTIVE_SETTINGS_MAX,
+  resolveMossEnv(process.env, "JARVIS_RL_PROACTIVE_SETTINGS_MAX"),
   20
 );
 

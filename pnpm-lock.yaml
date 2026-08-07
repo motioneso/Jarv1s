@@ -214,6 +214,9 @@ importers:
         specifier: ^4
         version: 4.0.1
     devDependencies:
+      '@moss/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.17
@@ -481,6 +484,9 @@ importers:
       '@moss/chat':
         specifier: workspace:*
         version: link:../chat
+      '@moss/db':
+        specifier: workspace:*
+        version: link:../db
       node-pty:
         specifier: ^1.1.0
         version: 1.1.0
@@ -1207,6 +1213,9 @@ importers:
 
   packages/web-research:
     dependencies:
+      '@moss/db':
+        specifier: workspace:*
+        version: link:../db
       '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk

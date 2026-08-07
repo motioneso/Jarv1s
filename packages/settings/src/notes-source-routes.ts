@@ -3,7 +3,7 @@ import { basename, join } from "node:path";
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner } from "@moss/db";
+import { resolveMossEnv, type AccessContext, type DataContextRunner } from "@moss/db";
 import {
   getNotesSourceDirectoriesRouteSchema,
   getNotesLastSyncRouteSchema,
@@ -41,7 +41,7 @@ interface NotesSourceRoutesDependencies {
 }
 
 export function resolveNotesRoots(env: NodeJS.ProcessEnv = process.env): string[] {
-  const raw = env["JARVIS_NOTES_ROOTS"] ?? "";
+  const raw = resolveMossEnv(env, "JARVIS_NOTES_ROOTS") ?? "";
   return raw
     .split(",")
     .map((s) => s.trim())

@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import type { Kysely } from "kysely";
 
-import type { MossDatabase } from "@moss/db";
+import { resolveMossEnv, type MossDatabase } from "@moss/db";
 import type {
   ChatMultiplexerChoice,
   OnboardingProviderCheckResponse,
@@ -91,7 +91,7 @@ export interface LiveChatMultiplexerStatus {
 }
 
 function readEnvOverride(env: NodeJS.ProcessEnv): MultiplexerKind | null {
-  const raw = env.JARVIS_MULTIPLEXER?.trim().toLowerCase();
+  const raw = resolveMossEnv(env, "JARVIS_MULTIPLEXER")?.trim().toLowerCase();
   return raw === "tmux" || raw === "herdr" ? raw : null;
 }
 

@@ -7,6 +7,7 @@ import {
   DataContextRunner,
   createDatabase,
   getMossDatabaseUrls,
+  resolveMossEnv,
   type AccessContext
 } from "@moss/db";
 import { RlsProbeRepository } from "@moss/db/probes";
@@ -116,7 +117,7 @@ export async function buildWorker(deps?: { connectionString?: string }): Promise
 
   const workerDb = createDatabase({
     connectionString,
-    maxConnections: Number(process.env.JARVIS_WORKER_DB_POOL_SIZE ?? 4)
+    maxConnections: Number(resolveMossEnv(process.env, "JARVIS_WORKER_DB_POOL_SIZE") ?? 4)
   });
   const dataContext = new DataContextRunner(workerDb);
   const repository = new RlsProbeRepository();

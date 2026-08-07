@@ -8,6 +8,7 @@
  *      (HERDR_ENV=1), else tmux, else the other, else unavailable.
  * decideMultiplexer is pure (no io); resolveMultiplexer binds the chosen backend.
  */
+import { resolveMossEnv } from "@moss/db";
 import type { ChatMultiplexerChoice } from "@moss/shared";
 
 import type { TmuxIo } from "./tmux-bridge.js";
@@ -43,7 +44,7 @@ export function decideMultiplexer(input: MultiplexerDecisionInput): MultiplexerD
 
   // 1. Env override wins, BYPASSES the probe (deploy escape hatch). The operator owns
   //    correctness; a missing binary or root pane fails loudly at launch (→ 503).
-  const override = env.JARVIS_MULTIPLEXER?.trim().toLowerCase();
+  const override = resolveMossEnv(env, "JARVIS_MULTIPLEXER")?.trim().toLowerCase();
   if (override === "tmux" || override === "herdr") {
     return { ok: true, kind: override, source: "env" };
   }
@@ -97,6 +98,8 @@ export function resolveMultiplexer(input: MultiplexerResolutionInput): Multiplex
   const mux =
     decision.kind === "herdr"
       ? new HerdrMultiplexer(input.io, { env: input.env })
-      : new TmuxMultiplexer(input.io, { homeBase: input.env.JARVIS_CLI_HOME_BASE });
+      : new TmuxMultiplexer(input.io, {
+          homeBase: resolveMossEnv(input.env, "JARVIS_CLI_HOME_BASE")
+        });
   return { ok: true, mux, source: decision.source };
 }

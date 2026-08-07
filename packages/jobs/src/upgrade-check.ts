@@ -6,7 +6,7 @@ import {
   sendJob
 } from "./pg-boss.js";
 import type { Kysely } from "kysely";
-import type { MossDatabase } from "@moss/db";
+import { resolveMossEnv, type MossDatabase } from "@moss/db";
 import { compareMossVersions } from "@moss/module-sdk";
 
 const UPGRADE_CHECK_CRON = "0 0 * * *"; // Daily at midnight
@@ -31,7 +31,7 @@ export async function handleUpgradeCheckJob(
   workerDb: Kysely<MossDatabase>,
   boss?: PgBoss
 ): Promise<void> {
-  const currentVersion = process.env.JARVIS_APP_VERSION;
+  const currentVersion = resolveMossEnv(process.env, "JARVIS_APP_VERSION");
   if (!currentVersion) {
     return; // Not running a tagged release, nothing to check
   }

@@ -17,7 +17,12 @@ import { fileURLToPath } from "node:url";
 
 import { Client } from "pg";
 
-import { getMossDatabaseUrls, moduleInstallRoleName, moduleRuntimeRoleName } from "@moss/db";
+import {
+  getMossDatabaseUrls,
+  moduleInstallRoleName,
+  moduleRuntimeRoleName,
+  resolveMossEnv
+} from "@moss/db";
 import { CORE_VERSION } from "@moss/module-sdk";
 import { getAllQueueDefinitions } from "@moss/module-registry";
 import {
@@ -149,7 +154,7 @@ export async function reconcileModules(options: ReconcileModulesOptions): Promis
     // Phase 3 — ensure-present (spec §7b): JARVIS_MODULES_ENSURE lists modules that
     // must exist on disk. One-way: removing an id from the list never uninstalls.
     // Already-on-disk ids are skipped here (any staged update still flows via phase 5).
-    const ensure = parseModulesEnsure(env.JARVIS_MODULES_ENSURE ?? "");
+    const ensure = parseModulesEnsure(resolveMossEnv(env, "JARVIS_MODULES_ENSURE") ?? "");
     for (const parseError of ensure.errors) {
       warn("*", "ensure-parse", new Error(parseError));
     }

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { createDatabase, DataContextRunner, type AccessContext } from "@moss/db";
+import { createDatabase, DataContextRunner, resolveMossEnv, type AccessContext } from "@moss/db";
 import { VaultContextRunner } from "@moss/vault";
 import {
   IngestionService,
@@ -12,7 +12,7 @@ import {
 import { RuntimeConfigResolver } from "@moss/settings";
 
 function requireEnv(name: string): string {
-  const value = process.env[name];
+  const value = resolveMossEnv(process.env, name);
   if (!value) {
     console.error(`Missing required env var: ${name}`);
     process.exit(1);

@@ -1,3 +1,5 @@
+import { resolveMossEnv } from "@moss/db";
+
 import type { EmbeddingProvider } from "./embedding-provider.js";
 import { StubEmbeddingProvider } from "./embedding-provider.js";
 import { LocalEmbeddingProvider } from "./local-embedding-provider.js";
@@ -28,7 +30,9 @@ function isStubEmbeddingAllowed(env: NodeJS.ProcessEnv): boolean {
   // VITEST is set unconditionally by the test runner (more reliable than NODE_ENV, which some
   // tooling overrides) — same signal packages/auth/src/index.ts uses for its own test-only gate.
   return (
-    env.VITEST === "true" || env.NODE_ENV === "test" || env.JARVIS_ALLOW_STUB_EMBEDDINGS === "1"
+    env.VITEST === "true" ||
+    env.NODE_ENV === "test" ||
+    resolveMossEnv(env, "JARVIS_ALLOW_STUB_EMBEDDINGS") === "1"
   );
 }
 

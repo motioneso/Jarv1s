@@ -295,7 +295,8 @@ export default defineConfig({
       "spikes/**/*.test.ts",
       "tests/**/*.test.ts",
       "tests/**/*.test.tsx",
-      "packages/people/src/__tests__/**/*.test.ts"
+      "packages/people/src/__tests__/**/*.test.ts",
+      "packages/db/src/__tests__/**/*.test.ts"
     ],
     setupFiles: ["tests/setup-env.ts"],
     hookTimeout: 30_000,

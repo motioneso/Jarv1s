@@ -1,6 +1,7 @@
 // #964: where the registry lives and how we talk to it. The index URL and host list
 // are HARDCODED — an env override exists for tests only and is refused outright in
 // production so no runtime configuration can redirect module downloads.
+import { resolveMossEnv } from "@moss/db";
 import { createHostPinnedFetch } from "@moss/host-fetch";
 
 import { validateRegistryIndex, type ModuleRegistryIndex } from "./index-schema.js";
@@ -19,7 +20,7 @@ export const REGISTRY_ALLOWED_HOSTS = [
 export const REGISTRY_INDEX_MAX_BYTES = 1024 * 1024;
 
 export function resolveRegistryIndexUrl(env: NodeJS.ProcessEnv): string {
-  const override = env.JARVIS_MODULE_REGISTRY_URL;
+  const override = resolveMossEnv(env, "JARVIS_MODULE_REGISTRY_URL");
   if (override !== undefined && override !== "") {
     if (env.NODE_ENV === "production") {
       throw new Error("JARVIS_MODULE_REGISTRY_URL is test-only and refused in production");
@@ -38,7 +39,8 @@ export function resolveRegistryIndexUrl(env: NodeJS.ProcessEnv): string {
  */
 export function createRegistryFetch(env: NodeJS.ProcessEnv, fetchFn?: typeof fetch): typeof fetch {
   if (fetchFn) return fetchFn;
-  if (env.JARVIS_MODULE_REGISTRY_URL !== undefined && env.JARVIS_MODULE_REGISTRY_URL !== "") {
+  const registryUrlOverride = resolveMossEnv(env, "JARVIS_MODULE_REGISTRY_URL");
+  if (registryUrlOverride !== undefined && registryUrlOverride !== "") {
     if (env.NODE_ENV === "production") {
       throw new Error("JARVIS_MODULE_REGISTRY_URL is test-only and refused in production");
     }

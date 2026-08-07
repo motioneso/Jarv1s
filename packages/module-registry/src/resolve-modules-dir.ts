@@ -18,10 +18,13 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
+import { resolveMossEnv } from "@moss/db";
+
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 export function resolveModulesDir(env: NodeJS.ProcessEnv = process.env): string {
-  if (env.JARVIS_MODULES_DIR) return env.JARVIS_MODULES_DIR;
+  const modulesDir = resolveMossEnv(env, "JARVIS_MODULES_DIR");
+  if (modulesDir) return modulesDir;
 
   let dir = MODULE_DIR;
   for (let i = 0; i < 16; i++) {

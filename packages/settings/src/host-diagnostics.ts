@@ -44,10 +44,13 @@ export interface BuildHostDiagnosticsInput {
 // Known secret-bearing env key names that must never appear in any output string.
 const FORBIDDEN_SECRET_KEYS: readonly string[] = [
   "JARVIS_CONNECTOR_SECRET_KEY",
+  "MOSS_CONNECTOR_SECRET_KEY",
   "JARVIS_AI_SECRET_KEY",
+  "MOSS_AI_SECRET_KEY",
   "BETTER_AUTH_SECRET",
   "DATABASE_URL",
-  "JARVIS_DATABASE_URL"
+  "JARVIS_DATABASE_URL",
+  "MOSS_DATABASE_URL"
 ];
 
 // Any URL scheme (postgres://, postgresql://, redis://, https://…) — connection

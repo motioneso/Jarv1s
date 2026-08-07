@@ -1,6 +1,7 @@
 import {
   JsonSecretCipher,
   resolveKeyring,
+  resolveMossEnv,
   type DataContextDb,
   type EncryptedSecret,
   type Keyring
@@ -95,7 +96,7 @@ export async function getWebSearchKeyConfig(
   if (await hasInstanceWebSearchKey(scopedDb)) {
     return { configured: true, source: "instance" };
   }
-  if ((env["JARVIS_BRAVE_SEARCH_API_KEY"] ?? "").length > 0) {
+  if ((resolveMossEnv(env, "JARVIS_BRAVE_SEARCH_API_KEY") ?? "").length > 0) {
     return { configured: true, source: "env" };
   }
   return { configured: false, source: null };

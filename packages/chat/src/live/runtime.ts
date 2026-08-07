@@ -8,7 +8,13 @@
  */
 import { AiRepository, createRealTmuxIo, type Multiplexer, type ProviderKind } from "@moss/ai";
 import { extractTimezone } from "../locale-utils.js";
-import type { DataContextDb, DataContextRunner, MossDatabase, PreferencesPort } from "@moss/db";
+import {
+  resolveMossEnv,
+  type DataContextDb,
+  type DataContextRunner,
+  type MossDatabase,
+  type PreferencesPort
+} from "@moss/db";
 import type { Kysely } from "kysely";
 import {
   CHAT_SETTINGS_PREFERENCE_KEY,
@@ -89,7 +95,7 @@ export function createRealEngineFactory(opts: { mux?: Multiplexer } = {}): ChatE
   // Containerized deploys (deployable-stack §6) point this at the bind-mounted host
   // CLI-dir base (/host-home) so transcripts written by the host CLI are read back
   // correctly. Unset on a host install → the engine uses the OS home (unchanged).
-  const homeBase = process.env.JARVIS_CLI_HOME_BASE;
+  const homeBase = resolveMossEnv(process.env, "JARVIS_CLI_HOME_BASE");
   return (provider, sessionKey, engineOpts) =>
     // #1350: selection lives in ONE shared helper so this root and the cli-runner's
     // EngineHost cannot drift apart on which engine a mode gets.
@@ -393,7 +399,7 @@ export function createChatSessionRuntime(deps: CreateChatSessionRuntimeDeps): Ch
         createRealTmuxIo(),
         resolveChatHome(),
         sessionKey,
-        process.env.JARVIS_CLI_HOME_BASE
+        resolveMossEnv(process.env, "JARVIS_CLI_HOME_BASE")
       ),
     serverOwnsDrain,
     recall: deps.recall,

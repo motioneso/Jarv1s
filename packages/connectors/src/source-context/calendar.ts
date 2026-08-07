@@ -1,4 +1,4 @@
-import type { CalendarEvent, DataContextDb } from "@moss/db";
+import { resolveMossEnv, type CalendarEvent, type DataContextDb } from "@moss/db";
 
 import type { ConnectorAccountSafeRow } from "../repository.js";
 import type { GoogleCalendarEvent } from "../google-api-client.js";
@@ -23,7 +23,7 @@ import {
 export const CALENDAR_DEFAULT_LOOKAHEAD_MS = 48 * 60 * 60 * 1000;
 export const CALENDAR_DEFAULT_LIMIT = 50;
 
-const DEFAULT_TIMEZONE = process.env.JARVIS_DEFAULT_TZ ?? "America/New_York";
+const DEFAULT_TIMEZONE = resolveMossEnv(process.env, "JARVIS_DEFAULT_TZ") ?? "America/New_York";
 const EARLY_LOCAL_HOUR = 9;
 const LATE_LOCAL_HOUR = 18;
 

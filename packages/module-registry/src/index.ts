@@ -139,7 +139,13 @@ import {
   type GoogleConnectionService
 } from "@moss/connectors";
 import type { ActiveModulesResolver } from "@moss/ai";
-import type { AccessContext, DataContextDb, DataContextRunner, MossDatabase } from "@moss/db";
+import {
+  resolveMossEnv,
+  type AccessContext,
+  type DataContextDb,
+  type DataContextRunner,
+  type MossDatabase
+} from "@moss/db";
 import { resolveTimeZone, type ProactiveSource } from "@moss/shared";
 import {
   emailModuleManifest,
@@ -661,7 +667,9 @@ function buildNewsDiscoveryPorts(
  * is undefined (a no-op) everywhere else.
  */
 function buildUatNewsPreviewOverride(): NewsRoutesDependencies["previewOverride"] | undefined {
-  const transientInput = process.env.JARVIS_UAT_NEWS_TRANSIENT_INPUT?.trim();
+  const transientInput = resolveMossEnv(process.env, "JARVIS_UAT_NEWS_TRANSIENT_INPUT")?.trim();
+  // JARVIS_UAT_SEED_CONFIRM is a Tier C carve-out (never renamed to MOSS_*) — left as a
+  // direct read.
   if (process.env.JARVIS_UAT_SEED_CONFIRM !== "1" || !transientInput) return undefined;
   return (input) =>
     input === transientInput
@@ -1271,7 +1279,8 @@ const BUILT_IN_MODULES: readonly BuiltInModuleRegistration[] = [
         deps.dataContext,
         (_job, scopedDb) =>
           runNotificationDigestCompose(scopedDb, {
-            baseUrl: process.env.JARVIS_PUBLIC_BASE_URL ?? "http://localhost:3000",
+            baseUrl:
+              resolveMossEnv(process.env, "JARVIS_PUBLIC_BASE_URL") ?? "http://localhost:3000",
             preferencesRepository: new PreferencesRepository(),
             notificationsRepository: new NotificationsRepository(),
             notificationPreferencePort: createNotificationPreferencePort(),

@@ -12,6 +12,7 @@ import pg from "pg";
 import {
   AuthSessionResolver,
   getMossDatabaseUrls,
+  resolveMossEnv,
   type AccessContext,
   type DataContextRunner,
   type MossDatabase
@@ -138,7 +139,7 @@ export function createMossAuthRuntime(options: CreateMossAuthRuntimeOptions): Mo
   const env = options.env ?? process.env;
   const pool = new Pool({
     connectionString: options.connectionString ?? getMossDatabaseUrls(env).auth,
-    max: Number(env.JARVIS_AUTH_DB_POOL_SIZE ?? 4),
+    max: Number(resolveMossEnv(env, "JARVIS_AUTH_DB_POOL_SIZE") ?? 4),
     options: "-c search_path=app,public"
   });
   const legacySessions = new AuthSessionResolver(options.appDb);
@@ -768,7 +769,7 @@ function hasCredentialPair(
 }
 
 function readString(env: NodeJS.ProcessEnv, key: string): string | undefined {
-  const value = env[key]?.trim();
+  const value = resolveMossEnv(env, key)?.trim();
 
   return value || undefined;
 }

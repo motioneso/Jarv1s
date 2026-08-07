@@ -15,10 +15,20 @@ const ALLOWED_KEYS: readonly string[] = [
   "HOME",
   "PATH",
   "NPM_CONFIG_PREFIX",
+  // JARVIS_CLI_TOOLS_PREFIX, JARVIS_HOST_UID, JARVIS_HOST_GID are Moss-rename Tier C
+  // carve-outs (docs/superpowers/specs/2026-08-06-moss-rename-tier-c-carveout.md) — never
+  // renamed to MOSS_*, so only the JARVIS_ spelling is allowlisted for them.
   "JARVIS_CLI_TOOLS_PREFIX",
+  // JARVIS_CLI_HOME / _HOME_BASE and JARVIS_CLI_NEUTRAL_BASE are in scope for the #1443
+  // dual-read shim. This filter is a plain passthrough (not a resolver, R6 above), so both
+  // spellings are allowlisted here — whichever one the cli-runner server process actually
+  // has set is the one that reaches the child.
   "JARVIS_CLI_HOME",
+  "MOSS_CLI_HOME",
   "JARVIS_CLI_HOME_BASE",
+  "MOSS_CLI_HOME_BASE",
   "JARVIS_CLI_NEUTRAL_BASE",
+  "MOSS_CLI_NEUTRAL_BASE",
   "JARVIS_HOST_UID",
   "JARVIS_HOST_GID",
   "TERM",

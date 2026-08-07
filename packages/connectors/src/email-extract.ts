@@ -1,5 +1,6 @@
 import type { GmailMessageFull, GmailPayloadPart } from "./google-api-client.js";
 import type { StructuredRunPriority, StructuredRunScope, StructuredTelemetry } from "@moss/ai";
+import { resolveMossEnv } from "@moss/db";
 
 /** Max decoded body length sent to the LLM (bounded to protect prompt limits, spec risk #6). */
 export const MAX_BODY_CHARS = 20_000;
@@ -623,7 +624,8 @@ export async function extractEmailSignalsBatch(
   options: EmailExtractOptions = {}
 ): Promise<EmailExtractResult[]> {
   const timeoutMs =
-    options.callTimeoutMs ?? Number(process.env.JARVIS_EMAIL_LLM_TIMEOUT_MS ?? "20000");
+    options.callTimeoutMs ??
+    Number(resolveMossEnv(process.env, "JARVIS_EMAIL_LLM_TIMEOUT_MS") ?? "20000");
   const extracted: EmailExtractResult[] = [];
 
   for (const [batchIndex, batch] of partitionEmailExtractionBatches(messages).entries()) {
@@ -705,7 +707,8 @@ export async function extractEmailSignals(
   options: EmailExtractOptions = {}
 ): Promise<EmailExtractResult> {
   const timeoutMs =
-    options.callTimeoutMs ?? Number(process.env.JARVIS_EMAIL_LLM_TIMEOUT_MS ?? "20000");
+    options.callTimeoutMs ??
+    Number(resolveMossEnv(process.env, "JARVIS_EMAIL_LLM_TIMEOUT_MS") ?? "20000");
 
   const prompt = buildPrompt(parsed);
   let result: EmailExtractResult;

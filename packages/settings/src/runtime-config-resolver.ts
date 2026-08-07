@@ -1,4 +1,4 @@
-import type { DataContextDb } from "@moss/db";
+import { resolveMossEnv, type DataContextDb } from "@moss/db";
 
 import {
   EMBED_PROVIDER_CONFIG_KEY,
@@ -94,7 +94,7 @@ export class RuntimeConfigResolver {
       return { entry, value: instanceValue, source: "instance" };
     }
 
-    const envValue = this.env[entry.envVar];
+    const envValue = resolveMossEnv(this.env, entry.envVar);
     if (envValue && envValue.length > 0) {
       return { entry, value: envValue, source: "env" };
     }

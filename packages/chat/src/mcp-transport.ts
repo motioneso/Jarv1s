@@ -6,6 +6,7 @@ import type {
   NativeToolPermissionRequest,
   SessionTokenRegistry
 } from "@moss/ai";
+import { resolveMossEnv } from "@moss/db";
 import { mcpSessionRateLimitKey } from "@moss/module-sdk";
 import { parsePositiveIntEnv, type AiAssistantToolDto } from "@moss/shared";
 
@@ -20,7 +21,7 @@ const MCP_PROTOCOL_VERSION = "2024-11-05";
 // Override the limit via env: JARVIS_RL_MCP_MAX=<n> (requests per minute, default 120).
 // tools/call is the only method that drives actual AI work; other methods (initialize,
 // tools/list, notifications/*) are cheap but share the same counter to avoid bypass.
-const MCP_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_MCP_MAX, 120);
+const MCP_MAX = parsePositiveIntEnv(resolveMossEnv(process.env, "JARVIS_RL_MCP_MAX"), 120);
 
 interface McpRequest {
   jsonrpc: string;
