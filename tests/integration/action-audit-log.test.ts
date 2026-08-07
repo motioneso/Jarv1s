@@ -243,7 +243,7 @@ describe("action audit log", () => {
     await bootstrapClient.connect();
     try {
       await bootstrapClient.query(
-        `UPDATE app.jarvis_action_audit_log
+        `UPDATE app.moss_action_audit_log
          SET occurred_at = $1
          WHERE id = $2`,
         [new Date(Date.now() - 91 * 24 * 60 * 60 * 1000), oldId]
@@ -275,7 +275,7 @@ describe("action audit log", () => {
     // jarvis_app_runtime has only SELECT + INSERT — UPDATE must be denied
     await expect(
       appDb
-        .updateTable("app.jarvis_action_audit_log")
+        .updateTable("app.moss_action_audit_log")
         .set({ error_class: "test" })
         .where("id", "=", randomUUID())
         .execute()
@@ -334,7 +334,7 @@ describe("action audit log", () => {
     await checkClient.connect();
     try {
       const result = await checkClient.query<{ id: string }>(
-        `SELECT id FROM app.jarvis_action_audit_log WHERE id = $1`,
+        `SELECT id FROM app.moss_action_audit_log WHERE id = $1`,
         [tempRowId]
       );
       expect(result.rows).toHaveLength(0);
@@ -349,7 +349,7 @@ describe("action audit log", () => {
     try {
       const result = await client.query<{ column_name: string }>(
         `SELECT column_name FROM information_schema.columns
-         WHERE table_schema = 'app' AND table_name = 'jarvis_action_audit_log'`
+         WHERE table_schema = 'app' AND table_name = 'moss_action_audit_log'`
       );
       const colNames = result.rows.map((r) => r.column_name);
       expect(colNames).toContain("input_summary");

@@ -1110,7 +1110,7 @@ export class AiRepository {
       // "admin-pin-unavailable" — the exact reason chat-drawer.tsx:163 + settings-ai-chat-lock-group
       // match to render the lock-unavailable state (bare "needs-config" was invisible to them). Not
       // logged on the user-facing path: it's visible in the UI and readPin resolves chat on every
-      // settings/pin read, so logging here would spam jarvis_error_log. Workers stay observable.
+      // settings/pin read, so logging here would spam moss_error_log. Workers stay observable.
       if (isUserFacing) return { model: null, reason: "admin-pin-unavailable" };
       // #874 HIGH-3: same rule for the mic — pinned user, provider can't serve voice → unavailable,
       // not a log entry, and audio never reaches the instance voice endpoint.
@@ -1318,7 +1318,7 @@ export class AiRepository {
   }
 
   /**
-   * #870/H3: record a needs-config miss for a WORKER capability to jarvis_error_log (0145) so a
+   * #870/H3: record a needs-config miss for a WORKER capability to moss_error_log (0145) so a
    * mis-provisioned instance's silently-skipped distillation/briefings are observable. Only called
    * on worker paths — user-facing needs-config is already visible in the admin UI, so logging there
    * (on every settings/pin read) would spam the log. Best-effort; never breaks resolution.
@@ -1970,7 +1970,7 @@ export class AiRepository {
   async insertActionAuditLog(scopedDb: DataContextDb, input: InsertAuditLogInput): Promise<void> {
     assertDataContextDb(scopedDb);
     await scopedDb.db
-      .insertInto("app.jarvis_action_audit_log")
+      .insertInto("app.moss_action_audit_log")
       .values({
         id: input.id,
         owner_user_id: input.ownerUserId,
@@ -1995,7 +1995,7 @@ export class AiRepository {
   ): Promise<MossActionAuditLog[]> {
     assertDataContextDb(scopedDb);
     let query = scopedDb.db
-      .selectFrom("app.jarvis_action_audit_log")
+      .selectFrom("app.moss_action_audit_log")
       .selectAll()
       .where("occurred_at", ">=", opts.since)
       .orderBy("occurred_at", "desc")
@@ -2012,7 +2012,7 @@ export class AiRepository {
 
   async purgeActionAuditLog(appDb: Kysely<MossDatabase>, olderThan: Date): Promise<number> {
     const result = await sql<{ count: number }>`
-      SELECT app.purge_jarvis_action_audit_log(${olderThan}) AS count
+      SELECT app.purge_moss_action_audit_log(${olderThan}) AS count
     `.execute(appDb);
     return Number(result.rows[0]?.count ?? 0);
   }
@@ -2020,7 +2020,7 @@ export class AiRepository {
   async recordError(scopedDb: DataContextDb, input: RecordErrorInput): Promise<void> {
     assertDataContextDb(scopedDb);
     await scopedDb.db
-      .insertInto("app.jarvis_error_log")
+      .insertInto("app.moss_error_log")
       .values({
         id: input.id,
         owner_user_id: sql<string>`app.current_actor_user_id()`,
@@ -2058,7 +2058,7 @@ export class AiRepository {
     const since = opts.since ?? new Date(Date.now() - 24 * 60 * 60 * 1000);
     const q = opts.query?.trim().toLowerCase();
     let query = scopedDb.db
-      .selectFrom("app.jarvis_error_log")
+      .selectFrom("app.moss_error_log")
       .selectAll()
       .where("occurred_at", ">=", since)
       .orderBy("occurred_at", "desc")
@@ -2080,7 +2080,7 @@ export class AiRepository {
 
   async purgeErrorLog(appDb: Kysely<MossDatabase>, olderThan: Date): Promise<number> {
     const result = await sql<{ count: number }>`
-      SELECT app.purge_jarvis_error_log(${olderThan}) AS count
+      SELECT app.purge_moss_error_log(${olderThan}) AS count
     `.execute(appDb);
     return Number(result.rows[0]?.count ?? 0);
   }

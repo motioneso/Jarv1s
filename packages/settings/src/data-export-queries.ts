@@ -300,7 +300,7 @@ export function jarvisActionAuditLogQuery(userId: string) {
       source_surface AS "sourceSurface",
       input_summary AS "inputSummary",
       occurred_at AS "occurredAt"
-    FROM app.jarvis_action_audit_log
+    FROM app.moss_action_audit_log
     WHERE owner_user_id = ${userId}::uuid
     ORDER BY occurred_at, id
   `;
@@ -733,7 +733,7 @@ export function jarvisGoalsQuery(userId: string) {
       next_suggested_action AS "nextSuggestedAction",
       created_at AS "createdAt",
       updated_at AS "updatedAt"
-    FROM app.jarvis_goals
+    FROM app.moss_goals
     WHERE owner_user_id = ${userId}::uuid
     ORDER BY created_at, id
   `;
@@ -752,7 +752,7 @@ export function jarvisGoalEvidenceQuery(userId: string) {
       summary,
       occurred_at AS "occurredAt",
       created_at AS "createdAt"
-    FROM app.jarvis_goal_evidence
+    FROM app.moss_goal_evidence
     WHERE owner_user_id = ${userId}::uuid
     ORDER BY created_at, id
   `;

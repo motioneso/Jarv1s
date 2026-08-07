@@ -320,7 +320,12 @@ describe("MVP foundation schema catalog", () => {
         // UPDATE-on-notifications + DELETE-on-notification_reads grant/policy pairs (both
         // runtime roles) the keyed upsert and its return-to-unread clear actually need.
         // Never applied under either earlier branch-local number.
-        { version: "0181", name: "0181_notification_event_keys.sql" }
+        { version: "0181", name: "0181_notification_event_keys.sql" },
+        // #1444 Phase 1b — renames the four app.jarvis_* tables (and every dependent named
+        // object) to app.moss_*, plus CREATE OR REPLACE for the three functions whose bodies
+        // referenced a renamed table by literal name. DO NOT MERGE ALONE — lands only in the
+        // #1444 cutover window alongside the out-of-band role rename.
+        { version: "0182", name: "0182_moss_rename.sql" }
       ]);
     } finally {
       await client.end();
