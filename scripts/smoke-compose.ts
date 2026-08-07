@@ -28,8 +28,12 @@ export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): Compo
   const publicPort = isProd
     ? (process.env.JARVIS_WEB_PORT ?? "1533")
     : (input.apiPort ?? process.env.JARVIS_API_PORT ?? "3000");
+  // Compose project, image ref, service name, and DB name below still say "jarv1s",
+  // not "moss": they're coupled to infra/docker-compose.prod.yml (service name, image
+  // ref, POSTGRES_DB) and .github/workflows/ci.yml (the `-p` teardown project). Renaming
+  // any one alone breaks the smoke; all four move together in the #1444 cutover PR.
   const composeArgs = isProd
-    ? ["compose", "-p", "moss-prod-smoke", "-f", composeFile]
+    ? ["compose", "-p", "jarv1s-prod-smoke", "-f", composeFile]
     : ["compose", "-f", composeFile];
 
   const imageTag = process.env.JARVIS_IMAGE_TAG ?? "smoke";
@@ -37,7 +41,7 @@ export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): Compo
     ? [
         {
           command: "docker",
-          args: ["build", "-t", `ghcr.io/motioneso/moss:${imageTag}`, "-f", "Dockerfile", "."],
+          args: ["build", "-t", `ghcr.io/motioneso/jarv1s:${imageTag}`, "-f", "Dockerfile", "."],
           description: "Build the Moss image locally and tag it to the prod GHCR ref"
         }
       ]
@@ -53,7 +57,7 @@ export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): Compo
   const upCommand: ComposeSmokeCommand = isProd
     ? {
         command: "docker",
-        args: [...composeArgs, "up", "-d", "postgres", "moss", "--wait"],
+        args: [...composeArgs, "up", "-d", "postgres", "jarv1s", "--wait"],
         description: "Start Postgres and Moss services"
       }
     : {
@@ -130,11 +134,11 @@ function ensureProdSmokeEnv(composeFile: string): () => void {
       "NODE_ENV=production",
       "POSTGRES_PASSWORD=postgres",
       "JARVIS_DOCKER_SUBNET=10.253.0.0/24",
-      "JARVIS_BOOTSTRAP_DATABASE_URL=postgres://postgres:postgres@postgres:5432/moss",
-      "JARVIS_MIGRATION_DATABASE_URL=postgres://jarvis_migration_owner:ci-migration-pw@postgres:5432/moss",
-      "JARVIS_APP_DATABASE_URL=postgres://jarvis_app_runtime:ci-app-pw@postgres:5432/moss",
-      "JARVIS_AUTH_DATABASE_URL=postgres://jarvis_auth_runtime:ci-auth-pw@postgres:5432/moss",
-      "JARVIS_WORKER_DATABASE_URL=postgres://jarvis_worker_runtime:ci-worker-pw@postgres:5432/moss",
+      "JARVIS_BOOTSTRAP_DATABASE_URL=postgres://postgres:postgres@postgres:5432/jarv1s",
+      "JARVIS_MIGRATION_DATABASE_URL=postgres://jarvis_migration_owner:ci-migration-pw@postgres:5432/jarv1s",
+      "JARVIS_APP_DATABASE_URL=postgres://jarvis_app_runtime:ci-app-pw@postgres:5432/jarv1s",
+      "JARVIS_AUTH_DATABASE_URL=postgres://jarvis_auth_runtime:ci-auth-pw@postgres:5432/jarv1s",
+      "JARVIS_WORKER_DATABASE_URL=postgres://jarvis_worker_runtime:ci-worker-pw@postgres:5432/jarv1s",
       "BETTER_AUTH_SECRET=smoke-only-not-a-real-secret-0000000000",
       "JARVIS_CONNECTOR_SECRET_KEY=00000000000000000000000000000000",
       "JARVIS_AI_SECRET_KEY=11111111111111111111111111111111",
