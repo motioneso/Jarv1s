@@ -13,8 +13,11 @@
  * can be deleted outright (see the design doc, Tier C).
  *
  * Carve-out: a name in `CARVE_OUT` is read by something this shim can't reach — Docker Compose
- * host-side `${JARVIS_X}` interpolation in `infra/docker-compose*.yml`, or one of a handful of
- * shell scripts that read `$JARVIS_X` directly, never through Node. For those names this function
+ * host-side `${JARVIS_X}` interpolation in `infra/docker-compose*.yml`, one of a handful of shell
+ * scripts that read `$JARVIS_X` directly, never through Node, or a build-time config file
+ * (`apps/web/vite.config.ts`, `tests/uat/playwright.uat.config.ts`) loaded by a plain `node`
+ * config-load step that runs outside the application's module graph, before any app code runs —
+ * `@moss/db`'s own barrel can't be pulled in there. For those names this function
  * is a plain passthrough: no `MOSS_` lookup, no warning, `env[jarvisName]` unchanged. Doing
  * anything else would silently break the name everywhere else it's read, since those other
  * readers never see `MOSS_X`. The full per-variable reasoning for every carved-out name lives in
@@ -25,6 +28,7 @@
 export const CARVE_OUT: ReadonlySet<string> = new Set([
   "JARVIS_ALLOW_STALE",
   "JARVIS_API_PORT",
+  "JARVIS_API_PROXY_TARGET",
   "JARVIS_BACKUP_DAILY_KEEP",
   "JARVIS_BACKUP_DIR",
   "JARVIS_BACKUP_OFFHOST_CMD",
@@ -58,6 +62,7 @@ export const CARVE_OUT: ReadonlySet<string> = new Set([
   "JARVIS_SMOKE_SURFACE",
   "JARVIS_SMOKE_TIMEOUT_MS",
   "JARVIS_SMOKE_USER_EMAIL",
+  "JARVIS_UAT_BASE_URL",
   "JARVIS_UAT_REAL_CHAT_ENV_FILE",
   "JARVIS_UAT_SEED_CONFIRM",
   "JARVIS_UAT_SEED_EXCLUDE_CHUNKS",

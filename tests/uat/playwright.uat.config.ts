@@ -1,8 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-import { resolveMossEnv } from "@moss/db";
-
-const baseURL = resolveMossEnv(process.env, "JARVIS_UAT_BASE_URL");
+const baseURL = process.env.JARVIS_UAT_BASE_URL;
 if (!baseURL) {
   throw new Error(
     "JARVIS_UAT_BASE_URL is not set — tests/uat/playwright.uat.config.ts must be invoked via " +

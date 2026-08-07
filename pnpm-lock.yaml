@@ -214,9 +214,6 @@ importers:
         specifier: ^4
         version: 4.0.1
     devDependencies:
-      '@moss/db':
-        specifier: workspace:*
-        version: link:../../packages/db
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.17

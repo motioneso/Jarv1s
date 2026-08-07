@@ -13,9 +13,10 @@ Every `JARVIS_*` name in the repository was classified into exactly one of four 
 1. **Shimmed** — read via `resolveMossEnv(env, "JARVIS_X")` in TypeScript. Prefers `MOSS_X`, falls
    back to `JARVIS_X` with a one-time warning.
 2. **Carved out** — read by something the TypeScript shim cannot reach: Docker Compose host-side
-   `${JARVIS_X}` interpolation in `infra/docker-compose*.yml`, or one of the seven shell scripts
-   that read `$JARVIS_X` directly. Renaming these requires the host env file and the reader to
-   change in the same step (Tier D/PR4 cutover), so this PR leaves them as plain
+   `${JARVIS_X}` interpolation in `infra/docker-compose*.yml`, one of the seven shell scripts
+   that read `$JARVIS_X` directly, or a build-time config file loaded by plain Node before any
+   app code runs (see "Build-time config files" below). Renaming these requires the host env file
+   and the reader to change in the same step (Tier D/PR4 cutover), so this PR leaves them as plain
    `env[jarvisName]` passthroughs — `resolveMossEnv` special-cases every carved-out name to do
    nothing.
 3. **Deliberately deferred (documented gap)** — read by code that exists but is outside the
@@ -53,13 +54,38 @@ Note the distinction that decides this, since most compose references are _not_ 
   warning), so these stay shimmed.
 
 Re-audited against this rule: all 19 host-interpolated `${JARVIS_*}` names across `infra/*.yml` are
-in the carve-out table below, and no shimmed name is host-interpolated. Ten shimmed names are
-_mentioned_ in a compose file (`JARVIS_API_PROXY_TARGET`, `JARVIS_CHAT_HOME`, `JARVIS_CLI_HOME`,
+in the carve-out table below, and no shimmed name is host-interpolated. Ten names are _mentioned_ in
+a compose file (`JARVIS_API_PROXY_TARGET`, `JARVIS_CHAT_HOME`, `JARVIS_CLI_HOME`,
 `JARVIS_CLI_HOME_BASE`, `JARVIS_CLI_NEUTRAL_BASE`, `JARVIS_MODULES_DIR`, `JARVIS_MULTIPLEXER`,
-`JARVIS_NOTES_ROOTS`, `JARVIS_WEB_DIST_DIR`, and `JARVIS_CLI_RUNNER_SOCKET`) but only the last is
-host-interpolated — and it is already carved out. The other nine are literal-value `environment:`
-entries or comments, which the rule leaves shimmed. There is also no implicit `- JARVIS_X`
-pass-through form anywhere in `infra/`, which would otherwise be host-side too.
+`JARVIS_NOTES_ROOTS`, `JARVIS_WEB_DIST_DIR`, and `JARVIS_CLI_RUNNER_SOCKET`), of which two are
+already carved out — but for two different reasons, not one. `JARVIS_CLI_RUNNER_SOCKET` is
+host-interpolated. `JARVIS_API_PROXY_TARGET` is a literal-value `environment:` entry in compose
+(`infra/docker-compose.yml:124`, not host-interpolated) but is carved out anyway for the unrelated
+"build-time config files" reason above — `apps/web/vite.config.ts` reads it directly. The other
+eight are literal-value `environment:` entries or comments with no other carve-out reason, which the
+rule leaves shimmed. There is also no implicit `- JARVIS_X` pass-through form anywhere in `infra/`,
+which would otherwise be host-side too.
+
+### Build-time config files (a second carve-out category, not host expansion)
+
+A vite config, playwright config, or any other build/test-runner config that plain `node` loads
+before invoking the tool proper sits **outside the application's module graph** — the same
+structural class as Compose host-side interpolation, even though no host process substitutes the
+value. `apps/web/vite.config.ts` and `tests/uat/playwright.uat.config.ts` are both loaded this way:
+Vite's Docker-build config-load step and Playwright's config-load step both run as plain Node with
+no TypeScript path resolution, so an `import { resolveMossEnv } from "@moss/db"` there drags in
+`packages/db/src/index.ts`'s full barrel — which re-exports `./auth-session.js`, a TypeScript-style
+`.js` specifier plain Node cannot resolve — and the config load crashes before the app or test
+suite ever starts. `JARVIS_API_PROXY_TARGET` (read only in `apps/web/vite.config.ts`) and
+`JARVIS_UAT_BASE_URL` (read only in `tests/uat/playwright.uat.config.ts`, outside its 20 bare
+`process.env` reads in `tests/uat/specs/*.uat.spec.ts` — see "Also deliberately unfixed" below) are
+both carved out for this reason. `playwright.config.ts` at the repo root does not read any
+`JARVIS_*` name and was not touched.
+
+This carve-out reason was missing from the original enumeration, which was built only from
+`infra/*.yml` and `scripts/*.sh` — build-time config files were never in that enumeration set. Any
+future config file added under this same loading pattern (plain `node`, before the module graph
+exists) should be checked against this category before wiring it through `resolveMossEnv`.
 
 ## Count reconciliation
 
@@ -72,13 +98,13 @@ pass-through form anywhere in `infra/`, which would otherwise be host-side too.
   historical doc/plan files under `docs/` reference names that were renamed or removed long ago.
 - The verified figure, built by classifying every match per the method above: **115 real,
   distinct `JARVIS_*` environment variable names**, made up of:
-  - **41 carved out** (table below) — `grep -c '^  "JARVIS_' packages/db/src/env.ts`
-  - **67 shimmed** (wrapped in `resolveMossEnv` at their production read site) — the 70 names
+  - **43 carved out** (table below) — `grep -c '^  "JARVIS_' packages/db/src/env.ts`
+  - **65 shimmed** (wrapped in `resolveMossEnv` at their production read site) — the 68 names
     returned by the command below, minus the three non-variables itemised under it
   - **7 in the deliberately-deferred gap** (below)
 
   ```bash
-  # the 70 raw hits; subtract JARVIS_FOO, JARVIS_CLI_RUNNER_SOCKET, JARVIS_PGDATABASE => 67
+  # the 68 raw hits; subtract JARVIS_FOO, JARVIS_CLI_RUNNER_SOCKET, JARVIS_PGDATABASE => 65
   grep -rhon 'resolveMossEnv([^)]*"JARVIS_[A-Z0-9_]*"' \
     --include=*.ts --include=*.tsx --include=*.mjs packages apps scripts tests infra \
     | grep -o 'JARVIS_[A-Z0-9_]*' | sort -u
@@ -91,7 +117,7 @@ pass-through form anywhere in `infra/`, which would otherwise be host-side too.
 
 - The shimmed figure needs one correction that an earlier revision of this document got wrong. Its
   stated method — "extract every literal second argument to `resolveMossEnv(...)` across `**/*.ts`"
-  — yields **70** names, but three of those are not shimmed variables, so 41 + 70 + 7 = 118
+  — yields **68** names, but three of those are not shimmed variables, so 43 + 68 + 7 = 118
   double-counted. `resolveMossEnv` is a _passthrough_ for carved-out names, so appearing as an
   argument to it does not prove a name is shimmed. The three:
   - `JARVIS_FOO` — a placeholder inside the doc comment on `packages/db/src/env.ts`, not a variable.
@@ -109,54 +135,57 @@ pass-through form anywhere in `infra/`, which would otherwise be host-side too.
 - `__JARVIS_MODULE_RUNTIME__` is excluded entirely — it is a `window`/`globalThis` property set by
   the module runtime host, never a `process.env` name, despite matching the grep pattern.
 
-## Carve-out (41 names)
+## Carve-out (43 names)
 
-Read by Docker Compose host-side interpolation, a named shell script, or both. `resolveMossEnv`
-passes these straight through with no `MOSS_` lookup and no warning.
+Read by Docker Compose host-side interpolation, a named shell script, a build-time config file
+outside the module graph, or some combination. `resolveMossEnv` passes these straight through with
+no `MOSS_` lookup and no warning.
 
-| Variable                         | Carved out because                                                                                                                                                                                                                             |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `JARVIS_ALLOW_STALE`             | `scripts/check-tree-fresh.sh` reads `${JARVIS_ALLOW_STALE:-}` directly                                                                                                                                                                         |
-| `JARVIS_API_PORT`                | compose interpolation (`infra/docker-compose.prod.yml`)                                                                                                                                                                                        |
-| `JARVIS_BACKUP_DAILY_KEEP`       | `scripts/backup-full.sh`                                                                                                                                                                                                                       |
-| `JARVIS_BACKUP_DIR`              | `scripts/backup-full.sh`                                                                                                                                                                                                                       |
-| `JARVIS_BACKUP_OFFHOST_CMD`      | `scripts/backup-full.sh`                                                                                                                                                                                                                       |
-| `JARVIS_BACKUP_PG_CONTAINER`     | `scripts/backup-full.sh`                                                                                                                                                                                                                       |
-| `JARVIS_BACKUP_WEEKLY_KEEP`      | `scripts/backup-full.sh`                                                                                                                                                                                                                       |
-| `JARVIS_CLI_PER_USER_UID`        | must be both-set-or-both-unset with the RPC secret pair below; also compose                                                                                                                                                                    |
-| `JARVIS_CLI_RUNNER_RPC_SECRET`   | compose `:?`-required interpolation; must stay in lockstep with `JARVIS_CLI_RUNNER_SOCKET` (both-set-or-both-unset trap)                                                                                                                       |
-| `JARVIS_CLI_RUNNER_SINGLE_USER`  | compose interpolation                                                                                                                                                                                                                          |
-| `JARVIS_CLI_RUNNER_SOCKET`       | compose interpolation; lockstep pair with the RPC secret                                                                                                                                                                                       |
-| `JARVIS_CLI_TOOLS_PREFIX`        | compose interpolation                                                                                                                                                                                                                          |
-| `JARVIS_DEV_EMAIL`               | `scripts/redeploy-external-module.sh`                                                                                                                                                                                                          |
-| `JARVIS_DEV_PASSWORD`            | `scripts/redeploy-external-module.sh`                                                                                                                                                                                                          |
-| `JARVIS_DOCKER_SUBNET`           | compose interpolation                                                                                                                                                                                                                          |
-| `JARVIS_EMBED_MODEL`             | compose interpolation                                                                                                                                                                                                                          |
-| `JARVIS_EMBED_PROVIDER`          | compose interpolation                                                                                                                                                                                                                          |
-| `JARVIS_ENV_FILE`                | compose `--env-file` selection, host-side only                                                                                                                                                                                                 |
-| `JARVIS_ENV_FILE_ABS`            | derived host-side sibling of `JARVIS_ENV_FILE`                                                                                                                                                                                                 |
-| `JARVIS_GATE_DIR`                | `scripts/run-gate.sh`                                                                                                                                                                                                                          |
-| `JARVIS_GATE_STALE_SECS`         | `scripts/run-gate.sh`                                                                                                                                                                                                                          |
-| `JARVIS_HOST_GID`                | compose interpolation                                                                                                                                                                                                                          |
-| `JARVIS_HOST_UID`                | compose interpolation                                                                                                                                                                                                                          |
-| `JARVIS_IMAGE_TAG`               | compose `:?`-required interpolation                                                                                                                                                                                                            |
-| `JARVIS_MCP_SERVER_URL`          | compose interpolation                                                                                                                                                                                                                          |
-| `JARVIS_NOTES_VAULT_HOST_PATH`   | compose `:?`-required interpolation (`docker-compose.notes.yml`); also read plainly in `scripts/setup-prod.ts`                                                                                                                                 |
-| `JARVIS_PG_CONTAINER`            | `scripts/run-gate.sh`                                                                                                                                                                                                                          |
-| `JARVIS_PGDATABASE`              | `scripts/run-gate.sh`, `scripts/verify-reboot-survival.sh`                                                                                                                                                                                     |
-| `JARVIS_SMOKE_APP_CONTAINER`     | `scripts/smoke-chat-prod.sh`                                                                                                                                                                                                                   |
-| `JARVIS_SMOKE_BASE_URL`          | `scripts/smoke-chat-prod.sh`                                                                                                                                                                                                                   |
-| `JARVIS_SMOKE_DB_CONTAINER`      | `scripts/smoke-chat-prod.sh`                                                                                                                                                                                                                   |
-| `JARVIS_SMOKE_DB_NAME`           | `scripts/smoke-chat-prod.sh`                                                                                                                                                                                                                   |
-| `JARVIS_SMOKE_SURFACE`           | `scripts/smoke-chat-prod.sh`                                                                                                                                                                                                                   |
-| `JARVIS_SMOKE_TIMEOUT_MS`        | `scripts/smoke-chat-prod.sh`                                                                                                                                                                                                                   |
-| `JARVIS_SMOKE_USER_EMAIL`        | `scripts/smoke-chat-prod.sh`                                                                                                                                                                                                                   |
-| `JARVIS_UAT_REAL_CHAT_ENV_FILE`  | compose `seed` service env_file selection, host-side only                                                                                                                                                                                      |
-| `JARVIS_UAT_SEED_CONFIRM`        | `packages/module-registry/src/index.ts` reads it directly as a second-intent confirmation gate for the UAT news-preview override (already commented there as a Tier C carve-out); also compose-interpolated in `infra/docker-compose.prod.yml` |
-| `JARVIS_UAT_SEED_EXCLUDE_CHUNKS` | compose `seed` service env, consumed only inside the container before Node's `MOSS_`-aware code would run                                                                                                                                      |
-| `JARVIS_UAT_SEED_LEVEL`          | same as above                                                                                                                                                                                                                                  |
-| `JARVIS_VAULT_DIR`               | `scripts/backup-full.sh`                                                                                                                                                                                                                       |
-| `JARVIS_WEB_PORT`                | host-side interpolation in the published port binding, `- "${JARVIS_WEB_PORT:-1533}:3000"`; also read in TypeScript — the worked example of the dual-consumption rule above                                                                    |
+| Variable                         | Carved out because                                                                                                                                                                                                                                                                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `JARVIS_ALLOW_STALE`             | `scripts/check-tree-fresh.sh` reads `${JARVIS_ALLOW_STALE:-}` directly                                                                                                                                                                                                                                                               |
+| `JARVIS_API_PORT`                | compose interpolation (`infra/docker-compose.prod.yml`)                                                                                                                                                                                                                                                                              |
+| `JARVIS_API_PROXY_TARGET`        | build-time config file — `apps/web/vite.config.ts` reads it at Vite config-load time, plain Node, outside the app module graph; also mentioned (literal-value, non-interpolated) in `infra/docker-compose.yml`                                                                                                                       |
+| `JARVIS_BACKUP_DAILY_KEEP`       | `scripts/backup-full.sh`                                                                                                                                                                                                                                                                                                             |
+| `JARVIS_BACKUP_DIR`              | `scripts/backup-full.sh`                                                                                                                                                                                                                                                                                                             |
+| `JARVIS_BACKUP_OFFHOST_CMD`      | `scripts/backup-full.sh`                                                                                                                                                                                                                                                                                                             |
+| `JARVIS_BACKUP_PG_CONTAINER`     | `scripts/backup-full.sh`                                                                                                                                                                                                                                                                                                             |
+| `JARVIS_BACKUP_WEEKLY_KEEP`      | `scripts/backup-full.sh`                                                                                                                                                                                                                                                                                                             |
+| `JARVIS_CLI_PER_USER_UID`        | must be both-set-or-both-unset with the RPC secret pair below; also compose                                                                                                                                                                                                                                                          |
+| `JARVIS_CLI_RUNNER_RPC_SECRET`   | compose `:?`-required interpolation; must stay in lockstep with `JARVIS_CLI_RUNNER_SOCKET` (both-set-or-both-unset trap)                                                                                                                                                                                                             |
+| `JARVIS_CLI_RUNNER_SINGLE_USER`  | compose interpolation                                                                                                                                                                                                                                                                                                                |
+| `JARVIS_CLI_RUNNER_SOCKET`       | compose interpolation; lockstep pair with the RPC secret                                                                                                                                                                                                                                                                             |
+| `JARVIS_CLI_TOOLS_PREFIX`        | compose interpolation                                                                                                                                                                                                                                                                                                                |
+| `JARVIS_DEV_EMAIL`               | `scripts/redeploy-external-module.sh`                                                                                                                                                                                                                                                                                                |
+| `JARVIS_DEV_PASSWORD`            | `scripts/redeploy-external-module.sh`                                                                                                                                                                                                                                                                                                |
+| `JARVIS_DOCKER_SUBNET`           | compose interpolation                                                                                                                                                                                                                                                                                                                |
+| `JARVIS_EMBED_MODEL`             | compose interpolation                                                                                                                                                                                                                                                                                                                |
+| `JARVIS_EMBED_PROVIDER`          | compose interpolation                                                                                                                                                                                                                                                                                                                |
+| `JARVIS_ENV_FILE`                | compose `--env-file` selection, host-side only                                                                                                                                                                                                                                                                                       |
+| `JARVIS_ENV_FILE_ABS`            | derived host-side sibling of `JARVIS_ENV_FILE`                                                                                                                                                                                                                                                                                       |
+| `JARVIS_GATE_DIR`                | `scripts/run-gate.sh`                                                                                                                                                                                                                                                                                                                |
+| `JARVIS_GATE_STALE_SECS`         | `scripts/run-gate.sh`                                                                                                                                                                                                                                                                                                                |
+| `JARVIS_HOST_GID`                | compose interpolation                                                                                                                                                                                                                                                                                                                |
+| `JARVIS_HOST_UID`                | compose interpolation                                                                                                                                                                                                                                                                                                                |
+| `JARVIS_IMAGE_TAG`               | compose `:?`-required interpolation                                                                                                                                                                                                                                                                                                  |
+| `JARVIS_MCP_SERVER_URL`          | compose interpolation                                                                                                                                                                                                                                                                                                                |
+| `JARVIS_NOTES_VAULT_HOST_PATH`   | compose `:?`-required interpolation (`docker-compose.notes.yml`); also read plainly in `scripts/setup-prod.ts`                                                                                                                                                                                                                       |
+| `JARVIS_PG_CONTAINER`            | `scripts/run-gate.sh`                                                                                                                                                                                                                                                                                                                |
+| `JARVIS_PGDATABASE`              | `scripts/run-gate.sh`, `scripts/verify-reboot-survival.sh`                                                                                                                                                                                                                                                                           |
+| `JARVIS_SMOKE_APP_CONTAINER`     | `scripts/smoke-chat-prod.sh`                                                                                                                                                                                                                                                                                                         |
+| `JARVIS_SMOKE_BASE_URL`          | `scripts/smoke-chat-prod.sh`                                                                                                                                                                                                                                                                                                         |
+| `JARVIS_SMOKE_DB_CONTAINER`      | `scripts/smoke-chat-prod.sh`                                                                                                                                                                                                                                                                                                         |
+| `JARVIS_SMOKE_DB_NAME`           | `scripts/smoke-chat-prod.sh`                                                                                                                                                                                                                                                                                                         |
+| `JARVIS_SMOKE_SURFACE`           | `scripts/smoke-chat-prod.sh`                                                                                                                                                                                                                                                                                                         |
+| `JARVIS_SMOKE_TIMEOUT_MS`        | `scripts/smoke-chat-prod.sh`                                                                                                                                                                                                                                                                                                         |
+| `JARVIS_SMOKE_USER_EMAIL`        | `scripts/smoke-chat-prod.sh`                                                                                                                                                                                                                                                                                                         |
+| `JARVIS_UAT_BASE_URL`            | build-time config file — `tests/uat/playwright.uat.config.ts` reads it at Playwright config-load time, plain Node, outside the app module graph. (The 20 bare `process.env.JARVIS_UAT_BASE_URL` reads in `tests/uat/specs/*.uat.spec.ts` are a separate, already-documented deliberate gap — see "Also deliberately unfixed" below.) |
+| `JARVIS_UAT_REAL_CHAT_ENV_FILE`  | compose `seed` service env_file selection, host-side only                                                                                                                                                                                                                                                                            |
+| `JARVIS_UAT_SEED_CONFIRM`        | `packages/module-registry/src/index.ts` reads it directly as a second-intent confirmation gate for the UAT news-preview override (already commented there as a Tier C carve-out); also compose-interpolated in `infra/docker-compose.prod.yml`                                                                                       |
+| `JARVIS_UAT_SEED_EXCLUDE_CHUNKS` | compose `seed` service env, consumed only inside the container before Node's `MOSS_`-aware code would run                                                                                                                                                                                                                            |
+| `JARVIS_UAT_SEED_LEVEL`          | same as above                                                                                                                                                                                                                                                                                                                        |
+| `JARVIS_VAULT_DIR`               | `scripts/backup-full.sh`                                                                                                                                                                                                                                                                                                             |
+| `JARVIS_WEB_PORT`                | host-side interpolation in the published port binding, `- "${JARVIS_WEB_PORT:-1533}:3000"`; also read in TypeScript — the worked example of the dual-consumption rule above                                                                                                                                                          |
 
 ## Deliberately deferred (7 names — documented gap, not silently dropped)
 
@@ -197,13 +226,18 @@ never read from `infra/env.production.local`, and `JARVIS_MCP_TOKEN` is a name, 
 ## Also deliberately unfixed: UAT spec-file direct reads
 
 Twenty `tests/uat/specs/*.uat.spec.ts` files read `process.env.JARVIS_UAT_BASE_URL` and/or
-`process.env.JARVIS_UAT_PROJECT_NAME` directly, in addition to `tests/uat/playwright.uat.config.ts`
-(which already resolves `JARVIS_UAT_BASE_URL` via `resolveMossEnv` into Playwright's own `baseURL`
-config). These two names are not carve-outs and are not a coverage gap — they're already in the
-70-name shimmed set. The twenty additional call sites are left as bare reads on purpose: the value
-is generated fresh by `tests/uat/provisioner.ts` in the same process tree that spawns Playwright for
-that one ephemeral run, is never set by a human or read from any deployment env file, and wrapping
-twenty near-identical internal test-plumbing call sites would be exactly the "scattered fallback
-logic at every call site" anti-pattern the shim design explicitly rejects in favor of centralizing
-at the one seam that matters (the Playwright config). If this file set grows significantly, revisit
+`process.env.JARVIS_UAT_PROJECT_NAME` directly, in addition to `tests/uat/playwright.uat.config.ts`,
+which also reads `process.env.JARVIS_UAT_BASE_URL` plainly — **not** via `resolveMossEnv`.
+`JARVIS_UAT_BASE_URL` is a carve-out (build-time config file, see above), not a shimmed name; an
+earlier revision of this document wired `playwright.uat.config.ts` through `resolveMossEnv`, which
+pulls `@moss/db`'s server-side barrel into Playwright's plain-Node config-load step the same way it
+broke `apps/web/vite.config.ts`'s Docker build, so that call site was reverted to a bare read.
+`JARVIS_UAT_PROJECT_NAME` is not shimmed anywhere either — it's only ever set in
+`tests/uat/run-uat.ts` and read directly in the spec files. Neither name is a coverage gap: both are
+process-internal plumbing generated fresh by `tests/uat/provisioner.ts` in the same process tree
+that spawns Playwright for that one ephemeral run, never set by a human or read from any deployment
+env file. The twenty spec-file call sites are left as bare reads on purpose — wrapping twenty
+near-identical internal test-plumbing call sites would be exactly the "scattered fallback logic at
+every call site" anti-pattern the shim design explicitly rejects, and there is no reachable seam left
+to centralize at now that the config file itself is carved out. If this file set grows significantly, revisit
 by threading the config's already-resolved `baseURL` through instead of re-reading `process.env`.

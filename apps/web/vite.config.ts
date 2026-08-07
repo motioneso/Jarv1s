@@ -1,11 +1,9 @@
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
-
-import { resolveMossEnv } from "@moss/db";
 import { jarvisModuleSettingsPlugin, jarvisModuleWebPlugin } from "@moss/settings-ui/vite";
 
-const apiTarget = resolveMossEnv(process.env, "JARVIS_API_PROXY_TARGET") ?? "http://localhost:3000";
+const apiTarget = process.env.JARVIS_API_PROXY_TARGET ?? "http://localhost:3000";
 const rootDir = fileURLToPath(new URL("../..", import.meta.url));
 
 export default defineConfig({
