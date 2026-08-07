@@ -255,7 +255,12 @@ function Persona({ who }: { readonly who: string }) {
           ) : (
             <Check size={14} aria-hidden="true" />
           )}
-          {dirty ? "Unsaved changes" : `Saved. This is ${assistantName}'s current voice.`}
+          {/* Named from the saved snapshot, not from useAssistantName(): this line acknowledges a
+              save, so it must render from the record the save returned. The global hook is a
+              separate query whose invalidation resolves a render after `dirty` clears, so reading it
+              here shows the PREVIOUS name for a moment — the one case where the text is guaranteed
+              to be read. `saved` comes straight off the mutation result. */}
+          {dirty ? "Unsaved changes" : `Saved. This is ${saved.assistantName}'s current voice.`}
         </span>
         <span className="psona-save__acts">
           <Button
