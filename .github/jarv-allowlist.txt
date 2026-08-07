@@ -1,0 +1,105 @@
+# Moss rename (#1444) residue guard allowlist.
+#
+# Read by scripts/check-jarv-allowlist.ts. Every "jarv"/"Jarv"/"JARV" occurrence in the
+# tree must be covered by a line below or the check fails. Seeded from the FROZEN set in
+# docs/superpowers/specs/2026-08-05-moss-rename-design.md §2.3 and §8 — NOT from a dump
+# of current occurrences. Anything not listed here is expected to eventually be renamed;
+# adding a line here is a deliberate claim that it never will be (or not yet).
+#
+# Two pattern kinds, one per line:
+#   path:<glob>       matches the whole file — everything in it is exempt.
+#                      `**` matches across path segments, `*` matches within one.
+#   content:<string>  matches anywhere it appears (case-insensitive substring), in any
+#                      file not otherwise covered.
+#
+# NOT wired into `pnpm verify:foundation` yet — most of the tree hasn't been renamed
+# because tier D (roles/DB/tables) and tier E (images/URLs) of #1444 haven't landed.
+# Run standalone: `node scripts/check-jarv-allowlist.ts`.
+
+# --- Dated / historical documentation (spec §8: "dated documents under plans/, specs/,
+# coordination/, audits/, releases/") ---------------------------------------------------
+path:docs/superpowers/plans/**
+path:docs/superpowers/specs/**
+path:docs/superpowers/handoffs/**
+path:docs/superpowers/research/**
+path:docs/superpowers/reviews/**
+path:docs/superpowers/spikes/**
+path:docs/coordination/**
+path:docs/audits/**
+path:docs/audit/**
+path:docs/releases/**
+path:docs/architecture/**
+path:docs/archive/**
+path:docs/evidence/**
+path:docs/reviews/**
+path:docs/research/**
+path:docs/brainstorms/**
+
+# --- Pre-rename migrations and other hash-checked / immutable SQL ("Never edit an
+# applied migration" — packages/db/src/migrations/sql-runner.ts checksums the whole
+# file, so a "jarv" reference inside one of these is permanently frozen by construction,
+# not by choice) ---------------------------------------------------------------------
+path:infra/postgres/migrations/**
+path:infra/postgres/bootstrap/**
+path:infra/postgres/grants/**
+path:packages/*/sql/**
+path:spikes/**
+
+# --- Installed host identity (spec §4.8: unit names and ~/Jarv1s checkout path stay
+# frozen; separate follow-up to rename) ------------------------------------------------
+path:infra/systemd/**
+content:~/Jarv1s
+
+# --- This PR's own files, which legitimately retain "jarv" content ---------------------
+path:.github/jarv-allowlist.txt
+path:scripts/check-jarv-allowlist.ts
+path:tests/unit/check-jarv-allowlist.test.ts
+path:scripts/backup-full.sh
+path:scripts/smoke-compose.ts
+path:tests/unit/prod-compose-plan.test.ts
+
+# --- Persisted-in-the-database identifiers (spec §2.3: renaming needs a dual-read plus
+# a data migration or restage — separate, later work) -----------------------------------
+content:jarvis.goals
+content:jarvis.commitments
+content:jarvis-emotion-v1
+content:actor_kind='jarvis'
+content:actor_kind = 'jarvis'
+content:jarvis_mod_
+
+# --- External artifact contract (spec §2.3: every published external module ships
+# these; renaming invalidates all of them at once) ---------------------------------------
+content:jarvis.module.json
+content:compatibility.jarv1s
+
+# --- Wire format the model and the permission hook match on (spec §2.3) ----------------
+content:mcp__jarvis__
+
+# --- Cross-version coordination — advisory lock strings (spec §2.3: renaming one lets
+# an old and a new binary both believe they hold it during a mixed-version window) ------
+content:jarv1s:migrations
+content:jarv1s:first-user-bootstrap
+content:jarv1s:last-active-admin
+content:jarv1s:module-reconcile
+
+# --- Infrastructure identity (spec §5: docker volume names and the jarv1s-prod compose
+# project name are internal and stay unchanged) ------------------------------------------
+content:jarv1s-prod
+content:jarv1s-postgres-data
+content:jarv1s-vault-data
+content:jarv1s-model-cache
+content:jarv1s-cli-tools
+content:jarv1s-cli-auth
+content:jarv1s-cli-socket
+content:jarv1s-modules
+
+# --- Runtime role names (#1444 scope change: the four Postgres roles are no longer
+# being renamed — renaming them required a pg_dump schema baseline to keep fresh installs
+# working once 140 grants across 18 hash-frozen migrations named the roles literally, and
+# that baseline was the single most fragile, highest-risk artifact in the plan for a
+# cosmetic gain (role names are visible only in `psql \du`, never to a user, log, or API).
+# Frozen indefinitely; see #1444.) --------------------------------------------------------
+content:jarvis_migration_owner
+content:jarvis_app_runtime
+content:jarvis_worker_runtime
+content:jarvis_auth_runtime

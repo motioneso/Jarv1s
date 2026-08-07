@@ -12,7 +12,7 @@ describe("createComposeSmokePlan — prod variant", () => {
     expect(plan.commands.some((c) => c.args[0] === "build")).toBe(false);
   });
 
-  it("targets the prod compose file and prepends one jarv1s image build when build is set", () => {
+  it("targets the prod compose file and prepends one moss image build when build is set", () => {
     const plan = createComposeSmokePlan({
       composeFile: "infra/docker-compose.prod.yml",
       build: true

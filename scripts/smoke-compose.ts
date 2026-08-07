@@ -28,6 +28,10 @@ export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): Compo
   const publicPort = isProd
     ? (process.env.JARVIS_WEB_PORT ?? "1533")
     : (input.apiPort ?? process.env.JARVIS_API_PORT ?? "3000");
+  // Compose project, image ref, service name, and DB name below still say "jarv1s",
+  // not "moss": they're coupled to infra/docker-compose.prod.yml (service name, image
+  // ref, POSTGRES_DB) and .github/workflows/ci.yml (the `-p` teardown project). Renaming
+  // any one alone breaks the smoke; all four move together in the #1444 cutover PR.
   const composeArgs = isProd
     ? ["compose", "-p", "jarv1s-prod-smoke", "-f", composeFile]
     : ["compose", "-f", composeFile];
@@ -38,7 +42,7 @@ export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): Compo
         {
           command: "docker",
           args: ["build", "-t", `ghcr.io/motioneso/jarv1s:${imageTag}`, "-f", "Dockerfile", "."],
-          description: "Build the Jarv1s image locally and tag it to the prod GHCR ref"
+          description: "Build the Moss image locally and tag it to the prod GHCR ref"
         }
       ]
     : [];
@@ -54,7 +58,7 @@ export function createComposeSmokePlan(input: ComposeSmokePlanInput = {}): Compo
     ? {
         command: "docker",
         args: [...composeArgs, "up", "-d", "postgres", "jarv1s", "--wait"],
-        description: "Start Postgres and Jarv1s services"
+        description: "Start Postgres and Moss services"
       }
     : {
         command: "docker",
@@ -118,7 +122,7 @@ function ensureProdSmokeEnv(composeFile: string): () => void {
     return () => {};
   }
 
-  const dir = mkdtempSync(join(tmpdir(), "jarv1s-prod-smoke-"));
+  const dir = mkdtempSync(join(tmpdir(), "moss-prod-smoke-"));
   const envFile = join(dir, "env.production.local");
   process.env.POSTGRES_PASSWORD ??= "postgres";
   process.env.JARVIS_CLI_RUNNER_RPC_SECRET ??= "smoke-only-not-real";

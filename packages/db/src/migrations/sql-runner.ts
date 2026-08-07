@@ -183,7 +183,7 @@ async function ensureMigrationTable(
   table: string
 ): Promise<void> {
   await client.query(
-    `CREATE SCHEMA IF NOT EXISTS ${quoteIdentifier(schema)} AUTHORIZATION jarvis_migration_owner`
+    `CREATE SCHEMA IF NOT EXISTS ${quoteIdentifier(schema)} AUTHORIZATION CURRENT_USER`
   );
   await client.query(`
     CREATE TABLE IF NOT EXISTS ${qualifiedIdentifier(schema, table)} (
