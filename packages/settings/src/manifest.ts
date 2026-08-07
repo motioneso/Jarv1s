@@ -49,7 +49,7 @@ export const settingsModuleManifest: MossModuleManifest = {
   id: SETTINGS_MODULE_ID,
   name: "Settings",
   version: "0.0.0",
-  publisher: "jarv1s",
+  publisher: "Moss",
   lifecycle: "required",
   compatibility: {
     jarv1s: ">=0.0.0"

@@ -24,7 +24,7 @@ export const chatModuleManifest = {
   id: CHAT_MODULE_ID,
   name: "Chat",
   version: "0.1.0",
-  publisher: "jarv1s",
+  publisher: "Moss",
   lifecycle: "required",
   compatibility: {
     jarv1s: ">=0.0.0"

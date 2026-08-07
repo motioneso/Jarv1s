@@ -27,7 +27,7 @@ export const webModuleManifest = {
   id: WEB_MODULE_ID,
   name: "Web Research",
   version: "0.1.0",
-  publisher: "jarv1s",
+  publisher: "Moss",
   lifecycle: "required",
   compatibility: {
     jarv1s: ">=0.0.0"

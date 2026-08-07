@@ -10,7 +10,7 @@ export const proactiveMonitoringModuleManifest = {
   id: "proactive-monitoring",
   name: "Proactive Monitoring",
   version: "0.0.0",
-  publisher: "jarv1s",
+  publisher: "Moss",
   lifecycle: "required",
   compatibility: { jarv1s: ">=0.0.0" },
   availability: {

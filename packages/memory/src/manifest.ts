@@ -72,7 +72,7 @@ export const memoryModuleManifest: MossModuleManifest = {
   id: MEMORY_MODULE_ID,
   name: "Memory",
   version: "0.1.0",
-  publisher: "jarv1s",
+  publisher: "Moss",
   lifecycle: "required",
   compatibility: {
     jarv1s: ">=0.0.0"
