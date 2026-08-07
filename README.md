@@ -55,7 +55,7 @@ services:
       - moss-postgres:/var/lib/postgresql/data
 
   moss:
-    image: ghcr.io/motioneso/jarv1s:stable
+    image: ghcr.io/motioneso/moss:stable
     restart: unless-stopped
     depends_on:
       - postgres
