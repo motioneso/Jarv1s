@@ -30,7 +30,7 @@ test("signs in and renders shell navigation", async ({ page }) => {
   await expect(page.locator(".module-nav").getByRole("link", { name: "Today" })).toBeVisible();
   await expect(page.locator(".module-nav").getByRole("link", { name: "Tasks" })).toBeVisible();
   await expect(page.locator(".module-nav").getByRole("link", { name: "Calendar" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Chat with Jarvis" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Chat with Moss" })).toBeVisible();
 
   await page.getByRole("button", { name: /Owner User/ }).click();
   await expect(page.getByRole("button", { name: /Notifications/ })).toBeVisible();
@@ -311,7 +311,7 @@ test("serves PWA metadata", async ({ page }) => {
   const manifest = (await response.json()) as { readonly name?: string };
 
   expect(response.ok()).toBe(true);
-  expect(manifest.name).toBe("Jarv1s");
+  expect(manifest.name).toBe("Moss");
 });
 
 test.describe("Chat drawer — Approve/Reject card", () => {
@@ -360,7 +360,7 @@ test.describe("Chat drawer — Approve/Reject card", () => {
     });
 
     await page.goto("/");
-    await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+    await page.getByRole("button", { name: "Chat with Moss" }).click();
 
     // Wait for the Approve/Reject card to appear
     await expect(page.locator(".action-request-card")).toBeVisible({ timeout: 3000 });
@@ -418,7 +418,7 @@ test.describe("Chat drawer — Approve/Reject card", () => {
     });
 
     await page.goto("/");
-    await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+    await page.getByRole("button", { name: "Chat with Moss" }).click();
 
     await expect(page.locator(".action-request-card")).toBeVisible({ timeout: 3000 });
     await page.locator(".action-request-card").getByRole("button", { name: "Reject" }).click();
@@ -478,10 +478,10 @@ test.describe("Chat drawer — Approve/Reject card", () => {
     });
 
     await page.goto("/");
-    await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+    await page.getByRole("button", { name: "Chat with Moss" }).click();
 
     // action_result records render as durable outcomes, never Approve/Reject cards.
-    const result = page.getByRole("dialog", { name: "Chat with Jarvis" }).getByRole("status");
+    const result = page.getByRole("dialog", { name: "Chat with Moss" }).getByRole("status");
     await expect(result).toContainText("Changed", { timeout: 3000 });
     await expect(result).toContainText("Switched to dark mode.");
 
@@ -552,9 +552,9 @@ test.describe("Chat drawer — Approve/Reject card", () => {
     // Initial load fetches light mode before the chat-driven write ever happens.
     await expect(page.locator("html")).toHaveAttribute("data-color-mode", "light");
 
-    await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+    await page.getByRole("button", { name: "Chat with Moss" }).click();
 
-    const result = page.getByRole("dialog", { name: "Chat with Jarvis" }).getByRole("status");
+    const result = page.getByRole("dialog", { name: "Chat with Moss" }).getByRole("status");
     await expect(result).toContainText("Changed", { timeout: 3000 });
     await expect(result).toContainText("Switched to dark mode.");
 

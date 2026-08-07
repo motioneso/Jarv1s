@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@jarv1s/ui";
 import { listActionAuditLog } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
+import { useAssistantName } from "../api/use-assistant-name.js";
 import { formatDateTime, useUserLocale } from "../locale/locale-format.js";
 import type { PaneProps } from "./settings-types.js";
 import { Badge, Select } from "./settings-ui.js";
@@ -75,6 +76,7 @@ function isDistinct(outcome: ActionAuditLogEntryDto["outcome"]): boolean {
 
 export function ActivityPane(_props: PaneProps) {
   const locale = useUserLocale();
+  const assistantName = useAssistantName();
   const [range, setRange] = useState<DateRange>("30d");
   const [familyFilter, setFamilyFilter] = useState<string>("");
 
@@ -105,7 +107,9 @@ export function ActivityPane(_props: PaneProps) {
     <div className="settings-section">
       <header className="settings-section__header">
         <h2 className="settings-section__title">Activity</h2>
-        <p className="settings-section__desc">Actions Jarvis ran on your behalf, last 90 days.</p>
+        <p className="settings-section__desc">
+          Actions {assistantName} ran on your behalf, last 90 days.
+        </p>
       </header>
 
       <div className="audfilter">
@@ -153,7 +157,7 @@ export function ActivityPane(_props: PaneProps) {
 
       {!isError && !isLoading && filtered.length === 0 && (
         <div className="aud__empty">
-          <p>No Jarvis actions in this period.</p>
+          <p>No {assistantName} actions in this period.</p>
         </div>
       )}
 

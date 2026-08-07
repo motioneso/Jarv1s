@@ -19,6 +19,7 @@ import {
   uploadChatAttachment
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { useAssistantName } from "../api/use-assistant-name";
 import {
   ATTACHMENT_ACCEPT,
   CLIENT_MAX_ATTACHMENTS_PER_TURN,
@@ -74,6 +75,7 @@ export function Composer(props: {
   // Lazy initializer: the starter seeds the input on mount only. After that, the user owns the
   // value — typing/sending clears it and we never re-seed from the prop (no useEffect that would
   // clobber edits or re-fire the chip on re-render).
+  const assistantName = useAssistantName();
   const [text, setText] = useState(() => props.initialText ?? "");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   // #916 — when the composer opens seeded with a starter (module draft #916 or onboarding #368),
@@ -411,7 +413,7 @@ export function Composer(props: {
       <div className={`chatd-input${props.readOnly ? " is-readonly" : ""}`}>
         <textarea
           ref={textareaRef}
-          aria-label="Message Jarvis"
+          aria-label={`Message ${assistantName}`}
           aria-controls={skillMenuOpen ? "chat-skill-listbox" : undefined}
           aria-expanded={skillMenuOpen}
           aria-autocomplete={skillMenuOpen ? "list" : undefined}
@@ -428,7 +430,7 @@ export function Composer(props: {
               ? "Chat locked — model unavailable"
               : props.readOnly
                 ? "Read-only history"
-                : "Message Jarvis…"
+                : `Message ${assistantName}…`
           }
           rows={1}
           value={text}

@@ -9,6 +9,7 @@ import {
   putAdminYoloUser
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { useAssistantName } from "../api/use-assistant-name";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
 import { Group, Row, Switch } from "./settings-ui";
@@ -21,6 +22,7 @@ function roleLabel(user: YoloAdminUserDto): string {
 export function YoloAdminGroup() {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
+  const assistantName = useAssistantName();
   const [search, setSearch] = useState("");
 
   const yoloQuery = useQuery({
@@ -103,8 +105,7 @@ export function YoloAdminGroup() {
               enabled
                 ? confirm({
                     title: "Enable YOLO for this instance?",
-                    description:
-                      "This also enables YOLO for your admin account. Jarvis can run destructive chat actions without asking.",
+                    description: `This also enables YOLO for your admin account. ${assistantName} can run destructive chat actions without asking.`,
                     confirmLabel: "Enable YOLO",
                     danger: true,
                     onConfirm: () => yoloMutation.mutate({ kind: "instance", enabled })

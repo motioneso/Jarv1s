@@ -1,6 +1,6 @@
 # Deploy Guide
 
-Jarv1s should deploy like a small self-hosted appliance: one Postgres container for durable data, and one Jarv1s container for everything Jarv1s owns.
+Moss should deploy like a small self-hosted appliance: one Postgres container for durable data, and one Moss container for everything Moss owns.
 
 The operator-facing path is a commented Docker Compose file. No installer script, host CLI preflight, or UID/GID prompt should be required.
 
@@ -40,7 +40,7 @@ services:
       # Must match POSTGRES_PASSWORD above.
       JARVIS_DB_PASSWORD: replace-this-postgres-password
 
-      # Jarv1s uses this fixed in-container path for notes. Edit only the volume mount below.
+      # Moss uses this fixed in-container path for notes. Edit only the volume mount below.
       JARVIS_NOTES_ROOTS: /data/external-notes
     volumes:
       - jarv1s-data:/data
@@ -85,13 +85,13 @@ drop any session that predates the reinstall.
 
 ## Downloaded Modules
 
-Jarvis has one module model with two delivery paths: **bundled modules** ship in the app image,
+Moss has one module model with two delivery paths: **bundled modules** ship in the app image,
 while **downloaded modules** are installed separately from Settings → Instance modules. The
 runtime may call the latter `external` internally because they cross a package-loading and trust
 boundary; that is an implementation detail, not a second product concept.
 
 Downloading or updating a module stages its validated package on the persistent modules volume.
-Restart the Jarvis container to run module reconciliation and activate the staged version:
+Restart the Moss container to run module reconciliation and activate the staged version:
 
 ```sh
 docker compose -p jarv1s-prod \
@@ -117,7 +117,7 @@ The committed production artifact is `infra/docker-compose.prod.yml`. It keeps P
 
 ## Secrets
 
-Jarv1s should not generate secrets for the operator. The compose file carries explicit placeholders. If placeholder values are left unchanged, Jarv1s should fail boot with a clear error.
+Moss should not generate secrets for the operator. The compose file carries explicit placeholders. If placeholder values are left unchanged, Moss should fail boot with a clear error.
 
 Required user-edited values:
 
@@ -126,11 +126,11 @@ Required user-edited values:
 - `JARVIS_BASE_URL` when not using localhost
 - optional notes bind mount
 
-UID/GID should not be part of the happy path. The Jarv1s image should handle ownership of its managed `/data` volume internally. If writable host bind mounts later need custom ownership, document that under advanced permissions.
+UID/GID should not be part of the happy path. The Moss image should handle ownership of its managed `/data` volume internally. If writable host bind mounts later need custom ownership, document that under advanced permissions.
 
 ## Notes Mount
 
-Notes are optional. If a Markdown or Obsidian folder is mounted at `/data/external-notes`, Jarv1s can index it and expose note excerpts to chat through the notes search tool.
+Notes are optional. If a Markdown or Obsidian folder is mounted at `/data/external-notes`, Moss can index it and expose note excerpts to chat through the notes search tool.
 
 Use a read-only mount by default:
 

@@ -38,8 +38,8 @@ describe("handleUpgradeNotifyJob", () => {
       {},
       {
         moduleId: "settings",
-        title: "Jarvis v1.1.0 is available",
-        body: "A newer version of Jarvis is available. View the release notes and upgrade from Settings -> Diagnostics.",
+        title: "Moss v1.1.0 is available",
+        body: "A newer version of Moss is available. View the release notes and upgrade from Settings -> Diagnostics.",
         urgency: "normal",
         metadata: { kind: "upgrade_available", version: "v1.1.0" }
       }

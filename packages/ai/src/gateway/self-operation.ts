@@ -38,7 +38,7 @@ export const SELF_OPERATION_EXCLUSIONS: readonly SelfOperationExclusionRule[] = 
     id: "self_authority.settings",
     category: "self_authority",
     reason:
-      "Jarvis may never grant or promote its own authority: YOLO, action-policy tier promotion, permissions, module enable/install/remove/purge, connector feature grants, task-agency auto-execution.",
+      "Moss may never grant or promote its own authority: YOLO, action-policy tier promotion, permissions, module enable/install/remove/purge, connector feature grants, task-agency auto-execution.",
     moduleId: "settings",
     toolNamePrefixes: [
       "settings.yolo.",
@@ -69,7 +69,7 @@ export const SELF_OPERATION_EXCLUSIONS: readonly SelfOperationExclusionRule[] = 
     id: "prompt_shaping.settings",
     category: "prompt_shaping",
     reason:
-      "Jarvis may never shape its own persona, memory-fact behavior, priority ranking, source behavior, chat skills, or page-context writes.",
+      "Moss may never shape its own persona, memory-fact behavior, priority ranking, source behavior, chat skills, or page-context writes.",
     moduleId: "settings",
     toolNamePrefixes: [
       "settings.persona.",
@@ -145,7 +145,7 @@ export const SELF_OPERATION_EXCLUSIONS: readonly SelfOperationExclusionRule[] = 
     id: "external_effect.settings",
     category: "external_effect",
     reason:
-      "Third-party sends, scheduled/cancelled work, digests, briefings, news refresh, transcription, exports, module queue runs, and host install all reach outside Jarvis.",
+      "Third-party sends, scheduled/cancelled work, digests, briefings, news refresh, transcription, exports, module queue runs, and host install all reach outside Moss.",
     moduleId: "settings",
     toolNamePrefixes: [
       "settings.thirdPartySend.",

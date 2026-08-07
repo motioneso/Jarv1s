@@ -236,7 +236,7 @@ test("morning and evening prose and action rows render accept dismiss view reply
   const replyEntry = needsYou.locator(".loose-row").filter({ hasText: morningRows[2]!.title });
   await replyEntry.getByRole("button", { name: "Reply", exact: true }).click();
   await expect.poll(() => chatTurnTexts).toEqual([REPLY_PROMPT]);
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await expect(drawer).toBeVisible();
   const confirmation = drawer.getByRole("region", { name: "Action request" });
   await expect(confirmation).toContainText("Draft reply to Alex?");

@@ -43,7 +43,7 @@ function readRuntime(): ModuleRuntime {
   const runtime = (globalThis as { __JARVIS_MODULE_RUNTIME__?: ModuleRuntime })
     .__JARVIS_MODULE_RUNTIME__;
   if (!runtime || runtime.contractVersion !== 2) {
-    throw new Error("module-web-sdk runtime shim requires the Jarvis module runtime v2");
+    throw new Error("module-web-sdk runtime shim requires the Moss module runtime v2");
   }
   return runtime;
 }

@@ -47,7 +47,7 @@ test("desktop shell renders grouped IA, merged panes, and history-aware mode cha
   await page.goto("/settings");
 
   const nav = page.getByRole("navigation", { name: "Settings categories" });
-  for (const group of ["Your account", "Jarvis", "Connections", "Extensions"]) {
+  for (const group of ["Your account", "Moss", "Connections", "Extensions"]) {
     await expect(nav.getByText(group, { exact: true })).toBeVisible();
   }
   await expect(nav.getByRole("button")).toHaveCount(10);
@@ -119,7 +119,7 @@ test("narrow shell keeps groups and destinations reachable without horizontal ov
   await page.goto("/settings");
 
   const nav = page.getByRole("navigation", { name: "Settings categories" });
-  for (const group of ["Your account", "Jarvis", "Connections", "Extensions"]) {
+  for (const group of ["Your account", "Moss", "Connections", "Extensions"]) {
     await expect(nav.getByText(group, { exact: true })).toBeVisible();
   }
   await nav.getByRole("button", { name: "Modules" }).click();

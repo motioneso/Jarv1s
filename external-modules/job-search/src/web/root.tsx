@@ -70,7 +70,7 @@ function ModuleMasthead(props: { profile: Profile | null }): ReactNodeLike {
   return (
     <div className="jsm-masthead">
       <div className="jsm-masthead__ident">
-        <span className="jds-eyebrow">Jarvis · Module</span>
+        <span className="jds-eyebrow">Moss · Module</span>
         <h1 className="jds-section-title">Job Search</h1>
       </div>
       {status ? (

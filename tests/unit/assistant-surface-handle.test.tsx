@@ -1,5 +1,6 @@
 import { createElement } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -8,6 +9,7 @@ import {
 } from "../../apps/web/src/chat/assistant-surface/index.js";
 import { createAssistantSurfaceHandle } from "../../apps/web/src/chat/assistant-surface/handle.js";
 import { moduleChatSurface } from "../../apps/web/src/shell/chat-surface-key.js";
+import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 
 // React/web unit tests use .tsx so root NodeNext typecheck does not reinterpret Vite imports.
 afterEach(() => {
@@ -98,25 +100,36 @@ describe("createAssistantSurfaceHandle", () => {
     const secondSurface = moduleChatSurface("job-search", "profile-2");
     let renderer: ReactTestRenderer;
 
+    // AssistantSurface reads the configured assistant name via useAssistantName (react-query), so
+    // rendering it needs a QueryClientProvider ancestor; prime the cache to avoid a real fetch.
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(queryKeys.settings.persona, {
+      persona: { assistantName: "Alfred", personaText: "" }
+    });
+
     handle.setSurfaceKey("profile-1");
     await act(async () => {
       renderer = create(
         createElement(
-          AssistantSurfaceHostProvider,
-          {
-            value: {
-              records: [],
-              recordsForSurface: (surface) => [
-                {
-                  kind: "reply",
-                  text: surface === firstSurface ? "First profile" : "Second profile"
-                }
-              ],
-              registerComposer: () => () => undefined,
-              subscribeRecords: () => () => undefined
-            }
-          },
-          createElement(handle.Surface)
+          QueryClientProvider,
+          { client: queryClient },
+          createElement(
+            AssistantSurfaceHostProvider,
+            {
+              value: {
+                records: [],
+                recordsForSurface: (surface) => [
+                  {
+                    kind: "reply",
+                    text: surface === firstSurface ? "First profile" : "Second profile"
+                  }
+                ],
+                registerComposer: () => () => undefined,
+                subscribeRecords: () => () => undefined
+              }
+            },
+            createElement(handle.Surface)
+          )
         )
       );
     });

@@ -1,4 +1,4 @@
-# Jarvis Interface Strategy: A Blueprint for Durable, Calm Intelligence
+# Moss Interface Strategy: A Blueprint for Durable, Calm Intelligence
 
 > Source: provided by Ben (2026-06-13) as the visual-language research output (NotebookLM artifact). This is the research deliverable the `visual-language-research-plan.md` anticipated. **Lead direction decision (Ben, 2026-06-13): leaning to Direction 3 — "The Chronological Flow (Ritual Model)" (the doc's "option c").** Use this as the source of truth for the Phase 3 design-direction slice (epic #48 criterion #4, issue #16).
 
@@ -30,7 +30,7 @@ In the rush to integrate artificial intelligence, many "AI aesthetics" have defa
 - **START: Dynamic Blocks.** Use UI components that appear, populate, and adapt based on context. This allows users to immediately see what the AI has understood and what it is missing without parsing through a chat stream.
 - **START: Governor Mechanisms.** Use visible logic, such as the "Stream of Thought" (Shape of AI), to reveal the AI's decisions. Implement 70% opacity for AI-generated drafts to maintain a "human-in-the-loop" feedback loop and signal provisional status.
 
-## 3. Three Candidate Visual Directions for Jarvis
+## 3. Three Candidate Visual Directions for Moss
 
 ### Direction 1: The High-Integrity Instrument (The "Cockpit" Model)
 
@@ -104,7 +104,7 @@ The doc's own recommendation is a **hybrid** that leads with the Chronological F
 ## Implications for the Phase 3 design slice (binding for the spec)
 
 - **Lead = Chronological Flow / "Ritual":** timeline + time-bucket chronology (This Morning / This Afternoon / This Evening), circadian-aware palette (**Morning Bright → Evening Amber**), calm/glanceable, anti-shame recovery states (**never error-red for normal human drift**; use amber/muted + the semi-migration signifier).
-- **Governors:** AI-generated/provisional content at **70% opacity** until confirmed; expose the reasoning ("stream of thought") where Jarvis acted.
+- **Governors:** AI-generated/provisional content at **70% opacity** until confirmed; expose the reasoning ("stream of thought") where Moss acted.
 - **Instruments over conversation:** the briefing and day-view are reading/steering surfaces, not a chat thread; chat is a tool, not the spine.
 - **Hard "STOP" list:** no purple/blue AI-glow gradients, no sparkle/magic-wand icons, no mascots/therapeutic softness, no chat-first dominance, no horizontal pagination.
 - **Token approach:** extend the existing CSS custom properties into a semantic token layer in place (no Tailwind/CSS-modules migration); author tokens **dark/amber-ready** even if shipping light-first; a small set of primitives only where the briefing/day surfaces need them.

@@ -288,17 +288,17 @@ export function summarizeDeleteEvent(input: Record<string, unknown>, _ctx: ToolC
   if (title && when) {
     return (
       `Delete **"${title}"** (${when}) from your calendar? ` +
-      `Attendees will be notified of the cancellation. This can't be undone from Jarvis.`
+      `Attendees will be notified of the cancellation. This can't be undone from Moss.`
     );
   }
   if (title) {
     return (
       `Delete **"${title}"** from your calendar? ` +
-      `Attendees will be notified of the cancellation. This can't be undone from Jarvis.`
+      `Attendees will be notified of the cancellation. This can't be undone from Moss.`
     );
   }
   return (
     `Delete this calendar event? ` +
-    `Attendees will be notified of the cancellation. This can't be undone from Jarvis.`
+    `Attendees will be notified of the cancellation. This can't be undone from Moss.`
   );
 }

@@ -176,15 +176,15 @@ test("capture: today + chat drawer", async ({ page }) => {
 
   // chat drawer — unconditional: a missing button fails the capture instead of silently
   // skipping it (D6 item 5).
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
   await page.waitForTimeout(600);
   await shot(page, "05-chat-drawer");
 
   // conversation shot: composer + message-row in both roles. Neither had capture
   // coverage before this (D6 item 5) — composer.tsx (527) + message-row.tsx (357) are
   // ~40% of the section.
-  await page.getByLabel("Message Jarvis").fill("What's on my calendar today?");
-  await page.getByLabel("Message Jarvis").press("Enter");
+  await page.getByLabel("Message Moss").fill("What's on my calendar today?");
+  await page.getByLabel("Message Moss").press("Enter");
   await page.waitForTimeout(700);
   await shot(page, "05b-chat-conversation");
 });

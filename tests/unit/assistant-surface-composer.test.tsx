@@ -1,5 +1,6 @@
 import { createElement } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { sendChatTurn } from "../../apps/web/src/api/client.js";
@@ -7,8 +8,27 @@ import {
   AssistantSurface,
   AssistantSurfaceHostProvider
 } from "../../apps/web/src/chat/assistant-surface/index.js";
+import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 
-vi.mock("../../apps/web/src/api/client.js", () => ({ sendChatTurn: vi.fn() }));
+vi.mock("../../apps/web/src/api/client.js", () => ({
+  sendChatTurn: vi.fn(),
+  // AssistantSurface resolves the configured assistant name via useAssistantName, which imports
+  // getPersonaSettings from this module — the mock must define it or the import throws. "Alfred"
+  // (not "Moss") keeps this ASSISTANT-name fixture unambiguous from the fixed PRODUCT name "Moss".
+  getPersonaSettings: vi.fn(async () => ({
+    persona: { assistantName: "Alfred", personaText: "" }
+  }))
+}));
+
+// AssistantSurface needs a QueryClientProvider ancestor; prime the cache so the assistant name is
+// available on first render instead of the "Moss" loading fallback.
+function withPersonaQueryClient(child: ReturnType<typeof createElement>) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(queryKeys.settings.persona, {
+    persona: { assistantName: "Alfred", personaText: "" }
+  });
+  return createElement(QueryClientProvider, { client }, child);
+}
 
 describe("AssistantSurface composer", () => {
   beforeEach(() => vi.mocked(sendChatTurn).mockReset());
@@ -26,18 +46,20 @@ describe("AssistantSurface composer", () => {
 
     await act(async () => {
       renderer = create(
-        createElement(
-          AssistantSurfaceHostProvider,
-          {
-            value: {
-              records: [],
-              registerComposer: () => () => undefined,
-              subscribeRecords: () => () => undefined
-            }
-          },
-          createElement(AssistantSurface, {
-            composer: { placeholder: "Message embedded Jarvis", onSubmitText }
-          })
+        withPersonaQueryClient(
+          createElement(
+            AssistantSurfaceHostProvider,
+            {
+              value: {
+                records: [],
+                registerComposer: () => () => undefined,
+                subscribeRecords: () => () => undefined
+              }
+            },
+            createElement(AssistantSurface, {
+              composer: { placeholder: "Message embedded Jarvis", onSubmitText }
+            })
+          )
         )
       );
     });
@@ -77,22 +99,24 @@ describe("AssistantSurface composer", () => {
 
     await act(async () => {
       renderer = create(
-        createElement(
-          AssistantSurfaceHostProvider,
-          {
-            value: {
-              records: [],
-              registerComposer: () => () => undefined,
-              subscribeRecords: () => () => undefined
-            }
-          },
-          createElement(AssistantSurface, {
-            composer: {
-              onSubmitText,
-              uploadAttachment,
-              attachmentLabel: "Attach résumé"
-            }
-          })
+        withPersonaQueryClient(
+          createElement(
+            AssistantSurfaceHostProvider,
+            {
+              value: {
+                records: [],
+                registerComposer: () => () => undefined,
+                subscribeRecords: () => () => undefined
+              }
+            },
+            createElement(AssistantSurface, {
+              composer: {
+                onSubmitText,
+                uploadAttachment,
+                attachmentLabel: "Attach résumé"
+              }
+            })
+          )
         )
       );
     });

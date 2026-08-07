@@ -30,6 +30,7 @@ import {
 
 import { createTask, listTaskLists, setActiveTheme } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
+import { useAssistantName } from "../api/use-assistant-name.js";
 import {
   buildCommandPaletteCommands,
   type CommandPaletteCommand,
@@ -82,6 +83,7 @@ export function CommandPalette(props: {
   const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
+  const assistantName = useAssistantName();
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState<Stage>({ kind: "root" });
   const [query, setQuery] = useState("");
@@ -99,9 +101,10 @@ export function CommandPalette(props: {
       buildCommandPaletteCommands({
         modules: props.modules,
         disabledModuleIds: props.disabledModuleIds,
-        themes: props.themes
+        themes: props.themes,
+        assistantName
       }),
-    [props.disabledModuleIds, props.modules, props.themes]
+    [props.disabledModuleIds, props.modules, props.themes, assistantName]
   );
   const groups = useMemo<readonly PaletteGroup[]>(() => {
     if (stage.kind === "root") return filterCommandPaletteCommands(commands, query);

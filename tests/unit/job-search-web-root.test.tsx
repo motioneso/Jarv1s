@@ -982,7 +982,7 @@ describe("job-search web Root", () => {
     const renderer = await renderRoot();
     await flush(renderer);
 
-    expect(text(renderer)).toContain("Jarvis · Module");
+    expect(text(renderer)).toContain("Moss · Module");
     expect(text(renderer)).toContain(label);
   });
 });

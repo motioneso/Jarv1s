@@ -10,20 +10,22 @@ export interface PaneProps {
 }
 
 /** Editorial one-liners for modules (the module DTOs carry no description). */
-export const MODULE_DESCRIPTIONS: Record<string, string> = {
-  tasks: "Capture, prioritise and track what you need to do.",
-  calendar: "The events Jarvis plans around and protects.",
-  briefings: "Your daily reading ritual. Cadence lives in here.",
-  knowledge: "What Jarvis remembers about you — facts, patterns, corrections.",
-  wellness: "Private capacity signals — mood, energy, meds.",
-  notifications: "What's worth surfacing. Sensitivity lives in here.",
-  finance: "Planning context, kept out of your briefings.",
-  email: "Back-end context and task capture — never a nav destination.",
-  chat: "The assistant you talk to, inside the product."
-};
+export function moduleDescriptions(assistantName: string): Record<string, string> {
+  return {
+    tasks: "Capture, prioritise and track what you need to do.",
+    calendar: `The events ${assistantName} plans around and protects.`,
+    briefings: "Your daily reading ritual. Cadence lives in here.",
+    knowledge: `What ${assistantName} remembers about you — facts, patterns, corrections.`,
+    wellness: "Private capacity signals — mood, energy, meds.",
+    notifications: "What's worth surfacing. Sensitivity lives in here.",
+    finance: "Planning context, kept out of your briefings.",
+    email: "Back-end context and task capture — never a nav destination.",
+    chat: "The assistant you talk to, inside the product."
+  };
+}
 
-export function moduleDescription(id: string): string {
-  return MODULE_DESCRIPTIONS[id] ?? "A Jarvis module.";
+export function moduleDescription(id: string, assistantName: string): string {
+  return moduleDescriptions(assistantName)[id] ?? "A Moss module.";
 }
 
 export function readError(error: unknown): string {

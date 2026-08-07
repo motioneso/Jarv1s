@@ -3,6 +3,7 @@ import { CalendarDays, Compass, HeartPulse, House, ListChecks, Settings } from "
 
 import { getModules, getMyModules } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { useAssistantName } from "../api/use-assistant-name";
 import { buildTourSections, type TourSection } from "./section-tour-model";
 import { FootNote, StepHeader } from "./onboarding-ui";
 
@@ -15,6 +16,7 @@ const ICONS: Record<TourSection["icon"], typeof House> = {
 };
 
 export function SectionTourStep(props: { readonly onDone: () => void }) {
+  const assistantName = useAssistantName();
   const modulesQuery = useQuery({
     queryKey: queryKeys.modules,
     queryFn: () => getModules(),
@@ -38,14 +40,18 @@ export function SectionTourStep(props: { readonly onDone: () => void }) {
   const disabledModuleIds = (myModulesQuery.data?.modules ?? [])
     .filter((m) => !m.active)
     .map((m) => m.id);
-  const sections = buildTourSections(modulesQuery.data?.modules ?? [], disabledModuleIds);
+  const sections = buildTourSections(
+    modulesQuery.data?.modules ?? [],
+    disabledModuleIds,
+    assistantName
+  );
 
   return (
     <section className="onb-step" aria-labelledby="member-tour-title">
       <StepHeader
         eyebrow="Step 3 · Where to go"
         title="Here’s where to start."
-        lede="A brief orientation to help you find your way around Jarvis."
+        lede="A brief orientation to help you find your way around Moss."
       />
       <div className="onb-tour">
         {sections.map((section) => {

@@ -54,8 +54,8 @@ async function holdStreamEmpty(page: Page) {
 
 async function openDrawer(page: Page) {
   await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await expect(drawer).toBeVisible();
   return drawer;
 }
@@ -108,7 +108,7 @@ test("attaching a file shows a ready chip and sends its id with the turn (#1133)
   await expect(chip).not.toHaveClass(/is-uploading/);
   expect(uploads).toEqual([{ mime: "text/plain", name: "notes.txt", bytes: 16 }]);
 
-  const composerInput = drawer.getByLabel("Message Jarvis");
+  const composerInput = drawer.getByLabel("Message Moss");
   await composerInput.fill("Look at this file");
   await composerInput.press("Enter");
 
@@ -146,7 +146,7 @@ test("pasting an image stages it as a pending chip (#1133)", async ({ page }) =>
   // Synthesize a clipboard paste carrying an image file onto the composer textarea —
   // Playwright has no native clipboard-image API, and this exercises the same React
   // onPaste handler a real Ctrl+V hits.
-  await drawer.getByLabel("Message Jarvis").evaluate((element) => {
+  await drawer.getByLabel("Message Moss").evaluate((element) => {
     const data = new DataTransfer();
     data.items.add(
       new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "screen.png", { type: "image/png" })
@@ -202,7 +202,7 @@ test("a failed upload marks the chip and keeps it out of the send (#1133)", asyn
   await expect(chip.locator(".chatd-attach__meta")).toHaveText("failed");
 
   // Errored chips never become DTOs — the turn goes out text-only, without attachmentIds.
-  const composerInput = drawer.getByLabel("Message Jarvis");
+  const composerInput = drawer.getByLabel("Message Moss");
   await composerInput.fill("just text");
   await composerInput.press("Enter");
   await expect.poll(() => turnBody).toEqual({ text: "just text" });

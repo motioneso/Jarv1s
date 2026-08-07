@@ -1,6 +1,6 @@
 # Backup Operations
 
-Jarv1s creates daily backups at 02:00 local time. Each backup bundles the Postgres database
+Moss creates daily backups at 02:00 local time. Each backup bundles the Postgres database
 and the Obsidian vault into a single timestamped `.tar.gz` archive.
 
 The database is dumped via `docker exec` inside the `jarv1s-postgres` container using the

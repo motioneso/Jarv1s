@@ -103,7 +103,7 @@ async function chooseNotesFolder(page: Page, keyboard = false): Promise<void> {
 async function reviewExactDelete(page: Page): Promise<void> {
   await expect(page.getByText("Delete quarterly-plan.md", { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "Review deletion" }).click();
-  await expect(page.getByRole("dialog", { name: "Chat with Jarvis" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Chat with Moss" })).toBeVisible();
   await expect(page.locator(`[data-action-request-id="${DELETE_ID}"]`)).toBeFocused();
   await expect(page.locator(`[data-action-request-id="${OTHER_ID}"]`)).not.toBeFocused();
   await page.getByRole("button", { name: "Close chat" }).click();

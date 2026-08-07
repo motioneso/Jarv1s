@@ -66,7 +66,7 @@ export const VAULT_BEHAVIORS: readonly VaultBehavior[] = [
   {
     k: "writeback",
     name: "Write notes back",
-    desc: "Let Jarvis append summaries or notes to your folder.",
+    desc: "Let your assistant append summaries or notes to your folder.",
     on: false
   }
 ];
@@ -99,7 +99,7 @@ export const DEFAULT_BRIEFINGS: BriefingsSettings = {
     {
       k: "calendar",
       name: "Today's calendar",
-      desc: "Your events, and the gaps Jarvis is protecting.",
+      desc: "Your events, and the gaps your assistant is protecting.",
       on: true
     },
     {
@@ -134,8 +134,12 @@ export const DEFAULT_NOTIFICATIONS: NotificationsSettings = {
   sensitivity: "balanced"
 };
 
-export const NOTIFICATION_SENSITIVITY_HINT: Record<NotificationSensitivity, string> = {
-  quiet: "Only what's genuinely urgent. Everything else waits for your briefing.",
-  balanced: "The default. Timely nudges, without the noise.",
-  proactive: "Jarvis speaks up early and often. Best when you want maximum coverage."
-};
+export function notificationSensitivityHint(
+  assistantName: string
+): Record<NotificationSensitivity, string> {
+  return {
+    quiet: "Only what's genuinely urgent. Everything else waits for your briefing.",
+    balanced: "The default. Timely nudges, without the noise.",
+    proactive: `${assistantName} speaks up early and often. Best when you want maximum coverage.`
+  };
+}

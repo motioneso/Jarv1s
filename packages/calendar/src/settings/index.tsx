@@ -31,7 +31,7 @@ export const CALENDAR_MODE_OPTIONS: ReadonlyArray<{
 // override it here for Time blocks specifically -- Prep tasks has no background writer and must
 // keep the shared generic copy.
 const CALENDAR_TIME_BLOCK_AUTO_DESC =
-  "Create time blocks automatically, both when Jarvis proposes them in chat and unattended in the background.";
+  "Create time blocks automatically, both when your assistant proposes them in chat and unattended in the background.";
 
 async function requestJson<T>(path: string, init?: RequestInit & { body?: unknown }): Promise<T> {
   const headers = new Headers(init?.headers);

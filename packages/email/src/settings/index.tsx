@@ -36,7 +36,7 @@ export const EMAIL_TASK_MODE_OPTIONS: ReadonlyArray<{
     label: "Auto for safe items",
     desc: "Auto-add bills and hard deadlines; stage the rest."
   },
-  { value: "auto", label: "Auto", desc: "Auto-add anything Jarvis is confident about." }
+  { value: "auto", label: "Auto", desc: "Auto-add anything your assistant is confident about." }
 ];
 
 // The "draft replies without asking" toggle maps the generic email_drafts action
@@ -256,11 +256,11 @@ export default function EmailSettings() {
       </Group>
       <Group title="Reply agency">
         <Row
-          name="Let Jarvis draft email replies without asking"
-          desc="When on, Jarvis saves reply drafts to the original Gmail thread automatically. Drafts never send on their own — you still open and send them yourself."
+          name="Let your assistant draft email replies without asking"
+          desc="When on, your assistant saves reply drafts to the original Gmail thread automatically. Drafts never send on their own — you still open and send them yourself."
           control={
             <Switch
-              ariaLabel="Let Jarvis draft email replies without asking"
+              ariaLabel="Let your assistant draft email replies without asking"
               checked={draftAutoChecked(draftAutoTier)}
               disabled={draftPolicyDisabled}
               onChange={(value) => draftPolicyMutation.mutate(draftAutoTierFromChecked(value))}
@@ -269,7 +269,7 @@ export default function EmailSettings() {
         />
         <Row
           name="Sending a reply always asks first"
-          desc="Sending an email is destructive, so Jarvis always shows an Approve card before it sends — this can't be turned off."
+          desc="Sending an email is destructive, so your assistant always shows an Approve card before it sends — this can't be turned off."
         />
       </Group>
       {sourceBehaviors.isError ||

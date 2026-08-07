@@ -225,15 +225,15 @@ export const emailSendReplyExecute: ToolExecute = async (
 // shows when no preview is present).
 export function summarizeDraftReply(_input: Record<string, unknown>, _ctx: ToolContext): string {
   return (
-    "Draft a reply to this email? Jarvis addresses it to the original sender on the existing " +
+    "Draft a reply to this email? Your assistant addresses it to the original sender on the existing " +
     "thread — the draft lands in Gmail for you to review before it sends."
   );
 }
 
 export function summarizeSendReply(_input: Record<string, unknown>, _ctx: ToolContext): string {
   return (
-    "Send this reply? Jarvis addresses it to the original sender on the existing thread. " +
-    "It sends immediately and can't be undone from Jarvis."
+    "Send this reply? Your assistant addresses it to the original sender on the existing thread. " +
+    "It sends immediately and can't be undone from Moss."
   );
 }
 

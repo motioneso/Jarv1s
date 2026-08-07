@@ -101,8 +101,8 @@ describe("libraryAction (#1187 decision 2)", () => {
     expect(libraryAction(row({ id: "m", state: "incompatible", requiresCore: ">=2.0.0" }))).toEqual(
       {
         kind: "none",
-        label: "Incompatible with this Jarvis version",
-        reason: "Requires Jarvis >=2.0.0."
+        label: "Incompatible with this Moss version",
+        reason: "Requires Moss >=2.0.0."
       }
     );
   });

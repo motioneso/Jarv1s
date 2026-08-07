@@ -4,6 +4,7 @@ import { Globe, Trash2 } from "lucide-react";
 
 import { deleteWebSearchKey, getWebSearchKey, putWebSearchKey } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { useAssistantName } from "../api/use-assistant-name";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
 import { Field, Group, Note } from "./settings-ui";
@@ -12,6 +13,7 @@ import { Button } from "@jarv1s/ui";
 export function WebSearchKeyGroup() {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
+  const assistantName = useAssistantName();
   const [apiKey, setApiKey] = useState("");
 
   const statusQuery = useQuery({
@@ -46,7 +48,7 @@ export function WebSearchKeyGroup() {
   return (
     <Group
       title="Web search"
-      desc="Jarvis searches the live web through Brave Search. Add an instance-wide API key to turn it on for everyone."
+      desc={`${assistantName} searches the live web through Brave Search. Add an instance-wide API key to turn it on for everyone.`}
     >
       <Field
         label="Brave Search API key"
@@ -76,7 +78,7 @@ export function WebSearchKeyGroup() {
             onClick={() =>
               confirm({
                 title: "Remove web search key?",
-                description: "Jarvis stops searching the web until a new key is added.",
+                description: `${assistantName} stops searching the web until a new key is added.`,
                 confirmLabel: "Remove",
                 danger: true,
                 onConfirm: () => revokeMutation.mutate()

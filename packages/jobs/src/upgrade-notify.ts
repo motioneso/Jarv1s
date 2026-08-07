@@ -37,8 +37,8 @@ export async function handleUpgradeNotifyJob(
   try {
     await repository.create(scopedDb, {
       moduleId: SETTINGS_MODULE_ID,
-      title: `Jarvis ${job.data.version} is available`,
-      body: "A newer version of Jarvis is available. View the release notes and upgrade from Settings -> Diagnostics.",
+      title: `Moss ${job.data.version} is available`,
+      body: "A newer version of Moss is available. View the release notes and upgrade from Settings -> Diagnostics.",
       urgency: "normal",
       metadata: { kind: "upgrade_available", version: job.data.version }
     });

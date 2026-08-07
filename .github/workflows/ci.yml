@@ -289,7 +289,7 @@ jobs:
             echo "push=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build (and push on tag/main) Jarv1s image
+      - name: Build (and push on tag/main) Moss image
         uses: docker/build-push-action@v6
         with:
           context: .

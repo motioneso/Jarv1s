@@ -10,6 +10,7 @@ import type { ModuleDto } from "@jarv1s/shared";
 describe("command palette model", () => {
   it("builds grouped commands from real shell routes, themes, and safe settings targets", () => {
     const commands = buildCommandPaletteCommands({
+      assistantName: "Alfred",
       modules: [
         moduleWithNav("tasks", "Tasks", "/tasks", "check-square", 20),
         moduleWithNav("calendar", "Calendar", "/calendar", "calendar-days", 30),
@@ -103,6 +104,7 @@ describe("command palette model", () => {
 
   it("filters by label, description, and aliases while preserving group order", () => {
     const commands = buildCommandPaletteCommands({
+      assistantName: "Alfred",
       modules: [moduleWithNav("tasks", "Tasks", "/tasks", "check-square", 20)],
       disabledModuleIds: [],
       themes: {
@@ -133,6 +135,27 @@ describe("command palette model", () => {
         items: [expect.objectContaining({ id: "task:create" })]
       })
     ]);
+  });
+
+  // #1441 — the data-sources description names the assistant, so it has to come
+  // from the caller's configured name. A hardcoded literal here would still pass
+  // a test that only checked the command exists.
+  it("names the configured assistant in the data-sources description", () => {
+    const commands = buildCommandPaletteCommands({
+      assistantName: "Alfred",
+      modules: [],
+      disabledModuleIds: [],
+      themes: {
+        activeId: "dark",
+        mode: "dark",
+        builtIn: [{ id: "dark", name: "Dark", builtIn: true }],
+        custom: []
+      }
+    });
+
+    const sources = commands.find((item) => item.id === "settings:sources");
+
+    expect(sources?.description).toBe("Choose what Alfred can read");
   });
 });
 

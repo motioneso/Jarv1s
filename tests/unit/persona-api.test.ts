@@ -42,7 +42,7 @@ describe("persona API helpers", () => {
   });
 
   it("normalizes invalid stored values to the default persona bundle", () => {
-    expect(normalizePersonaSettings(null)).toEqual({ assistantName: "Jarvis", personaText: "" });
+    expect(normalizePersonaSettings(null)).toEqual({ assistantName: "Moss", personaText: "" });
     expect(
       normalizePersonaSettings({
         assistantName: "###",

@@ -23,11 +23,11 @@ export function ApiKeyOptOutStep(props: { readonly onSkipStep: () => void }) {
     <section className="onb-step" aria-labelledby="member-apikey-title">
       <StepHeader
         eyebrow="Step 1 · Your assistant"
-        title="Jarvis is ready to use."
+        title="Moss is ready to use."
         lede={
           done
             ? "You have added a custom AI provider. You can manage it in Settings at any time."
-            : "Jarvis runs on a shared server, so there is nothing to install on your computer. If you want to use your own API key to manage your usage limits, you can add it here. Most users do not need to."
+            : "Moss runs on a shared server, so there is nothing to install on your computer. If you want to use your own API key to manage your usage limits, you can add it here. Most users do not need to."
         }
       />
       <div className="onb-opts">
@@ -36,7 +36,7 @@ export function ApiKeyOptOutStep(props: { readonly onSkipStep: () => void }) {
           onClick={() => setAssistant("shared")}
           name="Use the shared setup"
           mono="recommended"
-          desc="Run Jarvis on the shared system. Easiest option, with no setup required."
+          desc="Run Moss on the shared system. Easiest option, with no setup required."
         />
         <OptionCard
           selected={assistant === "personal"}

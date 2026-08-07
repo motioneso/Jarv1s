@@ -1,5 +1,10 @@
 # Jarvis Design System — Handoff Brief for Claude Design
 
+> **Dated record — kept verbatim.** The product is now named **Moss** (decided 2026-08-06, #1441).
+> This brief is left in its original wording because it names the codename the referenced design
+> deliverables were actually produced under, and because it explicitly scoped public-name
+> finalization out of that engagement. Read every "Jarvis" below as the product now called Moss.
+
 **Date:** 2026-06-13
 **Prepared for:** Claude Design
 **Scope of engagement:** **Option A — the complete Jarvis visual design system** (the "design book"): logo, typography, color, iconography, motion, a component library, and high-fidelity key screens, all grounded in the brand and research already documented in `docs/brand/`.

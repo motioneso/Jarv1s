@@ -48,6 +48,7 @@ import {
   putNotesSource
 } from "../api/notes-client";
 import { queryKeys } from "../api/query-keys";
+import { useAssistantName } from "../api/use-assistant-name";
 import { GOOGLE_CONNECT_SUCCESS_QUERY_KEYS } from "../connectors/use-google-connect-flow";
 import { getConnectorAccountHealth, isConnectorSyncInFlight } from "./settings-connector-sync";
 import { GoogleConnect } from "./settings-google-connect";
@@ -110,6 +111,7 @@ function AccountRow(props: {
   const { account } = props;
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
+  const assistantName = useAssistantName();
   const health = getConnectorAccountHealth(account);
   const hasEmail = hasEmailScope(account.scopes);
   const hasCalendar = hasCalendarScope(account.scopes);
@@ -156,7 +158,7 @@ function AccountRow(props: {
             {hasEmail ? (
               <FeatureGrantSwitch
                 label="Email access"
-                desc="Jarvis may read your email from this account."
+                desc={`${assistantName} may read your email from this account.`}
                 checked={grants?.email ?? true}
                 disabled={featureQuery.isLoading || featureMutation.isPending}
                 onChange={(email) => featureMutation.mutate({ email })}
@@ -165,7 +167,7 @@ function AccountRow(props: {
             {hasCalendar ? (
               <FeatureGrantSwitch
                 label="Calendar access"
-                desc="Jarvis may read your calendar from this account."
+                desc={`${assistantName} may read your calendar from this account.`}
                 checked={grants?.calendar ?? true}
                 disabled={featureQuery.isLoading || featureMutation.isPending}
                 onChange={(calendar) => featureMutation.mutate({ calendar })}
@@ -255,6 +257,7 @@ function ServicePicker(props: { readonly onGoogle: () => void; readonly onImap: 
 function ConnectedPane() {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
+  const assistantName = useAssistantName();
   const [flow, setFlow] = useState<null | "picker" | "google" | "imap">(null);
   const accountsQuery = useQuery({
     queryKey: queryKeys.connectors.accounts,
@@ -296,7 +299,7 @@ function ConnectedPane() {
     <>
       <PaneHead
         title="Connected accounts"
-        desc="The external accounts Jarvis can reach, and how healthy each connection is. You stay in control — reconnect or revoke at any time."
+        desc={`The external accounts ${assistantName} can reach, and how healthy each connection is. You stay in control — reconnect or revoke at any time.`}
       />
       <Group
         title="Accounts"
@@ -314,7 +317,7 @@ function ConnectedPane() {
         {accounts.length === 0 ? (
           <Row
             name="No accounts connected"
-            desc="Connect Google or another account to give Jarvis context."
+            desc={`Connect Google or another account to give ${assistantName} context.`}
           />
         ) : (
           accounts.map((account) => (
@@ -325,8 +328,7 @@ function ConnectedPane() {
               onRevoke={() =>
                 confirm({
                   title: `Revoke ${account.providerDisplayName} access?`,
-                  description:
-                    "Jarvis will lose access to this account until you reconnect it. Nothing on the account itself is changed.",
+                  description: `${assistantName} will lose access to this account until you reconnect it. Nothing on the account itself is changed.`,
                   confirmLabel: "Revoke",
                   danger: true,
                   onConfirm: () => revokeMutation.mutate(account.id)
@@ -359,6 +361,7 @@ function SourcesPane() {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
   const { pendingNotesDelete, openActionRequest } = useChatControls();
+  const assistantName = useAssistantName();
 
   // Notes source (#449): real API calls replace the prior NotWired stub.
   const notesSourceQuery = useQuery({
@@ -431,7 +434,7 @@ function SourcesPane() {
   const unlink = () =>
     confirm({
       title: "Unlink this folder?",
-      description: "Jarvis will stop reading your notes. Your files are untouched.",
+      description: `${assistantName} will stop reading your notes. Your files are untouched.`,
       confirmLabel: "Unlink",
       danger: true,
       onConfirm: () => {
@@ -455,7 +458,7 @@ function SourcesPane() {
     <>
       <PaneHead
         title="Data sources"
-        desc="Connect a notes folder Jarvis can index and use as context."
+        desc={`Connect a notes folder ${assistantName} can index and use as context.`}
       />
 
       <Group
@@ -465,7 +468,7 @@ function SourcesPane() {
             Notes &amp; documents
           </span>
         }
-        desc="Point Jarvis at a folder of notes on this server — a Markdown vault, a plain folder of text files, anything. Tool-agnostic by design."
+        desc={`Point ${assistantName} at a folder of notes on this server — a Markdown vault, a plain folder of text files, anything. Tool-agnostic by design.`}
       >
         <div className="vault">
           <span className="vault__ic">
@@ -531,7 +534,7 @@ function SourcesPane() {
         </div>
       </Group>
       <Note icon={<ShieldCheck size={13} />}>
-        Jarvis can create and edit Markdown notes in this folder.{" "}
+        {assistantName} can create and edit Markdown notes in this folder.{" "}
         {pendingNotesDelete ? (
           <>
             <strong>{pendingNotesDelete.summary}</strong> is awaiting explicit approval before
@@ -576,6 +579,7 @@ function hasImplementedModuleSettings(module: SettingsModule): boolean {
 function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
+  const assistantName = useAssistantName();
   const [searchParams, setSearchParams] = useSearchParams();
   const view: ModuleSettingsView | null = resolveModuleSettingsDeepLink(
     searchParams.get("module"),
@@ -718,7 +722,7 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
           <div className="modrow__desc">
             {locked
               ? "An admin has turned this off for the whole instance."
-              : moduleDescription(module.id)}
+              : moduleDescription(module.id, assistantName)}
           </div>
         </div>
         <div className="modrow__act">
@@ -737,7 +741,7 @@ function ModulesPane({ onNavigate, onSelectSection }: PaneProps) {
 
   return (
     <>
-      <PaneHead title="Modules" desc="Choose which parts of Jarvis to use and configure." />
+      <PaneHead title="Modules" desc="Choose which parts of Moss to use and configure." />
       <Group
         title="Available modules"
         desc="Required modules stay available; optional modules can be turned on or off."

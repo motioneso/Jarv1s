@@ -92,7 +92,7 @@ export const emailModuleManifest = {
       id: "email",
       name: "Email",
       description:
-        "What Jarvis is allowed to do with your email — independent of whichever service powers it.",
+        "What your assistant is allowed to do with your email — independent of whichever service powers it.",
       behaviors: [
         {
           id: "email.briefings",
@@ -168,7 +168,7 @@ export const emailModuleManifest = {
       id: "email_drafts",
       label: "Draft email replies",
       description:
-        "Let Jarvis draft replies to your emails. Drafts land in Gmail for you to review — " +
+        "Let your assistant draft replies to your emails. Drafts land in Gmail for you to review — " +
         "nothing is sent without your say-so.",
       defaultTier: "ask_each_time",
       allowedTiers: ["ask_each_time", "trusted_auto", "always_confirm"]
@@ -235,7 +235,7 @@ export const emailModuleManifest = {
         properties: {
           cacheMessageId: {
             type: "string",
-            description: "Jarvis email message id (uuid) from listVisibleMessages"
+            description: "Moss email message id (uuid) from listVisibleMessages"
           },
           body: { type: "string", description: "Plain-text reply body composed for the sender" }
         }
@@ -268,7 +268,7 @@ export const emailModuleManifest = {
         properties: {
           cacheMessageId: {
             type: "string",
-            description: "Jarvis email message id (uuid) from listVisibleMessages"
+            description: "Moss email message id (uuid) from listVisibleMessages"
           },
           body: { type: "string", description: "Plain-text reply body composed for the sender" }
         }

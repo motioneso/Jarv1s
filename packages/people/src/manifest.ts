@@ -59,7 +59,7 @@ export const peopleModuleManifest: JarvisModuleManifest = {
           id: "people.notes.suggest-updates",
           name: "Suggest note updates",
           description:
-            "Create review candidates for Jarvis-managed People note updates instead of silently changing human notes.",
+            "Create review candidates for assistant-managed People note updates instead of silently changing human notes.",
           default: "default-on"
         }
       ]

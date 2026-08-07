@@ -129,7 +129,7 @@ export function renderNotificationDigest(input: {
 }): { subject: string; text: string; html: string } {
   const settingsUrl = `${input.baseUrl.replace(/\/$/, "")}/settings?section=notifications`;
   const lines = [
-    "Jarvis notification digest",
+    "Moss notification digest",
     "",
     ...input.notifications.flatMap((notification) => [
       `- ${notification.title}`,
@@ -146,9 +146,9 @@ export function renderNotificationDigest(input: {
     .join("");
 
   return {
-    subject: "Jarvis notification digest",
+    subject: "Moss notification digest",
     text: lines.join("\n"),
-    html: `<h1>Jarvis notification digest</h1><ul>${items}</ul><p><a href="${escapeHtml(settingsUrl)}">Manage digest settings</a></p>`
+    html: `<h1>Moss notification digest</h1><ul>${items}</ul><p><a href="${escapeHtml(settingsUrl)}">Manage digest settings</a></p>`
   };
 }
 

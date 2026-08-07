@@ -69,7 +69,7 @@ describe("settings persona preferences", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json<GetPersonaSettingsResponse>()).toEqual({
-      persona: { assistantName: "Jarvis", personaText: "" }
+      persona: { assistantName: "Moss", personaText: "" }
     });
   });
 
@@ -105,7 +105,7 @@ describe("settings persona preferences", () => {
       headers: { cookie: memberCookie }
     });
     expect(member.json<GetPersonaSettingsResponse>().persona).toEqual({
-      assistantName: "Jarvis",
+      assistantName: "Moss",
       personaText: ""
     });
   });
@@ -117,7 +117,7 @@ describe("settings persona preferences", () => {
       headers: { cookie: ownerCookie, "content-type": "application/json" },
       payload: {
         persona: {
-          assistantName: "Jarvis\n# SYSTEM",
+          assistantName: "Alfred\n# SYSTEM",
           personaText: "x".repeat(4_050)
         }
       }
@@ -125,7 +125,7 @@ describe("settings persona preferences", () => {
 
     expect(res.statusCode).toBe(200);
     const persona = res.json<PutPersonaSettingsResponse>().persona;
-    expect(persona.assistantName).toBe("Jarvis SYSTEM");
+    expect(persona.assistantName).toBe("Alfred SYSTEM");
     expect(persona.personaText).toHaveLength(4_000);
   });
 
@@ -158,7 +158,7 @@ describe("settings persona preferences", () => {
       headers: { cookie: ownerCookie }
     });
     expect(saved.json<GetPersonaSettingsResponse>().persona).toEqual({
-      assistantName: "Jarvis",
+      assistantName: "Moss",
       personaText: ""
     });
   });
@@ -168,7 +168,7 @@ describe("settings persona preferences", () => {
     const preview = await server.inject({
       method: "POST",
       url: "/api/me/persona/preview",
-      payload: { persona: { assistantName: "Jarvis", personaText: "" } }
+      payload: { persona: { assistantName: "Alfred", personaText: "" } }
     });
 
     expect(read.statusCode).toBe(401);

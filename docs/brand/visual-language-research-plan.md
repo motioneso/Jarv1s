@@ -1,19 +1,19 @@
-# Jarvis Visual Language Research Plan
+# Moss Visual Language Research Plan
 
 Date: 2026-06-06
 
 ## Purpose
 
 This plan defines a research brief that can be given to NotebookLM or another research assistant to
-study visual-language options for Jarvis.
+study visual-language options for Moss.
 
 The goal is not to design UI yet. The goal is to collect evidence, compare patterns, identify
-anti-patterns, and recommend visual directions that fit the Jarvis brand foundation in
+anti-patterns, and recommend visual directions that fit the Moss brand foundation in
 `docs/brand/brand-brief.md`.
 
 ## Brand Context
 
-Jarvis is the chief of staff for your whole life: a private, adaptive daily briefing and personal OS
+Moss is the chief of staff for your whole life: a private, adaptive daily briefing and personal OS
 that helps users stay ready, follow through, and recover without judgment.
 
 Core product metaphor:
@@ -40,7 +40,7 @@ Brand constraints:
 
 Visual-language constraints:
 
-- Do not make Jarvis feel like a generic AI chatbot.
+- Do not make Moss feel like a generic AI chatbot.
 - Do not copy Claude's editorial minimalism.
 - Do not make it feel like a sterile SaaS dashboard.
 - Do not make it feel like a therapy/wellness app.
@@ -78,9 +78,9 @@ docs/brand/visual-principles.md
 Use this prompt in NotebookLM after adding the source set:
 
 ```txt
-You are researching visual language for Jarvis, a private whole-life chief-of-staff assistant.
+You are researching visual language for Moss, a private whole-life chief-of-staff assistant.
 
-Jarvis is not primarily a chatbot. Its core product metaphor is a daily briefing that answers:
+Moss is not primarily a chatbot. Its core product metaphor is a daily briefing that answers:
 "What are my priorities today, and how can I prepare for tomorrow?"
 
 Brand spine:
@@ -101,7 +101,7 @@ Values:
 
 Research task:
 Study current AI assistant UX, productivity tools, daily briefing/editorial products, personal
-knowledge systems, and command-center interfaces. Identify visual patterns that could help Jarvis
+knowledge systems, and command-center interfaces. Identify visual patterns that could help Moss
 feel like a daily briefing system rather than a generic AI chatbot or dashboard.
 
 Avoid recommending:
@@ -115,15 +115,15 @@ Avoid recommending:
 
 Deliver:
 1. Summarize the strongest market patterns with citations.
-2. List visual and UX anti-patterns Jarvis should avoid, with examples.
-3. Propose three candidate visual directions for Jarvis.
+2. List visual and UX anti-patterns Moss should avoid, with examples.
+3. Propose three candidate visual directions for Moss.
 4. For each direction, describe:
    - emotional feel
    - layout language
    - typography direction
    - color/material direction
    - motion/interaction behavior
-   - where it fits the Jarvis daily rhythm
+   - where it fits the Moss daily rhythm
    - risks and failure modes
 5. Recommend one lead direction and one or two supporting modes.
 6. Explain how the recommendation supports:
@@ -213,7 +213,7 @@ Questions:
 - How do they separate headlines, context, action, and background?
 - What makes editorial layouts feel trustworthy rather than decorative?
 - Which newspaper-like patterns feel modern, and which feel nostalgic or heavy?
-- How can Jarvis borrow briefing structure without copying Claude?
+- How can Moss borrow briefing structure without copying Claude?
 
 ### Bucket 3: Productivity, Planning, And Command-Center Tools
 
@@ -292,7 +292,7 @@ Questions:
 - How do trustworthy products show irreversible or sensitive action states?
 - How do they avoid fear-based visual language?
 - How can autonomy be shown as granted, scoped, and reversible?
-- What should happen visually when Jarvis is asking versus acting?
+- What should happen visually when Moss is asking versus acting?
 
 ## Evaluation Rubric
 
@@ -422,7 +422,7 @@ Document examples of:
 
 1. What visual patterns make a digital briefing feel trustworthy and useful?
 2. What patterns make a personal assistant feel competent without feeling invasive?
-3. How can Jarvis show priorities, risks, and prep without creating anxiety?
+3. How can Moss show priorities, risks, and prep without creating anxiety?
 4. How can the interface support user-configurable personality without becoming gimmicky?
 5. How should the product distinguish ask/recommend/prepare/act states?
 6. How can privacy and autonomy be visible only when relevant?
@@ -430,14 +430,14 @@ Document examples of:
 8. What should the morning briefing, quiet monitoring, recovery, and tomorrow-prep modes have in
    common?
 9. Which visual motifs are already overused in AI products?
-10. Which references should Jarvis explicitly avoid resembling?
+10. Which references should Moss explicitly avoid resembling?
 
 ## Final Research Deliverable Template
 
 Use this structure for the final research document:
 
 ```markdown
-# Jarvis Visual Language Research
+# Moss Visual Language Research
 
 Date: YYYY-MM-DD
 

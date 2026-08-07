@@ -1,8 +1,8 @@
-# Jarv1s
+# Moss
 
-Jarv1s is a self-hosted AI home base for chat, notes, tasks, briefings, calendar context, and personal automations.
+Moss is a self-hosted AI home base for chat, notes, tasks, briefings, calendar context, and personal automations.
 
-The product is under active alpha development. The long-term install goal is a simple Docker Compose file: one Postgres container for durable data, and one Jarv1s container for the app, web UI, worker, migrations, and provider CLI runtime.
+The product is under active alpha development. The long-term install goal is a simple Docker Compose file: one Postgres container for durable data, and one Moss container for the app, web UI, worker, migrations, and provider CLI runtime.
 
 ## Docker Compose Template
 
@@ -40,7 +40,7 @@ services:
       # Must match POSTGRES_PASSWORD above.
       JARVIS_DB_PASSWORD: replace-this-postgres-password
 
-      # Jarv1s uses this fixed in-container path for notes. Edit only the volume mount below.
+      # Moss uses this fixed in-container path for notes. Edit only the volume mount below.
       JARVIS_NOTES_ROOTS: /data/external-notes
     volumes:
       - jarv1s-data:/data
@@ -67,7 +67,7 @@ Open `http://localhost:1533`.
 
 ## What Runs
 
-The target deployment keeps Postgres separate because database lifecycle and durable storage are safest in the official Postgres/pgvector container. Everything Jarv1s owns should live in the Jarv1s container:
+The target deployment keeps Postgres separate because database lifecycle and durable storage are safest in the official Postgres/pgvector container. Everything Moss owns should live in the Moss container:
 
 - web UI
 - API
@@ -80,7 +80,7 @@ The app should fail loudly if placeholder secrets are left unchanged.
 
 ## Notes
 
-Mounting notes is optional. If you mount a folder at `/data/external-notes`, Jarv1s can ingest Markdown files and expose them to chat through the notes search tool. The default mount should be read-only unless a future write-back feature is enabled.
+Mounting notes is optional. If you mount a folder at `/data/external-notes`, Moss can ingest Markdown files and expose them to chat through the notes search tool. The default mount should be read-only unless a future write-back feature is enabled.
 
 ## Backups
 

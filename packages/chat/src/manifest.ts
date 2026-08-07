@@ -62,7 +62,7 @@ export const chatModuleManifest = {
     {
       id: "chat",
       label: "Chat",
-      description: "Talk with Jarvis and review prior conversations.",
+      description: "Talk with your assistant and review prior conversations.",
       path: "/chat",
       icon: "message-square",
       order: 45,
@@ -201,7 +201,7 @@ export const chatModuleManifest = {
     {
       name: "chat.getCurrentView",
       description:
-        "Read the active actor's latest bounded, redacted Jarvis web view and capability-level server facts.",
+        "Read the active actor's latest bounded, redacted Moss web view and capability-level server facts.",
       permissionId: "chat.view",
       risk: "read",
       inputSchema: { type: "object", additionalProperties: false, properties: {} },

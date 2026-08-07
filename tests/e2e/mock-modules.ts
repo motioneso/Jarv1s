@@ -275,6 +275,8 @@ export async function mockExternalWebModule(page: Page): Promise<void> {
   // URL Vite doesn't own, so its browser client appends a `?import` query suffix to the request —
   // an exact-path glob 404s on that suffix, which only ever shows up under Vite dev, never prod
   // (Fastify route matching ignores query strings there).
+  // The button copy below is this fake third-party module's own, not the host's, so #1441 leaves it
+  // spelled the old way on purpose: the host must never rewrite module-authored text.
   await page.route(`**/api/modules/${moduleId}/web/${entrypoint}*`, async (route) => {
     const bundle = [
       "const { react: React } = window.__JARVIS_MODULE_RUNTIME__;",
@@ -319,6 +321,9 @@ export async function mockAssistantSurfaceWebModule(page: Page): Promise<void> {
       "        type: 'button',",
       "        onClick: () => props.hostActions.openAssistant({ starterPrompt: 'Draft routed inline' })",
       "      }, 'Route draft inline'),",
+      // Module-authored placeholder, deliberately still the old spelling (#1441): it overrides the
+      // host's own `Message ${assistantName}` placeholder, and the spec asserts on the host's
+      // aria-label separately — so the two staying different is the point.
       "      composer: { placeholder: 'Message embedded Jarvis' }",
       "    });",
       "  }",

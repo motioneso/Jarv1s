@@ -91,7 +91,7 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
   if (isLoading) {
     return (
       <>
-        <PaneHead title="Priorities" desc="Teach Jarvis what deserves attention first." />
+        <PaneHead title="Priorities" desc="Teach your assistant what deserves attention first." />
         <Group title="Priority model">
           <Row name="Loading priority settings" desc="Fetching your current priority model." />
         </Group>
@@ -101,7 +101,7 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
   if (!draft || !saved) {
     return (
       <>
-        <PaneHead title="Priorities" desc="Teach Jarvis what deserves attention first." />
+        <PaneHead title="Priorities" desc="Teach your assistant what deserves attention first." />
         <Group title="Priority model">
           <Row name="Unavailable" desc="Failed to load priority settings." />
         </Group>
@@ -157,11 +157,11 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
     <>
       <PaneHead
         title="Priorities"
-        desc="Tell Jarvis what matters right now so it can rank work and signals usefully."
+        desc="Tell your assistant what matters right now so it can rank work and signals usefully."
       />
       <Group
         title="Priority mode"
-        desc="Choose the general way Jarvis weighs deadlines and energy."
+        desc="Choose the general way your assistant weighs deadlines and energy."
       >
         <Field label="Mode">
           <Select
@@ -180,7 +180,7 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
       </Group>
       <Group
         title="What matters right now"
-        desc="Priorities Jarvis should consistently move up or down."
+        desc="Priorities your assistant should consistently move up or down."
         action={
           <button
             type="button"
@@ -205,7 +205,7 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
                   </Badge>
                 </div>
                 <div className="set-row__desc">
-                  Set the importance Jarvis should give this priority.
+                  Set the importance your assistant should give this priority.
                 </div>
                 <div className="fld">
                   <div className="fld__row">
@@ -285,7 +285,7 @@ export function PrioritySettings({ onError, onSuccess }: PrioritySettingsProps) 
         )}
       </Group>
       <Group
-        title="Sources Jarvis may prioritize"
+        title="Sources your assistant may prioritize"
         desc="These choices affect ranking only; they do not change source access or data visibility."
       >
         {VISIBLE_SOURCES.map((source) => (

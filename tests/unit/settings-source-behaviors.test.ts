@@ -1,20 +1,30 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  PEOPLE_NOTES_SOURCE_BEHAVIORS,
+  peopleNotesSourceBehaviors,
   findSourceBehaviorEnabled
 } from "../../apps/web/src/settings/settings-source-behaviors.js";
 
-describe("PEOPLE_NOTES_SOURCE_BEHAVIORS", () => {
+describe("peopleNotesSourceBehaviors", () => {
   it("declares the people.notes.suggest-updates behavior", () => {
-    expect(PEOPLE_NOTES_SOURCE_BEHAVIORS).toEqual([
+    expect(peopleNotesSourceBehaviors("Alfred")).toEqual([
       {
         id: "people.notes.suggest-updates",
         label: "Suggest note updates",
         description:
-          "Create review candidates for Jarvis-managed People note updates instead of silently changing human notes."
+          "Create review candidates for Alfred-managed People note updates instead of silently changing human notes."
       }
     ]);
+  });
+
+  // #1441 — the description names the assistant, so it has to come from the caller's
+  // configured name. A hardcoded literal would still satisfy a test that only checked
+  // the behavior id, which is how this string survived the first rename pass.
+  it("names the configured assistant rather than a hardcoded product name", () => {
+    const [behavior] = peopleNotesSourceBehaviors("Alfred");
+
+    expect(behavior.description).toContain("Alfred-managed");
+    expect(behavior.description).not.toMatch(/Jarvis|Moss/i);
   });
 
   it("defaults to enabled when no source data is present", () => {

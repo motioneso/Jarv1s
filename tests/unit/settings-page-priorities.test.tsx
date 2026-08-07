@@ -43,7 +43,7 @@ describe("SettingsPage priorities navigation", () => {
       </MemoryRouter>
     );
 
-    expect(html).toContain("Jarvis");
+    expect(html).toContain("Moss");
     expect(html).toContain("Priorities");
   });
 
@@ -67,7 +67,7 @@ describe("SettingsPage priorities navigation", () => {
     );
 
     expect(html).toContain("Your account");
-    expect(html).toContain("Jarvis");
+    expect(html).toContain("Moss");
     expect(html).toContain("Connections");
     expect(html).toContain("Extensions");
     expect(html).toContain("Account &amp; preferences");

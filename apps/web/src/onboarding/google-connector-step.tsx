@@ -23,6 +23,7 @@ import {
   revokeConnectorAccount,
   testImapConnection
 } from "../api/client";
+import { useAssistantName } from "../api/use-assistant-name";
 import { queryKeys } from "../api/query-keys";
 import {
   GOOGLE_CONNECT_SUCCESS_QUERY_KEYS,
@@ -94,6 +95,7 @@ export function GoogleConnectorStep(props: {
   readonly privacy: string;
   readonly done?: boolean;
 }) {
+  const assistantName = useAssistantName();
   const [mode, setMode] = useState<"picker" | "connecting" | "imap" | "connected" | "adding">(
     props.done ? "connected" : "picker"
   );
@@ -194,9 +196,9 @@ export function GoogleConnectorStep(props: {
               <ShieldCheck size={15} aria-hidden="true" />
             </span>
             <span>
-              Jarvis connects to Google using an OAuth application under your control. This ensures
-              your calendar and email data never pass through third-party servers. You only need to
-              set this up once and copy two values.
+              {assistantName} connects to Google using an OAuth application under your control. This
+              ensures your calendar and email data never pass through third-party servers. You only
+              need to set this up once and copy two values.
             </span>
           </div>
           <ol className="onb-guide">
@@ -508,7 +510,7 @@ export function GoogleConnectorStep(props: {
                   : "Provider connected"}
             </h1>
             <div className="onb-confirm__s">
-              Connected data is now syncing. Jarvis will use it to provide better context.
+              Connected data is now syncing. {assistantName} will use it to provide better context.
             </div>
           </div>
         </div>
@@ -598,8 +600,8 @@ export function GoogleConnectorStep(props: {
           <div className="onb-use__main">
             <div className="onb-use__label">Email</div>
             <div className="onb-use__sub">
-              Scan emails for context and new tasks. Jarvis will never send emails without your
-              approval.
+              Scan emails for context and new tasks. {assistantName} will never send emails without
+              your approval.
             </div>
           </div>
         </div>

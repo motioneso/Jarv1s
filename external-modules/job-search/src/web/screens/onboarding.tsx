@@ -156,7 +156,7 @@ export function OnboardingScreen(props: {
           // seed-prompt.ts's `AssistantSurfaceHandleV1`: an absent `composer` renders no input box
           // whatsoever during the one screen where the conversation is the whole product.
           //
-          // The placeholder is set rather than left as the host's generic "Message Jarvis…". On
+          // The placeholder is set rather than left as the host's generic assistant-name placeholder. On
           // this screen the user has just been told five things are needed and handed an empty
           // box, with nothing anywhere saying what a first message looks like. Naming the first
           // step in the box is the cheapest possible answer to "what do I type".

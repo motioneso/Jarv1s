@@ -1,12 +1,12 @@
 {
-  "name": "Jarv1s",
-  "short_name": "Jarv1s",
+  "name": "Moss",
+  "short_name": "Moss",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f7f8fa",
   "theme_color": "#0f766e",
-  "description": "Jarv1s app shell",
+  "description": "Moss app shell",
   "icons": [
     {
       "src": "/icons/icon.svg",

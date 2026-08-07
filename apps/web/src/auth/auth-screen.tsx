@@ -43,7 +43,7 @@ export function AuthScreen(props: AuthScreenProps) {
     <main className="auth-screen">
       <section className="auth-panel" aria-labelledby="auth-title">
         <div>
-          <p className="eyebrow">Jarv1s</p>
+          <p className="eyebrow">Moss</p>
           <h1 id="auth-title">{mode === "sign-up" ? "Create owner account" : "Sign in"}</h1>
         </div>
 

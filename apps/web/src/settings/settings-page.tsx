@@ -145,7 +145,7 @@ const PERSONAL_GROUPS = [
     ]
   },
   {
-    label: "Jarvis",
+    label: "Moss",
     sections: [
       {
         id: "assistant",

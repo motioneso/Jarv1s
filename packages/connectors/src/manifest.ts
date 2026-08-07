@@ -70,7 +70,7 @@ export const connectorsModuleManifest = {
     {
       id: "connectors.user-settings",
       label: "Connectors",
-      description: "Connect and manage external accounts used by Jarvis.",
+      description: "Connect and manage external accounts used by Moss.",
       path: "/settings/connectors",
       scope: "user",
       order: 30,

@@ -73,8 +73,8 @@ test("self-operation tool executes with no confirmation card; a tool needing con
   await page.route("**/api/chat/clear", (route) => route.fulfill({ status: 204, body: "" }));
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Chat with Jarvis" }).click();
-  const drawer = page.getByRole("dialog", { name: "Chat with Jarvis" });
+  await page.getByRole("button", { name: "Chat with Moss" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chat with Moss" });
   await expect(drawer).toBeVisible();
 
   // The tool that still needs confirmation renders its card, proving the mock/harness path works.

@@ -18,10 +18,11 @@ import {
 } from "../api/people-client";
 import { listSourceBehaviors, putSourceBehavior } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { useAssistantName } from "../api/use-assistant-name";
 import { useFeedback } from "./settings-feedback";
 import {
-  PEOPLE_NOTES_SOURCE_BEHAVIORS,
   findSourceBehaviorEnabled,
+  peopleNotesSourceBehaviors,
   writeSourceBehaviorCache
 } from "./settings-source-behaviors";
 import { readError } from "./settings-types";
@@ -57,6 +58,7 @@ export function getPeopleRefreshGuidance(result: PeopleNotesRefreshResponse): st
 export function SettingsPeoplePane() {
   const queryClient = useQueryClient();
   const { toast } = useFeedback();
+  const assistantName = useAssistantName();
   const [createName, setCreateName] = useState("");
   const [createEmail, setCreateEmail] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -188,7 +190,7 @@ export function SettingsPeoplePane() {
     <>
       <PaneHead
         title="People & context"
-        desc="Everyone Jarvis knows about — people extracted from your emails, calendar, and notes."
+        desc={`Everyone ${assistantName} knows about — people extracted from your emails, calendar, and notes.`}
       />
 
       <Group title="People notes">
@@ -266,7 +268,7 @@ export function SettingsPeoplePane() {
             />
           }
         />
-        {PEOPLE_NOTES_SOURCE_BEHAVIORS.map((behavior) => (
+        {peopleNotesSourceBehaviors(assistantName).map((behavior) => (
           <Row
             key={behavior.id}
             name={behavior.label}
@@ -335,7 +337,7 @@ export function SettingsPeoplePane() {
         {people.length === 0 ? (
           <Row
             name="No people yet"
-            desc="Jarvis builds this list from your connected data sources."
+            desc={`${assistantName} builds this list from your connected data sources.`}
           />
         ) : (
           people.map((person) => (
@@ -413,7 +415,7 @@ export function SettingsPeoplePane() {
       <Group title="Add a person manually">
         <Row
           name="Add a person manually"
-          desc="Creates a canonical Markdown People note in the selected Jarv1s folder."
+          desc="Creates a canonical Markdown People note in the selected Moss folder."
           control={
             <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input

@@ -1,6 +1,6 @@
 {
-  "name": "jarv1s",
-  "version": "0.1.16",
+  "name": "moss",
+  "version": "0.2.0",
   "private": true,
   "license": "MIT",
   "type": "module",

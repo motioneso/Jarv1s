@@ -32,6 +32,7 @@ import {
   updateAiProvider
 } from "../api/client";
 import { queryKeys } from "../api/query-keys";
+import { useAssistantName } from "../api/use-assistant-name";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
 import { Badge, Field, Group, Note, PaneHead, Row, Segmented, Select, Switch } from "./settings-ui";
@@ -546,6 +547,7 @@ function ServiceRow(props: {
 export function AiProvidersPane() {
   const queryClient = useQueryClient();
   const { toast, confirm } = useFeedback();
+  const assistantName = useAssistantName();
   const [pick, setPick] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [loginProvider, setLoginProvider] = useState<AutomatedLoginProvider | null>(null);
@@ -663,7 +665,7 @@ export function AiProvidersPane() {
     <>
       <PaneHead
         title="Assistant & AI"
-        desc="The AI providers this instance runs on, and which model handles each kind of work. Everyone's Jarvis draws from what you set up here."
+        desc={`The AI providers this instance runs on, and which model handles each kind of work. Everyone's ${assistantName} draws from what you set up here.`}
       />
       <Group
         title="User chat override"
@@ -684,7 +686,7 @@ export function AiProvidersPane() {
       </Group>
       <Group
         title="Providers"
-        desc="Add provider accounts for the whole instance. Jarvis reads each one's models automatically the moment it connects."
+        desc={`Add provider accounts for the whole instance. ${assistantName} reads each one's models automatically the moment it connects.`}
         action={
           <Button
             variant="secondary"
@@ -704,8 +706,8 @@ export function AiProvidersPane() {
             <div className="ai-empty__main">
               <div className="ai-empty__t">No providers yet</div>
               <div className="ai-empty__d">
-                Jarvis can't chat until at least one provider is added. Connect one to bring its
-                models online for everyone on this instance.
+                {assistantName} can't chat until at least one provider is added. Connect one to
+                bring its models online for everyone on this instance.
               </div>
             </div>
           </div>
@@ -748,8 +750,7 @@ export function AiProvidersPane() {
                 onRemove={() =>
                   confirm({
                     title: `Remove ${provider.displayName}?`,
-                    description:
-                      "Jarvis stops using its models. Any work routed to them falls back to another added model.",
+                    description: `${assistantName} stops using its models. Any work routed to them falls back to another added model.`,
                     confirmLabel: "Remove",
                     danger: true,
                     onConfirm: () => revokeMutation.mutate(provider.id)
@@ -781,7 +782,8 @@ export function AiProvidersPane() {
               })}
             </div>
             <div className="provpick__foot">
-              Jarvis reads the available models from the provider automatically when it connects.
+              {assistantName} reads the available models from the provider automatically when it
+              connects.
             </div>
           </div>
         ) : null}

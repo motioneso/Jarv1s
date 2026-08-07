@@ -4,6 +4,7 @@ import type { ChatSurface } from "@jarv1s/shared";
 import { Button } from "@jarv1s/ui";
 
 import { sendChatTurn } from "../../api/client";
+import { useAssistantName } from "../../api/use-assistant-name";
 import { BrandMark } from "../../shell/brand-mark";
 import "../../styles/kit-chat-attach.css";
 import {
@@ -35,6 +36,7 @@ const DEFAULT_RECORD_KINDS: ReadonlySet<ChatRecordKind> = new Set([
 
 export function AssistantSurface(props: AssistantSurfaceViewProps) {
   const { records, registerComposer } = useAssistantSurfaceHost(props.surface);
+  const assistantName = useAssistantName();
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<readonly PendingAttachment[]>([]);
   const [attachError, setAttachError] = useState<string | null>(null);
@@ -138,7 +140,7 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
   return (
     <section
       className={`assistant-surface${threadIsEmpty ? " assistant-surface--empty" : ""}`}
-      aria-label="Jarvis conversation"
+      aria-label={`${assistantName} conversation`}
     >
       <div className="assistant-surface__thread">
         {props.localRows?.map((row) => (
@@ -228,8 +230,8 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
           ) : null}
           <textarea
             ref={inputRef}
-            aria-label="Message Jarvis"
-            placeholder={props.composer.placeholder ?? "Message Jarvis…"}
+            aria-label={`Message ${assistantName}`}
+            placeholder={props.composer.placeholder ?? `Message ${assistantName}…`}
             rows={1}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -257,10 +259,15 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
 }
 
 function TypingRow() {
+  const assistantName = useAssistantName();
   return (
     <div className="assistant-surface__row assistant-surface__row--assistant assistant-surface__typing-row">
       <JarvisIdentity />
-      <div className="assistant-surface__typing" aria-label="Jarvis is typing" aria-live="polite">
+      <div
+        className="assistant-surface__typing"
+        aria-label={`${assistantName} is typing`}
+        aria-live="polite"
+      >
         <span className="jds-typing-dot" />
         <span className="jds-typing-dot" />
         <span className="jds-typing-dot" />
@@ -270,10 +277,11 @@ function TypingRow() {
 }
 
 function JarvisIdentity() {
+  const assistantName = useAssistantName();
   return (
     <span className="assistant-surface__identity">
       <BrandMark size={14} />
-      <span>Jarvis</span>
+      <span>{assistantName}</span>
     </span>
   );
 }

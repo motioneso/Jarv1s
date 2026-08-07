@@ -139,7 +139,7 @@ export function OnboardingWizard(props: {
   const activeOrder = isMember ? MEMBER_ORDER : FOUNDER_ORDER;
   const rail = isMember ? MEMBER_RAIL : FOUNDER_RAIL;
   const roleLabel = isMember ? "Member" : "Owner";
-  const progressLabel = isMember ? "Getting started" : "Jarvis setup";
+  const progressLabel = isMember ? "Getting started" : "Moss setup";
   const goNext = () => setStepIndex((i) => Math.min(stepCount - 1, i + 1));
   const currentRailKey = rail[Math.min(stepIndex, stepCount - 1)]?.key ?? "welcome";
   const currentKey = activeOrder[Math.min(stepIndex, stepCount - 1)];
@@ -193,7 +193,7 @@ export function OnboardingWizard(props: {
           <span className="onb__mark" aria-hidden="true">
             J
           </span>
-          <span className="onb__wordmark">Jarvis</span>
+          <span className="onb__wordmark">Moss</span>
           <span className="onb__role">{roleLabel}</span>
         </div>
         <div className="onb__progresshd">
@@ -261,7 +261,7 @@ export function OnboardingWizard(props: {
 
       <section className="onb__stage" aria-label="Onboarding step">
         <div className="onb__mobilebar">
-          <span className="onb__wordmark">Jarvis</span>
+          <span className="onb__wordmark">Moss</span>
           <span className="onb__role">{roleLabel}</span>
           <span className="onb__mbar-prog">
             {isLast ? "Done" : `${completedCount} / ${progressTotal}`}
@@ -372,10 +372,10 @@ export function FinishStep(props: {
         <Check size={30} strokeWidth={2.25} aria-hidden="true" />
       </span>
       <div className="onb-eyebrow">{isMember ? "You’re set" : "You’re set up"}</div>
-      <h1 className="onb-finish__title">{isMember ? "You’re all set." : "Jarvis is ready."}</h1>
+      <h1 className="onb-finish__title">{isMember ? "You’re all set." : "Moss is ready."}</h1>
       <p className="onb-finish__lede">
         {isMember
-          ? "Setup complete. You are ready to start using Jarvis."
+          ? "Setup complete. You are ready to start using Moss."
           : "Here is your setup summary. You can change any of these configurations later in Settings."}
       </p>
       <div className="onb-recap">
@@ -406,9 +406,7 @@ export function FinishStep(props: {
           Finish setup <ArrowRight size={16} aria-hidden="true" />
         </button>
       </div>
-      <div className="onb-signoff">
-        {isMember ? "Welcome to Jarvis." : "Your setup is complete."}
-      </div>
+      <div className="onb-signoff">{isMember ? "Welcome to Moss." : "Your setup is complete."}</div>
     </div>
   );
 }

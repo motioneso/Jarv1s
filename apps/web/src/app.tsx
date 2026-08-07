@@ -425,7 +425,7 @@ function LoadingScreen() {
   return (
     <main className="center-screen">
       <div className="loading-mark" aria-hidden="true" />
-      <p>Loading Jarv1s</p>
+      <p>Loading Moss</p>
     </main>
   );
 }
@@ -434,7 +434,7 @@ function FatalState(props: { readonly message: string; readonly onRetry: () => v
   return (
     <main className="center-screen">
       <section className="auth-panel">
-        <h1>Jarv1s</h1>
+        <h1>Moss</h1>
         <p className="form-error">{props.message}</p>
         <button className="primary-button" type="button" onClick={props.onRetry}>
           Retry
@@ -448,7 +448,7 @@ function PendingApprovalScreen() {
   return (
     <main className="center-screen">
       <section className="auth-panel">
-        <h1>Jarv1s</h1>
+        <h1>Moss</h1>
         <p>Your account is pending approval by an administrator.</p>
         <p className="form-hint">
           You will be able to sign in once your account has been approved.
@@ -462,7 +462,7 @@ function DeactivatedScreen() {
   return (
     <main className="center-screen">
       <section className="auth-panel">
-        <h1>Jarv1s</h1>
+        <h1>Moss</h1>
         <p className="form-error">Your account has been deactivated.</p>
         <p className="form-hint">Please contact your administrator for assistance.</p>
       </section>
@@ -471,5 +471,5 @@ function DeactivatedScreen() {
 }
 
 function readErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unable to load Jarv1s";
+  return error instanceof Error ? error.message : "Unable to load Moss";
 }
