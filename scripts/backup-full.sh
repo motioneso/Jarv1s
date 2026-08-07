@@ -27,7 +27,8 @@ _prune_archives() {
   local archives=()
   while IFS= read -r fname; do
     archives+=("$fname")
-  done < <(find "$archive_dir" -maxdepth 1 -name 'jarv1s-*.tar.gz' \
+  done < <(find "$archive_dir" -maxdepth 1 \
+    \( -name 'jarv1s-*.tar.gz' -o -name 'moss-*.tar.gz' \) \
     -printf '%f\n' 2>/dev/null | sort -r)
 
   [[ ${#archives[@]} -eq 0 ]] && return 0
@@ -41,7 +42,10 @@ _prune_archives() {
   declare -A kept_weeks
 
   for fname in "${archives[@]}"; do
+    # Strip whichever prefix matched — pre-cutover archives still carry jarv1s-,
+    # archives written after #1444 carry moss-. Only one strip is ever a no-op.
     local ts_raw="${fname#jarv1s-}"
+    ts_raw="${ts_raw#moss-}"
     ts_raw="${ts_raw%.tar.gz}"
     # YYYY-MM-DDTHH-MM-SSZ → YYYY-MM-DDTHH:MM:SSZ
     local ts_iso="${ts_raw:0:13}:${ts_raw:14:2}:${ts_raw:17:2}Z"
@@ -73,7 +77,7 @@ _prune_archives() {
 main() {
   echo "=== Jarv1s backup starting: $TIMESTAMP ==="
 
-  BUNDLE_DIR="$STAGING/jarv1s-$TIMESTAMP"
+  BUNDLE_DIR="$STAGING/moss-$TIMESTAMP"
   mkdir -p "$BUNDLE_DIR"
 
   # 1. DB dump — PGPASSWORD sourced from container's POSTGRES_PASSWORD; never on host cmdline
@@ -98,10 +102,10 @@ main() {
 
   # 3. Bundle into archive (write to tmp then mv — avoids partial .tar.gz in archive dir)
   mkdir -p "$ARCHIVE_DIR"
-  ARCHIVE="$ARCHIVE_DIR/jarv1s-$TIMESTAMP.tar.gz"
-  ARCHIVE_TMP="$STAGING/jarv1s-$TIMESTAMP.tar.gz"
+  ARCHIVE="$ARCHIVE_DIR/moss-$TIMESTAMP.tar.gz"
+  ARCHIVE_TMP="$STAGING/moss-$TIMESTAMP.tar.gz"
   echo "Bundling archive: $ARCHIVE"
-  tar -czf "$ARCHIVE_TMP" -C "$STAGING" "jarv1s-$TIMESTAMP"
+  tar -czf "$ARCHIVE_TMP" -C "$STAGING" "moss-$TIMESTAMP"
   mv "$ARCHIVE_TMP" "$ARCHIVE"
 
   # 4. Retention pruning

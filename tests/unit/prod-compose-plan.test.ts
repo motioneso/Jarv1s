@@ -12,7 +12,7 @@ describe("createComposeSmokePlan — prod variant", () => {
     expect(plan.commands.some((c) => c.args[0] === "build")).toBe(false);
   });
 
-  it("targets the prod compose file and prepends one jarv1s image build when build is set", () => {
+  it("targets the prod compose file and prepends one moss image build when build is set", () => {
     const plan = createComposeSmokePlan({
       composeFile: "infra/docker-compose.prod.yml",
       build: true
@@ -25,13 +25,13 @@ describe("createComposeSmokePlan — prod variant", () => {
     if (!first) throw new Error("expected a build command when build is set");
     expect(first.args[0]).toBe("build");
     expect(first.args).toContain("Dockerfile");
-    expect(first.args.some((a) => a.startsWith("ghcr.io/motioneso/jarv1s:"))).toBe(true);
+    expect(first.args.some((a) => a.startsWith("ghcr.io/motioneso/moss:"))).toBe(true);
     expect(plan.commands.filter((c) => c.args[0] === "build")).toHaveLength(1);
     expect(plan.healthUrl).toBe("http://localhost:1533/health/ready");
     expect(plan.commands.some((c) => c.args.includes("api"))).toBe(false);
     expect(plan.commands.some((c) => c.args.includes("web"))).toBe(false);
     expect(plan.commands.some((c) => c.args.includes("worker"))).toBe(false);
     expect(plan.commands.some((c) => c.args.includes("migrate"))).toBe(false);
-    expect(plan.commands.some((c) => c.args.includes("jarv1s"))).toBe(true);
+    expect(plan.commands.some((c) => c.args.includes("moss"))).toBe(true);
   });
 });
