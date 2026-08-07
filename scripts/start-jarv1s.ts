@@ -2,6 +2,8 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import { chmodSync, chownSync, mkdirSync } from "node:fs";
 
+import { resolveMossEnv } from "@moss/db";
+
 export type ChildRole = "api" | "worker" | "cli-runner";
 
 export interface ProcessSpec {
@@ -85,17 +87,18 @@ export function buildChildEnv(
   }
 
   next.PATH = env.PATH ?? "/usr/local/bin:/usr/bin:/bin";
-  next.HOME = env.JARVIS_CLI_HOME ?? "/data/cli-auth";
+  next.HOME = resolveMossEnv(env, "JARVIS_CLI_HOME") ?? "/data/cli-auth";
   next.JARVIS_CLI_HOME = next.HOME;
-  next.JARVIS_CLI_HOME_BASE = env.JARVIS_CLI_HOME_BASE ?? next.HOME;
-  next.JARVIS_CLI_NEUTRAL_BASE = env.JARVIS_CLI_NEUTRAL_BASE ?? "/data/cli-auth/chat";
+  next.JARVIS_CLI_HOME_BASE = resolveMossEnv(env, "JARVIS_CLI_HOME_BASE") ?? next.HOME;
+  next.JARVIS_CLI_NEUTRAL_BASE =
+    resolveMossEnv(env, "JARVIS_CLI_NEUTRAL_BASE") ?? "/data/cli-auth/chat";
   next.JARVIS_CLI_TOOLS_PREFIX = env.JARVIS_CLI_TOOLS_PREFIX ?? "/data/cli-tools";
   next.NPM_CONFIG_PREFIX = env.NPM_CONFIG_PREFIX ?? next.JARVIS_CLI_TOOLS_PREFIX;
   next.JARVIS_CLI_RUNNER_SOCKET = env.JARVIS_CLI_RUNNER_SOCKET ?? "/run/jarv1s/cli-runner.sock";
   next.JARVIS_CLI_RUNNER_RPC_SECRET = env.JARVIS_CLI_RUNNER_RPC_SECRET;
   next.JARVIS_CLI_RUNNER_SINGLE_USER = env.JARVIS_CLI_RUNNER_SINGLE_USER ?? "0";
   next.JARVIS_CLI_PER_USER_UID = env.JARVIS_CLI_PER_USER_UID ?? "0";
-  next.JARVIS_MULTIPLEXER = env.JARVIS_MULTIPLEXER ?? "tmux";
+  next.JARVIS_MULTIPLEXER = resolveMossEnv(env, "JARVIS_MULTIPLEXER") ?? "tmux";
   next.JARVIS_MCP_SERVER_URL = env.JARVIS_MCP_SERVER_URL ?? "http://127.0.0.1:3000/api/mcp";
   return next;
 }

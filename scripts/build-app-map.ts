@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveMossEnv } from "@moss/db";
 import type { MossModuleManifest } from "@moss/module-sdk";
 import { getBuiltInModuleManifests } from "@moss/module-registry";
 import { CORE_APP_SCREENS, CORE_APP_SETTINGS, type CoreAppSurfaceDeclaration } from "@moss/shared";
@@ -76,8 +77,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     manifests: getBuiltInModuleManifests(),
     coreScreens: CORE_APP_SCREENS,
     coreSettings: CORE_APP_SETTINGS,
-    version: process.env.JARVIS_APP_VERSION?.trim() || "development",
-    buildId: process.env.JARVIS_GIT_COMMIT?.trim().slice(0, 12) || "development",
+    version: resolveMossEnv(process.env, "JARVIS_APP_VERSION")?.trim() || "development",
+    buildId: resolveMossEnv(process.env, "JARVIS_GIT_COMMIT")?.trim().slice(0, 12) || "development",
     narrative: readFileSync(resolve(root, "docs/WHATS_NEW.md"), "utf8")
   });
 }

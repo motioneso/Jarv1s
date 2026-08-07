@@ -1,5 +1,7 @@
 import { normalize } from "node:path";
 
+import { resolveMossEnv } from "@moss/db";
+
 // Restricted charset: no "(", ")", or whitespace — those let a root break out of its own Tool(pattern) slot (smuggling e.g. a Bash(* grant) when space-joined into --allowedTools. Requires at least one char after the leading "/", so bare "/" never matches.
 const VAULT_ROOT_CHARSET = /^\/[\w.-][\w./-]*$/;
 
@@ -14,7 +16,7 @@ function isValidVaultRoot(root: string): boolean {
 
 /** #578 Part 1: read-only Read/Glob/Grep scoped to JARVIS_NOTES_ROOTS (the vault mount). Never write/exec. */
 export function vaultReadOnlyToolPatterns(): string[] {
-  const roots = (process.env["JARVIS_NOTES_ROOTS"] ?? "")
+  const roots = (resolveMossEnv(process.env, "JARVIS_NOTES_ROOTS") ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0)

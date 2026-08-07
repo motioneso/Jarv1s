@@ -1,6 +1,7 @@
 import { Kysely, PostgresDialect } from "kysely";
 import pg from "pg";
 
+import { resolveMossEnv } from "./env.js";
 import type { MossDatabase } from "./types.js";
 
 const { Pool } = pg;
@@ -19,7 +20,7 @@ export function createDatabase(options: DatabaseOptions): Kysely<MossDatabase> {
         max: options.maxConnections ?? 4,
         connectionTimeoutMillis:
           options.connectionTimeoutMillis ??
-          Number(process.env.JARVIS_DB_CONNECT_TIMEOUT_MS ?? 5000)
+          Number(resolveMossEnv(process.env, "JARVIS_DB_CONNECT_TIMEOUT_MS") ?? 5000)
       })
     })
   });

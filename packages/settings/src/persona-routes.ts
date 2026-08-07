@@ -1,6 +1,12 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextDb, DataContextRunner, User } from "@moss/db";
+import {
+  resolveMossEnv,
+  type AccessContext,
+  type DataContextDb,
+  type DataContextRunner,
+  type User
+} from "@moss/db";
 import { HttpError, sessionRateLimitKey } from "@moss/module-sdk";
 import {
   getPersonaSettingsRouteSchema,
@@ -17,7 +23,10 @@ import type { SettingsRepository } from "./repository.js";
 import { handleSettingsRouteError } from "./route-error.js";
 
 const PERSONA_PREFERENCE_KEY = "persona.bundle";
-const PERSONA_PREVIEW_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_PERSONA_PREVIEW_MAX, 10);
+const PERSONA_PREVIEW_MAX = parsePositiveIntEnv(
+  resolveMossEnv(process.env, "JARVIS_RL_PERSONA_PREVIEW_MAX"),
+  10
+);
 
 interface PersonaRoutesDependencies {
   readonly dataContext: DataContextRunner;

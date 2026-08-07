@@ -30,7 +30,7 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import type { AccessContext } from "@moss/db";
+import { resolveMossEnv, type AccessContext } from "@moss/db";
 import { sessionRateLimitKey } from "@moss/module-sdk";
 import {
   type ChatSurface,
@@ -65,8 +65,11 @@ import type { ChatSessionRuntime } from "./live/runtime.js";
 // 401s before any AI spend).
 //
 // Override the limit via env: JARVIS_RL_CHAT_MAX=<n> (requests per minute, default 20).
-const CHAT_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_CHAT_MAX, 20);
-const CHAT_MUTATION_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_CHAT_MUTATION_MAX, 20);
+const CHAT_MAX = parsePositiveIntEnv(resolveMossEnv(process.env, "JARVIS_RL_CHAT_MAX"), 20);
+const CHAT_MUTATION_MAX = parsePositiveIntEnv(
+  resolveMossEnv(process.env, "JARVIS_RL_CHAT_MUTATION_MAX"),
+  20
+);
 const MAX_CHAT_TURN_TEXT_LENGTH = 32_000;
 
 export interface EveningInterviewSeed {

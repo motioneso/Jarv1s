@@ -13,6 +13,7 @@
   "dependencies": {
     "@moss/ai": "workspace:*",
     "@moss/chat": "workspace:*",
+    "@moss/db": "workspace:*",
     "node-pty": "^1.1.0"
   }
 }

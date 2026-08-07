@@ -1,6 +1,8 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 
+import { resolveMossEnv } from "@moss/db";
+
 const execAsync = promisify(exec);
 
 export type ProviderKind = "anthropic" | "openai-compatible" | "google";
@@ -54,7 +56,7 @@ function declaredHostCliAvailable(
   env: NodeJS.ProcessEnv,
   providerKind: ProviderKind
 ): boolean | null {
-  const raw = env.JARVIS_HOST_CLIS;
+  const raw = resolveMossEnv(env, "JARVIS_HOST_CLIS");
   if (raw === undefined || raw.trim() === "") return null;
   const declared = raw
     .split(",")

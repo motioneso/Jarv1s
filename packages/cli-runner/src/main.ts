@@ -16,6 +16,8 @@ import { cliAvailable, tmuxAvailable, type ProviderKind } from "@moss/ai";
 
 import { probeProvider, type RpcProviderKind } from "@moss/chat/live";
 
+import { resolveMossEnv } from "@moss/db";
+
 import { PROVIDER_CATALOG } from "./catalog.js";
 import { CliChatEngineHost } from "./engine-host.js";
 import { InstallService } from "./install-service.js";
@@ -46,8 +48,13 @@ const DEFAULT_TOOLS_PREFIX = "/data/cli-tools";
 
 /** Read the cli-runner config from the (server) env, applying §7 defaults. */
 export function readConfig(env: NodeJS.ProcessEnv = process.env): CliRunnerConfig {
-  const homeBase = env.JARVIS_CLI_HOME_BASE ?? env.JARVIS_CLI_HOME ?? DEFAULT_HOME;
+  const homeBase =
+    resolveMossEnv(env, "JARVIS_CLI_HOME_BASE") ??
+    resolveMossEnv(env, "JARVIS_CLI_HOME") ??
+    DEFAULT_HOME;
   return {
+    // JARVIS_CLI_RUNNER_SOCKET/_RPC_SECRET/_SINGLE_USER/_PER_USER_UID/_TOOLS_PREFIX are
+    // carve-outs (#1443) — see docs/superpowers/specs/2026-08-06-moss-rename-tier-c-carveout.md.
     socketPath: env.JARVIS_CLI_RUNNER_SOCKET ?? DEFAULT_SOCKET,
     rpcSecret: env.JARVIS_CLI_RUNNER_RPC_SECRET,
     // #347: default OFF now that per-user UID isolation is in place. Set "1" to
@@ -57,7 +64,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): CliRunnerConfi
     // pre-#347 topology. Set "1" ONLY with a root container + the completed file-permission model
     // (parallel proper-fix track); ON without root fails every launch (setuid EPERM).
     perUserUid: env.JARVIS_CLI_PER_USER_UID === "1",
-    neutralBase: env.JARVIS_CLI_NEUTRAL_BASE ?? DEFAULT_NEUTRAL_BASE,
+    neutralBase: resolveMossEnv(env, "JARVIS_CLI_NEUTRAL_BASE") ?? DEFAULT_NEUTRAL_BASE,
     homeBase,
     toolsPrefix: env.JARVIS_CLI_TOOLS_PREFIX ?? env.NPM_CONFIG_PREFIX ?? DEFAULT_TOOLS_PREFIX
   };

@@ -7,10 +7,12 @@
  * — so a tab-only deployment was resolvable at open() time but reported as "not usable"
  * everywhere else. One predicate now backs every caller so they cannot disagree.
  */
+import { resolveMossEnv } from "@moss/db";
+
 export function isRootWorkspaceConfigured(env: NodeJS.ProcessEnv): boolean {
   return Boolean(
-    env.JARVIS_HERDR_ROOT_TAB?.trim() ||
-    env.JARVIS_HERDR_ROOT_PANE?.trim() ||
+    resolveMossEnv(env, "JARVIS_HERDR_ROOT_TAB")?.trim() ||
+    resolveMossEnv(env, "JARVIS_HERDR_ROOT_PANE")?.trim() ||
     env.HERDR_PANE_ID?.trim()
   );
 }

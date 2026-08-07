@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
+import { resolveMossEnv } from "@moss/db";
 import { HttpError, handleRouteError as handleModuleRouteError } from "@moss/module-sdk";
 import { parsePositiveIntEnv, transcribeAudioRouteSchema } from "@moss/shared";
 
@@ -15,10 +16,13 @@ import type { AiRoutesDependencies } from "./routes.js";
 // the spec calls for no arbitrary duration cap in the UI, with clear errors from normal
 // server/proxy limits instead of a silent hang or truncation.
 const MAX_AUDIO_BYTES = parsePositiveIntEnv(
-  process.env.JARVIS_TRANSCRIPTION_MAX_BYTES,
+  resolveMossEnv(process.env, "JARVIS_TRANSCRIPTION_MAX_BYTES"),
   25 * 1024 * 1024
 );
-const TIMEOUT_MS = parsePositiveIntEnv(process.env.JARVIS_TRANSCRIPTION_TIMEOUT_MS, 30000);
+const TIMEOUT_MS = parsePositiveIntEnv(
+  resolveMossEnv(process.env, "JARVIS_TRANSCRIPTION_TIMEOUT_MS"),
+  30000
+);
 
 const AUDIO_CONTENT_TYPE = /^audio\//;
 

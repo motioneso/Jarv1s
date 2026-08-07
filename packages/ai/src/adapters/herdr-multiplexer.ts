@@ -24,6 +24,8 @@
  * loudly instead of returning a dead handle — Codex #3/#5). kill() is the sole
  * exception: it ignores the exit code (idempotent per the Multiplexer contract).
  */
+import { resolveMossEnv } from "@moss/db";
+
 import type { TmuxIo } from "./tmux-bridge.js";
 import type { Multiplexer, MuxHandle, MuxOpenOpts } from "./multiplexer.js";
 import { redactSecrets } from "./redact.js";
@@ -153,10 +155,12 @@ export class HerdrMultiplexer implements Multiplexer {
     if (explicitPane) return explicitPane;
     // 2. Tab-by-label: resolve-or-create the named tab, then a live pane within it.
     //    Self-heals across tab-close and herdr-server restarts (ids are not pinned).
-    const tabLabel = this.rootTabOverride?.trim() || this.env.JARVIS_HERDR_ROOT_TAB?.trim();
+    const tabLabel =
+      this.rootTabOverride?.trim() || resolveMossEnv(this.env, "JARVIS_HERDR_ROOT_TAB")?.trim();
     if (tabLabel) return this.ensureTabPane(tabLabel);
     // 3. Static pane id, then the API's own pane.
-    const root = this.env.JARVIS_HERDR_ROOT_PANE?.trim() || this.env.HERDR_PANE_ID?.trim();
+    const root =
+      resolveMossEnv(this.env, "JARVIS_HERDR_ROOT_PANE")?.trim() || this.env.HERDR_PANE_ID?.trim();
     if (!root) {
       throw new Error(
         "HerdrMultiplexer: no root pane or tab (set JARVIS_HERDR_ROOT_TAB or JARVIS_HERDR_ROOT_PANE, or run the API inside a herdr pane so HERDR_PANE_ID is set)"

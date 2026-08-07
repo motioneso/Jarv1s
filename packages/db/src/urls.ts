@@ -1,3 +1,5 @@
+import { resolveMossEnv } from "./env.js";
+
 export const DEFAULT_JARVIS_DATABASE_NAME = "jarv1s";
 
 export interface MossDatabaseUrls {
@@ -9,7 +11,7 @@ export interface MossDatabaseUrls {
 }
 
 function getExplicitProductionUrl(env: NodeJS.ProcessEnv, envVar: string): string | undefined {
-  const value = env[envVar];
+  const value = resolveMossEnv(env, envVar);
   if (env.NODE_ENV === "production" && !value) {
     throw new Error(`${envVar} is required in production`);
   }
@@ -17,9 +19,13 @@ function getExplicitProductionUrl(env: NodeJS.ProcessEnv, envVar: string): strin
 }
 
 export function getMossDatabaseUrls(env: NodeJS.ProcessEnv = process.env): MossDatabaseUrls {
-  const host = env.JARVIS_PGHOST ?? "localhost";
-  const port = env.JARVIS_PGPORT ?? "55433";
-  const database = env.JARVIS_PGDATABASE ?? DEFAULT_JARVIS_DATABASE_NAME;
+  const host = resolveMossEnv(env, "JARVIS_PGHOST") ?? "localhost";
+  const port = resolveMossEnv(env, "JARVIS_PGPORT") ?? "55433";
+  // JARVIS_PGDATABASE is carved out: infra/backup-full.sh reads it directly on the host,
+  // so it can't move behind this shim without breaking that script (see the Tier C carve-out
+  // list). resolveMossEnv() passes carved-out names through unchanged, so this call is
+  // future-proof if that ever changes, but today it's equivalent to env.JARVIS_PGDATABASE.
+  const database = resolveMossEnv(env, "JARVIS_PGDATABASE") ?? DEFAULT_JARVIS_DATABASE_NAME;
 
   return {
     bootstrap:

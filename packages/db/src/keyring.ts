@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { resolveMossEnv } from "./env.js";
+
 export interface Keyring {
   readonly currentKeyId: string;
   readonly keys: Map<string, Buffer>;
@@ -24,7 +26,7 @@ export function resolveKeyring(
   devDefault: string,
   env: NodeJS.ProcessEnv = process.env
 ): Keyring {
-  const currentSecret = env[keyEnvVar];
+  const currentSecret = resolveMossEnv(env, keyEnvVar);
 
   // "Hardened" = an explicitly-named environment that is not development or test.
   // Unset NODE_ENV stays permissive so local dev (`tsx watch`, no NODE_ENV) and the
@@ -56,13 +58,13 @@ export function resolveKeyring(
 
   const rawCurrentSecret = currentSecret ?? devDefault;
   const currentKeyBuffer = createHash("sha256").update(rawCurrentSecret).digest();
-  const currentKeyId = env[keyIdEnvVar] ?? "v1";
+  const currentKeyId = resolveMossEnv(env, keyIdEnvVar) ?? "v1";
 
   const keys = new Map<string, Buffer>();
   keys.set(currentKeyId, currentKeyBuffer);
 
   // Parse additional/retired keys from JSON {"id":"secret",...}
-  const keysJson = env[keysEnvVar];
+  const keysJson = resolveMossEnv(env, keysEnvVar);
   const retiredBuffers: Buffer[] = [];
 
   if (keysJson) {

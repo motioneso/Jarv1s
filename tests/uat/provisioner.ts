@@ -6,6 +6,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+
+import { resolveMossEnv } from "@moss/db";
+
 import { deriveTrustedOrigins } from "../../scripts/setup-prod-origins.js";
 import { JOB_SEARCH_FIXTURE_CONTAINER_PORT } from "./fixtures/job-search-fixture-server.js";
 import { parseUatSeedLevel } from "./seed/level-validation.js";
@@ -714,7 +717,7 @@ export async function provisionForUat(
 
     try {
       console.log(`[uat] provisioning ${projectName} on port ${webPort}`);
-      if (process.env.JARVIS_UAT_BUILD !== "0" && !imageBuilt) {
+      if (resolveMossEnv(process.env, "JARVIS_UAT_BUILD") !== "0" && !imageBuilt) {
         await runCommand("docker", [
           "build",
           "-t",

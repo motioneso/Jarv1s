@@ -183,6 +183,15 @@ requiring a dual-read plus a data migration or a restage.
 back to `JARVIS_X`, and emit a one-time deprecation warning naming the variable when the fallback
 is used.
 
+> **Count correction (#1443, 2026-08-06).** The figure "197" in this section, in the tier table
+> above and in §3.1 below is a planning-time estimate produced by a bare
+> `grep -roh 'JARVIS_[A-Z0-9_]+'`, which over-counts: it matches template-literal prefixes,
+> local identifiers that are not env vars, and long-removed names in historical docs. Classifying
+> every match while building PR3 gives **115** real, distinct `JARVIS_*` environment variable
+> names — 41 carved out, 67 shimmed, 7 deliberately deferred. The verified figure and the commands
+> that derive it live in `docs/superpowers/specs/2026-08-06-moss-rename-tier-c-carveout.md`, which
+> supersedes the estimate. The design and the delivery plan are unaffected; only the count changes.
+
 The shim is load-bearing, not a nicety. Production reads `infra/env.production.local`
 (`infra/docker-compose.prod.yml:23,88`) — untracked, `.gitignore:17`, resident on the production
 host and absent from the image. A Moss image demanding `MOSS_APP_DATABASE_URL` against an unchanged

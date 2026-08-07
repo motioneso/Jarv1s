@@ -481,6 +481,9 @@ importers:
       '@moss/chat':
         specifier: workspace:*
         version: link:../chat
+      '@moss/db':
+        specifier: workspace:*
+        version: link:../db
       node-pty:
         specifier: ^1.1.0
         version: 1.1.0
@@ -1207,6 +1210,9 @@ importers:
 
   packages/web-research:
     dependencies:
+      '@moss/db':
+        specifier: workspace:*
+        version: link:../db
       '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk

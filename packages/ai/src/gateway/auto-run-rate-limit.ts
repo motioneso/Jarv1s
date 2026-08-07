@@ -1,3 +1,4 @@
+import { resolveMossEnv } from "@moss/db";
 import { parsePositiveIntEnv } from "@moss/shared";
 
 const DEFAULT_MAX_CALLS = 10;
@@ -7,13 +8,19 @@ const DEFAULT_MAX_ACTORS = 2000;
 // Override via env: JARVIS_RL_GATEWAY_AUTO_RUN_MAX (calls per window, default 10) and
 // JARVIS_RL_GATEWAY_AUTO_RUN_WINDOW_MS (window length, default 10s).
 export const GATEWAY_AUTO_RUN_RATE_LIMIT_DEFAULTS = {
-  maxCalls: parsePositiveIntEnv(process.env.JARVIS_RL_GATEWAY_AUTO_RUN_MAX, DEFAULT_MAX_CALLS),
-  windowMs: parsePositiveIntEnv(process.env.JARVIS_RL_GATEWAY_AUTO_RUN_WINDOW_MS, DEFAULT_WINDOW_MS)
+  maxCalls: parsePositiveIntEnv(
+    resolveMossEnv(process.env, "JARVIS_RL_GATEWAY_AUTO_RUN_MAX"),
+    DEFAULT_MAX_CALLS
+  ),
+  windowMs: parsePositiveIntEnv(
+    resolveMossEnv(process.env, "JARVIS_RL_GATEWAY_AUTO_RUN_WINDOW_MS"),
+    DEFAULT_WINDOW_MS
+  )
 } as const;
 
 // Override via env: JARVIS_RL_GATEWAY_AUTO_RUN_MAX_ACTORS (default 2000).
 const MAX_ACTORS = parsePositiveIntEnv(
-  process.env.JARVIS_RL_GATEWAY_AUTO_RUN_MAX_ACTORS,
+  resolveMossEnv(process.env, "JARVIS_RL_GATEWAY_AUTO_RUN_MAX_ACTORS"),
   DEFAULT_MAX_ACTORS
 );
 

@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type { AccessContext } from "@moss/db";
+import { resolveMossEnv, type AccessContext } from "@moss/db";
 import { sendModuleControl, sendModuleJob } from "@moss/jobs";
 import type { ExternalModuleDiscovery } from "@moss/module-registry";
 
@@ -23,7 +23,7 @@ export function registerExternalModuleJobRoutes(
     {
       config: {
         rateLimit: {
-          max: Number(process.env.JARVIS_RL_MODULE_RUN_MAX ?? 6),
+          max: Number(resolveMossEnv(process.env, "JARVIS_RL_MODULE_RUN_MAX") ?? 6),
           timeWindow: "1 minute",
           ...(deps.rateLimitKey
             ? {

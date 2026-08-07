@@ -28,6 +28,7 @@ import {
   DataContextRunner,
   createDatabase,
   getMossDatabaseUrls,
+  resolveMossEnv,
   type AccessContext,
   type MossDatabase
 } from "@moss/db";
@@ -197,7 +198,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     options.appDb ??
     createDatabase({
       connectionString: getMossDatabaseUrls().app,
-      maxConnections: Number(process.env.JARVIS_API_DB_POOL_SIZE ?? 4)
+      maxConnections: Number(resolveMossEnv(process.env, "JARVIS_API_DB_POOL_SIZE") ?? 4)
     });
   const boss = options.boss ?? createPgBossClient(getMossDatabaseUrls().app);
   const ownsAppDb = options.appDb === undefined;
@@ -205,7 +206,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     options.workerDb ??
     createDatabase({
       connectionString: getMossDatabaseUrls().worker,
-      maxConnections: Number(process.env.JARVIS_API_WORKER_DB_POOL_SIZE ?? 2)
+      maxConnections: Number(resolveMossEnv(process.env, "JARVIS_API_WORKER_DB_POOL_SIZE") ?? 2)
     });
   const ownsWorkerDb = options.workerDb === undefined;
   const workerDataContext = new DataContextRunner(workerDb);
@@ -217,7 +218,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     logger: options.logger ?? true,
     // Honor XFF only when an explicit opt-in confirms a trusted reverse proxy is in
     // front. Without this, XFF is attacker-controlled and must not key the rate limiter.
-    trustProxy: !!process.env.JARVIS_TRUST_PROXY
+    trustProxy: !!resolveMossEnv(process.env, "JARVIS_TRUST_PROXY")
   });
   const authRuntime =
     options.authRuntime ??
@@ -228,7 +229,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
       logger: server.log
     });
   const ownsAuthRuntime = options.authRuntime === undefined;
-  const AUTH_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_AUTH_MAX, 10);
+  const AUTH_MAX = parsePositiveIntEnv(resolveMossEnv(process.env, "JARVIS_RL_AUTH_MAX"), 10);
 
   registerRequestTimeZoneHook(server);
 
@@ -254,7 +255,7 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     referrerPolicy: { policy: "no-referrer" },
     // Only activate HSTS when we know TLS is in use. Without TLS the header is
     // not just useless — it can lock users out of plain-HTTP LAN access.
-    hsts: process.env.JARVIS_TRUST_PROXY
+    hsts: resolveMossEnv(process.env, "JARVIS_TRUST_PROXY")
       ? {
           maxAge: 31536000,
           includeSubDomains: true
@@ -278,7 +279,10 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
   // AI-tools keep their stricter per-principal limits, and /api/auth/* pins its own IP-based
   // key (credential POSTs are pre-auth — see registerBetterAuthRoutes). Health probes are
   // exempt via allowList.
-  const GLOBAL_RL_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_GLOBAL_MAX, 2000);
+  const GLOBAL_RL_MAX = parsePositiveIntEnv(
+    resolveMossEnv(process.env, "JARVIS_RL_GLOBAL_MAX"),
+    2000
+  );
   server.register(rateLimit, {
     global: true,
     max: GLOBAL_RL_MAX,
@@ -455,12 +459,12 @@ export function createApiServer(options: CreateApiServerOptions = {}) {
     const hostDiagnostics = {
       info: (): HostDiagnosticsInfo => {
         const manifests = getBuiltInModuleManifests();
-        const commit = process.env.JARVIS_GIT_COMMIT;
-        const deployMode = resolveDeployMode(process.env.JARVIS_DEPLOY_MODE);
+        const commit = resolveMossEnv(process.env, "JARVIS_GIT_COMMIT");
+        const deployMode = resolveDeployMode(resolveMossEnv(process.env, "JARVIS_DEPLOY_MODE"));
         return {
           uptimeSeconds: Math.round(process.uptime()),
           environment: mapEnvMode(process.env.NODE_ENV),
-          version: process.env.JARVIS_APP_VERSION ?? null,
+          version: resolveMossEnv(process.env, "JARVIS_APP_VERSION") ?? null,
           commit: commit ? commit.slice(0, 12) : null,
           host: apiServerConfig.host,
           port: apiServerConfig.port,

@@ -2,6 +2,14 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { parsePositiveIntEnv } from "@moss/shared";
 
+import {
+  resolveMossEnv,
+  type AccessContext,
+  type DataContextDb,
+  type DataContextRunner,
+  type MossActionAuditLog
+} from "@moss/db";
+
 // Per-user rate-limit key for the assistant-tools invoke endpoint via the shared module-sdk
 // helper: a UUID-shaped session bearer or a valid session cookie is hashed (a one-way
 // fingerprint, never the raw secret) so each LAN user gets a separate counter. Any other
@@ -9,9 +17,7 @@ import { parsePositiveIntEnv } from "@moss/shared";
 // mint fresh buckets (#207); such requests get a 401 before any AI spend.
 //
 // Override the limit via env: JARVIS_RL_AI_TOOLS_MAX=<n> (requests per minute, default 60).
-const AI_TOOLS_MAX = parsePositiveIntEnv(process.env.JARVIS_RL_AI_TOOLS_MAX, 60);
-
-import type { AccessContext, DataContextDb, DataContextRunner, MossActionAuditLog } from "@moss/db";
+const AI_TOOLS_MAX = parsePositiveIntEnv(resolveMossEnv(process.env, "JARVIS_RL_AI_TOOLS_MAX"), 60);
 import {
   HttpError,
   handleRouteError as handleModuleRouteError,

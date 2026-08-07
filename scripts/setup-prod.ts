@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { resolveMossEnv } from "@moss/db";
+
 import { deriveTrustedOrigins } from "./setup-prod-origins.js";
 import { deriveNotesEnvLines } from "./setup-prod-notes.js";
 
@@ -12,7 +14,7 @@ import { deriveNotesEnvLines } from "./setup-prod-notes.js";
 // (TTY-through-compose is fragile); localhost defaults cover the common
 // single-operator household case. See infra/docker-compose.prod.yml header.
 
-const OUT_DIR = process.argv[2] ?? process.env.JARVIS_SETUP_OUT ?? "/deploy";
+const OUT_DIR = process.argv[2] ?? resolveMossEnv(process.env, "JARVIS_SETUP_OUT") ?? "/deploy";
 const OUT_FILE = join(OUT_DIR, "env.production.local");
 
 // CRITICAL — idempotency guard. Regenerating BETTER_AUTH_SECRET / the *_SECRET_KEY
@@ -57,15 +59,15 @@ const webPort = process.env.JARVIS_WEB_PORT ?? "1533";
 // JARVIS_AUTH_BASE_URL is the API process's own in-container URL. Browser origins
 // belong in JARVIS_AUTH_TRUSTED_ORIGINS below and are derived from JARVIS_WEB_PORT
 // plus JARVIS_PUBLIC_ORIGIN unless explicitly overridden.
-const authBaseUrl = process.env.JARVIS_AUTH_BASE_URL ?? "http://localhost:3000";
+const authBaseUrl = resolveMossEnv(process.env, "JARVIS_AUTH_BASE_URL") ?? "http://localhost:3000";
 // #379: build the better-auth trusted-origins list. localhost:<webPort> always (on-box /
 // port-forward reach), PLUS the host public origin supplied through JARVIS_PUBLIC_ORIGIN
 // so signup works from the real LAN/tailnet/domain URL. An explicit JARVIS_AUTH_TRUSTED_ORIGINS override
 // still wins verbatim. A non-default JARVIS_WEB_PORT is honored (never falls back to :1533).
 const authTrustedOrigins = deriveTrustedOrigins({
   webPort,
-  publicOrigin: process.env.JARVIS_PUBLIC_ORIGIN,
-  override: process.env.JARVIS_AUTH_TRUSTED_ORIGINS
+  publicOrigin: resolveMossEnv(process.env, "JARVIS_PUBLIC_ORIGIN"),
+  override: resolveMossEnv(process.env, "JARVIS_AUTH_TRUSTED_ORIGINS")
 });
 const embedProvider = process.env.JARVIS_EMBED_PROVIDER ?? "local";
 const hostUid = process.env.JARVIS_HOST_UID ?? "1000";

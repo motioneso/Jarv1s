@@ -13,6 +13,7 @@ import { extractTimezone } from "../locale-utils.js";
 import { sql, type Kysely } from "kysely";
 import {
   assertDataContextDb,
+  resolveMossEnv,
   type DataContextDb,
   type DataContextRunner,
   type MossDatabase,
@@ -416,7 +417,7 @@ function toLiveProvider(model: AiConfiguredModelSafeRow): ProviderKind {
 }
 
 function getReplayK(): number {
-  const val = process.env.JARVIS_CHAT_REPLAY_K;
+  const val = resolveMossEnv(process.env, "JARVIS_CHAT_REPLAY_K");
   if (!val) return 0;
   const parsed = parseInt(val, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;

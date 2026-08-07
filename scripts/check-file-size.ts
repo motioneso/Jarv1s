@@ -1,7 +1,9 @@
 import { readdir, readFile } from "node:fs/promises";
 import { extname, join, relative } from "node:path";
 
-const maxLines = Number(process.env.JARVIS_MAX_SOURCE_LINES ?? 1000);
+import { resolveMossEnv } from "@moss/db";
+
+const maxLines = Number(resolveMossEnv(process.env, "JARVIS_MAX_SOURCE_LINES") ?? 1000);
 const rootDirectory = process.cwd();
 const ignoredDirectories = new Set([
   ".git",

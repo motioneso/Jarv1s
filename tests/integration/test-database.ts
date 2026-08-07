@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import {
   DEFAULT_JARVIS_DATABASE_NAME,
   getMossDatabaseUrls,
+  resolveMossEnv,
   runSqlFiles,
   runSqlMigrations
 } from "@moss/db";
@@ -19,11 +20,11 @@ export const connectionStrings = getMossDatabaseUrls();
 
 /** GreenMail test IMAP/SMTP server (infra/docker-compose.yml `greenmail` service, #641 Slice B). */
 export const testImap = {
-  host: process.env.JARVIS_TEST_IMAP_HOST ?? "127.0.0.1",
-  imapPort: Number(process.env.JARVIS_TEST_IMAP_PORT ?? 3143),
-  smtpPort: Number(process.env.JARVIS_TEST_IMAP_SMTP_PORT ?? 3025),
-  username: process.env.JARVIS_TEST_IMAP_USER ?? "probe@greenmail.test",
-  password: process.env.JARVIS_TEST_IMAP_PASSWORD ?? "probe-pw"
+  host: resolveMossEnv(process.env, "JARVIS_TEST_IMAP_HOST") ?? "127.0.0.1",
+  imapPort: Number(resolveMossEnv(process.env, "JARVIS_TEST_IMAP_PORT") ?? 3143),
+  smtpPort: Number(resolveMossEnv(process.env, "JARVIS_TEST_IMAP_SMTP_PORT") ?? 3025),
+  username: resolveMossEnv(process.env, "JARVIS_TEST_IMAP_USER") ?? "probe@greenmail.test",
+  password: resolveMossEnv(process.env, "JARVIS_TEST_IMAP_PASSWORD") ?? "probe-pw"
 };
 
 export const ids = {

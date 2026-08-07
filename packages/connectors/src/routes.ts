@@ -3,12 +3,13 @@ import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type {
-  AccessContext,
-  ConnectorAccountStatus,
-  ConnectorProvider,
-  DataContextDb,
-  DataContextRunner
+import {
+  resolveMossEnv,
+  type AccessContext,
+  type ConnectorAccountStatus,
+  type ConnectorProvider,
+  type DataContextDb,
+  type DataContextRunner
 } from "@moss/db";
 import { sendJob } from "@moss/jobs";
 import { recordAuditEvent } from "@moss/settings";
@@ -111,8 +112,8 @@ export function registerConnectorsRoutes(
     }
   );
 
-  const oauthMax = parsePositiveIntEnv(process.env.JARVIS_RL_OAUTH_MAX, 5);
-  const syncMax = parsePositiveIntEnv(process.env.JARVIS_RL_GOOGLE_SYNC_MAX, 6);
+  const oauthMax = parsePositiveIntEnv(resolveMossEnv(process.env, "JARVIS_RL_OAUTH_MAX"), 5);
+  const syncMax = parsePositiveIntEnv(resolveMossEnv(process.env, "JARVIS_RL_GOOGLE_SYNC_MAX"), 6);
 
   server.post(
     "/api/connectors/google/complete",

@@ -1,4 +1,4 @@
-import { assertDataContextDb, type DataContextDb } from "@moss/db";
+import { assertDataContextDb, resolveMossEnv, type DataContextDb } from "@moss/db";
 import type { ToolContext, ToolExecute, ToolResult, ToolServices } from "@moss/module-sdk";
 import { nullableStringSchema } from "@moss/shared";
 
@@ -137,7 +137,7 @@ function serializeCalendarContextItem(item: CalendarContextItemShape) {
 // 'Z' offset), so the instant is unambiguous regardless of the user's calendar tz. A future
 // slice may fetch the real calendar tz; this slice accepts the configured default and the
 // card text is only the REQUESTED-window preview.
-const DEFAULT_TIMEZONE = process.env.JARVIS_DEFAULT_TZ ?? "America/New_York";
+const DEFAULT_TIMEZONE = resolveMossEnv(process.env, "JARVIS_DEFAULT_TZ") ?? "America/New_York";
 
 export const calendarListVisibleEventsExecute: ToolExecute = async (
   scopedDb,

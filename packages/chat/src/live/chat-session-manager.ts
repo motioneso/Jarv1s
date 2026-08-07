@@ -1,4 +1,5 @@
 import type { ProviderKind } from "@moss/ai";
+import { resolveMossEnv } from "@moss/db";
 import type {
   AnswerProvenanceMetadataV1,
   AiProviderExecutionMode,
@@ -232,9 +233,8 @@ export class ChatSessionManager {
 
     // Rebuild replay from live state for every launch; recall precedes conversation replay.
     const recallResult = this.deps.recall ? await this.deps.recall.recall(actorUserId) : null;
-    const seedBudget = process.env.JARVIS_CHAT_SEED_BUDGET_TOKENS
-      ? parseInt(process.env.JARVIS_CHAT_SEED_BUDGET_TOKENS, 10)
-      : 1500;
+    const seedBudgetEnv = resolveMossEnv(process.env, "JARVIS_CHAT_SEED_BUDGET_TOKENS");
+    const seedBudget = seedBudgetEnv ? parseInt(seedBudgetEnv, 10) : 1500;
     const memorySeed = recallResult
       ? renderMemorySeedBlock(recallResult.episodicChunks, recallResult.facts, seedBudget)
       : "";
