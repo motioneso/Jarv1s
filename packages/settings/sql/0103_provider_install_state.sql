@@ -6,7 +6,7 @@
 -- reads or writes it yet. The install + login services (Phase 2/3, running in the
 -- cli-runner) populate it over a Phase-2 control path — NOT the live-chat socket,
 -- which is the engine boundary only. Owned by the settings/onboarding module per
--- module isolation: provider lifecycle state lives here, never in @moss/chat or
+-- module isolation: provider lifecycle state lives here, never in @jarv1s/chat or
 -- the in-memory token registry (RPC contract §9.2).
 --
 -- One row per provider (instance-global founder provisioning — there is a single

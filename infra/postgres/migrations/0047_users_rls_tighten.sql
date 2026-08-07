@@ -12,7 +12,7 @@
 --      legitimately need cross-user or GUC-less access to users:
 --        - app.get_user_by_id(uuid)  — for getUserById, requireUser, connectors admin
 --        - app.list_all_users()      — for /api/admin/users (admin list)
---   3. app.count_all_users() is unchanged (still needed by bootstrapFirstMossUser
+--   3. app.count_all_users() is unchanged (still needed by bootstrapFirstJarvisUser
 --      and /api/bootstrap/status).
 --
 -- Pattern mirrors 0045 count_all_users / 0046 resolve_auth_session exactly.

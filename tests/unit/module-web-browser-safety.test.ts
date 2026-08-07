@@ -34,7 +34,7 @@ function extractSpecifiers(source: string): string[] {
 }
 
 function resolvePackageDir(packageName: string): string | null {
-  const direct = join(REPO_ROOT, "packages", packageName.replace(/^@jarv1s\//, ""));
+  const direct = join(REPO_ROOT, "packages", packageName.replace(/^@moss\//, ""));
   if (existsSync(join(direct, "package.json"))) return direct;
 
   // Fall back to scanning packages/* for a package.json whose "name" matches, in case the
