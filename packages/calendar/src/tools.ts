@@ -1,6 +1,6 @@
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import type { ToolContext, ToolExecute, ToolResult, ToolServices } from "@jarv1s/module-sdk";
-import { nullableStringSchema } from "@jarv1s/shared";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
+import type { ToolContext, ToolExecute, ToolResult, ToolServices } from "@moss/module-sdk";
+import { nullableStringSchema } from "@moss/shared";
 
 import type { CalendarWriteService } from "./calendar-write-service.js";
 import { resolveWindow, type FocusBlockInput, type PartOfDay } from "./focus-time.js";
@@ -70,7 +70,7 @@ export const calendarToolEventsOutputSchema = {
   }
 } as const;
 
-// Structural interfaces — no @jarv1s/connectors import (module isolation). Shapes mirror
+// Structural interfaces — no @moss/connectors import (module isolation). Shapes mirror
 // the connectors SourceContextService calendar surface.
 interface SourceAccountMetaShape {
   readonly connectorAccountId: string;

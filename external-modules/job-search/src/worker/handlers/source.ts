@@ -7,7 +7,7 @@
 // why this file also owns the kv.set/kv.delete calls (ledger N17/N18: no new port, no new RPC
 // branch, `ctx.kv` already exists and the grant is platform-owned `app.module_kv`, not a
 // job-search table).
-import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import type { ModuleWorkerContext } from "@moss/module-sdk/worker";
 
 import { JOB_SEARCH_STATIC_FETCH_HOSTS } from "../../db/tables.js";
 import type { CustomSource, JobSearchStore } from "../../domain/store-port.js";
@@ -51,9 +51,9 @@ const SOURCE_REMOVE_FIELDS = new Set(["profileId", "sourceId"]);
 /**
  * Local copy of `packages/host-fetch/src/policy.ts`'s `isPinnableHost` predicate — NOT an
  * import. `external-modules/job-search/tsconfig.json`'s `paths` map is closed to exactly
- * `@jarv1s/module-sdk/worker` (this module has no `node_modules` and no other declared
+ * `@moss/module-sdk/worker` (this module has no `node_modules` and no other declared
  * dependency; that closed map IS the isolation boundary, not an oversight), so a real import of
- * `@jarv1s/host-fetch/policy` cannot resolve under `pnpm check:external-modules`'s
+ * `@moss/host-fetch/policy` cannot resolve under `pnpm check:external-modules`'s
  * `tsc -p external-modules/job-search --noEmit`.
  *
  * This is a courtesy pre-check, not the security boundary, which is why duplicating it here is

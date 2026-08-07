@@ -10,7 +10,7 @@ import {
 } from "../../packages/news/src/settings/index.js";
 import type { PublisherDomainRejection } from "../../packages/news/src/personalization-domain.js";
 import { NEWS_CATALOG, sourceEntry } from "../../packages/news/src/source/catalog.js";
-import type { NewsPrefDto } from "@jarv1s/shared";
+import type { NewsPrefDto } from "@moss/shared";
 
 // #897: the settings pane stores prefs as sparse rows (source / source_exclude / topic) and the
 // planner converts a checkbox click into the minimal row mutations. The tricky case is the FIRST

@@ -6,13 +6,13 @@ import {
   type AccessContext,
   type DataContextDb,
   type DataContextRunner
-} from "@jarv1s/db";
-import type { EmbeddingProvider } from "@jarv1s/memory";
-import type { CreateNotificationInput } from "@jarv1s/notifications";
-import type { ModuleAssistantToolRisk } from "@jarv1s/module-sdk";
-import { EMBED_BATCH_MAX } from "@jarv1s/module-sdk";
-import type { ModuleFetchRequest, ModuleFetchResponse } from "@jarv1s/module-sdk";
-import { createHostPinnedFetch } from "@jarv1s/host-fetch";
+} from "@moss/db";
+import type { EmbeddingProvider } from "@moss/memory";
+import type { CreateNotificationInput } from "@moss/notifications";
+import type { ModuleAssistantToolRisk } from "@moss/module-sdk";
+import { EMBED_BATCH_MAX } from "@moss/module-sdk";
+import type { ModuleFetchRequest, ModuleFetchResponse } from "@moss/module-sdk";
+import { createHostPinnedFetch } from "@moss/host-fetch";
 import {
   deleteModuleKvKey,
   getModuleKvValue,
@@ -22,7 +22,7 @@ import {
   setModuleKvValue,
   upsertModuleCredential,
   type ModuleCredentialCipher
-} from "@jarv1s/settings";
+} from "@moss/settings";
 
 import type { ExternalModuleDiscovery } from "./types.js";
 
@@ -331,7 +331,7 @@ export function createExternalModuleRpcHandler(input: {
               }
             }
             // Cap and db_query_failed errors cross as-is: already redacted at the
-            // @jarv1s/db layer (SQLSTATE + primary message only, no detail/hint).
+            // @moss/db layer (SQLSTATE + primary message only, no detail/hint).
             // worker-runtime.ts forwards workers a generic rpc_failed regardless and
             // logs nothing for rpc errors (verified #1167 grounding).
             throw error;

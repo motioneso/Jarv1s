@@ -12,8 +12,8 @@ import {
   type ConnectorSyncStatus,
   type DataContextDb,
   type TriageFeedbackVerdict
-} from "@jarv1s/db";
-import type { ConnectorSyncCounts } from "@jarv1s/shared";
+} from "@moss/db";
+import type { ConnectorSyncCounts } from "@moss/shared";
 
 import type { EncryptedConnectorSecret } from "./crypto.js";
 

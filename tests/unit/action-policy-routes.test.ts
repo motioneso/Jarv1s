@@ -3,7 +3,7 @@ import { registerActionPolicyRoutes } from "../../packages/ai/src/action-policy-
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { AiRoutesDependencies } from "../../packages/ai/src/routes.js";
 import type { AiRepository } from "../../packages/ai/src/repository.js";
-import type { DataContextRunner, DataContextDb } from "@jarv1s/db";
+import type { DataContextRunner, DataContextDb } from "@moss/db";
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 type AnyFn = Function;

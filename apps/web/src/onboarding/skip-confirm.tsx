@@ -1,6 +1,6 @@
 import { TriangleAlert } from "lucide-react";
 
-import type { OnboardingStatusResponse } from "@jarv1s/shared";
+import type { OnboardingStatusResponse } from "@moss/shared";
 
 import { hasConnectedProvider } from "./chat-availability.js";
 

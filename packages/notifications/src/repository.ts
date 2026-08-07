@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { sql, type SqlBool } from "kysely";
 
-import { assertDataContextDb, type DataContextDb, type Notification } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb, type Notification } from "@moss/db";
 
 import { projectNotificationMetadata } from "./metadata.js";
 
@@ -57,7 +57,7 @@ export interface CreateNotificationInput {
 
 /**
  * Cross-module port: notifications reads the actor's quiet-hours settings (and locale
- * timezone fallback) without importing from @jarv1s/settings or @jarv1s/structured-state.
+ * timezone fallback) without importing from @moss/settings or @moss/structured-state.
  * The implementation is injected by the composition root (module-registry).
  */
 export interface QuietHoursPort {

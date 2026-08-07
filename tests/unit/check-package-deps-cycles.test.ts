@@ -5,9 +5,9 @@ import { detectDependencyCycles } from "../../scripts/check-package-deps.js";
 describe("detectDependencyCycles", () => {
   it("returns no cycles for an acyclic graph", () => {
     const graph = new Map<string, Set<string>>([
-      ["@jarv1s/a", new Set(["@jarv1s/b"])],
-      ["@jarv1s/b", new Set(["@jarv1s/c"])],
-      ["@jarv1s/c", new Set()]
+      ["@moss/a", new Set(["@moss/b"])],
+      ["@moss/b", new Set(["@moss/c"])],
+      ["@moss/c", new Set()]
     ]);
 
     expect(detectDependencyCycles(graph)).toEqual([]);
@@ -15,10 +15,10 @@ describe("detectDependencyCycles", () => {
 
   it("returns no cycles for a diamond (shared dependency, not a cycle)", () => {
     const graph = new Map<string, Set<string>>([
-      ["@jarv1s/a", new Set(["@jarv1s/b", "@jarv1s/c"])],
-      ["@jarv1s/b", new Set(["@jarv1s/d"])],
-      ["@jarv1s/c", new Set(["@jarv1s/d"])],
-      ["@jarv1s/d", new Set()]
+      ["@moss/a", new Set(["@moss/b", "@moss/c"])],
+      ["@moss/b", new Set(["@moss/d"])],
+      ["@moss/c", new Set(["@moss/d"])],
+      ["@moss/d", new Set()]
     ]);
 
     expect(detectDependencyCycles(graph)).toEqual([]);
@@ -26,34 +26,34 @@ describe("detectDependencyCycles", () => {
 
   it("detects a direct 2-cycle", () => {
     const graph = new Map<string, Set<string>>([
-      ["@jarv1s/jobs", new Set(["@jarv1s/settings"])],
-      ["@jarv1s/settings", new Set(["@jarv1s/jobs"])]
+      ["@moss/jobs", new Set(["@moss/settings"])],
+      ["@moss/settings", new Set(["@moss/jobs"])]
     ]);
 
     const cycles = detectDependencyCycles(graph);
     expect(cycles).toHaveLength(1);
-    expect(cycles[0]).toEqual(["@jarv1s/jobs", "@jarv1s/settings", "@jarv1s/jobs"]);
+    expect(cycles[0]).toEqual(["@moss/jobs", "@moss/settings", "@moss/jobs"]);
   });
 
   it("detects a 3-cycle through an intermediate package", () => {
     const graph = new Map<string, Set<string>>([
-      ["@jarv1s/jobs", new Set(["@jarv1s/settings"])],
-      ["@jarv1s/settings", new Set(["@jarv1s/proactive-monitoring"])],
-      ["@jarv1s/proactive-monitoring", new Set(["@jarv1s/jobs"])]
+      ["@moss/jobs", new Set(["@moss/settings"])],
+      ["@moss/settings", new Set(["@moss/proactive-monitoring"])],
+      ["@moss/proactive-monitoring", new Set(["@moss/jobs"])]
     ]);
 
     const cycles = detectDependencyCycles(graph);
     expect(cycles).toHaveLength(1);
     expect(cycles[0]).toEqual([
-      "@jarv1s/jobs",
-      "@jarv1s/settings",
-      "@jarv1s/proactive-monitoring",
-      "@jarv1s/jobs"
+      "@moss/jobs",
+      "@moss/settings",
+      "@moss/proactive-monitoring",
+      "@moss/jobs"
     ]);
   });
 
   it("does not report a self-reference as a cycle", () => {
-    const graph = new Map<string, Set<string>>([["@jarv1s/a", new Set(["@jarv1s/a"])]]);
+    const graph = new Map<string, Set<string>>([["@moss/a", new Set(["@moss/a"])]]);
 
     // A package can't declare a dependency on itself in package.json, but guard the
     // detector against it anyway so a malformed graph never throws or infinite-loops.

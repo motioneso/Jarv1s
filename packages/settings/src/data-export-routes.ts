@@ -1,16 +1,16 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
-import type { AccessContext, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
-import { createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextRunner, MossDatabase } from "@moss/db";
+import { createDatabase, getMossDatabaseUrls } from "@moss/db";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import { handleSettingsRouteError } from "./route-error.js";
 import { exportUserData } from "./data-export.js";
 
 export interface DataExportRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
-  readonly rootDb: Kysely<JarvisDatabase>;
-  readonly listModuleManifests: () => readonly JarvisModuleManifest[];
+  readonly rootDb: Kysely<MossDatabase>;
+  readonly listModuleManifests: () => readonly MossModuleManifest[];
 }
 
 export function registerDataExportRoutes(
@@ -19,7 +19,7 @@ export function registerDataExportRoutes(
 ): void {
   server.get("/api/settings/me/data-export", async (request, reply) => {
     const authDb = createDatabase({
-      connectionString: getJarvisDatabaseUrls().auth,
+      connectionString: getMossDatabaseUrls().auth,
       maxConnections: 1
     });
 

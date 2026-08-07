@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import {
   createSportsFollowRequestSchema,
   createSportsFollowResponseSchema,
@@ -11,7 +11,7 @@ import {
   sportsOverviewResponseSchema,
   sportsStandingsResponseSchema,
   sportsTeamSearchResponseSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { sportsFollowedFactsTodayExecute } from "./briefing-tool.js";
 import {
@@ -275,4 +275,4 @@ export const sportsModuleManifest = {
       ]
     }
   ]
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

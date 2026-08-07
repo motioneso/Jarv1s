@@ -1,14 +1,14 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextRunner } from "@moss/db";
 import {
   getLocaleSettingsRouteSchema,
   putLocaleSettingsRouteSchema,
   type LocaleDateFormat,
   type LocaleSettingsDto,
   type PutLocaleSettingsRequest
-} from "@jarv1s/shared";
-import { HttpError } from "@jarv1s/module-sdk";
+} from "@moss/shared";
+import { HttpError } from "@moss/module-sdk";
 
 import type { ProfilePreferencesPort } from "./preferences-port.js";
 import { handleSettingsRouteError } from "./route-error.js";

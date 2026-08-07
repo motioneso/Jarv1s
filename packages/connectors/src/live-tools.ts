@@ -1,7 +1,7 @@
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
-import type { CalendarLiveEventDto, GmailLiveMessageSummaryDto } from "@jarv1s/shared";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
+import type { ToolExecute, ToolResult } from "@moss/module-sdk";
+import type { CalendarLiveEventDto, GmailLiveMessageSummaryDto } from "@moss/shared";
+import { PreferencesRepository } from "@moss/structured-state";
 
 import { createConnectorSecretCipher } from "./crypto.js";
 import { parseEmail, type ParsedEmail } from "./email-extract.js";

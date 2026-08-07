@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { DatasetClient } from "@jarv1s/datasets";
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
+import type { DatasetClient } from "@moss/datasets";
+import type { AccessContext, DataContextRunner } from "@moss/db";
+import { HttpError, handleRouteError } from "@moss/module-sdk";
 import {
   createSportsFollowResponseSchema,
   deleteSportsFollowResponseSchema,
@@ -13,7 +13,7 @@ import {
   sportsStandingsResponseSchema,
   sportsTeamSearchResponseSchema,
   type CreateSportsFollowRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { SportsFollowsRepository } from "./repository.js";
 import { SportsService, type SportsFollowsWriter } from "./sports-service.js";

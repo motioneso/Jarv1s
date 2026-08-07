@@ -12,7 +12,7 @@
 // call `ModuleWorkerContext`. `finance/src/worker/registry.ts`'s `ToolFactory = (ports) =>
 // ToolHandler` pattern does not fit here for the same reason: finance's ports are built once
 // from a `WorkerPorts` object assembled outside any single call, ours cannot be.
-import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import type { ModuleWorkerContext } from "@moss/module-sdk/worker";
 
 import { createBriefingContributeHandler } from "./handlers/briefing.js";
 import {

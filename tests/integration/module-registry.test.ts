@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import type { QueueDefinition } from "@jarv1s/jobs";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { QueueDefinition } from "@moss/jobs";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import {
   assertModuleRegistryConsistency,
   getBuiltInModuleRegistrations,
   getExternalModuleDeletionTables,
   type BuiltInModuleRegistration
-} from "@jarv1s/module-registry";
+} from "@moss/module-registry";
 
-function manifest(overrides: Partial<JarvisModuleManifest>): JarvisModuleManifest {
+function manifest(overrides: Partial<MossModuleManifest>): MossModuleManifest {
   return {
     id: "fixture",
     name: "Fixture",
@@ -23,7 +23,7 @@ function manifest(overrides: Partial<JarvisModuleManifest>): JarvisModuleManifes
 }
 
 function registration(
-  manifestOverrides: Partial<JarvisModuleManifest>,
+  manifestOverrides: Partial<MossModuleManifest>,
   queueDefinitions: readonly QueueDefinition[] = []
 ): BuiltInModuleRegistration {
   return {

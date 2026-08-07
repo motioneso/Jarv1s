@@ -1,7 +1,7 @@
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb, type Task } from "@jarv1s/db";
-import { localDay } from "@jarv1s/shared";
+import { assertDataContextDb, type DataContextDb, type Task } from "@moss/db";
+import { localDay } from "@moss/shared";
 
 import { TASK_URGENCY_WINDOW_HOURS } from "./classification.js";
 import { rollForwardOwnedSeries } from "./recurrence.js";

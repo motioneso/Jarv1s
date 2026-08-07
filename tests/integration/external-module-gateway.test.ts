@@ -7,9 +7,9 @@ import {
   ConfirmationRegistry,
   SessionTokenRegistry,
   type GatewaySessionRecord
-} from "@jarv1s/ai";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createExternalToolManifests } from "@jarv1s/module-registry/node";
+} from "@moss/ai";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createExternalToolManifests } from "@moss/module-registry/node";
 import type { ExternalModuleDiscovery } from "../../packages/module-registry/src/external/types.js";
 import type { Kysely } from "kysely";
 
@@ -18,7 +18,7 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 const { Client } = pg;
 
 describe("external module AssistantToolGateway", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let bootstrap: pg.Client;
 
   beforeAll(async () => {

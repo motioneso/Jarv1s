@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import type { ListSourceBehaviorsResponse } from "@jarv1s/shared";
+import type { ListSourceBehaviorsResponse } from "@moss/shared";
 
 import { queryKeys } from "../apps/web/src/api/query-keys.js";
 import {

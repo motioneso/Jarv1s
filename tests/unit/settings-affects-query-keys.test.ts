@@ -1,4 +1,4 @@
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+import { getBuiltInModuleManifests } from "@moss/module-registry";
 import { describe, expect, it } from "vitest";
 
 import { resolveQueryKeyToken } from "../../apps/web/src/api/query-keys.js";

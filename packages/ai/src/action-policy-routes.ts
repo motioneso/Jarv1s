@@ -1,18 +1,18 @@
 import type { FastifyInstance } from "fastify";
-import type { JarvisActionPermissionTier } from "@jarv1s/module-sdk";
-import { handleRouteError, HttpError } from "@jarv1s/module-sdk";
+import type { MossActionPermissionTier } from "@moss/module-sdk";
+import { handleRouteError, HttpError } from "@moss/module-sdk";
 import {
   getAiActionPoliciesResponseSchema,
   patchAiActionPolicyRequestSchema,
   patchAiActionPolicyResponseSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import type { AiRepository } from "./repository.js";
 import type { AiRoutesDependencies } from "./routes.js";
 
 interface PatchRequest {
   readonly Body: {
-    readonly tier: JarvisActionPermissionTier;
+    readonly tier: MossActionPermissionTier;
   };
   readonly Params: {
     readonly moduleId: string;

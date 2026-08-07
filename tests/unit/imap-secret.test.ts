@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { Keyring } from "@jarv1s/db";
+import type { Keyring } from "@moss/db";
 import {
   ConnectorSecretCipher,
   decryptImapConnectionSecret,
   type ImapConnectionSecret
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 
 const keyring: Keyring = {
   currentKeyId: "k1",

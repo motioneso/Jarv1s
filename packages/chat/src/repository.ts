@@ -8,14 +8,14 @@ import {
   type ChatMessageStatus,
   type ChatThread,
   type DataContextDb
-} from "@jarv1s/db";
+} from "@moss/db";
 import type {
   AnswerProvenanceMetadataV1,
   ChatActivityEventDto,
   ChatAttachmentDto,
   ChatSurface,
   SourceFreshnessV1
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import { normalizeChatSurface } from "./live/chat-surface.js";
 
 export interface CreateChatThreadInput {

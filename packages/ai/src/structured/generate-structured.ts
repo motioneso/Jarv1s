@@ -1,8 +1,8 @@
 import { Ajv, type ErrorObject } from "ajv";
 import type { FastifyBaseLogger } from "fastify";
 
-import type { DataContextDb } from "@jarv1s/db";
-import type { AiModelTier, ModuleServiceKey } from "@jarv1s/shared";
+import type { DataContextDb } from "@moss/db";
+import type { AiModelTier, ModuleServiceKey } from "@moss/shared";
 
 import { HttpApiAdapter } from "../adapters/http-api.js";
 import {

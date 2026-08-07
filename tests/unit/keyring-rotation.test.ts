@@ -11,9 +11,9 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
-import { AiSecretCipher } from "@jarv1s/ai";
-import { ConnectorSecretCipher } from "@jarv1s/connectors";
-import { resolveKeyring } from "@jarv1s/db";
+import { AiSecretCipher } from "@moss/ai";
+import { ConnectorSecretCipher } from "@moss/connectors";
+import { resolveKeyring } from "@moss/db";
 
 // ---------------------------------------------------------------------------
 // Helpers

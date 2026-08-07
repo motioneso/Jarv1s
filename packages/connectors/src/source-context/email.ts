@@ -1,4 +1,4 @@
-import type { DataContextDb, EmailMessage } from "@jarv1s/db";
+import type { DataContextDb, EmailMessage } from "@moss/db";
 
 import type { ConnectorAccountSafeRow } from "../repository.js";
 import type { EmailReadProvider } from "../email-read-provider.js";

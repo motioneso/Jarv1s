@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 import { FeedbackProvider } from "../../apps/web/src/settings/settings-feedback.js";
 import { YoloAdminGroup } from "../../apps/web/src/settings/settings-yolo-admin-group.js";
-import type { YoloAdminUserDto } from "@jarv1s/shared";
+import type { YoloAdminUserDto } from "@moss/shared";
 
 function renderWithQuery(node: React.ReactNode, client: QueryClient): string {
   return renderToString(

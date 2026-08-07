@@ -7,8 +7,8 @@ import {
   SharesRepository,
   createDatabase,
   type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
+  type MossDatabase
+} from "@moss/db";
 import { connectionStrings, ids, resetEmptyFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -31,7 +31,7 @@ async function seedShare(resourceId: string, level = "view"): Promise<void> {
   });
 }
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let dataContext: DataContextRunner;
 
 function ctx(actorUserId: string): AccessContext {

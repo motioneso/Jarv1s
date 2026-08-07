@@ -1,4 +1,4 @@
-import type { DeleteMyAccountRequest, DeleteMyAccountResponse } from "@jarv1s/shared";
+import type { DeleteMyAccountRequest, DeleteMyAccountResponse } from "@moss/shared";
 
 import { requestJson } from "./client.js";
 

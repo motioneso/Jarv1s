@@ -3,13 +3,8 @@ import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 import pg from "pg";
 
-import {
-  createDatabase,
-  DataContextRunner,
-  type DataContextDb,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { createPgBossClient } from "@jarv1s/jobs";
+import { createDatabase, DataContextRunner, type DataContextDb, type MossDatabase } from "@moss/db";
+import { createPgBossClient } from "@moss/jobs";
 
 import {
   enqueueNewsRefresh,
@@ -32,8 +27,8 @@ function feedFor(url: string): string {
 }
 
 describe("news refresh jobs", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let workerDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let workerDb: Kysely<MossDatabase>;
   let appContext: DataContextRunner;
   let workerContext: DataContextRunner;
   let appBoss: PgBoss;

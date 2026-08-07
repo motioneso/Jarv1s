@@ -3,32 +3,32 @@
 // of surfaces (auth/storage/web/database/navigation) each validated positively below.
 // Any OTHER executable or surface-contributing field is rejected so an external module
 // can never inject routes/tools/SQL before the slices that safely host those land. No
-// node:* imports here — this is re-exported from @jarv1s/module-registry's browser entry.
+// node:* imports here — this is re-exported from @moss/module-registry's browser entry.
 import type {
-  JsonJarvisModuleManifest,
+  JsonMossModuleManifest,
   ExternalModuleAssistantToolDeclaration,
   ExternalModuleBriefingDeclaration,
   ExternalModuleDatabaseDeclaration,
   ExternalModuleNavigationEntry,
   ExternalModuleWorkerDeclaration,
-  JarvisActionPermissionTier,
+  MossActionPermissionTier,
   ModuleAssistantActionFamilyManifest,
   ModuleAssistantOnboardingManifest,
   ModuleAuthDeclaration,
   ModuleLifecycle,
   ModuleStorageDeclaration,
   ModuleWebDeclaration
-} from "@jarv1s/module-sdk";
-import { assertValidFetchHosts } from "@jarv1s/host-fetch/policy";
+} from "@moss/module-sdk";
+import { assertValidFetchHosts } from "@moss/host-fetch/policy";
 import {
   isValidModuleParamsSchema,
   matchesModuleParamsSchema,
   MAX_INVOCATION_MS
-} from "@jarv1s/module-sdk";
-import { satisfiesCoreVersion } from "@jarv1s/module-sdk/core-version";
+} from "@moss/module-sdk";
+import { satisfiesCoreVersion } from "@moss/module-sdk/core-version";
 
 export type ExternalModuleValidation =
-  | { readonly ok: true; readonly manifest: JsonJarvisModuleManifest }
+  | { readonly ok: true; readonly manifest: JsonMossModuleManifest }
   | { readonly ok: false; readonly errors: readonly string[] };
 
 /** Module ids are lowercase kebab slugs; the id also names the package directory. */
@@ -51,7 +51,7 @@ const LIFECYCLES: readonly ModuleLifecycle[] = [
   "workspace-toggleable"
 ];
 
-// Every field of the compiled JarvisModuleManifest that carries executable behavior
+// Every field of the compiled MossModuleManifest that carries executable behavior
 // or a UI/data surface. Presence of ANY of these in an external manifest is a
 // rejection. `auth`/`storage`/`web` are first-class as of #918 Slice 2, `database` as
 // of #964, `navigation` as of #1019, and `assistantActionFamilies` as of #1246
@@ -78,7 +78,7 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 const ACTION_FAMILY_ID_RE = /^[a-z][a-z0-9_-]*$/;
-const ACTION_PERMISSION_TIERS: readonly JarvisActionPermissionTier[] = [
+const ACTION_PERMISSION_TIERS: readonly MossActionPermissionTier[] = [
   "ask_each_time",
   "trusted_auto",
   "always_confirm"
@@ -119,7 +119,7 @@ function validateActionFamilies(
       !Array.isArray(family.allowedTiers) ||
       family.allowedTiers.length === 0 ||
       !family.allowedTiers.every((tier) =>
-        ACTION_PERMISSION_TIERS.includes(tier as JarvisActionPermissionTier)
+        ACTION_PERMISSION_TIERS.includes(tier as MossActionPermissionTier)
       ) ||
       new Set(family.allowedTiers).size !== family.allowedTiers.length
     ) {
@@ -139,7 +139,7 @@ function validateActionFamilies(
       label: family.label,
       description: family.description,
       defaultTier: family.defaultTier,
-      allowedTiers: family.allowedTiers as readonly JarvisActionPermissionTier[]
+      allowedTiers: family.allowedTiers as readonly MossActionPermissionTier[]
     });
   }
   return families.length > 0 ? families : undefined;
@@ -443,7 +443,7 @@ export function validateExternalModuleManifest(
   // On-disk envelope contract version (#917, spec revision 2026-07-10 for PR #924). Slice 1
   // requires exactly the number 1; a missing, non-numeric, or future value fails closed. This is
   // the single "contract version" a metadata-only module carries — worker/web contract versions
-  // are deferred to Slices 2-3 (see the JsonJarvisModuleManifest.schemaVersion doc + spec revision).
+  // are deferred to Slices 2-3 (see the JsonMossModuleManifest.schemaVersion doc + spec revision).
   if (obj.schemaVersion !== 1) {
     errors.push("schemaVersion must be the number 1");
   }
@@ -947,7 +947,7 @@ export function validateExternalModuleManifest(
 
   // Re-shape to exactly the allowed fields (drop unknown keys defensively). schemaVersion is
   // pinned to the literal 1 — validation above guarantees obj.schemaVersion === 1 to reach here.
-  const manifest: JsonJarvisModuleManifest = {
+  const manifest: JsonMossModuleManifest = {
     schemaVersion: 1,
     id: obj.id as string,
     name: obj.name as string,
@@ -962,7 +962,7 @@ export function validateExternalModuleManifest(
       : {}),
     ...(obj.web !== undefined ? { web: obj.web as ModuleWebDeclaration } : {}),
     ...(obj.runtime !== undefined
-      ? { runtime: obj.runtime as JsonJarvisModuleManifest["runtime"] }
+      ? { runtime: obj.runtime as JsonMossModuleManifest["runtime"] }
       : {}),
     ...(obj.assistantTools !== undefined
       ? { assistantTools: obj.assistantTools as readonly ExternalModuleAssistantToolDeclaration[] }

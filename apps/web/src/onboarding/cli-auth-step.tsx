@@ -10,7 +10,7 @@ import {
   ShieldCheck
 } from "lucide-react";
 
-import type { OnboardingCliAuthStepDto, OnboardingProviderKind } from "@jarv1s/shared";
+import type { OnboardingCliAuthStepDto, OnboardingProviderKind } from "@moss/shared";
 
 import { ApiError } from "../api/client";
 import {

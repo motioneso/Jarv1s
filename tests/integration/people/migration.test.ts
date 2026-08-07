@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { sql, type Kysely } from "kysely";
 
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createDatabase, type MossDatabase } from "@moss/db";
 
 import { connectionStrings, resetFoundationDatabase } from "../test-database.js";
 
-let db: Kysely<JarvisDatabase>;
+let db: Kysely<MossDatabase>;
 
 beforeAll(async () => {
   await resetFoundationDatabase();

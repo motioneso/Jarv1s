@@ -1,7 +1,7 @@
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import type { ModuleLifecycleContext } from "@jarv1s/module-sdk";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
+import type { ModuleLifecycleContext } from "@moss/module-sdk";
 
 type JsonPrimitive = boolean | null | number | string;
 type JsonValue = JsonPrimitive | JsonValue[] | { readonly [key: string]: JsonValue };
@@ -19,7 +19,7 @@ export interface WellnessExportSectionData {
  * owns its own export data instead of settings reading wellness's tables directly (byte-compat
  * is the acceptance bar; do not change column selection/order without also updating the golden
  * export test). `medications` / `medication_logs` (also wellness-owned tables) feed the
- * archive's separate `structured_state` section and are read there in @jarv1s/settings,
+ * archive's separate `structured_state` section and are read there in @moss/settings,
  * unaffected by this move — they are not required to be covered by an export section (only
  * `dataLifecycle.deletion.tables` requires full ownedTables coverage).
  */
@@ -73,7 +73,7 @@ export async function collectWellnessExportSection(
 }
 
 // Duplicated from packages/settings/src/data-export.ts's normalizeRow/normalizeValue rather
-// than shared: no common utility package exists for this, and importing from @jarv1s/settings
+// than shared: no common utility package exists for this, and importing from @moss/settings
 // here (or the reverse) would create a package cycle (wellness -> settings already exists via
 // export-job.ts's recordAuditEvent import).
 function normalizeRow(row: Record<string, unknown>): ExportRow {

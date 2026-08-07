@@ -1,6 +1,6 @@
 /**
  * One-off DESIGN-REVIEW screenshot capture. NOT part of the regular suite — run explicitly:
- *   pnpm --filter @jarv1s/web exec playwright test tests/e2e/capture-screens.spec.ts
+ *   pnpm --filter @moss/web exec playwright test tests/e2e/capture-screens.spec.ts
  * Dumps full-page PNGs of every major surface into ~/jarvis-design-review/screens/
  * so design-review agents can ground "AI-interface tells" findings on rendered pixels + code.
  */

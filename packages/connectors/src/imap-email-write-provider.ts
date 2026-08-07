@@ -4,8 +4,8 @@ import {
   type EmailWriteProvider,
   type EmailWriteResult,
   type NewEmailInput
-} from "@jarv1s/email";
-import type { DataContextDb, EmailMessage } from "@jarv1s/db";
+} from "@moss/email";
+import type { DataContextDb, EmailMessage } from "@moss/db";
 import { ImapFlow } from "imapflow";
 import nodemailer from "nodemailer";
 import type { ConnectorSecretCipher } from "./crypto.js";

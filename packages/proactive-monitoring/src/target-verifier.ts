@@ -1,7 +1,4 @@
-import type {
-  FeedbackTargetVerification,
-  FeedbackTargetVerifier
-} from "@jarv1s/usefulness-feedback";
+import type { FeedbackTargetVerification, FeedbackTargetVerifier } from "@moss/usefulness-feedback";
 
 import type { CardRepository } from "./card-repository.js";
 

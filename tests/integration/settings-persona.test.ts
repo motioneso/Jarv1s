@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { OutgoingHttpHeaders } from "node:http";
 import type { Kysely } from "kysely";
 
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { createDatabase, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import type {
   GetPersonaSettingsResponse,
   PreviewPersonaResponse,
   PutPersonaSettingsResponse
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import {
@@ -18,7 +18,7 @@ import {
 } from "./test-database.js";
 
 describe("settings persona preferences", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let ownerCookie: string;

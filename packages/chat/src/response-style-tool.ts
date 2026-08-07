@@ -1,12 +1,12 @@
-import { assertDataContextDb } from "@jarv1s/db";
-import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import { assertDataContextDb } from "@moss/db";
+import type { ToolExecute, ToolResult } from "@moss/module-sdk";
+import { PreferencesRepository } from "@moss/structured-state";
 import {
   CHAT_RESPONSE_STYLES,
   CHAT_SETTINGS_PREFERENCE_KEY,
   normalizeChatSettings,
   type ChatResponseStyle
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 // Matches routes.ts's chat settings GET/PUT — both read/write the same preference row.
 const preferences = new PreferencesRepository();

@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import { tasksMonitorProvider } from "./monitor-provider.js";
 import {
   addTaskActivityRequestSchema,
@@ -41,7 +41,7 @@ import {
   unassignTaskTagRouteSchema,
   updateTaskRequestSchema,
   updateTaskResponseSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import {
   taskAddActivityExecute,
@@ -809,4 +809,4 @@ export const tasksModuleManifest = {
     }
   ],
   proactiveMonitor: tasksMonitorProvider
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { MeResponse, OnboardingFounderStatus } from "@jarv1s/shared";
+import type { MeResponse, OnboardingFounderStatus } from "@moss/shared";
 
 import {
   STEP_KEYS,

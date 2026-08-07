@@ -5,7 +5,7 @@ import {
   BriefingFreshnessList,
   BriefingStaleBanner
 } from "../../apps/web/src/today/briefing-freshness.js";
-import type { SourceFreshnessV1 } from "@jarv1s/shared";
+import type { SourceFreshnessV1 } from "@moss/shared";
 
 const CAPTURED = "2026-06-28T10:00:00.000Z";
 

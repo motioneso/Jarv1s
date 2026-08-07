@@ -4,9 +4,9 @@ import {
   grantSelfOperationForModule,
   AiRepository,
   type SelfOperationManifestInput
-} from "@jarv1s/ai";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import type { ModuleAssistantToolManifest } from "@jarv1s/module-sdk";
+} from "@moss/ai";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import type { ModuleAssistantToolManifest } from "@moss/module-sdk";
 import type { Kysely } from "kysely";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -27,7 +27,7 @@ function tool(
 }
 
 describe("action policy install grants", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repo: AiRepository;
 

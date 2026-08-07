@@ -4,8 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type Kysely } from "kysely";
 import pg from "pg";
 
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
@@ -142,7 +142,7 @@ describe("Phase 4 member onboarding — migration", () => {
 });
 
 describe("Phase 4 member onboarding — repository methods", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let dataContext: DataContextRunner;
@@ -264,7 +264,7 @@ describe("Phase 4 member onboarding — repository methods", () => {
 });
 
 describe("Phase 4 member onboarding — route branch (status/complete/skip per actor)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let ownerCookie: string;

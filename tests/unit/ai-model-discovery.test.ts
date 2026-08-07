@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CLI_STATIC_MODELS, ModelDiscoveryService } from "@jarv1s/ai";
+import { CLI_STATIC_MODELS, ModelDiscoveryService } from "@moss/ai";
 
 describe("CLI model discovery (#982/#869)", () => {
   it("curates active-ready Codex ids with service tiers", async () => {

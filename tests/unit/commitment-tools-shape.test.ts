@@ -5,7 +5,7 @@ import {
   commitmentAcceptExecute,
   commitmentRejectExecute,
   commitmentSnoozeExecute
-} from "@jarv1s/commitments/tools";
+} from "@moss/commitments/tools";
 
 describe("commitment tools", () => {
   it("exports all 5 execute functions", () => {

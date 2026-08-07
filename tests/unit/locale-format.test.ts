@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { localDay, type LocaleSettingsDto } from "@jarv1s/shared";
+import { localDay, type LocaleSettingsDto } from "@moss/shared";
 import { formatDate, formatDateTime, formatTime } from "../../apps/web/src/locale/locale-format.js";
 
 const newYork12: LocaleSettingsDto = {

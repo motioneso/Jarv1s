@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { PriorityPreferencesRepository } from "@jarv1s/priority";
-import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
+import { PriorityPreferencesRepository } from "@moss/priority";
+import type { PriorityModelPreferenceV1 } from "@moss/priority";
 
 describe("PriorityPreferencesRepository", () => {
   let repo: PriorityPreferencesRepository;

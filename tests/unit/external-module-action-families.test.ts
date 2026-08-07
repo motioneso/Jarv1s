@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validateExternalModuleManifest } from "@jarv1s/module-registry";
+import { validateExternalModuleManifest } from "@moss/module-registry";
 
 const base = {
   schemaVersion: 1,

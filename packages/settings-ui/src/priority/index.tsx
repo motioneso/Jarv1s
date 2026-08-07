@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { PriorityModelPreferenceV1, PriorityAnchor, PrioritySource } from "@jarv1s/priority";
+import type { PriorityModelPreferenceV1, PriorityAnchor, PrioritySource } from "@moss/priority";
 import { Badge, Field, Group, Note, PaneHead, Row, Select, Switch } from "../index.js";
 
 const VISIBLE_SOURCES = ["tasks", "calendar", "email", "notes"] as const;

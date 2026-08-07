@@ -20,12 +20,12 @@
  */
 import { randomUUID } from "node:crypto";
 
-import { createConnectorSecretCipher } from "@jarv1s/connectors";
-import { DataContextRunner, createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
-import { createAiSecretCipher } from "@jarv1s/ai";
+import { createConnectorSecretCipher } from "@moss/connectors";
+import { DataContextRunner, createDatabase, getMossDatabaseUrls } from "@moss/db";
+import { createAiSecretCipher } from "@moss/ai";
 
 async function main(): Promise<void> {
-  const db = createDatabase({ connectionString: getJarvisDatabaseUrls().bootstrap });
+  const db = createDatabase({ connectionString: getMossDatabaseUrls().bootstrap });
   const connectorCipher = createConnectorSecretCipher();
   const aiCipher = createAiSecretCipher();
   const dataContext = new DataContextRunner(db);

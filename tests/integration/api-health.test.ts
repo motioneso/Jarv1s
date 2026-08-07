@@ -3,7 +3,7 @@ import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createDatabase, type MossDatabase } from "@moss/db";
 import { connectionStrings, resetFoundationDatabase } from "./test-database.js";
 
 describe("Health endpoints — healthy server", () => {
@@ -40,7 +40,7 @@ describe("Health endpoints — healthy server", () => {
 
 describe("Health readiness — DB down", () => {
   let server: ReturnType<typeof createApiServer>;
-  let badDb: Kysely<JarvisDatabase>;
+  let badDb: Kysely<MossDatabase>;
 
   beforeAll(async () => {
     badDb = createDatabase({

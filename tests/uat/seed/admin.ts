@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { hashPassword } from "@jarv1s/auth";
+import { hashPassword } from "@moss/auth";
 import { sql, type Kysely } from "kysely";
 
-import type { JarvisDatabase } from "@jarv1s/db";
+import type { MossDatabase } from "@moss/db";
 import { UAT_SEED_BASE_TIMESTAMP } from "./timestamps.js";
 
 export const UAT_ADMIN_EMAIL = "uat-admin@jarv1s.local";
@@ -47,7 +47,7 @@ export function logUatAdminCredentials(
  * seeding a session would bypass the auth surface the epic exists to exercise.
  */
 async function seedLoginableUser(
-  migrationDb: Kysely<JarvisDatabase>,
+  migrationDb: Kysely<MossDatabase>,
   input: SeedLoginableUserInput
 ): Promise<{ userId: string; email: string; password: string }> {
   const passwordHash = await hashPassword(input.password);
@@ -109,7 +109,7 @@ async function seedLoginableUser(
 }
 
 export async function seedSoloAdmin(
-  migrationDb: Kysely<JarvisDatabase>
+  migrationDb: Kysely<MossDatabase>
 ): Promise<{ userId: string; email: string; password: string }> {
   const credentials = await seedLoginableUser(migrationDb, {
     userId: UAT_ADMIN_ID,
@@ -124,7 +124,7 @@ export async function seedSoloAdmin(
 }
 
 export function seedSecondOwner(
-  migrationDb: Kysely<JarvisDatabase>
+  migrationDb: Kysely<MossDatabase>
 ): Promise<{ userId: string; email: string; password: string }> {
   return seedLoginableUser(migrationDb, {
     userId: UAT_SECOND_OWNER_ID,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { summarizeAssistantToolInput } from "@jarv1s/ai";
+import { summarizeAssistantToolInput } from "@moss/ai";
 
 describe("summarizeAssistantToolInput", () => {
   it("caps model-controlled key names and count without persisting values", () => {

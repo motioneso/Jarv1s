@@ -11,10 +11,10 @@ import type {
   EngineLaunchOpts,
   TranscriptRecord
 } from "../../packages/chat/src/live/types.js";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
-import type { ChatEngineFactory } from "@jarv1s/module-registry";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import { ConnectorsRepository, createConnectorSecretCipher } from "@moss/connectors";
+import type { ChatEngineFactory } from "@moss/module-registry";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -63,7 +63,7 @@ const fakeProviderCheckFactory: ChatEngineFactory = (provider) =>
   new FakeProviderCheckEngine(provider);
 
 describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let dataContext: DataContextRunner;
@@ -250,7 +250,7 @@ describe("Phase 2 onboarding — getOnboardingStatus (derived steps)", () => {
 });
 
 describe("Phase 2 onboarding — provider connection check", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let ownerCookie: string;
@@ -320,7 +320,7 @@ describe("Phase 2 onboarding — provider connection check", () => {
 });
 
 describe("Phase 2 onboarding — complete/skip (audited)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let ownerCookie: string;
@@ -436,7 +436,7 @@ describe("Phase 2 onboarding — complete/skip (audited)", () => {
 // instance-global founder state stays owner-only — a member's complete/skip stamps the
 // member's OWN app.member_onboarding row, never the instance-scoped onboarding.state.
 describe("Phase 4 onboarding — promoted non-owner admin is a MEMBER (not founder, not 403)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let ownerCookie: string;

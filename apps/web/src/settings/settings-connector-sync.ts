@@ -1,4 +1,4 @@
-import type { ConnectorAccountDto, ConnectorSyncCounts } from "@jarv1s/shared";
+import type { ConnectorAccountDto, ConnectorSyncCounts } from "@moss/shared";
 
 export type ConnectorAccountHealth = {
   readonly indicator: "ready" | "error" | "idle";

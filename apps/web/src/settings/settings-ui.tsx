@@ -1,3 +1,3 @@
-export { Avatar, Badge, ComingSoon, Indicator, Segmented, Select, Switch } from "@jarv1s/ui";
-export type { BadgeTone } from "@jarv1s/ui";
-export * from "@jarv1s/settings-ui";
+export { Avatar, Badge, ComingSoon, Indicator, Segmented, Select, Switch } from "@moss/ui";
+export type { BadgeTone } from "@moss/ui";
+export * from "@moss/settings-ui";

@@ -1,4 +1,4 @@
-import { localDay, type AdminAuditEventDto, type LocaleSettingsDto } from "@jarv1s/shared";
+import { localDay, type AdminAuditEventDto, type LocaleSettingsDto } from "@moss/shared";
 
 import { formatDate, formatTime } from "../locale/locale-format.js";
 

@@ -1,4 +1,4 @@
-import type { JsonSchema, ToolInput } from "@jarv1s/module-sdk";
+import type { JsonSchema, ToolInput } from "@moss/module-sdk";
 
 export class ToolInputValidationError extends Error {
   constructor(message: string) {

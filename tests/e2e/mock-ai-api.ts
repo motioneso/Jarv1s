@@ -12,7 +12,7 @@ import type {
   PutAiServiceBindingRequest,
   UpdateAiConfiguredModelRequest,
   UpdateAiProviderConfigRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 // #870 Slice 1: the admin AI surface now models per-service bindings (Chat + Voice) instead of the
 // old per-capability manual routes / tier preferences. A binding is either a "mode" (tier resolved

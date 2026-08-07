@@ -3,9 +3,9 @@ import { type Kysely } from "kysely";
 import pg from "pg";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
 import { registerRequestTimeZoneHook } from "../../apps/api/src/server.js";
-import { registerWellnessRoutes } from "@jarv1s/wellness";
+import { registerWellnessRoutes } from "@moss/wellness";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -13,7 +13,7 @@ const { Client } = pg;
 
 const userId = "00000000-0000-4000-8000-000000000051";
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let dataContext: DataContextRunner;
 
 beforeAll(async () => {

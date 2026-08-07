@@ -28,7 +28,7 @@ function parseVersion(value: string): SemVer | null {
   };
 }
 
-function parseJarvisVersion(value: string): SemVer | null {
+function parseMossVersion(value: string): SemVer | null {
   const match = JARVIS_VERSION_RE.exec(value.trim());
   if (!match) return null;
   return {
@@ -63,9 +63,9 @@ function compare(a: SemVer, b: SemVer): number {
   return 0;
 }
 
-export function compareJarvisVersions(a: string, b: string): number {
-  const pa = parseJarvisVersion(a);
-  const pb = parseJarvisVersion(b);
+export function compareMossVersions(a: string, b: string): number {
+  const pa = parseMossVersion(a);
+  const pb = parseMossVersion(b);
   if (!pa || !pb) return 0;
   return compare(pa, pb);
 }

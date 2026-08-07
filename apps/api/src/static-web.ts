@@ -3,7 +3,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import { MODULE_IMAGE_CSP_HOSTS } from "@jarv1s/module-registry";
+import { MODULE_IMAGE_CSP_HOSTS } from "@moss/module-registry";
 
 export interface StaticWebOptions {
   readonly distDir?: string;

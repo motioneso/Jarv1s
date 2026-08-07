@@ -1,11 +1,11 @@
-import type { DataContextDb } from "@jarv1s/db";
-import { NotificationsRepository } from "@jarv1s/notifications";
+import type { DataContextDb } from "@moss/db";
+import { NotificationsRepository } from "@moss/notifications";
 import type { Job, PgBoss } from "./pg-boss.js";
 import { UPGRADE_NOTIFY_QUEUE, registerDataContextWorker } from "./pg-boss.js";
-import type { DataContextRunner } from "@jarv1s/db";
+import type { DataContextRunner } from "@moss/db";
 import type { UpgradeNotifyPayload } from "./upgrade-check.js";
 
-// Local literal, not an import of @jarv1s/settings's own SETTINGS_MODULE_ID (#834): jobs is
+// Local literal, not an import of @moss/settings's own SETTINGS_MODULE_ID (#834): jobs is
 // generic job infrastructure and must not depend on any specific module — that edge is what
 // closed the jobs -> settings -> proactive-monitoring -> jobs cycle. Every other module in the
 // repo that tags a notification/record with another module's id does the same (see

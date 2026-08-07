@@ -1,5 +1,5 @@
 {
-  "name": "@jarv1s/cli-runner",
+  "name": "@moss/cli-runner",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,8 +11,8 @@
     "start": "tsx src/main-entry.ts"
   },
   "dependencies": {
-    "@jarv1s/ai": "workspace:*",
-    "@jarv1s/chat": "workspace:*",
+    "@moss/ai": "workspace:*",
+    "@moss/chat": "workspace:*",
     "node-pty": "^1.1.0"
   }
 }

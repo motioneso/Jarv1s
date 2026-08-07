@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { DRIFT_DISABLED_REASON, reconcileExternalModules } from "@jarv1s/module-registry";
-import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
+import { DRIFT_DISABLED_REASON, reconcileExternalModules } from "@moss/module-registry";
+import type { ExternalModuleDiscovery } from "@moss/module-registry";
 
 const discovery = (id: string, packageHash: string): ExternalModuleDiscovery => ({
   id,

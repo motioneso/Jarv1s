@@ -5,7 +5,7 @@ import {
   DEFAULT_CHAT_SETTINGS,
   normalizeChatSettings,
   renderChatResponseStyleInstruction
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 describe("chat settings api", () => {
   it("normalizes missing and malformed settings to balanced", () => {

@@ -4,7 +4,7 @@ import type {
   HostDiagnosticCheckDto,
   HostDiagnosticsDto,
   HostDiagnosticsInfo
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 /**
  * Host diagnostics — pure serializer + safety guard (#255).
@@ -23,7 +23,7 @@ import type {
 /**
  * Injected by the API composition root. `info()` returns sync, non-secret runtime
  * facts; `pgBossInstalled()` is a cheap async connectivity probe. Defined here (not
- * in @jarv1s/shared) so it stays a server-side seam; settings gains no new package
+ * in @moss/shared) so it stays a server-side seam; settings gains no new package
  * dependency by accepting it.
  */
 export interface HostDiagnosticsProvider {

@@ -1,5 +1,5 @@
-import type { DataContextDb } from "@jarv1s/db";
-import type { FreshnessKind, SourceFreshnessEntry, SourceFreshnessV1 } from "@jarv1s/shared";
+import type { DataContextDb } from "@moss/db";
+import type { FreshnessKind, SourceFreshnessEntry, SourceFreshnessV1 } from "@moss/shared";
 
 type ConnectorKind = "email" | "calendar";
 

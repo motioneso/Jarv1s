@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Flag, LogIn, Minus, Play } from "lucide-react";
 
-import type { OnboardingStatusResponse, OnboardingStepsDto } from "@jarv1s/shared";
+import type { OnboardingStatusResponse, OnboardingStepsDto } from "@moss/shared";
 
 import { completeOnboarding, getOnboardingStatus, skipOnboarding } from "../api/client";
 import { queryKeys } from "../api/query-keys";

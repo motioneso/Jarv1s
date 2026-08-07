@@ -1,4 +1,4 @@
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 
 import { webReadExecute, webSearchExecute } from "./tools.js";
 
@@ -95,4 +95,4 @@ export const webModuleManifest = {
       execute: webReadExecute
     }
   ]
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

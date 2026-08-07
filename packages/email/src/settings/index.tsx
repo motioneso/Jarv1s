@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Group, Note, PaneHead, Row, Select, Switch } from "@jarv1s/settings-ui";
+import { Group, Note, PaneHead, Row, Select, Switch } from "@moss/settings-ui";
 import type {
   AiActionPolicyTier,
   EmailTaskCreationMode,
@@ -13,8 +13,8 @@ import type {
   UpdateEmailTaskCreationModeRequest,
   UpdateEmailBriefingSettingsRequest,
   UpdateEmailBriefingSettingsResponse
-} from "@jarv1s/shared";
-import { DEFAULT_EMAIL_TASK_MODE } from "@jarv1s/shared";
+} from "@moss/shared";
+import { DEFAULT_EMAIL_TASK_MODE } from "@moss/shared";
 
 const EMAIL_BEHAVIOR_ID = "email.briefings";
 const DRAFTS_MODULE_ID = "email";

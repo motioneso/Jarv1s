@@ -5,7 +5,7 @@ import { join } from "node:path";
 import JSZip from "jszip";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { VaultContextRunner } from "@jarv1s/vault";
+import { VaultContextRunner } from "@moss/vault";
 import {
   ATTACHMENT_TEXT_CAP_CHARS,
   ChatAttachmentUploadError,

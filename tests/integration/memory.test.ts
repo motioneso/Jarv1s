@@ -11,9 +11,9 @@ import {
   createDatabase,
   type AccessContext,
   type DataContextDb,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { VaultContextRunner, writeVaultFile } from "@jarv1s/vault";
+  type MossDatabase
+} from "@moss/db";
+import { VaultContextRunner, writeVaultFile } from "@moss/vault";
 import {
   IngestionService,
   MemoryIngestPipeline,
@@ -21,7 +21,7 @@ import {
   MemoryRetriever,
   StubEmbeddingProvider,
   parseDocument
-} from "@jarv1s/memory";
+} from "@moss/memory";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -114,7 +114,7 @@ function ctx(actorUserId: string): AccessContext {
   return { actorUserId, requestId: "req:memory-test" };
 }
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let dataContext: DataContextRunner;
 
 beforeAll(async () => {

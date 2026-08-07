@@ -26,7 +26,7 @@ import {
   type ListMySessionsResponse,
   type MeSessionDeviceKind,
   type MeSessionDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import {
   listMySessions,
@@ -42,7 +42,7 @@ import { useAssistantName } from "../api/use-assistant-name.js";
 import { formatDate, useUserLocale } from "../locale/locale-format.js";
 import { useFeedback } from "./settings-feedback.js";
 import { Badge, Group, Note, Row } from "./settings-ui.js";
-import { Button, ButtonLink } from "@jarv1s/ui";
+import { Button, ButtonLink } from "@moss/ui";
 
 /* ----------------------------------------------------------- Data export */
 

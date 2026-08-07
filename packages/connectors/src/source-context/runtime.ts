@@ -1,7 +1,7 @@
-import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
-import { CalendarRepository } from "@jarv1s/calendar";
-import { EmailRepository } from "@jarv1s/email";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import { AiRepository, createAiSecretCipher } from "@moss/ai";
+import { CalendarRepository } from "@moss/calendar";
+import { EmailRepository } from "@moss/email";
+import { PreferencesRepository } from "@moss/structured-state";
 
 import { createConnectorSecretCipher } from "../crypto.js";
 import { GoogleEmailReadProvider } from "../email-read-provider.js";

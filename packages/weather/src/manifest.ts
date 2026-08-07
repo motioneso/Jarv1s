@@ -1,5 +1,5 @@
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { getWeatherTodayRouteSchema } from "@jarv1s/shared";
+import type { MossModuleManifest } from "@moss/module-sdk";
+import { getWeatherTodayRouteSchema } from "@moss/shared";
 
 export const WEATHER_MODULE_ID = "weather";
 
@@ -39,4 +39,4 @@ export const weatherModuleManifest = {
       permissionId: "weather.view"
     }
   ]
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

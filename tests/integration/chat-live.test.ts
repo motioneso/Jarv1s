@@ -8,8 +8,8 @@ import {
   type AccessContext,
   type DataContextDb,
   type ChatMessage,
-  type JarvisDatabase
-} from "@jarv1s/db";
+  type MossDatabase
+} from "@moss/db";
 import {
   ChatRepository,
   ChatUserMemorySettingsRepository,
@@ -17,14 +17,14 @@ import {
   PassiveContextRetriever,
   chatModuleManifest,
   handleExtractFactsJob
-} from "@jarv1s/chat";
-import { AiRepository, createAiSecretCipher, type GenerateChatInput } from "@jarv1s/ai";
+} from "@moss/chat";
+import { AiRepository, createAiSecretCipher, type GenerateChatInput } from "@moss/ai";
 import {
   GraphMemoryRecallService,
   MemoryCandidatesRepository,
   MemoryGraphRepository,
   StubEmbeddingProvider
-} from "@jarv1s/memory";
+} from "@moss/memory";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 const { Client } = pg;
 
@@ -48,7 +48,7 @@ describe("chat live runtime migration (0038)", () => {
 });
 
 describe("chat live runtime repository (recency + executed-model stamp)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: ChatRepository;
 
@@ -158,7 +158,7 @@ describe("chat live runtime repository (recency + executed-model stamp)", () => 
 });
 
 describe("passive context retrieval integration", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let graphRecall: GraphMemoryRecallService;
 
@@ -232,7 +232,7 @@ describe("passive context retrieval integration", () => {
 });
 
 describe("chat.listTodaysTurns read tool + listThreadsByActivity", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: ChatRepository;
 
@@ -318,7 +318,7 @@ describe("chat.listTodaysTurns read tool + listThreadsByActivity", () => {
 });
 
 describe("handleExtractFactsJob — memory distillation candidates + no-op degrade", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: ChatRepository;
   let aiRepository: AiRepository;

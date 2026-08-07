@@ -1,12 +1,8 @@
 // Pure derivation of wellness insights. No I/O — fully unit-testable.
 // Faithfully ports wellness-data.js computeInsights() from the design.
 
-import {
-  EMOTION_POLARITY,
-  type WellnessEmotionCore,
-  type WellnessInsightDto
-} from "@jarv1s/shared";
-import type { Medication, MedicationLog, WellnessCheckin } from "@jarv1s/db";
+import { EMOTION_POLARITY, type WellnessEmotionCore, type WellnessInsightDto } from "@moss/shared";
+import type { Medication, MedicationLog, WellnessCheckin } from "@moss/db";
 
 const DAY_NAMES = [
   "Sunday",

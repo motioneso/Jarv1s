@@ -4,12 +4,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { sql, type Kysely } from "kysely";
 import pg from "pg";
 
-import {
-  createDatabase,
-  DataContextRunner,
-  type DataContextDb,
-  type JarvisDatabase
-} from "@jarv1s/db";
+import { createDatabase, DataContextRunner, type DataContextDb, type MossDatabase } from "@moss/db";
 import {
   createMemoryCandidateSignature,
   GraphMemoryRecallService,
@@ -18,7 +13,7 @@ import {
   registerMemoryGraphRoutes,
   StubEmbeddingProvider,
   type MemoryFactPredicate
-} from "@jarv1s/memory";
+} from "@moss/memory";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -35,9 +30,9 @@ const graphTables = [
   "memory_candidates"
 ] as const;
 
-let appDb: Kysely<JarvisDatabase>;
-let workerDb: Kysely<JarvisDatabase>;
-let migrationDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
+let workerDb: Kysely<MossDatabase>;
+let migrationDb: Kysely<MossDatabase>;
 let appDataContext: DataContextRunner;
 let workerDataContext: DataContextRunner;
 let graphServer: FastifyInstance;

@@ -2,11 +2,11 @@ import { randomUUID } from "node:crypto";
 
 import { describe, expect, it, vi } from "vitest";
 
-import type { DataContextRunner } from "@jarv1s/db";
-import { StubEmbeddingProvider } from "@jarv1s/memory";
-import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
-import { createExternalModuleRpcHandler } from "@jarv1s/module-registry/node";
-import { EMBED_BATCH_MAX } from "@jarv1s/module-sdk";
+import type { DataContextRunner } from "@moss/db";
+import { StubEmbeddingProvider } from "@moss/memory";
+import type { ExternalModuleDiscovery } from "@moss/module-registry";
+import { createExternalModuleRpcHandler } from "@moss/module-registry/node";
+import { EMBED_BATCH_MAX } from "@moss/module-sdk";
 
 describe("external worker ctx.embed port (#1281)", () => {
   const module = {

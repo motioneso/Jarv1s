@@ -8,9 +8,9 @@ import {
   isConnectorSyncInFlight
 } from "../../apps/web/src/settings/settings-connector-sync.js";
 
-import type { ConnectorAccountDto } from "@jarv1s/shared";
+import type { ConnectorAccountDto } from "@moss/shared";
 
-vi.mock("virtual:jarvis-module-settings", () => ({
+vi.mock("virtual:moss-module-settings", () => ({
   MODULE_SETTINGS_SURFACES: [],
   MODULE_SETTINGS_COMPONENTS: {}
 }));

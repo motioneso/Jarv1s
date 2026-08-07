@@ -2,15 +2,15 @@ import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { DataContextRunner, createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, getMossDatabaseUrls } from "@moss/db";
 import type { Kysely } from "kysely";
-import type { JarvisDatabase } from "@jarv1s/db";
+import type { MossDatabase } from "@moss/db";
 
 import { resetFoundationDatabase, ids } from "../../../../tests/integration/test-database.js";
 import { PeopleRepository } from "../repository.js";
 
-const connectionStrings = getJarvisDatabaseUrls();
-let db: Kysely<JarvisDatabase>;
+const connectionStrings = getMossDatabaseUrls();
+let db: Kysely<MossDatabase>;
 let runner: DataContextRunner;
 
 beforeAll(async () => {

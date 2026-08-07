@@ -1,11 +1,11 @@
-import type { ModuleWebContribution } from "@jarv1s/module-web-sdk";
+import type { ModuleWebContribution } from "@moss/module-web-sdk";
 
 import { SportsPage } from "./sports-page.js";
 import { SportsTodayWidget } from "./today-widget.js";
 
 /**
  * Sports module web contribution (#799 module-web-registry Phase A) — the first module migrated
- * onto the `virtual:jarvis-module-web` plugin seam. `moduleId`/`path`/`icon`/`order` below are
+ * onto the `virtual:moss-module-web` plugin seam. `moduleId`/`path`/`icon`/`order` below are
  * literals mirroring `packages/sports/src/manifest.ts`'s `id`/`navigation[].path/icon/order`
  * (asserted by `tests/unit/module-web-scanner.test.ts`) rather than an import from `../manifest.js`
  * — that file pulls in `node:url` and backend-only tooling (briefing/dataset source code), which

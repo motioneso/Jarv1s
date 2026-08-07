@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 
-import type { ExternalModuleDto, ModuleRegistryRowDto } from "@jarv1s/shared";
+import type { ExternalModuleDto, ModuleRegistryRowDto } from "@moss/shared";
 
 import {
   getModuleRegistry,

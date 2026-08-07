@@ -113,7 +113,7 @@ CREATE POLICY users_worker_runtime_select
 -- 5. SECURITY DEFINER helper function owned by jarvis_auth_runtime.
 --
 --    app.count_all_users() lets jarvis_app_runtime count ALL users despite its own
---    self-row restriction, so bootstrapFirstJarvisUser can detect the first-user
+--    self-row restriction, so bootstrapFirstMossUser can detect the first-user
 --    condition correctly and atomically (within the advisory-lock transaction).
 --
 --    Strategy:

@@ -4,9 +4,9 @@ import {
   assertQualifiedTableName,
   createModuleStorageRpc,
   type DataContextDb,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+  type MossDatabase
+} from "@moss/db";
+import type { MossModuleManifest } from "@moss/module-sdk";
 
 import {
   aiAssistantActionRequestsQuery,
@@ -64,7 +64,7 @@ export interface NewsPersonalizationExportSection {
 
 export interface ExportUserDataOptions {
   readonly scopedDb: DataContextDb;
-  readonly authDb: Kysely<JarvisDatabase>;
+  readonly authDb: Kysely<MossDatabase>;
   readonly exportedAt?: Date;
   readonly userId: string;
   /**
@@ -72,9 +72,9 @@ export interface ExportUserDataOptions {
    * module's `dataLifecycle.exportSections` collectors (#801 Phase A) instead of reading that
    * module's tables directly. Required — every call site derives it from the same
    * `listModuleManifests` DI seam already threaded through settings' composition root (avoids
-   * a package cycle: @jarv1s/settings cannot statically import @jarv1s/wellness).
+   * a package cycle: @moss/settings cannot statically import @moss/wellness).
    */
-  readonly listModuleManifests: () => readonly JarvisModuleManifest[];
+  readonly listModuleManifests: () => readonly MossModuleManifest[];
   /** Passed to a module's export-section collect() as ModuleLifecycleContext.requestId. */
   readonly requestId?: string;
 }
@@ -161,7 +161,7 @@ export async function exportUserData(options: ExportUserDataOptions): Promise<Us
  * silently omitting data from an account export.
  */
 async function collectModuleExportSection<T>(
-  listModuleManifests: () => readonly JarvisModuleManifest[],
+  listModuleManifests: () => readonly MossModuleManifest[],
   moduleId: string,
   sectionKey: string,
   scopedDb: DataContextDb,
@@ -189,7 +189,7 @@ async function collectModuleExportSection<T>(
  */
 export async function readExternalModuleExportRows(
   scopedDb: DataContextDb,
-  installedManifests: readonly JarvisModuleManifest[]
+  installedManifests: readonly MossModuleManifest[]
 ): Promise<Record<string, readonly ExportRow[]>> {
   const rowsByTable: Record<string, readonly ExportRow[]> = {};
   for (const manifest of installedManifests) {
@@ -212,9 +212,9 @@ export async function readExternalModuleExportRows(
 
 async function readExportTables(
   scopedDb: DataContextDb,
-  authDb: Kysely<JarvisDatabase>,
+  authDb: Kysely<MossDatabase>,
   userId: string,
-  listModuleManifests: () => readonly JarvisModuleManifest[],
+  listModuleManifests: () => readonly MossModuleManifest[],
   requestId: string
 ): Promise<UserDataExportTables> {
   const wellnessSection = await collectModuleExportSection<{
@@ -285,7 +285,7 @@ async function readExportTables(
 }
 
 async function readRows(
-  db: Kysely<JarvisDatabase>,
+  db: Kysely<MossDatabase>,
   query: ReturnType<typeof sql<Record<string, unknown>>>
 ): Promise<ExportRow[]> {
   const result = await query.execute(db);

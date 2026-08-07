@@ -25,7 +25,7 @@
 // per registered custom source — a wiring step this task's Files list does not itemize, flagged
 // here the same way the `database.ownedTables` manifest gap was flagged for the migration.
 //
-// `AiPort` is declared locally, not imported from `@jarv1s/module-sdk/worker`, matching
+// `AiPort` is declared locally, not imported from `@moss/module-sdk/worker`, matching
 // `worker/stages/crawl.ts`'s own `EmbedPort` precedent: this file stays SDK-free by design so it
 // is unit-tested against a plain fake, never the real worker runtime. The shape mirrors
 // `ModuleWorkerContext["ai"]` (`packages/module-sdk/src/worker.ts:89-107`) exactly.

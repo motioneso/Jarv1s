@@ -4,15 +4,15 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import type { DataContextDb, PreferencesPort } from "@jarv1s/db";
+import type { DataContextDb, PreferencesPort } from "@moss/db";
 import {
   getBuiltInModuleRegistrations,
   isPeopleNotesSuggestUpdatesEnabled
-} from "@jarv1s/module-registry";
-import { PeopleNotesFolderUnavailableError, PeopleNotesService } from "@jarv1s/people";
-import { SOURCE_BEHAVIOR_PREFERENCE_KEY } from "@jarv1s/source-behaviors";
-import type * as NotesModule from "@jarv1s/notes";
-import type * as StructuredStateModule from "@jarv1s/structured-state";
+} from "@moss/module-registry";
+import { PeopleNotesFolderUnavailableError, PeopleNotesService } from "@moss/people";
+import { SOURCE_BEHAVIOR_PREFERENCE_KEY } from "@moss/source-behaviors";
+import type * as NotesModule from "@moss/notes";
+import type * as StructuredStateModule from "@moss/structured-state";
 
 const notesWorkerCapture = vi.hoisted(() => ({
   afterSync: undefined as
@@ -23,7 +23,7 @@ const notesWorkerCapture = vi.hoisted(() => ({
     | undefined
 }));
 
-vi.mock("@jarv1s/notes", async (importOriginal) => {
+vi.mock("@moss/notes", async (importOriginal) => {
   const actual = await importOriginal<typeof NotesModule>();
   return {
     ...actual,
@@ -45,7 +45,7 @@ vi.mock("@jarv1s/notes", async (importOriginal) => {
   };
 });
 
-vi.mock("@jarv1s/structured-state", async (importOriginal) => {
+vi.mock("@moss/structured-state", async (importOriginal) => {
   const actual = await importOriginal<typeof StructuredStateModule>();
   return {
     ...actual,

@@ -15,9 +15,9 @@ import {
   createDatabase,
   dataContextBrand,
   type DataContextDb,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+  type MossDatabase
+} from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import {
   NotificationsRepository,
   type CreateNotificationInput,
@@ -26,8 +26,8 @@ import {
   type QuietHoursSettings,
   computeDeferredUntil,
   resolveTimezone
-} from "@jarv1s/notifications";
-import { notificationDtoSchema, type NotificationMetadata } from "@jarv1s/shared";
+} from "@moss/notifications";
+import { notificationDtoSchema, type NotificationMetadata } from "@moss/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import { notificationIds, seedNotificationData, userAContext } from "./notifications-harness.js";
 
@@ -38,7 +38,7 @@ const { Client } = pg;
 const nonexistentNotificationId = randomUUID();
 
 describe("Notifications module M5 — actor-scoped hardening", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: NotificationsRepository;
   let boss: PgBoss;
@@ -197,7 +197,7 @@ describe("Notifications module M5 — actor-scoped hardening", () => {
     const probe = result.notifications.find((n) => n.id === notificationIds.aProjectionProbe);
     expect(probe).toBeDefined();
     // Re-run the serializer the same way the tool does, to assert the chokepoint.
-    const { serializeNotification } = await import("@jarv1s/notifications");
+    const { serializeNotification } = await import("@moss/notifications");
     const dto = serializeNotification(probe!);
     for (const value of Object.values(dto.metadata)) {
       if (value === null) continue;

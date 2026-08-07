@@ -1,12 +1,12 @@
 import type { FastifyInstance } from "fastify";
 
-import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
+import { HttpError, handleRouteError as handleModuleRouteError } from "@moss/module-sdk";
 import {
   getVoiceEndpointRouteSchema,
   putVoiceEndpointRouteSchema,
   type AiVoiceEndpointDto,
   type PutVoiceEndpointRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import type { AiSecretCipher } from "./crypto.js";
 import {

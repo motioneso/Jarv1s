@@ -1,4 +1,4 @@
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 import type { NewsPersonalizationRepository } from "../personalization-repository.js";
 import { sanitizeFeedText } from "../source/sanitize.js";

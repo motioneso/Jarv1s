@@ -2,8 +2,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { DataContextRunner, createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+import { DataContextRunner, createDatabase, getMossDatabaseUrls } from "@moss/db";
+import { getBuiltInModuleManifests } from "@moss/module-registry";
 
 import { exportUserData as exportUserDataDomain } from "../packages/settings/src/data-export.js";
 
@@ -14,7 +14,7 @@ export interface LegacyExportUserDataOptions {
 }
 
 export async function exportUserData(options: LegacyExportUserDataOptions) {
-  const urls = getJarvisDatabaseUrls();
+  const urls = getMossDatabaseUrls();
   const appDb = createDatabase({
     connectionString: options.appConnectionString,
     maxConnections: 1
@@ -55,7 +55,7 @@ async function main(): Promise<void> {
   }
 
   const exportedAt = new Date();
-  const urls = getJarvisDatabaseUrls();
+  const urls = getMossDatabaseUrls();
   const userExport = await exportUserData({
     appConnectionString: urls.app,
     userId,

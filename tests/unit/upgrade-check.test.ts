@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { handleUpgradeCheckJob, UPGRADE_NOTIFY_QUEUE } from "@jarv1s/jobs";
+import { handleUpgradeCheckJob, UPGRADE_NOTIFY_QUEUE } from "@moss/jobs";
 
 function dbWithOwner(ownerId = "00000000-0000-4000-8000-000000000001") {
   const executeTakeFirst = vi.fn(async () => ({ id: ownerId }));

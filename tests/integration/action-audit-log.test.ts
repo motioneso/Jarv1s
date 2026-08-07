@@ -4,15 +4,15 @@ import Fastify, { type FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 import pg from "pg";
 
-import { AiRepository, registerAiRoutes, summarizeAssistantToolInput } from "@jarv1s/ai";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import type { ActionAuditInputSummary, ActionAuditLogEntryDto } from "@jarv1s/shared";
+import { AiRepository, registerAiRoutes, summarizeAssistantToolInput } from "@moss/ai";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import type { ActionAuditInputSummary, ActionAuditLogEntryDto } from "@moss/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
 
 describe("action audit log", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let app: FastifyInstance;
   let dataContext: DataContextRunner;
   let repo: AiRepository;

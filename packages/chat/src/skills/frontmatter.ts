@@ -1,4 +1,4 @@
-import { HttpError } from "@jarv1s/module-sdk";
+import { HttpError } from "@moss/module-sdk";
 
 export interface ParsedSkillFile {
   readonly name: string;

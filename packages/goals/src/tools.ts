@@ -1,11 +1,11 @@
-import { assertDataContextDb } from "@jarv1s/db";
-import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
+import { assertDataContextDb } from "@moss/db";
+import type { ToolExecute, ToolResult } from "@moss/module-sdk";
 import { GoalsRepository } from "./repository.js";
 import type {
-  JarvisGoalStatus,
-  JarvisGoalReviewCadence,
-  JarvisGoalEvidenceKind,
-  JarvisGoalSourceKind
+  MossGoalStatus,
+  MossGoalReviewCadence,
+  MossGoalEvidenceKind,
+  MossGoalSourceKind
 } from "./types.js";
 
 const repository = new GoalsRepository();
@@ -47,7 +47,7 @@ export const goalCreateExecute: ToolExecute = async (scopedDb, input, ctx): Prom
     title: string;
     desiredOutcome: string;
     priority?: 1 | 2 | 3 | 4 | 5;
-    reviewCadence?: JarvisGoalReviewCadence;
+    reviewCadence?: MossGoalReviewCadence;
     targetAt?: string;
   };
 
@@ -70,9 +70,9 @@ export const goalUpdateExecute: ToolExecute = async (scopedDb, input, ctx): Prom
     goalId: string;
     title?: string;
     desiredOutcome?: string;
-    status?: JarvisGoalStatus;
+    status?: MossGoalStatus;
     priority?: 1 | 2 | 3 | 4 | 5;
-    reviewCadence?: JarvisGoalReviewCadence;
+    reviewCadence?: MossGoalReviewCadence;
     targetAt?: string;
   };
 
@@ -90,8 +90,8 @@ export const goalAddEvidenceExecute: ToolExecute = async (
   assertDataContextDb(scopedDb);
   const { goalId, ...data } = input as {
     goalId: string;
-    evidenceKind: JarvisGoalEvidenceKind;
-    sourceKind: JarvisGoalSourceKind;
+    evidenceKind: MossGoalEvidenceKind;
+    sourceKind: MossGoalSourceKind;
     sourceRef?: string;
     sourceLabel: string;
     summary: string;

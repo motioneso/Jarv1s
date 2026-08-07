@@ -1,12 +1,12 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import { HttpError, sessionRateLimitKey } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextRunner } from "@moss/db";
+import { HttpError, sessionRateLimitKey } from "@moss/module-sdk";
 import {
   deleteMyAccountRouteSchema,
   DELETE_MY_ACCOUNT_PHRASE,
   type DeleteMyAccountRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { deleteUserData, LastActiveAdminError } from "../../../scripts/delete-user-data.js";
 import { HttpRepositoryError, type SettingsRepository } from "./repository.js";
@@ -14,7 +14,7 @@ import { handleSettingsRouteError } from "./route-error.js";
 
 /**
  * Auth-owned password re-verification port for self-delete (#239). Mirrors the
- * `JarvisAuthRuntime.verifySelfPassword` signature so the composition root can
+ * `MossAuthRuntime.verifySelfPassword` signature so the composition root can
  * wire the runtime method directly. Returns a boolean only — never the hash.
  * Optional: when absent, a password-bearing account still fails closed —
  * `verifySelfPassword?.(...)` resolves to `undefined`, and the `=== true` check

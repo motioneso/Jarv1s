@@ -24,7 +24,7 @@ import {
 import { createStructuredChatEngineFactory } from "../../packages/module-registry/src/index.js";
 import { ClaudePrintChatEngine } from "../../packages/chat/src/live/claude-print-chat-engine.js";
 import { CliChatEngineImpl } from "../../packages/chat/src/live/cli-chat-engine.js";
-import type { Multiplexer, MuxHandle } from "@jarv1s/ai";
+import type { Multiplexer, MuxHandle } from "@moss/ai";
 
 const SOCKET = "/run/jarv1s/cli-runner.sock";
 

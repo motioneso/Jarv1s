@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 import { StructuredOutputParseError } from "../../packages/ai/src/adapters/http-api-structured.js";
 import {

@@ -1,5 +1,5 @@
-import type { DatasetClient } from "@jarv1s/datasets";
-import type { AccessContext, DataContextDb } from "@jarv1s/db";
+import type { DatasetClient } from "@moss/datasets";
+import type { AccessContext, DataContextDb } from "@moss/db";
 import {
   localDay,
   type CreateSportsFollowRequest,
@@ -20,7 +20,7 @@ import {
   type SportsTeamSearchResponse,
   type StandingsGroup,
   type TeamRef
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { SPORTS_CATALOG, catalogEntry, competitionLogoUrl } from "./source/catalog.js";
 import { selectFeature } from "./news-ranking.js";
@@ -83,7 +83,7 @@ export interface SportsServiceDependencies {
    * The dataset-connector-SDK runtime client bound to the sports module's `espn` external
    * source (docs/superpowers/specs/2026-07-04-module-dataset-connector-sdk.md). Replaces the
    * former directly-injected `SportsSource` + in-service `SportsCache` — TTL, staleness policy,
-   * and host pinning now live in the manifest declaration + `@jarv1s/datasets` runtime, not here.
+   * and host pinning now live in the manifest declaration + `@moss/datasets` runtime, not here.
    */
   readonly datasetClient: DatasetClient;
   readonly dataContext: SportsDataContext;

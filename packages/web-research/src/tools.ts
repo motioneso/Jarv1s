@@ -1,4 +1,4 @@
-import type { ToolExecute } from "@jarv1s/module-sdk";
+import type { ToolExecute } from "@moss/module-sdk";
 
 import { DEFAULT_WEB_RESEARCH_CONFIG } from "./config.js";
 import { resolveWebSearchProvider } from "./providers.js";

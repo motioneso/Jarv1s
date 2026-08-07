@@ -7,7 +7,7 @@ import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
 import { Group, Note, Row, Select } from "./settings-ui";
-import type { AiConfiguredModelDto } from "@jarv1s/shared";
+import type { AiConfiguredModelDto } from "@moss/shared";
 
 function modelGroupLabel(model: AiConfiguredModelDto): string {
   return model.providerDisplayName || "Unknown provider";

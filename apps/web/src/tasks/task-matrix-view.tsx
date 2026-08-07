@@ -1,4 +1,4 @@
-import { QUADRANTS, type TaskDto, type TaskListDto } from "@jarv1s/shared";
+import { QUADRANTS, type TaskDto, type TaskListDto } from "@moss/shared";
 
 import { listColorMap, TaskRow } from "./task-list-view";
 import { groupTasksByQuadrant } from "./task-view-model";

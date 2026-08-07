@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 
-import { listVaultFilesRecursive, readVaultFile } from "@jarv1s/vault";
-import type { DataContextDb } from "@jarv1s/db";
-import type { VaultContext } from "@jarv1s/vault";
+import { listVaultFilesRecursive, readVaultFile } from "@moss/vault";
+import type { DataContextDb } from "@moss/db";
+import type { VaultContext } from "@moss/vault";
 
 import { embedChunks } from "./embed-chunks.js";
 import type { EmbeddingProvider } from "./embedding-provider.js";

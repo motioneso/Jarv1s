@@ -7,14 +7,14 @@ import {
   ConfirmationRegistry,
   SessionTokenRegistry,
   type GatewaySessionRecord
-} from "@jarv1s/ai";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { TasksRepository, tasksModuleManifest } from "@jarv1s/tasks";
+} from "@moss/ai";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { TasksRepository, tasksModuleManifest } from "@moss/tasks";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 describe("Tasks agency tools through AssistantToolGateway", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let runner: DataContextRunner;
   let aiRepository: AiRepository;
   let tasksRepository: TasksRepository;

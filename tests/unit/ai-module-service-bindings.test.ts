@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { MODULE_WORKER_SERVICE_KEY, isModuleServiceKey } from "@jarv1s/shared";
+import { MODULE_WORKER_SERVICE_KEY, isModuleServiceKey } from "@moss/shared";
 import { parseModuleServiceBindingMap } from "../../packages/ai/src/service-binding-map.js";
 
 describe("isModuleServiceKey", () => {

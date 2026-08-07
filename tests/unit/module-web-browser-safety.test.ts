@@ -7,20 +7,20 @@ import { scanModuleWeb } from "../../packages/settings-ui/src/vite.js";
 
 /**
  * Guards the module-web-registry (#799) browser-safety invariant: every package that declares a
- * `"./web"` export is bundled straight into the browser build (see `@jarv1s/module-web-sdk`'s
+ * `"./web"` export is bundled straight into the browser build (see `@moss/module-web-sdk`'s
  * docstring and CLAUDE.md "Secrets never escape" / "Shared Browser Bundle"). None of those files —
- * nor anything they import, transitively, through relative imports or `@jarv1s/*` workspace
+ * nor anything they import, transitively, through relative imports or `@moss/*` workspace
  * packages — may reach a node builtin or a backend-only package (fastify, kysely, pg, undici,
- * `@jarv1s/db`). A single stray `import "node:fs"` deep in the graph would break the Vite browser
+ * `@moss/db`). A single stray `import "node:fs"` deep in the graph would break the Vite browser
  * build or silently ship a backend dependency to the client.
  *
  * This walks the real import graph starting from every discovered `./web` entry file (plus
- * `@jarv1s/module-web-sdk` itself), so it automatically covers every future module that docks
+ * `@moss/module-web-sdk` itself), so it automatically covers every future module that docks
  * onto the plugin seam — not just sports.
  */
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const FORBIDDEN_BARE_SPECIFIERS = ["fastify", "kysely", "pg", "pg-boss", "undici", "@jarv1s/db"];
+const FORBIDDEN_BARE_SPECIFIERS = ["fastify", "kysely", "pg", "pg-boss", "undici", "@moss/db"];
 
 const IMPORT_RE = /(?:import|export)\s+(?:[^'"]*?from\s+)?["']([^"']+)["']/g;
 
@@ -70,7 +70,7 @@ function resolveSpecifierToFile(specifier: string, fromFile: string): string | n
   if (specifier.startsWith(".")) {
     return resolveFile(join(dirname(fromFile), specifier));
   }
-  if (specifier.startsWith("@jarv1s/")) {
+  if (specifier.startsWith("@moss/")) {
     const packageDir = resolvePackageDir(specifier);
     if (!packageDir) return null;
     const pkgJson = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8")) as {
@@ -113,7 +113,7 @@ function walkImportGraph(entryFile: string): { visited: Set<string>; violations:
 }
 
 describe("module web browser safety (#799)", () => {
-  it("never reaches a node builtin or backend-only package from @jarv1s/module-web-sdk", () => {
+  it("never reaches a node builtin or backend-only package from @moss/module-web-sdk", () => {
     const entry = resolve(REPO_ROOT, "packages/module-web-sdk/src/index.ts");
     const { violations } = walkImportGraph(entry);
     expect(violations).toEqual([]);
@@ -124,7 +124,7 @@ describe("module web browser safety (#799)", () => {
     expect(result.routes.length).toBeGreaterThan(0); // sanity: the scan actually found sports
 
     for (const moduleId of Object.keys(result.contributions)) {
-      const packageDir = resolvePackageDir(`@jarv1s/${moduleId}`);
+      const packageDir = resolvePackageDir(`@moss/${moduleId}`);
       expect(packageDir, `resolve package dir for module "${moduleId}"`).toBeTruthy();
       const pkgJson = JSON.parse(readFileSync(join(packageDir!, "package.json"), "utf8")) as {
         exports?: Record<string, string>;

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { AiRepository, GenerateStructuredDeps } from "@jarv1s/ai";
-import type { DataContextDb } from "@jarv1s/db";
+import type { AiRepository, GenerateStructuredDeps } from "@moss/ai";
+import type { DataContextDb } from "@moss/db";
 
 import { createModuleAiBridge } from "../../apps/api/src/external-module-ai-bridge.js";
 

@@ -15,7 +15,7 @@
 // is reach an adapter: this file imports only the store port and the shared validate helpers,
 // nothing from src/adapters/ or worker/ports.ts, so the crawl path has no way to read a
 // résumé even by accident.
-import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import type { ModuleWorkerContext } from "@moss/module-sdk/worker";
 
 import type { JobSearchStore } from "../../domain/store-port.js";
 import { parseJobEnvelope } from "../job-input.js";

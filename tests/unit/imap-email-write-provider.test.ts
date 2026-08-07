@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { DataContextDb, EmailMessage } from "@jarv1s/db";
-import { ImapEmailWriteProvider } from "@jarv1s/connectors";
-import type { ConnectorSecretCipher, ConnectorsRepository } from "@jarv1s/connectors";
+import type { DataContextDb, EmailMessage } from "@moss/db";
+import { ImapEmailWriteProvider } from "@moss/connectors";
+import type { ConnectorSecretCipher, ConnectorsRepository } from "@moss/connectors";
 
 /** The private methods the tests stub via vi.spyOn — not part of the public type. */
 type ImapProviderInternals = {

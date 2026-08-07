@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { DatasetClient, DatasetEnvelope } from "@jarv1s/datasets";
-import type { AccessContext, DataContextDb } from "@jarv1s/db";
-import type { GameSide, GameSummary, SportsFollowDto } from "@jarv1s/shared";
+import type { DatasetClient, DatasetEnvelope } from "@moss/datasets";
+import type { AccessContext, DataContextDb } from "@moss/db";
+import type { GameSide, GameSummary, SportsFollowDto } from "@moss/shared";
 
 import type {
   SourceHeadline,

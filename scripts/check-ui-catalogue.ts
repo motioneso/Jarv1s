@@ -11,7 +11,7 @@ import {
 
 /**
  * D5: the catalogue and vocabulary doc are checked into git as the source of truth for what
- * @jarv1s/ui components accept, not regenerated silently at build time — so this guard fails the
+ * @moss/ui components accept, not regenerated silently at build time — so this guard fails the
  * gate the moment someone adds/changes a variant without re-running `pnpm build:ui-catalogue`,
  * the same "checked-in output must match a fresh build" shape as check-design-tokens.ts.
  */

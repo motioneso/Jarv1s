@@ -1,4 +1,4 @@
-import type { SportsFollowDto } from "@jarv1s/shared";
+import type { SportsFollowDto } from "@moss/shared";
 
 import { catalogEntry } from "./source/catalog.js";
 

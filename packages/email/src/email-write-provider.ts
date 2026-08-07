@@ -1,4 +1,4 @@
-import type { DataContextDb, EmailMessage } from "@jarv1s/db";
+import type { DataContextDb, EmailMessage } from "@moss/db";
 
 import type { EmailWriteResult } from "./email-write-service.js";
 

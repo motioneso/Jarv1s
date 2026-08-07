@@ -1,12 +1,12 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import {
   getChatPrivacyStateResponseSchema,
   listChatThreadMessagesResponseSchema,
   listChatThreadsResponseSchema,
   listMemoryCorrectionsResponseSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { chatListTodaysTurnsExecute } from "./tools.js";
 import { chatGetCurrentViewExecute, chatGetCurrentViewOutputSchema } from "./current-view-tool.js";
@@ -237,4 +237,4 @@ export const chatModuleManifest = {
       execute: chatSetResponseStyleExecute
     }
   ]
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

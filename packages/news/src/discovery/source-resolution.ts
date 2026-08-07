@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Parser } from "htmlparser2";
 
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 import { normalizePublisherDomain, publisherDomainMatches } from "../personalization-domain.js";
 import type { NewsPersonalizationRepository } from "../personalization-repository.js";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { calendarModuleManifest } from "@jarv1s/calendar";
+import { calendarModuleManifest } from "@moss/calendar";
 
 describe("calendar.listVisibleEvents manifest", () => {
   it("inputSchema includes optional startsAfter, startsBefore, limit", () => {

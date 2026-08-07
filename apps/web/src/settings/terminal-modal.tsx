@@ -9,8 +9,8 @@ import "@xterm/xterm/css/xterm.css";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 
-import { Button, Dialog } from "@jarv1s/ui";
-import type { AiProviderConfigDto } from "@jarv1s/shared";
+import { Button, Dialog } from "@moss/ui";
+import type { AiProviderConfigDto } from "@moss/shared";
 
 import {
   ApiError,

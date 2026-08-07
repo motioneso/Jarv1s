@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 
-import { dataContextBrand, type DataContextDb, type EmailMessage } from "@jarv1s/db";
-import type { ToolContext, ToolServices } from "@jarv1s/module-sdk";
+import { dataContextBrand, type DataContextDb, type EmailMessage } from "@moss/db";
+import type { ToolContext, ToolServices } from "@moss/module-sdk";
 import {
   EmailRepository,
   emailDraftReplyExecute,
@@ -9,7 +9,7 @@ import {
   emailSendReplyExecute,
   summarizeDraftReply,
   summarizeSendReply
-} from "@jarv1s/email";
+} from "@moss/email";
 
 const ctx: ToolContext = { actorUserId: "user-1", requestId: "req-1" } as ToolContext;
 const scopedDb = { db: {} as never, [dataContextBrand]: true } satisfies DataContextDb;

@@ -15,9 +15,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 import { Client } from "pg";
 
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import { getExternalModuleRegistrations } from "@jarv1s/module-registry/node";
+import { createDatabase, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import { getExternalModuleRegistrations } from "@moss/module-registry/node";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { packModuleArtifact } from "../../scripts/publish-module-registry.js";
@@ -30,7 +30,7 @@ let registry: Server;
 let registryUrl: string;
 let latestVersion: "0.2.0" | "0.3.0" = "0.2.0";
 let refs: Record<"0.2.0" | "0.3.0", { artifact: string; sha256: string; sizeBytes: number }>;
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let boss: PgBoss;
 let server: ReturnType<typeof createApiServer>;
 let adminCookie: string;

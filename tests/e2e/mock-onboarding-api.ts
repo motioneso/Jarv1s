@@ -1,5 +1,5 @@
 import type { Page, Route } from "@playwright/test";
-import type { OnboardingFounderStatus, OnboardingStatusResponse } from "@jarv1s/shared";
+import type { OnboardingFounderStatus, OnboardingStatusResponse } from "@moss/shared";
 
 export interface MockOnboardingApiState {
   // Phase 4 widened the status to a role union; the spine default is the FOUNDER variant, but a

@@ -9,7 +9,7 @@ import { BANNED_VISUAL_PROPERTIES } from "./check-design-tokens.js";
  *
  * Guard 1 (check-ui-classes.ts) only checks that a literal `jds-*` class is DEFINED somewhere —
  * `className="jds-btn jds-btn--primary"` passes it even though the point of a section's migration
- * is to render `<Button>` from @jarv1s/ui instead of hand-typing the class. Guard 5 flags a raw
+ * is to render `<Button>` from @moss/ui instead of hand-typing the class. Guard 5 flags a raw
  * `jds-*` string in a migrated section's TSX **only when a component backing that class family is
  * exported from packages/ui/src/index.ts** — e.g. `jds-btn`/`jds-badge` are violations because
  * `Button`/`Badge` exist, but `jds-brief`/`jds-task`/`jds-drift`/`jds-check`/`jds-why` stay legal as
@@ -184,7 +184,7 @@ function classFamily(token: string): string {
 
 // Reads the real, fixed index.ts export list (not the per-call `root` param, which in unit tests
 // points at an isolated fixture directory with no packages/ui of its own) so the guard always
-// checks against what @jarv1s/ui actually exports today.
+// checks against what @moss/ui actually exports today.
 async function collectExportedComponentNames(): Promise<Set<string>> {
   const contents = await readFile(join(rootDirectory, "packages/ui/src/index.ts"), "utf8");
   const names = new Set<string>();
@@ -393,7 +393,7 @@ async function main(): Promise<void> {
 
   if (rawClassViolations.length > 0) {
     console.error(
-      "Raw jds-* class in a migrated section (use the @jarv1s/ui component instead of a hand-typed class):"
+      "Raw jds-* class in a migrated section (use the @moss/ui component instead of a hand-typed class):"
     );
     for (const violation of rawClassViolations) {
       console.error(

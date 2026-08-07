@@ -13,7 +13,7 @@ import { randomBytes } from "node:crypto";
 import { Client } from "pg";
 
 // Mirrors packages/module-registry/src/external/validate.ts's MODULE_ID_RE. Duplicated rather
-// than imported: module-registry already depends on @jarv1s/db, so importing the other way would
+// than imported: module-registry already depends on @moss/db, so importing the other way would
 // create a package cycle.
 const MODULE_ID_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 

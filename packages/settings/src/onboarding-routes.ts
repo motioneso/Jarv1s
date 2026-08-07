@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextDb, DataContextRunner, User } from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextDb, DataContextRunner, User } from "@moss/db";
+import { HttpError } from "@moss/module-sdk";
 import {
   errorResponseSchema,
   getOnboardingStatusRouteSchema,
@@ -12,7 +12,7 @@ import {
   type OnboardingProviderCheckResponse,
   type OnboardingProviderKind,
   type ProviderInstallState
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import type { SettingsRepository } from "./repository.js";
 
@@ -21,7 +21,7 @@ import type { SettingsRepository } from "./repository.js";
 // the SOLE api trigger for the cli-runner `installProvider` verb (install-contract
 // §A.5.1). This module (Lane C) owns the route + the A.4 transition ORDER; the
 // supply-chain-sensitive pieces it ORCHESTRATES are injected ports, owned by the
-// install lane (the catalog/RPC client live in @jarv1s/chat / cli-runner, never
+// install lane (the catalog/RPC client live in @moss/chat / cli-runner, never
 // imported here — settings stays free of a chat dependency for module isolation):
 //
 //   - {@link ProviderInstallabilityPort}  reads the server-side recipe catalog so
@@ -40,7 +40,7 @@ import type { SettingsRepository } from "./repository.js";
 /**
  * The TERMINAL install outcome the install lane reports back to the onboarding route
  * (a structural mirror of the install-contract §A.2.1 `RpcInstallProviderResult`,
- * declared here so settings does NOT import @jarv1s/chat — module isolation). Lane B's
+ * declared here so settings does NOT import @moss/chat — module isolation). Lane B's
  * composition-root wiring maps the wire result onto this shape.
  */
 export interface ProviderInstallOutcome {
@@ -237,7 +237,7 @@ const onboardingProviderInstallRouteSchema = {
 // Mirrors the §A.5 install seam: admin-gated routes that drive the cli-runner login
 // verbs over the socket and persist the needs_login/ready lifecycle (admin RLS). The
 // supply-chain-adjacent pieces are injected PORTS (module isolation — settings never
-// imports @jarv1s/chat or @jarv1s/cli-runner). The cli-runner NEVER writes the table.
+// imports @moss/chat or @moss/cli-runner). The cli-runner NEVER writes the table.
 // ---------------------------------------------------------------------------
 
 /** The login FLOW status the cli-runner reports (login-contract §L.2.1). */

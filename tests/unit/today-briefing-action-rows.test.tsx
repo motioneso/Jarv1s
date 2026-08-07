@@ -10,7 +10,7 @@ import type {
   BriefingStructuredPayloadV1,
   LocaleSettingsDto,
   TaskDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { ChatControlsProvider } from "../../apps/web/src/shell/chat-controls-context.js";
 import {

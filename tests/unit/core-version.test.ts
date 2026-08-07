@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CORE_VERSION, compareJarvisVersions, satisfiesCoreVersion } from "@jarv1s/module-sdk";
+import { CORE_VERSION, compareMossVersions, satisfiesCoreVersion } from "@moss/module-sdk";
 
 describe("CORE_VERSION", () => {
   it("is the single source of truth for the module-API version", () => {
@@ -42,11 +42,11 @@ describe("satisfiesCoreVersion", () => {
   });
 });
 
-describe("compareJarvisVersions", () => {
+describe("compareMossVersions", () => {
   it("compares release tags with v-prefixes, missing segments, and prereleases", () => {
-    expect(compareJarvisVersions("v1.2.0", "1.1.9")).toBeGreaterThan(0);
-    expect(compareJarvisVersions("1.2", "1.2.0")).toBe(0);
-    expect(compareJarvisVersions("1.0.0-rc.1", "1.0.0")).toBeLessThan(0);
-    expect(compareJarvisVersions("1.0.0-rc.2", "1.0.0-rc.1")).toBeGreaterThan(0);
+    expect(compareMossVersions("v1.2.0", "1.1.9")).toBeGreaterThan(0);
+    expect(compareMossVersions("1.2", "1.2.0")).toBe(0);
+    expect(compareMossVersions("1.0.0-rc.1", "1.0.0")).toBeLessThan(0);
+    expect(compareMossVersions("1.0.0-rc.2", "1.0.0-rc.1")).toBeGreaterThan(0);
   });
 });

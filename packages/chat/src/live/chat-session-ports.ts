@@ -4,15 +4,15 @@
  * names are re-exported from chat-session-manager.ts so existing import paths keep working.
  */
 
-import type { ProviderKind } from "@jarv1s/ai";
+import type { ProviderKind } from "@moss/ai";
 import type {
   AnswerProvenanceMetadataV1,
   AiProviderExecutionMode,
   ChatAttachmentDto,
   ChatSurface,
   SourceFreshnessV1
-} from "@jarv1s/shared";
-import type { MemoryRecallItem } from "@jarv1s/memory";
+} from "@moss/shared";
+import type { MemoryRecallItem } from "@moss/memory";
 import type { ActionResultMetadata } from "./types.js";
 
 export interface PrivateThreadState {

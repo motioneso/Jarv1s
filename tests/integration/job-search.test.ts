@@ -15,16 +15,16 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 import type { PgBoss } from "pg-boss";
 
-import { collectExternalBriefingContributions } from "@jarv1s/briefings";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { StubEmbeddingProvider } from "@jarv1s/memory";
+import { collectExternalBriefingContributions } from "@moss/briefings";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { StubEmbeddingProvider } from "@moss/memory";
 import {
   validateExternalModuleManifest,
   type ExternalModuleDiscovery
-} from "@jarv1s/module-registry";
-import { ExternalModuleJobReconciler } from "@jarv1s/module-registry/node";
-import type { JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
-import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
+} from "@moss/module-registry";
+import { ExternalModuleJobReconciler } from "@moss/module-registry/node";
+import type { JsonMossModuleManifest } from "@moss/module-sdk";
+import { createModuleCredentialSecretCipher } from "@moss/settings";
 import type { Kysely } from "kysely";
 
 import {
@@ -47,11 +47,11 @@ const HASH = `sha256:${"a".repeat(64)}`;
 const OTHER_HASH = `sha256:${"b".repeat(64)}`;
 
 let bootstrap: pg.Client;
-let workerDb: Kysely<JarvisDatabase>;
+let workerDb: Kysely<MossDatabase>;
 
 const moduleId = "job-search-briefing";
 
-const manifest: JsonJarvisModuleManifest = {
+const manifest: JsonMossModuleManifest = {
   schemaVersion: 1,
   id: moduleId,
   name: "Job Search",

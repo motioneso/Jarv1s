@@ -2,8 +2,8 @@ import { randomBytes } from "node:crypto";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import { handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextRunner } from "@moss/db";
+import { handleRouteError as handleModuleRouteError } from "@moss/module-sdk";
 
 import type { AiRepository } from "./repository.js";
 import { assertInstanceAdmin } from "./routes.js";
@@ -20,14 +20,14 @@ import {
 // admins too (Hard Invariant: no admin private-data bypass is a config-only power, and this
 // tool must still be gated per-request, not just at page-load).
 //
-// Structural typing, not a real @jarv1s/chat import: packages/ai/package.json intentionally does
-// NOT depend on @jarv1s/chat. Adding that dependency was tried and empirically reverted — it
-// creates real cycles (@jarv1s/ai -> @jarv1s/chat -> @jarv1s/ai, plus two more via connectors/
+// Structural typing, not a real @moss/chat import: packages/ai/package.json intentionally does
+// NOT depend on @moss/chat. Adding that dependency was tried and empirically reverted — it
+// creates real cycles (@moss/ai -> @moss/chat -> @moss/ai, plus two more via connectors/
 // tasks), caught by `scripts/check-package-deps.ts`. Instead this file defines a LOCAL interface
 // matching TerminalRpcClient's public shape, and the actual class is injected via
 // `connectTerminalRpc` by the composition root (packages/module-registry, which already declares
-// both @jarv1s/ai and @jarv1s/chat as dependencies with no cycle — the same pattern already used
-// for ChatEngineFactory/resolveChatEngineFactory). packages/ai never imports @jarv1s/chat.
+// both @moss/ai and @moss/chat as dependencies with no cycle — the same pattern already used
+// for ChatEngineFactory/resolveChatEngineFactory). packages/ai never imports @moss/chat.
 export interface TerminalRpcHandle {
   open(cols: number, rows: number): Promise<string>;
   write(terminalId: string, bytes: Buffer): void;

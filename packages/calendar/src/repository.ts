@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { sql } from "kysely";
 
-import { assertDataContextDb, type CalendarEvent, type DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type CalendarEvent, type DataContextDb } from "@moss/db";
 
 export interface CreateCachedCalendarEventInput {
   readonly id?: string;

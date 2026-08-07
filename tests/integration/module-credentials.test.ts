@@ -7,8 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 import { Client } from "pg";
 
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { createDatabase, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import {
@@ -26,7 +26,7 @@ import {
 const PLAINTEXT = "super-secret-plaintext-123";
 
 let root: string;
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let boss: PgBoss;
 let server: ReturnType<typeof createApiServer>;
 let adminCookie: string;

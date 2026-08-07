@@ -4,9 +4,9 @@ import type { OutgoingHttpHeaders } from "node:http";
 import { Client } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import type { ListMySessionsResponse } from "@jarv1s/shared";
+import { createDatabase, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import type { ListMySessionsResponse } from "@moss/shared";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
@@ -48,7 +48,7 @@ describe("#237 current-user active sessions", () => {
   const handleBearerA2 = handle(bearerA2);
   const handleSessionB = handle(ids.sessionB);
 
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
 
@@ -266,7 +266,7 @@ describe("#237 current-user active sessions — cookie auth", () => {
   const otherCookieId = "51000000-0000-4000-8000-0000000000c1";
   const otherCookieToken = "cookie-other-SECRET-must-not-leak";
 
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let cookie: string;

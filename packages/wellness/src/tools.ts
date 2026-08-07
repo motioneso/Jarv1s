@@ -1,7 +1,7 @@
-import { assertDataContextDb } from "@jarv1s/db";
-import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
-import { moodIndex } from "@jarv1s/shared";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import { assertDataContextDb } from "@moss/db";
+import type { ToolExecute, ToolResult } from "@moss/module-sdk";
+import { moodIndex } from "@moss/shared";
+import { PreferencesRepository } from "@moss/structured-state";
 
 import { resolveEffectiveWellnessConsent, wellnessConsentRequiredResult } from "./ai-consent.js";
 import { WellnessRepository } from "./repository.js";

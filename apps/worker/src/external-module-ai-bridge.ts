@@ -3,16 +3,16 @@
 // ctx.ai bridge for the queued-jobs path (JS-07 Step 0, spec D6 fold ruled by
 // Coordinator 2026-07-11). Mirrors apps/api/src/external-module-ai-bridge.ts:
 // it lives in the app (not module-registry) so worker.ts stays the only
-// composition point and module-registry never imports @jarv1s/ai. The bridge
+// composition point and module-registry never imports @moss/ai. The bridge
 // runs on the actor-scoped DataContextDb the rpc host hands it — provider
 // credentials resolve worker-side via AiRepository + AiSecretCipher and never
 // touch the pg-boss payload.
 import type { FastifyBaseLogger } from "fastify";
 
-import { createAiSecretCipher, generateStructured, type AiRepository } from "@jarv1s/ai";
-import type { DataContextDb } from "@jarv1s/db";
-import { createCliStructuredAdapterFactory } from "@jarv1s/module-registry";
-import type { ExternalModuleAiRequest, ExternalModuleAiResult } from "@jarv1s/module-registry/node";
+import { createAiSecretCipher, generateStructured, type AiRepository } from "@moss/ai";
+import type { DataContextDb } from "@moss/db";
+import { createCliStructuredAdapterFactory } from "@moss/module-registry";
+import type { ExternalModuleAiRequest, ExternalModuleAiResult } from "@moss/module-registry/node";
 
 export function createModuleWorkerAiBridge(input: {
   readonly aiRepository: AiRepository;
@@ -36,9 +36,9 @@ export function createModuleWorkerAiBridge(input: {
   // active models, because both of its providers authenticate through the CLI.
   //
   // No engine is threaded in here, unlike apps/api which passes its configured `chatEngineFactory`
-  // for test substitution: the worker has no such option and no @jarv1s/chat dependency, and the
+  // for test substitution: the worker has no such option and no @moss/chat dependency, and the
   // factory's own default (`selectEngineFactory()`) performs exactly the same transport selection
-  // the API would arrive at. Imported from @jarv1s/module-registry, which re-exports it, so this
+  // the API would arrive at. Imported from @moss/module-registry, which re-exports it, so this
   // stays inside the worker's existing package graph.
   const createCliStructuredAdapter = createCliStructuredAdapterFactory();
   return async (scopedDb, moduleId, request) => {

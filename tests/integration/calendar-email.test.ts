@@ -13,25 +13,17 @@ import {
   createDatabase,
   type AccessContext,
   type DataContextDb,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import {
-  CalendarRepository,
-  calendarModuleManifest,
-  serializeCalendarEvent
-} from "@jarv1s/calendar";
-import {
-  EmailRepository,
-  emailListVisibleMessagesExecute,
-  emailModuleManifest
-} from "@jarv1s/email";
+  type MossDatabase
+} from "@moss/db";
+import { CalendarRepository, calendarModuleManifest, serializeCalendarEvent } from "@moss/calendar";
+import { EmailRepository, emailListVisibleMessagesExecute, emailModuleManifest } from "@moss/email";
 import {
   getBuiltInModuleManifests,
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
-} from "@jarv1s/module-registry";
-import { ConnectorsRepository } from "@jarv1s/connectors";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+} from "@moss/module-registry";
+import { ConnectorsRepository } from "@moss/connectors";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 
 import {
   buildTestSourceContextService,
@@ -97,7 +89,7 @@ const emailMessageIds = {
 } as const;
 
 describe("Calendar and Email connector-backed read modules", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
   let calendarRepository: CalendarRepository;
@@ -690,7 +682,7 @@ describe("Calendar and Email connector-backed read modules", () => {
       expect(dto.allDay).toBe(true);
       expect(dto.attendeeCount).toBe(3);
       expect(dto.status).toBe("confirmed");
-      expect(dto.isJarvisBlock).toBe(false);
+      expect(dto.isMossBlock).toBe(false);
       expect("externalMetadata" in dto).toBe(false);
       expect("historyId" in dto).toBe(false);
       expect("labelIds" in dto).toBe(false);
@@ -705,7 +697,7 @@ describe("Calendar and Email connector-backed read modules", () => {
         "endsAt",
         "externalId",
         "id",
-        "isJarvisBlock",
+        "isMossBlock",
         "location",
         "ownerUserId",
         "startsAt",
@@ -730,7 +722,7 @@ describe("Calendar and Email connector-backed read modules", () => {
 
       const dto = serializeCalendarEvent(row);
 
-      expect(dto.isJarvisBlock).toBe(false);
+      expect(dto.isMossBlock).toBe(false);
       expect(dto.allDay).toBe(false);
       expect(dto.attendeeCount).toBe(0);
       expect(dto.status).toBeNull();
@@ -759,7 +751,7 @@ describe("Calendar and Email connector-backed read modules", () => {
       expect(dto.allDay).toBe(false);
     });
 
-    it("isJarvisBlock=true for exact jfb+32-char id even when metadata has no jarvisCreated flag", async () => {
+    it("isMossBlock=true for exact jfb+32-char id even when metadata has no jarvisCreated flag", async () => {
       const realJfbId = "jfb" + "a".repeat(32);
       const row = await dataContext.withDataContext(userAContext(), (scopedDb) =>
         insertCalendarEventForTest(scopedDb, {
@@ -774,10 +766,10 @@ describe("Calendar and Email connector-backed read modules", () => {
 
       const dto = serializeCalendarEvent(row);
 
-      expect(dto.isJarvisBlock).toBe(true);
+      expect(dto.isMossBlock).toBe(true);
     });
 
-    it("isJarvisBlock=false for a normal Google event id (not jfb shape)", async () => {
+    it("isMossBlock=false for a normal Google event id (not jfb shape)", async () => {
       const row = await dataContext.withDataContext(userAContext(), (scopedDb) =>
         insertCalendarEventForTest(scopedDb, {
           connectorAccountId: connectorAccountIds.aCalendar,
@@ -791,7 +783,7 @@ describe("Calendar and Email connector-backed read modules", () => {
 
       const dto = serializeCalendarEvent(row);
 
-      expect(dto.isJarvisBlock).toBe(false);
+      expect(dto.isMossBlock).toBe(false);
     });
 
     it("false-positive guard: jfbMEETING_2026 is NOT a Jarvis block (wrong shape)", async () => {
@@ -808,7 +800,7 @@ describe("Calendar and Email connector-backed read modules", () => {
 
       const dto = serializeCalendarEvent(row);
 
-      expect(dto.isJarvisBlock).toBe(false);
+      expect(dto.isMossBlock).toBe(false);
     });
   });
 });

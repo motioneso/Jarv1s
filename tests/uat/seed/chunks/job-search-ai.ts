@@ -1,5 +1,5 @@
-import type { DataContextRunner } from "@jarv1s/db";
-import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
+import type { DataContextRunner } from "@moss/db";
+import { AiRepository, createAiSecretCipher } from "@moss/ai";
 
 /**
  * N42 (rulings-ledger.md#n42), Task 22's #57: job-search's scoring stage (external-modules/

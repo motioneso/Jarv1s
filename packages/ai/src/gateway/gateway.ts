@@ -2,16 +2,16 @@ import { randomUUID } from "node:crypto";
 import { lstat, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@moss/db";
 import type {
   ActionRequestPreview,
-  JarvisModuleManifest,
+  MossModuleManifest,
   ModuleAssistantToolManifest,
   ToolContext,
   ToolExecute,
   ToolServices
-} from "@jarv1s/module-sdk";
-import type { ActionAuditInputSummary, AiAssistantToolDto } from "@jarv1s/shared";
+} from "@moss/module-sdk";
+import type { ActionAuditInputSummary, AiAssistantToolDto } from "@moss/shared";
 
 import { summarizeAssistantToolInput } from "../assistant-tools.js";
 import type { AiRepository, InsertAuditLogInput } from "../repository.js";
@@ -648,7 +648,7 @@ export class AssistantToolGateway {
   }
 
   private async executableTools(actorUserId: string): Promise<ExecutableTool[]> {
-    const modules: readonly JarvisModuleManifest[] =
+    const modules: readonly MossModuleManifest[] =
       await this.deps.resolveActiveModules(actorUserId);
     const out: ExecutableTool[] = [];
     for (const module of modules) {

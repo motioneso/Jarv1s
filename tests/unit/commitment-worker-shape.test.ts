@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { registerCommitmentExtractionWorker } from "@jarv1s/commitments/workers";
-import { enqueueCommitmentExtraction } from "@jarv1s/commitments/jobs";
+import { registerCommitmentExtractionWorker } from "@moss/commitments/workers";
+import { enqueueCommitmentExtraction } from "@moss/commitments/jobs";
 
 describe("commitment worker exports", () => {
   it("exports registerCommitmentExtractionWorker", () => {

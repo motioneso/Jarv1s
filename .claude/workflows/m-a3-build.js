@@ -474,7 +474,7 @@ await agent(
   '\n' +
   'STEP 5: Build and typecheck:\n' +
   '  cd ' + ROOT + ' && pnpm build:web 2>&1 | tail -30\n' +
-  '  pnpm --filter @jarv1s/web typecheck 2>&1 | tail -20\n' +
+  '  pnpm --filter @moss/web typecheck 2>&1 | tail -20\n' +
   '  Fix any errors.\n' +
   '\n' +
   'STEP 6: Commit:\n' +

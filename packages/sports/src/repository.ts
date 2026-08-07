@@ -1,7 +1,7 @@
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import type { CreateSportsFollowRequest, SportsFollowDto } from "@jarv1s/shared";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
+import type { CreateSportsFollowRequest, SportsFollowDto } from "@moss/shared";
 
 interface SportsFollowRow {
   id: string;

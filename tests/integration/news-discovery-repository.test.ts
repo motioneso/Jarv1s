@@ -1,12 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import pg from "pg";
 
-import {
-  createDatabase,
-  DataContextRunner,
-  type DataContextDb,
-  type JarvisDatabase
-} from "@jarv1s/db";
+import { createDatabase, DataContextRunner, type DataContextDb, type MossDatabase } from "@moss/db";
 import { sql, type Kysely } from "kysely";
 
 import {
@@ -22,7 +17,7 @@ const { Client } = pg;
 const repo = new NewsPersonalizationRepository();
 
 describe("news discovery repository", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let bootstrap: pg.Client;
 

@@ -1,6 +1,6 @@
 import pg from "pg";
 
-import type { JarvisDatabaseUrls } from "./urls.js";
+import type { MossDatabaseUrls } from "./urls.js";
 
 const { Client } = pg;
 
@@ -11,7 +11,7 @@ export interface RolePasswordEntry {
 
 /**
  * The development-default role passwords historically committed in the bootstrap
- * SQL and still used as local fallbacks by `getJarvisDatabaseUrls`. A production
+ * SQL and still used as local fallbacks by `getMossDatabaseUrls`. A production
  * bootstrap must never run with any of these.
  */
 export const RUNTIME_ROLE_PASSWORD_DEFAULTS: ReadonlySet<string> = new Set([
@@ -23,7 +23,7 @@ export const RUNTIME_ROLE_PASSWORD_DEFAULTS: ReadonlySet<string> = new Set([
 
 const ROLE_URL_SOURCES: ReadonlyArray<{
   readonly role: string;
-  readonly url: keyof JarvisDatabaseUrls;
+  readonly url: keyof MossDatabaseUrls;
 }> = [
   { role: "jarvis_migration_owner", url: "migration" },
   { role: "jarvis_app_runtime", url: "app" },
@@ -42,7 +42,7 @@ const ROLE_URL_SOURCES: ReadonlyArray<{
  * development default. Error messages name the role only, never the password.
  */
 export function buildRolePasswordPlan(
-  urls: JarvisDatabaseUrls,
+  urls: MossDatabaseUrls,
   env: NodeJS.ProcessEnv = process.env
 ): RolePasswordEntry[] {
   const isProduction = env.NODE_ENV === "production";

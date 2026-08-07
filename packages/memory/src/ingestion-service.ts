@@ -1,6 +1,6 @@
-import { listVaultFilesRecursive } from "@jarv1s/vault";
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import type { VaultContext } from "@jarv1s/vault";
+import { listVaultFilesRecursive } from "@moss/vault";
+import type { AccessContext, DataContextRunner } from "@moss/db";
+import type { VaultContext } from "@moss/vault";
 
 import type { MemoryIngestPipeline } from "./ingest.js";
 import type { MemoryRepository } from "./repository.js";

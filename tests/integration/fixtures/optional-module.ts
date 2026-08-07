@@ -1,7 +1,7 @@
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 
 /** A non-required, fully user-disablable optional module (exercises both drop paths). */
-export const optionalModule: JarvisModuleManifest = {
+export const optionalModule: MossModuleManifest = {
   id: "weather",
   name: "Weather",
   version: "0.1.0",
@@ -13,7 +13,7 @@ export const optionalModule: JarvisModuleManifest = {
 };
 
 /** Optional but NOT user-disablable: a per-user row must be ignored; instance row still applies. */
-export const instanceOnlyDisablableModule: JarvisModuleManifest = {
+export const instanceOnlyDisablableModule: MossModuleManifest = {
   id: "wellness",
   name: "Wellness",
   version: "0.1.0",
@@ -25,7 +25,7 @@ export const instanceOnlyDisablableModule: JarvisModuleManifest = {
 };
 
 /** Required: never droppable by anyone, even with a (defensively-inserted) row. */
-export const requiredFixtureModule: JarvisModuleManifest = {
+export const requiredFixtureModule: MossModuleManifest = {
   id: "tasks-fixture",
   name: "Tasks Fixture",
   version: "0.1.0",

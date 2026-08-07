@@ -3,7 +3,7 @@ import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
-import type { MeResponse } from "@jarv1s/shared";
+import type { MeResponse } from "@moss/shared";
 
 const me: MeResponse = {
   user: {

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb, type Task } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb, type Task } from "@moss/db";
 
 /**
  * Repository for one-level task hierarchy and breakdown operations.

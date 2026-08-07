@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, it, vi } from "vitest";
-import { sanitizeAssistantToolResult } from "@jarv1s/ai";
+import { sanitizeAssistantToolResult } from "@moss/ai";
 import {
   createCurrentViewReadService,
   chatGetCurrentViewExecute,
   chatGetCurrentViewOutputSchema
-} from "@jarv1s/chat";
+} from "@moss/chat";
 
 const snapshot = {
   route: "/news",

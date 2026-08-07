@@ -9,8 +9,8 @@ import {
   type TaskDto,
   type TaskEffort,
   type TaskListDto
-} from "@jarv1s/shared";
-import { Button } from "@jarv1s/ui";
+} from "@moss/shared";
+import { Button } from "@moss/ui";
 
 import { useAssistantName } from "../api/use-assistant-name.js";
 import { formatDate, useUserLocale } from "../locale/locale-format.js";
@@ -120,8 +120,8 @@ export function TaskListView(props: {
   const assistantName = useAssistantName();
   const groups = groupByPriority(props.tasks).filter((group) => group.tasks.length > 0);
   const listMeta = listColorMap(props.lists);
-  const jarvisCount = props.tasks.filter(
-    (task) => task.status !== "done" && isJarvisSource(task.source)
+  const mossSourcedCount = props.tasks.filter(
+    (task) => task.status !== "done" && isMossSource(task.source)
   ).length;
 
   if (groups.length === 0) {
@@ -156,13 +156,13 @@ export function TaskListView(props: {
           </div>
         </div>
       ))}
-      {jarvisCount > 0 ? (
+      {mossSourcedCount > 0 ? (
         <div className="tk-foot">
           <span className="ic">
             <GitCommitHorizontal size={14} aria-hidden="true" />
           </span>
-          {assistantName} is tracking {jarvisCount} {jarvisCount === 1 ? "task" : "tasks"} it
-          created for you — all marked by source.
+          {assistantName} is tracking {mossSourcedCount} {mossSourcedCount === 1 ? "task" : "tasks"}{" "}
+          it created for you — all marked by source.
         </div>
       ) : null}
     </div>
@@ -186,7 +186,7 @@ export function TaskRow(props: {
   const done = optimisticDone;
   const due = dueInfo(task, locale);
   const tags = compact ? [] : (task.tags ?? []);
-  const jarvis = !compact && isJarvisSource(task.source);
+  const mossSourced = !compact && isMossSource(task.source);
   const suggested = task.status === "suggested" && Boolean(props.onAccept && props.onDismiss);
 
   return (
@@ -261,7 +261,7 @@ export function TaskRow(props: {
             </span>
           ))}
           {tags.length > 2 ? <span className="tk-metatag">+{tags.length - 2}</span> : null}
-          {jarvis ? (
+          {mossSourced ? (
             <span className="tk-task__src">
               <GitCommitHorizontal size={12} aria-hidden="true" />
               {task.source}
@@ -305,7 +305,7 @@ export function TaskRow(props: {
 }
 
 /** A task the assistant created carries a non-user source (chat, email, briefing, connector…). */
-function isJarvisSource(source: string): boolean {
+function isMossSource(source: string): boolean {
   const s = source.toLowerCase();
   return s !== "" && s !== "user" && s !== "manual";
 }

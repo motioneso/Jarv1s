@@ -12,7 +12,7 @@
 // omitted, so the recipient sees the category was considered), and a footer with a
 // sensitive-data warning. Print CSS is inline in a <style> tag so the file is standalone.
 
-import type { WellnessInsightDto } from "@jarv1s/shared";
+import type { WellnessInsightDto } from "@moss/shared";
 
 // ── Render input shape ──────────────────────────────────────────────────────
 // Decoupled from raw DB rows so the renderer is a pure, trivially-testable fn. The worker

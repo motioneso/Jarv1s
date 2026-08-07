@@ -3,7 +3,7 @@ import { basename, join } from "node:path";
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
+import type { AccessContext, DataContextRunner } from "@moss/db";
 import {
   getNotesSourceDirectoriesRouteSchema,
   getNotesLastSyncRouteSchema,
@@ -14,9 +14,9 @@ import {
   type GetNotesSourceResponse,
   type NotesLastSyncStats,
   type PutNotesSourceRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
-import { HttpError } from "@jarv1s/module-sdk";
+import { HttpError } from "@moss/module-sdk";
 
 import type { ProfilePreferencesPort } from "./preferences-port.js";
 import { handleSettingsRouteError } from "./route-error.js";
@@ -26,8 +26,8 @@ export const NOTES_LAST_SYNC_PREFERENCE_KEY = "notes-last-sync";
 
 /**
  * Schedule-reconcile hook (#449). Injected by the composition root (it lives in
- * `@jarv1s/notes` and depends on `@jarv1s/settings` for `resolveNotesRoots`, so
- * `@jarv1s/settings` cannot import it back without a cycle). Settings calls only
+ * `@moss/notes` and depends on `@moss/settings` for `resolveNotesRoots`, so
+ * `@moss/settings` cannot import it back without a cycle). Settings calls only
  * this shape; the wiring is inverted. Best-effort: implementations swallow errors.
  */
 export type ReconcileNotesScheduleFn = (actorUserId: string, hasPath: boolean) => Promise<void>;

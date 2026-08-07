@@ -12,19 +12,19 @@ import { type Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import type { ListUserDirectoryResponse } from "@jarv1s/shared";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import type { ListUserDirectoryResponse } from "@moss/shared";
 import {
   connectionStrings,
   resetEmptyFoundationDatabase,
   setInstanceSetting
 } from "./test-database.js";
-import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
+import { createMossAuthRuntime, type MossAuthRuntime } from "@moss/auth";
 
 describe("user directory route (#1149)", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let authRuntime: JarvisAuthRuntime;
+  let appDb: Kysely<MossDatabase>;
+  let authRuntime: MossAuthRuntime;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let ownerId: string;
@@ -45,7 +45,7 @@ describe("user directory route (#1149)", () => {
   beforeAll(async () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
+    authRuntime = createMossAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
     boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
     server = createApiServer({ appDb, authRuntime, boss, logger: false });
     await server.ready();

@@ -6,9 +6,9 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { type Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { VaultContextRunner, getVaultBaseDir, writeVaultFile } from "@jarv1s/vault";
-import { HttpError } from "@jarv1s/module-sdk";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { VaultContextRunner, getVaultBaseDir, writeVaultFile } from "@moss/vault";
+import { HttpError } from "@moss/module-sdk";
 
 import { registerDataExportAsyncRoutes } from "../../packages/settings/src/data-export-async-routes.js";
 import { DataExportRepository } from "../../packages/settings/src/data-export-repository.js";
@@ -20,7 +20,7 @@ const { Client } = pg;
 
 const userId = "00000000-0000-4000-8000-000000000071";
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let dataContext: DataContextRunner;
 let server: FastifyInstance;
 let repository: DataExportRepository;

@@ -10,8 +10,8 @@ import {
   type TaskStatus,
   type TaskTag,
   type TasksTable
-} from "@jarv1s/db";
-import { localDay, type TaskSuggestionMetadataV1 } from "@jarv1s/shared";
+} from "@moss/db";
+import { localDay, type TaskSuggestionMetadataV1 } from "@moss/shared";
 
 import { HttpError } from "./errors.js";
 import {
@@ -149,8 +149,8 @@ export class TasksRepository {
       // Derive the predicate from the single shared quadrant matrix + threshold, so
       // the SQL filter cannot drift from the in-memory mirror. Each axis is expressed
       // once here (TASK_QUADRANT_AXES / TASK_IMPORTANT_PRIORITY_MIN /
-      // TASK_URGENCY_WINDOW_MS, re-exported via ./classification.js from @jarv1s/shared);
-      // the frontend's equivalent classifier is `quadrantOf` in @jarv1s/shared.
+      // TASK_URGENCY_WINDOW_MS, re-exported via ./classification.js from @moss/shared);
+      // the frontend's equivalent classifier is `quadrantOf` in @moss/shared.
       const axes = TASK_QUADRANT_AXES[criteria.quadrant];
       const importantExpr = axes.important
         ? sql<boolean>`t.priority is not null and t.priority >= ${TASK_IMPORTANT_PRIORITY_MIN}`

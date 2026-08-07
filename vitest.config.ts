@@ -5,9 +5,9 @@ export default defineConfig({
   resolve: {
     extensions: [".ts", ".tsx", ".js", ".jsx", ".json"],
     alias: [
-      // The root test suite can render @jarv1s/web React components (e.g. the onboarding
+      // The root test suite can render @moss/web React components (e.g. the onboarding
       // multiplexer step). react / react-dom / react-query are workspace deps of
-      // @jarv1s/web only, so resolve them from the web package's installed copies rather
+      // @moss/web only, so resolve them from the web package's installed copies rather
       // than duplicating them as root devDependencies.
       {
         find: "react-dom",
@@ -24,268 +24,268 @@ export default defineConfig({
         )
       },
       {
-        // react-router is a @jarv1s/web-only dep; resolve it from the web package's copy so the
+        // react-router is a @moss/web-only dep; resolve it from the web package's copy so the
         // root suite can render web components that use <Link> / <MemoryRouter> (#369 empty-chat).
         find: "react-router",
         replacement: fileURLToPath(new URL("./apps/web/node_modules/react-router", import.meta.url))
       },
       {
-        find: "@jarv1s/ai",
+        find: "@moss/ai",
         replacement: fileURLToPath(new URL("./packages/ai/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/auth",
+        find: "@moss/auth",
         replacement: fileURLToPath(new URL("./packages/auth/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/briefings",
+        find: "@moss/briefings",
         replacement: fileURLToPath(new URL("./packages/briefings/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/calendar",
+        find: "@moss/calendar",
         replacement: fileURLToPath(new URL("./packages/calendar/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/chat/priority-consumer",
+        find: "@moss/chat/priority-consumer",
         replacement: fileURLToPath(
           new URL("./packages/chat/src/priority-consumer.ts", import.meta.url)
         )
       },
       {
-        // Subpath export (#802); must precede the bare "@jarv1s/chat" alias below.
-        find: "@jarv1s/chat/live",
+        // Subpath export (#802); must precede the bare "@moss/chat" alias below.
+        find: "@moss/chat/live",
         replacement: fileURLToPath(new URL("./packages/chat/src/live/public.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/chat",
+        find: "@moss/chat",
         replacement: fileURLToPath(new URL("./packages/chat/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/db/probes",
+        find: "@moss/db/probes",
         replacement: fileURLToPath(new URL("./packages/db/src/probes/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/commitments/tools",
+        find: "@moss/commitments/tools",
         replacement: fileURLToPath(new URL("./packages/commitments/src/tools.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/commitments/routes",
+        find: "@moss/commitments/routes",
         replacement: fileURLToPath(new URL("./packages/commitments/src/routes.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/commitments/workers",
+        find: "@moss/commitments/workers",
         replacement: fileURLToPath(
           new URL("./packages/commitments/src/workers.ts", import.meta.url)
         )
       },
       {
-        find: "@jarv1s/commitments/jobs",
+        find: "@moss/commitments/jobs",
         replacement: fileURLToPath(new URL("./packages/commitments/src/jobs.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/commitments/extractor",
+        find: "@moss/commitments/extractor",
         replacement: fileURLToPath(
           new URL("./packages/commitments/src/extractor.ts", import.meta.url)
         )
       },
       {
-        find: "@jarv1s/commitments/prefilter",
+        find: "@moss/commitments/prefilter",
         replacement: fileURLToPath(
           new URL("./packages/commitments/src/prefilter.ts", import.meta.url)
         )
       },
       {
-        find: "@jarv1s/commitments/signature",
+        find: "@moss/commitments/signature",
         replacement: fileURLToPath(
           new URL("./packages/commitments/src/signature.ts", import.meta.url)
         )
       },
       {
-        find: "@jarv1s/commitments",
+        find: "@moss/commitments",
         replacement: fileURLToPath(new URL("./packages/commitments/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/connectors/presets",
+        find: "@moss/connectors/presets",
         replacement: fileURLToPath(
           new URL("./packages/connectors/src/imap-presets.ts", import.meta.url)
         )
       },
       {
-        find: "@jarv1s/connectors",
+        find: "@moss/connectors",
         replacement: fileURLToPath(new URL("./packages/connectors/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/datasets",
+        find: "@moss/datasets",
         replacement: fileURLToPath(new URL("./packages/datasets/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/db",
+        find: "@moss/db",
         replacement: fileURLToPath(new URL("./packages/db/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/email",
+        find: "@moss/email",
         replacement: fileURLToPath(new URL("./packages/email/src/index.ts", import.meta.url))
       },
       {
-        // Subpath export; must precede the bare "@jarv1s/host-fetch" alias below — used by
+        // Subpath export; must precede the bare "@moss/host-fetch" alias below — used by
         // module-registry's validate.ts (assertValidFetchHosts).
-        find: "@jarv1s/host-fetch/policy",
+        find: "@moss/host-fetch/policy",
         replacement: fileURLToPath(new URL("./packages/host-fetch/src/policy.ts", import.meta.url))
       },
       {
         // #1309: job-search's worker-rpc-host.ts fetch.request test coverage imports
         // HostPinningViolationError directly; host-fetch had no alias entry at all before this
         // (it was only reached transitively via module-registry's own workspace dependency).
-        find: "@jarv1s/host-fetch",
+        find: "@moss/host-fetch",
         replacement: fileURLToPath(new URL("./packages/host-fetch/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/jobs",
+        find: "@moss/jobs",
         replacement: fileURLToPath(new URL("./packages/jobs/src/index.ts", import.meta.url))
       },
       {
-        // Server-only subpath export (#917); must precede the bare "@jarv1s/module-registry"
-        // alias below. The root vitest suite resolves @jarv1s/* via this alias map rather than
+        // Server-only subpath export (#917); must precede the bare "@moss/module-registry"
+        // alias below. The root vitest suite resolves @moss/* via this alias map rather than
         // the package.json "exports" map, so subpaths need an explicit entry — matching the
-        // established @jarv1s/module-sdk/core-version, @jarv1s/chat/live, @jarv1s/db/probes pattern.
-        find: "@jarv1s/module-registry/node",
+        // established @moss/module-sdk/core-version, @moss/chat/live, @moss/db/probes pattern.
+        find: "@moss/module-registry/node",
         replacement: fileURLToPath(
           new URL("./packages/module-registry/src/node.ts", import.meta.url)
         )
       },
       {
-        find: "@jarv1s/module-registry",
+        find: "@moss/module-registry",
         replacement: fileURLToPath(
           new URL("./packages/module-registry/src/index.ts", import.meta.url)
         )
       },
       {
-        // Subpath export; must precede the bare "@jarv1s/module-sdk" alias.
-        find: "@jarv1s/module-sdk/core-version",
+        // Subpath export; must precede the bare "@moss/module-sdk" alias.
+        find: "@moss/module-sdk/core-version",
         replacement: fileURLToPath(
           new URL("./packages/module-sdk/src/core-version.ts", import.meta.url)
         )
       },
       {
-        // Subpath export (#1110 fix in 34457186); must precede the bare "@jarv1s/module-sdk"
+        // Subpath export (#1110 fix in 34457186); must precede the bare "@moss/module-sdk"
         // alias below, same pairing requirement as core-version above.
-        find: "@jarv1s/module-sdk/ai-capabilities",
+        find: "@moss/module-sdk/ai-capabilities",
         replacement: fileURLToPath(
           new URL("./packages/module-sdk/src/ai-capabilities.ts", import.meta.url)
         )
       },
       {
-        // Subpath export (#1110 VF regression fix); must precede the bare "@jarv1s/module-sdk"
+        // Subpath export (#1110 VF regression fix); must precede the bare "@moss/module-sdk"
         // alias below, same pairing requirement as core-version/ai-capabilities above.
-        find: "@jarv1s/module-sdk/errors",
+        find: "@moss/module-sdk/errors",
         replacement: fileURLToPath(new URL("./packages/module-sdk/src/errors.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/module-sdk",
+        find: "@moss/module-sdk",
         replacement: fileURLToPath(new URL("./packages/module-sdk/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/module-web-sdk",
+        find: "@moss/module-web-sdk",
         replacement: fileURLToPath(
           new URL("./packages/module-web-sdk/src/index.ts", import.meta.url)
         )
       },
       {
         // `apps/web/src/app-route-metadata.ts` imports the Vite-generated
-        // `virtual:jarvis-module-web` module (#799); this file has many transitive consumers
+        // `virtual:moss-module-web` module (#799); this file has many transitive consumers
         // (page-context, command-palette-model, section-tour-model, today-page, ...), so alias it
         // globally to a test fixture instead of mocking it per-test-file.
-        find: "virtual:jarvis-module-web",
+        find: "virtual:moss-module-web",
         replacement: fileURLToPath(
-          new URL("./tests/fixtures/virtual-jarvis-module-web.ts", import.meta.url)
+          new URL("./tests/fixtures/virtual-moss-module-web.ts", import.meta.url)
         )
       },
       {
-        find: "@jarv1s/notes",
+        find: "@moss/notes",
         replacement: fileURLToPath(new URL("./packages/notes/src/index.ts", import.meta.url))
       },
       {
         // #1025: root-level tests/uat/seed/chunks/news.ts needs NewsPrefsRepository; this
         // alias was missing entirely (every other module package has one).
-        find: "@jarv1s/news",
+        find: "@moss/news",
         replacement: fileURLToPath(new URL("./packages/news/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/proactive-monitoring",
+        find: "@moss/proactive-monitoring",
         replacement: fileURLToPath(
           new URL("./packages/proactive-monitoring/src/index.ts", import.meta.url)
         )
       },
       {
-        find: "@jarv1s/notifications",
+        find: "@moss/notifications",
         replacement: fileURLToPath(
           new URL("./packages/notifications/src/index.ts", import.meta.url)
         )
       },
       {
-        find: "@jarv1s/priority",
+        find: "@moss/priority",
         replacement: fileURLToPath(new URL("./packages/priority/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/settings",
+        find: "@moss/settings",
         replacement: fileURLToPath(new URL("./packages/settings/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/settings-ui",
+        find: "@moss/settings-ui",
         replacement: fileURLToPath(new URL("./packages/settings-ui/src/index.tsx", import.meta.url))
       },
       {
-        find: "@jarv1s/settings-ui/vite",
+        find: "@moss/settings-ui/vite",
         replacement: fileURLToPath(new URL("./packages/settings-ui/src/vite.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/shared",
+        find: "@moss/shared",
         replacement: fileURLToPath(new URL("./packages/shared/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/sports",
+        find: "@moss/sports",
         replacement: fileURLToPath(new URL("./packages/sports/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/source-behaviors",
+        find: "@moss/source-behaviors",
         replacement: fileURLToPath(
           new URL("./packages/source-behaviors/src/index.ts", import.meta.url)
         )
       },
       {
-        find: "@jarv1s/tasks",
+        find: "@moss/tasks",
         replacement: fileURLToPath(new URL("./packages/tasks/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/usefulness-feedback",
+        find: "@moss/usefulness-feedback",
         replacement: fileURLToPath(
           new URL("./packages/usefulness-feedback/src/index.ts", import.meta.url)
         )
       },
       {
-        find: "@jarv1s/web-research",
+        find: "@moss/web-research",
         replacement: fileURLToPath(new URL("./packages/web-research/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/memory",
+        find: "@moss/memory",
         replacement: fileURLToPath(new URL("./packages/memory/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/vault",
+        find: "@moss/vault",
         replacement: fileURLToPath(new URL("./packages/vault/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/structured-state",
+        find: "@moss/structured-state",
         replacement: fileURLToPath(
           new URL("./packages/structured-state/src/index.ts", import.meta.url)
         )
       },
       {
-        find: "@jarv1s/wellness",
+        find: "@moss/wellness",
         replacement: fileURLToPath(new URL("./packages/wellness/src/index.ts", import.meta.url))
       },
       {
-        find: "@jarv1s/people",
+        find: "@moss/people",
         replacement: fileURLToPath(new URL("./packages/people/src/index.ts", import.meta.url))
       }
     ]

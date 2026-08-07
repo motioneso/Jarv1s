@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Download, Search, SearchX } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { Button } from "@jarv1s/ui";
+import { Button } from "@moss/ui";
 import { listAdminAuditEvents, listAdminUsers } from "../api/client";
 import { queryKeys } from "../api/query-keys";
 import {

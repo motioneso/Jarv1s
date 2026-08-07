@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { GoogleApiClient, type GoogleApiError } from "@jarv1s/connectors";
+import { GoogleApiClient, type GoogleApiError } from "@moss/connectors";
 
 interface CapturedRequest {
   url: string;

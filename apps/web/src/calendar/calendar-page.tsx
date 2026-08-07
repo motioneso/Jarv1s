@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Inbox, LoaderCircle } from "lucide-react";
-import { Button, IconButton, LegendSwatch, Segmented } from "@jarv1s/ui";
+import { Button, IconButton, LegendSwatch, Segmented } from "@moss/ui";
 import { listCalendarEvents } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
 import { useAssistantName } from "../api/use-assistant-name.js";
@@ -34,13 +34,13 @@ export function CalendarPage() {
   const [peek, setPeek] = useState<CalendarViewEvent | null>(null);
 
   useEffect(() => {
-    localStorage.setItem("jarvis.cal.view", view);
+    localStorage.setItem("moss.cal.view", view);
   }, [view]);
   useEffect(() => {
-    localStorage.setItem("jarvis.cal.cursor", cursor.toISOString());
+    localStorage.setItem("moss.cal.cursor", cursor.toISOString());
   }, [cursor]);
   useEffect(() => {
-    localStorage.setItem("jarvis.cal.workweek", workWeek ? "1" : "0");
+    localStorage.setItem("moss.cal.workweek", workWeek ? "1" : "0");
   }, [workWeek]);
 
   const calendarQuery = useQuery({

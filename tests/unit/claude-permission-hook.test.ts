@@ -19,7 +19,7 @@ import {
   writeClaudeOneShotPermissionHook,
   writeClaudePermissionHook
 } from "../../packages/chat/src/live/claude-permission-hook.js";
-import type { TmuxIo } from "@jarv1s/ai";
+import type { TmuxIo } from "@moss/ai";
 
 function fakeIo(): TmuxIo & {
   writes: Map<string, string>;

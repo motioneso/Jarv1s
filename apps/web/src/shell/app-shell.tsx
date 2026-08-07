@@ -64,7 +64,7 @@ import {
   type MeResponse,
   type ModuleDto,
   type ModuleNavigationEntryDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 interface AppShellProps {
   readonly children: ReactNode;

@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import type { CalendarEventDto } from "@jarv1s/shared";
+import type { CalendarEventDto } from "@moss/shared";
 import {
   dayKey,
   dtoToViewEvent,
   groupEventsByDay,
+  loadPersistedCursor,
+  loadPersistedView,
+  loadPersistedWorkWeek,
   type CalendarViewEvent
 } from "../../apps/web/src/calendar/calendar-model.js";
 
@@ -26,7 +30,7 @@ function makeDto(overrides: Partial<CalendarEventDto>): CalendarEventDto {
     summary: null,
     bodyExcerpt: null,
     externalId: "ext-1",
-    isJarvisBlock: false,
+    isMossBlock: false,
     allDay: false,
     attendeeCount: 0,
     status: null,
@@ -73,5 +77,49 @@ describe("dtoToViewEvent all-day timezone bucketing", () => {
     const view = dtoToViewEvent(makeDto({ allDay: false })) as CalendarViewEvent;
     expect(dayKey(view.date)).toBe("2026-5-20");
     expect(view.startMin).toBe(9 * 60);
+  });
+});
+
+describe("legacy jarvis.cal.* localStorage migration", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it("falls back to the legacy view key and migrates it to the new key", () => {
+    localStorage.setItem("jarvis.cal.view", "week");
+    expect(loadPersistedView()).toBe("week");
+    expect(localStorage.getItem("moss.cal.view")).toBe("week");
+    expect(localStorage.getItem("jarvis.cal.view")).toBeNull();
+  });
+
+  it("prefers an existing new-key value over the legacy key", () => {
+    localStorage.setItem("jarvis.cal.view", "week");
+    localStorage.setItem("moss.cal.view", "month");
+    expect(loadPersistedView()).toBe("month");
+    // The legacy key is left alone once the new key already has a value.
+    expect(localStorage.getItem("jarvis.cal.view")).toBe("week");
+  });
+
+  it("migrates the legacy cursor key", () => {
+    localStorage.setItem("jarvis.cal.cursor", "2030-06-06T16:00:00.000Z");
+    const cursor = loadPersistedCursor();
+    expect(cursor.toISOString()).toBe("2030-06-06T16:00:00.000Z");
+    expect(localStorage.getItem("moss.cal.cursor")).toBe("2030-06-06T16:00:00.000Z");
+    expect(localStorage.getItem("jarvis.cal.cursor")).toBeNull();
+  });
+
+  it("migrates the legacy workweek key", () => {
+    localStorage.setItem("jarvis.cal.workweek", "1");
+    expect(loadPersistedWorkWeek()).toBe(true);
+    expect(localStorage.getItem("moss.cal.workweek")).toBe("1");
+    expect(localStorage.getItem("jarvis.cal.workweek")).toBeNull();
+  });
+
+  it("defaults when neither key is present", () => {
+    expect(loadPersistedView()).toBe("day");
+    expect(loadPersistedWorkWeek()).toBe(false);
   });
 });

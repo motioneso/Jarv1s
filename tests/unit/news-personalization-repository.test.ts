@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dataContextBrand, type DataContextDb } from "@jarv1s/db";
+import { dataContextBrand, type DataContextDb } from "@moss/db";
 import {
   NEWS_MAX_SOURCE_EXCLUSIONS,
   NewsPersonalizationLimitError,

@@ -1,6 +1,6 @@
 import type { FastifyReply } from "fastify";
 
-import { handleRouteError } from "@jarv1s/module-sdk";
+import { handleRouteError } from "@moss/module-sdk";
 
 /**
  * Shared settings-route error handler. Wraps the module-sdk handler with a mapper that

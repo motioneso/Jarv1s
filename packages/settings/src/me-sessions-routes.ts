@@ -2,14 +2,14 @@ import type { IncomingHttpHeaders } from "node:http";
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext } from "@jarv1s/db";
+import type { AccessContext } from "@moss/db";
 import {
   listMySessionsRouteSchema,
   revokeMyOtherSessionsRouteSchema,
   revokeMySessionRouteSchema,
   type MeSessionDto
-} from "@jarv1s/shared";
-import { HttpError } from "@jarv1s/module-sdk";
+} from "@moss/shared";
+import { HttpError } from "@moss/module-sdk";
 
 import { handleSettingsRouteError } from "./route-error.js";
 
@@ -22,7 +22,7 @@ export interface MeSessionRevokeResult {
 
 /**
  * Auth-owned port for current-user session management. The concrete implementation lives in
- * the auth boundary (`@jarv1s/auth`) and is the ONLY code that touches the session tables;
+ * the auth boundary (`@moss/auth`) and is the ONLY code that touches the session tables;
  * settings routes depend on this port and never hand-write auth-table queries with a root DB
  * handle (#237). Implementations MUST scope every read/write to the actor's `user_id`, never
  * select or expose the session token, and resolve the current session from the request headers.

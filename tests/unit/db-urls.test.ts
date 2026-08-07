@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_JARVIS_DATABASE_NAME, getJarvisDatabaseUrls } from "@jarv1s/db";
+import { DEFAULT_JARVIS_DATABASE_NAME, getMossDatabaseUrls } from "@moss/db";
 
-describe("getJarvisDatabaseUrls", () => {
+describe("getMossDatabaseUrls", () => {
   it("keeps local development fallbacks parameterized by host, port, and database", () => {
-    const urls = getJarvisDatabaseUrls({
+    const urls = getMossDatabaseUrls({
       JARVIS_PGHOST: "postgres.local",
       JARVIS_PGPORT: "55434",
       JARVIS_PGDATABASE: "jarvis_build_test"
@@ -17,7 +17,7 @@ describe("getJarvisDatabaseUrls", () => {
 
   it("throws in production when an explicit connection URL is absent", () => {
     expect(() =>
-      getJarvisDatabaseUrls({
+      getMossDatabaseUrls({
         NODE_ENV: "production",
         JARVIS_PGHOST: "postgres.local",
         JARVIS_PGPORT: "5432",
@@ -27,7 +27,7 @@ describe("getJarvisDatabaseUrls", () => {
   });
 
   it("accepts production configuration when every connection URL is explicit", () => {
-    const urls = getJarvisDatabaseUrls({
+    const urls = getMossDatabaseUrls({
       NODE_ENV: "production",
       JARVIS_BOOTSTRAP_DATABASE_URL: "postgres://bootstrap.example/prod",
       JARVIS_MIGRATION_DATABASE_URL: "postgres://migration.example/prod",
@@ -46,7 +46,7 @@ describe("getJarvisDatabaseUrls", () => {
   });
 
   it("falls back to DEFAULT_JARVIS_DATABASE_NAME when JARVIS_PGDATABASE is unset", () => {
-    const urls = getJarvisDatabaseUrls({} as NodeJS.ProcessEnv);
+    const urls = getMossDatabaseUrls({} as NodeJS.ProcessEnv);
 
     expect(urls.app).toBe(
       `postgres://jarvis_app_runtime:app_password@localhost:55433/${DEFAULT_JARVIS_DATABASE_NAME}`

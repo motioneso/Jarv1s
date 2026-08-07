@@ -1,6 +1,6 @@
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb, type EmailActionSuppression } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb, type EmailActionSuppression } from "@moss/db";
 
 export interface EmailActionSuppressionInput {
   readonly subjectSignature: string;

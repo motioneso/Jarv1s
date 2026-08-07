@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { AccessContext } from "@jarv1s/db";
+import type { AccessContext } from "@moss/db";
 
 export class VaultContextError extends Error {
   constructor(message: string) {

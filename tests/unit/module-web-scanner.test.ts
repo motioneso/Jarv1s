@@ -25,7 +25,7 @@ async function makePackage(
 }
 
 async function makeRoot() {
-  const rootDir = await mkdtemp(join(tmpdir(), "jarvis-module-web-"));
+  const rootDir = await mkdtemp(join(tmpdir(), "moss-module-web-"));
   roots.push(rootDir);
   return rootDir;
 }
@@ -41,7 +41,7 @@ describe("module web scanner", () => {
     await makePackage(
       rootDir,
       "fixture",
-      "@jarv1s/fixture",
+      "@moss/fixture",
       `export const fixtureModuleManifest = {
         id: "fixture",
         name: "Fixture",
@@ -63,7 +63,7 @@ describe("module web scanner", () => {
     await makePackage(
       rootDir,
       "settings-only",
-      "@jarv1s/settings-only",
+      "@moss/settings-only",
       `export const settingsOnlyModuleManifest = {
         id: "settings-only",
         name: "Settings Only",
@@ -95,7 +95,7 @@ describe("module web scanner", () => {
         permissionId: "fixture.view"
       }
     ]);
-    expect(result.contributions.fixture).toContain('import("@jarv1s/fixture/web")');
+    expect(result.contributions.fixture).toContain('import("@moss/fixture/web")');
     expect(result.contributions["settings-only"]).toBeUndefined();
   });
 
@@ -115,15 +115,15 @@ describe("module web scanner", () => {
         }
       ]
     };`;
-    await makePackage(rootDir, "fixture-one", "@jarv1s/fixture-one", manifest("one"));
-    await makePackage(rootDir, "fixture-two", "@jarv1s/fixture-two", manifest("two"));
+    await makePackage(rootDir, "fixture-one", "@moss/fixture-one", manifest("one"));
+    await makePackage(rootDir, "fixture-two", "@moss/fixture-two", manifest("two"));
 
     expect(() => scanModuleWeb({ rootDir })).toThrow(/duplicate web route path "\/fixture"/i);
   });
 
   it("throws when a ./web export exists but the manifest cannot be parsed", async () => {
     const rootDir = await makeRoot();
-    await makePackage(rootDir, "fixture", "@jarv1s/fixture", `export const NOT_A_MANIFEST = 42;`);
+    await makePackage(rootDir, "fixture", "@moss/fixture", `export const NOT_A_MANIFEST = 42;`);
 
     expect(() => scanModuleWeb({ rootDir })).toThrow(/manifest could not be parsed/i);
   });
@@ -133,7 +133,7 @@ describe("module web scanner", () => {
     await makePackage(
       rootDir,
       "fixture",
-      "@jarv1s/fixture",
+      "@moss/fixture",
       `export const fixtureModuleManifest = {
         id: "fixture",
         name: "Fixture",
@@ -155,7 +155,7 @@ describe("module web scanner", () => {
     expect(moduleSource).toContain("export const MODULE_WEB_ROUTES");
     expect(moduleSource).toContain("export const MODULE_WEB_CONTRIBUTIONS");
     expect(moduleSource).toContain(
-      '{ moduleId: "fixture", load: () => import("@jarv1s/fixture/web") }'
+      '{ moduleId: "fixture", load: () => import("@moss/fixture/web") }'
     );
   });
 });

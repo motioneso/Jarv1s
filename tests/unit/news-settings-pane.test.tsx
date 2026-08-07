@@ -8,9 +8,9 @@ import type {
   NewsCatalogResponse,
   NewsPersonalizationAvailabilityDto,
   NewsPrefsResponse
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
-import { ApiError } from "@jarv1s/module-web-sdk";
+import { ApiError } from "@moss/module-web-sdk";
 
 import NewsSettings from "../../packages/news/src/settings/index.js";
 import {
@@ -161,7 +161,7 @@ describe("NewsSettings personalization sections (#953)", () => {
 
   it("prerequisites missing: custom add controls are visible but disabled, with a setup link", () => {
     const html = render(personalization({ availability: allOff }));
-    // Both closed-write Add buttons render disabled (@jarv1s/ui Button, secondary/sm).
+    // Both closed-write Add buttons render disabled (@moss/ui Button, secondary/sm).
     expect(html).toContain('class="jds-btn jds-btn--secondary jds-btn--sm" disabled=""');
     expect(
       (html.match(/class="jds-btn jds-btn--secondary jds-btn--sm" disabled=""/g) ?? []).length

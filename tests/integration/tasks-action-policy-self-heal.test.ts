@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { PreferencesRepository } from "@moss/structured-state";
 import {
   LEGACY_AGENCY_AUTO_EXECUTE_KEY,
   TASK_CHANGES_POLICY_KEY,
@@ -17,7 +17,7 @@ const legacyOnlyUserId = "00000000-0000-4000-8000-000000000005";
 const tieBreakUserId = "00000000-0000-4000-8000-000000000006";
 
 describe("tasks action policy self-heal (getResolvedTaskChangesPolicy, #1311 tasks-side fix)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let runner: DataContextRunner;
   let prefs: PreferencesRepository;
   let helper: TasksCompatibilityHelper;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { HostDiagnosticsDto, HostDiagnosticsInfo } from "@jarv1s/shared";
+import type { HostDiagnosticsDto, HostDiagnosticsInfo } from "@moss/shared";
 
 import {
   assertDiagnosticsSafe,

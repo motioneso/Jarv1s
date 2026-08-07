@@ -14,7 +14,7 @@ importers:
       '@fastify/rate-limit':
         specifier: ^10
         version: 10.3.0
-      '@jarv1s/cli-runner':
+      '@moss/cli-runner':
         specifier: workspace:*
         version: link:packages/cli-runner
       fastify:
@@ -105,37 +105,37 @@ importers:
       '@fastify/websocket':
         specifier: ^11.3.0
         version: 11.3.0
-      '@jarv1s/ai':
+      '@moss/ai':
         specifier: workspace:*
         version: link:../../packages/ai
-      '@jarv1s/auth':
+      '@moss/auth':
         specifier: workspace:*
         version: link:../../packages/auth
-      '@jarv1s/chat':
+      '@moss/chat':
         specifier: workspace:*
         version: link:../../packages/chat
-      '@jarv1s/connectors':
+      '@moss/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
-      '@jarv1s/module-registry':
+      '@moss/module-registry':
         specifier: workspace:*
         version: link:../../packages/module-registry
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../../packages/module-sdk
-      '@jarv1s/settings':
+      '@moss/settings':
         specifier: workspace:*
         version: link:../../packages/settings
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@jarv1s/vault':
+      '@moss/vault':
         specifier: workspace:*
         version: link:../../packages/vault
       fastify:
@@ -150,40 +150,40 @@ importers:
 
   apps/web:
     dependencies:
-      '@jarv1s/calendar':
+      '@moss/calendar':
         specifier: workspace:*
         version: link:../../packages/calendar
-      '@jarv1s/email':
+      '@moss/email':
         specifier: workspace:*
         version: link:../../packages/email
-      '@jarv1s/goals':
+      '@moss/goals':
         specifier: workspace:*
         version: link:../../packages/goals
-      '@jarv1s/module-css-confine':
+      '@moss/module-css-confine':
         specifier: workspace:*
         version: link:../../packages/module-css-confine
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../../packages/module-sdk
-      '@jarv1s/news':
+      '@moss/news':
         specifier: workspace:*
         version: link:../../packages/news
-      '@jarv1s/settings-ui':
+      '@moss/settings-ui':
         specifier: workspace:*
         version: link:../../packages/settings-ui
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@jarv1s/sports':
+      '@moss/sports':
         specifier: workspace:*
         version: link:../../packages/sports
-      '@jarv1s/tasks':
+      '@moss/tasks':
         specifier: workspace:*
         version: link:../../packages/tasks
-      '@jarv1s/ui':
+      '@moss/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      '@jarv1s/wellness':
+      '@moss/wellness':
         specifier: workspace:*
         version: link:../../packages/wellness
       '@tanstack/react-query':
@@ -232,40 +232,40 @@ importers:
 
   apps/worker:
     dependencies:
-      '@jarv1s/ai':
+      '@moss/ai':
         specifier: workspace:*
         version: link:../../packages/ai
-      '@jarv1s/calendar':
+      '@moss/calendar':
         specifier: workspace:*
         version: link:../../packages/calendar
-      '@jarv1s/chat':
+      '@moss/chat':
         specifier: workspace:*
         version: link:../../packages/chat
-      '@jarv1s/connectors':
+      '@moss/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@jarv1s/email':
+      '@moss/email':
         specifier: workspace:*
         version: link:../../packages/email
-      '@jarv1s/host-fetch':
+      '@moss/host-fetch':
         specifier: workspace:*
         version: link:../../packages/host-fetch
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
-      '@jarv1s/memory':
+      '@moss/memory':
         specifier: workspace:*
         version: link:../../packages/memory
-      '@jarv1s/module-registry':
+      '@moss/module-registry':
         specifier: workspace:*
         version: link:../../packages/module-registry
-      '@jarv1s/settings':
+      '@moss/settings':
         specifier: workspace:*
         version: link:../../packages/settings
-      '@jarv1s/vault':
+      '@moss/vault':
         specifier: workspace:*
         version: link:../../packages/vault
       kysely:
@@ -277,19 +277,19 @@ importers:
 
   packages/ai:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../jobs
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/settings':
+      '@moss/settings':
         specifier: workspace:*
         version: link:../settings
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
       ajv:
@@ -310,13 +310,13 @@ importers:
 
   packages/auth:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/settings':
+      '@moss/settings':
         specifier: workspace:*
         version: link:../settings
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
       better-auth:
@@ -331,34 +331,34 @@ importers:
 
   packages/briefings:
     dependencies:
-      '@jarv1s/ai':
+      '@moss/ai':
         specifier: workspace:*
         version: link:../ai
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../jobs
-      '@jarv1s/memory':
+      '@moss/memory':
         specifier: workspace:*
         version: link:../memory
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/notifications':
+      '@moss/notifications':
         specifier: workspace:*
         version: link:../notifications
-      '@jarv1s/priority':
+      '@moss/priority':
         specifier: workspace:*
         version: link:../priority
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
-      '@jarv1s/source-behaviors':
+      '@moss/source-behaviors':
         specifier: workspace:*
         version: link:../source-behaviors
-      '@jarv1s/usefulness-feedback':
+      '@moss/usefulness-feedback':
         specifier: workspace:*
         version: link:../usefulness-feedback
       fastify:
@@ -373,22 +373,22 @@ importers:
 
   packages/calendar:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../jobs
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/settings-ui':
+      '@moss/settings-ui':
         specifier: workspace:*
         version: link:../settings-ui
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
-      '@jarv1s/structured-state':
+      '@moss/structured-state':
         specifier: workspace:*
         version: link:../structured-state
       '@tanstack/react-query':
@@ -406,52 +406,52 @@ importers:
 
   packages/chat:
     dependencies:
-      '@jarv1s/ai':
+      '@moss/ai':
         specifier: workspace:*
         version: link:../ai
-      '@jarv1s/calendar':
+      '@moss/calendar':
         specifier: workspace:*
         version: link:../calendar
-      '@jarv1s/connectors':
+      '@moss/connectors':
         specifier: workspace:*
         version: link:../connectors
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/email':
+      '@moss/email':
         specifier: workspace:*
         version: link:../email
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../jobs
-      '@jarv1s/memory':
+      '@moss/memory':
         specifier: workspace:*
         version: link:../memory
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/notes':
+      '@moss/notes':
         specifier: workspace:*
         version: link:../notes
-      '@jarv1s/priority':
+      '@moss/priority':
         specifier: workspace:*
         version: link:../priority
-      '@jarv1s/settings':
+      '@moss/settings':
         specifier: workspace:*
         version: link:../settings
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
-      '@jarv1s/structured-state':
+      '@moss/structured-state':
         specifier: workspace:*
         version: link:../structured-state
-      '@jarv1s/tasks':
+      '@moss/tasks':
         specifier: workspace:*
         version: link:../tasks
-      '@jarv1s/usefulness-feedback':
+      '@moss/usefulness-feedback':
         specifier: workspace:*
         version: link:../usefulness-feedback
-      '@jarv1s/vault':
+      '@moss/vault':
         specifier: workspace:*
         version: link:../vault
       fastify:
@@ -475,10 +475,10 @@ importers:
 
   packages/cli-runner:
     dependencies:
-      '@jarv1s/ai':
+      '@moss/ai':
         specifier: workspace:*
         version: link:../ai
-      '@jarv1s/chat':
+      '@moss/chat':
         specifier: workspace:*
         version: link:../chat
       node-pty:
@@ -487,16 +487,16 @@ importers:
 
   packages/commitments:
     dependencies:
-      '@jarv1s/ai':
+      '@moss/ai':
         specifier: workspace:*
         version: link:../ai
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../jobs
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
       '@sinclair/typebox':
@@ -514,31 +514,31 @@ importers:
 
   packages/connectors:
     dependencies:
-      '@jarv1s/ai':
+      '@moss/ai':
         specifier: workspace:*
         version: link:../ai
-      '@jarv1s/calendar':
+      '@moss/calendar':
         specifier: workspace:*
         version: link:../calendar
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/email':
+      '@moss/email':
         specifier: workspace:*
         version: link:../email
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../jobs
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/settings':
+      '@moss/settings':
         specifier: workspace:*
         version: link:../settings
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
-      '@jarv1s/structured-state':
+      '@moss/structured-state':
         specifier: workspace:*
         version: link:../structured-state
       fastify:
@@ -569,10 +569,10 @@ importers:
 
   packages/datasets:
     dependencies:
-      '@jarv1s/host-fetch':
+      '@moss/host-fetch':
         specifier: workspace:*
         version: link:../host-fetch
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
 
@@ -587,19 +587,19 @@ importers:
 
   packages/email:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/settings-ui':
+      '@moss/settings-ui':
         specifier: workspace:*
         version: link:../settings-ui
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
-      '@jarv1s/structured-state':
+      '@moss/structured-state':
         specifier: workspace:*
         version: link:../structured-state
       '@tanstack/react-query':
@@ -617,16 +617,16 @@ importers:
 
   packages/goals:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../jobs
-      '@jarv1s/memory':
+      '@moss/memory':
         specifier: workspace:*
         version: link:../memory
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
       '@sinclair/typebox':
@@ -646,13 +646,13 @@ importers:
 
   packages/jobs:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/notifications':
+      '@moss/notifications':
         specifier: workspace:*
         version: link:../notifications
       kysely:
@@ -667,19 +667,19 @@ importers:
       '@huggingface/transformers':
         specifier: ^3.0.0
         version: 3.8.1
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/settings':
+      '@moss/settings':
         specifier: workspace:*
         version: link:../settings
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
-      '@jarv1s/vault':
+      '@moss/vault':
         specifier: workspace:*
         version: link:../vault
       fastify:
@@ -693,97 +693,97 @@ importers:
 
   packages/module-registry:
     dependencies:
-      '@jarv1s/ai':
+      '@moss/ai':
         specifier: workspace:*
         version: link:../ai
-      '@jarv1s/briefings':
+      '@moss/briefings':
         specifier: workspace:*
         version: link:../briefings
-      '@jarv1s/calendar':
+      '@moss/calendar':
         specifier: workspace:*
         version: link:../calendar
-      '@jarv1s/chat':
+      '@moss/chat':
         specifier: workspace:*
         version: link:../chat
-      '@jarv1s/cli-runner':
+      '@moss/cli-runner':
         specifier: workspace:*
         version: link:../cli-runner
-      '@jarv1s/commitments':
+      '@moss/commitments':
         specifier: workspace:*
         version: link:../commitments
-      '@jarv1s/connectors':
+      '@moss/connectors':
         specifier: workspace:*
         version: link:../connectors
-      '@jarv1s/datasets':
+      '@moss/datasets':
         specifier: workspace:*
         version: link:../datasets
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/email':
+      '@moss/email':
         specifier: workspace:*
         version: link:../email
-      '@jarv1s/goals':
+      '@moss/goals':
         specifier: workspace:*
         version: link:../goals
-      '@jarv1s/host-fetch':
+      '@moss/host-fetch':
         specifier: workspace:*
         version: link:../host-fetch
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../jobs
-      '@jarv1s/memory':
+      '@moss/memory':
         specifier: workspace:*
         version: link:../memory
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/news':
+      '@moss/news':
         specifier: workspace:*
         version: link:../news
-      '@jarv1s/notes':
+      '@moss/notes':
         specifier: workspace:*
         version: link:../notes
-      '@jarv1s/notifications':
+      '@moss/notifications':
         specifier: workspace:*
         version: link:../notifications
-      '@jarv1s/people':
+      '@moss/people':
         specifier: workspace:*
         version: link:../people
-      '@jarv1s/proactive-monitoring':
+      '@moss/proactive-monitoring':
         specifier: workspace:*
         version: link:../proactive-monitoring
-      '@jarv1s/settings':
+      '@moss/settings':
         specifier: workspace:*
         version: link:../settings
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
-      '@jarv1s/source-behaviors':
+      '@moss/source-behaviors':
         specifier: workspace:*
         version: link:../source-behaviors
-      '@jarv1s/sports':
+      '@moss/sports':
         specifier: workspace:*
         version: link:../sports
-      '@jarv1s/structured-state':
+      '@moss/structured-state':
         specifier: workspace:*
         version: link:../structured-state
-      '@jarv1s/tasks':
+      '@moss/tasks':
         specifier: workspace:*
         version: link:../tasks
-      '@jarv1s/usefulness-feedback':
+      '@moss/usefulness-feedback':
         specifier: workspace:*
         version: link:../usefulness-feedback
-      '@jarv1s/vault':
+      '@moss/vault':
         specifier: workspace:*
         version: link:../vault
-      '@jarv1s/weather':
+      '@moss/weather':
         specifier: workspace:*
         version: link:../weather
-      '@jarv1s/web-research':
+      '@moss/web-research':
         specifier: workspace:*
         version: link:../web-research
-      '@jarv1s/wellness':
+      '@moss/wellness':
         specifier: workspace:*
         version: link:../wellness
       fastify:
@@ -807,7 +807,7 @@ importers:
 
   packages/module-web-sdk:
     dependencies:
-      '@jarv1s/ui':
+      '@moss/ui':
         specifier: workspace:*
         version: link:../ui
       react:
@@ -820,28 +820,28 @@ importers:
 
   packages/news:
     dependencies:
-      '@jarv1s/datasets':
+      '@moss/datasets':
         specifier: workspace:*
         version: link:../datasets
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../jobs
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/module-web-sdk':
+      '@moss/module-web-sdk':
         specifier: workspace:*
         version: link:../module-web-sdk
-      '@jarv1s/notifications':
+      '@moss/notifications':
         specifier: workspace:*
         version: link:../notifications
-      '@jarv1s/settings-ui':
+      '@moss/settings-ui':
         specifier: workspace:*
         version: link:../settings-ui
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
       '@tanstack/react-query':
@@ -872,25 +872,25 @@ importers:
 
   packages/notes:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../jobs
-      '@jarv1s/memory':
+      '@moss/memory':
         specifier: workspace:*
         version: link:../memory
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/settings':
+      '@moss/settings':
         specifier: workspace:*
         version: link:../settings
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
-      '@jarv1s/structured-state':
+      '@moss/structured-state':
         specifier: workspace:*
         version: link:../structured-state
       fastify:
@@ -902,13 +902,13 @@ importers:
 
   packages/notifications:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
       fastify:
@@ -920,19 +920,19 @@ importers:
 
   packages/people:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../jobs
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/structured-state':
+      '@moss/structured-state':
         specifier: workspace:*
         version: link:../structured-state
-      '@jarv1s/vault':
+      '@moss/vault':
         specifier: workspace:*
         version: link:../vault
       '@sinclair/typebox':
@@ -952,22 +952,22 @@ importers:
 
   packages/proactive-monitoring:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../jobs
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/priority':
+      '@moss/priority':
         specifier: workspace:*
         version: link:../priority
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
-      '@jarv1s/usefulness-feedback':
+      '@moss/usefulness-feedback':
         specifier: workspace:*
         version: link:../usefulness-feedback
       fastify:
@@ -982,34 +982,34 @@ importers:
 
   packages/settings:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../jobs
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/notifications':
+      '@moss/notifications':
         specifier: workspace:*
         version: link:../notifications
-      '@jarv1s/priority':
+      '@moss/priority':
         specifier: workspace:*
         version: link:../priority
-      '@jarv1s/proactive-monitoring':
+      '@moss/proactive-monitoring':
         specifier: workspace:*
         version: link:../proactive-monitoring
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
-      '@jarv1s/source-behaviors':
+      '@moss/source-behaviors':
         specifier: workspace:*
         version: link:../source-behaviors
-      '@jarv1s/structured-state':
+      '@moss/structured-state':
         specifier: workspace:*
         version: link:../structured-state
-      '@jarv1s/vault':
+      '@moss/vault':
         specifier: workspace:*
         version: link:../vault
       fastify:
@@ -1021,7 +1021,7 @@ importers:
 
   packages/settings-ui:
     dependencies:
-      '@jarv1s/priority':
+      '@moss/priority':
         specifier: workspace:*
         version: link:../priority
       '@tanstack/react-query':
@@ -1043,40 +1043,40 @@ importers:
 
   packages/shared:
     dependencies:
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/priority':
+      '@moss/priority':
         specifier: workspace:*
         version: link:../priority
 
   packages/source-behaviors:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
 
   packages/sports:
     dependencies:
-      '@jarv1s/datasets':
+      '@moss/datasets':
         specifier: workspace:*
         version: link:../datasets
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/module-web-sdk':
+      '@moss/module-web-sdk':
         specifier: workspace:*
         version: link:../module-web-sdk
-      '@jarv1s/settings-ui':
+      '@moss/settings-ui':
         specifier: workspace:*
         version: link:../settings-ui
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
       '@tanstack/react-query':
@@ -1101,13 +1101,13 @@ importers:
 
   packages/structured-state:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/vault':
+      '@moss/vault':
         specifier: workspace:*
         version: link:../vault
       kysely:
@@ -1116,22 +1116,22 @@ importers:
 
   packages/tasks:
     dependencies:
-      '@jarv1s/ai':
+      '@moss/ai':
         specifier: workspace:*
         version: link:../ai
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../jobs
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/settings-ui':
+      '@moss/settings-ui':
         specifier: workspace:*
         version: link:../settings-ui
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
       '@tanstack/react-query':
@@ -1168,13 +1168,13 @@ importers:
 
   packages/usefulness-feedback:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
       fastify:
@@ -1186,19 +1186,19 @@ importers:
 
   packages/vault:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
 
   packages/weather:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
       fastify:
@@ -1207,37 +1207,37 @@ importers:
 
   packages/web-research:
     dependencies:
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
 
   packages/wellness:
     dependencies:
-      '@jarv1s/db':
+      '@moss/db':
         specifier: workspace:*
         version: link:../db
-      '@jarv1s/jobs':
+      '@moss/jobs':
         specifier: workspace:*
         version: link:../jobs
-      '@jarv1s/memory':
+      '@moss/memory':
         specifier: workspace:*
         version: link:../memory
-      '@jarv1s/module-sdk':
+      '@moss/module-sdk':
         specifier: workspace:*
         version: link:../module-sdk
-      '@jarv1s/settings':
+      '@moss/settings':
         specifier: workspace:*
         version: link:../settings
-      '@jarv1s/settings-ui':
+      '@moss/settings-ui':
         specifier: workspace:*
         version: link:../settings-ui
-      '@jarv1s/shared':
+      '@moss/shared':
         specifier: workspace:*
         version: link:../shared
-      '@jarv1s/structured-state':
+      '@moss/structured-state':
         specifier: workspace:*
         version: link:../structured-state
-      '@jarv1s/vault':
+      '@moss/vault':
         specifier: workspace:*
         version: link:../vault
       '@tanstack/react-query':

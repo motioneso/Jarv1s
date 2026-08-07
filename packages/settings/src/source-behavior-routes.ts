@@ -1,26 +1,26 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextRunner } from "@moss/db";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import {
   listSourceBehaviorsRouteSchema,
   putSourceBehaviorRouteSchema,
   type ListSourceBehaviorsResponse,
   type PutSourceBehaviorRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import {
   listSourceBehaviorStates,
   setSourceBehaviorOverride,
   type SourceBehaviorPreferencesPort,
   type SourceBehaviorSourceState
-} from "@jarv1s/source-behaviors";
+} from "@moss/source-behaviors";
 
 import { handleSettingsRouteError } from "./route-error.js";
 
 interface SourceBehaviorRoutesDependencies {
   readonly dataContext: DataContextRunner;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
-  readonly listModuleManifests: () => readonly JarvisModuleManifest[];
+  readonly listModuleManifests: () => readonly MossModuleManifest[];
   readonly preferencesRepository: SourceBehaviorPreferencesPort;
 }
 

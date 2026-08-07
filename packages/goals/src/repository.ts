@@ -1,13 +1,13 @@
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
 import type {
-  JarvisGoal,
-  JarvisGoalEvidence,
-  JarvisGoalStatus,
-  JarvisGoalEvidenceKind,
-  JarvisGoalSourceKind,
-  JarvisGoalReviewCadence
+  MossGoal,
+  MossGoalEvidence,
+  MossGoalStatus,
+  MossGoalEvidenceKind,
+  MossGoalSourceKind,
+  MossGoalReviewCadence
 } from "./types.js";
 
 export interface GoalRow {
@@ -44,7 +44,7 @@ export interface EvidenceRow {
 }
 
 export class GoalsRepository {
-  async getById(scopedDb: DataContextDb, id: string): Promise<JarvisGoal | null> {
+  async getById(scopedDb: DataContextDb, id: string): Promise<MossGoal | null> {
     assertDataContextDb(scopedDb);
     const result = await sql<GoalRow>`
       SELECT * FROM app.jarvis_goals WHERE id = ${id}::uuid
@@ -52,7 +52,7 @@ export class GoalsRepository {
     return result.rows[0] ? this.mapGoal(result.rows[0]) : null;
   }
 
-  async list(scopedDb: DataContextDb): Promise<JarvisGoal[]> {
+  async list(scopedDb: DataContextDb): Promise<MossGoal[]> {
     assertDataContextDb(scopedDb);
     const result = await sql<GoalRow>`
       SELECT * FROM app.jarvis_goals 
@@ -64,8 +64,8 @@ export class GoalsRepository {
   async create(
     scopedDb: DataContextDb,
     ownerUserId: string,
-    data: Partial<JarvisGoal>
-  ): Promise<JarvisGoal> {
+    data: Partial<MossGoal>
+  ): Promise<MossGoal> {
     assertDataContextDb(scopedDb);
     const result = await sql<GoalRow>`
       INSERT INTO app.jarvis_goals (
@@ -77,11 +77,7 @@ export class GoalsRepository {
     return this.mapGoal(result.rows[0]!);
   }
 
-  async update(
-    scopedDb: DataContextDb,
-    id: string,
-    data: Partial<JarvisGoal>
-  ): Promise<JarvisGoal> {
+  async update(scopedDb: DataContextDb, id: string, data: Partial<MossGoal>): Promise<MossGoal> {
     assertDataContextDb(scopedDb);
     const result = await sql<GoalRow>`
       UPDATE app.jarvis_goals SET
@@ -104,7 +100,7 @@ export class GoalsRepository {
     return this.mapGoal(result.rows[0]);
   }
 
-  async listEvidence(scopedDb: DataContextDb, goalId: string): Promise<JarvisGoalEvidence[]> {
+  async listEvidence(scopedDb: DataContextDb, goalId: string): Promise<MossGoalEvidence[]> {
     assertDataContextDb(scopedDb);
     const result = await sql<EvidenceRow>`
       SELECT * FROM app.jarvis_goal_evidence 
@@ -118,8 +114,8 @@ export class GoalsRepository {
     scopedDb: DataContextDb,
     ownerUserId: string,
     goalId: string,
-    data: Partial<JarvisGoalEvidence>
-  ): Promise<JarvisGoalEvidence> {
+    data: Partial<MossGoalEvidence>
+  ): Promise<MossGoalEvidence> {
     assertDataContextDb(scopedDb);
     const result = await sql<EvidenceRow>`
       INSERT INTO app.jarvis_goal_evidence (
@@ -190,15 +186,15 @@ export class GoalsRepository {
     }));
   }
 
-  private mapGoal(row: GoalRow): JarvisGoal {
+  private mapGoal(row: GoalRow): MossGoal {
     return {
       id: row.id,
       ownerUserId: row.owner_user_id,
       title: row.title,
       desiredOutcome: row.desired_outcome,
-      status: row.status as JarvisGoalStatus,
+      status: row.status as MossGoalStatus,
       priority: row.priority as 1 | 2 | 3 | 4 | 5,
-      reviewCadence: row.review_cadence as JarvisGoalReviewCadence,
+      reviewCadence: row.review_cadence as MossGoalReviewCadence,
       nextReviewAt: row.next_review_at ? row.next_review_at.toISOString() : null,
       targetAt: row.target_at ? row.target_at.toISOString() : null,
       lastProgressSummary: row.last_progress_summary,
@@ -212,13 +208,13 @@ export class GoalsRepository {
     };
   }
 
-  private mapEvidence(row: EvidenceRow): JarvisGoalEvidence {
+  private mapEvidence(row: EvidenceRow): MossGoalEvidence {
     return {
       id: row.id,
       ownerUserId: row.owner_user_id,
       goalId: row.goal_id,
-      evidenceKind: row.evidence_kind as JarvisGoalEvidenceKind,
-      sourceKind: row.source_kind as JarvisGoalSourceKind,
+      evidenceKind: row.evidence_kind as MossGoalEvidenceKind,
+      sourceKind: row.source_kind as MossGoalSourceKind,
       sourceRef: row.source_ref,
       sourceLabel: row.source_label,
       summary: row.summary,

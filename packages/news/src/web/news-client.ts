@@ -19,9 +19,9 @@ import type {
   TriggerNewsRevalidationResponse,
   UpdateNewsTopicRequest,
   UpdateNewsTopicResponse
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
-import { requestJson } from "@jarv1s/module-web-sdk";
+import { requestJson } from "@moss/module-web-sdk";
 
 export async function getNewsOverview(): Promise<NewsOverviewResponse> {
   return requestJson<NewsOverviewResponse>("/api/news/overview");

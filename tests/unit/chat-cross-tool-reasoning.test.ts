@@ -8,7 +8,7 @@ import {
   renderCrossToolContextBlock,
   type CrossToolEvidenceItem,
   type CrossToolReadRunner
-} from "@jarv1s/chat";
+} from "@moss/chat";
 
 const now = "2026-06-27T14:00:00.000Z";
 

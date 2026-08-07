@@ -11,16 +11,16 @@ import pg from "pg";
 
 import {
   AuthSessionResolver,
-  getJarvisDatabaseUrls,
+  getMossDatabaseUrls,
   type AccessContext,
   type DataContextRunner,
-  type JarvisDatabase
-} from "@jarv1s/db";
+  type MossDatabase
+} from "@moss/db";
 import {
   recordAuditEvent as settingsRecordAuditEvent,
   recordBootstrapOwnerAuditEvent as settingsRecordBootstrapOwnerAuditEvent
-} from "@jarv1s/settings";
-import type { AuthProviderStatusDto } from "@jarv1s/shared";
+} from "@moss/settings";
+import type { AuthProviderStatusDto } from "@moss/shared";
 
 import { readBearerToken, toWebHeaders } from "./headers.js";
 import { resolveAuthOriginConfig } from "./runtime-config.js";
@@ -57,7 +57,7 @@ export class AccountDeactivatedError extends Error {
   }
 }
 
-export interface JarvisAuthRuntime {
+export interface MossAuthRuntime {
   readonly auth: ReturnType<typeof betterAuth>;
   readonly resolveAccessContext: (request: RequestAccessContextInput) => Promise<AccessContext>;
   readonly listConfiguredProviders: () => readonly AuthProviderStatusDto[];
@@ -106,8 +106,8 @@ export interface AuthLogger {
   warn?(obj: Record<string, unknown>, msg: string): void;
 }
 
-export interface CreateJarvisAuthRuntimeOptions {
-  readonly appDb: Kysely<JarvisDatabase>;
+export interface CreateMossAuthRuntimeOptions {
+  readonly appDb: Kysely<MossDatabase>;
   readonly runner: DataContextRunner;
   readonly connectionString?: string;
   readonly env?: NodeJS.ProcessEnv;
@@ -126,7 +126,7 @@ interface BetterAuthUser {
   readonly name?: string;
 }
 
-// The slice of the @jarv1s/settings public API that auth depends on. Auth records
+// The slice of the @moss/settings public API that auth depends on. Auth records
 // admin audit events exclusively through this public API, never through the settings
 // repository class or by writing the settings-owned audit table directly (#101).
 export type BootstrapSettings = {
@@ -134,12 +134,10 @@ export type BootstrapSettings = {
   readonly recordAuditEvent: typeof settingsRecordAuditEvent;
 };
 
-export function createJarvisAuthRuntime(
-  options: CreateJarvisAuthRuntimeOptions
-): JarvisAuthRuntime {
+export function createMossAuthRuntime(options: CreateMossAuthRuntimeOptions): MossAuthRuntime {
   const env = options.env ?? process.env;
   const pool = new Pool({
-    connectionString: options.connectionString ?? getJarvisDatabaseUrls(env).auth,
+    connectionString: options.connectionString ?? getMossDatabaseUrls(env).auth,
     max: Number(env.JARVIS_AUTH_DB_POOL_SIZE ?? 4),
     options: "-c search_path=app,public"
   });
@@ -250,7 +248,7 @@ export function listConfiguredAuthProviders(
 
 function createBetterAuthOptions(
   pool: pg.Pool,
-  appDb: Kysely<JarvisDatabase>,
+  appDb: Kysely<MossDatabase>,
   env: NodeJS.ProcessEnv,
   runner: DataContextRunner,
   settings: BootstrapSettings,
@@ -330,7 +328,7 @@ function createBetterAuthOptions(
         create: {
           before: (user) => registrationGate(appDb, user),
           after: (user) =>
-            bootstrapFirstJarvisUser(pool, runner, settings, user as BetterAuthUser, logger)
+            bootstrapFirstMossUser(pool, runner, settings, user as BetterAuthUser, logger)
         }
       }
     },
@@ -344,7 +342,7 @@ async function resolveRequestAccessContext(options: {
   readonly request: RequestAccessContextInput;
   readonly auth: ReturnType<typeof betterAuth>;
   readonly legacySessions: AuthSessionResolver;
-  readonly appDb: Kysely<JarvisDatabase>;
+  readonly appDb: Kysely<MossDatabase>;
   readonly logger?: AuthLogger;
 }): Promise<AccessContext> {
   const requestId = options.request.id ?? randomUUID();
@@ -408,10 +406,7 @@ async function resolveRequestAccessContext(options: {
   return { actorUserId, requestId };
 }
 
-async function registrationGate(
-  appDb: Kysely<JarvisDatabase>,
-  _user: BetterAuthUser
-): Promise<void> {
+async function registrationGate(appDb: Kysely<MossDatabase>, _user: BetterAuthUser): Promise<void> {
   if (!(await bootstrapOwnerExists(appDb))) return;
 
   const enabled = await readBooleanSetting(appDb, "registration.enabled", true);
@@ -439,7 +434,7 @@ const PREAUTH_READABLE_SETTING_KEYS = new Set<string>([
 ]);
 
 async function readBooleanSetting(
-  appDb: Kysely<JarvisDatabase>,
+  appDb: Kysely<MossDatabase>,
   key: string,
   defaultValue: boolean
 ): Promise<boolean> {
@@ -457,7 +452,7 @@ async function readBooleanSetting(
   return typeof parsed.value === "boolean" ? parsed.value : defaultValue;
 }
 
-async function bootstrapOwnerExists(appDb: Kysely<JarvisDatabase>): Promise<boolean> {
+async function bootstrapOwnerExists(appDb: Kysely<MossDatabase>): Promise<boolean> {
   const result = await sql<{ exists: boolean }>`
     SELECT EXISTS (
       SELECT 1
@@ -469,7 +464,7 @@ async function bootstrapOwnerExists(appDb: Kysely<JarvisDatabase>): Promise<bool
   return result.rows[0]?.exists ?? false;
 }
 
-async function bootstrapFirstJarvisUser(
+async function bootstrapFirstMossUser(
   authPool: pg.Pool,
   runner: DataContextRunner,
   settings: BootstrapSettings,
@@ -536,7 +531,7 @@ async function bootstrapFirstJarvisUser(
         }
 
         // Auth must not write the settings-owned audit table directly. Record the
-        // bootstrap event through the @jarv1s/settings SECURITY DEFINER helper (#122).
+        // bootstrap event through the @moss/settings SECURITY DEFINER helper (#122).
         await settings.recordBootstrapOwnerAuditEvent(scopedDb, {
           actorUserId: user.id,
           targetUserId: user.id,

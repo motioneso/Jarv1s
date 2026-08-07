@@ -2,7 +2,7 @@
 // FIN-06 (#1166, F6-D3): the storage port both impls satisfy. Vocabulary is
 // deliberately the SAME record/chunk shapes handlers use today so the FIN-06c
 // cutover is a call-site swap, not a data-model rewrite. Months are "YYYY-MM".
-// Domain files never import @jarv1s/* (bundler independence — see kv-port.ts).
+// Domain files never import @moss/* (bundler independence — see kv-port.ts).
 import type { AccountRecord, ItemRecord, TransactionRecord } from "./records.js";
 import type { BudgetLedger } from "./envelope.js";
 

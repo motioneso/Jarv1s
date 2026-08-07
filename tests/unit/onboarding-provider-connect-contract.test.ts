@@ -4,7 +4,7 @@ import {
   onboardingProviderInstallRequestSchema,
   onboardingProviderLoginSubmitTokenRequestSchema,
   getOnboardingStatusRouteSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 // These schemas ARE the runtime Fastify validation contract — exercise them through a real
 // Fastify ajv path (mirrors tests/unit/shared-contract-schemas.test.ts).

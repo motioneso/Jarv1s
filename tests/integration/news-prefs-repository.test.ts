@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { createMossAuthRuntime, type MossAuthRuntime } from "@moss/auth";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import type { Kysely } from "kysely";
 import { createApiServer } from "../../apps/api/src/server.js";
 import { NewsPrefsRepository } from "../../packages/news/src/repository.js";
@@ -16,8 +16,8 @@ import {
 // API server for sign-up, then the repository exercised directly under each actor's DataContext
 // GUC so RLS is the thing under test (not the route layer).
 describe("news prefs repository RLS", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let authRuntime: JarvisAuthRuntime;
+  let appDb: Kysely<MossDatabase>;
+  let authRuntime: MossAuthRuntime;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let dataCtx: DataContextRunner;
@@ -40,7 +40,7 @@ describe("news prefs repository RLS", () => {
   beforeEach(async () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
+    authRuntime = createMossAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
     // #1124: createApiServer()'s default boss falls back to pg-boss's own 10s
     // connectionTimeoutMillis, which a loaded CI runner's PG connection establishment can
     // exceed even when the connection ultimately succeeds. Pass an explicit, longer-but-still-

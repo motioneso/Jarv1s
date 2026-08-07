@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import pg from "pg";
 
-import { AuthSessionResolver, createDatabase } from "@jarv1s/db";
-import { createPgBossClient } from "@jarv1s/jobs";
+import { AuthSessionResolver, createDatabase } from "@moss/db";
+import { createPgBossClient } from "@moss/jobs";
 import { createApiServer } from "../../apps/api/src/server.js";
 import { createBackupPlan } from "../../scripts/backup-database.js";
 import { auditReleaseHardening } from "../../scripts/audit-release-hardening.js";

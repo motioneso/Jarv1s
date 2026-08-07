@@ -3,9 +3,9 @@ import { fileURLToPath } from "node:url";
 
 import pg from "pg";
 
-import { isPinnableHost } from "@jarv1s/datasets";
-import { getJarvisDatabaseUrls } from "@jarv1s/db";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+import { isPinnableHost } from "@moss/datasets";
+import { getMossDatabaseUrls } from "@moss/db";
+import { getBuiltInModuleManifests } from "@moss/module-registry";
 
 const { Client } = pg;
 
@@ -197,7 +197,7 @@ export async function auditReleaseHardening(
   options: AuditReleaseHardeningOptions = {}
 ): Promise<ReleaseHardeningAuditReport> {
   const client = new Client({
-    connectionString: options.bootstrapConnectionString ?? getJarvisDatabaseUrls().bootstrap
+    connectionString: options.bootstrapConnectionString ?? getMossDatabaseUrls().bootstrap
   });
 
   await client.connect();

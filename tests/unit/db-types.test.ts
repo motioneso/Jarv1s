@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Insertable, Updateable } from "kysely";
 
-import type { InstanceSettingsTable } from "@jarv1s/db";
+import type { InstanceSettingsTable } from "@moss/db";
 
 function acceptInstanceSettingInsert(
   row: Insertable<InstanceSettingsTable>

@@ -6,7 +6,7 @@ import {
   renderModuleControlContext,
   renderMemorySeedBlock,
   sanitizeExternalData
-} from "@jarv1s/chat";
+} from "@moss/chat";
 
 describe("hybridScore", () => {
   it("returns 0 when both sim and rec are 0", () => {

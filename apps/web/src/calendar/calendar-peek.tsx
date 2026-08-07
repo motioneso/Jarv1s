@@ -1,5 +1,5 @@
 import { CalendarCheck, Clock, GitCommitHorizontal, MapPin, Users, X } from "lucide-react";
-import { CategoryDot, HeldBanner, PeekCloseButton, PeekPanel } from "@jarv1s/ui";
+import { CategoryDot, HeldBanner, PeekCloseButton, PeekPanel } from "@moss/ui";
 import { useAssistantName } from "../api/use-assistant-name.js";
 import { fmtDateLabel, fmtDur, fmtTime, type CalendarViewEvent } from "./calendar-model.js";
 

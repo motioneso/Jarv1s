@@ -2,8 +2,8 @@ import type { AiCapabilityRouteReason, AiConfiguredModelDto, AiModelCapability }
 import type { SourceFreshnessV1 } from "./freshness-types.js";
 import { errorResponseSchema } from "./schema-fragments.js";
 
-export type { JarvisError, JarvisErrorClass } from "@jarv1s/module-sdk/errors";
-import type { JarvisError } from "@jarv1s/module-sdk/errors";
+export type { MossError, MossErrorClass } from "@moss/module-sdk/errors";
+import type { MossError } from "@moss/module-sdk/errors";
 
 export type ChatMessageRole = "user" | "assistant";
 export type ChatMessageStatus = "stored" | "pending" | "blocked" | "no_model" | "working" | "error";
@@ -161,7 +161,7 @@ export interface PageContextSnapshotDto {
   readonly visibleText: readonly string[];
   readonly focused: PageContextFocusedElementDto | null;
   readonly selectedText: string | null;
-  readonly errors: readonly JarvisError[];
+  readonly errors: readonly MossError[];
   readonly capturedAt: string;
 }
 

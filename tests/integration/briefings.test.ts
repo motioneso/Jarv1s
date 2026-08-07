@@ -4,7 +4,7 @@ import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 import pg from "pg";
 
-import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
+import { AiRepository, createAiSecretCipher } from "@moss/ai";
 import {
   BRIEFINGS_RUN_QUEUE,
   briefingsModuleManifest,
@@ -13,7 +13,7 @@ import {
   registerBriefingsRoutes,
   type BriefingRunPayload,
   type BriefingsRepository
-} from "@jarv1s/briefings";
+} from "@moss/briefings";
 import type {
   AccessContext,
   AuthSessionResolver,
@@ -21,17 +21,17 @@ import type {
   DataContextDb,
   DataContextRunner,
   SharesRepository,
-  JarvisDatabase
-} from "@jarv1s/db";
-import { createPgBossClient } from "@jarv1s/jobs";
+  MossDatabase
+} from "@moss/db";
+import { createPgBossClient } from "@moss/jobs";
 import {
   getBuiltInModuleManifests,
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
-} from "@jarv1s/module-registry";
-import { briefingRunPayloadSchema } from "@jarv1s/shared";
-import { SOURCE_BEHAVIOR_PREFERENCE_KEY } from "@jarv1s/source-behaviors";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+} from "@moss/module-registry";
+import { briefingRunPayloadSchema } from "@moss/shared";
+import { SOURCE_BEHAVIOR_PREFERENCE_KEY } from "@moss/source-behaviors";
+import { PreferencesRepository } from "@moss/structured-state";
 import { connectionStrings, ids } from "./test-database.js";
 import {
   briefingIds,
@@ -52,8 +52,8 @@ import {
 const { Client } = pg;
 
 describe("Briefings module M6 read-only scheduled summaries", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let workerDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let workerDb: Kysely<MossDatabase>;
   let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
   let repository: BriefingsRepository;

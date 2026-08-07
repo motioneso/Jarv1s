@@ -3,28 +3,28 @@ import type { PgBoss } from "pg-boss";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
-import type { ComposeDeps, GenerateChatFn } from "@jarv1s/briefings";
+import { AiRepository, createAiSecretCipher } from "@moss/ai";
+import type { ComposeDeps, GenerateChatFn } from "@moss/briefings";
 import {
   BRIEFINGS_RUN_QUEUE,
   BriefingsRepository,
   registerBriefingsJobWorkers,
   type BriefingRunResult
-} from "@jarv1s/briefings";
-import type { MemoryRetriever } from "@jarv1s/memory";
+} from "@moss/briefings";
+import type { MemoryRetriever } from "@moss/memory";
 import {
   AuthSessionResolver,
   DataContextRunner,
   SharesRepository,
   createDatabase,
   type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { createPgBossClient } from "@jarv1s/jobs";
-import { NotificationsRepository } from "@jarv1s/notifications";
-import { PreferencesRepository } from "@jarv1s/structured-state";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+  type MossDatabase
+} from "@moss/db";
+import { createPgBossClient } from "@moss/jobs";
+import { NotificationsRepository } from "@moss/notifications";
+import { PreferencesRepository } from "@moss/structured-state";
+import { getBuiltInModuleManifests } from "@moss/module-registry";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -48,8 +48,8 @@ export const sourceIds = {
 // foundation DB and seeds the same fixtures, then builds this harness in its own
 // beforeAll — keeping the two split suites self-contained and isolated.
 export interface BriefingsTestHarness {
-  appDb: Kysely<JarvisDatabase>;
-  workerDb: Kysely<JarvisDatabase>;
+  appDb: Kysely<MossDatabase>;
+  workerDb: Kysely<MossDatabase>;
   auth: AuthSessionResolver;
   dataContext: DataContextRunner;
   repository: BriefingsRepository;
@@ -123,7 +123,7 @@ export async function teardownBriefingsHarness(
 // provider is contacted — the fake `generateChat` returns a fixed narrative by default.
 export function makeComposeDeps(
   generateChat?: GenerateChatFn,
-  moduleManifests: readonly JarvisModuleManifest[] = getBuiltInModuleManifests()
+  moduleManifests: readonly MossModuleManifest[] = getBuiltInModuleManifests()
 ): ComposeDeps {
   const noopRetriever = {
     async retrieve() {
@@ -154,7 +154,7 @@ export function structuredRowManifest(options: {
   readonly title: string;
   readonly category: "needs_reply" | "needs_action" | "time_sensitive_info";
   readonly cacheMessageId: string | null;
-}): JarvisModuleManifest {
+}): MossModuleManifest {
   return {
     id: options.id,
     name: options.id,

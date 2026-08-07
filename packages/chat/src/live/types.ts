@@ -1,6 +1,6 @@
-import type { ProviderKind } from "@jarv1s/ai"; // "anthropic" | "openai-compatible" | "google"
-import type { ActionRequestPreview } from "@jarv1s/module-sdk";
-import type { SourceFreshnessV1 } from "@jarv1s/shared";
+import type { ProviderKind } from "@moss/ai"; // "anthropic" | "openai-compatible" | "google"
+import type { ActionRequestPreview } from "@moss/module-sdk";
+import type { SourceFreshnessV1 } from "@moss/shared";
 
 export type ChatRecordKind =
   | "user"

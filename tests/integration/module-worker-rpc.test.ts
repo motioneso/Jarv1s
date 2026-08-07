@@ -6,16 +6,16 @@ import {
   DataContextRunner,
   ensureModuleRoles,
   generateModuleTableRlsSql,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { HostPinningViolationError } from "@jarv1s/host-fetch";
-import { StubEmbeddingProvider } from "@jarv1s/memory";
+  type MossDatabase
+} from "@moss/db";
+import { HostPinningViolationError } from "@moss/host-fetch";
+import { StubEmbeddingProvider } from "@moss/memory";
 import {
   AI_CALLS_PER_INVOCATION_CAP,
   createExternalModuleRpcHandler,
   ExternalModuleRpcError
-} from "@jarv1s/module-registry/node";
-import { createModuleCredentialSecretCipher } from "@jarv1s/settings";
+} from "@moss/module-registry/node";
+import { createModuleCredentialSecretCipher } from "@moss/settings";
 import type { Kysely } from "kysely";
 
 import {
@@ -27,7 +27,7 @@ import {
 
 const { Client } = pg;
 let bootstrap: pg.Client;
-let workerDb: Kysely<JarvisDatabase>;
+let workerDb: Kysely<MossDatabase>;
 
 beforeAll(async () => {
   await resetFoundationDatabase();

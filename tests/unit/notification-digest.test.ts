@@ -6,7 +6,7 @@ import {
   digestScheduleData,
   reconcileDigestSchedule,
   renderNotificationDigest
-} from "@jarv1s/notifications";
+} from "@moss/notifications";
 
 describe("notification digest preferences", () => {
   it("defaults disabled with daily 07:00 UTC metadata", () => {

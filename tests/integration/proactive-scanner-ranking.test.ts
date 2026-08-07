@@ -17,8 +17,8 @@ import type { CardRepository } from "../../packages/proactive-monitoring/src/car
 import type { MonitorStateRepository } from "../../packages/proactive-monitoring/src/monitor-state-repository.js";
 import type { ProactiveMonitoringPreferencesRepository } from "../../packages/proactive-monitoring/src/preferences-repository.js";
 import { ProactiveScanner } from "../../packages/proactive-monitoring/src/scanner.js";
-import { PriorityPreferencesRepository } from "@jarv1s/priority";
-import { defaultProactiveMonitoringPreference } from "@jarv1s/shared";
+import { PriorityPreferencesRepository } from "@moss/priority";
+import { defaultProactiveMonitoringPreference } from "@moss/shared";
 
 const NOW = "2026-06-27T14:00:00.000Z";
 

@@ -2,7 +2,7 @@ import type {
   OnboardingCliProviderDto,
   OnboardingProviderLoginResponse,
   ProviderInstallState
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 // ---------------------------------------------------------------------------
 // #365 provider-connect: the PURE state machine behind the onboarding "02 Assistant" step.

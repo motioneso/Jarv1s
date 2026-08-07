@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Note, PaneHead } from "@jarv1s/settings-ui";
-import { Button } from "@jarv1s/module-web-sdk";
+import { Badge, Note, PaneHead } from "@moss/settings-ui";
+import { Button } from "@moss/module-web-sdk";
 import type {
   NewsCatalogSource,
   NewsPersonalizationAvailabilityDto,
@@ -9,7 +9,7 @@ import type {
   NewsPrefKind,
   NewsTopicKey,
   NewsTopicOption
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import {
   normalizePublisherDomain,

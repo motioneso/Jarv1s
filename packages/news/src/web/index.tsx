@@ -1,4 +1,4 @@
-import type { ModuleWebContribution } from "@jarv1s/module-web-sdk";
+import type { ModuleWebContribution } from "@moss/module-web-sdk";
 
 import { NewsPage } from "./news-page.js";
 import { NewsTodayWidget } from "./today-widget.js";

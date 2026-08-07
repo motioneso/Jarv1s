@@ -7,7 +7,7 @@ import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
 import { Field, Group, Note, Row, Switch } from "./settings-ui";
-import { Button } from "@jarv1s/ui";
+import { Button } from "@moss/ui";
 
 /**
  * #874 — the dedicated Voice (STT) admin section.

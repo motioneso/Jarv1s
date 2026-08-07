@@ -1,4 +1,4 @@
-import { AI_MODEL_CAPABILITIES, type AiModelCapability } from "@jarv1s/shared";
+import { AI_MODEL_CAPABILITIES, type AiModelCapability } from "@moss/shared";
 
 import type { AiCapabilityRouteMap } from "./repository.js";
 

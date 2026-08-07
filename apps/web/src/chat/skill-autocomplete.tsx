@@ -1,4 +1,4 @@
-import type { ChatSkillDto } from "@jarv1s/shared";
+import type { ChatSkillDto } from "@moss/shared";
 
 /**
  * `/` slash autocomplete + invocation for the chat composer (#760). All parsing/resolution

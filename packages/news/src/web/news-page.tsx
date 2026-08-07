@@ -3,7 +3,7 @@ import "./styles/news-2.css";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Newspaper } from "lucide-react";
-import type { NewsHeadline, NewsOverviewResponse } from "@jarv1s/shared";
+import type { NewsHeadline, NewsOverviewResponse } from "@moss/shared";
 
 import { getNewsOverview } from "./news-client.js";
 import { newsQueryKeys } from "./query-keys.js";

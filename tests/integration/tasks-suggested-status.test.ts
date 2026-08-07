@@ -1,16 +1,16 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { sql } from "kysely";
 
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createEmailTriageFeedbackPort } from "@jarv1s/module-registry";
-import { serializeTask, TasksRepository } from "@jarv1s/tasks";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createEmailTriageFeedbackPort } from "@moss/module-registry";
+import { serializeTask, TasksRepository } from "@moss/tasks";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 import type { Kysely } from "kysely";
 
 describe("Tasks — suggested status (migration 0140, spec #729 §5)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   const repository = new TasksRepository();
 

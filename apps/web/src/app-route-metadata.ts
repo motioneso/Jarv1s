@@ -3,8 +3,8 @@ import {
   type LocaleSettingsDto,
   type ModuleDto,
   type ModuleNavigationEntryDto
-} from "@jarv1s/shared";
-import { MODULE_WEB_ROUTES } from "virtual:jarvis-module-web";
+} from "@moss/shared";
+import { MODULE_WEB_ROUTES } from "virtual:moss-module-web";
 
 import { DEFAULT_LOCALE, formatDate } from "./locale/locale-format.js";
 
@@ -21,7 +21,7 @@ const HIDDEN_NAV_IDS = new Set(["chat", "briefings", "settings", "notifications"
 
 export interface WebRouteMeta {
   // Widened from a literal union (#799): module-contributed routes are discovered at build time
-  // from `virtual:jarvis-module-web`, so their ids are not statically enumerable here.
+  // from `virtual:moss-module-web`, so their ids are not statically enumerable here.
   readonly id: string;
   readonly path: string;
   readonly title: string;

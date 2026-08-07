@@ -20,13 +20,13 @@ import {
   getAppliedModuleMigrations,
   loadModuleMigrationFiles,
   recordModuleMigrations
-} from "@jarv1s/db";
+} from "@moss/db";
 
 export interface ModuleInstallOptions {
   readonly moduleId: string;
   // Structural on purpose (#964): installModule only reads database.ownedTables, and
-  // callers hold either the branded JarvisModuleManifest (dev CLI) or the loader's
-  // JsonJarvisModuleManifest (boot reconcile). Both satisfy this shape.
+  // callers hold either the branded MossModuleManifest (dev CLI) or the loader's
+  // JsonMossModuleManifest (boot reconcile). Both satisfy this shape.
   readonly manifest: { readonly database?: { readonly ownedTables?: readonly string[] } };
   readonly bootstrapConnectionString: string;
   readonly migrationConnectionString: string;

@@ -8,7 +8,7 @@
  * bytes }. Error messages are redacted server-side before crossing the wire.
  */
 
-import { redactSecrets } from "@jarv1s/ai";
+import { redactSecrets } from "@moss/ai";
 
 import {
   CliChatUnavailableError,
@@ -37,7 +37,7 @@ import {
   type RpcResizeTerminalParams,
   type RpcSubmitLoginTokenParams,
   type RpcWriteTerminalParams
-} from "@jarv1s/chat/live";
+} from "@moss/chat/live";
 
 import { BadSubmitAttemptError, NotLaunchedError, type CliChatEngineHost } from "./engine-host.js";
 import { InstallBadRequestError } from "./install-service.js";

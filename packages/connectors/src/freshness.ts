@@ -1,4 +1,4 @@
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 import type { ConnectorsRepository } from "./repository.js";
 import { CALENDAR_SCOPE, GMAIL_SCOPE } from "./sync-jobs.js";

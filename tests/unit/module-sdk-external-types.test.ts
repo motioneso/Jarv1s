@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { validateExternalModuleManifest } from "@jarv1s/module-registry";
-import type { ExternalJarvisModulePackage, JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
+import { validateExternalModuleManifest } from "@moss/module-registry";
+import type { ExternalMossModulePackage, JsonMossModuleManifest } from "@moss/module-sdk";
 
 describe("external module manifest types (#917)", () => {
   const base = {
@@ -16,7 +16,7 @@ describe("external module manifest types (#917)", () => {
   } as const;
 
   it("accepts a metadata-only manifest", () => {
-    const manifest: JsonJarvisModuleManifest = {
+    const manifest: JsonMossModuleManifest = {
       schemaVersion: 1,
       id: "acme-widgets",
       name: "Acme Widgets",
@@ -35,7 +35,7 @@ describe("external module manifest types (#917)", () => {
         }
       ]
     };
-    const pkg: ExternalJarvisModulePackage = {
+    const pkg: ExternalMossModulePackage = {
       manifest,
       manifestHash: "sha256:deadbeef",
       packageHash: "sha256:cafebabe"
@@ -45,7 +45,7 @@ describe("external module manifest types (#917)", () => {
   });
 
   it("accepts a manifest whose navigation field type-checks (module-sdk ABI shape)", () => {
-    const manifest: JsonJarvisModuleManifest = {
+    const manifest: JsonMossModuleManifest = {
       schemaVersion: 1,
       id: "acme-widgets",
       name: "Acme Widgets",

@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { getJarvisDatabaseUrls } from "@jarv1s/db";
+import { getMossDatabaseUrls } from "@moss/db";
 import pg from "pg";
 
 const { Client } = pg;
@@ -46,7 +46,7 @@ function getMaintenanceConnectionString(): string {
   // CREATE DATABASE / DROP DATABASE cannot run against the database being created/dropped,
   // so connect to the `postgres` maintenance database instead — same host/port/credentials
   // urls.ts already resolves, just with the database segment swapped.
-  const { bootstrap } = getJarvisDatabaseUrls();
+  const { bootstrap } = getMossDatabaseUrls();
   return bootstrap.replace(/\/[^/]+$/, "/postgres");
 }
 

@@ -6,7 +6,7 @@ import {
   getBuiltInSqlMigrationDirectories,
   MODULE_IMAGE_CSP_HOSTS,
   type BuiltInModuleRegistration
-} from "@jarv1s/module-registry";
+} from "@moss/module-registry";
 
 describe("sports built-in registration", () => {
   it("registers the sports module manifest", () => {

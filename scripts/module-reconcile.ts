@@ -17,16 +17,16 @@ import { fileURLToPath } from "node:url";
 
 import { Client } from "pg";
 
-import { getJarvisDatabaseUrls, moduleInstallRoleName, moduleRuntimeRoleName } from "@jarv1s/db";
-import { CORE_VERSION } from "@jarv1s/module-sdk";
-import { getAllQueueDefinitions } from "@jarv1s/module-registry";
+import { getMossDatabaseUrls, moduleInstallRoleName, moduleRuntimeRoleName } from "@moss/db";
+import { CORE_VERSION } from "@moss/module-sdk";
+import { getAllQueueDefinitions } from "@moss/module-registry";
 import {
   downloadAndStageModule,
   getExternalModuleRegistrations,
   parseModulesEnsure,
   resolveModulesDir,
   sweepStagingDirs
-} from "@jarv1s/module-registry/node";
+} from "@moss/module-registry/node";
 
 import { installModule } from "./module-install.js";
 
@@ -97,7 +97,7 @@ export interface ReconcileModulesOptions {
 
 export async function reconcileModules(options: ReconcileModulesOptions): Promise<ReconcileReport> {
   const env = options.env ?? process.env;
-  const urls = getJarvisDatabaseUrls(env);
+  const urls = getMossDatabaseUrls(env);
   const report: ReconcileReport = {
     purged: [],
     ensured: [],

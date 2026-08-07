@@ -4,9 +4,9 @@ import { join } from "node:path";
 
 import type { Job, PgBoss } from "pg-boss";
 
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
-import { type ActorScopedJobPayload, type QueueDefinition, toAccessContext } from "@jarv1s/jobs";
-import type { EmbeddingProvider } from "@jarv1s/memory";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@moss/db";
+import { type ActorScopedJobPayload, type QueueDefinition, toAccessContext } from "@moss/jobs";
+import type { EmbeddingProvider } from "@moss/memory";
 import {
   createEmbeddingProvider,
   embedChunks,
@@ -14,14 +14,14 @@ import {
   MemoryRepository,
   parseDocument,
   type NewChunkData
-} from "@jarv1s/memory";
+} from "@moss/memory";
 import {
   NOTES_LAST_SYNC_PREFERENCE_KEY,
   NOTES_SOURCE_PREFERENCE_KEY,
   RuntimeConfigResolver,
   resolveNotesRoots
-} from "@jarv1s/settings";
-import type { PreferencesRepository } from "@jarv1s/structured-state";
+} from "@moss/settings";
+import type { PreferencesRepository } from "@moss/structured-state";
 
 import { assertWithinRoot, NotesPathError } from "./path-guard.js";
 import { NOTES_SYNC_QUEUE } from "./manifest.js";

@@ -8,16 +8,16 @@ import {
   ConfirmationRegistry,
   SessionTokenRegistry,
   type GatewaySessionRecord
-} from "@jarv1s/ai";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import type { JarvisModuleManifest, ToolExecute } from "@jarv1s/module-sdk";
+} from "@moss/ai";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import type { MossModuleManifest, ToolExecute } from "@moss/module-sdk";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import { exampleToolCalls, exampleToolModule } from "./fixtures/example-tool-module.js";
 
 describe("AssistantToolGateway", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let bootstrapDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let bootstrapDb: Kysely<MossDatabase>;
   let runner: DataContextRunner;
   let repository: AiRepository;
   let tokens: SessionTokenRegistry;
@@ -115,8 +115,7 @@ describe("AssistantToolGateway", () => {
   });
 
   it("lists and invokes web research tools through the assistant gateway", async () => {
-    const { setWebSearchProviderForTests, webModuleManifest } =
-      await import("@jarv1s/web-research");
+    const { setWebSearchProviderForTests, webModuleManifest } = await import("@moss/web-research");
     setWebSearchProviderForTests({
       name: "fake",
       search: async () => ({
@@ -228,7 +227,7 @@ describe("AssistantToolGateway", () => {
           }) satisfies ToolExecute
         }
       ]
-    } satisfies JarvisModuleManifest;
+    } satisfies MossModuleManifest;
     const serviceGateway = new AssistantToolGateway({
       resolveActiveModules: async () => [module],
       repository,
@@ -771,7 +770,7 @@ describe("AssistantToolGateway", () => {
     const excludedCalls: string[] = [];
     // moduleId "settings" + "settings.yolo." prefix matches SELF_OPERATION_EXCLUSIONS
     // self_authority.settings — Jarvis may never grant its own YOLO authority (#1263).
-    const excludedModule: JarvisModuleManifest = {
+    const excludedModule: MossModuleManifest = {
       id: "settings",
       name: "Settings",
       version: "0.0.0",
@@ -817,7 +816,7 @@ describe("AssistantToolGateway", () => {
     expect(excludedCalls).toHaveLength(0);
   });
 
-  function confirmMechanismsModule(calls: string[]): JarvisModuleManifest {
+  function confirmMechanismsModule(calls: string[]): MossModuleManifest {
     return {
       id: "example-confirm",
       name: "Example Confirm",

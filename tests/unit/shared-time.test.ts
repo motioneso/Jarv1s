@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatInZone, isValidTimeZone, localDay, resolveTimeZone } from "@jarv1s/shared";
+import { formatInZone, isValidTimeZone, localDay, resolveTimeZone } from "@moss/shared";
 
 // Regression for #636 — single source of truth for timezone-aware day/time derivation.
 

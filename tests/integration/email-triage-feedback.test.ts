@@ -1,14 +1,14 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { ConnectorsRepository } from "@jarv1s/connectors";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { ConnectorsRepository } from "@moss/connectors";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 import type { Kysely } from "kysely";
 
 describe("Email triage feedback — migration 0141 (spec #729 §6)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   const repository = new ConnectorsRepository();
 

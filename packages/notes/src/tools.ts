@@ -1,13 +1,13 @@
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
-import { RuntimeConfigResolver } from "@jarv1s/settings";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
+import type { ToolExecute, ToolResult } from "@moss/module-sdk";
+import { RuntimeConfigResolver } from "@moss/settings";
 import {
   createEmbeddingProvider,
   getEmbeddingProviderConfig,
   type EmbeddingProviderConfig,
   MemoryRepository,
   MemoryRetriever
-} from "@jarv1s/memory";
+} from "@moss/memory";
 
 const NOTES_SOURCE_KIND = "notes";
 const DEFAULT_LIMIT = 8;

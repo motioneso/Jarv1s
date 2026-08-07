@@ -1,9 +1,9 @@
 // apps/api/src/external-module-ai-bridge.ts
 //
-// ctx.ai bridge for module workers (#932, spec D6): adapts @jarv1s/ai
+// ctx.ai bridge for module workers (#932, spec D6): adapts @moss/ai
 // generateStructured to the module-registry `ai` callback. Lives here (not in
 // module-registry) so server.ts stays the only composition point and
-// module-registry never imports @jarv1s/ai; the queued-jobs handler
+// module-registry never imports @moss/ai; the queued-jobs handler
 // (apps/worker) is built without this bridge and fails closed.
 import type { FastifyBaseLogger } from "fastify";
 
@@ -12,9 +12,9 @@ import {
   generateStructured,
   type AiRepository,
   type GenerateStructuredDeps
-} from "@jarv1s/ai";
-import type { DataContextDb } from "@jarv1s/db";
-import type { ExternalModuleAiRequest, ExternalModuleAiResult } from "@jarv1s/module-registry/node";
+} from "@moss/ai";
+import type { DataContextDb } from "@moss/db";
+import type { ExternalModuleAiRequest, ExternalModuleAiResult } from "@moss/module-registry/node";
 
 export function createModuleAiBridge(input: {
   readonly aiRepository: AiRepository;

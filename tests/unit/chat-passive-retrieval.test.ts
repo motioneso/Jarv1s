@@ -5,7 +5,7 @@ import {
   planPassiveRetrieval,
   renderRetrievedContextBlock,
   withPassiveRetrievalTimeout
-} from "@jarv1s/chat";
+} from "@moss/chat";
 
 import { neutralizeSeedFraming } from "../../packages/chat/src/live/prompt-safety.js";
 

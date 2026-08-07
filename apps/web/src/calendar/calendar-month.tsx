@@ -1,4 +1,4 @@
-import { DayCell, MonthChip, TodayPill } from "@jarv1s/ui";
+import { DayCell, MonthChip, TodayPill } from "@moss/ui";
 import {
   DOW_SHORT,
   MONTH_NAMES,

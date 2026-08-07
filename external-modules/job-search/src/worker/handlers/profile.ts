@@ -15,7 +15,7 @@
 // calls `stripEnvelope` directly and validates its own extra fields with the helpers below,
 // in the same throw-naming-the-key style. `profile.create` (no profileId yet) and
 // `profile.list` (no fields at all) do the same.
-import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import type { ModuleWorkerContext } from "@moss/module-sdk/worker";
 
 import {
   completedSteps,

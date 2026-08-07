@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Bell, MessageSquare, MessagesSquare, MoonStar, Sunrise } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import type { ChatResponseStyle, NotificationDigestCadenceDto } from "@jarv1s/shared";
+import type { ChatResponseStyle, NotificationDigestCadenceDto } from "@moss/shared";
 
 import {
   DEFAULT_NOTIFICATIONS,

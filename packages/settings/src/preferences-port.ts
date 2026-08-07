@@ -1,4 +1,4 @@
-import type { DataContextDb, PreferencesPort } from "@jarv1s/db";
+import type { DataContextDb, PreferencesPort } from "@moss/db";
 
 /** The settings profile uses the shared scoped KV preferences port. */
 export type ProfilePreferencesPort = PreferencesPort;

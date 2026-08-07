@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  EmailExtractNeedsConfigurationError,
-  EmailExtractRetryableError
-} from "@jarv1s/connectors";
-import { CliStructuredAdapter, type ChatEngineFactory } from "@jarv1s/chat";
-import type { StructuredTelemetry } from "@jarv1s/ai";
+import { EmailExtractNeedsConfigurationError, EmailExtractRetryableError } from "@moss/connectors";
+import { CliStructuredAdapter, type ChatEngineFactory } from "@moss/chat";
+import type { StructuredTelemetry } from "@moss/ai";
 import {
   EmailRepository,
   PreferencesRepository,

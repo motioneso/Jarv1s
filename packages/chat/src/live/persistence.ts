@@ -8,16 +8,16 @@
  * reuses ChatRepository's recency + completed-turn helpers and then enqueues the
  * episodic-embed job (unless the thread is incognito).
  */
-import type { AiConfiguredModelSafeRow, AiRepository, ProviderKind } from "@jarv1s/ai";
+import type { AiConfiguredModelSafeRow, AiRepository, ProviderKind } from "@moss/ai";
 import { extractTimezone } from "../locale-utils.js";
 import { sql, type Kysely } from "kysely";
 import {
   assertDataContextDb,
   type DataContextDb,
   type DataContextRunner,
-  type JarvisDatabase,
+  type MossDatabase,
   type PreferencesPort
-} from "@jarv1s/db";
+} from "@moss/db";
 import type {
   AnswerProvenanceMetadataV1,
   AiProviderExecutionMode,
@@ -25,11 +25,11 @@ import type {
   ChatSurface,
   SourceFreshnessEntry,
   SourceFreshnessV1
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import type { ActionResultMetadata } from "./types.js";
 import type { PgBoss } from "pg-boss";
 
-import { sendJob } from "@jarv1s/jobs";
+import { sendJob } from "@moss/jobs";
 
 import {
   CHAT_EMBED_TURN_QUEUE,
@@ -49,7 +49,7 @@ const LIVE_PROVIDER_KINDS: readonly ProviderKind[] = ["anthropic", "openai-compa
 const DEFAULT_CONVERSATION_TITLE = "Conversation";
 
 export interface DataContextChatPersistenceDeps {
-  readonly rootDb?: Kysely<JarvisDatabase>;
+  readonly rootDb?: Kysely<MossDatabase>;
   readonly dataContext: DataContextRunner;
   readonly chatRepository: ChatRepository;
   readonly aiRepository: AiRepository;
@@ -118,7 +118,7 @@ export async function resolveChatFreshness(
 
 export class DataContextChatPersistence implements ChatPersistencePort {
   private readonly dataContext: DataContextRunner;
-  private readonly rootDb: Kysely<JarvisDatabase> | undefined;
+  private readonly rootDb: Kysely<MossDatabase> | undefined;
   private readonly chat: ChatRepository;
   private readonly ai: AiRepository;
   private readonly boss: PgBoss | undefined;

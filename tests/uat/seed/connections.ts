@@ -1,8 +1,8 @@
 import { Pool } from "pg";
 import { Kysely, PostgresDialect } from "kysely";
 
-import { DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { getJarvisDatabaseUrls } from "@jarv1s/db";
+import { DataContextRunner, type MossDatabase } from "@moss/db";
+import { getMossDatabaseUrls } from "@moss/db";
 
 /**
  * #1025 hard invariant (tier=sensitive): dev-only privileged connection for the
@@ -12,9 +12,9 @@ import { getJarvisDatabaseUrls } from "@jarv1s/db";
  * it to jarvis_app_runtime; that would violate the "no BYPASSRLS on runtime roles"
  * hard invariant (CLAUDE.md) by turning migration-owner into a de facto bypass role.
  */
-export function createMigrationOwnerDb(): Kysely<JarvisDatabase> {
-  const { migration } = getJarvisDatabaseUrls();
-  return new Kysely<JarvisDatabase>({
+export function createMigrationOwnerDb(): Kysely<MossDatabase> {
+  const { migration } = getMossDatabaseUrls();
+  return new Kysely<MossDatabase>({
     dialect: new PostgresDialect({ pool: new Pool({ connectionString: migration }) })
   });
 }
@@ -31,8 +31,8 @@ export function createMigrationOwnerDb(): Kysely<JarvisDatabase> {
  * no RLS carve-out, no bypass.
  */
 export function createAppRuntimeRunner(): DataContextRunner & { destroy(): Promise<void> } {
-  const { app } = getJarvisDatabaseUrls();
-  const rootDb = new Kysely<JarvisDatabase>({
+  const { app } = getMossDatabaseUrls();
+  const rootDb = new Kysely<MossDatabase>({
     dialect: new PostgresDialect({ pool: new Pool({ connectionString: app }) })
   });
   return Object.assign(new DataContextRunner(rootDb), { destroy: () => rootDb.destroy() });

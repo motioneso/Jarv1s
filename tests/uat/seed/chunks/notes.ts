@@ -1,5 +1,5 @@
-import type { DataContextRunner } from "@jarv1s/db";
-import { VaultContextRunner, getVaultBaseDir, writeVaultFile } from "@jarv1s/vault";
+import type { DataContextRunner } from "@moss/db";
+import { VaultContextRunner, getVaultBaseDir, writeVaultFile } from "@moss/vault";
 
 /**
  * #1025 spec §4.4 / "No Note Viewer" project invariant: notes have no

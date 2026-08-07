@@ -28,10 +28,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
-import {
-  MODULE_SETTINGS_COMPONENTS,
-  MODULE_SETTINGS_SURFACES
-} from "virtual:jarvis-module-settings";
+import { MODULE_SETTINGS_COMPONENTS, MODULE_SETTINGS_SURFACES } from "virtual:moss-module-settings";
 
 import {
   getModules,
@@ -80,8 +77,8 @@ import {
 } from "./settings-ui";
 import { VaultChooser } from "./settings-vault-chooser";
 import { useChatControls } from "../shell/chat-controls-context";
-import { type ConnectorAccountDto, type PutNotesSourceRequest } from "@jarv1s/shared";
-import { Button } from "@jarv1s/ui";
+import { type ConnectorAccountDto, type PutNotesSourceRequest } from "@moss/shared";
+import { Button } from "@moss/ui";
 
 const MODULE_ICONS: Record<string, LucideIcon> = {
   tasks: ListChecks,

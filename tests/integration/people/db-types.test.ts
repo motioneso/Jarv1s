@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
 
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createDatabase, type MossDatabase } from "@moss/db";
 import type { Kysely } from "kysely";
 
 import { connectionStrings, resetFoundationDatabase } from "../test-database.js";
 
-let db: Kysely<JarvisDatabase>;
+let db: Kysely<MossDatabase>;
 
 beforeAll(async () => {
   await resetFoundationDatabase();
@@ -16,7 +16,7 @@ afterAll(async () => {
   await db?.destroy();
 });
 
-it("PersonContextPeopleTable is queryable via JarvisDatabase", async () => {
+it("PersonContextPeopleTable is queryable via MossDatabase", async () => {
   const result = await db
     .selectFrom("app.person_context_people")
     .select(["id", "owner_user_id", "display_name", "status"])
@@ -25,7 +25,7 @@ it("PersonContextPeopleTable is queryable via JarvisDatabase", async () => {
   expect(Array.isArray(result)).toBe(true);
 });
 
-it("PersonContextIdentitiesTable is queryable via JarvisDatabase", async () => {
+it("PersonContextIdentitiesTable is queryable via MossDatabase", async () => {
   const result = await db
     .selectFrom("app.person_context_identities")
     .select(["id", "owner_user_id", "identity_kind", "source_kind", "display_value", "status"])
@@ -34,7 +34,7 @@ it("PersonContextIdentitiesTable is queryable via JarvisDatabase", async () => {
   expect(Array.isArray(result)).toBe(true);
 });
 
-it("PersonContextLinksTable is queryable via JarvisDatabase", async () => {
+it("PersonContextLinksTable is queryable via MossDatabase", async () => {
   const result = await db
     .selectFrom("app.person_context_links")
     .select(["id", "owner_user_id", "person_id", "source_kind", "link_kind"])
@@ -43,7 +43,7 @@ it("PersonContextLinksTable is queryable via JarvisDatabase", async () => {
   expect(Array.isArray(result)).toBe(true);
 });
 
-it("PersonContextMatchCandidatesTable is queryable via JarvisDatabase", async () => {
+it("PersonContextMatchCandidatesTable is queryable via MossDatabase", async () => {
   const result = await db
     .selectFrom("app.person_context_match_candidates")
     .select(["id", "owner_user_id", "candidate_kind", "status", "candidate_signature"])
@@ -52,7 +52,7 @@ it("PersonContextMatchCandidatesTable is queryable via JarvisDatabase", async ()
   expect(Array.isArray(result)).toBe(true);
 });
 
-it("PersonContextIndexingStateTable is queryable via JarvisDatabase", async () => {
+it("PersonContextIndexingStateTable is queryable via MossDatabase", async () => {
   const result = await db
     .selectFrom("app.person_context_indexing_state")
     .select(["owner_user_id", "source", "source_ref_hash"])

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { EMOTIONS, localDay, moodIndex, moodBand, type CheckinDto } from "@jarv1s/shared";
+import { EMOTIONS, localDay, moodIndex, moodBand, type CheckinDto } from "@moss/shared";
 import { getMedicationSchedule, logMedicationDose } from "../api/client.js";
 import { queryKeys } from "../api/query-keys.js";
 import { emoColor, coreLabel, type WellnessEmotionCore, type Theme } from "./emotion-taxonomy.js";

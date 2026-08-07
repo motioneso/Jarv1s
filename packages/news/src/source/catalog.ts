@@ -1,4 +1,4 @@
-import type { NewsTopicKey, NewsTopicOption } from "@jarv1s/shared";
+import type { NewsTopicKey, NewsTopicOption } from "@moss/shared";
 
 /**
  * Curated V1 source catalog (spec docs/superpowers/specs/2026-07-08-news-module.md). Every feed

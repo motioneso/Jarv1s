@@ -6,7 +6,7 @@ import {
   EMAIL_MONITOR_CRON,
   EMAIL_MONITOR_QUEUE,
   reconcileMonitorSchedules
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 
 const ACTOR = "00000000-0000-4000-8000-000000000001";
 

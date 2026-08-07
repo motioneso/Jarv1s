@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { SportsFollowDto } from "@jarv1s/shared";
+import type { SportsFollowDto } from "@moss/shared";
 
 import type { SourceHeadline } from "../../packages/sports/src/source/sports-source.js";
 import { SportsService } from "../../packages/sports/src/sports-service.js";

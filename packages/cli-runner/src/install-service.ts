@@ -48,7 +48,7 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
-import type { TmuxIo } from "@jarv1s/ai";
+import type { TmuxIo } from "@moss/ai";
 
 import type {
   InstallRecipe,
@@ -56,7 +56,7 @@ import type {
   ProviderCatalog,
   RpcInstallProviderResult,
   RpcProviderKind
-} from "@jarv1s/chat/live";
+} from "@moss/chat/live";
 
 import { findRepoRoot } from "./catalog.js";
 import { buildSanitizedCliEnv } from "./sanitized-env.js";

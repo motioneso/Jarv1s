@@ -1,4 +1,4 @@
-import type { createAiSecretCipher } from "@jarv1s/ai";
+import type { createAiSecretCipher } from "@moss/ai";
 import {
   generateStructured,
   type AiRepository,
@@ -6,8 +6,8 @@ import {
   type StructuredRunScope,
   type StructuredRunPriority,
   type StructuredTelemetry
-} from "@jarv1s/ai";
-import type { DataContextDb } from "@jarv1s/db";
+} from "@moss/ai";
+import type { DataContextDb } from "@moss/db";
 import { EmailExtractNeedsConfigurationError, type EmailExtractDeps } from "./email-extract.js";
 
 type AiSecretCipher = ReturnType<typeof createAiSecretCipher>;

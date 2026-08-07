@@ -3,19 +3,19 @@ import { fileURLToPath } from "node:url";
 
 import {
   DEFAULT_JARVIS_DATABASE_NAME,
-  getJarvisDatabaseUrls,
+  getMossDatabaseUrls,
   runSqlFiles,
   runSqlMigrations
-} from "@jarv1s/db";
-import { migratePgBoss } from "@jarv1s/jobs";
-import { getAllQueueDefinitions, getBuiltInSqlMigrationDirectories } from "@jarv1s/module-registry";
+} from "@moss/db";
+import { migratePgBoss } from "@moss/jobs";
+import { getAllQueueDefinitions, getBuiltInSqlMigrationDirectories } from "@moss/module-registry";
 import pg from "pg";
 
 const { Client } = pg;
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
-export const connectionStrings = getJarvisDatabaseUrls();
+export const connectionStrings = getMossDatabaseUrls();
 
 /** GreenMail test IMAP/SMTP server (infra/docker-compose.yml `greenmail` service, #641 Slice B). */
 export const testImap = {

@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 // job-search-web-root.test.tsx, or the import throws "requires the Jarvis module runtime v1".
 import "./helpers/install-module-runtime.js";
 
-import { validateExternalModuleManifest } from "@jarv1s/module-registry";
+import { validateExternalModuleManifest } from "@moss/module-registry";
 
 import { buildSeedPrompt } from "../../external-modules/job-search/src/domain/seed-prompt.js";
 import type { Profile } from "../../external-modules/job-search/src/web/use-profiles.js";

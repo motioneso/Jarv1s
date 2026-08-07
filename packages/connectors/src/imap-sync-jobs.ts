@@ -1,10 +1,10 @@
 import type { Job, PgBoss, WorkOptions } from "pg-boss";
 
-import type { ActorScopedJobPayload, QueueDefinition } from "@jarv1s/jobs";
-import { registerDataContextWorker } from "@jarv1s/jobs";
-import type { ConnectorSyncStatus, DataContextDb, DataContextRunner } from "@jarv1s/db";
-import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
-import { EmailRepository } from "@jarv1s/email";
+import type { ActorScopedJobPayload, QueueDefinition } from "@moss/jobs";
+import { registerDataContextWorker } from "@moss/jobs";
+import type { ConnectorSyncStatus, DataContextDb, DataContextRunner } from "@moss/db";
+import { AiRepository, createAiSecretCipher } from "@moss/ai";
+import { EmailRepository } from "@moss/email";
 
 import { createConnectorSecretCipher, type ConnectorSecretCipher } from "./crypto.js";
 import type { EmailExtractDeps } from "./email-extract.js";

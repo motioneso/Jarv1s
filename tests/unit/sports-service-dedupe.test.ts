@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { GameSummary, SportsFollowDto } from "@jarv1s/shared";
+import type { GameSummary, SportsFollowDto } from "@moss/shared";
 
 import type {
   SourceHeadline,

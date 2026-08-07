@@ -11,12 +11,12 @@ import {
   provenanceCards
 } from "../../packages/chat/src/live/answer-provenance.js";
 import type { CrossToolEvidenceItem } from "../../packages/chat/src/live/cross-tool-reasoning.js";
-import type { MemoryRecallItem } from "@jarv1s/memory";
+import type { MemoryRecallItem } from "@moss/memory";
 import type {
   AnswerProvenanceState,
   AnswerSourceSupport,
   AnswerProvenanceMetadataV1
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 // ── sanitizePlainText ─────────────────────────────────────────────────────────
 describe("sanitizePlainText", () => {

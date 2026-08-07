@@ -1,4 +1,4 @@
-import type { ProactiveMonitoringPreferenceV1, ProactiveSource } from "@jarv1s/shared";
+import type { ProactiveMonitoringPreferenceV1, ProactiveSource } from "@moss/shared";
 
 export type { ProactiveSource };
 

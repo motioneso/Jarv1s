@@ -11,14 +11,14 @@ import {
   DataContextRunner,
   SharesRepository,
   createDatabase,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { createPgBossClient } from "@jarv1s/jobs";
+  type MossDatabase
+} from "@moss/db";
+import { createPgBossClient } from "@moss/jobs";
 import {
   getBuiltInModuleManifests,
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
-} from "@jarv1s/module-registry";
+} from "@moss/module-registry";
 import {
   TASKS_DEFERRED_STATUS_QUEUE,
   TASKS_RECURRENCE_QUEUE,
@@ -31,8 +31,8 @@ import {
   isTasksRecurrenceOccurrenceConflict,
   rollForwardRecurringSeries,
   generateNext
-} from "@jarv1s/tasks";
-import type { TaskDto } from "@jarv1s/shared";
+} from "@moss/tasks";
+import type { TaskDto } from "@moss/shared";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import {
   handleNextTaskJob,
@@ -45,8 +45,8 @@ import {
 const { Client } = pg;
 
 describe("Tasks module M1", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let workerDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let workerDb: Kysely<MossDatabase>;
   let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
   let repository: TasksRepository;
@@ -462,7 +462,7 @@ describe("Tasks module M1", () => {
   });
 
   it("isRecurrenceMaterializePayloadMetadataOnly rejects extra keys", async () => {
-    const { isRecurrenceMaterializePayloadMetadataOnly } = await import("@jarv1s/tasks");
+    const { isRecurrenceMaterializePayloadMetadataOnly } = await import("@moss/tasks");
     expect(isRecurrenceMaterializePayloadMetadataOnly({ actorUserId: ids.userA })).toBe(true);
     expect(
       isRecurrenceMaterializePayloadMetadataOnly({ actorUserId: ids.userA, idempotencyKey: "k" })

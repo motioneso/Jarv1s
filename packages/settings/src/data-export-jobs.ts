@@ -1,20 +1,15 @@
-import type { Job } from "@jarv1s/jobs";
-import type { DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
+import type { Job } from "@moss/jobs";
+import type { DataContextDb, DataContextRunner, MossDatabase } from "@moss/db";
 import {
   type ActorScopedJobPayload,
   type PgBoss,
   type QueueDefinition,
   registerDataContextWorker,
   sendJob
-} from "@jarv1s/jobs";
-import {
-  VaultContextRunner,
-  deleteVaultFile,
-  getVaultBaseDir,
-  writeVaultFile
-} from "@jarv1s/vault";
-import { createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+} from "@moss/jobs";
+import { VaultContextRunner, deleteVaultFile, getVaultBaseDir, writeVaultFile } from "@moss/vault";
+import { createDatabase, getMossDatabaseUrls } from "@moss/db";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import { sql, type Kysely } from "kysely";
 
 import { exportUserData } from "./data-export.js";
@@ -70,13 +65,13 @@ export async function enqueueExportBuildJob(
 export async function handleExportBuildJob(
   job: Job<ExportBuildJobPayload>,
   scopedDb: DataContextDb,
-  listModuleManifests: () => readonly JarvisModuleManifest[]
+  listModuleManifests: () => readonly MossModuleManifest[]
 ): Promise<void> {
   const { actorUserId, jobId } = job.data;
   const repository = new DataExportRepository();
 
   const authDb = createDatabase({
-    connectionString: getJarvisDatabaseUrls().auth,
+    connectionString: getMossDatabaseUrls().auth,
     maxConnections: 1
   });
 
@@ -172,7 +167,7 @@ function isMissingPathError(error: unknown): boolean {
 }
 
 export async function listExpiredExportJobs(
-  workerDb: Kysely<JarvisDatabase>,
+  workerDb: Kysely<MossDatabase>,
   cutoff: Date
 ): Promise<readonly ExpiredExportJob[]> {
   const result = await sql<ExpiredExportJob>`
@@ -184,7 +179,7 @@ export async function listExpiredExportJobs(
 
 export async function handleExportCleanupJob(
   _job: Job<ExportCleanupJobPayload>,
-  workerDb: Kysely<JarvisDatabase>,
+  workerDb: Kysely<MossDatabase>,
   dataContext: DataContextRunner
 ): Promise<void> {
   const repository = new DataExportRepository();
@@ -223,8 +218,8 @@ export async function handleExportCleanupJob(
 export async function registerSettingsJobWorkers(
   boss: PgBoss,
   dataContext: DataContextRunner,
-  workerDb: Kysely<JarvisDatabase>,
-  listModuleManifests: () => readonly JarvisModuleManifest[]
+  workerDb: Kysely<MossDatabase>,
+  listModuleManifests: () => readonly MossModuleManifest[]
 ): Promise<readonly string[]> {
   await reconcileDataExportCleanupSchedule(boss);
   const workId = await registerDataContextWorker<ExportBuildJobPayload, void>(

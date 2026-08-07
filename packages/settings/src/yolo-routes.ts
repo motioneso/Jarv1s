@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextDb, DataContextRunner, User } from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextDb, DataContextRunner, User } from "@moss/db";
+import { HttpError } from "@moss/module-sdk";
 import {
   getAdminYoloSettingsRouteSchema,
   getYoloSettingsRouteSchema,
@@ -13,7 +13,7 @@ import {
   type PutYoloUserRequest,
   type YoloAdminSettingsResponse,
   type YoloSettingsResponse
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import type { ProfilePreferencesPort } from "./preferences-port.js";
 import type { SettingsRepository } from "./repository.js";

@@ -11,22 +11,22 @@
 // copy that rots.
 import type { Kysely } from "kysely";
 
-import type { ExternalBriefingInvoker } from "@jarv1s/briefings";
-import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
+import type { ExternalBriefingInvoker } from "@moss/briefings";
+import type { AccessContext, DataContextDb, DataContextRunner, MossDatabase } from "@moss/db";
 import {
   createRuntimeEmbeddingProvider,
   type ExternalModuleDiscovery
-} from "@jarv1s/module-registry";
-import type { CreateNotificationInput } from "@jarv1s/notifications";
-import { createExternalModuleRpcHandler } from "@jarv1s/module-registry/node";
+} from "@moss/module-registry";
+import type { CreateNotificationInput } from "@moss/notifications";
+import { createExternalModuleRpcHandler } from "@moss/module-registry/node";
 import type {
   ExternalModuleAiRequest,
   ExternalModuleAiResult,
   ExternalModuleAttachmentText,
   ExternalModuleWorkerRuntime
-} from "@jarv1s/module-registry/node";
-import type { ModuleCredentialCipher } from "@jarv1s/settings";
-import type { WorkerLane } from "@jarv1s/module-registry/node";
+} from "@moss/module-registry/node";
+import type { ModuleCredentialCipher } from "@moss/settings";
+import type { WorkerLane } from "@moss/module-registry/node";
 
 export interface VerifiedExternalModuleInvokeArgs {
   readonly moduleId: string;
@@ -60,7 +60,7 @@ export type VerifiedInvoke = (
 ) => Promise<VerifiedExternalModuleInvokeResult>;
 
 export interface VerifiedExternalModuleInvokerDeps {
-  readonly workerDb: Kysely<JarvisDatabase>;
+  readonly workerDb: Kysely<MossDatabase>;
   readonly discoveryById: ReadonlyMap<string, ExternalModuleDiscovery>;
   readonly dataContext: DataContextRunner;
   readonly cipher: ModuleCredentialCipher;

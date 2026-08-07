@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
-import { getJarvisDatabaseUrls } from "@jarv1s/db";
+import { getMossDatabaseUrls } from "@moss/db";
 
 const POSTGRES_CONTAINER = "jarv1s-postgres";
 
@@ -35,7 +35,7 @@ export function createRestorePlan(input: RestorePlanInput): RestorePlan {
     throw new Error("Restore execution requires --confirm-restore");
   }
 
-  const url = new URL(input.connectionString ?? getJarvisDatabaseUrls().bootstrap);
+  const url = new URL(input.connectionString ?? getMossDatabaseUrls().bootstrap);
   const database = url.pathname.replace(/^\//, "");
   const username = decodeURIComponent(url.username);
   const password = decodeURIComponent(url.password);

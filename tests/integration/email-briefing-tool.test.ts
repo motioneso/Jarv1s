@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 import pg from "pg";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { EmailRepository, emailListVisibleMessagesExecute } from "@jarv1s/email";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { EmailRepository, emailListVisibleMessagesExecute } from "@moss/email";
 
 import {
   buildTestSourceContextService,
@@ -15,7 +15,7 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 const { Client } = pg;
 
 describe("Email briefing assistant tool", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let emailRepository: EmailRepository;
 

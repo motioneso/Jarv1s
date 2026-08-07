@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb, type Task } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb, type Task } from "@moss/db";
 
 export interface RecurrenceSpec {
   freq: "daily" | "weekly" | "monthly";

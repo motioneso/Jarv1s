@@ -1,4 +1,4 @@
-import type { JarvisGoal } from "@jarv1s/goals";
+import type { MossGoal } from "@moss/goals";
 import type {
   AddTaskActivityRequest,
   AssignTaskTagRequest,
@@ -161,7 +161,7 @@ import type {
   ListActionAuditLogResponse,
   YoloSettingsResponse,
   YoloAdminSettingsResponse
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 export interface SignUpEmailRequest {
   readonly name: string;
@@ -539,7 +539,7 @@ export async function listTaskActivity(taskId: string): Promise<ListTaskActivity
 }
 
 export interface ListGoalsResponse {
-  readonly items: readonly JarvisGoal[];
+  readonly items: readonly MossGoal[];
 }
 
 export async function listGoals(): Promise<ListGoalsResponse> {
@@ -1068,7 +1068,7 @@ export async function lookupAiCapabilityRoute(
 
 // Merge-up (#876): #759's `putAiCapabilityRoute` client wrapper is dropped here. #870 Slice-1
 // retired the manual capability-route knob (removed PutAiCapabilityRoute{Request,Response} from
-// @jarv1s/shared) in favour of per-service bindings (`putAiServiceBinding`), and #759's only
+// @moss/shared) in favour of per-service bindings (`putAiServiceBinding`), and #759's only
 // caller — the admin-pane RouterRow pin — is likewise superseded by Slice-1's ServiceRow
 // "Specific model" option. The in-chat model selector (#759's headline surface) is unaffected:
 // it routes through `putChatModelOverride`, which remains.

@@ -1,7 +1,7 @@
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
-import { jarvisModuleSettingsPlugin, jarvisModuleWebPlugin } from "@jarv1s/settings-ui/vite";
+import { jarvisModuleSettingsPlugin, jarvisModuleWebPlugin } from "@moss/settings-ui/vite";
 
 const apiTarget = process.env.JARVIS_API_PROXY_TARGET ?? "http://localhost:3000";
 const rootDir = fileURLToPath(new URL("../..", import.meta.url));

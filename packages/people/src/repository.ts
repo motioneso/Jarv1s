@@ -1,4 +1,4 @@
-import { assertDataContextDb } from "@jarv1s/db";
+import { assertDataContextDb } from "@moss/db";
 import { candidateSignature } from "./matching.js";
 import type {
   ListLinksParams,

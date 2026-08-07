@@ -5,7 +5,7 @@ import type {
   OnboardingProviderLoginPollRequest,
   OnboardingProviderLoginResponse,
   OnboardingProviderLoginSubmitTokenRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { requestJson } from "./client.js";
 

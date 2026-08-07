@@ -1,13 +1,13 @@
 import { sql, type Kysely } from "kysely";
 
-import type { JarvisDatabase } from "@jarv1s/db";
+import type { MossDatabase } from "@moss/db";
 import {
   assertMetadataOnlyPayload,
   sendJob,
   type Job,
   type PgBoss,
   type QueueDefinition
-} from "@jarv1s/jobs";
+} from "@moss/jobs";
 
 import { GOOGLE_SYNC_QUEUE, type GoogleSyncPayload } from "./sync-jobs.js";
 import { reconcileGoogleAccountSchedule } from "./google-schedule.js";
@@ -69,7 +69,7 @@ export async function reconcileGoogleSyncSweepSchedule(boss: PgBoss): Promise<vo
  * every connected account. Returns id + actorUserId only — never scopes/tokens/secrets.
  */
 export async function listConnectedGoogleCalendarAccounts(
-  rootDb: Kysely<JarvisDatabase>
+  rootDb: Kysely<MossDatabase>
 ): Promise<readonly ConnectedGoogleCalendarAccount[]> {
   const result = await sql<{ id: string; actorUserId: string }>`
     SELECT id, "ownerUserId" AS "actorUserId"
@@ -86,7 +86,7 @@ export async function listConnectedGoogleCalendarAccounts(
 export async function handleGoogleSyncSweepJob(
   _job: Job<GoogleSyncSweepJobPayload>,
   boss: PgBoss,
-  rootDb: Kysely<JarvisDatabase>
+  rootDb: Kysely<MossDatabase>
 ): Promise<void> {
   const accounts = await listConnectedGoogleCalendarAccounts(rootDb);
   for (const account of accounts) {
@@ -101,7 +101,7 @@ export async function handleGoogleSyncSweepJob(
 
 export async function registerGoogleSyncSweepWorker(
   boss: PgBoss,
-  rootDb: Kysely<JarvisDatabase>
+  rootDb: Kysely<MossDatabase>
 ): Promise<string> {
   const accounts = await listConnectedGoogleCalendarAccounts(rootDb);
   await Promise.all(

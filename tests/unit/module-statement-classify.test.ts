@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyModuleStatement, ModuleQueryError } from "@jarv1s/db";
+import { classifyModuleStatement, ModuleQueryError } from "@moss/db";
 
 // #1167 — the statement allowlist is the security boundary in front of
 // module-authored SQL (spec 2026-07-09-module-data-plane.md D5). Every case

@@ -1,7 +1,7 @@
 import type { PgBoss } from "pg-boss";
-import { toAccessContext } from "@jarv1s/jobs";
-import type { DataContextRunner } from "@jarv1s/db";
-import type { PersonContextProvider } from "@jarv1s/module-sdk";
+import { toAccessContext } from "@moss/jobs";
+import type { DataContextRunner } from "@moss/db";
+import type { PersonContextProvider } from "@moss/module-sdk";
 import { matchResult, normalizeIdentity } from "./matching.js";
 import {
   assertMetadataOnlyPersonPayload,

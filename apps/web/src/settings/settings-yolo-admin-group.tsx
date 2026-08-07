@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { Button } from "@jarv1s/ui";
+import { Button } from "@moss/ui";
 import {
   getAdminYoloSettings,
   postAdminYoloAllowAll,
@@ -13,7 +13,7 @@ import { useAssistantName } from "../api/use-assistant-name";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";
 import { Group, Row, Switch } from "./settings-ui";
-import type { YoloAdminUserDto } from "@jarv1s/shared";
+import type { YoloAdminUserDto } from "@moss/shared";
 
 function roleLabel(user: YoloAdminUserDto): string {
   return user.isBootstrapOwner ? "Owner" : user.isInstanceAdmin ? "Admin" : "Member";

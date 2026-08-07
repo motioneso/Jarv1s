@@ -1,23 +1,23 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type {
-  JarvisError,
-  JarvisModuleManifest,
+  MossError,
+  MossModuleManifest,
   ModuleAiRequirementManifest,
   ModuleNavigationEntryManifest,
   ModuleSettingsSurfaceManifest
-} from "@jarv1s/module-sdk";
-import type { AiModelCapability, AiModelTier } from "@jarv1s/shared";
+} from "@moss/module-sdk";
+import type { AiModelCapability, AiModelTier } from "@moss/shared";
 import {
   assertModuleRegistryConsistency,
   type BuiltInModuleRegistration
-} from "@jarv1s/module-registry";
-import { newsAddSourceRequirement, newsModuleManifest } from "@jarv1s/news";
+} from "@moss/module-registry";
+import { newsAddSourceRequirement, newsModuleManifest } from "@moss/news";
 
-function registration(manifest: JarvisModuleManifest): BuiltInModuleRegistration {
+function registration(manifest: MossModuleManifest): BuiltInModuleRegistration {
   return { manifest, sqlMigrationDirectories: [], queueDefinitions: [] };
 }
 
-function baseManifest(overrides: Partial<JarvisModuleManifest>): JarvisModuleManifest {
+function baseManifest(overrides: Partial<MossModuleManifest>): MossModuleManifest {
   return {
     id: "fixture",
     name: "Fixture",
@@ -49,7 +49,7 @@ describe("app-map manifest contracts", () => {
       path: "/settings/modules/news",
       scope: "user"
     };
-    const error: JarvisError = {
+    const error: MossError = {
       code: "news.add_source.no_json_model",
       class: "prerequisite",
       remediationRef: "news.add_source.configure_json_model"
@@ -70,7 +70,7 @@ describe("app-map manifest contracts", () => {
           errors: [{ ...error, description: "No compatible model is configured." }]
         }
       ]
-    } satisfies JarvisModuleManifest;
+    } satisfies MossModuleManifest;
     expect(manifest.features[0]!.errors[0]!.code).toBe(error.code);
   });
 

@@ -804,5 +804,5 @@ export const postHerdrInstallRouteSchema = {
 } as const;
 
 // #917/#918 module admin + credential contracts moved to platform-api-modules.ts
-// (file-size gate). Re-exported so @jarv1s/shared consumers see no change.
+// (file-size gate). Re-exported so @moss/shared consumers see no change.
 export * from "./platform-api-modules.js";

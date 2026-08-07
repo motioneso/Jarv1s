@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
 
-import type { AccessContext, DataContextDb, DataContextRunner, PreferencesPort } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, DataContextRunner, PreferencesPort } from "@moss/db";
 
 import { registerCalendarRoutes } from "../../packages/calendar/src/routes.js";
 

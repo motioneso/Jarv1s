@@ -1,14 +1,14 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextRunner } from "@moss/db";
+import { HttpError } from "@moss/module-sdk";
 import {
   deleteWebSearchKeyRouteSchema,
   getWebSearchKeyRouteSchema,
   putWebSearchKeyRouteSchema,
   type PutWebSearchKeyRequest,
   type WebSearchKeyStatusDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import type { SettingsRepository } from "./repository.js";
 import { handleSettingsRouteError } from "./route-error.js";

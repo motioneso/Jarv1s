@@ -2,9 +2,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle, TriangleAlert } from "lucide-react";
 import { useId, useState, type FormEvent } from "react";
 
-import { Button, Dialog } from "@jarv1s/ui";
-import type { MeResponse } from "@jarv1s/shared";
-import { DELETE_MY_ACCOUNT_PHRASE } from "@jarv1s/shared";
+import { Button, Dialog } from "@moss/ui";
+import type { MeResponse } from "@moss/shared";
+import { DELETE_MY_ACCOUNT_PHRASE } from "@moss/shared";
 
 import { ApiError, deleteMyAccount } from "../api/client";
 import { queryKeys } from "../api/query-keys";

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { EmailRepository } from "@jarv1s/email";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { EmailRepository } from "@moss/email";
 import type { Kysely } from "kysely";
 import {
   ConnectorsRepository,
@@ -13,11 +13,11 @@ import {
   type ImapProbeClient,
   type ImapProbeInput,
   type ImapProbeResult
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 import { connectionStrings, ids, resetFoundationDatabase, testImap } from "./test-database.js";
 
 describe("imap connector definitions", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
 
   beforeAll(async () => {
@@ -44,7 +44,7 @@ describe("imap connector definitions", () => {
 });
 
 describe("ConnectorsRepository.upsertImapAccount — scope persistence", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let originalSecretKey: string | undefined;
 
@@ -130,7 +130,7 @@ describe("ConnectorsRepository.upsertImapAccount — scope persistence", () => {
 });
 
 describe("runImapSync", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let originalSecretKey: string | undefined;
 
@@ -294,7 +294,7 @@ class FakeImapProbeClient implements ImapProbeClient {
 }
 
 describe("ImapConnectionService", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let originalSecretKey: string | undefined;
 

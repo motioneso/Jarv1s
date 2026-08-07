@@ -11,8 +11,8 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-import type { RpcConnection } from "@jarv1s/chat";
-import type { OnboardingProviderCheckResponse } from "@jarv1s/shared";
+import type { RpcConnection } from "@moss/chat";
+import type { OnboardingProviderCheckResponse } from "@moss/shared";
 
 import {
   makeCliPresentProbe,
@@ -96,7 +96,7 @@ describe("makeProviderConnectionCheckProbe — socket route (§4.8)", () => {
   });
 
   it("surfaces multiplexer_unavailable when the socket call fails with CliChatUnavailableError", async () => {
-    const { CliChatUnavailableError } = await import("@jarv1s/chat");
+    const { CliChatUnavailableError } = await import("@moss/chat");
     const probe = makeProviderConnectionCheckProbe({
       engineFactory: () => {
         throw new Error("unused");

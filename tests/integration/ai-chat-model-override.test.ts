@@ -3,14 +3,14 @@ import type { Kysely } from "kysely";
 import pg from "pg";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
 
 describe("AI chat model override", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let server: ReturnType<typeof createApiServer>;
   let boss: PgBoss;

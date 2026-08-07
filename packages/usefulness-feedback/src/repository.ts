@@ -5,8 +5,8 @@ import {
   type DataContextDb,
   type UsefulnessFeedbackKind,
   type UsefulnessFeedbackSignal
-} from "@jarv1s/db";
-import type { FeedbackSurface, FeedbackTargetKind } from "@jarv1s/shared";
+} from "@moss/db";
+import type { FeedbackSurface, FeedbackTargetKind } from "@moss/shared";
 
 import type { FeedbackTargetVerification } from "./target-verifiers.js";
 

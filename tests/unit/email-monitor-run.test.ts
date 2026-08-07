@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { DataContextDb, EmailMessage } from "@jarv1s/db";
+import type { DataContextDb, EmailMessage } from "@moss/db";
 import {
   buildGmailThreadLink,
   buildEmailActionLink,
@@ -15,7 +15,7 @@ import {
   type EmailContextResult,
   type MonitorPreferencesPort,
   type RunEmailMonitorDeps
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 
 const DB = {} as DataContextDb;
 const ACCOUNT = "acct-1";

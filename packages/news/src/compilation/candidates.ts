@@ -1,6 +1,6 @@
 import { Parser } from "htmlparser2";
 
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 import { decideSourcePolicy } from "../discovery/policy-validation.js";
 import type { NewsAiPort, NewsSafeFetchPort, NewsWebSearchPort } from "../discovery/ports.js";

@@ -1,4 +1,4 @@
-import type { ExternalSourceAdapter, ModuleExternalSourceManifest } from "@jarv1s/module-sdk";
+import type { ExternalSourceAdapter, ModuleExternalSourceManifest } from "@moss/module-sdk";
 
 import { DatasetCache, DEFAULT_STALE_RETENTION_MS } from "./cache.js";
 import { createHostPinnedFetch, HostPinningViolationError } from "./host-pinning.js";

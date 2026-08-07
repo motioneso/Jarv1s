@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { dataContextBrand, type DataContextDb, type EmailMessage } from "@jarv1s/db";
-import type { ToolContext } from "@jarv1s/module-sdk";
-import { GoogleApiError, GoogleConnectError } from "@jarv1s/connectors";
-import { buildEmailWriteService, type EmailWriteImplDeps } from "@jarv1s/chat";
+import { dataContextBrand, type DataContextDb, type EmailMessage } from "@moss/db";
+import type { ToolContext } from "@moss/module-sdk";
+import { GoogleApiError, GoogleConnectError } from "@moss/connectors";
+import { buildEmailWriteService, type EmailWriteImplDeps } from "@moss/chat";
 
 const ctx: ToolContext = { actorUserId: "user-1", requestId: "req-1" } as ToolContext;
 const scopedDb = { db: {} as never, [dataContextBrand]: true } satisfies DataContextDb;

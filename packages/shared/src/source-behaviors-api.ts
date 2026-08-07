@@ -7,7 +7,7 @@ import { errorResponseSchema } from "./schema-fragments.js";
  *   uses this yet; it is forward-compat for opt-in behaviors and is covered by source-behaviors.test.ts.
  * - `coming-soon`: shown but not yet available (not toggleable).
  *
- * NOTE: this union is mirrored in @jarv1s/module-sdk (SourceBehaviorDefault) — keep both in sync.
+ * NOTE: this union is mirrored in @moss/module-sdk (SourceBehaviorDefault) — keep both in sync.
  */
 export type SourceBehaviorDefault = "default-on" | "default-off" | "coming-soon";
 

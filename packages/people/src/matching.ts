@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { PersonContextSignal } from "@jarv1s/module-sdk";
+import type { PersonContextSignal } from "@moss/module-sdk";
 import type { PersonIdentityKind, PersonCandidateKind } from "./types.js";
 
 export function normalizeIdentity(kind: PersonIdentityKind, raw: string): string {

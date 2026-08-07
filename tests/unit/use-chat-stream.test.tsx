@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ChatMessageDto, ChatSurface, ChatThreadDto } from "@jarv1s/shared";
+import type { ChatMessageDto, ChatSurface, ChatThreadDto } from "@moss/shared";
 
 import {
   listChatThreadMessages,

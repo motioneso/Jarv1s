@@ -1,9 +1,9 @@
-import type { ProviderKind } from "@jarv1s/ai";
+import type { ProviderKind } from "@moss/ai";
 import type {
   AnswerProvenanceMetadataV1,
   AiProviderExecutionMode,
   SourceFreshnessV1
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import type { StoredAttachmentMeta } from "../attachments-service.js";
 import type { RecallPort } from "../recall-port.js";
@@ -27,7 +27,7 @@ import type {
   EngineKillOpts,
   TranscriptRecord
 } from "./types.js";
-import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
+import type { PriorityModelPreferenceV1 } from "@moss/priority";
 import {
   DEFAULT_CHAT_SURFACE,
   normalizeChatSurface,

@@ -1,12 +1,12 @@
-import type { DataContextDb } from "@jarv1s/db";
-import type { ProactiveMonitorProvider } from "@jarv1s/module-sdk";
+import type { DataContextDb } from "@moss/db";
+import type { ProactiveMonitorProvider } from "@moss/module-sdk";
 import {
   rankPriorityCandidates,
   type PriorityCandidate,
   type PriorityPreferencesRepository,
   type PrioritySource
-} from "@jarv1s/priority";
-import type { ProactiveSource } from "@jarv1s/shared";
+} from "@moss/priority";
+import type { ProactiveSource } from "@moss/shared";
 
 import type { AntiSpamPolicy } from "./anti-spam.js";
 import type { CardRepository } from "./card-repository.js";

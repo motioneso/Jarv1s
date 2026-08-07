@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb, type EmailMessage } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb, type EmailMessage } from "@moss/db";
 
 function hasCompleteTriage(signals: unknown): boolean {
   if (!signals || typeof signals !== "object" || Array.isArray(signals)) return false;

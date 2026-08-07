@@ -1,4 +1,4 @@
-import type { ActorScopedJobPayload } from "@jarv1s/jobs";
+import type { ActorScopedJobPayload } from "@moss/jobs";
 
 export interface GoalMemorySyncPayload extends ActorScopedJobPayload {
   readonly goalId: string;

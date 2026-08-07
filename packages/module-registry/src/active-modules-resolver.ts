@@ -1,12 +1,12 @@
-import type { DataContextRunner } from "@jarv1s/db";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { SettingsRepository } from "@jarv1s/settings";
+import type { DataContextRunner } from "@moss/db";
+import type { MossModuleManifest } from "@moss/module-sdk";
+import { SettingsRepository } from "@moss/settings";
 
-import type { ActiveModulesResolver } from "@jarv1s/ai";
+import type { ActiveModulesResolver } from "@moss/ai";
 
 export interface ActiveModulesResolverDeps {
   readonly dataContext: DataContextRunner;
-  readonly manifests: readonly JarvisModuleManifest[];
+  readonly manifests: readonly MossModuleManifest[];
 }
 
 /**
@@ -21,7 +21,7 @@ export function createActiveModulesResolver(
 ): ActiveModulesResolver {
   const repository = new SettingsRepository();
 
-  return async (actorUserId: string): Promise<readonly JarvisModuleManifest[]> => {
+  return async (actorUserId: string): Promise<readonly MossModuleManifest[]> => {
     const denyRows = await deps.dataContext.withDataContext({ actorUserId }, (scopedDb) =>
       repository.listModuleDenyRowsForActor(scopedDb)
     );

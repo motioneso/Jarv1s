@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { GoogleApiClient } from "@jarv1s/connectors";
+import { GoogleApiClient } from "@moss/connectors";
 
 function captureFetch(body: unknown) {
   const calls: Array<{ url: string; init?: RequestInit }> = [];

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import type { FastifyInstance } from "fastify";
 
-import type { HerdrInstallDependencies } from "@jarv1s/settings";
+import type { HerdrInstallDependencies } from "@moss/settings";
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 

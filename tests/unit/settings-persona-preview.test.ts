@@ -1,6 +1,6 @@
 import { describe, expect, it, afterEach, vi } from "vitest";
 
-import { AiRepository, AiSecretCipher, HttpApiAdapter } from "@jarv1s/ai";
+import { AiRepository, AiSecretCipher, HttpApiAdapter } from "@moss/ai";
 import {
   applyGuidedPersonaText,
   createPersonaDraft,
@@ -12,7 +12,7 @@ import {
   createDefaultPersonaPreview,
   readPersonaPreviewResult
 } from "../../packages/module-registry/src/built-in-module-helpers.js";
-import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
+import type { DataContextDb, DataContextRunner } from "@moss/db";
 
 const model = {
   provider_config_id: "provider-1",

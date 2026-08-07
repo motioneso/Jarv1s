@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 import { getConnectorSyncAt } from "../../packages/connectors/src/freshness.js";
 import type { ConnectorAccountSafeRow } from "../../packages/connectors/src/repository.js";

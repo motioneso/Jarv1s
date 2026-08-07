@@ -1,4 +1,4 @@
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
 import {
   chooseSlot,
   focusBlockEventId,
@@ -10,7 +10,7 @@ import {
   type CalendarWriteOptions,
   type DeleteEventInput,
   type DeleteEventResult
-} from "@jarv1s/calendar";
+} from "@moss/calendar";
 import {
   GoogleApiError,
   GoogleConnectError,
@@ -19,9 +19,9 @@ import {
   type GoogleConnectionService,
   type ConnectorsRepository,
   type GoogleApiClient
-} from "@jarv1s/connectors";
-import type { ToolContext } from "@jarv1s/module-sdk";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+} from "@moss/connectors";
+import type { ToolContext } from "@moss/module-sdk";
+import { PreferencesRepository } from "@moss/structured-state";
 
 export interface CalendarWriteImplDeps {
   readonly googleService: GoogleConnectionService;

@@ -4,7 +4,7 @@ import type {
   BriefingRunDto,
   CreateBriefingDefinitionRequest,
   UpdateBriefingDefinitionRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 export interface MockBriefingsApiState {
   briefingDefinitions?: BriefingDefinitionDto[];

@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
-import type { AccessContext, DataContextRunner, JarvisDatabase, PreferencesPort } from "@jarv1s/db";
+import type { AccessContext, DataContextRunner, MossDatabase, PreferencesPort } from "@moss/db";
 import {
   AI_MODEL_CAPABILITIES,
   CHAT_SETTINGS_PREFERENCE_KEY,
@@ -15,7 +15,7 @@ import {
   type AiModelCapability,
   type AnswerSourceSupportCard,
   type PutChatSettingsRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import {
   AiRepository,
   AssistantToolGateway,
@@ -25,25 +25,25 @@ import {
   type GatewaySessionRecord,
   type ProviderKind,
   type SessionNotifier
-} from "@jarv1s/ai";
-import { PreferencesRepository } from "@jarv1s/structured-state";
-import { getConnectorSyncAt } from "@jarv1s/connectors";
+} from "@moss/ai";
+import { PreferencesRepository } from "@moss/structured-state";
+import { getConnectorSyncAt } from "@moss/connectors";
 import type {
   ConnectorsRepository,
   FeatureGrantService,
   GoogleApiClient,
   GoogleConnectionService,
   SourceContextService
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 import {
   ChatMemoryFactsRepository,
   ChatMemorySuppressionsRepository,
   createMemoryFactSignature
-} from "@jarv1s/memory";
+} from "@moss/memory";
 import {
   handleRouteError as handleModuleRouteError,
-  type JarvisModuleManifest
-} from "@jarv1s/module-sdk";
+  type MossModuleManifest
+} from "@moss/module-sdk";
 import { ChatGatewayNotifier } from "./gateway-notifier.js";
 import { readRouteSurface } from "./live/chat-surface.js";
 import { registerChatLiveRoutes, type EveningInterviewSeed } from "./live-routes.js";
@@ -67,7 +67,7 @@ import {
 } from "./memory-serializers.js";
 import { readStoredProvenance, provenanceCards } from "./live/answer-provenance.js";
 import { registerMcpTransportRoute, registerNativePermissionRoute } from "./mcp-transport.js";
-import { VaultContextRunner, getVaultBaseDir } from "@jarv1s/vault";
+import { VaultContextRunner, getVaultBaseDir } from "@moss/vault";
 
 import { registerChatAttachmentRoutes } from "./attachments-routes.js";
 import { ChatAttachmentsService } from "./attachments-service.js";
@@ -75,7 +75,7 @@ import { ChatRepository } from "./repository.js";
 import { asRecord, serializeMessage, serializeThread } from "./route-serializers.js";
 import { registerChatSkillsRoutes } from "./skills/routes.js";
 import { ChatSkillsRepository } from "./skills/repository.js";
-import { type AppMapReadService } from "@jarv1s/settings";
+import { type AppMapReadService } from "@moss/settings";
 import { buildChatGatewayDependencies } from "./gateway-services.js";
 
 export {
@@ -87,7 +87,7 @@ export {
 const STALE_ACTION_GRACE_MS = 5 * 60_000;
 
 export interface ChatRoutesDependencies {
-  readonly rootDb: Kysely<JarvisDatabase>;
+  readonly rootDb: Kysely<MossDatabase>;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly dataContext: DataContextRunner;
   readonly repository?: ChatRepository;
@@ -118,7 +118,7 @@ export interface ChatRoutesDependencies {
   /** Injected by the composition root; app-map read tool (#1110). Never bucket under collaborators. */
   readonly appMapService?: AppMapReadService;
   /** Injected by the composition root; settings.notificationPreference.setEnabled tool service. */
-  readonly listModuleManifests?: () => readonly JarvisModuleManifest[];
+  readonly listModuleManifests?: () => readonly MossModuleManifest[];
   /**
    * #342 (§3.5 boot-time fork) — when no explicit {@link chatEngineFactory} is supplied, hand this to
    * {@link createChatSessionRuntime} so the runtime selects the engine factory itself: the RPC client

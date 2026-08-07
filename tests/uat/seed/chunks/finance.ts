@@ -1,5 +1,5 @@
-import type { DataContextRunner } from "@jarv1s/db";
-import { setModuleKvValue } from "@jarv1s/settings";
+import type { DataContextRunner } from "@moss/db";
+import { setModuleKvValue } from "@moss/settings";
 
 /**
  * FIN-02 (#1147) Task 12: finance module-KV fixtures for the feed UAT.

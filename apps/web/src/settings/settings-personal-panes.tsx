@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { LocaleSettingsDto, MeResponse, QuietHoursSettingsDto } from "@jarv1s/shared";
+import type { LocaleSettingsDto, MeResponse, QuietHoursSettingsDto } from "@moss/shared";
 import { Check, LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 

@@ -1,4 +1,4 @@
-import { assertDataContextDb } from "@jarv1s/db";
+import { assertDataContextDb } from "@moss/db";
 import { normalizeIdentity } from "./matching.js";
 import type { PeopleRepository } from "./repository.js";
 import type {

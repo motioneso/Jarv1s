@@ -4,9 +4,9 @@
  * (already substantial) retrieval orchestration lives in its own module rather than
  * growing the manager class further.
  */
-import type { AnswerSourceSupport, ChatSurface } from "@jarv1s/shared";
-import type { MemoryRecallItem } from "@jarv1s/memory";
-import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
+import type { AnswerSourceSupport, ChatSurface } from "@moss/shared";
+import type { MemoryRecallItem } from "@moss/memory";
+import type { PriorityModelPreferenceV1 } from "@moss/priority";
 
 import { crossToolItemToSupport, memoryItemToSupport } from "./answer-provenance.js";
 import type { ChatPersistencePort, PassiveRetrievalPort } from "./chat-session-manager.js";

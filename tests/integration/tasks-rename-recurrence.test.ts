@@ -3,20 +3,15 @@ import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { createPgBossClient } from "@jarv1s/jobs";
-import { TASKS_RECURRENCE_QUEUE, TaskListsRepository, TasksRepository } from "@jarv1s/tasks";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
+import { createPgBossClient } from "@moss/jobs";
+import { TASKS_RECURRENCE_QUEUE, TaskListsRepository, TasksRepository } from "@moss/tasks";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 // Task 21: list/tag rename+delete HTTP routes + recurrence-schedule reconcile on create + list-load.
 // Lives in its own file (and harness) so the already-large tasks.test.ts is not bloated further.
 describe("Tasks module — rename/delete routes + recurrence reconcile", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: TasksRepository;
   let listsRepo: TaskListsRepository;

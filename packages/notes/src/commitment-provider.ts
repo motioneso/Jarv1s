@@ -1,4 +1,4 @@
-import type { CommitmentExtractionProvider, CommitmentTextBoundary } from "@jarv1s/module-sdk";
+import type { CommitmentExtractionProvider, CommitmentTextBoundary } from "@moss/module-sdk";
 
 export const notesCommitmentProvider: CommitmentExtractionProvider = {
   sourceKind: "notes",

@@ -1,9 +1,9 @@
 // tests/unit/sports-chat-tools.test.ts
 import { describe, expect, it } from "vitest";
 
-import { dataContextBrand, type DataContextDb } from "@jarv1s/db";
-import type { CreateSportsFollowRequest, SportsFollowDto } from "@jarv1s/shared";
-import type { ToolExecute } from "@jarv1s/module-sdk";
+import { dataContextBrand, type DataContextDb } from "@moss/db";
+import type { CreateSportsFollowRequest, SportsFollowDto } from "@moss/shared";
+import type { ToolExecute } from "@moss/module-sdk";
 
 import {
   configureSportsChatTools,

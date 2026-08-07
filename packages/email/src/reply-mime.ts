@@ -1,4 +1,4 @@
-import type { EmailMessage } from "@jarv1s/db";
+import type { EmailMessage } from "@moss/db";
 
 /**
  * The addressing derived for a reply. This is the ONLY source of truth for who a

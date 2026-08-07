@@ -1,17 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql, type Kysely } from "kysely";
 
-import {
-  DataContextRunner,
-  createDatabase,
-  type DataContextDb,
-  type JarvisDatabase
-} from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type DataContextDb, type MossDatabase } from "@moss/db";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
-let appDb: Kysely<JarvisDatabase>;
-let workerDb: Kysely<JarvisDatabase>;
-let migrationDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
+let workerDb: Kysely<MossDatabase>;
+let migrationDb: Kysely<MossDatabase>;
 let appDataContext: DataContextRunner;
 let workerDataContext: DataContextRunner;
 

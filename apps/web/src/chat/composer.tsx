@@ -9,7 +9,7 @@ import {
   useState
 } from "react";
 
-import type { ChatAttachmentDto } from "@jarv1s/shared";
+import type { ChatAttachmentDto } from "@moss/shared";
 
 import {
   ApiError,

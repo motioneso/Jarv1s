@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useEffect, useMemo, type ComponentType, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router";
-import { MODULE_WEB_CONTRIBUTIONS, MODULE_WEB_ROUTES } from "virtual:jarvis-module-web";
-import { confineModuleCss } from "@jarv1s/module-css-confine";
+import { MODULE_WEB_CONTRIBUTIONS, MODULE_WEB_ROUTES } from "virtual:moss-module-web";
+import { confineModuleCss } from "@moss/module-css-confine";
 
 import {
   ApiError,
@@ -53,7 +53,7 @@ const WellnessPage = lazy(() =>
 );
 
 /**
- * Generic module-web route docking (#799). Each `virtual:jarvis-module-web` route entry names a
+ * Generic module-web route docking (#799). Each `virtual:moss-module-web` route entry names a
  * moduleId + path from the module's backend manifest; the matching `./web` contribution is lazily
  * loaded and its declared `routes[].element` (matched by path) is rendered. Computed once at
  * module scope (not per-render) so each route keeps a stable `lazy()` identity across App renders.
@@ -394,7 +394,7 @@ function ModuleCssScope(props: {
   const { moduleId, css } = props;
   useEffect(() => {
     if (!css) return undefined;
-    const styleId = `jarvis-module-css-${moduleId}`;
+    const styleId = `moss-module-css-${moduleId}`;
     if (!document.getElementById(styleId)) {
       const { css: confined, rejectedAtRules } = confineModuleCss(css, moduleId);
       if (rejectedAtRules.length > 0) {

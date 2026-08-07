@@ -3,9 +3,9 @@ import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
-import type { AiProviderConfigDto } from "@jarv1s/shared";
+import type { AiProviderConfigDto } from "@moss/shared";
 
-// #1059 — root suite renders @jarv1s/web components with react-dom/server (no jsdom /
+// #1059 — root suite renders @moss/web components with react-dom/server (no jsdom /
 // @testing-library — deliberately avoided repo-wide; see settings-appearance-pane.test.tsx).
 // useQuery reads primed cache synchronously during renderToString, so the resolved
 // state (no-password vs locked) is asserted against the SSR HTML string. The xterm

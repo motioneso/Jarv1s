@@ -6,18 +6,18 @@ import { join } from "node:path";
 import type { Kysely } from "kysely";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildChatToolServices } from "@jarv1s/chat";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import { PreferencesRepository } from "@jarv1s/structured-state";
-import { NOTES_SOURCE_PREFERENCE_KEY } from "@jarv1s/settings";
+import { buildChatToolServices } from "@moss/chat";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import type { MossModuleManifest } from "@moss/module-sdk";
+import { PreferencesRepository } from "@moss/structured-state";
+import { NOTES_SOURCE_PREFERENCE_KEY } from "@moss/settings";
 import {
   notesModuleManifest,
   notesCreateExecute,
   notesDeleteExecute,
   notesEditExecute,
   type NotesSyncToolService
-} from "@jarv1s/notes";
+} from "@moss/notes";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
@@ -25,7 +25,7 @@ describe("notes write assistant tools", () => {
   const prefs = new PreferencesRepository();
   let runner: DataContextRunner;
   let root: string;
-  let db: Kysely<JarvisDatabase>;
+  let db: Kysely<MossDatabase>;
   let syncs: string[];
   let service: NotesSyncToolService;
 
@@ -55,7 +55,7 @@ describe("notes write assistant tools", () => {
   });
 
   it("declares create/edit/delete as auto write tools", () => {
-    const tools = new Map<string, NonNullable<JarvisModuleManifest["assistantTools"]>[number]>(
+    const tools = new Map<string, NonNullable<MossModuleManifest["assistantTools"]>[number]>(
       (notesModuleManifest.assistantTools ?? []).map((tool) => [tool.name, tool])
     );
     expect(tools.get("notes.create")?.risk).toBe("write");
@@ -77,7 +77,7 @@ describe("notes write assistant tools", () => {
   });
 
   it("grants notes.create, notes.edit, and notes.delete at install", () => {
-    const tools = new Map<string, NonNullable<JarvisModuleManifest["assistantTools"]>[number]>(
+    const tools = new Map<string, NonNullable<MossModuleManifest["assistantTools"]>[number]>(
       (notesModuleManifest.assistantTools ?? []).map((tool) => [tool.name, tool])
     );
     expect(tools.get("notes.create")?.selfOperationGrant).toBe("granted_at_install");
@@ -91,7 +91,7 @@ describe("notes write assistant tools", () => {
   });
 
   it("discloses overwrite in notes.create summary and flags it as always-confirm", () => {
-    const tools = new Map<string, NonNullable<JarvisModuleManifest["assistantTools"]>[number]>(
+    const tools = new Map<string, NonNullable<MossModuleManifest["assistantTools"]>[number]>(
       (notesModuleManifest.assistantTools ?? []).map((tool) => [tool.name, tool])
     );
     const create = tools.get("notes.create");
@@ -123,7 +123,7 @@ describe("notes write assistant tools", () => {
   it("gateway auto-runs create/edit/delete under trusted_auto", async () => {
     const emitted: unknown[] = [];
     const { AiRepository, AssistantToolGateway, ConfirmationRegistry, SessionTokenRegistry } =
-      await import("@jarv1s/ai");
+      await import("@moss/ai");
     const repository = new AiRepository();
     const tokens = new SessionTokenRegistry();
     const confirmations = new ConfirmationRegistry();
@@ -177,7 +177,7 @@ describe("notes write assistant tools", () => {
 
     const emitted: unknown[] = [];
     const { AiRepository, AssistantToolGateway, ConfirmationRegistry, SessionTokenRegistry } =
-      await import("@jarv1s/ai");
+      await import("@moss/ai");
     const repository = new AiRepository();
     const tokens = new SessionTokenRegistry();
     const confirmations = new ConfirmationRegistry();

@@ -8,9 +8,9 @@ import {
   type AiSecretCipher,
   type ChatProviderAdapter,
   type ProviderKind
-} from "@jarv1s/ai";
-import type { AccessContext, DataContextRunner, PreferencesPort } from "@jarv1s/db";
-import { localDay } from "@jarv1s/shared";
+} from "@moss/ai";
+import type { AccessContext, DataContextRunner, PreferencesPort } from "@moss/db";
+import { localDay } from "@moss/shared";
 
 import { HttpError } from "./errors.js";
 import { TaskListsRepository } from "./lists.js";

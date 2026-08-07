@@ -1,5 +1,5 @@
-import type { DataContextRunner } from "@jarv1s/db";
-import { NewsPrefsRepository } from "@jarv1s/news";
+import type { DataContextRunner } from "@moss/db";
+import { NewsPrefsRepository } from "@moss/news";
 
 // #1025 "lived-in account" (Ben, 2026-07-13): a realistic topic/source spread,
 // not a single token row — proves the UI against real-feeling volume.

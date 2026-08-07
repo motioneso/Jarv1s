@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PgBoss } from "pg-boss";
 
-import { createAiSecretCipher, type AiRepository } from "@jarv1s/ai";
-import { composeBriefing, type BriefingsRepository } from "@jarv1s/briefings";
-import type { DataContextRunner } from "@jarv1s/db";
+import { createAiSecretCipher, type AiRepository } from "@moss/ai";
+import { composeBriefing, type BriefingsRepository } from "@moss/briefings";
+import type { DataContextRunner } from "@moss/db";
 import {
   makeComposeDeps,
   setupBriefingsHarness,

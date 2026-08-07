@@ -1,4 +1,4 @@
-import type { GatewaySessionRecord, SessionNotifier } from "@jarv1s/ai";
+import type { GatewaySessionRecord, SessionNotifier } from "@moss/ai";
 import type { ChatSessionManager } from "./live/chat-session-manager.js";
 import { parseSurfaceSessionKey } from "./live/chat-surface.js";
 import type { TranscriptRecord } from "./live/types.js";

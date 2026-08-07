@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-import { Button, IconButton } from "@jarv1s/ui";
+import { Button, IconButton } from "@moss/ui";
 import {
   createAiProvider,
   getChatModelOverrideSettings,
@@ -57,7 +57,7 @@ import {
   type AiProviderKind,
   type AiServiceBinding,
   type AiServiceKey
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 const PROVIDER_CATALOG: readonly {
   readonly label: string;

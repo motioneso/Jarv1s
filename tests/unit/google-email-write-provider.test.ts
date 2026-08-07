@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { GoogleEmailWriteProvider } from "@jarv1s/connectors";
-import { GoogleApiError, GoogleConnectError } from "@jarv1s/connectors";
-import type { DataContextDb, EmailMessage } from "@jarv1s/db";
+import { GoogleEmailWriteProvider } from "@moss/connectors";
+import { GoogleApiError, GoogleConnectError } from "@moss/connectors";
+import type { DataContextDb, EmailMessage } from "@moss/db";
 
 describe("GoogleEmailWriteProvider", () => {
   const mockGoogleService = {

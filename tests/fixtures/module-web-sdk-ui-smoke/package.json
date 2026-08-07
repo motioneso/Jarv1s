@@ -2,5 +2,5 @@
   "name": "module-web-sdk-ui-smoke",
   "private": true,
   "version": "0.0.0",
-  "description": "Test-only fixture module (#1388 Foundation task 11): proves a @jarv1s/ui component renders live through @jarv1s/module-web-sdk's re-export + JSX shim, without editing finance's or job-search's real screens."
+  "description": "Test-only fixture module (#1388 Foundation task 11): proves a @moss/ui component renders live through @moss/module-web-sdk's re-export + JSX shim, without editing finance's or job-search's real screens."
 }

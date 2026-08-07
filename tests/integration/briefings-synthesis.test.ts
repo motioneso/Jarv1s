@@ -1,19 +1,19 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PgBoss } from "pg-boss";
 
-import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
+import { AiRepository, createAiSecretCipher } from "@moss/ai";
 import {
   BRIEFINGS_RUN_QUEUE,
   composeBriefing,
   type BriefingRunPayload,
   type ComposeDeps,
   type BriefingsRepository
-} from "@jarv1s/briefings";
-import type { DataContextRunner } from "@jarv1s/db";
-import type { MemoryRetriever } from "@jarv1s/memory";
-import type { NotificationsRepository } from "@jarv1s/notifications";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+} from "@moss/briefings";
+import type { DataContextRunner } from "@moss/db";
+import type { MemoryRetriever } from "@moss/memory";
+import type { NotificationsRepository } from "@moss/notifications";
+import { getBuiltInModuleManifests } from "@moss/module-registry";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import { ids } from "./test-database.js";
 import {
   handleNextBriefingJobWithNotifications,
@@ -142,7 +142,7 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
     // capturing manifest that owns one of those names — so it is the sole match compose
     // finds and executes exactly once.
     const capturedContexts: { actorUserId: string; requestId: string }[] = [];
-    const capturingManifest: JarvisModuleManifest = {
+    const capturingManifest: MossModuleManifest = {
       id: "ctx-check",
       name: "CtxCheck",
       version: "0.0.0",
@@ -191,7 +191,7 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
   });
 
   it("projects only allow-listed fields from a tool's declared array, never undeclared content", async () => {
-    const genericManifest: JarvisModuleManifest = {
+    const genericManifest: MossModuleManifest = {
       id: "generic-section",
       name: "GenericSection",
       version: "0.0.0",
@@ -529,7 +529,7 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
       commitments?: () => Record<string, unknown>;
       emailSubject?: string;
     }
-  ): JarvisModuleManifest {
+  ): MossModuleManifest {
     const todayIso = now.toISOString();
     return {
       id: "canary-sources",
@@ -628,7 +628,7 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
   }
 
   function captureDeps(
-    manifest: JarvisModuleManifest,
+    manifest: MossModuleManifest,
     retriever: MemoryRetriever,
     cipher: ReturnType<typeof createAiSecretCipher>
   ): { deps: ComposeDeps; captured: string[] } {
@@ -665,7 +665,7 @@ describe("Briefings synthesis, scheduling, and notification path (P3 real-briefi
   }
 
   async function runCapture(
-    manifest: JarvisModuleManifest,
+    manifest: MossModuleManifest,
     retriever: MemoryRetriever
   ): Promise<string> {
     const cipher = createAiSecretCipher();

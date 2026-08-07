@@ -11,9 +11,9 @@ import {
   createDatabase,
   type AccessContext,
   type DataContextDb,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { VaultContextRunner, readVaultFile, vaultFileExists, writeVaultFile } from "@jarv1s/vault";
+  type MossDatabase
+} from "@moss/db";
+import { VaultContextRunner, readVaultFile, vaultFileExists, writeVaultFile } from "@moss/vault";
 import {
   CommitmentsRepository,
   EntitiesRepository,
@@ -21,7 +21,7 @@ import {
   PreferencesRepository,
   VaultWriteBackService,
   structuredStateModuleManifest
-} from "@jarv1s/structured-state";
+} from "@moss/structured-state";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
@@ -33,8 +33,8 @@ function ctx(actorUserId: string): AccessContext {
   return { actorUserId, requestId: "req:structured-state-test" };
 }
 
-let appDb: Kysely<JarvisDatabase>;
-let workerDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
+let workerDb: Kysely<MossDatabase>;
 let dataContext: DataContextRunner;
 let workerContext: DataContextRunner;
 

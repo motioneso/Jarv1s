@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { Type } from "@sinclair/typebox";
 import type { PgBoss } from "pg-boss";
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import { listVaultDirectories, VaultPathError, type VaultContextRunner } from "@jarv1s/vault";
+import type { AccessContext, DataContextRunner } from "@moss/db";
+import { listVaultDirectories, VaultPathError, type VaultContextRunner } from "@moss/vault";
 import { PeopleRepository } from "./repository.js";
 import { PersonContextService } from "./service.js";
 import {

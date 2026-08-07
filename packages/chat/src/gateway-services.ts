@@ -1,7 +1,7 @@
 import { sql } from "kysely";
 import type { PgBoss } from "pg-boss";
 
-import type { DataContextDb, DataContextRunner, PreferencesPort } from "@jarv1s/db";
+import type { DataContextDb, DataContextRunner, PreferencesPort } from "@moss/db";
 import {
   selfHealGrantedAtInstallTier,
   type AiRepository,
@@ -10,10 +10,10 @@ import {
   type ActiveModulesResolver,
   type AssistantToolGatewayDependencies,
   type SessionNotifier
-} from "@jarv1s/ai";
-import { CalendarRepository, sendCalendarCacheEvictJob } from "@jarv1s/calendar";
-import { EmailRepository } from "@jarv1s/email";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+} from "@moss/ai";
+import { CalendarRepository, sendCalendarCacheEvictJob } from "@moss/calendar";
+import { EmailRepository } from "@moss/email";
+import { PreferencesRepository } from "@moss/structured-state";
 import type {
   ConnectorSecretCipher,
   ConnectorsRepository,
@@ -21,21 +21,17 @@ import type {
   GoogleApiClient,
   GoogleConnectionService,
   SourceContextService
-} from "@jarv1s/connectors";
-import { sendJob } from "@jarv1s/jobs";
-import {
-  NOTES_SYNC_QUEUE,
-  type NotesSyncJobPayload,
-  type NotesSyncToolService
-} from "@jarv1s/notes";
-import { TasksCompatibilityHelper } from "@jarv1s/tasks";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+} from "@moss/connectors";
+import { sendJob } from "@moss/jobs";
+import { NOTES_SYNC_QUEUE, type NotesSyncJobPayload, type NotesSyncToolService } from "@moss/notes";
+import { TasksCompatibilityHelper } from "@moss/tasks";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import {
   SettingsRepository,
   setNotificationPreferenceEnabled,
   type AppMapReadService,
   type NotificationPreferenceWriteService
-} from "@jarv1s/settings";
+} from "@moss/settings";
 
 import { extractTimezone } from "./locale-utils.js";
 import { buildCalendarWriteService } from "./calendar-write-impl.js";
@@ -59,7 +55,7 @@ export function buildChatToolServices(deps: {
   cipher?: ConnectorSecretCipher;
   boss?: PgBoss;
   featureGrantService?: FeatureGrantService;
-  listModuleManifests?: () => readonly JarvisModuleManifest[];
+  listModuleManifests?: () => readonly MossModuleManifest[];
 }): Record<string, unknown> {
   const services: Record<string, unknown> = {};
   if (deps.googleConnectionService && deps.googleApiClient && deps.connectorsRepository) {
@@ -141,7 +137,7 @@ export function buildChatGatewayDependencies(args: {
     currentViewService?: CurrentViewReadService;
     /** #1133 — read-only vault-backed attachment reads for chat.readAttachment. */
     attachmentsService?: ChatAttachmentsService;
-    listModuleManifests?: () => readonly JarvisModuleManifest[];
+    listModuleManifests?: () => readonly MossModuleManifest[];
   };
 }): AssistantToolGatewayDependencies {
   return {

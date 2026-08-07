@@ -11,7 +11,7 @@ import type {
   LocaleSettingsDto,
   MeResponse,
   TaskDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";
 import { ChatControlsProvider } from "../../apps/web/src/shell/chat-controls-context.js";
@@ -318,7 +318,7 @@ function calendarEvent(overrides: Partial<CalendarEventDto> = {}): CalendarEvent
     summary: null,
     bodyExcerpt: null,
     externalId: "external-1",
-    isJarvisBlock: false,
+    isMossBlock: false,
     allDay: false,
     attendeeCount: 0,
     status: null,

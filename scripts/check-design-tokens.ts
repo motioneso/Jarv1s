@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
  *
  * Guard 4 (#1388 Foundation, D2): "A screen's own CSS may do layout only — position, spacing,
  * grid, flex. Colour, type, border, radius and shadow come from a component or a token." Once a
- * section migrates (its markup converted to @jarv1s/ui components, its CSS reduced to layout),
+ * section migrates (its markup converted to @moss/ui components, its CSS reduced to layout),
  * its CSS files are added to MIGRATED_SECTION_CSS_FILES and this guard starts rejecting any of
  * BANNED_VISUAL_PROPERTIES declared there. The list starts empty: Foundation converts no screens
  * (spec "Section 1 — Foundation... No screen changes"), so this guard must not red the tree on day

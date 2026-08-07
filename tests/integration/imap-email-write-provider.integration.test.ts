@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it } from "vitest";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
 import type { Kysely } from "kysely";
 import { ImapFlow } from "imapflow";
 import {
@@ -7,17 +7,17 @@ import {
   ImapEmailWriteProvider,
   createConnectorSecretCipher,
   type ImapConnectionSecret
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 import {
   connectionStrings,
   ids,
   resetFoundationDatabase,
   testImap
 } from "../integration/test-database.js";
-import type { EmailMessage } from "@jarv1s/db";
+import type { EmailMessage } from "@moss/db";
 
 describe("ImapEmailWriteProvider — GreenMail integration", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let originalSecretKey: string | undefined;
 

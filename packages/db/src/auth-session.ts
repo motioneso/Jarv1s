@@ -3,10 +3,10 @@ import { randomUUID } from "node:crypto";
 import { sql, type Kysely } from "kysely";
 
 import { isUuid, type AccessContext } from "./data-context.js";
-import type { JarvisDatabase } from "./types.js";
+import type { MossDatabase } from "./types.js";
 
 export class AuthSessionResolver {
-  constructor(private readonly db: Kysely<JarvisDatabase>) {}
+  constructor(private readonly db: Kysely<MossDatabase>) {}
 
   async resolveAccessContext(
     sessionId: string,

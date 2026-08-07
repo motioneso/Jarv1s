@@ -1,7 +1,7 @@
 import { Paperclip, X } from "lucide-react";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
-import type { ChatSurface } from "@jarv1s/shared";
-import { Button } from "@jarv1s/ui";
+import type { ChatSurface } from "@moss/shared";
+import { Button } from "@moss/ui";
 
 import { sendChatTurn } from "../../api/client";
 import { useAssistantName } from "../../api/use-assistant-name";
@@ -148,7 +148,7 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
             className={`assistant-surface__row assistant-surface__row--${row.role}`}
             key={row.id}
           >
-            {row.role === "assistant" ? <JarvisIdentity /> : null}
+            {row.role === "assistant" ? <MossIdentity /> : null}
             <div className={`jds-bubble jds-bubble--${row.role}`}>{row.content}</div>
           </div>
         ))}
@@ -156,7 +156,7 @@ export function AssistantSurface(props: AssistantSurfaceViewProps) {
         {props.typing ? <TypingRow /> : null}
         {props.activeControl ? (
           <div className="assistant-surface__row assistant-surface__row--control">
-            <JarvisIdentity />
+            <MossIdentity />
             {props.activeControl}
           </div>
         ) : null}
@@ -262,7 +262,7 @@ function TypingRow() {
   const assistantName = useAssistantName();
   return (
     <div className="assistant-surface__row assistant-surface__row--assistant assistant-surface__typing-row">
-      <JarvisIdentity />
+      <MossIdentity />
       <div
         className="assistant-surface__typing"
         aria-label={`${assistantName} is typing`}
@@ -276,7 +276,7 @@ function TypingRow() {
   );
 }
 
-function JarvisIdentity() {
+function MossIdentity() {
   const assistantName = useAssistantName();
   return (
     <span className="assistant-surface__identity">

@@ -8,7 +8,7 @@
 -- NULL guard: the trigger short-circuits when no actor GUC is set (migration/direct-DB
 -- paths), as those run outside the app_runtime security boundary.
 --
--- Bootstrap exemption: bootstrapFirstJarvisUser() (packages/auth/src/index.ts) sets the
+-- Bootstrap exemption: bootstrapFirstMossUser() (packages/auth/src/index.ts) sets the
 -- actor GUC to the new user's ID before calling the UPDATE so the self-row RLS policy
 -- passes. At that moment the user is not yet an admin, so without an exemption the
 -- trigger would block the legitimate first-user bootstrap. The exemption is safe: it

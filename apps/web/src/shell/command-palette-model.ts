@@ -1,5 +1,5 @@
 import { todayNavEntry, webRoutePath } from "../app-route-metadata.js";
-import type { ListThemesResponse, ModuleDto, ModuleNavigationEntryDto } from "@jarv1s/shared";
+import type { ListThemesResponse, ModuleDto, ModuleNavigationEntryDto } from "@moss/shared";
 
 export type CommandPaletteGroupLabel = "Navigate" | "Tasks" | "Appearance" | "Settings";
 

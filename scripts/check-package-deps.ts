@@ -8,7 +8,7 @@ import { extname, join } from "node:path";
  * "Modules collaborate only through declared public APIs" is a Hard Invariant, but nothing
  * previously stopped a package from importing a workspace sibling that pnpm's hoisted store
  * happens to resolve without ever declaring it in `package.json` — or from keeping a stale
- * `@jarv1s/*` dependency around after the last import of it was deleted. Both drift silently:
+ * `@moss/*` dependency around after the last import of it was deleted. Both drift silently:
  * the build keeps working (pnpm hoists everything into one `node_modules`), so nothing catches
  * it until a hoisting change or a fresh install breaks the package in isolation.
  *
@@ -18,7 +18,7 @@ import { extname, join } from "node:path";
  *  - **undeclared**: an import specifier resolves to an npm package not listed in that
  *    package's `dependencies`/`peerDependencies` → error. Type-only imports count too — they
  *    still require the dependency for typechecking.
- *  - **unused**: a declared `@jarv1s/*` workspace dependency with zero import hits anywhere in
+ *  - **unused**: a declared `@moss/*` workspace dependency with zero import hits anywhere in
  *    the package's `src/**` → error. Scoped to workspace deps only — external packages can be
  *    required only for side effects or re-exported types in ways this regex scan would miss,
  *    so flagging those would be noisier than useful.
@@ -85,7 +85,7 @@ async function main(): Promise<void> {
     }
 
     for (const declared of descriptor.declaredDependencyNames) {
-      if (!declared.startsWith("@jarv1s/")) {
+      if (!declared.startsWith("@moss/")) {
         continue; // unused-check is scoped to workspace deps only
       }
       if (!referencedPackages.has(declared)) {
@@ -103,7 +103,7 @@ async function main(): Promise<void> {
     const descriptor = await loadPackageDescriptor(packageDirectory);
     if (!descriptor) continue;
     const workspaceDeps = new Set(
-      [...descriptor.declaredDependencyNames].filter((name) => name.startsWith("@jarv1s/"))
+      [...descriptor.declaredDependencyNames].filter((name) => name.startsWith("@moss/"))
     );
     dependencyGraph.set(descriptor.name, workspaceDeps);
   }
@@ -167,7 +167,7 @@ async function loadPackageDescriptor(packageDirectory: string): Promise<PackageD
 }
 
 /**
- * DFS cycle detection over the declared `@jarv1s/*` dependency graph (#834 — jobs, settings,
+ * DFS cycle detection over the declared `@moss/*` dependency graph (#834 — jobs, settings,
  * and proactive-monitoring formed a cycle because a package.json-declared dependency doesn't
  * show up any other way; `check:package-deps`'s existing undeclared/unused checks don't catch
  * cycles, so this is a separate pass over the same descriptors).

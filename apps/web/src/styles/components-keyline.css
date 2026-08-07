@@ -1,7 +1,7 @@
 /* Keyline-grid primitives — Park Press's "hairline rules + committed fields, no floating cards"
    idiom (see the Job Search mockup's kit.jsx). Split out as its own file rather than appended to
    components-core.css, which was already close to the 1000-line file-size gate; imported right
-   after components-jarvis.css in index.css since the gold tab marker above extends classes
+   after components-moss.css in index.css since the gold tab marker above extends classes
    defined there.
 
    These are generic keyline-grid primitives, not job-search-specific — any module doing a

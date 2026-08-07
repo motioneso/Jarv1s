@@ -1,5 +1,5 @@
-import type { DataContextRunner } from "@jarv1s/db";
-import { TasksRepository } from "@jarv1s/tasks";
+import type { DataContextRunner } from "@moss/db";
+import { TasksRepository } from "@moss/tasks";
 import { UAT_SEED_BASE_TIMESTAMP, daysBefore, daysAfter } from "../timestamps.js";
 
 /**

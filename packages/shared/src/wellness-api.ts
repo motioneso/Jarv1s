@@ -1,4 +1,4 @@
-// Wellness REST contract. Part of the Vite-bundled @jarv1s/shared package — NO node:* imports.
+// Wellness REST contract. Part of the Vite-bundled @moss/shared package — NO node:* imports.
 import { errorResponseSchema, nullableStringSchema } from "./schema-fragments.js";
 
 export const WELLNESS_EMOTION_CORES = [
@@ -727,7 +727,7 @@ export const updateCheckinRouteSchema = {
 } as const;
 
 // ── Browser-safe reference taxonomy ──────────────────────────────────────────
-// Lives in @jarv1s/shared (NOT @jarv1s/wellness) so the web bundle never imports the
+// Lives in @moss/shared (NOT @moss/wellness) so the web bundle never imports the
 // server-only wellness index, whose manifest pulls `node:url` (Codex R1: bundle bloat/break).
 // Emotion taxonomy (core emotion → feelings → body sensations) adapted from an
 // emotion–sensation reference wheel. Values are original to this design.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { assertMetadataOnlyPayload } from "@jarv1s/jobs";
+import { assertMetadataOnlyPayload } from "@moss/jobs";
 
 describe("assertMetadataOnlyPayload", () => {
   it("allows sourceRef and sourceVersion", () => {

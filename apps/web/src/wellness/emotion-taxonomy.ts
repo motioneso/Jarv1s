@@ -8,7 +8,7 @@ import {
   type WellnessEmotionCore,
   type EmotionEntry,
   type EmotionFeeling
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 export { EMOTIONS, EMOTION_POLARITY, moodIndex, moodBand };
 export type { WellnessEmotionCore, EmotionEntry, EmotionFeeling };

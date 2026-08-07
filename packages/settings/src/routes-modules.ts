@@ -6,13 +6,13 @@
 // admin authorization (assertAdminUser runs FIRST, before any 404/409 branch, so a non-admin
 // can never distinguish unknown vs required vs feature-off), the same fail-closed 404/409 codes,
 // and the same metadata-only writes. registerSettingsRoutes keeps its signature and just calls
-// registerModuleRoutes(server, ctx). Nothing here changes the @jarv1s/settings public surface.
+// registerModuleRoutes(server, ctx). Nothing here changes the @moss/settings public surface.
 //
 // `assertAdminUser` and `requireRequestId` are threaded via ctx (they live in routes.ts) rather
 // than imported, to avoid an import cycle with routes.ts. Everything else is imported directly.
 import type { FastifyInstance } from "fastify";
 
-import type { AccessContext, DataContextDb, User } from "@jarv1s/db";
+import type { AccessContext, DataContextDb, User } from "@moss/db";
 import {
   listAdminModulesRouteSchema,
   listExternalModulesRouteSchema,
@@ -21,9 +21,9 @@ import {
   setExternalModuleEnablementRouteSchema,
   type AdminModuleDto,
   type ExternalModuleDto
-} from "@jarv1s/shared";
-import { HttpError } from "@jarv1s/module-sdk";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+} from "@moss/shared";
+import { HttpError } from "@moss/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 
 import type { SettingsRepository } from "./repository.js";
 import type { SettingsRoutesDependencies } from "./routes.js";
@@ -49,19 +49,19 @@ export interface ModuleRoutesContext {
 export function registerModuleRoutes(server: FastifyInstance, ctx: ModuleRoutesContext): void {
   const { dependencies, repository, assertAdminUser, requireRequestId } = ctx;
 
-  function requireManifests(): readonly JarvisModuleManifest[] {
+  function requireManifests(): readonly MossModuleManifest[] {
     return dependencies.listModuleManifests();
   }
 
-  function findManifest(id: string): JarvisModuleManifest | undefined {
+  function findManifest(id: string): MossModuleManifest | undefined {
     return requireManifests().find((m) => m.id === id);
   }
 
-  function isRequired(m: JarvisModuleManifest): boolean {
+  function isRequired(m: MossModuleManifest): boolean {
     return m.availability?.required === true;
   }
 
-  function supportsUserDisable(m: JarvisModuleManifest): boolean {
+  function supportsUserDisable(m: MossModuleManifest): boolean {
     return m.availability?.supportsUserDisable !== false;
   }
 

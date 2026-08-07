@@ -6,7 +6,7 @@
  * `TmuxIo` run seam — no engine state — so they live cleanly on their own. cli-chat-engine.ts
  * re-exports them, so every existing import site is unchanged.
  */
-import { resolveTmuxSocketPath, type TmuxIo } from "@jarv1s/ai";
+import { resolveTmuxSocketPath, type TmuxIo } from "@moss/ai";
 
 /**
  * Every raw tmux verb here MUST target the same private `-S` socket that

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { GameSide, GameSummary, LocaleSettingsDto, ScoreboardGroup } from "@jarv1s/shared";
+import type { GameSide, GameSummary, LocaleSettingsDto, ScoreboardGroup } from "@moss/shared";
 
 import { LEAGUE_LOGOS, SOCCER_COMPETITIONS } from "./competitions.js";
 import { formatTime, useUserLocale } from "./locale.js";

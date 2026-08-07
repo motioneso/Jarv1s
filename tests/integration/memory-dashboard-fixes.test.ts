@@ -3,16 +3,16 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { sql, type Kysely } from "kysely";
 
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
 import {
   createMemoryCandidateSignature,
   MemoryCandidatesRepository,
   MemoryGraphRepository,
   registerMemoryDashboardRoutes
-} from "@jarv1s/memory";
+} from "@moss/memory";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let appDataContext: DataContextRunner;
 let dashboardServer: FastifyInstance;
 let originalEmbedProvider: string | undefined;

@@ -106,7 +106,7 @@ export function formatPeopleNote(note: ParsedPeopleNote): string {
   return lines.join("\n").replace(/\s*$/, "\n");
 }
 
-export function replaceJarvisManagedSection(body: string, managedMarkdown: string): string {
+export function replaceMossManagedSection(body: string, managedMarkdown: string): string {
   const nextSection = `${PEOPLE_MANAGED_START}\n${managedMarkdown.trim()}\n${PEOPLE_MANAGED_END}`;
   const pattern = new RegExp(`${PEOPLE_MANAGED_START}[\\s\\S]*?${PEOPLE_MANAGED_END}`);
 

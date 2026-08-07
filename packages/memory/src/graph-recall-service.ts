@@ -1,4 +1,4 @@
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
 
 import type { EmbeddingProvider } from "./embedding-provider.js";
 import { MemoryGraphRepository } from "./graph-repository.js";

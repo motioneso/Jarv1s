@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { persistProviderToken } from "@jarv1s/cli-runner";
+import { persistProviderToken } from "@moss/cli-runner";
 import { createMigrationOwnerDb } from "./connections.js";
 import { assertTargetIsEphemeral } from "./guard.js";
 import { parseUatExcludeChunks, parseUatSeedLevel } from "./level-validation.js";

@@ -8,7 +8,7 @@
 // display-scale title, a meta line, a 3px rule, then one readable column for the description,
 // independent Fit/Want evidence, scored time, and decisions. The read remains wrapped in the
 // host's `.jds-governor*` block
-// (components-jarvis.css) until a decision is made. There is no in-repo precedent for that block —
+// (components-moss.css) until a decision is made. There is no in-repo precedent for that block —
 // grepped clean across every .tsx/.ts file before writing this — so its markup below is built
 // directly off the CSS class semantics, not copied from an existing caller.
 //

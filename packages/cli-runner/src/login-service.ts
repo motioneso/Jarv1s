@@ -21,7 +21,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { redactExact, redactSecrets, resolveTmuxSocketPath, type TmuxIo } from "@jarv1s/ai";
+import { redactExact, redactSecrets, resolveTmuxSocketPath, type TmuxIo } from "@moss/ai";
 
 import { persistProviderToken } from "./provider-token-store.js";
 
@@ -36,7 +36,7 @@ import {
   type LoginSurface,
   type ProbeProviderResult,
   type RpcProviderKind
-} from "@jarv1s/chat/live";
+} from "@moss/chat/live";
 
 /**
  * A blocked/unknown/no-adapter provider, or a stale `loginId` — mapped to RpcErr

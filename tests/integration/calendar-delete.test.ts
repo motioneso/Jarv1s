@@ -1,23 +1,23 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
 import {
   ConnectorsRepository,
   createConnectorSecretCipher,
   featureGrantsPrefKey,
   GoogleApiClient,
   GoogleApiError
-} from "@jarv1s/connectors";
-import { CalendarRepository } from "@jarv1s/calendar";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+} from "@moss/connectors";
+import { CalendarRepository } from "@moss/calendar";
+import { PreferencesRepository } from "@moss/structured-state";
 import type { Kysely } from "kysely";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 // ─── Section A: CalendarRepository.deleteById ────────────────────────────────
 
 describe("Section A — CalendarRepository.deleteById", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
-  let workerDb: Kysely<JarvisDatabase>;
+  let workerDb: Kysely<MossDatabase>;
   let workerContext: DataContextRunner;
 
   beforeAll(async () => {
@@ -232,15 +232,15 @@ import {
   SessionTokenRegistry,
   type GatewaySessionRecord,
   type SessionNotifier
-} from "@jarv1s/ai";
-import { calendarModuleManifest } from "@jarv1s/calendar";
-import type { JarvisModuleManifest, ModuleAssistantToolManifest } from "@jarv1s/module-sdk";
-import { buildCalendarWriteService } from "@jarv1s/chat";
-import { GoogleConnectionService, GoogleOAuthClient } from "@jarv1s/connectors";
+} from "@moss/ai";
+import { calendarModuleManifest } from "@moss/calendar";
+import type { MossModuleManifest, ModuleAssistantToolManifest } from "@moss/module-sdk";
+import { buildCalendarWriteService } from "@moss/chat";
+import { GoogleConnectionService, GoogleOAuthClient } from "@moss/connectors";
 
 describe("Section C — manifest structure + gateway routing", () => {
   it("calendar.deleteEvent is registered with correct risk/family/services/user_promotable", () => {
-    const tool = (calendarModuleManifest as JarvisModuleManifest).assistantTools?.find(
+    const tool = (calendarModuleManifest as MossModuleManifest).assistantTools?.find(
       (t) => t.name === "calendar.deleteEvent"
     ) as ModuleAssistantToolManifest | undefined;
     expect(tool).toBeDefined();
@@ -302,7 +302,7 @@ describe("Section C — manifest structure + gateway routing", () => {
   });
 
   // Gateway routing tests (need a real DB)
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
 
   beforeAll(async () => {
@@ -315,7 +315,7 @@ describe("Section C — manifest structure + gateway routing", () => {
   });
 
   function buildGateway(
-    modules: JarvisModuleManifest[],
+    modules: MossModuleManifest[],
     services: Record<string, unknown>,
     actionPolicy?: ConstructorParameters<typeof AssistantToolGateway>[0]["actionPolicy"]
   ) {
@@ -431,7 +431,7 @@ describe("Section C — manifest structure + gateway routing", () => {
   });
 
   it("gateway falls to confirm even if a trusted_auto tier is stored and executionPolicy=auto is set on a hypothetical tool variant", async () => {
-    const autoVariant: JarvisModuleManifest = {
+    const autoVariant: MossModuleManifest = {
       ...calendarModuleManifest,
       assistantActionFamilies: [
         {
@@ -486,7 +486,7 @@ describe("Section C — manifest structure + gateway routing", () => {
 // ─── Section D: buildCalendarWriteService.deleteEvent (faked Google fetch) ───
 
 describe("Section D — buildCalendarWriteService.deleteEvent", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
 
   beforeAll(async () => {

@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextDb, DataContextRunner, User } from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
-import { postHerdrInstallRouteSchema, type HerdrInstallResultDto } from "@jarv1s/shared";
+import type { AccessContext, DataContextDb, DataContextRunner, User } from "@moss/db";
+import { HttpError } from "@moss/module-sdk";
+import { postHerdrInstallRouteSchema, type HerdrInstallResultDto } from "@moss/shared";
 
 import type { SettingsRepository } from "./repository.js";
 import type { GetChatMultiplexerStatus } from "./routes.js";

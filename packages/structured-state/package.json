@@ -1,5 +1,5 @@
 {
-  "name": "@jarv1s/structured-state",
+  "name": "@moss/structured-state",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,9 +10,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@jarv1s/db": "workspace:*",
-    "@jarv1s/module-sdk": "workspace:*",
-    "@jarv1s/vault": "workspace:*",
+    "@moss/db": "workspace:*",
+    "@moss/module-sdk": "workspace:*",
+    "@moss/vault": "workspace:*",
     "kysely": "^0.29.2"
   }
 }

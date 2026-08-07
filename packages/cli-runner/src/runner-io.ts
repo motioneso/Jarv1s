@@ -12,7 +12,7 @@ import { execFile } from "node:child_process";
 import { chown, readFile, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 
-import type { TmuxIo } from "@jarv1s/ai";
+import type { TmuxIo } from "@moss/ai";
 
 import { buildSanitizedCliEnv } from "./sanitized-env.js";
 

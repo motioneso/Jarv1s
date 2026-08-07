@@ -7,7 +7,7 @@
  * "live" successfully with zero provider items; individual tests override the providers
  * to return live messages or to throw a transient error (→ cache fallback).
  */
-import { CalendarRepository } from "@jarv1s/calendar";
+import { CalendarRepository } from "@moss/calendar";
 import {
   ConnectorsRepository,
   buildSourceContextService,
@@ -17,8 +17,8 @@ import {
   type ParsedEmail,
   type SourceContextService,
   type SourceContextServiceDeps
-} from "@jarv1s/connectors";
-import { EmailRepository } from "@jarv1s/email";
+} from "@moss/connectors";
+import { EmailRepository } from "@moss/email";
 
 /** A provider failure the live reader must classify as TRANSIENT (→ cache fallback). */
 export function transientProviderError(): Error {

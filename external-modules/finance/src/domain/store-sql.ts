@@ -7,7 +7,7 @@
 import type { AccountRecord, ItemRecord, TransactionRecord } from "./records.js";
 import type { FinanceStore } from "./store-port.js";
 
-// Structural twin of #1167 ctx.db — domain files never import @jarv1s/*, so
+// Structural twin of #1167 ctx.db — domain files never import @moss/*, so
 // this is redeclared rather than imported (bundler independence, see
 // kv-port.ts).
 export interface FinanceDb {

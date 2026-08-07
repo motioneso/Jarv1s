@@ -7,10 +7,10 @@
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import type { PriorityModelPreferenceV1 } from "@jarv1s/priority";
-import { PriorityPreferencesRepository } from "@jarv1s/priority";
-import { HttpError } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextRunner } from "@moss/db";
+import type { PriorityModelPreferenceV1 } from "@moss/priority";
+import { PriorityPreferencesRepository } from "@moss/priority";
+import { HttpError } from "@moss/module-sdk";
 
 import type { ProfilePreferencesPort } from "./preferences-port.js";
 import { handleSettingsRouteError } from "./route-error.js";

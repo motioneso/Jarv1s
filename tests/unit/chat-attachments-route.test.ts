@@ -5,7 +5,7 @@ import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { VaultContextRunner } from "@jarv1s/vault";
+import { VaultContextRunner } from "@moss/vault";
 import { registerChatAttachmentRoutes } from "../../packages/chat/src/attachments-routes.js";
 import {
   ChatAttachmentsService,

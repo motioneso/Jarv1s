@@ -1,9 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type { DatasetClient } from "@jarv1s/datasets";
-import type { AccessContext, DataContextDb, DataContextRunner } from "@jarv1s/db";
-import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
+import type { DatasetClient } from "@moss/datasets";
+import type { AccessContext, DataContextDb, DataContextRunner } from "@moss/db";
+import { HttpError, handleRouteError } from "@moss/module-sdk";
 import {
   createNewsPrefResponseSchema,
   deleteNewsPrefResponseSchema,
@@ -13,7 +13,7 @@ import {
   type CreateNewsPrefRequest,
   type NewsPrefDto,
   type NewsSourcePreviewResponse
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { configureNewsChatTools } from "./chat-tools.js";
 import { createPreviewStore } from "./discovery/preview-store.js";

@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import { HttpError, handleRouteError as handleModuleRouteError } from "@jarv1s/module-sdk";
-import { parsePositiveIntEnv, transcribeAudioRouteSchema } from "@jarv1s/shared";
+import { HttpError, handleRouteError as handleModuleRouteError } from "@moss/module-sdk";
+import { parsePositiveIntEnv, transcribeAudioRouteSchema } from "@moss/shared";
 
 import { HttpApiAdapter } from "./adapters/http-api.js";
 import type { ProviderKind } from "./adapters/transcript-reader.js";

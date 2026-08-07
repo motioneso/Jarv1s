@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { BriefingActionRowDto, BriefingRunDto } from "@jarv1s/shared";
+import type { BriefingActionRowDto, BriefingRunDto } from "@moss/shared";
 
 import {
   createMockBriefingDefinition,

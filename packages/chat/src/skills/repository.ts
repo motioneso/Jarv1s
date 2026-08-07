@@ -5,7 +5,7 @@ import {
   type ChatSkill,
   type ChatSkillSource,
   type DataContextDb
-} from "@jarv1s/db";
+} from "@moss/db";
 
 export interface CreateSkillInput {
   readonly name: string;

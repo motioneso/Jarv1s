@@ -4,7 +4,7 @@
 // an install ever runs — loadModuleMigrationFiles throws on violations.
 import { describe, expect, it } from "vitest";
 
-import { loadModuleMigrationFiles } from "@jarv1s/db";
+import { loadModuleMigrationFiles } from "@moss/db";
 
 describe("finance module sql directory", () => {
   it("loads all eight migration files through the module-sql-runner validator", async () => {

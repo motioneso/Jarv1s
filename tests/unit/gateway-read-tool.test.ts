@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { AssistantToolGateway } from "@jarv1s/ai";
-import type { ModuleAssistantToolManifest } from "@jarv1s/module-sdk";
+import { AssistantToolGateway } from "@moss/ai";
+import type { ModuleAssistantToolManifest } from "@moss/module-sdk";
 
 function makeDeps(overrides: Partial<ConstructorParameters<typeof AssistantToolGateway>[0]> = {}) {
   return {

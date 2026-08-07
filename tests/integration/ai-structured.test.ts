@@ -6,23 +6,18 @@ import {
   createAiSecretCipher,
   generateStructured,
   type GenerateStructuredProviderInput
-} from "@jarv1s/ai";
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
+} from "@moss/ai";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 // #915 slice 3: module service bindings, service-aware resolution, and generateStructured.
 // Suites are STATEFUL and order-dependent (shared instance_settings blob + seeded models) —
 // every test restores the bindings it writes.
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let dataContext: DataContextRunner;
 let repository: AiRepository;
 let server: Awaited<ReturnType<typeof createApiServer>>;

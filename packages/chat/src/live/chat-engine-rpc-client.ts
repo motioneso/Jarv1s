@@ -25,9 +25,9 @@ import { connect, type Socket } from "node:net";
 import { realpath } from "node:fs/promises";
 import { resolve as resolvePath, sep } from "node:path";
 
-import type { ProviderKind } from "@jarv1s/ai";
-import { parsePositiveIntEnv } from "@jarv1s/shared";
-import type { AiProviderExecutionMode } from "@jarv1s/shared";
+import type { ProviderKind } from "@moss/ai";
+import { parsePositiveIntEnv } from "@moss/shared";
+import type { AiProviderExecutionMode } from "@moss/shared";
 
 import { CliChatDeliveryUnknownError, CliChatUnavailableError } from "./errors.js";
 import type { RpcInstallProviderParams, RpcInstallProviderResult } from "./install-contract.js";

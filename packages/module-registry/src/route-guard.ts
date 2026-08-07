@@ -1,9 +1,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
-import type { AccessContext } from "@jarv1s/db";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { AccessContext } from "@moss/db";
+import type { MossModuleManifest } from "@moss/module-sdk";
 
-import type { ActiveModulesResolver } from "@jarv1s/ai";
+import type { ActiveModulesResolver } from "@moss/ai";
 
 /** A method+pattern key. Method is upper-cased; pattern is Fastify's matched-route url. */
 export type RouteKey = string;
@@ -127,9 +127,7 @@ export type RouteModuleIndex = ReadonlyMap<RouteKey, string>;
  * module's enablement gate a route (e.g. a route stays reachable because a still-active
  * module accidentally claimed a disabled module's path). A collision is a build error.
  */
-export function buildRouteModuleIndex(
-  manifests: readonly JarvisModuleManifest[]
-): RouteModuleIndex {
+export function buildRouteModuleIndex(manifests: readonly MossModuleManifest[]): RouteModuleIndex {
   const index = new Map<RouteKey, string>();
   for (const manifest of manifests) {
     for (const route of manifest.routes ?? []) {
@@ -162,7 +160,7 @@ export interface RegisteredRoute {
 
 interface RouteCoverageInput {
   readonly registered: readonly RegisteredRoute[];
-  readonly manifests: readonly JarvisModuleManifest[];
+  readonly manifests: readonly MossModuleManifest[];
   readonly platformAllowlist: ReadonlySet<RouteKey>;
 }
 
@@ -207,7 +205,7 @@ export function assertRouteCoverage(input: RouteCoverageInput): void {
 }
 
 export interface RouteGuardDeps {
-  readonly manifests: readonly JarvisModuleManifest[];
+  readonly manifests: readonly MossModuleManifest[];
   readonly resolveActiveModules: ActiveModulesResolver;
   readonly resolveAccessContext: (request: FastifyRequest) => Promise<AccessContext>;
   readonly platformAllowlist?: ReadonlySet<RouteKey>;
@@ -264,7 +262,7 @@ export function registerRouteEnablementGuard(server: FastifyInstance, deps: Rout
       return;
     }
 
-    let active: readonly JarvisModuleManifest[];
+    let active: readonly MossModuleManifest[];
     try {
       active = await deps.resolveActiveModules(actorUserId);
     } catch (error) {

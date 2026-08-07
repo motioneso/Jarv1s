@@ -6,7 +6,7 @@ import {
   reconcileExternalModuleUserJobs,
   registerExternalModuleJobRoutes
 } from "../../apps/api/src/external-module-jobs.js";
-import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
+import type { ExternalModuleDiscovery } from "@moss/module-registry";
 
 describe("external module run-now route", () => {
   it("enqueues an eligible queue with the session actor and deterministic singleton", async () => {

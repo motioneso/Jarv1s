@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import pg from "pg";
 
-import { createJarvisAuthRuntime, type AuthLogger } from "@jarv1s/auth";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { createMossAuthRuntime, type AuthLogger } from "@moss/auth";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
@@ -20,9 +20,9 @@ const { Client } = pg;
 //   3. be throttled per-principal by the global rate-limit class.
 describe("Legacy session-bearer auth hardening (#113)", () => {
   describe("observability", () => {
-    let appDb: Kysely<JarvisDatabase>;
+    let appDb: Kysely<MossDatabase>;
     let events: Array<{ obj: Record<string, unknown>; msg: string }>;
-    let runtime: ReturnType<typeof createJarvisAuthRuntime>;
+    let runtime: ReturnType<typeof createMossAuthRuntime>;
 
     beforeAll(async () => {
       await resetFoundationDatabase();
@@ -31,7 +31,7 @@ describe("Legacy session-bearer auth hardening (#113)", () => {
       const logger: AuthLogger = {
         info: (obj, msg) => events.push({ obj, msg })
       };
-      runtime = createJarvisAuthRuntime({
+      runtime = createMossAuthRuntime({
         appDb,
         runner: new DataContextRunner(appDb),
         logger
@@ -276,13 +276,13 @@ describe("Legacy session-bearer auth hardening (#113)", () => {
   // mere header-format failure (Fix 2). Both collapse to the same "Session is missing or
   // expired" rejection that the API layer maps to 401.
   describe("malformed / non-bearer Authorization (OTNR-P6 #128)", () => {
-    let appDb: Kysely<JarvisDatabase>;
-    let runtime: ReturnType<typeof createJarvisAuthRuntime>;
+    let appDb: Kysely<MossDatabase>;
+    let runtime: ReturnType<typeof createMossAuthRuntime>;
 
     beforeAll(async () => {
       await resetFoundationDatabase();
       appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-      runtime = createJarvisAuthRuntime({
+      runtime = createMossAuthRuntime({
         appDb,
         runner: new DataContextRunner(appDb)
       });

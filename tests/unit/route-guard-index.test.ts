@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 
 import {
   PLATFORM_UNGUARDED_ROUTES,
@@ -9,7 +9,7 @@ import {
   lookupModuleForRoute
 } from "../../packages/module-registry/src/route-guard.js";
 
-const manifests: JarvisModuleManifest[] = [
+const manifests: MossModuleManifest[] = [
   {
     id: "weather",
     name: "Weather",
@@ -41,7 +41,7 @@ describe("route→module index", () => {
   });
 
   it("throws when two modules claim the same method+pattern (naming both)", () => {
-    const collide: JarvisModuleManifest[] = [
+    const collide: MossModuleManifest[] = [
       manifests[0]!,
       {
         ...manifests[0]!,
@@ -94,7 +94,7 @@ describe("assertRouteCoverage", () => {
   });
 
   it("throws when a manifest declares a route that is not registered (drift)", () => {
-    const drifted: JarvisModuleManifest[] = [
+    const drifted: MossModuleManifest[] = [
       {
         ...manifests[0]!,
         routes: [

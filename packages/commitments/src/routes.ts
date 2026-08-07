@@ -1,9 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { Type } from "@sinclair/typebox";
 import type { PgBoss } from "pg-boss";
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import type { CommitmentResolutionVerifier } from "@jarv1s/module-sdk";
-import { sendJob, assertMetadataOnlyPayload } from "@jarv1s/jobs";
+import type { AccessContext, DataContextRunner } from "@moss/db";
+import type { CommitmentResolutionVerifier } from "@moss/module-sdk";
+import { sendJob, assertMetadataOnlyPayload } from "@moss/jobs";
 import { CommitmentsRepository } from "./repository.js";
 import { COMMITMENT_EXTRACTION_QUEUE } from "./manifest.js";
 import type { CommitmentCandidateStatus, CommitmentSourceKind } from "./types.js";

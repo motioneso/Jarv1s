@@ -1,5 +1,5 @@
 import type { PgBoss } from "pg-boss";
-import { sendJob, assertMetadataOnlyPayload } from "@jarv1s/jobs";
+import { sendJob, assertMetadataOnlyPayload } from "@moss/jobs";
 import { COMMITMENT_EXTRACTION_QUEUE } from "./manifest.js";
 import type { CommitmentSourceKind } from "./types.js";
 

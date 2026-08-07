@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import {
   appGetMapSliceExecute,
   appGetMapSliceInputSchema,
@@ -45,7 +45,7 @@ export const settingsModuleSqlMigrationDirectory = fileURLToPath(
 
 export const SETTINGS_MODULE_ID = "settings";
 
-export const settingsModuleManifest: JarvisModuleManifest = {
+export const settingsModuleManifest: MossModuleManifest = {
   id: SETTINGS_MODULE_ID,
   name: "Settings",
   version: "0.0.0",

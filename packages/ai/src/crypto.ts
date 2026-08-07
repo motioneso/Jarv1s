@@ -1,4 +1,4 @@
-import { JsonSecretCipher, resolveKeyring, type EncryptedSecret, type Keyring } from "@jarv1s/db";
+import { JsonSecretCipher, resolveKeyring, type EncryptedSecret, type Keyring } from "@moss/db";
 
 /**
  * AES-256-GCM envelope for AI provider credentials. Shape alias of the shared

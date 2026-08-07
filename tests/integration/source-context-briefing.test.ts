@@ -15,19 +15,19 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 import type { Kysely } from "kysely";
 
-import type { AiRepository } from "@jarv1s/ai";
-import { createAiSecretCipher } from "@jarv1s/ai";
-import { BriefingsRepository, composeBriefing, type ComposeDeps } from "@jarv1s/briefings";
+import type { AiRepository } from "@moss/ai";
+import { createAiSecretCipher } from "@moss/ai";
+import { BriefingsRepository, composeBriefing, type ComposeDeps } from "@moss/briefings";
 import {
   DataContextRunner,
   createDatabase,
   type BriefingDefinition,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { EmailRepository } from "@jarv1s/email";
-import { featureGrantsPrefKey } from "@jarv1s/connectors";
-import type { MemoryRetriever } from "@jarv1s/memory";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+  type MossDatabase
+} from "@moss/db";
+import { EmailRepository } from "@moss/email";
+import { featureGrantsPrefKey } from "@moss/connectors";
+import type { MemoryRetriever } from "@moss/memory";
+import { getBuiltInModuleManifests } from "@moss/module-registry";
 
 import {
   buildTestSourceContextService,
@@ -81,7 +81,7 @@ function emailMeta(sourceMetadata: Record<string, unknown>): SourceContextEmailM
 }
 
 describe("Briefing compose over the live-first source-context service (#729)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let definition: BriefingDefinition;
 

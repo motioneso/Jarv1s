@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { createDatasetClient, HostPinningViolationError } from "@jarv1s/datasets";
-import type { DatasetLogger } from "@jarv1s/datasets";
+import { createDatasetClient, HostPinningViolationError } from "@moss/datasets";
+import type { DatasetLogger } from "@moss/datasets";
 import type {
   ExternalSourceAdapter,
   ExternalSourceAdapterContext,
   ModuleExternalSourceManifest
-} from "@jarv1s/module-sdk";
+} from "@moss/module-sdk";
 
 function fakeLogger(): {
   logger: DatasetLogger;

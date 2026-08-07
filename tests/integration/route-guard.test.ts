@@ -3,10 +3,10 @@ import Fastify from "fastify";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import { registerRouteEnablementGuard } from "@jarv1s/module-registry";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import { createDatabase, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import { registerRouteEnablementGuard } from "@moss/module-registry";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import {
   connectionStrings,
   resetEmptyFoundationDatabase,
@@ -20,7 +20,7 @@ function cookieHeader(headers: Record<string, unknown>): string {
 }
 
 describe("module enablement endpoints", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let ownerCookie: string;
@@ -236,7 +236,7 @@ describe("module enablement endpoints", () => {
 });
 
 describe("registerRouteEnablementGuard end-to-end (bare Fastify)", () => {
-  const weather: JarvisModuleManifest = {
+  const weather: MossModuleManifest = {
     id: "weather",
     name: "Weather",
     version: "0.1.0",

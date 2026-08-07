@@ -15,19 +15,19 @@
 import type { Job } from "pg-boss";
 import type { Kysely } from "kysely";
 
-import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
-import { HostPinningViolationError } from "@jarv1s/host-fetch";
-import { assertModuleJobPayload, type ExternalModuleJobPayload } from "@jarv1s/jobs";
-import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
+import type { AccessContext, DataContextDb, DataContextRunner, MossDatabase } from "@moss/db";
+import { HostPinningViolationError } from "@moss/host-fetch";
+import { assertModuleJobPayload, type ExternalModuleJobPayload } from "@moss/jobs";
+import type { ExternalModuleDiscovery } from "@moss/module-registry";
 import type {
   ExternalModuleAiRequest,
   ExternalModuleAiResult,
   ExternalModuleAttachmentText,
   ExternalModuleWorkerRuntime
-} from "@jarv1s/module-registry/node";
-import type { ExternalModuleQueueDeclaration } from "@jarv1s/module-sdk";
-import type { CreateNotificationInput } from "@jarv1s/notifications";
-import type { ModuleCredentialCipher } from "@jarv1s/settings";
+} from "@moss/module-registry/node";
+import type { ExternalModuleQueueDeclaration } from "@moss/module-sdk";
+import type { CreateNotificationInput } from "@moss/notifications";
+import type { ModuleCredentialCipher } from "@moss/settings";
 
 import { createVerifiedExternalModuleInvoker } from "./external-module-invoke.js";
 
@@ -128,7 +128,7 @@ export interface ExternalModuleJobHandlerDeps {
   readonly queue: ExternalModuleQueueDeclaration;
   // Structural pick so tests can stub invoke while worker.ts passes the real runtime.
   readonly runtime: Pick<ExternalModuleWorkerRuntime, "invoke">;
-  readonly workerDb: Kysely<JarvisDatabase>;
+  readonly workerDb: Kysely<MossDatabase>;
   readonly dataContext: DataContextRunner;
   readonly cipher: ModuleCredentialCipher;
   readonly discoveryById: ReadonlyMap<string, ExternalModuleDiscovery>;

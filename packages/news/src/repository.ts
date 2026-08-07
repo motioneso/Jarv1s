@@ -1,7 +1,7 @@
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import type { CreateNewsPrefRequest, NewsPrefDto } from "@jarv1s/shared";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
+import type { CreateNewsPrefRequest, NewsPrefDto } from "@moss/shared";
 
 interface NewsPrefRow {
   id: string;

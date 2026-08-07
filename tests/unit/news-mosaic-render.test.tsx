@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { NewsHeadline } from "@jarv1s/shared";
+import type { NewsHeadline } from "@moss/shared";
 
 import { NewsMosaic, type MosaicPlan } from "../../packages/news/src/web/news-mosaic.js";
 

@@ -3,9 +3,9 @@ import type { OutgoingHttpHeaders } from "node:http";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import type { ChatMultiplexerSettingsDto } from "@jarv1s/shared";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import type { ChatMultiplexerSettingsDto } from "@moss/shared";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
 import {
   connectionStrings,
@@ -15,7 +15,7 @@ import {
 } from "./test-database.js";
 
 describe("chat.multiplexer instance setting (settings repository)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   const repo = new SettingsRepository();
 
@@ -62,7 +62,7 @@ describe("chat.multiplexer instance setting (settings repository)", () => {
 });
 
 describe("GET/PUT /api/admin/chat-multiplexer (HTTP route)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let adminCookie: string;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { CliChatUnavailableError } from "@jarv1s/chat";
-import { HttpError } from "@jarv1s/module-sdk";
+import { CliChatUnavailableError } from "@moss/chat";
+import { HttpError } from "@moss/module-sdk";
 
 import { buildOnboardingLogin } from "../../packages/module-registry/src/onboarding-login.js";
 

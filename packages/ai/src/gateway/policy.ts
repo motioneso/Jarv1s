@@ -1,14 +1,14 @@
 import type {
   ModuleAssistantToolManifest,
   ModuleAssistantActionFamilyManifest,
-  JarvisActionPermissionTier,
+  MossActionPermissionTier,
   ToolInput
-} from "@jarv1s/module-sdk";
+} from "@moss/module-sdk";
 
 export type PolicyDecision = "run" | "confirm";
 
 export interface ActionPolicyLookup {
-  getFamilyTier(moduleId: string, familyId: string): Promise<JarvisActionPermissionTier | null>;
+  getFamilyTier(moduleId: string, familyId: string): Promise<MossActionPermissionTier | null>;
   getFamilyManifest(
     moduleId: string,
     familyId: string

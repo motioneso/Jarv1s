@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createJarvisAuthRuntime, type JarvisAuthRuntime } from "@jarv1s/auth";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+import { createMossAuthRuntime, type MossAuthRuntime } from "@moss/auth";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import type { Kysely } from "kysely";
 import { createApiServer } from "../../apps/api/src/server.js";
 import { SportsFollowsRepository } from "../../packages/sports/src/repository.js";
@@ -18,8 +18,8 @@ import {
 // (chat-tools.ts) — rather than the repository directly, so this proves the tool path, not just
 // the table.
 describe("sports follow tools — cross-actor RLS isolation (#1265)", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let authRuntime: JarvisAuthRuntime;
+  let appDb: Kysely<MossDatabase>;
+  let authRuntime: MossAuthRuntime;
   let boss: PgBoss;
   let server: ReturnType<typeof createApiServer>;
   let dataCtx: DataContextRunner;
@@ -76,7 +76,7 @@ describe("sports follow tools — cross-actor RLS isolation (#1265)", () => {
   beforeEach(async () => {
     await resetEmptyFoundationDatabase();
     appDb = createDatabase({ connectionString: connectionStrings.app, maxConnections: 1 });
-    authRuntime = createJarvisAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
+    authRuntime = createMossAuthRuntime({ appDb, runner: new DataContextRunner(appDb) });
     boss = createPgBossClient(connectionStrings.app, { connectionTimeoutMillis: 25_000 });
     server = createApiServer({ appDb, authRuntime, boss, logger: false });
     await server.ready();

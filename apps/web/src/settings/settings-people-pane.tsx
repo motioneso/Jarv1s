@@ -27,7 +27,7 @@ import {
 } from "./settings-source-behaviors";
 import { readError } from "./settings-types";
 import { Badge, Group, Note, PaneHead, Row, Switch } from "./settings-ui";
-import { Button } from "@jarv1s/ui";
+import { Button } from "@moss/ui";
 import { VaultChooser } from "./settings-vault-chooser";
 
 function candidateKindLabel(kind: MatchCandidateDto["candidateKind"]): string {

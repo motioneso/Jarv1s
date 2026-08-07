@@ -15,7 +15,7 @@
 // unscored-postings list and the fake `ai` port, decoupled from whatever crawl produced.
 import { describe, expect, it, vi } from "vitest";
 
-import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import type { ModuleWorkerContext } from "@moss/module-sdk/worker";
 
 import {
   createCrawlRunHandler,

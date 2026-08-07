@@ -1,13 +1,13 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import { handleRouteError } from "@jarv1s/module-sdk";
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
+import { handleRouteError } from "@moss/module-sdk";
+import type { AccessContext, DataContextRunner } from "@moss/db";
 import {
   listNotificationsRouteSchema,
   markAllNotificationsReadRouteSchema,
   markNotificationReadRouteSchema,
   type NotificationDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { projectNotificationMetadata } from "./metadata.js";
 import { NotificationsRepository, type NotificationWithReadState } from "./repository.js";

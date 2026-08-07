@@ -5,18 +5,13 @@ import {
   ChatRepository,
   DataContextChatPersistence,
   type DataContextChatPersistenceDeps
-} from "@jarv1s/chat";
-import {
-  createDatabase,
-  DataContextRunner,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { AiRepository } from "@jarv1s/ai";
+} from "@moss/chat";
+import { createDatabase, DataContextRunner, type AccessContext, type MossDatabase } from "@moss/db";
+import { AiRepository } from "@moss/ai";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 describe("private chat persistence", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: ChatRepository;
   let aiRepository: AiRepository;

@@ -206,10 +206,10 @@ export function emitWebVirtualModule(result: WebScanResult): string {
 function listModulePackages(rootDir: string): PackageInfo[] {
   return [
     ...readPackageJsons(join(rootDir, "packages")),
-    ...readPackageJsons(join(rootDir, "node_modules"), /^@jarv1s-/),
-    ...readScopedPackageJsons(join(rootDir, "node_modules", "@jarv1s"))
+    ...readPackageJsons(join(rootDir, "node_modules"), /^@moss-/),
+    ...readScopedPackageJsons(join(rootDir, "node_modules", "@moss"))
   ]
-    .filter((pkg) => pkg.name.startsWith("@jarv1s/") || pkg.name.startsWith("@jarv1s-"))
+    .filter((pkg) => pkg.name.startsWith("@moss/") || pkg.name.startsWith("@moss-"))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -320,7 +320,7 @@ function readWebManifest(manifestFile: string): ParsedWebManifest | null {
     for (const declaration of statement.declarationList.declarations) {
       const initializer = declaration.initializer ? unwrap(declaration.initializer) : undefined;
       if (!initializer || !ts.isObjectLiteralExpression(initializer)) continue;
-      // Every JarvisModuleManifest declares a required `lifecycle` field, which disambiguates
+      // Every MossModuleManifest declares a required `lifecycle` field, which disambiguates
       // the manifest object literal from other top-level consts in the same file (e.g. TTL
       // constants, module ids) without requiring `navigation` itself to be present — navigation
       // is optional on the manifest type, unlike `settings` in the sibling settings scanner.

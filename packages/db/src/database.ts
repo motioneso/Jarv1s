@@ -1,7 +1,7 @@
 import { Kysely, PostgresDialect } from "kysely";
 import pg from "pg";
 
-import type { JarvisDatabase } from "./types.js";
+import type { MossDatabase } from "./types.js";
 
 const { Pool } = pg;
 
@@ -11,8 +11,8 @@ export interface DatabaseOptions {
   readonly connectionTimeoutMillis?: number;
 }
 
-export function createDatabase(options: DatabaseOptions): Kysely<JarvisDatabase> {
-  return new Kysely<JarvisDatabase>({
+export function createDatabase(options: DatabaseOptions): Kysely<MossDatabase> {
+  return new Kysely<MossDatabase>({
     dialect: new PostgresDialect({
       pool: new Pool({
         connectionString: options.connectionString,

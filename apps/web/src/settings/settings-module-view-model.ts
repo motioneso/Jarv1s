@@ -1,4 +1,4 @@
-import type { MyModuleDto } from "@jarv1s/shared";
+import type { MyModuleDto } from "@moss/shared";
 
 export type SettingsModule = MyModuleDto;
 

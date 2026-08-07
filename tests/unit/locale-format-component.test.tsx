@@ -3,7 +3,7 @@ import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
-import type { LocaleSettingsDto } from "@jarv1s/shared";
+import type { LocaleSettingsDto } from "@moss/shared";
 
 import { formatDateTime, useUserLocale } from "../../apps/web/src/locale/locale-format.js";
 import { queryKeys } from "../../apps/web/src/api/query-keys.js";

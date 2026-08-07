@@ -1,13 +1,13 @@
 import type { FastifyBaseLogger } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type { BriefingDefinition, BriefingType, DataContextDb } from "@jarv1s/db";
-import { assertMetadataOnlyPayload } from "@jarv1s/jobs";
-import { cronExprFor, timezoneFor } from "@jarv1s/shared";
+import type { BriefingDefinition, BriefingType, DataContextDb } from "@moss/db";
+import { assertMetadataOnlyPayload } from "@moss/jobs";
+import { cronExprFor, timezoneFor } from "@moss/shared";
 
 import { BRIEFINGS_RUN_QUEUE } from "./manifest.js";
 import type { BriefingsRepository } from "./repository.js";
-export { cronExprFor, timezoneFor } from "@jarv1s/shared";
+export { cronExprFor, timezoneFor } from "@moss/shared";
 
 /** Logger fallback — silent when no logger is injected (observability spec). */
 const NOOP_LOGGER: Pick<FastifyBaseLogger, "error"> = {

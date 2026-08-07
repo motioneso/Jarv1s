@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { DataContextDb } from "@jarv1s/db";
-import { GoogleEmailWriteProvider } from "@jarv1s/connectors";
-import { buildNewMessageMime } from "@jarv1s/email";
+import type { DataContextDb } from "@moss/db";
+import { GoogleEmailWriteProvider } from "@moss/connectors";
+import { buildNewMessageMime } from "@moss/email";
 
 describe("fresh email sends", () => {
   it("sends a fresh Gmail message without a threadId", async () => {

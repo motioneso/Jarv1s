@@ -12,8 +12,8 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-import type { ProviderKind, TmuxIo } from "@jarv1s/ai";
-import type { AiProviderExecutionMode } from "@jarv1s/shared";
+import type { ProviderKind, TmuxIo } from "@moss/ai";
+import type { AiProviderExecutionMode } from "@moss/shared";
 
 import { modelOverrideFlag, shellQuote } from "./cli-engine-helpers.js";
 import { writeClaudePermissionHook } from "./claude-permission-hook.js";

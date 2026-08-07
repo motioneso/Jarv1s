@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { AiRepository } from "@jarv1s/ai";
-import { createCliStructuredAdapterFactory, type ChatEngineFactory } from "@jarv1s/chat";
-import type { DataContextDb } from "@jarv1s/db";
+import type { AiRepository } from "@moss/ai";
+import { createCliStructuredAdapterFactory, type ChatEngineFactory } from "@moss/chat";
+import type { DataContextDb } from "@moss/db";
 
 import { buildEmailExtractDeps } from "../../packages/connectors/src/extract-deps.js";
 import {

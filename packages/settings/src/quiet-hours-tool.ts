@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 
-import { assertDataContextDb } from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
-import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
-import { PreferencesRepository } from "@jarv1s/structured-state";
-import type { QuietHoursSettingsDto } from "@jarv1s/shared";
+import { assertDataContextDb } from "@moss/db";
+import { HttpError } from "@moss/module-sdk";
+import type { ToolExecute, ToolResult } from "@moss/module-sdk";
+import { PreferencesRepository } from "@moss/structured-state";
+import type { QuietHoursSettingsDto } from "@moss/shared";
 
 import { settingsUndoStack } from "./undo-stack.js";
 

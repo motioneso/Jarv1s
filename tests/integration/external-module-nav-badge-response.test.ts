@@ -6,7 +6,7 @@ import type { OutgoingHttpHeaders } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { createDatabase, type MossDatabase } from "@moss/db";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
@@ -27,7 +27,7 @@ import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database
 // admin-enable-then-GET-/api/modules flow, same better-auth sign-up cookie pattern.
 
 let root: string;
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let server: ReturnType<typeof createApiServer>;
 let adminCookie: string;
 

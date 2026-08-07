@@ -1,4 +1,4 @@
-import type { ProactiveCardsResponse } from "@jarv1s/shared";
+import type { ProactiveCardsResponse } from "@moss/shared";
 
 import { requestJson } from "./client.js";
 

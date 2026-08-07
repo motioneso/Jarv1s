@@ -1,5 +1,5 @@
 {
-  "name": "@jarv1s/source-behaviors",
+  "name": "@moss/source-behaviors",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@jarv1s/db": "workspace:*",
-    "@jarv1s/module-sdk": "workspace:*"
+    "@moss/db": "workspace:*",
+    "@moss/module-sdk": "workspace:*"
   }
 }

@@ -8,8 +8,8 @@ import {
   DataContextRunner,
   createDatabase,
   type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
+  type MossDatabase
+} from "@moss/db";
 import {
   ConnectorsRepository,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
@@ -19,19 +19,19 @@ import {
   connectorsModuleManifest,
   createConnectorSecretCipher,
   type EncryptedConnectorSecret
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 import {
   getBuiltInModuleManifests,
   getBuiltInModuleRegistrations,
   getBuiltInSqlMigrationDirectories
-} from "@jarv1s/module-registry";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
+} from "@moss/module-registry";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
 
 describe("Connectors encrypted foundation", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let auth: AuthSessionResolver;
   let dataContext: DataContextRunner;
   let repository: ConnectorsRepository;

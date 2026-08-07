@@ -1,5 +1,5 @@
-import { assertDataContextDb } from "@jarv1s/db";
-import type { FocusSignalProvider } from "@jarv1s/module-sdk";
+import { assertDataContextDb } from "@moss/db";
+import type { FocusSignalProvider } from "@moss/module-sdk";
 
 import { WellnessRepository } from "./repository.js";
 

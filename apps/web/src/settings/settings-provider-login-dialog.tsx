@@ -1,8 +1,8 @@
 import { ExternalLink, Info, LoaderCircle, LogIn, X } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
-import { Button, Dialog } from "@jarv1s/ui";
-import type { AiProviderConfigDto, AiProviderKind } from "@jarv1s/shared";
+import { Button, Dialog } from "@moss/ui";
+import type { AiProviderConfigDto, AiProviderKind } from "@moss/shared";
 
 import { ApiError } from "../api/client";
 import {

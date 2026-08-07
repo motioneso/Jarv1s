@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
-import type { DataContextDb } from "@jarv1s/db";
-import type { AppMapArtifact, AppMapItem } from "@jarv1s/shared";
+import type { DataContextDb } from "@moss/db";
+import type { AppMapArtifact, AppMapItem } from "@moss/shared";
 
 export type AppMapQuery =
   | { readonly screenId: string; readonly limit?: number }

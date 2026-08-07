@@ -1,5 +1,5 @@
 // packages/shared/src/news-api.ts — BROWSER-SAFE. No node:* imports.
-import type { JarvisError } from "@jarv1s/module-sdk/errors";
+import type { MossError } from "@moss/module-sdk/errors";
 
 import { errorResponseSchema } from "./schema-fragments.js";
 
@@ -185,7 +185,7 @@ export interface NewsSourcePreviewCandidate {
 
 export interface NewsSourcePreviewResponse {
   readonly status: "ok" | "ambiguous" | "rejected" | "unavailable" | "invalid";
-  readonly error?: JarvisError;
+  readonly error?: MossError;
   readonly confirmationId?: string;
   readonly candidates?: readonly NewsSourcePreviewCandidate[];
   readonly candidateIds?: readonly string[];

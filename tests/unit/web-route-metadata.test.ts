@@ -5,7 +5,7 @@ import {
   resolvePageHeading,
   webRoutes
 } from "../../apps/web/src/app-route-metadata.js";
-import { CORE_APP_SCREENS, type ModuleDto } from "@jarv1s/shared";
+import { CORE_APP_SCREENS, type ModuleDto } from "@moss/shared";
 
 describe("web route metadata", () => {
   it("keeps shell navigation policy in route metadata instead of AppShell conditionals", () => {

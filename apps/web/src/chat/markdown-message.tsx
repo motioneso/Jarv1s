@@ -1,7 +1,7 @@
 import type { ComponentPropsWithoutRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { AnswerSourceSupportCard } from "@jarv1s/shared";
+import type { AnswerSourceSupportCard } from "@moss/shared";
 
 import { SourceChips, stripDisplayMarkers } from "./answer-provenance";
 

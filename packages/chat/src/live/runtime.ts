@@ -6,9 +6,9 @@
  * The engineFactory is injectable so integration tests can swap in an in-memory
  * fake engine (no real tmux / `claude` binary). Everything else is real.
  */
-import { AiRepository, createRealTmuxIo, type Multiplexer, type ProviderKind } from "@jarv1s/ai";
+import { AiRepository, createRealTmuxIo, type Multiplexer, type ProviderKind } from "@moss/ai";
 import { extractTimezone } from "../locale-utils.js";
-import type { DataContextDb, DataContextRunner, JarvisDatabase, PreferencesPort } from "@jarv1s/db";
+import type { DataContextDb, DataContextRunner, MossDatabase, PreferencesPort } from "@moss/db";
 import type { Kysely } from "kysely";
 import {
   CHAT_SETTINGS_PREFERENCE_KEY,
@@ -17,7 +17,7 @@ import {
   renderChatResponseStyleInstruction,
   renderPersonaText,
   type AiProviderExecutionMode
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import type { PgBoss } from "pg-boss";
 
 import type { RecallPort } from "../recall-port.js";
@@ -201,7 +201,7 @@ export function unavailableEngineFactory(reason: string): ChatEngineFactory {
 export const realEngineFactory: ChatEngineFactory = createRealEngineFactory();
 
 export interface CreateChatSessionRuntimeDeps {
-  readonly rootDb?: Kysely<JarvisDatabase>;
+  readonly rootDb?: Kysely<MossDatabase>;
   readonly dataContext: DataContextRunner;
   /** Override the engine factory (tests inject a fake); defaults to the real tmux engine. */
   readonly engineFactory?: ChatEngineFactory;

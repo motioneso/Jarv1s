@@ -3,17 +3,17 @@ import { randomUUID } from "node:crypto";
 import type { FastifyBaseLogger } from "fastify";
 import type { Job, PgBoss, WorkOptions } from "pg-boss";
 
-import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
-import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
+import { AiRepository, createAiSecretCipher } from "@moss/ai";
+import type { DataContextDb, DataContextRunner } from "@moss/db";
 import {
   registerDataContextWorker,
   type ActorScopedJobPayload,
   type QueueDefinition
-} from "@jarv1s/jobs";
-import type { RetrievedChunk } from "@jarv1s/memory";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import type { NotificationsRepository } from "@jarv1s/notifications";
-import type { BriefingRunKind, BriefingType } from "@jarv1s/shared";
+} from "@moss/jobs";
+import type { RetrievedChunk } from "@moss/memory";
+import type { MossModuleManifest } from "@moss/module-sdk";
+import type { NotificationsRepository } from "@moss/notifications";
+import type { BriefingRunKind, BriefingType } from "@moss/shared";
 
 import type { ComposeDeps } from "./compose.js";
 import { BRIEFINGS_MODULE_ID, BRIEFINGS_RUN_QUEUE } from "./manifest.js";
@@ -38,7 +38,7 @@ export interface BriefingRunResult {
 }
 
 export interface RegisterBriefingsJobWorkersOptions {
-  readonly moduleManifests: readonly JarvisModuleManifest[];
+  readonly moduleManifests: readonly MossModuleManifest[];
   /**
    * Synthesis dependencies forwarded to `generateRun`. When omitted, a metadata-only
    * `composeDeps` is built from `moduleManifests` so the worker still gathers sections
@@ -118,7 +118,7 @@ const noopMemoryRetriever = {
   }
 } as ComposeDeps["memoryRetriever"];
 
-function defaultComposeDeps(moduleManifests: readonly JarvisModuleManifest[]): ComposeDeps {
+function defaultComposeDeps(moduleManifests: readonly MossModuleManifest[]): ComposeDeps {
   return {
     moduleManifests,
     aiRepository: new AiRepository(),

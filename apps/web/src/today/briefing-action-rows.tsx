@@ -8,7 +8,7 @@ import type {
   LocaleSettingsDto,
   SourceFreshnessV1,
   TaskDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { updateTask } from "../api/client";
 import { queryKeys } from "../api/query-keys";

@@ -1,8 +1,8 @@
 import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
 
-import type { DataContextDb, DataContextRunner } from "@jarv1s/db";
-import type { AestheticThemeTokens, ListThemesResponse } from "@jarv1s/shared";
+import type { DataContextDb, DataContextRunner } from "@moss/db";
+import type { AestheticThemeTokens, ListThemesResponse } from "@moss/shared";
 import { registerThemeRoutes } from "../../packages/settings/src/themes-routes.js";
 
 const validThemeTokens: AestheticThemeTokens = {

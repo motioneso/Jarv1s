@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import type { ChatMessageDto } from "@jarv1s/shared";
+import type { ChatMessageDto } from "@moss/shared";
 import { recordsFromMessages } from "../../apps/web/src/chat/chat-drawer.js";
 import { Thread, activityVerb } from "../../apps/web/src/chat/message-row.js";
 

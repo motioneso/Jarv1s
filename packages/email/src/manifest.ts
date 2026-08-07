@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import { emailMonitorProvider } from "./monitor-provider.js";
 import {
   emailTaskCreationModeResponseSchema,
@@ -9,7 +9,7 @@ import {
   listEmailMessagesResponseSchema,
   updateEmailBriefingSettingsRequestSchema,
   updateEmailTaskCreationModeRequestSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import {
   emailDraftReplyExecute,
@@ -279,4 +279,4 @@ export const emailModuleManifest = {
     }
   ],
   proactiveMonitor: emailMonitorProvider
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

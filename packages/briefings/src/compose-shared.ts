@@ -1,21 +1,21 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyBaseLogger } from "fastify";
-import type { AiRepository, AiSecretCipher } from "@jarv1s/ai";
-import { HttpApiAdapter, parseAiApiKeyCredential } from "@jarv1s/ai";
-import type { ChatTurn, GenerateChatInput, ProviderKind } from "@jarv1s/ai";
-import type { FocusSignalInput } from "@jarv1s/priority";
-import type { BriefingDefinition, BriefingRunStatus, DataContextDb } from "@jarv1s/db";
+import type { AiRepository, AiSecretCipher } from "@moss/ai";
+import { HttpApiAdapter, parseAiApiKeyCredential } from "@moss/ai";
+import type { ChatTurn, GenerateChatInput, ProviderKind } from "@moss/ai";
+import type { FocusSignalInput } from "@moss/priority";
+import type { BriefingDefinition, BriefingRunStatus, DataContextDb } from "@moss/db";
 import type { CalendarSignalSettings, EmailSignalSettings } from "./signals.js";
-import type { MemoryRetriever } from "@jarv1s/memory";
-import type { JarvisModuleManifest, JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
-import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@jarv1s/source-behaviors";
+import type { MemoryRetriever } from "@moss/memory";
+import type { MossModuleManifest, JsonMossModuleManifest } from "@moss/module-sdk";
+import { isBehaviorEnabled, type SourceBehaviorPolicyDeps } from "@moss/source-behaviors";
 import {
   parseCalendarAutomationMode,
   normalizePersonaSettings,
   renderPersonaText
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import type { BriefingContribution, ExternalBriefingInvoker } from "./external-contributions.js";
-import type { BriefingStructuredPayloadV1 } from "@jarv1s/shared";
+import type { BriefingStructuredPayloadV1 } from "@moss/shared";
 
 export type GenerateChatFn = (input: GenerateChatInput) => Promise<{ readonly text: string }>;
 
@@ -23,7 +23,7 @@ export const SECTION_ITEM_CAP = 8;
 export const SECTION_CHAR_CAP = 1200;
 export const ECONOMY_MAX_OUTPUT_TOKENS = 1024;
 export interface ComposeDeps {
-  readonly moduleManifests: readonly JarvisModuleManifest[];
+  readonly moduleManifests: readonly MossModuleManifest[];
   readonly aiRepository: AiRepository;
   readonly cipher: AiSecretCipher;
   readonly memoryRetriever: MemoryRetriever;
@@ -97,7 +97,7 @@ export interface ComposeDeps {
   /** External manifests, injected separately — NOT read off `moduleManifests` (J1): that
    *  array's only production supplier is getBuiltInModuleManifests(), which never contains
    *  an external (JSON-manifest) module. */
-  readonly externalBriefingManifests?: readonly JsonJarvisModuleManifest[];
+  readonly externalBriefingManifests?: readonly JsonMossModuleManifest[];
 }
 
 export interface ComposeRunInput {
@@ -210,7 +210,7 @@ export function withinLocalDay(isoOrDate: unknown, now: Date, timeZone: string):
   return fmt(ts) === fmt(now);
 }
 
-export function findExecute(manifests: readonly JarvisModuleManifest[], toolName: string) {
+export function findExecute(manifests: readonly MossModuleManifest[], toolName: string) {
   return manifests.flatMap((m) => m.assistantTools ?? []).find((t) => t.name === toolName);
 }
 

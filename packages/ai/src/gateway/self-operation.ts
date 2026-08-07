@@ -1,9 +1,9 @@
 import type {
-  JarvisActionPermissionTier,
+  MossActionPermissionTier,
   ModuleAssistantActionFamilyManifest,
   ModuleAssistantToolManifest
-} from "@jarv1s/module-sdk";
-import type { DataContextDb } from "@jarv1s/db";
+} from "@moss/module-sdk";
+import type { DataContextDb } from "@moss/db";
 
 import type { AiRepository } from "../repository.js";
 
@@ -207,7 +207,7 @@ const PLANNED_CONFIRM_ALWAYS_TOOLS: readonly string[] = [
 
 const GENERIC_INPUT_KEY_NAMES = new Set(["key", "preferenceKey", "settingKey"]);
 
-/** Minimal shape assertBuiltInSelfOperationManifests needs from a built-in JarvisModuleManifest. */
+/** Minimal shape assertBuiltInSelfOperationManifests needs from a built-in MossModuleManifest. */
 export interface SelfOperationManifestInput {
   readonly id: string;
   readonly assistantTools?: readonly ModuleAssistantToolManifest[];
@@ -510,7 +510,7 @@ export async function selfHealGrantedAtInstallTier(
   repository: Pick<AiRepository, "listActionPolicies" | "insertActionPolicyIfAbsent">,
   manifest: SelfOperationManifestInput,
   familyId: string
-): Promise<JarvisActionPermissionTier | null> {
+): Promise<MossActionPermissionTier | null> {
   const isGrantedAtInstall = (manifest.assistantTools ?? []).some(
     (tool) => tool.actionFamilyId === familyId && tool.selfOperationGrant === "granted_at_install"
   );

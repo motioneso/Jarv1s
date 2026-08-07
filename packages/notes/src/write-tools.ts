@@ -11,15 +11,10 @@ import {
 } from "node:fs/promises";
 import { dirname, isAbsolute, join, normalize } from "node:path";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import {
-  HttpError,
-  type ToolExecute,
-  type ToolResult,
-  type ToolServices
-} from "@jarv1s/module-sdk";
-import { NOTES_SOURCE_PREFERENCE_KEY, resolveNotesRoots } from "@jarv1s/settings";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
+import { HttpError, type ToolExecute, type ToolResult, type ToolServices } from "@moss/module-sdk";
+import { NOTES_SOURCE_PREFERENCE_KEY, resolveNotesRoots } from "@moss/settings";
+import { PreferencesRepository } from "@moss/structured-state";
 
 import { assertWithinRoot } from "./path-guard.js";
 

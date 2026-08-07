@@ -16,7 +16,7 @@ import {
   taskParamsSchema,
   updateTaskPreferencesRequestSchema,
   updateTaskRequestSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 // These schemas ARE the runtime Fastify validation contract. We exercise them through a real
 // Fastify instance (the same ajv path that runs in prod) rather than re-implementing a validator,

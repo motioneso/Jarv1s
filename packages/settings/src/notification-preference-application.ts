@@ -1,6 +1,6 @@
-import type { DataContextDb } from "@jarv1s/db";
-import { HttpError, type JarvisModuleManifest } from "@jarv1s/module-sdk";
-import type { NotificationPreferenceDto } from "@jarv1s/shared";
+import type { DataContextDb } from "@moss/db";
+import { HttpError, type MossModuleManifest } from "@moss/module-sdk";
+import type { NotificationPreferenceDto } from "@moss/shared";
 
 import type { NotificationPreferencesPort } from "./preferences-port.js";
 import type { SettingsRepository } from "./repository.js";
@@ -10,7 +10,7 @@ import type { NotificationUnreadPort } from "./notification-preferences-routes.j
 const KEY = (moduleId: string) => `notifications:${moduleId}`;
 
 export interface NotificationPreferenceApplicationDeps {
-  readonly listModuleManifests: () => readonly JarvisModuleManifest[];
+  readonly listModuleManifests: () => readonly MossModuleManifest[];
   readonly preferencesRepository: NotificationPreferencesPort;
   readonly repository: SettingsRepository;
   readonly notificationUnreadPort?: NotificationUnreadPort;

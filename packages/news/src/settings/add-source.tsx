@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Note } from "@jarv1s/settings-ui";
-import { ApiError, Button } from "@jarv1s/module-web-sdk";
+import { Note } from "@moss/settings-ui";
+import { ApiError, Button } from "@moss/module-web-sdk";
 import type {
-  JarvisError,
+  MossError,
   NewsSourcePreviewCandidate,
   NewsSourcePreviewResponse
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { confirmNewsSource, previewNewsSource } from "../web/news-client.js";
 import { newsQueryKeys } from "../web/query-keys.js";
@@ -45,8 +45,8 @@ export function previewOutcomeMessage(result: NewsSourcePreviewResponse): string
   }
 }
 
-/** Renders a structured `JarvisError` with machine-readable attributes for QA/tooling. */
-export function NewsAddSourceError({ error }: { readonly error: JarvisError }) {
+/** Renders a structured `MossError` with machine-readable attributes for QA/tooling. */
+export function NewsAddSourceError({ error }: { readonly error: MossError }) {
   const message =
     error.class === "prerequisite"
       ? "Adding sources needs a configured JSON-capable economy model."

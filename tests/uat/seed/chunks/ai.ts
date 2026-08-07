@@ -1,5 +1,5 @@
-import type { DataContextRunner } from "@jarv1s/db";
-import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
+import type { DataContextRunner } from "@moss/db";
+import { AiRepository, createAiSecretCipher } from "@moss/ai";
 
 /**
  * #1025 spec §4.4: without an active provider+model bound to module.news, the

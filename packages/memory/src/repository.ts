@@ -1,6 +1,6 @@
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
 
 export interface NewChunkData {
   readonly sourcePath: string;

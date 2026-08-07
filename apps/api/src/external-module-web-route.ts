@@ -4,10 +4,10 @@
 import type { FastifyInstance } from "fastify";
 import { readFile } from "node:fs/promises";
 
-import type { JarvisAuthRuntime } from "@jarv1s/auth";
-import type { AccessContext } from "@jarv1s/db";
-import type { ExternalModuleDiscovery, ReconciledExternalModule } from "@jarv1s/module-registry";
-import { ModuleAssetPathError, resolveModuleAssetPath } from "@jarv1s/module-registry/node";
+import type { MossAuthRuntime } from "@moss/auth";
+import type { AccessContext } from "@moss/db";
+import type { ExternalModuleDiscovery, ReconciledExternalModule } from "@moss/module-registry";
+import { ModuleAssetPathError, resolveModuleAssetPath } from "@moss/module-registry/node";
 
 /**
  * Serves an external module's web assets (#918). Authenticated only — module assets
@@ -18,7 +18,7 @@ import { ModuleAssetPathError, resolveModuleAssetPath } from "@jarv1s/module-reg
  */
 export function registerExternalModuleWebAssetRoute(
   server: FastifyInstance,
-  authRuntime: JarvisAuthRuntime,
+  authRuntime: MossAuthRuntime,
   discoveries: readonly ExternalModuleDiscovery[],
   getActiveExternalModules: (
     accessContext: AccessContext

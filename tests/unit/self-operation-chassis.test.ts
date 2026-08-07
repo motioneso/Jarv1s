@@ -5,13 +5,13 @@ import {
   BUILT_IN_SELF_OPERATION_SCOPE_NOTE,
   SELF_OPERATION_EXCLUSIONS,
   type SelfOperationManifestInput
-} from "@jarv1s/ai";
+} from "@moss/ai";
 import type {
-  JarvisActionPermissionTier,
+  MossActionPermissionTier,
   ModuleAssistantActionFamilyManifest,
   ModuleAssistantToolManifest,
   ModuleAssistantToolSelfOperationGrant
-} from "@jarv1s/module-sdk";
+} from "@moss/module-sdk";
 
 function family(
   id: string,
@@ -523,7 +523,7 @@ describe("module-sdk self-operation vocabulary", () => {
       "granted_at_install",
       "confirm_always"
     ];
-    const tiers: readonly JarvisActionPermissionTier[] = [
+    const tiers: readonly MossActionPermissionTier[] = [
       "ask_each_time",
       "trusted_auto",
       "always_confirm"

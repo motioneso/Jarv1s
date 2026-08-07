@@ -8,15 +8,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { ChatRepository } from "@jarv1s/chat";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import type { ChatEngineFactory } from "@jarv1s/module-registry";
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
+import { ChatRepository } from "@moss/chat";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import type { ChatEngineFactory } from "@moss/module-registry";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
 import type {
   CliChatEngine,
   EngineLaunchOpts,
@@ -64,7 +59,7 @@ const fakeEngineFactory: ChatEngineFactory = (provider, sessionKey) =>
   new FakeLiveEngine(provider, sessionKey);
 
 describe("chat provenance routes", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: ChatRepository;
   let boss: PgBoss;

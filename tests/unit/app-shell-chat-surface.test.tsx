@@ -21,7 +21,7 @@ import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 
-import { normalizeChatSurface, type MeResponse, type ModuleDto } from "@jarv1s/shared";
+import { normalizeChatSurface, type MeResponse, type ModuleDto } from "@moss/shared";
 import type { TranscriptRecord } from "../../apps/web/src/chat/use-chat-stream.js";
 
 // #1284 — pre-existing, unrelated gap: theme-storage.ts's exported loaders default their `storage`

@@ -8,7 +8,7 @@ import {
   priorityDraftValidation,
   prioritySourceIncluded,
   priorityWeightLabel
-} from "@jarv1s/settings-ui";
+} from "@moss/settings-ui";
 
 describe("PrioritySettings", () => {
   const savedModel = {

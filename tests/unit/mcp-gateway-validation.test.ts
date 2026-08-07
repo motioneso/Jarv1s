@@ -7,10 +7,10 @@ import {
   SessionTokenRegistry,
   ToolInputValidationError,
   validateToolInput
-} from "@jarv1s/ai";
-import type { ModuleAssistantToolManifest } from "@jarv1s/module-sdk";
-import { tasksModuleManifest } from "@jarv1s/tasks";
-import { getBuiltInModuleManifests } from "@jarv1s/module-registry";
+} from "@moss/ai";
+import type { ModuleAssistantToolManifest } from "@moss/module-sdk";
+import { tasksModuleManifest } from "@moss/tasks";
+import { getBuiltInModuleManifests } from "@moss/module-registry";
 
 describe("tool input validation", () => {
   const schema = {

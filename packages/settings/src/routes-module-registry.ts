@@ -11,7 +11,7 @@ import {
   removeExternalModuleRouteSchema,
   type GetModuleRegistryResponse,
   type ModuleRegistryRowDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { deriveModuleRegistryRows, type ModuleRegistryEntryLike } from "./module-registry-rows.js";
 import {
@@ -21,7 +21,7 @@ import {
   updateExternalModuleStaging,
   type ExternalModuleAdminState
 } from "./repository-external-modules.js";
-import { HttpError } from "@jarv1s/module-sdk";
+import { HttpError } from "@moss/module-sdk";
 import { handleRouteError } from "./routes-serializers.js";
 import type { ModuleRoutesContext } from "./routes-modules.js";
 

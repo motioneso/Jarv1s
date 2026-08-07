@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatPeopleNote, parsePeopleNote, replaceJarvisManagedSection } from "../notes-format.js";
+import { formatPeopleNote, parsePeopleNote, replaceMossManagedSection } from "../notes-format.js";
 
 describe("people note format", () => {
   it("parses stable frontmatter without body loss", () => {
@@ -45,7 +45,7 @@ Human text stays.
   it("replaces only the managed section", () => {
     const original =
       "# Person\n\nHuman before.\n\n<!-- jarvis:people:start -->\nold\n<!-- jarvis:people:end -->\n\nHuman after.";
-    const next = replaceJarvisManagedSection(original, "new managed summary");
+    const next = replaceMossManagedSection(original, "new managed summary");
 
     expect(next).toContain("Human before.");
     expect(next).toContain("new managed summary");

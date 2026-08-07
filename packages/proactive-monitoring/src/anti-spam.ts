@@ -1,5 +1,5 @@
-import type { DataContextDb } from "@jarv1s/db";
-import type { ProactiveMonitoringPreferenceV1, ProactiveSource } from "@jarv1s/shared";
+import type { DataContextDb } from "@moss/db";
+import type { ProactiveMonitoringPreferenceV1, ProactiveSource } from "@moss/shared";
 
 import type { CardRepository } from "./card-repository.js";
 import { resolveSourcePreference } from "./preferences-repository.js";

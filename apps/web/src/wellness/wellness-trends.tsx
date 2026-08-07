@@ -6,7 +6,7 @@ import {
   type CheckinDto,
   type DayAdherenceSummaryDto,
   type LocaleSettingsDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import { queryKeys } from "../api/query-keys";
 import { listWellnessCheckins, getMedicationAdherenceSummary } from "../api/client";
 import { formatDate, useUserLocale } from "../locale/locale-format";

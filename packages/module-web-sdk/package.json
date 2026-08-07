@@ -1,5 +1,5 @@
 {
-  "name": "@jarv1s/module-web-sdk",
+  "name": "@moss/module-web-sdk",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@jarv1s/ui": "workspace:*",
+    "@moss/ui": "workspace:*",
     "react": "^19.0.0"
   },
   "devDependencies": {

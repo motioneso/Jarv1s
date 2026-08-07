@@ -2,24 +2,24 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import { ConnectorsRepository, createConnectorSecretCipher } from "@moss/connectors";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
 import {
   NotificationsRepository,
   digestPreferenceToRaw,
   digestScheduleData,
   runNotificationDigestCompose
-} from "@jarv1s/notifications";
+} from "@moss/notifications";
 import type {
   GetNotificationDigestPreferenceResponse,
   PutNotificationDigestPreferenceResponse
-} from "@jarv1s/shared";
-import { assertMetadataOnlyPayload } from "@jarv1s/jobs";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+} from "@moss/shared";
+import { assertMetadataOnlyPayload } from "@moss/jobs";
+import { PreferencesRepository } from "@moss/structured-state";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 describe("notification digest settings", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let server: ReturnType<typeof createApiServer>;
   let schedules: unknown[][];

@@ -822,7 +822,7 @@ export function BoardScreen(props: BoardScreenProps): ReactNodeLike {
         <div className="jsm-board-list">
           {/* BUCKETS — gold marker, same idiom as the module's own view tabs (JobsMatches.jsx's own
               comment on this nav, and the reason `jds-tab--gold` exists at all per
-              components-jarvis.css's header: "Job Search's bucket nav"). This used to be
+              components-moss.css's header: "Job Search's bucket nav"). This used to be
               `jds-chip--toggle` filter chips out of a since-reversed worry that reusing `jds-tabs`
               here would read as two identical tab strips meaning two different things — but the
               mockup deliberately wants that visual echo (its own bucket nav sits directly under the

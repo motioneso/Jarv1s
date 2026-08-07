@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { AestheticThemeTokens } from "@jarv1s/shared";
+import type { AestheticThemeTokens } from "@moss/shared";
 import {
   applyThemeTokens,
   deriveAccentRamp,

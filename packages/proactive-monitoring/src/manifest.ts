@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 
 export const proactiveMonitoringSqlMigrationDirectory = fileURLToPath(
   new URL("./sql", import.meta.url)
@@ -50,4 +50,4 @@ export const proactiveMonitoringModuleManifest = {
       permissionId: "proactive-monitoring.refresh"
     }
   ]
-} satisfies JarvisModuleManifest;
+} satisfies MossModuleManifest;

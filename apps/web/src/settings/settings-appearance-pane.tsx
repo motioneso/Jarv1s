@@ -17,10 +17,10 @@ import {
   parsePalette,
   readCurrentAestheticTokens
 } from "../theme/theme-runtime";
-import type { AestheticThemeTokenKey, AestheticThemeTokens } from "@jarv1s/shared";
-import { AESTHETIC_THEME_TOKEN_KEYS } from "@jarv1s/shared";
+import type { AestheticThemeTokenKey, AestheticThemeTokens } from "@moss/shared";
+import { AESTHETIC_THEME_TOKEN_KEYS } from "@moss/shared";
 import { Badge, Field, Group, Note, PaneHead } from "./settings-ui";
-import { Button, Segmented } from "@jarv1s/ui";
+import { Button, Segmented } from "@moss/ui";
 
 interface DraftTheme {
   readonly id: string;

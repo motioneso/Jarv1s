@@ -10,12 +10,12 @@ import type {
   OverviewHero,
   SportsOverviewResponse,
   StandingsGroup
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { hasLiveGame, SportsPage } from "../../packages/sports/src/web/sports-page.js";
 import { sportsQueryKeys } from "../../packages/sports/src/web/query-keys.js";
 
-// Root suite renders @jarv1s/web components with react-dom/server (no jsdom /
+// Root suite renders @moss/web components with react-dom/server (no jsdom /
 // @testing-library — deliberately avoided repo-wide; see settings-appearance-pane.test.tsx).
 // useQuery reads primed cache synchronously during renderToString, so the resolved
 // state is asserted against the SSR HTML string.

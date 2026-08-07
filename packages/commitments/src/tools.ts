@@ -1,4 +1,4 @@
-import type { ToolExecute, ToolResult } from "@jarv1s/module-sdk";
+import type { ToolExecute, ToolResult } from "@moss/module-sdk";
 import { CommitmentsRepository } from "./repository.js";
 
 const repo = new CommitmentsRepository();

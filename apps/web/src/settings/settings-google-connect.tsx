@@ -16,7 +16,7 @@ import { useAssistantName } from "../api/use-assistant-name";
 import { importCredentialsJson } from "../connectors/google-credentials";
 import { useGoogleConnectFlow } from "../connectors/use-google-connect-flow";
 import { useFeedback } from "./settings-feedback";
-import { Button } from "@jarv1s/ui";
+import { Button } from "@moss/ui";
 
 /* Credential / paste field, matched to the onboarding Google walkthrough. */
 function CredField(props: {

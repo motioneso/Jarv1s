@@ -1,9 +1,9 @@
 /** Shared fake-deps harness for the briefings-compose unit suites. */
-import type { AiRepository, AiSecretCipher } from "@jarv1s/ai";
-import type { BriefingDefinition, DataContextDb } from "@jarv1s/db";
-import type { MemoryRetriever } from "@jarv1s/memory";
-import type { JarvisModuleManifest, ToolExecute, ToolResult } from "@jarv1s/module-sdk";
-import type { FocusSignalInput, PriorityModelPreferenceV1 } from "@jarv1s/priority";
+import type { AiRepository, AiSecretCipher } from "@moss/ai";
+import type { BriefingDefinition, DataContextDb } from "@moss/db";
+import type { MemoryRetriever } from "@moss/memory";
+import type { MossModuleManifest, ToolExecute, ToolResult } from "@moss/module-sdk";
+import type { FocusSignalInput, PriorityModelPreferenceV1 } from "@moss/priority";
 
 import {
   type ComposeDeps,
@@ -133,7 +133,7 @@ export interface FakeOptions {
   readonly preferences?: Readonly<Record<string, unknown>>;
 }
 
-export function makeFakeManifests(failTool?: string): JarvisModuleManifest[] {
+export function makeFakeManifests(failTool?: string): MossModuleManifest[] {
   const toolNames = [
     "commitments.listVisible",
     "tasks.list",

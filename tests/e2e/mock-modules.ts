@@ -5,7 +5,7 @@ import type {
   ListModulesResponse,
   ListMyModulesResponse,
   ModuleDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 export const modulesResponse: ListModulesResponse = {
   modules: [

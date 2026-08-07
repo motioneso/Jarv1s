@@ -1,4 +1,4 @@
-import type { MeResponse } from "@jarv1s/shared";
+import type { MeResponse } from "@moss/shared";
 
 /** Shared props every settings pane receives from the shell. */
 export interface PaneProps {

@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import { handleRouteError } from "@jarv1s/module-sdk";
-import type { AccessContext, DataContextRunner, PreferencesPort } from "@jarv1s/db";
+import { handleRouteError } from "@moss/module-sdk";
+import type { AccessContext, DataContextRunner, PreferencesPort } from "@moss/db";
 import {
   getCalendarBriefingSettingsRouteSchema,
   getCalendarEventRouteSchema,
@@ -9,8 +9,8 @@ import {
   parseCalendarAutomationMode,
   type UpdateCalendarBriefingSettingsRequest,
   updateCalendarBriefingSettingsRouteSchema
-} from "@jarv1s/shared";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+} from "@moss/shared";
+import { PreferencesRepository } from "@moss/structured-state";
 
 import { CalendarRepository } from "./repository.js";
 import { serializeCalendarEvent } from "./serialize.js";

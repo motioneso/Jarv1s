@@ -1,2 +1,2 @@
-export * from "@jarv1s/host-fetch";
-export * from "@jarv1s/host-fetch/policy";
+export * from "@moss/host-fetch";
+export * from "@moss/host-fetch/policy";

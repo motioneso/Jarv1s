@@ -1,8 +1,8 @@
 // Shared helpers for the focus-time integration suites. Extracted from focus-time.test.ts so each
 // suite file stays under the 1000-line source cap (pnpm check:file-size). NOT a *.test.ts file, so
 // vitest does not run it as a suite — it only exports helpers consumed by the two focus-time suites.
-import type { GatewayToolResponse } from "@jarv1s/ai";
-import { CalendarRepository } from "@jarv1s/calendar";
+import type { GatewayToolResponse } from "@moss/ai";
+import { CalendarRepository } from "@moss/calendar";
 
 export function okText(res: GatewayToolResponse): string {
   if (!res.ok) throw new Error("expected ok response");

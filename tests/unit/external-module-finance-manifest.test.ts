@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { assertModuleJobPayload } from "@jarv1s/jobs";
-import { validateExternalModuleManifest } from "@jarv1s/module-registry";
+import { assertModuleJobPayload } from "@moss/jobs";
+import { validateExternalModuleManifest } from "@moss/module-registry";
 
 // FIN-01 (#1146): the REAL shipped finance manifest must pass the merged external
 // ABI, and targeted mutations must fail closed. Slice deltas vs the design spec

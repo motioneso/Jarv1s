@@ -1,4 +1,4 @@
-import type { SourceFreshnessEntry, SourceFreshnessV1 } from "@jarv1s/shared";
+import type { SourceFreshnessEntry, SourceFreshnessV1 } from "@moss/shared";
 
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 

@@ -17,7 +17,7 @@
  */
 
 import type { RpcProviderKind } from "./rpc-contract.js";
-import type { ProviderInstallState } from "@jarv1s/shared"; // base §9.2 enum, reused verbatim
+import type { ProviderInstallState } from "@moss/shared"; // base §9.2 enum, reused verbatim
 
 // ---------------------------------------------------------------------------
 // §A.2.1 — installProvider wire types (additive; mirror the §3.4 envelope)

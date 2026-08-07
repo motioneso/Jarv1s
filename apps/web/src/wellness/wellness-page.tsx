@@ -3,7 +3,7 @@ import "../styles/wellness-2.css";
 import "../styles/wellness-3.css";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { Button } from "@jarv1s/ui";
+import { Button } from "@moss/ui";
 import {
   localDay,
   moodIndex,
@@ -11,7 +11,7 @@ import {
   type CheckinDto,
   type WellnessEmotionCore,
   type UpdateCheckinRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import {
   createWellnessCheckin,
   getLocaleSettings,

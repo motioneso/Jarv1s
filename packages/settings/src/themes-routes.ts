@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext, DataContextRunner } from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
+import type { AccessContext, DataContextRunner } from "@moss/db";
+import { HttpError } from "@moss/module-sdk";
 import {
   AESTHETIC_THEME_TOKEN_KEYS,
   OPTIONAL_AESTHETIC_TOKEN_KEYS,
@@ -16,7 +16,7 @@ import {
   type PutActiveThemeRequest,
   type PutColorModeRequest,
   type PutCustomThemeRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import type { ProfilePreferencesPort } from "./preferences-port.js";
 import { handleSettingsRouteError } from "./route-error.js";

@@ -16,13 +16,13 @@ import {
   type PatchMemoryEntityBody,
   type PatchMemoryFactBody
 } from "../api/memory-client";
-import type { LocaleSettingsDto } from "@jarv1s/shared";
+import type { LocaleSettingsDto } from "@moss/shared";
 import {
   formatDate as fmtDate,
   formatDateTime as fmtDateTime,
   useUserLocale
 } from "../locale/locale-format";
-import { Button } from "@jarv1s/ui";
+import { Button } from "@moss/ui";
 import { queryKeys } from "../api/query-keys";
 import { useFeedback } from "./settings-feedback";
 import { readError } from "./settings-types";

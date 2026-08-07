@@ -1,6 +1,6 @@
 import { sql } from "kysely";
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
-import { HttpError } from "@jarv1s/module-sdk";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
+import { HttpError } from "@moss/module-sdk";
 
 function jsonb(value: unknown) {
   return sql<Record<string, unknown>>`${JSON.stringify(value)}::jsonb`;
@@ -11,7 +11,7 @@ import {
   type ProactiveMonitoringPreferenceV1,
   type ProactiveSource,
   type ProactiveSourcePreference
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 const VALID_SOURCES = new Set<ProactiveSource>(["tasks", "calendar", "email", "notes"]);
 const PREF_KEYS = new Set([

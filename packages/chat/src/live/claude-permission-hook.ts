@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import type { TmuxIo } from "@jarv1s/ai";
+import type { TmuxIo } from "@moss/ai";
 
 export const CLAUDE_PERMISSION_SETTINGS_FILENAME = ".jarvis-claude-settings.json";
 export const CLAUDE_PERMISSION_HOOK_FILENAME = ".jarvis-claude-permission-hook.mjs";

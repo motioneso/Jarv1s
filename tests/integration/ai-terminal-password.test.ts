@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
 import {
   hasTerminalPassword,
   setTerminalPassword,
@@ -14,7 +14,7 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 // a real admin AccessContext — mirrors tests/integration/chat-multiplexer-admin.test.ts's harness
 // (probe-seeded adminUser, DataContextRunner.withDataContext).
 describe("terminal password storage (#1059)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   const adminCtx = { actorUserId: ids.adminUser, requestId: "test:ai-terminal-password" };
 

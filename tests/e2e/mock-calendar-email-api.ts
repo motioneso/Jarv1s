@@ -1,5 +1,5 @@
 import type { Page, Route } from "@playwright/test";
-import type { CalendarEventDto, EmailMessageDto, GoogleSyncResponse } from "@jarv1s/shared";
+import type { CalendarEventDto, EmailMessageDto, GoogleSyncResponse } from "@moss/shared";
 
 /**
  * REST mocks for the Phase 3 connector-sync Calendar + Email pages and the
@@ -89,7 +89,7 @@ export function createMockCalendarEvent(
     summary: null,
     bodyExcerpt: null,
     externalId: id,
-    isJarvisBlock: false,
+    isMossBlock: false,
     allDay: false,
     attendeeCount: 0,
     status: null,

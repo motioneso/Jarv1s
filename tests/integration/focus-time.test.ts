@@ -7,23 +7,23 @@ import {
   type GatewaySessionRecord,
   type GatewayToolResponse,
   type SessionNotifier
-} from "@jarv1s/ai";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+} from "@moss/ai";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
 import {
   ConnectorsRepository,
   GoogleApiClient,
   GoogleConnectionService,
   GoogleOAuthClient,
   createConnectorSecretCipher
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 import {
   buildCalendarWriteService,
   buildChatGatewayDependencies,
   buildChatToolServices
-} from "@jarv1s/chat";
-import { calendarModuleManifest, CalendarRepository } from "@jarv1s/calendar";
-import type { ProposeFocusResult } from "@jarv1s/calendar";
-// registerMcpTransportRoute is NOT re-exported from @jarv1s/chat — import it via the deep src path
+} from "@moss/chat";
+import { calendarModuleManifest, CalendarRepository } from "@moss/calendar";
+import type { ProposeFocusResult } from "@moss/calendar";
+// registerMcpTransportRoute is NOT re-exported from @moss/chat — import it via the deep src path
 // exactly as chat-mcp-transport.test.ts does (verified).
 import { registerMcpTransportRoute } from "../../packages/chat/src/mcp-transport.js";
 import Fastify from "fastify";
@@ -38,7 +38,7 @@ import {
 } from "./focus-time-helpers.js";
 
 describe("Group C — calendar.proposeFocusBlock tool wiring", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
 
   beforeAll(async () => {
@@ -165,7 +165,7 @@ describe("Group C — calendar.proposeFocusBlock tool wiring", () => {
 });
 
 describe("Group D — CalendarWriteService impl (faked Google fetch)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
 
   beforeAll(async () => {
@@ -585,7 +585,7 @@ describe("Group D — CalendarWriteService impl (faked Google fetch)", () => {
 });
 
 describe("Group D — buildChatToolServices wires calendarWrite into the gateway (MCP path)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
 
   beforeAll(async () => {
@@ -789,7 +789,7 @@ describe("Group D — buildChatToolServices wires calendarWrite into the gateway
 });
 
 describe("Group D — no write without approval (safety property)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
 
   beforeAll(async () => {

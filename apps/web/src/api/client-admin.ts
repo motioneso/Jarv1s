@@ -12,7 +12,7 @@ import type {
   PutAiAdminUserPinRequest,
   RegistrationSettingsDto,
   UserDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { requestJson } from "./client.js";
 

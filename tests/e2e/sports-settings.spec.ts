@@ -4,7 +4,7 @@ import type {
   CreateSportsFollowRequest,
   SportsFollowDto,
   TeamRef
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { mockApi } from "./mock-api.js";
 

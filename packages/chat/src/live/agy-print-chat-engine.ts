@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { join } from "node:path";
 
-import { agyPrintTranscriptRoot, parseTranscript, type Multiplexer, type TmuxIo } from "@jarv1s/ai";
+import { agyPrintTranscriptRoot, parseTranscript, type Multiplexer, type TmuxIo } from "@moss/ai";
 
 import type { ChatRecordKind, CliChatEngine, EngineLaunchOpts, TranscriptRecord } from "./types.js";
 import {

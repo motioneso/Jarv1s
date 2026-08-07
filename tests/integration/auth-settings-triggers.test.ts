@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { sql } from "kysely";
 import pg from "pg";
 
-import { createDatabase, DataContextRunner } from "@jarv1s/db";
+import { createDatabase, DataContextRunner } from "@moss/db";
 import { connectionStrings, ids, resetEmptyFoundationDatabase } from "./test-database.js";
 import { SettingsRepository } from "../../packages/settings/src/repository.js";
 

@@ -1,4 +1,4 @@
-import type { Confederation, StandingsShape } from "@jarv1s/shared";
+import type { Confederation, StandingsShape } from "@moss/shared";
 
 export interface CatalogEntry {
   readonly competitionKey: string;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { TaskDto, TaskListDto } from "@jarv1s/shared";
+import type { TaskDto, TaskListDto } from "@moss/shared";
 import {
   deriveTaskFilters,
   groupTasksByQuadrant,

@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import type { ToolContext } from "@jarv1s/module-sdk";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import type { ToolContext } from "@moss/module-sdk";
+import { PreferencesRepository } from "@moss/structured-state";
 import {
   isValidIanaTimeZone,
   localeSetRegionAndDateFormatExecute,
@@ -26,7 +26,7 @@ describe("isValidIanaTimeZone", () => {
 });
 
 describe("settings.locale.setTimezone / settings.locale.setRegionAndDateFormat tools", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   const preferences = new PreferencesRepository();
 

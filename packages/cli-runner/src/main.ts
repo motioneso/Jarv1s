@@ -12,9 +12,9 @@
 
 import { dirname } from "node:path";
 
-import { cliAvailable, tmuxAvailable, type ProviderKind } from "@jarv1s/ai";
+import { cliAvailable, tmuxAvailable, type ProviderKind } from "@moss/ai";
 
-import { probeProvider, type RpcProviderKind } from "@jarv1s/chat/live";
+import { probeProvider, type RpcProviderKind } from "@moss/chat/live";
 
 import { PROVIDER_CATALOG } from "./catalog.js";
 import { CliChatEngineHost } from "./engine-host.js";

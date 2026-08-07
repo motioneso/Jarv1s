@@ -3,9 +3,9 @@
 // "react" to (scripts/build-external-module.ts `alias`) and gets injected with for its JSX
 // pragma (`inject`, satisfying esbuild's jsxFactory:"h"/jsxFragment:"Fragment") — the same
 // recipe finance/job-search's own hand-rolled src/web/runtime.ts already used (FIN-02/#1147),
-// generalized here so a @jarv1s/ui-consuming module doesn't have to duplicate it, and widened
+// generalized here so a @moss/ui-consuming module doesn't have to duplicate it, and widened
 // to the full react namespace so components that need forwardRef/memo (lucide-react icons, used
-// by @jarv1s/ui's chip/select) resolve correctly. The bundle must never carry its own React copy
+// by @moss/ui's chip/select) resolve correctly. The bundle must never carry its own React copy
 // (bundle-hygiene test): every export below delegates to the host instance captured on
 // window.__JARVIS_MODULE_RUNTIME__ at module-eval time — safe because the host installs that
 // global at boot, before any module bundle is dynamically imported.
@@ -49,7 +49,7 @@ function readRuntime(): ModuleRuntime {
 }
 
 // index.ts re-exports this module (`export * from "./runtime.js"`) so h/Fragment are reachable
-// via the "@jarv1s/module-web-sdk" barrel too — which means EVERY consumer of the package,
+// via the "@moss/module-web-sdk" barrel too — which means EVERY consumer of the package,
 // including ones that only want an unrelated export like requestJson (news-client.ts,
 // sports-client.ts), evaluates this module. Resolving the host runtime eagerly at module scope
 // (the original shape here) threw for all of them outside a real module runtime. Every export
@@ -61,7 +61,7 @@ function resolveType(type: unknown): unknown {
 }
 
 // jsxFactory/jsxFragment pragma targets (esbuild `inject`, build-external-module.ts) — a
-// @jarv1s/ui component's JSX has no explicit h/Fragment import of its own, unlike
+// @moss/ui component's JSX has no explicit h/Fragment import of its own, unlike
 // finance/job-search's hand-authored files.
 export const h: HostReact["createElement"] = (type, props, ...children) =>
   readRuntime().react.createElement(resolveType(type), props, ...children);
@@ -71,7 +71,7 @@ export const h: HostReact["createElement"] = (type, props, ...children) =>
 export const Fragment: unknown = FRAGMENT_PLACEHOLDER;
 
 // Named to match real react's own exports (esbuild `alias` target for the bare "react"
-// specifier) — lucide-react, a runtime dependency of @jarv1s/ui's chip/select icons, imports
+// specifier) — lucide-react, a runtime dependency of @moss/ui's chip/select icons, imports
 // createElement/forwardRef directly rather than writing JSX.
 export const createElement: HostReact["createElement"] = h;
 export const forwardRef: HostReact["forwardRef"] = (render) =>

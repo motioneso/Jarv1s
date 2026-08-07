@@ -1,15 +1,15 @@
 import { randomUUID } from "node:crypto";
 
-import { createDatabase, DataContextRunner, type AccessContext } from "@jarv1s/db";
-import { VaultContextRunner } from "@jarv1s/vault";
+import { createDatabase, DataContextRunner, type AccessContext } from "@moss/db";
+import { VaultContextRunner } from "@moss/vault";
 import {
   IngestionService,
   MemoryIngestPipeline,
   MemoryRepository,
   createEmbeddingProvider,
   getEmbeddingProviderConfig
-} from "@jarv1s/memory";
-import { RuntimeConfigResolver } from "@jarv1s/settings";
+} from "@moss/memory";
+import { RuntimeConfigResolver } from "@moss/settings";
 
 function requireEnv(name: string): string {
   const value = process.env[name];

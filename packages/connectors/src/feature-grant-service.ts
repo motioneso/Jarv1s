@@ -1,4 +1,4 @@
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 
 import { featureGrantsPrefKey, resolveEffectiveGrants } from "./feature-grants.js";
 import type { ConnectorsRepository } from "./repository.js";
@@ -6,7 +6,7 @@ import type { ConnectorsRepository } from "./repository.js";
 /**
  * Read-only service that resolves which connected accounts have a given feature granted.
  * Declared here so callers (email, calendar, briefings, chat gateway) can use structural
- * typing without a runtime @jarv1s/connectors package dependency.
+ * typing without a runtime @moss/connectors package dependency.
  *
  * Passed to read-tool execute calls via the services 4th argument so revoked-account
  * cached rows are dropped in all three read paths: chat, briefings, cross-tool reasoning.

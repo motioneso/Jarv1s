@@ -1,24 +1,19 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
-import {
-  DataContextRunner,
-  createDatabase,
-  type AccessContext,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import type { ToolContext } from "@jarv1s/module-sdk";
-import type { TaskDto } from "@jarv1s/shared";
+import { DataContextRunner, createDatabase, type AccessContext, type MossDatabase } from "@moss/db";
+import type { ToolContext } from "@moss/module-sdk";
+import type { TaskDto } from "@moss/shared";
 import {
   TaskBreakdownRepository,
   TaskListsRepository,
   TasksRepository,
   tasksModuleManifest
-} from "@jarv1s/tasks";
+} from "@moss/tasks";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 describe("Tasks module — assistant read tools", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: TasksRepository;
   let listsRepo: TaskListsRepository;

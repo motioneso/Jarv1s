@@ -1,19 +1,19 @@
 /* Usage: JARVIS_CONNECTOR_SECRET_KEY=<key> tsx scripts/verify-google-connection.ts <userId>
    Requires an active google connection in the DB.
    Reads today's calendar events (read) and creates+deletes a temp event (reversible write). */
-import { DataContextRunner, createDatabase, getJarvisDatabaseUrls } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, getMossDatabaseUrls } from "@moss/db";
 import {
   ConnectorsRepository,
   GoogleConnectionService,
   GoogleOAuthClient,
   createConnectorSecretCipher
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 
 async function main() {
   const userId = process.argv[2];
   if (!userId) throw new Error("Usage: tsx scripts/verify-google-connection.ts <userId>");
 
-  const urls = getJarvisDatabaseUrls();
+  const urls = getMossDatabaseUrls();
   const appDb = createDatabase({ connectionString: urls.app, maxConnections: 1 });
   const dc = new DataContextRunner(appDb);
   const service = new GoogleConnectionService({

@@ -2,8 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { MoreHorizontal, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useState } from "react";
 
-import type { UsefulnessFeedbackDto, UsefulnessFeedbackKind } from "@jarv1s/shared";
-import { Menu } from "@jarv1s/ui";
+import type { UsefulnessFeedbackDto, UsefulnessFeedbackKind } from "@moss/shared";
+import { Menu } from "@moss/ui";
 
 import { queryKeys } from "../api/query-keys";
 import {

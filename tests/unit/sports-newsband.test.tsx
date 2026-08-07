@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { Headline, LeagueNewsGroup } from "@jarv1s/shared";
+import type { Headline, LeagueNewsGroup } from "@moss/shared";
 import { NewsBand } from "../../packages/sports/src/web/sports-news.js";
 
 // A first-of-league headline with art (+2) + dek (+1) clears BIG_STORY_WEIGHT (4) on the

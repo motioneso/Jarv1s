@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { localDay, moodIndex, moodBand, type CheckinDto } from "@jarv1s/shared";
+import { localDay, moodIndex, moodBand, type CheckinDto } from "@moss/shared";
 import { emoColor, MOOD_BAND_LABELS, coreLabel, type Theme } from "./emotion-taxonomy";
 import { formatDate, formatTime, useUserLocale } from "../locale/locale-format";
 

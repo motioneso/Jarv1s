@@ -1,16 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "kysely";
 
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { EmailActionSuppressionRepository } from "@jarv1s/connectors";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { EmailActionSuppressionRepository } from "@moss/connectors";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 import type { Kysely } from "kysely";
 
 describe("email action suppression owner-only RLS", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let workerDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let workerDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let workerDataContext: DataContextRunner;
   const repository = new EmailActionSuppressionRepository();

@@ -1,5 +1,5 @@
 {
-  "name": "@jarv1s/memory",
+  "name": "@moss/memory",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,11 +11,11 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^3.0.0",
-    "@jarv1s/db": "workspace:*",
-    "@jarv1s/module-sdk": "workspace:*",
-    "@jarv1s/settings": "workspace:*",
-    "@jarv1s/shared": "workspace:*",
-    "@jarv1s/vault": "workspace:*",
+    "@moss/db": "workspace:*",
+    "@moss/module-sdk": "workspace:*",
+    "@moss/settings": "workspace:*",
+    "@moss/shared": "workspace:*",
+    "@moss/vault": "workspace:*",
     "fastify": "^5.6.2",
     "kysely": "^0.29.2"
   }

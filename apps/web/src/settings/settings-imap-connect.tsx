@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, KeyRound, Mail, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
-import { Button } from "@jarv1s/ui";
+import { Button } from "@moss/ui";
 import { connectImapConnection, testImapConnection } from "../api/client";
 import { GOOGLE_CONNECT_SUCCESS_QUERY_KEYS } from "../connectors/use-google-connect-flow";
 import { IMAP_PROVIDERS, type ImapProvider } from "../onboarding/google-connector-step";

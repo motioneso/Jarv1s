@@ -1,8 +1,8 @@
-import type { Headline, StandingsRow, TeamRef } from "@jarv1s/shared";
+import type { Headline, StandingsRow, TeamRef } from "@moss/shared";
 
 // DTO shapes shared by the ESPN dataset adapter (source/espn-source.ts) and the sports service.
 // The swappable-source contract itself (LOADER-SEAM(sports), D3) now lives in the dataset
-// connector SDK (`ExternalSourceAdapter` in @jarv1s/module-sdk) + the manifest-declared
+// connector SDK (`ExternalSourceAdapter` in @moss/module-sdk) + the manifest-declared
 // `externalSources` entry in ./manifest.ts; these DTOs are the only thing that stayed here.
 
 export interface SourceTeamRef extends TeamRef {

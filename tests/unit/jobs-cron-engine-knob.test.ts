@@ -14,7 +14,7 @@ vi.mock("pg-boss", () => ({
 
 describe("createPgBossClient cron-engine knob", () => {
   it("defaults schedule:false and honors a schedule:true override", async () => {
-    const { createPgBossClient } = await import("@jarv1s/jobs");
+    const { createPgBossClient } = await import("@moss/jobs");
     createPgBossClient("postgres://x");
     expect(ctorOptions.at(-1)).toMatchObject({ schedule: false });
     createPgBossClient("postgres://x", { schedule: true });

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { sql, type Updateable } from "kysely";
 
-import { findAssistantToolFromManifests } from "@jarv1s/ai";
+import { findAssistantToolFromManifests } from "@moss/ai";
 import {
   assertDataContextDb,
   type BriefingCadence,
@@ -13,13 +13,13 @@ import {
   type BriefingRunStatus,
   type BriefingType,
   type DataContextDb
-} from "@jarv1s/db";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+} from "@moss/db";
+import type { MossModuleManifest } from "@moss/module-sdk";
 
 import { composeBriefing, type ComposeDeps } from "./compose.js";
 import { emptyStructuredPayload } from "./action-rows.js";
 import { defaultScheduleMetadataFor, timezoneFor } from "./schedule.js";
-import type { BriefingStructuredPayloadV1 } from "@jarv1s/shared";
+import type { BriefingStructuredPayloadV1 } from "@moss/shared";
 
 export interface CreateBriefingDefinitionInput {
   readonly title: string;
@@ -40,7 +40,7 @@ export interface UpdateBriefingDefinitionInput {
 }
 
 export interface GenerateBriefingRunInput {
-  readonly moduleManifests: readonly JarvisModuleManifest[];
+  readonly moduleManifests: readonly MossModuleManifest[];
   readonly runKind: BriefingRunKind;
   readonly runId?: string;
   /**

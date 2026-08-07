@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { DataContextDb } from "@jarv1s/db";
+import type { DataContextDb } from "@moss/db";
 import {
   DEFAULT_EMAIL_TASK_MODE,
   createEmailActionSubjectSignature,
@@ -17,7 +17,7 @@ import {
   type RunEmailMonitorDeps,
   type EmailContextItem,
   type EmailActionSuppressionSnapshot
-} from "@jarv1s/connectors";
+} from "@moss/connectors";
 
 const NOW = "2026-07-04T12:00:00.000Z";
 const DB = {} as DataContextDb;

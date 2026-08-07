@@ -19,9 +19,9 @@ import {
 } from "./compose-shared.js";
 import { collectExternalBriefingContributions } from "./external-contributions.js";
 import { sanitizeExternal, renderExternalBlock, TRUST_BOUNDARY } from "./trust-boundary.js";
-import type { ChatTurn } from "@jarv1s/ai";
-import { rankPriorityCandidates, type PriorityResult, type PrioritySource } from "@jarv1s/priority";
-import type { BriefingDefinition, DataContextDb } from "@jarv1s/db";
+import type { ChatTurn } from "@moss/ai";
+import { rankPriorityCandidates, type PriorityResult, type PrioritySource } from "@moss/priority";
+import type { BriefingDefinition, DataContextDb } from "@moss/db";
 import { composeEveningBriefing } from "./compose-evening.js";
 
 import { resolveBriefingFreshness } from "./freshness.js";

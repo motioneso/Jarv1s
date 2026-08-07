@@ -1,7 +1,7 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { TasksRepository } from "@jarv1s/tasks";
+import { TasksRepository } from "@moss/tasks";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { UAT_ADMIN_EMAIL, UAT_SECOND_OWNER_EMAIL } from "./admin.js";
 import { createAppRuntimeRunner, createMigrationOwnerDb } from "./connections.js";

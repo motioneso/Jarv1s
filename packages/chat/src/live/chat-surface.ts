@@ -1,4 +1,4 @@
-import { DEFAULT_CHAT_SURFACE, normalizeChatSurface, type ChatSurface } from "@jarv1s/shared";
+import { DEFAULT_CHAT_SURFACE, normalizeChatSurface, type ChatSurface } from "@moss/shared";
 
 const SESSION_KEY_DELIMITER = ":";
 

@@ -1,4 +1,4 @@
-// Server-only entry for @jarv1s/module-registry (#917). Everything reachable from
+// Server-only entry for @moss/module-registry (#917). Everything reachable from
 // here may use node:* (fs, crypto). The browser-safe surface stays in ./index.ts.
 import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { join, sep } from "node:path";

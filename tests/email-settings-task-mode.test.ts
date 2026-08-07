@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
-import { EMAIL_TASK_CREATION_MODES } from "@jarv1s/shared";
+import { EMAIL_TASK_CREATION_MODES } from "@moss/shared";
 
 it("keeps every persisted email task creation mode reachable from Email settings", () => {
   const source = readFileSync("packages/email/src/settings/index.tsx", "utf8");

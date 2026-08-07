@@ -1,8 +1,8 @@
 import pg from "pg";
 import type { PgBoss } from "pg-boss";
 
-import { DataContextRunner, createDatabase, type AccessContext } from "@jarv1s/db";
-import { sendJob } from "@jarv1s/jobs";
+import { DataContextRunner, createDatabase, type AccessContext } from "@moss/db";
+import { sendJob } from "@moss/jobs";
 import {
   TASKS_DEFERRED_STATUS_QUEUE,
   TASKS_RECURRENCE_QUEUE,
@@ -10,7 +10,7 @@ import {
   type RecurrenceMaterializePayload,
   type RecurrenceMaterializeResult,
   registerTasksJobWorkers
-} from "@jarv1s/tasks";
+} from "@moss/tasks";
 
 import { connectionStrings, ids } from "./test-database.js";
 

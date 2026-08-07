@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@jarv1s/ui";
+import { Button } from "@moss/ui";
 import { LoaderCircle, Plus, SlidersHorizontal } from "lucide-react";
 import { type FormEvent, useState } from "react";
 

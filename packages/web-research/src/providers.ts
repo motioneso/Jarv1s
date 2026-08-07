@@ -85,7 +85,7 @@ function createBraveSearchProvider(apiKey: string): WebSearchProvider {
 /**
  * Resolves the instance-wide Brave key per request. Injected by the composition root (module
  * isolation: web-research must not import settings/db internals). `scopedDb` is the tool's
- * DataContextDb, typed `unknown` here to keep web-research free of a `@jarv1s/db` dependency;
+ * DataContextDb, typed `unknown` here to keep web-research free of a `@moss/db` dependency;
  * the resolver narrows it. Returns the decrypted key, or null when no instance key is set.
  */
 export type WebSearchKeyResolver = (scopedDb: unknown) => Promise<string | null>;

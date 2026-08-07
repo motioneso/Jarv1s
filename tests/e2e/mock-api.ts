@@ -14,7 +14,7 @@ import type {
   TaskTagDto,
   UserDto,
   UpdateTaskRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { registerMockAiRoutes, type MockAiApiState } from "./mock-ai-api.js";
 import { registerMockBriefingsRoutes, type MockBriefingsApiState } from "./mock-briefings-api.js";
@@ -733,7 +733,7 @@ export function createMockCalendarEvent(
     summary: null,
     bodyExcerpt: null,
     externalId: id,
-    isJarvisBlock: false,
+    isMossBlock: false,
     allDay: false,
     attendeeCount: 0,
     status: null,

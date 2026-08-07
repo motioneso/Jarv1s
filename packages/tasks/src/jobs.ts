@@ -1,12 +1,12 @@
 import type { Job, PgBoss, WorkOptions } from "pg-boss";
 
-import type { DataContextRunner, TaskStatus } from "@jarv1s/db";
+import type { DataContextRunner, TaskStatus } from "@moss/db";
 import {
   registerDataContextWorker,
   type ActorScopedJobPayload,
   type QueueDefinition
-} from "@jarv1s/jobs";
-import { localDay } from "@jarv1s/shared";
+} from "@moss/jobs";
+import { localDay } from "@moss/shared";
 
 import { readActorTimezone } from "./drift.js";
 import { TASKS_DEFERRED_STATUS_QUEUE, TASKS_RECURRENCE_QUEUE } from "./manifest.js";

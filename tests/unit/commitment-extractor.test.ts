@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { extractCommitmentsFromText } from "@jarv1s/commitments/extractor";
+import { extractCommitmentsFromText } from "@moss/commitments/extractor";
 
 describe("extractCommitmentsFromText", () => {
   it("returns empty array for text that fails prefilter", async () => {

@@ -6,8 +6,8 @@ import {
   GOOGLE_SYNC_QUEUE,
   GOOGLE_SYNC_QUEUE_DEFINITIONS,
   type GoogleSyncPayload
-} from "@jarv1s/connectors";
-import { createPgBossClient, migratePgBoss, sendJob } from "@jarv1s/jobs";
+} from "@moss/connectors";
+import { createPgBossClient, migratePgBoss, sendJob } from "@moss/jobs";
 
 import { connectionStrings, ids, resetEmptyFoundationDatabase } from "./test-database.js";
 

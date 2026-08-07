@@ -11,15 +11,15 @@ import { randomUUID } from "node:crypto";
 import type { Kysely } from "kysely";
 
 import { createApiServer } from "../../apps/api/src/server.js";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient, type PgBoss } from "@jarv1s/jobs";
-import { NotificationsRepository } from "@jarv1s/notifications";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { createPgBossClient, type PgBoss } from "@moss/jobs";
+import { NotificationsRepository } from "@moss/notifications";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 import { userAContext } from "./notifications-harness.js";
 
 describe("Notifications module — Task 2b keyed upsert / return-to-unread", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let workerDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let workerDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let workerDataContext: DataContextRunner;
   let repository: NotificationsRepository;

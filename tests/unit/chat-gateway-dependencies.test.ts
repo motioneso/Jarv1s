@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { buildChatGatewayDependencies } from "../../packages/chat/src/routes.js";
-import type { PreferencesPort, DataContextRunner } from "@jarv1s/db";
+import type { PreferencesPort, DataContextRunner } from "@moss/db";
 import type { AiRepository } from "../../packages/ai/src/repository.js";
-import type { SessionTokenRegistry, ConfirmationRegistry, SessionNotifier } from "@jarv1s/ai";
+import type { SessionTokenRegistry, ConfirmationRegistry, SessionNotifier } from "@moss/ai";
 
 describe("buildChatGatewayDependencies", () => {
   it("wires preferences to actionPolicy (regression for production legacy-only pref)", async () => {

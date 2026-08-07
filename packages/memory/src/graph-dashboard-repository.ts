@@ -1,6 +1,6 @@
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
 
 import type { MemoryEntityRecord, MemoryFactRecord, MemorySourceSummary } from "./graph-types.js";
 import type { EntityRow, FactRow, MemoryGraphRepository, SourceRow } from "./graph-repository.js";

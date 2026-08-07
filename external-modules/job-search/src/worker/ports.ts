@@ -5,7 +5,7 @@
 // which every portal adapter is written and tested against. This is the ONLY place that decodes
 // base64 or derives `ok` from a status code — adapters must never learn ctx.fetch isn't WHATWG
 // fetch.
-import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import type { ModuleWorkerContext } from "@moss/module-sdk/worker";
 
 import type { FetchLike } from "../adapters/types.js";
 

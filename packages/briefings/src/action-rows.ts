@@ -2,8 +2,8 @@ import type {
   BriefingActionRowDto,
   BriefingStructuredPayloadV1,
   TaskSuggestionMetadataV1
-} from "@jarv1s/shared";
-import type { BriefingDefinition, DataContextDb } from "@jarv1s/db";
+} from "@moss/shared";
+import type { BriefingDefinition, DataContextDb } from "@moss/db";
 
 import {
   ctxFor,

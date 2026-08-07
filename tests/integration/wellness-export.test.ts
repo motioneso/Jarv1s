@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
 import { sql } from "kysely";
 
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -8,7 +8,7 @@ import { connectionStrings, ids, resetFoundationDatabase } from "./test-database
 import type { Kysely } from "kysely";
 
 describe("Wellness export — migration 0114 (data_export_jobs.format + params)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
 
   beforeAll(async () => {

@@ -1,6 +1,6 @@
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
 import { hashPassword, verifyPassword } from "better-auth/crypto";
 
 // #1059 — persists only the better-auth scrypt HASH of the owner's terminal step-up password
@@ -8,7 +8,7 @@ import { hashPassword, verifyPassword } from "better-auth/crypto";
 // app.ai_terminal_password (migration 0165), admin-only via FORCE RLS on every verb.
 //
 // The `app.ai_terminal_password` table is intentionally NOT registered in the shared
-// @jarv1s/db Kysely `Database` interface (packages/db/src/types.ts) — adding it there would
+// @moss/db Kysely `Database` interface (packages/db/src/types.ts) — adding it there would
 // widen the blast radius of this task to a shared type map every other package typechecks
 // against. Instead we mirror the raw `sql`-tagged idiom already used elsewhere in this
 // package (see `AiRepository.getUserById` in ./repository.ts) rather than Kysely's typed

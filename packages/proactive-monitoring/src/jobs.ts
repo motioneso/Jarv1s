@@ -1,16 +1,16 @@
 import type { PgBoss } from "pg-boss";
 
-import type { DataContextRunner } from "@jarv1s/db";
+import type { DataContextRunner } from "@moss/db";
 import {
   assertMetadataOnlyPayload,
   registerDataContextWorker,
   sendJob,
   type ActorScopedJobPayload,
   type QueueDefinition
-} from "@jarv1s/jobs";
-import type { ProactiveMonitorProvider } from "@jarv1s/module-sdk";
-import { PriorityPreferencesRepository } from "@jarv1s/priority";
-import type { ProactiveSource } from "@jarv1s/shared";
+} from "@moss/jobs";
+import type { ProactiveMonitorProvider } from "@moss/module-sdk";
+import { PriorityPreferencesRepository } from "@moss/priority";
+import type { ProactiveSource } from "@moss/shared";
 
 import { AntiSpamPolicy } from "./anti-spam.js";
 import { CardRepository } from "./card-repository.js";

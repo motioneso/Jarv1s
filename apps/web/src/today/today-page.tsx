@@ -14,8 +14,8 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
-import { localDay, type BriefingRunDto, type MeResponse, type TaskDto } from "@jarv1s/shared";
-import { AgendaRow, Card, Masthead, MastheadClock, MastheadDateline, StatTile } from "@jarv1s/ui";
+import { localDay, type BriefingRunDto, type MeResponse, type TaskDto } from "@moss/shared";
+import { AgendaRow, Card, Masthead, MastheadClock, MastheadDateline, StatTile } from "@moss/ui";
 
 import {
   createWellnessCheckin,

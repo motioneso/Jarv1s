@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ChevronRight, Folder, FolderCheck, FolderOpen, HardDrive } from "lucide-react";
 import { useState } from "react";
 
-import { Button } from "@jarv1s/ui";
+import { Button } from "@moss/ui";
 import { getNotesSourceDirectories } from "../api/notes-client";
 import { getPeopleNotesDirectories } from "../api/people-client";
 import { queryKeys } from "../api/query-keys";

@@ -5,8 +5,8 @@ import type {
   DataContextDb,
   DataContextRunner,
   UsefulnessFeedbackSignal
-} from "@jarv1s/db";
-import { HttpError, handleRouteError } from "@jarv1s/module-sdk";
+} from "@moss/db";
+import { HttpError, handleRouteError } from "@moss/module-sdk";
 import {
   createUsefulnessFeedbackRouteSchema,
   listUsefulnessFeedbackRouteSchema,
@@ -16,7 +16,7 @@ import {
   type FeedbackTargetKind,
   type UsefulnessFeedbackDto,
   type UsefulnessFeedbackKind
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { sanitizeFeedbackMetadata } from "./metadata.js";
 import { UsefulnessFeedbackRepository } from "./repository.js";

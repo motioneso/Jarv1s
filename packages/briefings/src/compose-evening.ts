@@ -1,10 +1,10 @@
-import type { ChatTurn } from "@jarv1s/ai";
-import type { BriefingDefinition, DataContextDb } from "@jarv1s/db";
+import type { ChatTurn } from "@moss/ai";
+import type { BriefingDefinition, DataContextDb } from "@moss/db";
 import {
   EVENING_FALLBACK_QUESTIONS,
   EVENING_SECTION_HEADERS,
   type BriefingStructuredPayloadV1
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import {
   emptySection,

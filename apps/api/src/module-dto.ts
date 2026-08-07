@@ -8,8 +8,8 @@
 import {
   type getBuiltInModuleManifests,
   type ReconciledExternalModule
-} from "@jarv1s/module-registry";
-import { type ModuleDto } from "@jarv1s/shared";
+} from "@moss/module-registry";
+import { type ModuleDto } from "@moss/shared";
 
 export function serializeModule(
   module: ReturnType<typeof getBuiltInModuleManifests>[number]

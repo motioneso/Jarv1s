@@ -7,7 +7,7 @@
 // BriefingContribution or dropped. Every string that survives is sanitizeExternal()'d
 // before it leaves this file, so callers never have to re-sanitize.
 import { sanitizeExternal } from "./trust-boundary.js";
-import type { JsonJarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { JsonMossModuleManifest } from "@moss/module-sdk";
 
 // One module cannot flood a briefing (a hostile or buggy module returning thousands of
 // items must not blow the prompt budget), and headline/title/detail get hard length caps
@@ -94,7 +94,7 @@ function parseContribution(moduleId: string, raw: unknown): BriefingContribution
 }
 
 export async function collectExternalBriefingContributions(args: {
-  readonly manifests: readonly JsonJarvisModuleManifest[];
+  readonly manifests: readonly JsonMossModuleManifest[];
   readonly selectedToolNames: readonly string[];
   readonly section: "morning" | "evening";
   readonly actorUserId: string;

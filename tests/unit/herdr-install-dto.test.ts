@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { postHerdrInstallRouteSchema } from "@jarv1s/shared";
+import { postHerdrInstallRouteSchema } from "@moss/shared";
 
 describe("postHerdrInstallRouteSchema", () => {
   it("rejects unknown response fields via additionalProperties:false", () => {

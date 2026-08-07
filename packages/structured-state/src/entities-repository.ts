@@ -1,5 +1,5 @@
 import { sql } from "kysely";
-import { assertDataContextDb, type DataContextDb, type Entity } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb, type Entity } from "@moss/db";
 import type { EntityType, ProvenanceKind } from "./types.js";
 
 function jsonb(value: unknown) {

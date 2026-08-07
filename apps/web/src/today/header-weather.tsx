@@ -1,7 +1,7 @@
 import { Cloud, CloudRain, CloudSnow, CloudSun, Sun, Wind } from "lucide-react";
 import type { ComponentType } from "react";
-import type { WeatherTodayDto } from "@jarv1s/shared";
-import { WeatherChip } from "@jarv1s/ui";
+import type { WeatherTodayDto } from "@moss/shared";
+import { WeatherChip } from "@moss/ui";
 
 import type { WeatherIcon } from "./feed-source";
 

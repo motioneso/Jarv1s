@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { BriefingDefinition } from "@jarv1s/db";
+import type { BriefingDefinition } from "@moss/db";
 
 import { BRIEFINGS_RUN_QUEUE } from "../../packages/briefings/src/manifest.js";
 import {

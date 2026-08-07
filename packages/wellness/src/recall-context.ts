@@ -1,7 +1,7 @@
 import { sql } from "kysely";
 
-import { assertDataContextDb, type DataContextDb, type WellnessCheckin } from "@jarv1s/db";
-import { ChatMemoryFactsRepository } from "@jarv1s/memory";
+import { assertDataContextDb, type DataContextDb, type WellnessCheckin } from "@moss/db";
+import { ChatMemoryFactsRepository } from "@moss/memory";
 
 const ENERGY_TREND_TAG = "[wellness:energy-trend]";
 

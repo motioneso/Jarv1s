@@ -1,4 +1,4 @@
-import type { ExtractedCommitmentCandidate } from "@jarv1s/module-sdk";
+import type { ExtractedCommitmentCandidate } from "@moss/module-sdk";
 import { passesPrefilter } from "./prefilter.js";
 
 // Closed-over fn: caller binds model + adapter; we only supply messages.

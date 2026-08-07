@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { resolveTmuxSocketPath, type TmuxIo } from "@jarv1s/ai";
+import { resolveTmuxSocketPath, type TmuxIo } from "@moss/ai";
 
 export const SESSION_PREFIX = "jarv1s-live-";
 

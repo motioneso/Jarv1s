@@ -1,7 +1,7 @@
 import { expect } from "vitest";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
 import type { Kysely } from "kysely";
-import { ConnectorsRepository, createConnectorSecretCipher } from "@jarv1s/connectors";
+import { ConnectorsRepository, createConnectorSecretCipher } from "@moss/connectors";
 import { connectionStrings, ids, resetFoundationDatabase } from "../test-database.js";
 
 /**
@@ -13,9 +13,9 @@ import { connectionStrings, ids, resetFoundationDatabase } from "../test-databas
  * DataContext explicitly.
  */
 export interface GoogleSyncDatabaseHandles {
-  appDb: Kysely<JarvisDatabase>;
+  appDb: Kysely<MossDatabase>;
   dataContext: DataContextRunner;
-  workerDb: Kysely<JarvisDatabase>;
+  workerDb: Kysely<MossDatabase>;
   workerDataContext: DataContextRunner;
 }
 

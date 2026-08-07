@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vitest";
 
-import { createExternalToolManifests } from "@jarv1s/module-registry/node";
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import { createExternalToolManifests } from "@moss/module-registry/node";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import { createExternalActiveModulesResolver } from "../../apps/api/src/external-module-tools.js";
 import type { ExternalModuleDiscovery } from "../../packages/module-registry/src/external/types.js";
 
@@ -79,7 +79,7 @@ it("filters external modules without changing built-in action metadata", async (
         execute: async () => ({ data: { ok: true } })
       }
     ]
-  } satisfies JarvisModuleManifest;
+  } satisfies MossModuleManifest;
   const external = { ...builtIn, id: "external", name: "External" };
   const resolve = createExternalActiveModulesResolver(
     async () => [builtIn, external],
@@ -95,7 +95,7 @@ it("filters external modules without changing built-in action metadata", async (
 });
 
 it("keeps the original resolver when there are no external tool manifests", async () => {
-  const manifests: JarvisModuleManifest[] = [];
+  const manifests: MossModuleManifest[] = [];
   const enabled = vi.fn(async () => manifests);
   const external = vi.fn(async () => []);
   const resolve = createExternalActiveModulesResolver(enabled, new Set(), external);

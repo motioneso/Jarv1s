@@ -2,10 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { buildChatGatewayDependencies } from "../../packages/chat/src/routes.js";
 import { AiRepository } from "../../packages/ai/src/repository.js";
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import type { ConfirmationRegistry, SessionNotifier, SessionTokenRegistry } from "@jarv1s/ai";
-import type { JarvisModuleManifest, ModuleAssistantToolManifest } from "@jarv1s/module-sdk";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import type { ConfirmationRegistry, SessionNotifier, SessionTokenRegistry } from "@moss/ai";
+import type { MossModuleManifest, ModuleAssistantToolManifest } from "@moss/module-sdk";
+import { PreferencesRepository } from "@moss/structured-state";
 import { LEGACY_AGENCY_AUTO_EXECUTE_KEY } from "../../packages/tasks/src/action-policy.js";
 import type { Kysely } from "kysely";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
@@ -26,7 +26,7 @@ function tool(
   };
 }
 
-const testModule: JarvisModuleManifest = {
+const testModule: MossModuleManifest = {
   id: "test-self-heal-mod",
   name: "Test Self Heal",
   version: "0.1.0",
@@ -47,7 +47,7 @@ const testModule: JarvisModuleManifest = {
 
 /** Mirrors the real tasks module's single granted_at_install family (task_changes) — the
  * hardcoded `moduleId === "tasks"` compat branch in routes.ts only engages for this exact id. */
-const tasksShapedModule: JarvisModuleManifest = {
+const tasksShapedModule: MossModuleManifest = {
   id: "tasks",
   name: "Tasks (test double)",
   version: "0.1.0",
@@ -63,7 +63,7 @@ const tasksShapedModule: JarvisModuleManifest = {
 };
 
 describe("chat action policy self-heal (getFamilyTier, real DB via buildChatGatewayDependencies)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let runner: DataContextRunner;
   let repository: AiRepository;
 
@@ -82,7 +82,7 @@ describe("chat action policy self-heal (getFamilyTier, real DB via buildChatGate
     actorUserId: string,
     overrides: {
       agencyPreferences?: PreferencesRepository;
-      resolveModule?: JarvisModuleManifest;
+      resolveModule?: MossModuleManifest;
     } = {}
   ) {
     const deps = buildChatGatewayDependencies({

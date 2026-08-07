@@ -1,9 +1,9 @@
 import { sql } from "kysely";
 
-import type { DataContextDb } from "@jarv1s/db";
-import type { CalendarRepository } from "@jarv1s/calendar";
-import type { EmailRepository } from "@jarv1s/email";
-import type { PreferencesRepository } from "@jarv1s/structured-state";
+import type { DataContextDb } from "@moss/db";
+import type { CalendarRepository } from "@moss/calendar";
+import type { EmailRepository } from "@moss/email";
+import type { PreferencesRepository } from "@moss/structured-state";
 
 import type { GoogleCalendarEvent } from "./google-api-client.js";
 import {

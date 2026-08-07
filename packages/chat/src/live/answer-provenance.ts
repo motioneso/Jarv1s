@@ -4,8 +4,8 @@ import type {
   AnswerProvenanceState,
   AnswerSourceSupport,
   AnswerSourceSupportCard
-} from "@jarv1s/shared";
-import type { MemoryRecallItem } from "@jarv1s/memory";
+} from "@moss/shared";
+import type { MemoryRecallItem } from "@moss/memory";
 
 import type { CrossToolEvidenceItem, CrossToolSource } from "./cross-tool-reasoning.js";
 

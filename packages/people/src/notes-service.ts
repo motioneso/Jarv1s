@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { isAbsolute } from "node:path";
 
-import type { DataContextDb } from "@jarv1s/db";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import type { DataContextDb } from "@moss/db";
+import { PreferencesRepository } from "@moss/structured-state";
 import {
   listVaultFilesRecursive,
   readVaultFile,
@@ -10,10 +10,10 @@ import {
   vaultFileExists,
   writeVaultFile,
   type VaultContext
-} from "@jarv1s/vault";
+} from "@moss/vault";
 
 import { normalizeIdentity } from "./matching.js";
-import { formatPeopleNote, parsePeopleNote, replaceJarvisManagedSection } from "./notes-format.js";
+import { formatPeopleNote, parsePeopleNote, replaceMossManagedSection } from "./notes-format.js";
 import { PeopleRepository } from "./repository.js";
 import type {
   PeopleNotesRefreshResult,
@@ -205,7 +205,7 @@ export class PeopleNotesService {
 
     const personId = randomUUID();
     const notePath = await this.nextNotePath(vaultCtx, folder, input.displayName, personId);
-    const body = replaceJarvisManagedSection(
+    const body = replaceMossManagedSection(
       `# ${input.displayName}\n`,
       managedSummary({
         displayName: input.displayName,
@@ -251,7 +251,7 @@ export class PeopleNotesService {
       phones: patch.phones ?? note.parsed.frontmatter.phones,
       status: patch.status ?? note.parsed.frontmatter.status
     };
-    const body = replaceJarvisManagedSection(
+    const body = replaceMossManagedSection(
       note.parsed.body,
       managedSummary({
         displayName: frontmatter.displayName,

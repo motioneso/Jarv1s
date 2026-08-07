@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
-import { handleUpgradeNotifyJob } from "@jarv1s/jobs";
-import { NotificationsRepository } from "@jarv1s/notifications";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
+import { handleUpgradeNotifyJob } from "@moss/jobs";
+import { NotificationsRepository } from "@moss/notifications";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 describe("notification repository module preferences", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repository: NotificationsRepository;
 

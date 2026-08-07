@@ -1,9 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PgBoss } from "pg-boss";
 
-import type { AccessContext } from "@jarv1s/db";
-import { sendModuleControl, sendModuleJob } from "@jarv1s/jobs";
-import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
+import type { AccessContext } from "@moss/db";
+import { sendModuleControl, sendModuleJob } from "@moss/jobs";
+import type { ExternalModuleDiscovery } from "@moss/module-registry";
 
 // #965: five seconds catches accidental double-clicks without blocking an intentional rerun.
 const MANUAL_RUN_SINGLETON_SECONDS = 5;

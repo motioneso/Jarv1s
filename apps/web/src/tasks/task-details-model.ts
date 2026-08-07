@@ -4,7 +4,7 @@ import type {
   TaskDto,
   TaskEffort,
   UpdateTaskRequest
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { fromDateInputValue, toDateInputValue } from "./task-format.js";
 

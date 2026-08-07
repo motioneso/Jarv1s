@@ -1,7 +1,7 @@
-import type { ChatMessageDto, ChatSurface, SourceFreshnessV1 } from "@jarv1s/shared";
+import type { ChatMessageDto, ChatSurface, SourceFreshnessV1 } from "@moss/shared";
 import { useCallback, useEffect, useState } from "react";
 
-import type { AnswerSourceSupportCard, ChatAttachmentDto } from "@jarv1s/shared";
+import type { AnswerSourceSupportCard, ChatAttachmentDto } from "@moss/shared";
 
 import {
   chatStreamUrl,
@@ -22,7 +22,7 @@ export type ChatRecordKind =
 
 /**
  * Rich, server-derived Approve/Deny card preview (email reply recipient/subject/body). Rides the
- * live SSE stream ONLY — the backend never persists it. Mirrors `@jarv1s/module-sdk`
+ * live SSE stream ONLY — the backend never persists it. Mirrors `@moss/module-sdk`
  * ActionRequestPreview; declared locally so the web bundle stays free of node-side deps.
  */
 export interface ActionRequestPreview {

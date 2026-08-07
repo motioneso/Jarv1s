@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { dataContextBrand, type DataContextDb } from "@jarv1s/db";
+import { dataContextBrand, type DataContextDb } from "@moss/db";
 import {
   makeCalendarListLiveEventsExecute,
   makeGmailGetLiveMessageExecute,
   makeGmailSearchLiveExecute
-} from "@jarv1s/connectors";
-import type { ToolContext } from "@jarv1s/module-sdk";
+} from "@moss/connectors";
+import type { ToolContext } from "@moss/module-sdk";
 
 const scopedDb = { db: {} as never, [dataContextBrand]: true } satisfies DataContextDb;
 const toolCtx: ToolContext = {

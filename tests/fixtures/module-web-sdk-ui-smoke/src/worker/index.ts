@@ -4,6 +4,6 @@
 // unlike the optional web one), so this fixture needs a minimal worker even
 // though the thing under test is the web bundle. No handlers — nothing here
 // exercises tool dispatch.
-import { defineModuleWorker } from "@jarv1s/module-sdk/worker";
+import { defineModuleWorker } from "@moss/module-sdk/worker";
 
 defineModuleWorker({ handlers: {} });

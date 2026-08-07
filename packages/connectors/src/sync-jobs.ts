@@ -3,18 +3,13 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Job, PgBoss, WorkOptions } from "pg-boss";
 import type { Kysely } from "kysely";
 
-import type { ActorScopedJobPayload, QueueDefinition } from "@jarv1s/jobs";
-import type {
-  ConnectorSyncStatus,
-  DataContextDb,
-  DataContextRunner,
-  JarvisDatabase
-} from "@jarv1s/db";
-import { hasInFlightJob, sendJob, toAccessContext } from "@jarv1s/jobs";
-import { AiRepository, createAiSecretCipher } from "@jarv1s/ai";
-import { CalendarRepository } from "@jarv1s/calendar";
-import { EmailRepository } from "@jarv1s/email";
-import { PreferencesRepository } from "@jarv1s/structured-state";
+import type { ActorScopedJobPayload, QueueDefinition } from "@moss/jobs";
+import type { ConnectorSyncStatus, DataContextDb, DataContextRunner, MossDatabase } from "@moss/db";
+import { hasInFlightJob, sendJob, toAccessContext } from "@moss/jobs";
+import { AiRepository, createAiSecretCipher } from "@moss/ai";
+import { CalendarRepository } from "@moss/calendar";
+import { EmailRepository } from "@moss/email";
+import { PreferencesRepository } from "@moss/structured-state";
 
 import { createConnectorSecretCipher, type ConnectorSecretCipher } from "./crypto.js";
 import { featureGrantsPrefKey, isFeatureGranted } from "./feature-grants.js";
@@ -490,7 +485,7 @@ export async function handleGoogleSyncJob(
 
 export interface RegisterConnectorsJobWorkersDeps {
   readonly dataContext: DataContextRunner;
-  readonly rootDb: Kysely<JarvisDatabase>;
+  readonly rootDb: Kysely<MossDatabase>;
   readonly taskPort: ProjectEmailActionsDeps["taskPort"];
   readonly actionRowRelevance?: ProjectEmailActionsDeps["actionRowRelevance"];
   readonly createCliStructuredAdapter?: BuildEmailExtractDepsOptions["createCliStructuredAdapter"];

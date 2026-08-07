@@ -3,15 +3,15 @@ import type { IncomingHttpHeaders } from "node:http";
 
 import type pg from "pg";
 
-import { isUuid } from "@jarv1s/db";
-import type { MeSessionsService } from "@jarv1s/settings";
-import type { MeSessionDeviceKind, MeSessionDto } from "@jarv1s/shared";
+import { isUuid } from "@moss/db";
+import type { MeSessionsService } from "@moss/settings";
+import type { MeSessionDeviceKind, MeSessionDto } from "@moss/shared";
 
 import { readBearerToken, toWebHeaders } from "./headers.js";
 
 /**
  * The auth-runtime alias of the settings-owned port. Keeping it an alias guarantees the
- * implementation here and the consumer contract in `@jarv1s/settings` never drift.
+ * implementation here and the consumer contract in `@moss/settings` never drift.
  */
 export type MeSessionsRuntimeService = MeSessionsService;
 

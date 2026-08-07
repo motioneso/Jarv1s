@@ -5,7 +5,7 @@ import {
   type TaskListDto,
   type TaskQuadrant,
   type TaskSearchIntent
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 import { matchesFocus, type TaskFocus } from "./focus.js";
 

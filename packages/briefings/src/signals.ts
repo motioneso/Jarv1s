@@ -1,4 +1,4 @@
-import type { CalendarAutomationMode } from "@jarv1s/shared";
+import type { CalendarAutomationMode } from "@moss/shared";
 
 export interface CalendarBriefingSignal {
   readonly type:

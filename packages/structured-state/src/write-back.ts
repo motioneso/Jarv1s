@@ -1,6 +1,6 @@
-import { readVaultFile, vaultFileExists, writeVaultFile } from "@jarv1s/vault";
-import type { VaultContext } from "@jarv1s/vault";
-import type { Entity } from "@jarv1s/db";
+import { readVaultFile, vaultFileExists, writeVaultFile } from "@moss/vault";
+import type { VaultContext } from "@moss/vault";
+import type { Entity } from "@moss/db";
 
 const FRONTMATTER_RE = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
 

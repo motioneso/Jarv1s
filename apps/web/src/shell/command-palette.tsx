@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ListTaskListsResponse, TaskListDto } from "@jarv1s/shared";
+import type { ListTaskListsResponse, TaskListDto } from "@moss/shared";
 import {
   AlertCircle,
   Bell,
@@ -37,7 +37,7 @@ import {
   type CommandPaletteGroup,
   filterCommandPaletteCommands
 } from "./command-palette-model.js";
-import type { ListThemesResponse, ModuleDto } from "@jarv1s/shared";
+import type { ListThemesResponse, ModuleDto } from "@moss/shared";
 
 type Stage =
   | { readonly kind: "root" }

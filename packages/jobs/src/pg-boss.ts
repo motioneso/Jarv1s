@@ -10,8 +10,8 @@ import { sql, type Kysely } from "kysely";
 
 export type { Job, PgBoss };
 
-import { assertUuid } from "@jarv1s/db";
-import type { AccessContext, DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
+import { assertUuid } from "@moss/db";
+import type { AccessContext, DataContextDb, DataContextRunner, MossDatabase } from "@moss/db";
 
 export const PGBOSS_SCHEMA = "pgboss";
 export const RLS_PROBE_QUEUE = "rls-probe";
@@ -146,7 +146,7 @@ export async function sendJob<T extends ActorScopedJobPayload>(
 
 /** Return whether an actor has a created, retrying, or active job in the named queue. */
 export async function hasInFlightJob(
-  rootDb: Kysely<JarvisDatabase>,
+  rootDb: Kysely<MossDatabase>,
   queueName: string,
   actorUserId: string
 ): Promise<boolean> {

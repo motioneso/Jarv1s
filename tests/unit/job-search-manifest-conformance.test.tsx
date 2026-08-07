@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { validateExternalModuleManifest } from "@jarv1s/module-registry";
+import { validateExternalModuleManifest } from "@moss/module-registry";
 
 // settings.tsx/profile.tsx capture the host module runtime global at import time (runtime.ts's
 // own header) — this must be imported before either, same requirement as every other test that

@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import type { AccessContext } from "@jarv1s/db";
-import type { ChatAttachmentDto, UploadChatAttachmentResponse } from "@jarv1s/shared";
+import type { AccessContext } from "@moss/db";
+import type { ChatAttachmentDto, UploadChatAttachmentResponse } from "@moss/shared";
 
 import {
   ChatAttachmentUploadError,

@@ -4,14 +4,9 @@ import type { Kysely } from "kysely";
 import type { PgBoss } from "pg-boss";
 import pg from "pg";
 
-import {
-  createDatabase,
-  DataContextRunner,
-  type DataContextDb,
-  type JarvisDatabase
-} from "@jarv1s/db";
-import { assertMetadataOnlyPayload, createPgBossClient } from "@jarv1s/jobs";
-import { NotificationsRepository } from "@jarv1s/notifications";
+import { createDatabase, DataContextRunner, type DataContextDb, type MossDatabase } from "@moss/db";
+import { assertMetadataOnlyPayload, createPgBossClient } from "@moss/jobs";
+import { NotificationsRepository } from "@moss/notifications";
 
 import type { NewsCompilationLogFields } from "../../packages/news/src/compilation/compile.js";
 import type { NewsAiPort, NewsSafeFetchPort } from "../../packages/news/src/discovery/ports.js";
@@ -322,8 +317,8 @@ describe("news revalidation core (#975 Slice 4)", () => {
  * the refresh worker's fingerprint-drift hook that enqueues revalidation.
  */
 describe("news revalidation jobs (#975 Slice 4)", () => {
-  let appDb: Kysely<JarvisDatabase>;
-  let workerDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
+  let workerDb: Kysely<MossDatabase>;
   let appContext: DataContextRunner;
   let workerContext: DataContextRunner;
   let appBoss: PgBoss;
@@ -687,7 +682,7 @@ describe("news revalidation jobs (#975 Slice 4)", () => {
  * app runtime role INSERT/DELETE on it even with the cron scheduler off in this process.
  */
 describe("news revalidation schedule (#975 Slice 4)", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let appBoss: PgBoss;
   let bootstrap: pg.Client;
 

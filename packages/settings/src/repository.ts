@@ -2,19 +2,19 @@ import { randomUUID } from "node:crypto";
 
 import { sql } from "kysely";
 
-import type { AdminAuditEvent, InstanceSetting, ModuleEnablementRow, User } from "@jarv1s/db";
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import type { AdminAuditEvent, InstanceSetting, ModuleEnablementRow, User } from "@moss/db";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
 import type {
   ChatMultiplexerChoice,
   OnboardingFounderStatus,
   OnboardingState,
   ProviderInstallState
-} from "@jarv1s/shared";
+} from "@moss/shared";
 
 // #917: external-module types + DB row-writer helpers were extracted to a sibling module to
 // satisfy the 1000-line file-size gate (Task 7 pushed repository.ts over the cap). The
 // SettingsRepository methods below delegate to these; the types are re-exported (see below)
-// so the @jarv1s/settings public export surface is unchanged.
+// so the @moss/settings public export surface is unchanged.
 import {
   listExternalModuleStates as listExternalModuleStatesImpl,
   setExternalModuleEnabled as setExternalModuleEnabledImpl,
@@ -135,7 +135,7 @@ const ONBOARDING_PROVIDER_KINDS: readonly OnboardingProviderKind[] = [
 // #917: the external-module admin types live in ./repository-external-modules.js (extracted
 // for the 1000-line file-size gate) and are imported above for local use in the method
 // signatures. Re-export them here so consumers that import them from "./repository.js" /
-// "@jarv1s/settings" (routes.ts, apps/api) keep resolving unchanged.
+// "@moss/settings" (routes.ts, apps/api) keep resolving unchanged.
 export type {
   SetModuleDisabledInput,
   SetExternalModuleEnabledInput,
@@ -853,7 +853,7 @@ export class SettingsRepository {
    * this transaction-scoped advisory lock is held through the caller's subsequent
    * UPDATE and commit. The same key is taken by the bootstrap-connection delete
    * path (scripts/delete-user-data.ts) — advisory locks are per-database, so all
-   * removal paths serialize. Mirrors the bootstrapFirstJarvisUser pattern
+   * removal paths serialize. Mirrors the bootstrapFirstMossUser pattern
    * (auth/src/index.ts). (#94)
    */
   private async lockLastActiveAdmin(scopedDb: DataContextDb): Promise<void> {
@@ -937,7 +937,7 @@ export class SettingsRepository {
 
 /**
  * Sanctioned generic cross-module API for recording admin audit events. Exists so callers
- * outside @jarv1s/settings (e.g. @jarv1s/auth) never import SettingsRepository or write
+ * outside @moss/settings (e.g. @moss/auth) never import SettingsRepository or write
  * app.admin_audit_events directly (module-isolation invariant). Auth currently writes only via
  * the bootstrap-specific recordBootstrapOwnerAuditEvent; this generic entry is the path for any
  * future cross-module audit write and is covered by tests/integration/auth-settings.test.ts.

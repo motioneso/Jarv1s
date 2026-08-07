@@ -2,8 +2,8 @@ import { type Kysely } from "kysely";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { DataContextRunner, createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { WellnessRepository } from "@jarv1s/wellness";
+import { DataContextRunner, createDatabase, type MossDatabase } from "@moss/db";
+import { WellnessRepository } from "@moss/wellness";
 
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
 
@@ -11,7 +11,7 @@ const { Client } = pg;
 
 const userId = "00000000-0000-4000-8000-000000000061";
 
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let dataContext: DataContextRunner;
 let repo: WellnessRepository;
 

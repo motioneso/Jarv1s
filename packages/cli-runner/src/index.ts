@@ -1,5 +1,5 @@
 /**
- * @jarv1s/cli-runner — the in-container CLI chat sidecar (#342). Hosts the provider
+ * @moss/cli-runner — the in-container CLI chat sidecar (#342). Hosts the provider
  * CLIs + multiplexer behind a private Unix-domain socket and drives them via the
  * frozen RPC contract (docs/superpowers/specs/2026-06-20-cli-runner-rpc-contract.md).
  */

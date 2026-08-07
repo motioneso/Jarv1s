@@ -7,7 +7,7 @@
 // lost-race justification).
 import { randomUUID } from "node:crypto";
 
-import { assertDataContextDb, type DataContextDb } from "@jarv1s/db";
+import { assertDataContextDb, type DataContextDb } from "@moss/db";
 
 export interface ModuleKvKey {
   readonly moduleId: string;

@@ -10,7 +10,7 @@ import {
   type ReactNode
 } from "react";
 
-import { Button, Dialog } from "@jarv1s/ui";
+import { Button, Dialog } from "@moss/ui";
 
 /* Settings feedback layer — a quiet ambient toast for simple actions and a
    confirm dialog for consequential/destructive ones. Mirrors the design kit's

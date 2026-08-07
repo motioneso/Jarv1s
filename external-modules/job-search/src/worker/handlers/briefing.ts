@@ -15,7 +15,7 @@
 // "briefing", idempotencyKey, params: {section}}, …)`) — so `ctx.input` is the four-field job
 // envelope, not the tool shape, even though this is reached from the briefing composer rather
 // than a queue.
-import type { ModuleWorkerContext } from "@jarv1s/module-sdk/worker";
+import type { ModuleWorkerContext } from "@moss/module-sdk/worker";
 
 import type { BriefingDetail, JobSearchStore } from "../../domain/store-port.js";
 import { parseJobEnvelope } from "../job-input.js";

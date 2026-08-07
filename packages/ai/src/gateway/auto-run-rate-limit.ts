@@ -1,4 +1,4 @@
-import { parsePositiveIntEnv } from "@jarv1s/shared";
+import { parsePositiveIntEnv } from "@moss/shared";
 
 const DEFAULT_MAX_CALLS = 10;
 const DEFAULT_WINDOW_MS = 10_000;

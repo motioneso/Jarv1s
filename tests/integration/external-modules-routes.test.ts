@@ -7,8 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 import { Client } from "pg";
 
-import { createDatabase, type JarvisDatabase } from "@jarv1s/db";
-import { createPgBossClient } from "@jarv1s/jobs";
+import { createDatabase, type MossDatabase } from "@moss/db";
+import { createPgBossClient } from "@moss/jobs";
 
 import { createApiServer } from "../../apps/api/src/server.js";
 import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database.js";
@@ -21,7 +21,7 @@ import { connectionStrings, resetEmptyFoundationDatabase } from "./test-database
 // mirroring tests/integration/chat-multiplexer-admin.test.ts — do not invent a new path.
 
 let root: string;
-let appDb: Kysely<JarvisDatabase>;
+let appDb: Kysely<MossDatabase>;
 let server: ReturnType<typeof createApiServer>;
 let adminCookie: string;
 let adminUserId: string;

@@ -1,11 +1,11 @@
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
-import type { ActionAuditInputSummary, AiAssistantToolDto } from "@jarv1s/shared";
+import type { MossModuleManifest } from "@moss/module-sdk";
+import type { ActionAuditInputSummary, AiAssistantToolDto } from "@moss/shared";
 
 const MAX_INPUT_SUMMARY_KEYS = 32;
 const MAX_INPUT_SUMMARY_KEY_LENGTH = 64;
 
 export function listAssistantToolsFromManifests(
-  moduleManifests: readonly JarvisModuleManifest[]
+  moduleManifests: readonly MossModuleManifest[]
 ): AiAssistantToolDto[] {
   return moduleManifests.flatMap((module) =>
     (module.assistantTools ?? []).map((tool) => ({
@@ -22,7 +22,7 @@ export function listAssistantToolsFromManifests(
 }
 
 export function findAssistantToolFromManifests(
-  moduleManifests: readonly JarvisModuleManifest[],
+  moduleManifests: readonly MossModuleManifest[],
   toolName: string
 ): AiAssistantToolDto | undefined {
   return listAssistantToolsFromManifests(moduleManifests).find((tool) => tool.name === toolName);

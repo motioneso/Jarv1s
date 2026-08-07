@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-import type { JarvisModuleManifest } from "@jarv1s/module-sdk";
+import type { MossModuleManifest } from "@moss/module-sdk";
 import {
   getMemoryDashboardRouteSchema,
   getMemoryGraphCoreRouteSchema,
@@ -18,7 +18,7 @@ import {
   postMemoryGraphPinRouteSchema,
   postMemoryGraphStatusRouteSchema,
   postMemoryGraphSupersedeRouteSchema
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import { memoryForgetExecute, memoryRecallExecute, memoryRememberExecute } from "./graph-tools.js";
 
 const memoryRememberToolInputSchema = {
@@ -68,7 +68,7 @@ const memoryRememberToolInputSchema = {
 export const MEMORY_MODULE_ID = "memory";
 export const memorySqlMigrationDirectory = fileURLToPath(new URL("../sql", import.meta.url));
 
-export const memoryModuleManifest: JarvisModuleManifest = {
+export const memoryModuleManifest: MossModuleManifest = {
   id: MEMORY_MODULE_ID,
   name: "Memory",
   version: "0.1.0",

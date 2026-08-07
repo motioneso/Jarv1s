@@ -5,11 +5,11 @@ import {
   type CalendarEventDto,
   type LocaleSettingsDto,
   type TaskDto
-} from "@jarv1s/shared";
+} from "@moss/shared";
 import { MessageSquareText } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Card } from "@jarv1s/ui";
+import { Card } from "@moss/ui";
 
 import { useAssistantName } from "../api/use-assistant-name";
 import { targetTimeFor } from "../briefings/briefing-settings-model";

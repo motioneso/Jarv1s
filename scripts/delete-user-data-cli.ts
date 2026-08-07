@@ -1,13 +1,13 @@
 /**
  * CLI entrypoint for user deletion (`pnpm delete:user`). Split from
  * `delete-user-data.ts` (#801 Phase A, QA on PR #816) because the CLI needs
- * `@jarv1s/module-registry` (to derive `moduleDeletionTables` from module
+ * `@moss/module-registry` (to derive `moduleDeletionTables` from module
  * `dataLifecycle.deletion` declarations) while the library file must never
  * reference it, in ANY form:
  *
  * - A static import in the library would create a package cycle
  *   (settings -> delete-user-data -> module-registry -> settings).
- * - Even a guarded dynamic `import("@jarv1s/module-registry")` breaks both
+ * - Even a guarded dynamic `import("@moss/module-registry")` breaks both
  *   runtime paths (esbuild-trap #357 class):
  *   1. Bundles: esbuild statically resolves literal dynamic imports, inlining
  *      module-registry into the api/worker bundles via the settings chain. That
@@ -27,7 +27,7 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { getExternalModuleDeletionTables, getModuleDeletionTables } from "@jarv1s/module-registry";
+import { getExternalModuleDeletionTables, getModuleDeletionTables } from "@moss/module-registry";
 
 import { deleteUserData } from "./delete-user-data.js";
 

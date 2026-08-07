@@ -17,11 +17,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { Kysely } from "kysely";
 import type { Job } from "pg-boss";
 
-import type { DataContextDb, DataContextRunner, JarvisDatabase } from "@jarv1s/db";
-import type { ExternalModuleJobPayload } from "@jarv1s/jobs";
-import type { ExternalModuleDiscovery } from "@jarv1s/module-registry";
-import type { ExternalModuleQueueDeclaration } from "@jarv1s/module-sdk";
-import type { ModuleCredentialCipher } from "@jarv1s/settings";
+import type { DataContextDb, DataContextRunner, MossDatabase } from "@moss/db";
+import type { ExternalModuleJobPayload } from "@moss/jobs";
+import type { ExternalModuleDiscovery } from "@moss/module-registry";
+import type { ExternalModuleQueueDeclaration } from "@moss/module-sdk";
+import type { ModuleCredentialCipher } from "@moss/settings";
 
 import { createExternalModuleJobHandler } from "../../apps/worker/src/external-module-job-handler.js";
 
@@ -32,14 +32,14 @@ const PACKAGE_HASH = `sha256:${"b".repeat(64)}`;
 /** A chainable stand-in for the single status/hash lookup the gate runs. */
 function fakeWorkerDb(
   row: { status: string; manifest_hash: string; package_hash: string } | undefined
-): Kysely<JarvisDatabase> {
+): Kysely<MossDatabase> {
   const builder = {
     selectFrom: () => builder,
     select: () => builder,
     where: () => builder,
     executeTakeFirst: async () => row
   };
-  return builder as unknown as Kysely<JarvisDatabase>;
+  return builder as unknown as Kysely<MossDatabase>;
 }
 
 function discovery(): ExternalModuleDiscovery {

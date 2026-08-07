@@ -3,14 +3,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Kysely } from "kysely";
 import pg from "pg";
 
-import { AiRepository, aiExplainRecentErrorsExecute } from "@jarv1s/ai";
-import { createDatabase, DataContextRunner, type JarvisDatabase } from "@jarv1s/db";
+import { AiRepository, aiExplainRecentErrorsExecute } from "@moss/ai";
+import { createDatabase, DataContextRunner, type MossDatabase } from "@moss/db";
 import { connectionStrings, ids, resetFoundationDatabase } from "./test-database.js";
 
 const { Client } = pg;
 
 describe("jarvis error log", () => {
-  let appDb: Kysely<JarvisDatabase>;
+  let appDb: Kysely<MossDatabase>;
   let dataContext: DataContextRunner;
   let repo: AiRepository;
 

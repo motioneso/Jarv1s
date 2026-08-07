@@ -4,8 +4,8 @@
 // ModuleRegistryRowDto.state (spec §8) — no client-side state math beyond labels.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Button } from "@jarv1s/ui";
-import type { ExternalModuleDto, ModuleRegistryRowDto } from "@jarv1s/shared";
+import { Button } from "@moss/ui";
+import type { ExternalModuleDto, ModuleRegistryRowDto } from "@moss/shared";
 
 import {
   cancelModulePurge,

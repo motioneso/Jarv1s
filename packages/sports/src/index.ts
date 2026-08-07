@@ -1,6 +1,6 @@
 export { registerSportsRoutes } from "./routes.js";
 // #1025: re-exported so root-level tests/uat/seed/* can write follows through the real
-// repository (same precedent as @jarv1s/auth's hashPassword / @jarv1s/news's NewsPrefsRepository).
+// repository (same precedent as @moss/auth's hashPassword / @moss/news's NewsPrefsRepository).
 export { SportsFollowsRepository } from "./repository.js";
 export type { SportsRoutesDependencies } from "./routes.js";
 export type { SportsFollowsWriter } from "./sports-service.js";

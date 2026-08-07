@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { AssistantToolGateway, ConfirmationRegistry, SessionTokenRegistry } from "@jarv1s/ai";
-import type { ActionRequestPreview, JarvisModuleManifest } from "@jarv1s/module-sdk";
+import { AssistantToolGateway, ConfirmationRegistry, SessionTokenRegistry } from "@moss/ai";
+import type { ActionRequestPreview, MossModuleManifest } from "@moss/module-sdk";
 
 /**
  * T7 — gateway threads a tool's async `preview` hook into the `action_request` emit ONLY.
@@ -16,8 +16,8 @@ describe("gateway action_request preview threading", () => {
   };
 
   const moduleWith = (
-    tool: JarvisModuleManifest["assistantTools"] extends readonly (infer T)[] ? T : never
-  ): JarvisModuleManifest => ({
+    tool: MossModuleManifest["assistantTools"] extends readonly (infer T)[] ? T : never
+  ): MossModuleManifest => ({
     id: "email",
     name: "Email",
     version: "1.0.0",
@@ -28,7 +28,7 @@ describe("gateway action_request preview threading", () => {
   });
 
   const buildGateway = (
-    module: JarvisModuleManifest,
+    module: MossModuleManifest,
     capture: { emitted: unknown[]; created: unknown[] }
   ) => {
     const tokens = new SessionTokenRegistry();

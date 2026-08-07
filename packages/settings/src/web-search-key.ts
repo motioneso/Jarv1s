@@ -4,7 +4,7 @@ import {
   type DataContextDb,
   type EncryptedSecret,
   type Keyring
-} from "@jarv1s/db";
+} from "@moss/db";
 
 import { WEB_SEARCH_API_KEY_SETTING } from "./instance-settings-keys.js";
 import type { SettingsRepository } from "./repository.js";
