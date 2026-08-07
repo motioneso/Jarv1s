@@ -137,7 +137,7 @@ export function createPlaid(
     async linkTokenCreate(input) {
       const body: Json = {
         user: { client_user_id: input.clientUserId },
-        client_name: "Jarvis",
+        client_name: "Moss",
         language: "en",
         country_codes: ["US"],
         transactions: { days_requested: input.daysRequested },

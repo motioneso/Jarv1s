@@ -118,7 +118,7 @@ describe("plaid adapter request/response mapping (#1146)", () => {
     const body = decodedBody(requests[0]!);
     expect(body).toMatchObject({
       user: { client_user_id: "user-1" },
-      client_name: "Jarvis",
+      client_name: "Moss",
       language: "en",
       country_codes: ["US"],
       products: ["transactions"],

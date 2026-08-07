@@ -105,7 +105,7 @@ describe("format-aware export download + active-job isolation (#484)", () => {
     expect(res.payload).toContain("<!doctype html>");
   });
 
-  it("serves a json-format job as application/json with the jarvis-export filename (unchanged path)", async () => {
+  it("serves a json-format job as application/json with the moss-export filename (unchanged path)", async () => {
     const jobId = await dataContext.withDataContext(
       { actorUserId: userId, requestId: "req:fmt-test" },
       async (scopedDb) => {
@@ -128,7 +128,7 @@ describe("format-aware export download + active-job isolation (#484)", () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toContain("application/json");
     expect(res.headers["content-disposition"]).toMatch(
-      /^attachment; filename="jarvis-export-\d{4}-\d{2}-\d{2}\.json"$/
+      /^attachment; filename="moss-export-\d{4}-\d{2}-\d{2}\.json"$/
     );
   });
 
