@@ -97,7 +97,7 @@ describe("external module AssistantToolGateway", () => {
     expect(calls).toHaveLength(1);
     for (let attempt = 0; attempt < 100; attempt += 1) {
       const audit = await bootstrap.query(
-        "SELECT outcome, tool_module_id, tool_name FROM app.jarvis_action_audit_log WHERE tool_module_id = 'acme'"
+        "SELECT outcome, tool_module_id, tool_name FROM app.moss_action_audit_log WHERE tool_module_id = 'acme'"
       );
       if (audit.rowCount) {
         expect(audit.rows[0]).toMatchObject({

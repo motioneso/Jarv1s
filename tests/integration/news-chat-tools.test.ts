@@ -176,7 +176,7 @@ describe("news chat tools — previewSource/confirmSource via assistant gateway 
     for (let attempt = 0; attempt < 100; attempt += 1) {
       const audit = await bootstrap.query(
         `SELECT owner_user_id, approval_mode, outcome, tool_name
-         FROM app.jarvis_action_audit_log
+         FROM app.moss_action_audit_log
          WHERE tool_name = $1 AND outcome = $2
            AND ($3::uuid IS NULL OR owner_user_id = $3::uuid)`,
         [where.toolName, where.outcome, where.ownerUserId ?? null]

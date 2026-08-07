@@ -90,7 +90,7 @@ describe("jarvis error log", () => {
     try {
       const result = await client.query<{ column_name: string }>(
         `SELECT column_name FROM information_schema.columns
-         WHERE table_schema = 'app' AND table_name = 'jarvis_error_log'`
+         WHERE table_schema = 'app' AND table_name = 'moss_error_log'`
       );
       const names = result.rows.map((row) => row.column_name);
       expect(names).not.toContain("stack");
@@ -127,7 +127,7 @@ describe("jarvis error log", () => {
   it("runtime cannot insert anonymous rows directly", async () => {
     await expect(
       appDb
-        .insertInto("app.jarvis_error_log")
+        .insertInto("app.moss_error_log")
         .values({
           id: randomUUID(),
           owner_user_id: null,

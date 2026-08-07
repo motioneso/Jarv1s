@@ -86,8 +86,8 @@ export const aiModuleManifest = {
       "app.ai_provider_configs",
       "app.ai_configured_models",
       "app.ai_assistant_action_requests",
-      "app.jarvis_action_audit_log",
-      "app.jarvis_error_log"
+      "app.moss_action_audit_log",
+      "app.moss_error_log"
     ]
   },
   settings: [

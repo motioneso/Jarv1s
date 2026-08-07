@@ -320,7 +320,14 @@ describe("MVP foundation schema catalog", () => {
         // UPDATE-on-notifications + DELETE-on-notification_reads grant/policy pairs (both
         // runtime roles) the keyed upsert and its return-to-unread clear actually need.
         // Never applied under either earlier branch-local number.
-        { version: "0181", name: "0181_notification_event_keys.sql" }
+        { version: "0181", name: "0181_notification_event_keys.sql" },
+        // #1444 — the app.jarvis_* -> app.moss_* table rename, split by owning module. Every
+        // renamed object belongs to the goals or ai module, so both files live in those modules'
+        // own sql/ directories: scripts/migrate.ts drains the core directory before any module
+        // directory, so a core migration would run before 0123/0127/0145 had created the tables
+        // and abort 42P01 on a fresh database. Versions stay globally unique.
+        { version: "0182", name: "0182_moss_rename_goals.sql" },
+        { version: "0183", name: "0183_moss_rename_ai.sql" }
       ]);
     } finally {
       await client.end();

@@ -1116,8 +1116,8 @@ export interface MossDatabase {
   "app.ai_provider_configs": AiProviderConfigsTable;
   "app.ai_configured_models": AiConfiguredModelsTable;
   "app.ai_assistant_action_requests": AiAssistantActionRequestsTable;
-  "app.jarvis_action_audit_log": MossActionAuditLogTable;
-  "app.jarvis_error_log": MossErrorLogTable;
+  "app.moss_action_audit_log": MossActionAuditLogTable;
+  "app.moss_error_log": MossErrorLogTable;
   "app.chat_threads": ChatThreadsTable;
   "app.chat_messages": ChatMessagesTable;
   "app.chat_skills": ChatSkillsTable;

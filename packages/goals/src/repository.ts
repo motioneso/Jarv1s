@@ -47,7 +47,7 @@ export class GoalsRepository {
   async getById(scopedDb: DataContextDb, id: string): Promise<MossGoal | null> {
     assertDataContextDb(scopedDb);
     const result = await sql<GoalRow>`
-      SELECT * FROM app.jarvis_goals WHERE id = ${id}::uuid
+      SELECT * FROM app.moss_goals WHERE id = ${id}::uuid
     `.execute(scopedDb.db);
     return result.rows[0] ? this.mapGoal(result.rows[0]) : null;
   }
@@ -55,7 +55,7 @@ export class GoalsRepository {
   async list(scopedDb: DataContextDb): Promise<MossGoal[]> {
     assertDataContextDb(scopedDb);
     const result = await sql<GoalRow>`
-      SELECT * FROM app.jarvis_goals 
+      SELECT * FROM app.moss_goals
       ORDER BY priority DESC, created_at DESC
     `.execute(scopedDb.db);
     return result.rows.map((row) => this.mapGoal(row));
@@ -68,7 +68,7 @@ export class GoalsRepository {
   ): Promise<MossGoal> {
     assertDataContextDb(scopedDb);
     const result = await sql<GoalRow>`
-      INSERT INTO app.jarvis_goals (
+      INSERT INTO app.moss_goals (
         owner_user_id, title, desired_outcome, priority, review_cadence, target_at
       ) VALUES (
         ${ownerUserId}::uuid, ${data.title ?? null}, ${data.desiredOutcome ?? null}, ${data.priority ?? 3}, ${data.reviewCadence ?? "weekly"}, ${data.targetAt ?? null}
@@ -80,7 +80,7 @@ export class GoalsRepository {
   async update(scopedDb: DataContextDb, id: string, data: Partial<MossGoal>): Promise<MossGoal> {
     assertDataContextDb(scopedDb);
     const result = await sql<GoalRow>`
-      UPDATE app.jarvis_goals SET
+      UPDATE app.moss_goals SET
         title = COALESCE(${data.title ?? null}, title),
         desired_outcome = COALESCE(${data.desiredOutcome ?? null}, desired_outcome),
         status = COALESCE(${data.status ?? null}, status),
@@ -103,7 +103,7 @@ export class GoalsRepository {
   async listEvidence(scopedDb: DataContextDb, goalId: string): Promise<MossGoalEvidence[]> {
     assertDataContextDb(scopedDb);
     const result = await sql<EvidenceRow>`
-      SELECT * FROM app.jarvis_goal_evidence 
+      SELECT * FROM app.moss_goal_evidence
       WHERE goal_id = ${goalId}::uuid
       ORDER BY created_at DESC
     `.execute(scopedDb.db);
@@ -118,7 +118,7 @@ export class GoalsRepository {
   ): Promise<MossGoalEvidence> {
     assertDataContextDb(scopedDb);
     const result = await sql<EvidenceRow>`
-      INSERT INTO app.jarvis_goal_evidence (
+      INSERT INTO app.moss_goal_evidence (
         owner_user_id, goal_id, evidence_kind, source_kind, source_ref, source_label, summary, occurred_at
       ) VALUES (
         ${ownerUserId}::uuid, ${goalId}::uuid, ${data.evidenceKind ?? null}, ${data.sourceKind ?? null}, ${data.sourceRef ?? null}, ${data.sourceLabel ?? null}, ${data.summary ?? null}, ${data.occurredAt ?? null}
@@ -135,7 +135,7 @@ export class GoalsRepository {
   ): Promise<void> {
     assertDataContextDb(scopedDb);
     await sql`
-      UPDATE app.jarvis_goals
+      UPDATE app.moss_goals
       SET memory_synced_at = ${syncedAt},
           memory_synced_goal_updated_at = ${goalUpdatedAt},
           memory_sync_error_class = NULL
@@ -146,7 +146,7 @@ export class GoalsRepository {
   async markSyncError(scopedDb: DataContextDb, id: string, errorClass: string): Promise<void> {
     assertDataContextDb(scopedDb);
     await sql`
-      UPDATE app.jarvis_goals
+      UPDATE app.moss_goals
       SET memory_sync_error_class = ${errorClass}
       WHERE id = ${id}::uuid
     `.execute(scopedDb.db);
@@ -172,8 +172,8 @@ export class GoalsRepository {
       updated_at: Date;
       memory_synced_goal_updated_at: Date | null;
     }>`
-      SELECT id, updated_at, memory_synced_goal_updated_at 
-      FROM app.jarvis_goals
+      SELECT id, updated_at, memory_synced_goal_updated_at
+      FROM app.moss_goals
       WHERE status != 'archived' 
         AND (memory_synced_goal_updated_at IS NULL OR memory_synced_goal_updated_at < updated_at)
       ORDER BY updated_at ASC

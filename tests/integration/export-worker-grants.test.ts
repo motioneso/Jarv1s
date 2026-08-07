@@ -10,7 +10,7 @@ const { Client } = pg;
 
 // #1077: jarvis_worker_runtime is missing SELECT grants/policies on 4 tables that are in-scope
 // for export.build's 38-table worker-scoped read set: notification_reads, entities (structured
-// state), ai_assistant_action_requests, jarvis_action_audit_log. Today the worker role gets
+// state), ai_assistant_action_requests, moss_action_audit_log. Today the worker role gets
 // "permission denied" reading these under FORCE RLS. These tests must fail red against current
 // grants (Task 1); Task 2 adds one migration per table (SELECT-only, mirrored predicate).
 
@@ -91,7 +91,7 @@ beforeAll(async () => {
         .execute();
 
       await scopedDb.db
-        .insertInto("app.jarvis_action_audit_log")
+        .insertInto("app.moss_action_audit_log")
         .values({
           id: auditLogId,
           owner_user_id: ownerUserId,
@@ -117,7 +117,7 @@ describe("export-worker-grants (#1077) — jarvis_worker_runtime SELECT on the 4
     "notification_reads",
     "entities",
     "ai_assistant_action_requests",
-    "jarvis_action_audit_log"
+    "moss_action_audit_log"
   ] as const;
 
   it("worker role can SELECT owner rows from all 4 gap tables (currently permission denied)", async () => {
@@ -146,7 +146,7 @@ describe("export-worker-grants (#1077) — jarvis_worker_runtime SELECT on the 4
         expect(actionRequests).toHaveLength(1);
 
         const auditLog = await scopedDb.db
-          .selectFrom("app.jarvis_action_audit_log")
+          .selectFrom("app.moss_action_audit_log")
           .selectAll()
           .where("id", "=", auditLogId)
           .execute();
@@ -199,10 +199,7 @@ describe("export-worker-grants (#1077) — jarvis_worker_runtime SELECT on the 4
       { actorUserId: ownerUserId, requestId: "req:worker-write-denied-audit-log" },
       (scopedDb) =>
         expect(
-          scopedDb.db
-            .deleteFrom("app.jarvis_action_audit_log")
-            .where("id", "=", auditLogId)
-            .execute()
+          scopedDb.db.deleteFrom("app.moss_action_audit_log").where("id", "=", auditLogId).execute()
         ).rejects.toThrow(/permission denied/i)
     );
   });
