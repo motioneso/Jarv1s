@@ -1,12 +1,45 @@
 # Moss
 
-Moss is a self-hosted AI home base for chat, notes, tasks, briefings, calendar context, and personal automations.
+A self-hosted AI home base. Chat with an assistant that actually knows your notes, calendar, email, tasks and goals — because all of it lives on your own machine, in your own database.
 
-The product is under active alpha development. The long-term install goal is a simple Docker Compose file: one Postgres container for durable data, and one Moss container for the app, web UI, worker, migrations, and provider CLI runtime.
+Moss is in active alpha. Expect rough edges.
 
-## Docker Compose Template
+## What it does
 
-This is the target user-facing deploy shape. Copy it into `compose.yml`, change the placeholder secrets, optionally mount your Markdown or Obsidian notes folder, then run Docker Compose.
+Moss is a chat interface with a set of modules behind it. The assistant can read from and write to any module you have enabled, so "what's on for tomorrow, and did I ever reply to Sarah?" is one question, not four apps.
+
+**Your stuff**
+
+- **Notes** — point Moss at a Markdown or Obsidian folder and it indexes and searches it
+- **Tasks**, **Lists**, **Goals**, **Commitments** — things to do and things you said you'd do
+- **People** — who you know and what you last talked about
+- **Calendar** and **Email** — read-only context from connected accounts
+
+**The day**
+
+- **Briefings** — a morning summary built from everything above
+- **Weather**, **News**, **Sports** — the ambient stuff, filtered to what you follow
+- **Notifications** and **Proactive monitoring** — Moss tells you when something changed instead of waiting to be asked
+- **Wellness** — check-ins and trends
+
+**Under the hood**
+
+- **Memory** — the assistant remembers across conversations
+- **Web** — fetch and read pages during a conversation
+- **Connectors** — link external accounts
+- **Settings** — configure all of it from the UI
+
+## Bring your own AI
+
+Moss has no built-in model and no bundled API key. You configure a provider in Settings and every feature routes to it. Nothing in the codebase hardcodes a provider or a model name, so switching is a settings change, not a migration.
+
+## Modules
+
+Every feature above is a module with a manifest — its own database tables, background jobs, permissions, UI, and tools the assistant can call. Modules talk to each other only through declared APIs, so you can enable the ones you want and ignore the rest. The same interface is how you'd add your own.
+
+## Install
+
+One Postgres container and one Moss container. Copy this into `compose.yml`, replace the two placeholder secrets, then start it.
 
 ```yaml
 services:
@@ -14,97 +47,81 @@ services:
     image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
-      POSTGRES_DB: jarv1s
-      POSTGRES_USER: jarv1s
-      # Change this before first start. Keep it in sync with JARVIS_DB_PASSWORD below.
+      POSTGRES_DB: moss
+      POSTGRES_USER: moss
+      # Change this. Keep it in sync with MOSS_DB_PASSWORD below.
       POSTGRES_PASSWORD: replace-this-postgres-password
     volumes:
-      - jarv1s-postgres:/var/lib/postgresql/data
+      - moss-postgres:/var/lib/postgresql/data
 
-  jarv1s:
-    image: ghcr.io/motioneso/jarv1s:stable
+  moss:
+    image: ghcr.io/motioneso/moss:stable
     restart: unless-stopped
     depends_on:
       - postgres
     ports:
       - "1533:3000"
     environment:
-      JARVIS_BASE_URL: http://localhost:1533
+      MOSS_BASE_URL: http://localhost:1533
 
-      # Change this before first start. Use a long random value.
-      JARVIS_SECRET: replace-this-jarv1s-secret
+      # Change this. Use a long random value.
+      MOSS_SECRET: replace-this-moss-secret
 
-      JARVIS_DB_HOST: postgres
-      JARVIS_DB_NAME: jarv1s
-      JARVIS_DB_USER: jarv1s
+      MOSS_DB_HOST: postgres
+      MOSS_DB_NAME: moss
+      MOSS_DB_USER: moss
       # Must match POSTGRES_PASSWORD above.
-      JARVIS_DB_PASSWORD: replace-this-postgres-password
+      MOSS_DB_PASSWORD: replace-this-postgres-password
 
-      # Moss uses this fixed in-container path for notes. Edit only the volume mount below.
-      JARVIS_NOTES_ROOTS: /data/external-notes
+      # Fixed in-container path for notes. Edit the volume mount below, not this.
+      MOSS_NOTES_ROOTS: /data/external-notes
     volumes:
-      - jarv1s-data:/data
+      - moss-data:/data
 
-      # Optional: uncomment and replace the left side with your Markdown/Obsidian folder.
-      # Use an absolute host path. Examples:
-      # - macOS: /Users/you/Obsidian:/data/external-notes:ro
-      # - Linux: /srv/obsidian:/data/external-notes:ro
+      # Optional: mount your notes folder read-only.
       # - /Users/you/Obsidian:/data/external-notes:ro
+      # - /srv/obsidian:/data/external-notes:ro
 
 volumes:
-  jarv1s-postgres:
-  jarv1s-data:
+  moss-postgres:
+  moss-data:
 ```
-
-Start or upgrade:
 
 ```sh
 docker compose pull
 docker compose up -d
 ```
 
-Open `http://localhost:1533`.
+Open `http://localhost:1533`. To upgrade later, run the same two commands.
 
-## What Runs
+The Moss container runs the web UI, API, background worker, database migrations, notes indexing, and the provider CLI runtime. Postgres stays in its own container because database lifecycle and durable storage belong in the official image.
 
-The target deployment keeps Postgres separate because database lifecycle and durable storage are safest in the official Postgres/pgvector container. Everything Moss owns should live in the Moss container:
-
-- web UI
-- API
-- background worker
-- database migrations
-- provider CLI runtime
-- notes indexing
-
-The app should fail loudly if placeholder secrets are left unchanged.
+Moss refuses to start if the placeholder secrets are left unchanged.
 
 ## Notes
 
-Mounting notes is optional. If you mount a folder at `/data/external-notes`, Moss can ingest Markdown files and expose them to chat through the notes search tool. The default mount should be read-only unless a future write-back feature is enabled.
+Mounting a notes folder is optional. If you mount one at `/data/external-notes`, Moss indexes the Markdown in it and the assistant can search it. Mount it read-only unless you want Moss writing back.
 
 ## Backups
 
-Back up these Docker volumes:
-
-- `jarv1s-postgres`: database
-- `jarv1s-data`: app state, provider CLI auth, caches, and local files
-
-For a simple volume backup, stop the stack first:
+Two volumes hold everything: `moss-postgres` (the database) and `moss-data` (app state, provider CLI auth, caches, local files).
 
 ```sh
 docker compose down
-docker run --rm -v jarv1s-postgres:/data -v "$PWD":/backup alpine \
-  tar czf /backup/jarv1s-postgres.tar.gz -C /data .
-docker run --rm -v jarv1s-data:/data -v "$PWD":/backup alpine \
-  tar czf /backup/jarv1s-data.tar.gz -C /data .
+docker run --rm -v moss-postgres:/data -v "$PWD":/backup alpine \
+  tar czf /backup/moss-postgres.tar.gz -C /data .
+docker run --rm -v moss-data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/moss-data.tar.gz -C /data .
 docker compose up -d
 ```
 
+## Your data stays yours
+
+Everything runs on your hardware. Data is private by default and owner-only unless you explicitly share it. Credentials are encrypted at rest and never reach the frontend, the logs, or an AI prompt.
+
 ## Development
 
-Developer setup lives in [CLAUDE.md](CLAUDE.md) and [docs/operations/dev-environment.md](docs/operations/dev-environment.md).
-
-Common local checks:
+Setup lives in [CLAUDE.md](CLAUDE.md) and [docs/operations/dev-environment.md](docs/operations/dev-environment.md).
 
 ```sh
 pnpm install
