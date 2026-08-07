@@ -27,6 +27,40 @@ Every `JARVIS_*` name in the repository was classified into exactly one of four 
    `globalThis` property, never read from `process.env`). Excluded from every count in this
    document.
 
+### The dual-consumption rule (buckets 1 and 2 are not symmetric)
+
+**A variable expanded by Docker Compose host-side interpolation is carve-out regardless of whether
+TypeScript also reads it. Dual consumption means carve-out, not shim. Being read by TypeScript does
+not make a name shim-eligible if the host also expands it.**
+
+The reasoning is that the two failure modes are not equally bad. Shimming a host-interpolated name
+renames only the TypeScript reader, so an operator who sets `MOSS_X` satisfies the app while the
+host still sees `JARVIS_X` unset and silently falls back to the compose default. The host's belief
+and the app's belief then diverge with no error anywhere — for `JARVIS_WEB_PORT` that is a container
+published on one port while the app computes its trusted origins for another, which presents as an
+unexplained sign-in failure. Leaving a name carved out costs only a deferred rename. A crash would
+be recoverable; silent divergence between the host and the app is not, so the tie always breaks
+toward carve-out.
+
+Note the distinction that decides this, since most compose references are _not_ host interpolation:
+
+- `JARVIS_X: ${JARVIS_X:-default}` — **host-side interpolation.** Docker Compose expands this from
+  the host environment or `--env-file` before the container exists. The shim cannot reach it.
+  Carve-out.
+- `JARVIS_X: /some/literal` — compose merely _sets_ the variable inside the container. No host
+  expansion happens, the value is fixed in the compose file, and the in-container TypeScript reader
+  is the only consumer. The shim's `JARVIS_X` fallback handles this correctly (with a deprecation
+  warning), so these stay shimmed.
+
+Re-audited against this rule: all 19 host-interpolated `${JARVIS_*}` names across `infra/*.yml` are
+in the carve-out table below, and no shimmed name is host-interpolated. Ten shimmed names are
+_mentioned_ in a compose file (`JARVIS_API_PROXY_TARGET`, `JARVIS_CHAT_HOME`, `JARVIS_CLI_HOME`,
+`JARVIS_CLI_HOME_BASE`, `JARVIS_CLI_NEUTRAL_BASE`, `JARVIS_MODULES_DIR`, `JARVIS_MULTIPLEXER`,
+`JARVIS_NOTES_ROOTS`, `JARVIS_WEB_DIST_DIR`, and `JARVIS_CLI_RUNNER_SOCKET`) but only the last is
+host-interpolated — and it is already carved out. The other nine are literal-value `environment:`
+entries or comments, which the rule leaves shimmed. There is also no implicit `- JARVIS_X`
+pass-through form anywhere in `infra/`, which would otherwise be host-side too.
+
 ## Count reconciliation
 
 - Issue #1443 claims **197** distinct names.
@@ -36,12 +70,42 @@ Every `JARVIS_*` name in the repository was classified into exactly one of four 
   `JARVIS_TOOL_PREFIX` (a hardcoded MCP tool-name prefix string, not an env var) and
   `JARVIS_VERSION_RE` (a regex variable) match the same pattern as real config knobs; and
   historical doc/plan files under `docs/` reference names that were renamed or removed long ago.
-- The verified figure, built by classifying every match per the method above: **118 real,
+- The verified figure, built by classifying every match per the method above: **115 real,
   distinct `JARVIS_*` environment variable names**, made up of:
-  - **41 carved out** (table below)
-  - **70 shimmed** (wrapped in `resolveMossEnv` at their production read site — verified by
-    extracting every literal second argument to `resolveMossEnv(...)` across `**/*.ts`)
+  - **41 carved out** (table below) — `grep -c '^  "JARVIS_' packages/db/src/env.ts`
+  - **67 shimmed** (wrapped in `resolveMossEnv` at their production read site) — the 70 names
+    returned by the command below, minus the three non-variables itemised under it
   - **7 in the deliberately-deferred gap** (below)
+
+  ```bash
+  # the 70 raw hits; subtract JARVIS_FOO, JARVIS_CLI_RUNNER_SOCKET, JARVIS_PGDATABASE => 67
+  grep -rhon 'resolveMossEnv([^)]*"JARVIS_[A-Z0-9_]*"' \
+    --include=*.ts --include=*.tsx --include=*.mjs packages apps scripts tests infra \
+    | grep -o 'JARVIS_[A-Z0-9_]*' | sort -u
+
+  # cross-check that no host-interpolated compose name is missing from CARVE_OUT (expect: empty)
+  comm -23 \
+    <(grep -rho '\${JARVIS_[A-Z0-9_]*' infra --include=*.yml | grep -o 'JARVIS_[A-Z0-9_]*' | sort -u) \
+    <(grep -o '"JARVIS_[A-Z0-9_]*"' packages/db/src/env.ts | tr -d '"' | sort -u)
+  ```
+
+- The shimmed figure needs one correction that an earlier revision of this document got wrong. Its
+  stated method — "extract every literal second argument to `resolveMossEnv(...)` across `**/*.ts`"
+  — yields **70** names, but three of those are not shimmed variables, so 41 + 70 + 7 = 118
+  double-counted. `resolveMossEnv` is a _passthrough_ for carved-out names, so appearing as an
+  argument to it does not prove a name is shimmed. The three:
+  - `JARVIS_FOO` — a placeholder inside the doc comment on `packages/db/src/env.ts`, not a variable.
+  - `JARVIS_CLI_RUNNER_SOCKET` — carved out; the only hit is
+    `packages/db/src/__tests__/env.test.ts`, which passes it deliberately to assert the carve-out
+    passthrough behaves as a no-op.
+  - `JARVIS_PGDATABASE` — carved out; `packages/db/src/urls.ts` calls through the shim for symmetry
+    with the `JARVIS_PGHOST`/`JARVIS_PGPORT` reads beside it. The call resolves to
+    `env.JARVIS_PGDATABASE` unchanged, and the comment there says so.
+- Both remaining passthrough call sites are correct as written and were left in place: the behavior
+  is identical either way, and the carve-out membership — not the call site — is what holds the
+  name still. The risk they carry is that removing a name from `CARVE_OUT` silently activates the
+  shim at a site that looks like it was always shimmed, which is why this table is the source of
+  truth and `env.ts` points at it.
 - `__JARVIS_MODULE_RUNTIME__` is excluded entirely — it is a `window`/`globalThis` property set by
   the module runtime host, never a `process.env` name, despite matching the grep pattern.
 
@@ -77,7 +141,7 @@ passes these straight through with no `MOSS_` lookup and no warning.
 | `JARVIS_HOST_UID`                | compose interpolation                                                                                                                                                                                                                          |
 | `JARVIS_IMAGE_TAG`               | compose `:?`-required interpolation                                                                                                                                                                                                            |
 | `JARVIS_MCP_SERVER_URL`          | compose interpolation                                                                                                                                                                                                                          |
-| `JARVIS_NOTES_VAULT_HOST_PATH`   | compose interpolation                                                                                                                                                                                                                          |
+| `JARVIS_NOTES_VAULT_HOST_PATH`   | compose `:?`-required interpolation (`docker-compose.notes.yml`); also read plainly in `scripts/setup-prod.ts`                                                                                                                                 |
 | `JARVIS_PG_CONTAINER`            | `scripts/run-gate.sh`                                                                                                                                                                                                                          |
 | `JARVIS_PGDATABASE`              | `scripts/run-gate.sh`, `scripts/verify-reboot-survival.sh`                                                                                                                                                                                     |
 | `JARVIS_SMOKE_APP_CONTAINER`     | `scripts/smoke-chat-prod.sh`                                                                                                                                                                                                                   |
@@ -92,7 +156,7 @@ passes these straight through with no `MOSS_` lookup and no warning.
 | `JARVIS_UAT_SEED_EXCLUDE_CHUNKS` | compose `seed` service env, consumed only inside the container before Node's `MOSS_`-aware code would run                                                                                                                                      |
 | `JARVIS_UAT_SEED_LEVEL`          | same as above                                                                                                                                                                                                                                  |
 | `JARVIS_VAULT_DIR`               | `scripts/backup-full.sh`                                                                                                                                                                                                                       |
-| `JARVIS_WEB_PORT`                | compose `:?`-required interpolation                                                                                                                                                                                                            |
+| `JARVIS_WEB_PORT`                | host-side interpolation in the published port binding, `- "${JARVIS_WEB_PORT:-1533}:3000"`; also read in TypeScript — the worked example of the dual-consumption rule above                                                                    |
 
 ## Deliberately deferred (7 names — documented gap, not silently dropped)
 

@@ -50,8 +50,10 @@ describe("resolveChatHome", () => {
     expect(source("../../packages/chat/src/live/runtime.ts")).not.toContain(
       "process.env.JARVIS_CHAT_HOME"
     );
+    // #1443: the shared helper now reads through the MOSS_*/JARVIS_* shim rather than
+    // process.env directly, so the confinement check follows the read to resolveMossEnv.
     expect(source("../../packages/chat/src/live/chat-home.ts")).toContain(
-      "process.env.JARVIS_CHAT_HOME"
+      'resolveMossEnv(process.env, "JARVIS_CHAT_HOME")'
     );
   });
 });

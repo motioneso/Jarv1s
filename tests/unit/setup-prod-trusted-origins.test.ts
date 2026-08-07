@@ -21,7 +21,12 @@ describe("deriveTrustedOrigins (#379)", () => {
     );
 
     expect(deriveTrustedOrigins({ webPort: "5179" })).toBe("http://localhost:5179");
-    expect(setupProd).toContain('process.env.JARVIS_AUTH_BASE_URL ?? "http://localhost:3000"');
+    // #1443: the base URL is still a single independent read with a fixed default — it just goes
+    // through the MOSS_*/JARVIS_* shim now. JARVIS_WEB_PORT stays a plain read (carve-out: compose
+    // interpolates it host-side), which is what keeps the two knobs from being wired together.
+    expect(setupProd).toContain(
+      'resolveMossEnv(process.env, "JARVIS_AUTH_BASE_URL") ?? "http://localhost:3000"'
+    );
   });
 
   it("appends a full publicOrigin verbatim, alongside the localhost origin", () => {
