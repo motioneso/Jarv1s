@@ -279,13 +279,13 @@ jobs:
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
-            echo "image_tags=ghcr.io/motioneso/jarv1s:${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "image_tags=ghcr.io/motioneso/moss:${VERSION}" >> "$GITHUB_OUTPUT"
             echo "push=true" >> "$GITHUB_OUTPUT"
           elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
-            echo "image_tags=ghcr.io/motioneso/jarv1s:edge" >> "$GITHUB_OUTPUT"
+            echo "image_tags=ghcr.io/motioneso/moss:edge" >> "$GITHUB_OUTPUT"
             echo "push=true" >> "$GITHUB_OUTPUT"
           else
-            echo "image_tags=ghcr.io/motioneso/jarv1s:pr-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+            echo "image_tags=ghcr.io/motioneso/moss:pr-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
             echo "push=false" >> "$GITHUB_OUTPUT"
           fi
 

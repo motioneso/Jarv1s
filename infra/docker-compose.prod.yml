@@ -42,7 +42,7 @@ services:
     restart: unless-stopped
 
   migrate:
-    image: ghcr.io/motioneso/jarv1s:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    image: ghcr.io/motioneso/moss:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
     build:
       context: ..
       dockerfile: Dockerfile
@@ -56,7 +56,7 @@ services:
       - jarv1s
 
   module-install:
-    image: ghcr.io/motioneso/jarv1s:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    image: ghcr.io/motioneso/moss:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
     build:
       context: ..
       dockerfile: Dockerfile
@@ -76,7 +76,7 @@ services:
       - jarv1s
 
   seed:
-    image: ghcr.io/motioneso/jarv1s:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    image: ghcr.io/motioneso/moss:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
     build:
       context: ..
       dockerfile: Dockerfile
@@ -130,7 +130,7 @@ services:
       - jarv1s
 
   jarv1s:
-    image: ghcr.io/motioneso/jarv1s:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    image: ghcr.io/motioneso/moss:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
     build:
       context: ..
       dockerfile: Dockerfile
@@ -191,7 +191,7 @@ services:
       - jarv1s
 
   setup:
-    image: ghcr.io/motioneso/jarv1s:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
+    image: ghcr.io/motioneso/moss:${JARVIS_IMAGE_TAG:?set JARVIS_IMAGE_TAG to a published version tag}
     build:
       context: ..
       dockerfile: Dockerfile

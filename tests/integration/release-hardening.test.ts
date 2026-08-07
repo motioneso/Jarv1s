@@ -25,6 +25,8 @@ const releaseIds = {
   aiModel: "87000000-0000-4000-8000-000000000001"
 } as const;
 
+const staleSplitImages = ["jarv1s-api", "jarv1s-web", "moss-api", "moss-web"] as const;
+
 describe("M7 release hardening lifecycle scripts", () => {
   beforeEach(async () => {
     await resetEmptyFoundationDatabase();
@@ -686,9 +688,8 @@ describe("M7 release hardening lifecycle scripts", () => {
     expect(workflow).toContain("pnpm smoke:compose:prod");
     expect(workflow).toContain('JARVIS_API_PORT: "3099"');
     expect(workflow).toContain('JARVIS_WEB_PORT: "5180"');
-    expect(workflow).toContain("ghcr.io/motioneso/jarv1s:");
-    expect(workflow).not.toContain("jarv1s-api:");
-    expect(workflow).not.toContain("jarv1s-web:");
+    expect(workflow).toContain("ghcr.io/motioneso/moss:");
+    expect(staleSplitImages.filter((name) => workflow.includes(`${name}:`))).toEqual([]);
     expect(workflow).toContain("docker compose -f infra/docker-compose.yml down -v");
   });
 
@@ -699,8 +700,7 @@ describe("M7 release hardening lifecycle scripts", () => {
       "infra/docker-compose.prod.yml"
     ]) {
       const text = await readFile(rel, "utf8");
-      expect(text).not.toContain("ghcr.io/motioneso/jarv1s-api");
-      expect(text).not.toContain("ghcr.io/motioneso/jarv1s-web");
+      expect(staleSplitImages.filter((n) => text.includes(`ghcr.io/motioneso/${n}`))).toEqual([]);
     }
   });
 });

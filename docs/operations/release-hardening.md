@@ -210,7 +210,7 @@ docker compose -f infra/docker-compose.yml down
 
 Use `down -v` only when you intentionally want to delete the local Postgres volume.
 
-Production smoke builds one `ghcr.io/motioneso/jarv1s` image, starts `postgres` and `jarv1s`, and
+Production smoke builds one `ghcr.io/motioneso/moss` image, starts `postgres` and `jarv1s`, and
 polls readiness through the public Moss port:
 
 ```txt

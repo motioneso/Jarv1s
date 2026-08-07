@@ -88,7 +88,7 @@ export async function startJobSearchFixtureContainer(projectName: string): Promi
     name,
     "--network",
     `${projectName}_jarv1s`,
-    `ghcr.io/motioneso/jarv1s:${process.env.JARVIS_IMAGE_TAG ?? "uat-smoke"}`,
+    `ghcr.io/motioneso/moss:${process.env.JARVIS_IMAGE_TAG ?? "uat-smoke"}`,
     "node_modules/.bin/tsx",
     "tests/uat/fixtures/fixture-server-cli.ts"
   ]);
@@ -721,7 +721,7 @@ export async function provisionForUat(
         await runCommand("docker", [
           "build",
           "-t",
-          `ghcr.io/motioneso/jarv1s:${process.env.JARVIS_IMAGE_TAG}`,
+          `ghcr.io/motioneso/moss:${process.env.JARVIS_IMAGE_TAG}`,
           "-f",
           "Dockerfile",
           "."
