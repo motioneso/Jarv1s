@@ -61,7 +61,7 @@ export const newsModuleManifest = {
   id: "news" satisfies typeof NEWS_MODULE_ID,
   name: "News",
   version: "0.1.0",
-  publisher: "jarv1s",
+  publisher: "Moss",
   lifecycle: "user-toggleable",
   compatibility: {
     jarv1s: ">=0.0.0"

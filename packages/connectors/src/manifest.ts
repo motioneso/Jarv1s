@@ -36,7 +36,7 @@ export const connectorsModuleManifest = {
   id: CONNECTORS_MODULE_ID,
   name: "Connectors",
   version: "0.1.0",
-  publisher: "jarv1s",
+  publisher: "Moss",
   lifecycle: "required",
   compatibility: {
     jarv1s: ">=0.0.0"

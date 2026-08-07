@@ -24,7 +24,7 @@ export const notesModuleManifest = {
   id: NOTES_MODULE_ID,
   name: "Notes",
   version: "0.0.0",
-  publisher: "jarv1s",
+  publisher: "Moss",
   // #996/#860: Notes moves to required (same rationale as commitments/people/goals).
   // supportsUserDisable stays true — harmless: active-modules-resolver.ts's
   // `required === true` short-circuit runs BEFORE this field is ever read, so it has

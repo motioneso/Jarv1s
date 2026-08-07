@@ -13,7 +13,7 @@ export const structuredStateModuleManifest: MossModuleManifest = {
   id: STRUCTURED_STATE_MODULE_ID,
   name: "Structured State",
   version: "0.1.0",
-  publisher: "jarv1s",
+  publisher: "Moss",
   lifecycle: "required",
   compatibility: {
     jarv1s: ">=0.0.0"

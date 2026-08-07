@@ -18,7 +18,7 @@ export const goalsModuleSqlMigrationDirectory = fileURLToPath(new URL("../sql", 
 export const goalsModuleManifest: MossModuleManifest = {
   id: GOALS_MODULE_ID,
   name: "Goals",
-  publisher: "jarv1s",
+  publisher: "Moss",
   version: "1.0.0",
   // #996/#860: Commitments (and People/Goals) moved from user-toggleable to required —
   // spec 2026-07-12-module-management-admin-ux.md decided core productivity modules
