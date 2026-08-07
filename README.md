@@ -47,14 +47,14 @@ services:
     image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
-      POSTGRES_DB: jarv1s
-      POSTGRES_USER: jarv1s
-      # Change this. Keep it in sync with JARVIS_DB_PASSWORD below.
+      POSTGRES_DB: moss
+      POSTGRES_USER: moss
+      # Change this. Keep it in sync with MOSS_DB_PASSWORD below.
       POSTGRES_PASSWORD: replace-this-postgres-password
     volumes:
-      - jarv1s-postgres:/var/lib/postgresql/data
+      - moss-postgres:/var/lib/postgresql/data
 
-  jarv1s:
+  moss:
     image: ghcr.io/motioneso/jarv1s:stable
     restart: unless-stopped
     depends_on:
@@ -62,29 +62,29 @@ services:
     ports:
       - "1533:3000"
     environment:
-      JARVIS_BASE_URL: http://localhost:1533
+      MOSS_BASE_URL: http://localhost:1533
 
       # Change this. Use a long random value.
-      JARVIS_SECRET: replace-this-jarv1s-secret
+      MOSS_SECRET: replace-this-moss-secret
 
-      JARVIS_DB_HOST: postgres
-      JARVIS_DB_NAME: jarv1s
-      JARVIS_DB_USER: jarv1s
+      MOSS_DB_HOST: postgres
+      MOSS_DB_NAME: moss
+      MOSS_DB_USER: moss
       # Must match POSTGRES_PASSWORD above.
-      JARVIS_DB_PASSWORD: replace-this-postgres-password
+      MOSS_DB_PASSWORD: replace-this-postgres-password
 
       # Fixed in-container path for notes. Edit the volume mount below, not this.
-      JARVIS_NOTES_ROOTS: /data/external-notes
+      MOSS_NOTES_ROOTS: /data/external-notes
     volumes:
-      - jarv1s-data:/data
+      - moss-data:/data
 
       # Optional: mount your notes folder read-only.
       # - /Users/you/Obsidian:/data/external-notes:ro
       # - /srv/obsidian:/data/external-notes:ro
 
 volumes:
-  jarv1s-postgres:
-  jarv1s-data:
+  moss-postgres:
+  moss-data:
 ```
 
 ```sh
@@ -104,14 +104,14 @@ Mounting a notes folder is optional. If you mount one at `/data/external-notes`,
 
 ## Backups
 
-Two volumes hold everything: `jarv1s-postgres` (the database) and `jarv1s-data` (app state, provider CLI auth, caches, local files).
+Two volumes hold everything: `moss-postgres` (the database) and `moss-data` (app state, provider CLI auth, caches, local files).
 
 ```sh
 docker compose down
-docker run --rm -v jarv1s-postgres:/data -v "$PWD":/backup alpine \
-  tar czf /backup/jarv1s-postgres.tar.gz -C /data .
-docker run --rm -v jarv1s-data:/data -v "$PWD":/backup alpine \
-  tar czf /backup/jarv1s-data.tar.gz -C /data .
+docker run --rm -v moss-postgres:/data -v "$PWD":/backup alpine \
+  tar czf /backup/moss-postgres.tar.gz -C /data .
+docker run --rm -v moss-data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/moss-data.tar.gz -C /data .
 docker compose up -d
 ```
 
