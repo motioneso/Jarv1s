@@ -49,6 +49,9 @@ Jarvis Design System/
 # holds it open.
 .tmp-*/
 
+# Claude Code session scratchpad
+scratchpad/
+
 # Append-only context telemetry written concurrently by every agent session. Nothing
 # reads it (the 70% warning comes from the PostToolUse hook, not this file), and tracking
 # it guarantees meaningless merge conflicts across parallel branches.
